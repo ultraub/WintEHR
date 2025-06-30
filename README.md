@@ -1,6 +1,6 @@
 # EMR Training System
 
-A comprehensive Electronic Medical Records (EMR) training system with FHIR R4 support, synthetic patient generation, and Clinical Decision Support (CDS) Hooks integration.
+A modern Electronic Medical Records (EMR) system designed for healthcare education and training, featuring FHIR R4 API support, Clinical Decision Support (CDS) Hooks, and comprehensive patient management capabilities.
 
 ## 🚀 Quick Start - Recommended Approach
 
