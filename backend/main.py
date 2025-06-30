@@ -19,9 +19,12 @@ from api.clinical.tasks import tasks_router
 from api.clinical.catalogs import catalog_router
 from api.app.routers import allergies
 from api import auth
+from api.imaging import router as imaging_router
+from api.dicomweb import router as dicomweb_router
 from database.database import engine, Base
 # Import all models so they get registered with Base
 from models.session import UserSession, PatientProviderAssignment
+from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance, ImagingResult
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -60,6 +63,8 @@ app.include_router(tasks_router.router, prefix="/api", tags=["Clinical Tasks"])
 app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
 app.include_router(allergies.router, prefix="/api", tags=["Allergies"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(imaging_router, prefix="/api/imaging", tags=["Medical Imaging"])
+app.include_router(dicomweb_router, prefix="/api/dicomweb", tags=["DICOMweb"])
 
 # Root endpoint
 @app.get("/")

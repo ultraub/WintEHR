@@ -37,6 +37,7 @@ import {
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+// import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
 
@@ -281,6 +282,7 @@ function Layout({ children }) {
       >
         {children}
       </Box>
+      {/* <BugReportButton /> */}
     </Box>
   );
 }
