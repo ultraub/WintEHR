@@ -78,9 +78,56 @@ emr-training-system/
 
 ## 🚀 AWS Deployment
 
-### Option 1: One-Click CloudFormation Deployment (Recommended)
+### ⚠️ Important Deployment Notes
 
-Deploy the entire EMR system with a single CloudFormation template. This is the easiest method and handles all setup automatically.
+Based on real-world deployment testing, we've identified and fixed several issues:
+- The original CloudFormation template may create a simplified demo instead of the full system
+- Docker build context issues when Dockerfile expects different directory structure
+- npm lock file synchronization issues requiring `npm install` instead of `npm ci`
+- Amazon Linux 2 glibc version incompatibility with Node.js 18+
+
+**Recommended**: Use the updated deployment files (`cloudformation-emr-fixed.yaml`, `Dockerfile.standalone.fixed`, `deploy-ec2-simple.sh`)
+
+### Option 1: Simplified EC2 Deployment Script (Most Reliable)
+
+For direct EC2 deployment with automatic issue handling:
+
+```bash
+# SSH into your EC2 instance
+ssh -i your-key.pem ec2-user@your-instance-ip
+
+# Download and run the deployment script
+curl -O https://raw.githubusercontent.com/ultraub/MedGenEMR/master/deploy-ec2-simple.sh
+chmod +x deploy-ec2-simple.sh
+./deploy-ec2-simple.sh
+```
+
+This script automatically:
+- Installs Docker and Docker Compose
+- Clones the repository
+- Fixes common build issues
+- Handles directory structure problems
+- Provides troubleshooting commands
+
+### Option 2: Fixed CloudFormation Deployment
+
+Use the improved CloudFormation template that properly handles repository structure:
+
+```bash
+# Deploy with fixed template
+aws cloudformation create-stack \
+  --stack-name emr-training-system \
+  --template-body file://cloudformation-emr-fixed.yaml \
+  --parameters \
+    ParameterKey=KeyPairName,ParameterValue=your-keypair \
+    ParameterKey=InstanceType,ParameterValue=t3.medium \
+    ParameterKey=PatientCount,ParameterValue=50 \
+  --capabilities CAPABILITY_IAM
+```
+
+### Option 3: Original CloudFormation Deployment (See Notes)
+
+Deploy the entire EMR system with the original CloudFormation template.
 
 #### Prerequisites
 
@@ -394,6 +441,82 @@ az group delete --name emr-training-rg --yes
 
 # Or use script
 ./deploy-azure.sh cleanup
+```
+
+## 🔧 Troubleshooting & Known Issues
+
+### Common Deployment Issues
+
+#### 1. Docker Build Context Errors
+**Problem**: `failed to compute cache key` or `not found` errors during build
+**Solution**: 
+- Use `Dockerfile.standalone.fixed` which handles paths correctly
+- Or run `deploy-ec2-simple.sh` which automatically fixes these issues
+
+#### 2. NPM Lock File Errors
+**Problem**: `npm ci` fails with lock file synchronization errors
+**Solution**: Replace `npm ci` with `npm install` in Dockerfile
+
+#### 3. Container Not Starting
+**Problem**: Container builds but doesn't run
+**Troubleshooting**:
+```bash
+# Check container status
+sudo docker ps -a
+
+# View detailed logs
+sudo docker logs $(sudo docker ps -aq | head -1)
+
+# Check disk space
+df -h
+
+# Restart container
+sudo docker restart $(sudo docker ps -aq | head -1)
+```
+
+#### 4. 500 Internal Server Error
+**Problem**: Nginx returns 500 error
+**Common Causes**:
+- Backend not fully started (wait 10-15 minutes)
+- Database initialization in progress
+- Memory constraints
+
+**Check backend status**:
+```bash
+# SSH into container
+sudo docker exec -it $(sudo docker ps -q) bash
+
+# Check backend process
+ps aux | grep python
+
+# View backend logs
+tail -f /app/backend/logs/backend.log
+```
+
+#### 5. CloudFormation Creates Demo Instead of Full System
+**Problem**: Original CloudFormation template creates simplified demo
+**Solution**: Use `cloudformation-emr-fixed.yaml` or run deployment manually
+
+### Performance Optimization
+
+- **Minimum Requirements**: t3.medium (2 vCPU, 4GB RAM)
+- **Recommended**: t3.large (2 vCPU, 8GB RAM) for better performance
+- **Storage**: Ensure at least 30GB EBS volume
+
+### Monitoring Commands
+
+```bash
+# Real-time container stats
+sudo docker stats
+
+# Check application health
+curl http://localhost/api/health
+
+# Monitor build progress
+tail -f /var/log/user-data.log
+
+# View all container logs
+sudo docker-compose logs -f
 ```
 
 ### Option 2: Docker Container Deployment

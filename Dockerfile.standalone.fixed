@@ -1,0 +1,116 @@
+# Multi-stage build for standalone EMR system
+# This version handles the build context correctly when the Dockerfile is in the EMR directory
+
+FROM python:3.9-slim as backend-builder
+
+WORKDIR /app/backend
+
+# Install system dependencies including Java for Synthea
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    default-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend files - adjust path based on build context
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ .
+
+# Download Synthea
+RUN curl -L https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar \
+    -o synthea-with-dependencies.jar
+
+# Frontend build stage
+FROM node:18-alpine as frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend files
+COPY frontend/package*.json ./
+
+# Use npm install instead of npm ci to handle lock file inconsistencies
+RUN npm install
+
+COPY frontend/ .
+
+# Create missing files if needed
+RUN mkdir -p public && \
+    if [ ! -f public/index.html ]; then \
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="%PUBLIC_URL%/favicon.ico"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Teaching EMR System"/><link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png"/><link rel="manifest" href="%PUBLIC_URL%/manifest.json"/><title>Teaching EMR System</title><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"/><link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>' > public/index.html; \
+    fi && \
+    if [ ! -f public/manifest.json ]; then \
+        echo '{"short_name":"Teaching EMR","name":"Teaching EMR System","icons":[{"src":"favicon.ico","sizes":"64x64 32x32 24x24 16x16","type":"image/x-icon"}],"start_url":".","display":"standalone","theme_color":"#000000","background_color":"#ffffff"}' > public/manifest.json; \
+    fi && \
+    if [ ! -f public/robots.txt ]; then \
+        echo -e "User-agent: *\nDisallow:" > public/robots.txt; \
+    fi
+
+# Create index files if missing
+RUN if [ ! -f src/index.js ]; then \
+        echo 'import React from "react";import ReactDOM from "react-dom/client";import "./index.css";import App from "./App";const root = ReactDOM.createRoot(document.getElementById("root"));root.render(<React.StrictMode><App /></React.StrictMode>);' > src/index.js; \
+    fi && \
+    if [ ! -f src/index.css ]; then \
+        echo 'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Cantarell","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}code{font-family:source-code-pro,Menlo,Monaco,Consolas,"Courier New",monospace;}*{box-sizing:border-box;}html,body,#root{height:100%;margin:0;padding:0;}' > src/index.css; \
+    fi
+
+# Build the React app
+RUN npm run build
+
+# Final stage
+FROM python:3.9-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    nginx \
+    supervisor \
+    curl \
+    default-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -s /bin/bash emruser
+
+WORKDIR /app
+
+# Copy backend from builder
+COPY --from=backend-builder /app/backend /app/backend
+COPY --from=backend-builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
+
+# Copy frontend build
+COPY --from=frontend-builder /app/frontend/build /app/frontend/build
+
+# Copy specific scripts if they exist
+COPY backend/scripts/import_missing_clinical_data.py /app/backend/scripts/ 2>/dev/null || true
+
+# Copy configuration files - adjust paths
+COPY nginx.conf /etc/nginx/sites-enabled/emr 2>/dev/null || \
+    echo 'server { listen 80; location / { root /app/frontend/build; try_files $uri $uri/ /index.html; } location /api { proxy_pass http://localhost:8000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; } location /docs { proxy_pass http://localhost:8000/docs; } location /openapi.json { proxy_pass http://localhost:8000/openapi.json; } }' > /etc/nginx/sites-enabled/emr
+
+# Remove default nginx site
+RUN rm -f /etc/nginx/sites-enabled/default
+
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf 2>/dev/null || \
+    echo '[supervisord]\nnodaemon=true\nuser=root\n\n[program:backend]\ncommand=python /app/backend/main.py\ndirectory=/app/backend\nuser=emruser\nautostart=true\nautorestart=true\nredirect_stderr=true\nstdout_logfile=/app/backend/logs/backend.log\nenvironment=PYTHONUNBUFFERED="1"\n\n[program:nginx]\ncommand=/usr/sbin/nginx -g "daemon off;"\nautostart=true\nautorestart=true' > /etc/supervisor/conf.d/supervisord.conf
+
+# Copy startup script
+COPY startup.sh /app/startup.sh 2>/dev/null || \
+    echo '#!/bin/bash\nset -e\ncd /app/backend\nmkdir -p data logs\nchown -R emruser:emruser /app/backend\nexec "$@"' > /app/startup.sh
+
+RUN chmod +x /app/startup.sh 2>/dev/null || true
+
+# Create necessary directories
+RUN mkdir -p /app/backend/logs /app/backend/data && \
+    chown -R emruser:emruser /app/backend
+
+# Expose port
+EXPOSE 80
+
+# Set entrypoint
+ENTRYPOINT ["/app/startup.sh"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
