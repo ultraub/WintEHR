@@ -1,0 +1,67 @@
+apiVersion: 2021-10-01
+location: eastus
+name: emr-training-container
+properties:
+  containers:
+  - name: emr-system
+    properties:
+      image: emrtraining.azurecr.io/emr-training:latest
+      resources:
+        requests:
+          cpu: 2.0
+          memoryInGb: 4.0
+      ports:
+      - port: 80
+        protocol: TCP
+      environmentVariables:
+      - name: PATIENT_COUNT
+        value: '25'
+      - name: SKIP_SYNTHEA
+        value: 'false'
+      - name: SKIP_IMPORT
+        value: 'false'
+      volumeMounts:
+      - name: emr-data
+        mountPath: /app/backend/data
+      - name: emr-logs
+        mountPath: /app/backend/logs
+      livenessProbe:
+        httpGet:
+          path: /api/health
+          port: 80
+        initialDelaySeconds: 300
+        periodSeconds: 30
+        timeoutSeconds: 10
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /api/health
+          port: 80
+        initialDelaySeconds: 60
+        periodSeconds: 10
+  volumes:
+  - name: emr-data
+    azureFile:
+      shareName: emr-data
+      storageAccountName: emrtrainingstorage
+      storageAccountKey: <STORAGE_KEY>
+  - name: emr-logs
+    azureFile:
+      shareName: emr-logs
+      storageAccountName: emrtrainingstorage
+      storageAccountKey: <STORAGE_KEY>
+  ipAddress:
+    type: Public
+    ports:
+    - protocol: TCP
+      port: 80
+    dnsNameLabel: emr-training
+  osType: Linux
+  restartPolicy: OnFailure
+  imageRegistryCredentials:
+  - server: emrtraining.azurecr.io
+    username: <ACR_USERNAME>
+    password: <ACR_PASSWORD>
+tags:
+  Application: EMR-Training-System
+  Environment: Training

@@ -204,6 +204,198 @@ sudo docker-compose logs -f
 
 Access the system via the URL in CloudFormation outputs (typically ready in 10-15 minutes).
 
+## 🌐 Azure Deployment
+
+### Option 1: One-Click ARM Template Deployment (Recommended)
+
+Deploy the entire EMR system on Azure with a single ARM template.
+
+#### Prerequisites
+
+1. **Azure Account**: Active Azure subscription
+2. **Azure CLI**: Install from [here](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
+3. **Resource Group**: Created during deployment
+
+#### Step-by-Step Deployment
+
+##### Deploy with Azure Portal (Easiest)
+
+1. **Login to Azure Portal**
+   - Go to [Azure Portal](https://portal.azure.com)
+   - Navigate to "Create a resource"
+
+2. **Deploy Custom Template**
+   - Search for "Template deployment"
+   - Click "Build your own template in the editor"
+   - Copy contents of `azure-deploy.json`
+   - Click "Save"
+
+3. **Configure Parameters**
+   - **Resource Group**: Create new or select existing
+   - **Location**: Choose your region
+   - **VM Name**: `emr-training-vm`
+   - **Admin Username**: `azureuser`
+   - **Authentication Type**: Password or SSH Key
+   - **VM Size**: `Standard_B2ms` (recommended)
+   - **Patient Count**: `50`
+   - **Allowed Source IP**: Your IP or `*` for all
+
+4. **Review and Create**
+   - Check "Terms and conditions"
+   - Click "Create"
+   - Wait 10-15 minutes for deployment
+
+5. **Access Your System**
+   - Go to "Outputs" section
+   - Copy the `emrSystemURL`
+   - Open in browser
+
+##### Deploy with Azure CLI
+
+```bash
+# Login to Azure
+az login
+
+# Create resource group
+az group create --name emr-training-rg --location eastus
+
+# Deploy ARM template
+az deployment group create \
+  --resource-group emr-training-rg \
+  --template-file azure-deploy.json \
+  --parameters \
+    vmName=emr-training-vm \
+    adminUsername=azureuser \
+    authenticationType=password \
+    adminPasswordOrKey='YourSecurePassword123!' \
+    vmSize=Standard_B2ms \
+    patientCount=50
+
+# Get outputs
+az deployment group show \
+  -g emr-training-rg -n azure-deploy \
+  --query properties.outputs
+```
+
+### Option 2: Automated Script Deployment
+
+Use our deployment script for various Azure services:
+
+```bash
+# Make script executable
+chmod +x deploy-azure.sh
+
+# Deploy to VM (recommended)
+./deploy-azure.sh vm
+
+# Deploy to Container Instances
+./deploy-azure.sh aci
+
+# Deploy to App Service
+./deploy-azure.sh appservice
+```
+
+### Option 3: Azure Container Instances
+
+For a containerized deployment without managing VMs:
+
+```bash
+# Set up Azure Container Registry
+az acr create --resource-group emr-training-rg \
+  --name emrtraining --sku Basic
+
+# Build and push image
+az acr build --registry emrtraining \
+  --image emr-training:latest \
+  --file Dockerfile.standalone .
+
+# Deploy container
+az container create \
+  --resource-group emr-training-rg \
+  --file azure-container.yaml
+```
+
+### Azure-Specific Features
+
+#### Storage Options
+
+- **Managed Disks**: Automatic for VMs
+- **Azure Files**: For persistent container storage
+- **Azure Blob**: For backup and archives
+
+#### Security Configuration
+
+- **Network Security Groups**: Pre-configured for HTTP/SSH
+- **Azure AD Integration**: Optional for enterprise
+- **Key Vault**: For secrets management
+
+#### Monitoring
+
+```bash
+# View VM metrics
+az monitor metrics list \
+  --resource emr-training-vm \
+  --resource-group emr-training-rg \
+  --metric "Percentage CPU" \
+  --interval PT1M
+
+# View container logs
+az container logs \
+  --resource-group emr-training-rg \
+  --name emr-training-container
+
+# Enable Application Insights (optional)
+az monitor app-insights component create \
+  --app emr-insights \
+  --location eastus \
+  --resource-group emr-training-rg
+```
+
+### Cost Optimization
+
+#### VM Pricing (East US)
+
+| Size | vCPUs | RAM | Cost/Month |
+|------|-------|-----|------------|
+| B2s | 2 | 4 GB | ~$30 |
+| B2ms | 2 | 8 GB | ~$60 |
+| B4ms | 4 | 16 GB | ~$120 |
+
+#### Cost Saving Tips
+
+1. **Auto-Shutdown**: Configure in VM settings
+2. **Spot Instances**: Up to 90% savings
+3. **Reserved Instances**: 1-3 year commitments
+4. **Dev/Test Pricing**: If eligible
+
+```bash
+# Configure auto-shutdown
+az vm auto-shutdown \
+  -g emr-training-rg \
+  -n emr-training-vm \
+  --time 1800 \
+  --timezone "Eastern Standard Time"
+```
+
+### Troubleshooting Azure Deployments
+
+| Issue | Solution |
+|-------|----------|
+| Deployment failed | Check Activity Log in portal |
+| Cannot access URL | Verify NSG rules allow port 80 |
+| SSH connection failed | Check NSG allows port 22 from your IP |
+| High costs | Enable auto-shutdown, use smaller VM |
+
+### Cleanup
+
+```bash
+# Delete entire resource group
+az group delete --name emr-training-rg --yes
+
+# Or use script
+./deploy-azure.sh cleanup
+```
+
 ### Option 2: Docker Container Deployment
 
 #### Build and Push to ECR
