@@ -89,7 +89,22 @@ const PatientOverview = () => {
           // Group by observation type and get most recent
           const vitalsMap = {};
           vitalsData.forEach(vital => {
-            const type = vital.display?.toLowerCase();
+            const displayName = vital.display || '';
+            // Normalize display names for consistent mapping
+            let type = displayName.toLowerCase();
+            
+            // Map common vital signs to standardized keys
+            if (displayName.includes('Blood pressure panel')) {
+              // Handle blood pressure separately as it contains multiple values
+              // We'll need to look for systolic and diastolic separately
+            } else if (displayName === 'Heart rate') {
+              type = 'heart rate';
+            } else if (displayName === 'Body Temperature' || displayName.includes('Temperature')) {
+              type = 'body temperature';
+            } else if (displayName.includes('Oxygen saturation')) {
+              type = 'oxygen saturation';
+            }
+            
             if (!vitalsMap[type] || new Date(vital.observation_date) > new Date(vitalsMap[type].observation_date)) {
               vitalsMap[type] = vital;
             }

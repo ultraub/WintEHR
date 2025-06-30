@@ -1,5 +1,7 @@
 """Pydantic schemas for application API"""
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime, date
@@ -70,10 +72,10 @@ class PatientResponse(PatientBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    # Clinical relationships
+    # Clinical relationships - included as optional to avoid circular imports
+    allergies: Optional[List['AllergyResponse']] = []
     conditions: Optional[List['ConditionResponse']] = []
     medications: Optional[List['MedicationResponse']] = []
-    allergies: Optional[List['AllergyResponse']] = []
     
     class Config:
         from_attributes = True
@@ -237,3 +239,6 @@ class AllergyResponse(AllergyBase):
     
     class Config:
         from_attributes = True
+
+# Rebuild models to resolve forward references
+PatientResponse.model_rebuild()

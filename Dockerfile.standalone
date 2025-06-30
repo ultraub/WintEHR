@@ -1,0 +1,109 @@
+# Multi-stage build for standalone EMR system
+FROM python:3.9-slim as backend-builder
+
+WORKDIR /app/backend
+
+# Install system dependencies including Java for Synthea
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    default-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend files
+COPY EMR/backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY EMR/backend/ .
+
+# Download Synthea
+RUN curl -L https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar \
+    -o synthea-with-dependencies.jar
+
+# Frontend build stage
+FROM node:18-alpine as frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend files
+COPY EMR/frontend/package*.json ./
+RUN npm ci
+
+COPY EMR/frontend/ .
+
+# Create missing public files if needed
+RUN mkdir -p public && \
+    if [ ! -f public/index.html ]; then \
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="%PUBLIC_URL%/favicon.ico"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Teaching EMR System"/><link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png"/><link rel="manifest" href="%PUBLIC_URL%/manifest.json"/><title>Teaching EMR System</title><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"/><link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>' > public/index.html; \
+    fi && \
+    if [ ! -f public/manifest.json ]; then \
+        echo '{"short_name":"Teaching EMR","name":"Teaching EMR System","icons":[{"src":"favicon.ico","sizes":"64x64 32x32 24x24 16x16","type":"image/x-icon"}],"start_url":".","display":"standalone","theme_color":"#000000","background_color":"#ffffff"}' > public/manifest.json; \
+    fi && \
+    if [ ! -f public/robots.txt ]; then \
+        echo -e "User-agent: *\nDisallow:" > public/robots.txt; \
+    fi
+
+# Create missing source files if needed
+RUN if [ ! -f src/index.js ]; then \
+        echo 'import React from "react";import ReactDOM from "react-dom/client";import "./index.css";import App from "./App";const root = ReactDOM.createRoot(document.getElementById("root"));root.render(<React.StrictMode><App /></React.StrictMode>);' > src/index.js; \
+    fi && \
+    if [ ! -f src/index.css ]; then \
+        echo 'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Cantarell","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}code{font-family:source-code-pro,Menlo,Monaco,Consolas,"Courier New",monospace;}*{box-sizing:border-box;}html,body,#root{height:100%;margin:0;padding:0;}' > src/index.css; \
+    fi
+
+# Build frontend
+RUN npm run build
+
+# Final stage - combine everything
+FROM python:3.9-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    nginx \
+    supervisor \
+    curl \
+    default-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -m -s /bin/bash emruser
+
+WORKDIR /app
+
+# Copy backend from builder
+COPY --from=backend-builder /app/backend /app/backend
+COPY --from=backend-builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
+
+# Copy frontend build
+COPY --from=frontend-builder /app/frontend/build /app/frontend/build
+
+# Copy configuration files
+COPY EMR/backend/scripts/import_missing_clinical_data.py /app/backend/scripts/
+RUN chown -R emruser:emruser /app
+
+# Nginx configuration
+RUN rm /etc/nginx/sites-enabled/default
+COPY nginx.conf /etc/nginx/sites-enabled/emr
+
+# Supervisor configuration
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Startup script
+COPY startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+
+# Create data directories
+RUN mkdir -p /app/backend/data /app/backend/logs /app/backend/exports && \
+    chown -R emruser:emruser /app/backend/data /app/backend/logs /app/backend/exports
+
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/api/health || exit 1
+
+# Use supervisor to run multiple processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
