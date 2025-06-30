@@ -1,0 +1,139 @@
+{
+  "timestamp": "2025-06-28T17:34:21.214112",
+  "base_url": "http://localhost:8000/fhir/R4",
+  "summary": {
+    "total_passed": 76,
+    "total_failed": 14,
+    "success_rate": 84.44444444444444
+  },
+  "results": {
+    "Patient": {
+      "passed": 21,
+      "failed": 0,
+      "errors": []
+    },
+    "Encounter": {
+      "passed": 13,
+      "failed": 0,
+      "errors": []
+    },
+    "Observation": {
+      "passed": 10,
+      "failed": 4,
+      "errors": [
+        {
+          "test": "Search by value quantity",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Value greater than",
+          "error": "Request error: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))"
+        },
+        {
+          "test": "Value less than",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Value range",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        }
+      ]
+    },
+    "Condition": {
+      "passed": 7,
+      "failed": 0,
+      "errors": []
+    },
+    "MedicationRequest": {
+      "passed": 6,
+      "failed": 0,
+      "errors": []
+    },
+    "Practitioner": {
+      "passed": 0,
+      "failed": 5,
+      "errors": [
+        {
+          "test": "Get all practitioners",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Search by name",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Search by family name",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Search by given name",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        },
+        {
+          "test": "Search active practitioners",
+          "error": "Expected status 200, got 500",
+          "response": "Internal Server Error"
+        }
+      ]
+    },
+    "Organization": {
+      "passed": 4,
+      "failed": 0,
+      "errors": []
+    },
+    "Location": {
+      "passed": 4,
+      "failed": 0,
+      "errors": []
+    },
+    "EdgeCase": {
+      "passed": 9,
+      "failed": 1,
+      "errors": [
+        {
+          "test": "Over max page size",
+          "error": "Expected status 200, got 422",
+          "response": "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"_count\"],\"msg\":\"Input should be less than or equal to 1000\",\"input\":\"5000\",\"ctx\":{\"le\":1000}}]}"
+        }
+      ]
+    },
+    "BulkOps": {
+      "passed": 1,
+      "failed": 4,
+      "errors": [
+        {
+          "test": "System bulk export",
+          "error": "Expected status 202, got 404",
+          "response": "{\"detail\":\"Resource type $export not supported\"}"
+        },
+        {
+          "test": "Patient bulk export",
+          "error": "Expected status 202, got 404",
+          "response": "{\"detail\":\"Patient not found\"}"
+        },
+        {
+          "test": "Bulk export with type filter",
+          "error": "Expected status 202, got 404",
+          "response": "{\"detail\":\"Resource type $export not supported\"}"
+        },
+        {
+          "test": "Check export status",
+          "error": "Expected status 200, got 404",
+          "response": "{\"detail\":\"Resource type $export-status not supported\"}"
+        }
+      ]
+    },
+    "Metadata": {
+      "passed": 1,
+      "failed": 0,
+      "errors": []
+    }
+  }
+}

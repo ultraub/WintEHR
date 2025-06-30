@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Synthea outputs
+backend/synthea/output/
+backend/data/synthea_output/
+backend/synthea-with-dependencies.jar
+backend/synthea/
+*.jar
+
+# Exports
+backend/exports/
+
+# Build artifacts
+frontend/build/
+frontend/node_modules/
+backend/dist/
+*.egg-info/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+test_results/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Docker volumes
+docker-volumes/
