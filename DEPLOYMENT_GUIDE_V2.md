@@ -134,6 +134,20 @@ curl http://localhost/fhir/R4/metadata
 curl http://localhost/cds-hooks/
 ```
 
+### Frontend Shows "localhost" in API Calls
+This is a common issue where the frontend tries to connect to localhost:8000 instead of using relative URLs.
+
+**Fix:**
+```bash
+# For Docker deployments, the Dockerfile now automatically fixes this
+# For manual deployments, update src/services/api.js:
+docker exec emr-frontend sh -c "sed -i 's|http://localhost:8000|""|g' /usr/share/nginx/html/static/js/*.js"
+
+# Or rebuild the frontend with proper environment:
+cd frontend
+REACT_APP_API_URL="" npm run build
+```
+
 ### View Logs
 ```bash
 # Backend logs
@@ -149,7 +163,12 @@ Create `.env` file for customization:
 
 ```env
 # API Configuration
-REACT_APP_API_URL=http://your-domain.com
+# IMPORTANT: For production deployments behind nginx/proxy, leave REACT_APP_API_URL empty
+# to use relative URLs. Only set this if frontend and backend are on different domains.
+REACT_APP_API_URL=
+# For separate domains use: REACT_APP_API_URL=http://api.your-domain.com
+
+# CORS Configuration
 CORS_ORIGINS=["*"]
 
 # Database

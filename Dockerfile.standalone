@@ -53,7 +53,12 @@ RUN if [ ! -f src/index.js ]; then \
         echo 'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Cantarell","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}code{font-family:source-code-pro,Menlo,Monaco,Consolas,"Courier New",monospace;}*{box-sizing:border-box;}html,body,#root{height:100%;margin:0;padding:0;}' > src/index.css; \
     fi
 
-# Build frontend
+# Fix api.js to use relative URLs in production
+RUN sed -i 's|process.env.REACT_APP_API_URL === undefined ? "http://localhost:8000" : process.env.REACT_APP_API_URL|process.env.REACT_APP_API_URL || ""|g' src/services/api.js || \
+    echo 'import axios from "axios"; const API_BASE_URL = process.env.REACT_APP_API_URL || ""; const api = axios.create({ baseURL: API_BASE_URL, headers: { "Content-Type": "application/json" } }); api.interceptors.request.use((config) => { const token = localStorage.getItem("auth_token"); if (token) { config.headers.Authorization = `Bearer ${token}`; } return config; }, (error) => Promise.reject(error)); api.interceptors.response.use((response) => response, (error) => { if (error.response?.status === 401) { localStorage.removeItem("auth_token"); window.location.href = "/login"; } return Promise.reject(error); }); export default api;' > src/services/api.js
+
+# Build frontend with empty API URL for relative paths
+ENV REACT_APP_API_URL=""
 RUN npm run build
 
 # Final stage - combine everything

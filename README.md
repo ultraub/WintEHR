@@ -145,8 +145,11 @@ Based on real-world deployment testing, we've identified and fixed several issue
 - Docker build context issues when Dockerfile expects different directory structure
 - npm lock file synchronization issues requiring `npm install` instead of `npm ci`
 - Amazon Linux 2 glibc version incompatibility with Node.js 18+
+- Frontend API URL configuration defaults to localhost - must be set to empty string for production
 
 **Recommended**: Use the updated deployment files (`cloudformation-emr-fixed.yaml`, `Dockerfile.standalone.fixed`, `deploy-ec2-simple.sh`)
+
+**Critical**: For production deployments, always set `REACT_APP_API_URL=""` (empty string) to use relative URLs
 
 ### Option 1: Simplified EC2 Deployment Script (Most Reliable)
 
@@ -720,6 +723,11 @@ python scripts/add_reference_ranges.py
 2. **Memory issues**: Increase Docker memory allocation or instance size
 3. **Database locked**: Restart the backend service
 4. **Missing data**: Re-run the import scripts
+5. **Frontend shows "localhost:8000" errors**: 
+   - Run `./fix-frontend-api-url.sh` to fix existing deployments
+   - For new deployments, ensure `REACT_APP_API_URL=""` is set during build
+   - The updated Dockerfiles now handle this automatically
+   - See [FRONTEND_API_URL_FIX.md](FRONTEND_API_URL_FIX.md) for detailed troubleshooting
 
 ### Logs
 
