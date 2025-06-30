@@ -78,22 +78,131 @@ emr-training-system/
 
 ## 🚀 AWS Deployment
 
-### Option 1: One-Click CloudFormation Deployment
+### Option 1: One-Click CloudFormation Deployment (Recommended)
 
-Deploy the entire EMR system with a single CloudFormation template:
+Deploy the entire EMR system with a single CloudFormation template. This is the easiest method and handles all setup automatically.
+
+#### Prerequisites
+
+1. **AWS Account**: Active AWS account with appropriate permissions
+2. **EC2 Key Pair**: Required for SSH access (create one if needed)
+3. **AWS CLI** (optional): For command-line deployment
+
+#### Step-by-Step Deployment
+
+##### Create EC2 Key Pair (if needed)
+
+**Using AWS Console:**
+1. Go to EC2 Console → Key Pairs
+2. Click "Create key pair"
+3. Name: `emr-training-key` (or your choice)
+4. Format: PEM (Mac/Linux) or PPK (Windows)
+5. Download and save securely
+
+**Using AWS CLI:**
+```bash
+aws ec2 create-key-pair --key-name emr-training-key \
+  --query 'KeyMaterial' --output text > emr-training-key.pem
+chmod 400 emr-training-key.pem
+```
+
+##### Deploy with CloudFormation Console (Easiest)
+
+1. **Open CloudFormation**
+   - Go to [AWS CloudFormation Console](https://console.aws.amazon.com/cloudformation)
+   - Select your region (e.g., us-east-1)
+
+2. **Create Stack**
+   - Click "Create stack" → "With new resources"
+   - Choose "Upload a template file"
+   - Select `cloudformation-emr.yaml`
+   - Click "Next"
+
+3. **Configure Parameters**
+   - **Stack name**: `emr-training-system`
+   - **InstanceType**: `t3.medium` (recommended)
+   - **KeyPairName**: Select from dropdown
+   - **AllowedIPRange**: `0.0.0.0/0` or your IP: `YOUR_IP/32`
+   - **PatientCount**: `50` (adjustable: 10-500)
+   - Click "Next"
+
+4. **Review and Create**
+   - Accept defaults or add tags
+   - Check: "I acknowledge that AWS CloudFormation might create IAM resources"
+   - Click "Create stack"
+
+5. **Monitor Progress**
+   - Wait 5-10 minutes for "CREATE_COMPLETE"
+   - Check "Events" tab for progress
+
+6. **Access Your System**
+   - Go to "Outputs" tab
+   - Copy the `PublicURL` value
+   - Open in browser (may take 5 more minutes for initial setup)
+
+##### Deploy with AWS CLI
 
 ```bash
+# Deploy stack
 aws cloudformation create-stack \
   --stack-name emr-training-system \
   --template-body file://cloudformation-emr.yaml \
   --parameters \
-    ParameterKey=KeyPairName,ParameterValue=your-keypair \
+    ParameterKey=KeyPairName,ParameterValue=emr-training-key \
     ParameterKey=InstanceType,ParameterValue=t3.medium \
+    ParameterKey=AllowedIPRange,ParameterValue=0.0.0.0/0 \
     ParameterKey=PatientCount,ParameterValue=50 \
-  --capabilities CAPABILITY_IAM
+  --capabilities CAPABILITY_IAM \
+  --region us-east-1
+
+# Check status
+aws cloudformation describe-stacks \
+  --stack-name emr-training-system \
+  --query 'Stacks[0].StackStatus'
+
+# Get outputs
+aws cloudformation describe-stacks \
+  --stack-name emr-training-system \
+  --query 'Stacks[0].Outputs'
 ```
 
-Access the system via the URL in the CloudFormation outputs.
+#### Post-Deployment
+
+**SSH Access** (if needed):
+```bash
+ssh -i emr-training-key.pem ec2-user@<PUBLIC_IP>
+
+# Check deployment logs
+sudo tail -f /var/log/user-data.log
+
+# Monitor Docker containers
+sudo docker ps
+sudo docker-compose logs -f
+```
+
+**Stack Management:**
+- **Update**: CloudFormation Console → Stack → Update
+- **Stop/Start**: EC2 Console → Stop instance (preserves data)
+- **Delete**: `aws cloudformation delete-stack --stack-name emr-training-system`
+
+#### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Stack creation failed | Check Events tab for specific error |
+| Can't access URL | Wait 10-15 minutes for full deployment |
+| "Connection refused" | Check security group allows port 80 |
+| Invalid key pair | Ensure key exists in selected region |
+
+#### Cost Optimization
+
+- **Estimated Cost**: ~$30-40/month (t3.medium running 24/7)
+- **Save Money**:
+  - Stop instance when not in use
+  - Use t3.small for testing ($15-20/month)
+  - Set up auto-stop schedule with Lambda
+
+Access the system via the URL in CloudFormation outputs (typically ready in 10-15 minutes).
 
 ### Option 2: Docker Container Deployment
 
