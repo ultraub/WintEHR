@@ -4,12 +4,18 @@ services:
   # Backend API
   backend:
     image: python:3.9-slim
+    container_name: emr-backend
     working_dir: /app
     volumes:
       - ./backend:/app
+      - backend_data:/app/data
     command: |
       bash -c "
+        apt-get update && apt-get install -y curl default-jre-headless &&
+        mkdir -p data logs &&
         pip install -r requirements.txt &&
+        python -c 'from database.database import engine, Base; Base.metadata.create_all(bind=engine)' &&
+        python scripts/create_sample_providers.py || true &&
         python main.py
       "
     ports:
@@ -20,15 +26,17 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
 
-  # Frontend
-  frontend:
+  # Frontend (for development)
+  frontend-dev:
     image: node:18-alpine
+    container_name: emr-frontend-dev
     working_dir: /app
     volumes:
       - ./frontend:/app
+      - /app/node_modules
     command: |
       sh -c "
         npm install &&
@@ -37,24 +45,47 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_BASE_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    profiles:
+      - development
 
-  # Nginx Proxy (Optional - for production-like setup)
+  # Frontend builder (for production)
+  frontend-builder:
+    image: node:18-alpine
+    container_name: emr-frontend-builder
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_build:/app/build
+    command: |
+      sh -c "
+        npm ci || npm install &&
+        REACT_APP_API_URL='' npm run build &&
+        echo 'Frontend built successfully'
+      "
+    profiles:
+      - production
+
+  # Nginx Proxy (for production)
   nginx:
     image: nginx:alpine
+    container_name: emr-nginx
     ports:
       - "80:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/build:/usr/share/nginx/html:ro
+      - ./nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
+      - frontend_build:/usr/share/nginx/html:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     profiles:
       - production
 
 # Volumes for data persistence
 volumes:
   backend_data:
+  frontend_build:
   node_modules:

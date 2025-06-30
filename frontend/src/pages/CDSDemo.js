@@ -33,6 +33,7 @@ import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import api from '../services/api';
+import axios from 'axios';
 
 SyntaxHighlighter.registerLanguage('json', json);
 
@@ -64,7 +65,7 @@ function CDSDemo() {
 
   const fetchCDSServices = async () => {
     try {
-      const response = await api.get('/cds-hooks/');
+      const response = await axios.get('/cds-hooks/');
       setServices(response.data.services);
     } catch (err) {
       console.error('Error fetching CDS services:', err);
@@ -101,7 +102,7 @@ function CDSDemo() {
         prefetch: {},
       };
 
-      const response = await api.post(`/cds-hooks/${selectedService}`, request);
+      const response = await axios.post(`/cds-hooks/${selectedService}`, request);
       setCdsResponse(response.data);
     } catch (err) {
       console.error('Error executing CDS service:', err);

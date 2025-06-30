@@ -62,6 +62,7 @@ import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import api from '../services/api';
+import axios from 'axios';
 
 SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('bash', bash);
@@ -317,7 +318,7 @@ function FHIRExplorer() {
 
   const fetchCapabilityStatement = async () => {
     try {
-      const response = await api.get('/fhir/R4/metadata');
+      const response = await axios.get('/fhir/R4/metadata');
       setCapabilityStatement(response.data);
     } catch (err) {
       console.error('Error fetching capability statement:', err);
@@ -329,7 +330,7 @@ function FHIRExplorer() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get(searchQuery);
+      const response = await axios.get(searchQuery);
       setResponse(response.data);
       
       // Add to history

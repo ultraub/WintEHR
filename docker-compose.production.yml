@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  # All-in-one container using the Dockerfile
+  emr-system:
+    build: .
+    container_name: emr-system
+    ports:
+      - "80:80"
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
