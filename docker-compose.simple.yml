@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    image: python:3.9-slim
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: |
+      bash -c "
+        pip install -r requirements.txt &&
+        python main.py
+      "
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend
+  frontend:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: |
+      sh -c "
+        npm install &&
+        npm start
+      "
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+  # Nginx Proxy (Optional - for production-like setup)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    profiles:
+      - production
+
+# Volumes for data persistence
+volumes:
+  backend_data:
+  node_modules:

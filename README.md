@@ -2,33 +2,93 @@
 
 A comprehensive Electronic Medical Records (EMR) training system with FHIR R4 support, synthetic patient generation, and Clinical Decision Support (CDS) Hooks integration.
 
-## 🚀 Quick Start
+## 🚀 Quick Start - Recommended Approach
 
-### Local Development
+### Fresh Installation Guide
 
-1. **Clone the repository**
+Based on extensive testing, here's the most reliable way to deploy this system:
+
+#### Option 1: Local Development (Recommended for Testing)
+
+1. **Prerequisites**
    ```bash
-   git clone <repository-url>
-   cd emr-training-system
+   # Ensure you have:
+   - Python 3.9+ (not 3.7 - it won't work)
+   - Node.js 16+ (18+ recommended)
+   - Java 8+ (for Synthea)
+   - Docker and Docker Compose (optional but recommended)
    ```
 
-2. **Run the setup script**
+2. **Clone and Setup**
    ```bash
-   ./setup_emr_system.sh
+   git clone https://github.com/ultraub/MedGenEMR.git
+   cd MedGenEMR
+   
+   # Backend setup
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   
+   # Frontend setup (new terminal)
+   cd ../frontend
+   npm install  # Use npm install, NOT npm ci
    ```
 
-3. **Access the system**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
+3. **Start Services**
+   ```bash
+   # Terminal 1 - Backend
+   cd backend
+   python main.py
+   
+   # Terminal 2 - Frontend
+   cd frontend
+   npm start
+   ```
 
-### Docker Deployment
+4. **Initialize Database**
+   ```bash
+   cd backend
+   python scripts/create_sample_providers.py
+   python scripts/populate_clinical_catalogs.py
+   python scripts/optimized_synthea_import.py --patients 25
+   ```
+
+#### Option 2: Docker Deployment (Most Reliable for Production)
+
+1. **Use the Fixed Dockerfile**
+   ```bash
+   # Copy the fixed Dockerfile
+   cp Dockerfile.standalone.fixed Dockerfile.standalone
+   
+   # Build and run
+   docker-compose -f docker-compose.standalone.yml up -d --build
+   ```
+
+2. **If Build Fails**, use the simplified deployment:
+   ```bash
+   # Download and run the deployment script
+   curl -O https://raw.githubusercontent.com/ultraub/MedGenEMR/master/deploy-ec2-simple.sh
+   chmod +x deploy-ec2-simple.sh
+   ./deploy-ec2-simple.sh
+   ```
+
+### AWS EC2 Deployment (Production)
+
+For AWS deployment, use our tested approach:
 
 ```bash
-docker-compose -f docker-compose.standalone.yml up -d
+# On your EC2 instance (Amazon Linux 2, Ubuntu, etc.)
+curl -O https://raw.githubusercontent.com/ultraub/MedGenEMR/master/deploy-ec2-simple.sh
+chmod +x deploy-ec2-simple.sh
+./deploy-ec2-simple.sh
 ```
 
-Access the system at http://localhost
+This script automatically:
+- Detects your OS and installs dependencies
+- Fixes common issues (npm ci → npm install, path problems)
+- Handles directory structure variations
+- Provides troubleshooting commands
 
 ## 🌟 Features
 
