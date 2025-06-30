@@ -330,14 +330,15 @@ const PatientOverview = () => {
                     <ListItem key={index}>
                       <ListItemText
                         primary={
-                          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                            <Typography variant="body2">{allergy.allergen}</Typography>
+                          <>
+                            <span style={{ marginRight: '8px' }}>{allergy.allergen}</span>
                             <Chip 
                               label={allergy.severity} 
                               size="small" 
                               color={getSeverityColor(allergy.severity)}
+                              style={{ verticalAlign: 'middle' }}
                             />
-                          </Box>
+                          </>
                         }
                         secondary={`Reaction: ${allergy.reaction || 'Not specified'}`}
                       />
@@ -426,20 +427,20 @@ const PatientOverview = () => {
                       >
                         <ListItemText
                           primary={
-                            <Box display="flex" alignItems="center" gap={1}>
-                              <Typography variant="body2">
+                            <>
+                              <span style={{ marginRight: '8px' }}>
                                 {med.medication_name || med.medication || 'Unknown medication'}
-                              </Typography>
+                              </span>
                               {med.source === 'self-reported' && (
-                                <Chip label="Self-Reported" size="small" color="info" variant="outlined" />
+                                <Chip label="Self-Reported" size="small" color="info" variant="outlined" style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
                               )}
                               {med.source === 'otc' && (
-                                <Chip label="OTC" size="small" color="default" variant="outlined" />
+                                <Chip label="OTC" size="small" color="default" variant="outlined" style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
                               )}
                               {med.source === 'supplement' && (
-                                <Chip label="Supplement" size="small" color="success" variant="outlined" />
+                                <Chip label="Supplement" size="small" color="success" variant="outlined" style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
                               )}
-                            </Box>
+                            </>
                           }
                           secondary={`${med.dosage || 'No dosage'} - ${med.frequency || 'No frequency'}`}
                         />
@@ -501,14 +502,15 @@ const PatientOverview = () => {
                     >
                       <ListItemText
                         primary={
-                          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                            <Typography variant="body2">{problem.description}</Typography>
+                          <>
+                            <span style={{ marginRight: '8px' }}>{problem.description}</span>
                             {problem.snomed_code && (
                               <Chip 
                                 label={`SNOMED: ${problem.snomed_code}`} 
                                 size="small" 
                                 variant="outlined"
                                 color="info"
+                                style={{ marginLeft: '4px', verticalAlign: 'middle' }}
                               />
                             )}
                             {problem.icd10_code && (
@@ -517,24 +519,27 @@ const PatientOverview = () => {
                                 size="small" 
                                 variant="outlined"
                                 color="secondary"
+                                style={{ marginLeft: '4px', verticalAlign: 'middle' }}
                               />
                             )}
-                            {getStatusChip(problem.clinical_status || problem.clinicalStatus)}
-                          </Box>
+                            <span style={{ marginLeft: '4px' }}>
+                              {getStatusChip(problem.clinical_status || problem.clinicalStatus)}
+                            </span>
+                          </>
                         }
                         secondary={
-                          <Box>
+                          <>
                             {problem.onset_date || problem.onset ? (
-                              <Typography variant="caption" color="text.secondary">
+                              <span style={{ fontSize: '0.75rem' }}>
                                 Onset: {format(new Date(problem.onset_date || problem.onset), 'MM/dd/yyyy')}
-                              </Typography>
+                              </span>
                             ) : null}
                             {problem.verification_status && (
-                              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                              <span style={{ fontSize: '0.75rem', marginLeft: '8px' }}>
                                 Status: {problem.verification_status}
-                              </Typography>
+                              </span>
                             )}
-                          </Box>
+                          </>
                         }
                       />
                     </ListItem>
@@ -642,31 +647,32 @@ const PatientOverview = () => {
                         </ListItemIcon>
                         <ListItemText
                           primary={
-                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                              <Typography variant="body1">{encounter.type}</Typography>
+                            <>
+                              <span style={{ marginRight: '8px', fontSize: '1rem' }}>{encounter.type}</span>
                               <Chip 
                                 label={encounter.status} 
                                 size="small" 
                                 color={encounter.status === 'in-progress' ? 'primary' : 'default'}
+                                style={{ verticalAlign: 'middle' }}
                               />
-                            </Box>
+                            </>
                           }
                           secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
+                            <>
+                              <span style={{ display: 'block', fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                 {format(new Date(encounter.date), 'MM/dd/yyyy h:mm a')}
-                              </Typography>
+                              </span>
                               {encounter.provider && (
-                                <Typography variant="body2" color="text.secondary">
+                                <span style={{ display: 'block', fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                   Provider: {encounter.provider}
-                                </Typography>
+                                </span>
                               )}
                               {encounter.chiefComplaint && (
-                                <Typography variant="body2" color="text.secondary">
+                                <span style={{ display: 'block', fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                   Chief Complaint: {encounter.chiefComplaint}
-                                </Typography>
+                                </span>
                               )}
-                            </Box>
+                            </>
                           }
                         />
                       </ListItem>

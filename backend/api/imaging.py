@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -405,4 +406,97 @@ async def update_imaging_report(
         success=True,
         message="Report updated successfully",
         data=result.to_dict()
+    )
+
+
+@router.get("/wado/instances/{instance_id}")
+async def get_dicom_file(
+    instance_id: int,
+    db: Session = Depends(get_db),
+    # current_user: dict = Depends(get_current_user)  # Disabled for teaching purposes
+):
+    """
+    Serve DICOM file for viewing (WADO-like endpoint)
+    Returns the DICOM file with appropriate headers
+    """
+    instance = db.query(DICOMInstance).filter(DICOMInstance.id == instance_id).first()
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+    
+    if not os.path.exists(instance.file_path):
+        raise HTTPException(status_code=404, detail="DICOM file not found on disk")
+    
+    # Return the DICOM file
+    return FileResponse(
+        instance.file_path,
+        media_type="application/dicom",
+        headers={
+            "Content-Disposition": f"inline; filename={instance.sop_instance_uid}.dcm"
+        }
+    )
+
+
+@router.get("/wado/studies/{study_id}/series")
+async def get_study_series(
+    study_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get all series for a study with instance information"""
+    series_list = db.query(DICOMSeries).filter(
+        DICOMSeries.study_id == study_id
+    ).all()
+    
+    result = []
+    for series in series_list:
+        series_data = series.to_dict()
+        # Add instances to each series
+        instances = db.query(DICOMInstance).filter(
+            DICOMInstance.series_id == series.id
+        ).order_by(DICOMInstance.instance_number).all()
+        
+        series_data['instances'] = [
+            {
+                'id': inst.id,
+                'sop_instance_uid': inst.sop_instance_uid,
+                'instance_number': inst.instance_number,
+                'rows': inst.rows,
+                'columns': inst.columns,
+                'file_size': inst.file_size
+            }
+            for inst in instances
+        ]
+        result.append(series_data)
+    
+    return StandardResponse(
+        success=True,
+        message=f"Found {len(result)} series",
+        data=result
+    )
+
+
+@router.get("/wado/series/{series_id}/instances")
+async def get_series_instances(
+    series_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get all instances for a series"""
+    instances = db.query(DICOMInstance).filter(
+        DICOMInstance.series_id == series_id
+    ).order_by(DICOMInstance.instance_number).all()
+    
+    return StandardResponse(
+        success=True,
+        message=f"Found {len(instances)} instances",
+        data=[
+            {
+                'id': inst.id,
+                'sop_instance_uid': inst.sop_instance_uid,
+                'instance_number': inst.instance_number,
+                'rows': inst.rows,
+                'columns': inst.columns,
+                'file_size': inst.file_size,
+                'wado_url': f"/api/imaging/wado/instances/{inst.id}"
+            }
+            for inst in instances
+        ]
     )

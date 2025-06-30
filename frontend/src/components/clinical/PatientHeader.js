@@ -239,13 +239,13 @@ const PatientHeader = ({
                   </MenuItem>
                   {encounters.map((encounter) => (
                     <MenuItem key={encounter.id} value={encounter.id}>
-                      <Box>
-                        <Typography variant="body2">
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '14px' }}>
                           {encounter.encounter_type || 'Visit'} - {formatDate(encounter.encounter_date, 'MM/dd/yyyy')}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.6)' }}>
                           Status: {encounter.status || 'in-progress'} | Class: {encounter.encounter_class || 'AMB'}
-                        </Typography>
+                        </span>
                       </Box>
                     </MenuItem>
                   ))}

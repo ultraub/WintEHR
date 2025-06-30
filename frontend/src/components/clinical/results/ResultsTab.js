@@ -44,7 +44,7 @@ import {
 } from '@mui/icons-material';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import api from '../../../services/api';
-import ImageViewer from '../../ImageViewer';
+import ImageViewerV2 from '../../ImageViewerV2';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
@@ -410,30 +410,37 @@ const ResultsTab = () => {
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Box>
-                          <Typography variant="subtitle1">
+                        <>
+                          <span style={{ display: 'block', fontSize: '1rem', fontWeight: 500 }}>
                             {study.study_description || 'Imaging Study'}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                             {study.modality} • {study.number_of_series} series • {study.number_of_instances} images
-                          </Typography>
-                        </Box>
+                          </span>
+                        </>
                       }
                       secondary={
-                        <Box sx={{ mt: 1 }}>
-                          <Typography variant="caption" display="block">
+                        <>
+                          <span style={{ display: 'block', fontSize: '0.75rem' }}>
                             Study Date: {study.study_date ? new Date(study.study_date).toLocaleDateString() : 'N/A'}
-                          </Typography>
-                          <Typography variant="caption" display="block">
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.75rem' }}>
                             Accession: {study.accession_number || 'N/A'}
-                          </Typography>
-                          <Chip 
-                            label={study.upload_status} 
-                            size="small" 
-                            color={study.upload_status === 'complete' ? 'success' : 'default'}
-                            sx={{ mt: 0.5 }}
-                          />
-                        </Box>
+                          </span>
+                          <span style={{ 
+                            display: 'inline-block', 
+                            marginTop: '4px',
+                            padding: '0 8px',
+                            borderRadius: '16px',
+                            backgroundColor: study.upload_status === 'complete' ? '#4caf50' : '#e0e0e0',
+                            color: study.upload_status === 'complete' ? 'white' : 'rgba(0, 0, 0, 0.87)',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            lineHeight: '20px'
+                          }}>
+                            {study.upload_status}
+                          </span>
+                        </>
                       }
                     />
                     <Box>
@@ -486,7 +493,7 @@ const ResultsTab = () => {
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           {selectedStudy && (
-            <ImageViewer
+            <ImageViewerV2
               studyId={selectedStudy.study_instance_uid}
               seriesId={selectedStudy.series?.[0]?.series_instance_uid}
               onClose={() => setShowImageViewer(false)}

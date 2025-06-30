@@ -94,6 +94,13 @@ This script automatically:
 
 - **Patient Management**: Create, read, update patient records
 - **Clinical Workspace**: View medications, conditions, vitals, and clinical notes
+- **DICOM Viewer**: Full-featured medical imaging viewer with:
+  - Real-time DICOM file upload and processing
+  - WADO-URI compliant image serving
+  - Multi-frame image navigation
+  - Window/Level adjustments
+  - Measurement tools (length, angle, ROI)
+  - Persistent storage and retrieval
 - **FHIR R4 Compliance**: Full support for FHIR resources
 - **CDS Hooks**: Clinical decision support integration
 - **Synthetic Data**: Automated generation of realistic patient data using Synthea
@@ -759,12 +766,50 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - FHIR community for healthcare data standards
 - FastAPI and React communities
 
+## 🏥 DICOM Medical Imaging
+
+The EMR system includes a comprehensive DICOM viewer for medical imaging:
+
+### Features
+- **Real-time Upload**: Drag-and-drop DICOM files directly in the Clinical Workspace
+- **Professional Viewer**: Cornerstone.js-based viewer with full medical imaging tools
+- **WADO Compliance**: Industry-standard image serving protocols
+- **Multi-format Support**: Supports all standard DICOM formats and transfer syntaxes
+
+### Quick Start with DICOM
+1. Navigate to a patient's Clinical Workspace
+2. Click on the "Results" tab
+3. Select "Imaging" subtab
+4. Upload DICOM files using the upload button
+5. Click "View Images" to open the integrated viewer
+
+### Deployment with DICOM Support
+
+For production deployments with full DICOM capabilities, see:
+- **[DICOM Deployment Guide](DICOM_DEPLOYMENT_GUIDE.md)** - Comprehensive deployment guide
+- **[AWS DICOM Deployment](DICOM_DEPLOYMENT_GUIDE.md#aws-deployment)** - AWS-specific instructions
+- **[Azure DICOM Deployment](AZURE_DICOM_DEPLOYMENT.md)** - Azure-specific instructions
+
+### Storage Requirements
+- **Local Development**: Docker volumes (minimal setup)
+- **Production**: Persistent storage for DICOM files
+  - AWS: EBS volumes or EFS for shared storage
+  - Azure: Azure Files or managed disks
+  - On-premise: Network-attached storage (NAS)
+
+### Security Considerations
+- All DICOM data is encrypted at rest and in transit
+- WADO endpoints support authentication and authorization
+- Audit logging for all image access
+- HIPAA-compliant deployment options available
+
 ## 📞 Support
 
 For issues and questions:
 - Create an issue in the repository
 - Check the troubleshooting guide
 - Review the API documentation
+- For DICOM-specific issues, see the [DICOM Deployment Guide](DICOM_DEPLOYMENT_GUIDE.md)
 
 ---
 

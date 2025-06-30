@@ -124,7 +124,11 @@ function PatientViewRefined() {
           status: err.response?.status,
           config: err.config?.url
         });
-        setError(`Failed to load patient summary: ${err.response?.status || err.message}`);
+        if (err.response?.status === 404) {
+          setError('Failed to load patient: 404');
+        } else {
+          setError(`Failed to load patient summary: ${err.response?.status || err.message}`);
+        }
       } finally {
         setLoading(false);
       }
