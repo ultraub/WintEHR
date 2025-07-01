@@ -18,6 +18,7 @@ import {
   NavigateBefore as PrevIcon,
   NavigateNext as NextIcon
 } from '@mui/icons-material';
+import api from '../services/api';
 
 import cornerstone from 'cornerstone-core';
 import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
@@ -67,8 +68,8 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       setError(null);
 
       // Fetch series data
-      const seriesResponse = await fetch(`/api/imaging/wado/studies/${studyId}/series`);
-      const seriesResult = await seriesResponse.json();
+      const seriesResponse = await api.get(`/api/imaging/wado/studies/${studyId}/series`);
+      const seriesResult = seriesResponse.data;
       
       if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
         throw new Error('No series found');

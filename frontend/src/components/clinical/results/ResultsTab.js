@@ -75,12 +75,17 @@ const ResultsTab = () => {
   const [selectedStudy, setSelectedStudy] = useState(null);
 
   useEffect(() => {
-    if (currentPatient && !hasLoadedInitial) {
-      console.log('ResultsTab - Initial load for patient:', currentPatient.id);
+    if (currentPatient) {
+      console.log('ResultsTab - Loading for patient:', currentPatient.id);
       loadResults();
       setHasLoadedInitial(true);
+    } else {
+      // Reset state when no patient is selected
+      setHasLoadedInitial(false);
+      setLabResults([]);
+      setImagingResults([]);
     }
-  }, [currentPatient]);
+  }, [currentPatient?.id]); // Use currentPatient.id to ensure it triggers on patient change
 
   useEffect(() => {
     if (currentPatient && hasLoadedInitial) {
@@ -108,11 +113,17 @@ const ResultsTab = () => {
       let results = labResponse.data || [];
       
       // Load imaging studies (don't filter by encounter for imaging)
-      const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
-      console.log('Imaging studies loaded:', imagingResponse.data?.data?.length || 0, 'studies');
-      const imagingData = imagingResponse.data?.data || [];
-      console.log('Setting imaging results:', imagingData);
-      setImagingResults(imagingData);
+      try {
+        const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
+        console.log('Imaging API response:', imagingResponse.data);
+        const imagingData = imagingResponse.data?.data || [];
+        console.log('Imaging studies loaded:', imagingData.length, 'studies');
+        console.log('Setting imaging results:', imagingData);
+        setImagingResults(imagingData);
+      } catch (imagingError) {
+        console.error('Error loading imaging studies:', imagingError);
+        setImagingResults([]);
+      }
       
       if (currentEncounter && currentEncounter.encounter_date) {
         // Filter to only show results up to and including the encounter date

@@ -442,36 +442,59 @@ async def get_study_series(
     db: Session = Depends(get_db),
 ):
     """Get all series for a study with instance information"""
-    series_list = db.query(DICOMSeries).filter(
-        DICOMSeries.study_id == study_id
-    ).all()
-    
-    result = []
-    for series in series_list:
-        series_data = series.to_dict()
-        # Add instances to each series
-        instances = db.query(DICOMInstance).filter(
-            DICOMInstance.series_id == series.id
-        ).order_by(DICOMInstance.instance_number).all()
+    try:
+        # Verify study exists
+        study = db.query(DICOMStudy).filter(DICOMStudy.id == study_id).first()
+        if not study:
+            raise HTTPException(status_code=404, detail="Study not found")
         
-        series_data['instances'] = [
-            {
-                'id': inst.id,
-                'sop_instance_uid': inst.sop_instance_uid,
-                'instance_number': inst.instance_number,
-                'rows': inst.rows,
-                'columns': inst.columns,
-                'file_size': inst.file_size
+        series_list = db.query(DICOMSeries).filter(
+            DICOMSeries.study_id == study_id
+        ).all()
+        
+        result = []
+        for series in series_list:
+            # Manually build series data to avoid recursion issues
+            instances = db.query(DICOMInstance).filter(
+                DICOMInstance.series_id == series.id
+            ).order_by(DICOMInstance.instance_number).all()
+            
+            series_data = {
+                'id': series.id,
+                'series_instance_uid': series.series_instance_uid,
+                'series_number': series.series_number,
+                'series_description': series.series_description,
+                'modality': series.modality,
+                'body_part_examined': series.body_part_examined,
+                'number_of_instances': len(instances),
+                'instances': [
+                    {
+                        'id': inst.id,
+                        'sop_instance_uid': inst.sop_instance_uid,
+                        'instance_number': inst.instance_number,
+                        'rows': inst.rows,
+                        'columns': inst.columns,
+                        'slice_location': inst.slice_location,
+                        'window_center': inst.window_center,
+                        'window_width': inst.window_width,
+                        'file_size_kb': inst.file_size_kb,
+                        'wado_url': f"/api/imaging/wado/instances/{inst.id}"
+                    }
+                    for inst in instances
+                ]
             }
-            for inst in instances
-        ]
-        result.append(series_data)
-    
-    return StandardResponse(
-        success=True,
-        message=f"Found {len(result)} series",
-        data=result
-    )
+            result.append(series_data)
+        
+        return StandardResponse(
+            success=True,
+            message=f"Found {len(result)} series",
+            data=result
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in get_study_series: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving series: {str(e)}")
 
 
 @router.get("/wado/series/{series_id}/instances")
