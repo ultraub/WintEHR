@@ -589,10 +589,17 @@ const CDSHooksBuilderEnhanced = () => {
         id: hookConfig.id || `hook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
       
+      console.log('Saving hook:', hookToSave);
+      console.log('Selected hook:', selectedHook);
+      
       if (selectedHook) {
-        response = await api.put(`/cds-hooks/hooks/${selectedHook.id}`, hookToSave);
+        const url = `/cds-hooks/hooks/${selectedHook.id}`;
+        console.log('Updating hook at:', url);
+        response = await api.put(url, hookToSave);
       } else {
-        response = await api.post('/cds-hooks/hooks', hookToSave);
+        const url = '/cds-hooks/hooks';
+        console.log('Creating hook at:', url);
+        response = await api.post(url, hookToSave);
       }
       
       await fetchHooks();
@@ -605,7 +612,9 @@ const CDSHooksBuilderEnhanced = () => {
       });
     } catch (error) {
       console.error('Error saving CDS hook:', error);
-      setSnackbar({ open: true, message: 'Failed to save CDS hook', severity: 'error' });
+      console.error('Error response:', error.response);
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save CDS hook';
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -629,7 +638,10 @@ const CDSHooksBuilderEnhanced = () => {
     setTestDialogOpen(true);
     try {
       setLoading(true);
-      const response = await api.post(`/cds-hooks/hooks/${hook.id}/test`, {
+      const testUrl = `/cds-hooks/hooks/${hook.id}/test`;
+      console.log('Testing hook at:', testUrl);
+      console.log('Hook ID:', hook.id);
+      const response = await api.post(testUrl, {
         patientId: '1',
         userId: 'test-user',
         encounterId: '1'
@@ -637,7 +649,8 @@ const CDSHooksBuilderEnhanced = () => {
       setTestResults(response.data);
     } catch (error) {
       console.error('Error testing CDS hook:', error);
-      setTestResults({ error: error.message });
+      console.error('Error response:', error.response);
+      setTestResults({ error: error.response?.data?.detail || error.message });
     } finally {
       setLoading(false);
     }
