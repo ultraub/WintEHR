@@ -454,6 +454,7 @@ const ResultsTab = () => {
                           console.log('ResultsTab: Study instance UID:', study.study_instance_uid);
                           setSelectedStudy(study);
                           setShowImageViewer(true);
+                          console.log('ResultsTab: showImageViewer set to true');
                         }}
                         disabled={study.upload_status !== 'complete'}
                       >
@@ -475,6 +476,7 @@ const ResultsTab = () => {
       </TabPanel>
 
       {/* Image Viewer Dialog */}
+      {console.log('ResultsTab: Dialog render - showImageViewer:', showImageViewer, 'selectedStudy:', selectedStudy)}
       <Dialog
         open={showImageViewer}
         onClose={() => setShowImageViewer(false)}
@@ -495,12 +497,17 @@ const ResultsTab = () => {
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
-          {selectedStudy && (
-            <ImageViewerV2
-              studyId={selectedStudy.id}
-              seriesId={selectedStudy.series?.[0]?.series_instance_uid}
-              onClose={() => setShowImageViewer(false)}
-            />
+          {selectedStudy ? (
+            <>
+              {console.log('ResultsTab: Rendering ImageViewerV2 with studyId:', selectedStudy.id)}
+              <ImageViewerV2
+                studyId={selectedStudy.id}
+                seriesId={selectedStudy.series?.[0]?.series_instance_uid}
+                onClose={() => setShowImageViewer(false)}
+              />
+            </>
+          ) : (
+            console.log('ResultsTab: No selectedStudy, not rendering ImageViewerV2')
           )}
         </DialogContent>
       </Dialog>

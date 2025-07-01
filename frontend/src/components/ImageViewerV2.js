@@ -74,6 +74,8 @@ cornerstoneWADOImageLoader.configure({
 });
 
 const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
+  console.log('ImageViewerV2: Component mounting with props:', { studyId, seriesId });
+  
   const viewerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
