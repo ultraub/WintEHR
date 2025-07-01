@@ -151,25 +151,9 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
       // Fetch study and series information
       try {
-        // If studyId is actually a study instance UID, we need to get the numeric ID first
-        const studiesResponse = await fetch(`/api/imaging/studies/${studyId.split('-')[0]}`);
-        const studiesResult = await studiesResponse.json();
-        
-        if (!studiesResult.success || !studiesResult.data || studiesResult.data.length === 0) {
-          throw new Error('No studies found for this patient');
-        }
-
-        // Find the study by study_instance_uid
-        const study = studiesResult.data.find(s => s.study_instance_uid === studyId) || studiesResult.data[0];
-        
-        if (!study || !study.id) {
-          throw new Error('Study not found');
-        }
-
-        setStudyInfo(study);
-
-        // Now fetch series information using the numeric study ID
-        const seriesResponse = await fetch(`/api/imaging/wado/studies/${study.id}/series`);
+        // studyId is the numeric study ID directly
+        // Fetch series information
+        const seriesResponse = await fetch(`/api/imaging/wado/studies/${studyId}/series`);
         const seriesResult = await seriesResponse.json();
         
         if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
@@ -197,13 +181,13 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         
         setImageIds(imageIdArray);
         setImageInfo({
-          studyUID: study.study_instance_uid,
+          studyUID: studyId,
           seriesUID: targetSeries.series_instance_uid,
-          studyDescription: study.study_description || 'Unknown Study',
+          studyDescription: targetSeries.series_description || 'Unknown Series',
           seriesDescription: targetSeries.series_description || 'Unknown Series',
           modality: targetSeries.modality,
           instanceCount: instances.length,
-          studyDate: study.study_date
+          studyDate: new Date().toISOString()
         });
 
         // Load and display the first image

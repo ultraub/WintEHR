@@ -494,7 +494,7 @@ const ResultsTab = () => {
         <DialogContent sx={{ p: 0 }}>
           {selectedStudy && (
             <ImageViewerV2
-              studyId={selectedStudy.study_instance_uid}
+              studyId={selectedStudy.id}
               seriesId={selectedStudy.series?.[0]?.series_instance_uid}
               onClose={() => setShowImageViewer(false)}
             />
