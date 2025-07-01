@@ -101,7 +101,6 @@ const CDSAlerts = ({ hook = null, patientId = null, position = 'top' }) => {
   };
 
   const handleSuggestionAction = (suggestion, action) => {
-    console.log('CDS Suggestion Action:', suggestion, action);
     // TODO: Implement suggestion actions (create order, etc.)
     alert(`Action: ${action.type} - ${action.description}`);
   };

@@ -661,19 +661,14 @@ const CDSHooksBuilderEnhanced = () => {
         id: hookConfig.id || `hook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
       
-      console.log('Saving hook:', hookToSave);
-      console.log('Selected hook:', selectedHook);
-      
       // Check if this is an existing hook by looking it up in the hooks list
       const isExistingHook = hooks.some(h => h.id === hookToSave.id);
       
       if (isExistingHook) {
         const url = `/cds-hooks/hooks/${hookToSave.id}`;
-        console.log('Updating existing hook at:', url);
         response = await api.put(url, hookToSave);
       } else {
         const url = '/cds-hooks/hooks';
-        console.log('Creating new hook at:', url);
         response = await api.post(url, hookToSave);
       }
       
@@ -714,8 +709,6 @@ const CDSHooksBuilderEnhanced = () => {
     try {
       setLoading(true);
       const testUrl = `/cds-hooks/hooks/${hook.id}/test`;
-      console.log('Testing hook at:', testUrl);
-      console.log('Hook ID:', hook.id);
       const response = await api.post(testUrl, {
         patientId: '1',
         userId: 'test-user',

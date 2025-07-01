@@ -40,11 +40,8 @@ cornerstoneWADOImageLoader.configure({
   }
 });
 
-
 const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
   // Remove console log to reduce noise
-  // console.log('ImageViewerV2Simple: Mounting with props:', { studyId, seriesId });
-  
   const viewerRef = useRef(null);
   const activeToolRef = useRef('Wwwc');
   const currentImageIndexRef = useRef(0);

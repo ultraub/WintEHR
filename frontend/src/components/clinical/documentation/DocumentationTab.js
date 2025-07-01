@@ -166,7 +166,6 @@ const DocumentationTab = () => {
           try {
             const response = await api.get(`/api/clinical/notes/${selectedNote.id}`);
             fullNote = response.data;
-            console.log('Fetched note from API:', response.data);
             originalContent = `=== ORIGINAL NOTE (${format(new Date(fullNote.created_at || fullNote.createdAt), 'MM/dd/yyyy h:mm a')}) ===\n\n`;
           } catch (fetchError) {
             console.error('Error fetching note, using cached data:', fetchError);
@@ -176,23 +175,17 @@ const DocumentationTab = () => {
           }
         }
         
-        console.log('Loading addendum for note:', JSON.stringify(fullNote, null, 2));
-        
         // Build note content from all available fields, including raw text
         const sections = [];
         
         // Debug: Log all fields
-        console.log('Available fields in note:', Object.keys(fullNote));
-        
         // Add any content field (for notes that might have a general content field or markdown-style notes)
         if (fullNote.content) {
-          console.log('Found content field:', fullNote.content.substring(0, 100) + '...');
           sections.push(fullNote.content);
         }
         
         // For encounter notes or notes stored as plain text in the notes field
         if (fullNote.notes) {
-          console.log('Found notes field:', fullNote.notes.substring(0, 100) + '...');
           sections.push(fullNote.notes);
         }
         
@@ -264,8 +257,6 @@ const DocumentationTab = () => {
         
         // If no content was found, check all possible fields
         if (sections.length === 0) {
-          console.log('No content found in standard fields, checking all fields...');
-          
           // Try to get any text content from the note
           const allFields = Object.entries(fullNote).filter(([key, value]) => 
             typeof value === 'string' && 
@@ -273,8 +264,6 @@ const DocumentationTab = () => {
             !['id', 'patient_id', 'encounter_id', 'author_id', 'status', 'note_type', 'template_id', 'parent_note_id', 'cosigner_id'].includes(key) &&
             !key.includes('_at') && !key.includes('_id')
           );
-          
-          console.log('Found text fields:', allFields.map(([key]) => key));
           
           if (allFields.length > 0) {
             allFields.forEach(([key, value]) => {
@@ -287,8 +276,6 @@ const DocumentationTab = () => {
         
         // Join all sections with double newlines
         const noteContent = sections.join('\n\n');
-        
-        console.log('Final content to show:', noteContent.substring(0, 200) + '...');
         
         setAddendumContent(originalContent + noteContent + '\n\n=== ADDENDUM ===\n\n');
         setShowAddendumDialog(true);

@@ -76,7 +76,6 @@ const ResultsTab = () => {
 
   useEffect(() => {
     if (currentPatient) {
-      console.log('ResultsTab - Loading for patient:', currentPatient.id);
       loadResults();
       setHasLoadedInitial(true);
     } else {
@@ -89,13 +88,11 @@ const ResultsTab = () => {
 
   useEffect(() => {
     if (currentPatient && hasLoadedInitial) {
-      console.log('ResultsTab - Reloading due to encounter change:', currentEncounter?.id);
       loadResults();
     }
   }, [currentEncounter?.id]);
 
   const loadResults = async () => {
-    console.log('Loading results for patient:', currentPatient?.id, 'encounter:', currentEncounter?.id);
     setLoading(true);
     try {
       // Load ALL lab results for the patient
@@ -107,18 +104,13 @@ const ResultsTab = () => {
       // Don't filter by encounter - instead we'll show all results
       // and highlight/sort the ones from the current encounter
       const labResponse = await api.get('/api/observations', { params });
-      console.log('Lab results loaded:', labResponse.data?.length || 0, 'results');
-      
       // Filter and sort results based on encounter context
       let results = labResponse.data || [];
       
       // Load imaging studies (don't filter by encounter for imaging)
       try {
         const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
-        console.log('Imaging API response:', imagingResponse.data);
         const imagingData = imagingResponse.data?.data || [];
-        console.log('Imaging studies loaded:', imagingData.length, 'studies');
-        console.log('Setting imaging results:', imagingData);
         setImagingResults(imagingData);
       } catch (imagingError) {
         console.error('Error loading imaging studies:', imagingError);
@@ -128,8 +120,6 @@ const ResultsTab = () => {
       if (currentEncounter && currentEncounter.encounter_date) {
         // Filter to only show results up to and including the encounter date
         const encounterDate = new Date(currentEncounter.encounter_date || currentEncounter.startDate);
-        console.log('Filtering results up to encounter date:', encounterDate);
-        
         results = results.filter(result => {
           const resultDate = new Date(result.observation_date);
           return resultDate <= encounterDate;
@@ -147,10 +137,8 @@ const ResultsTab = () => {
           return new Date(b.observation_date) - new Date(a.observation_date);
         });
         
-        console.log('Filtered to', results.length, 'results for encounter context');
       } else {
         // Just sort by date if no encounter selected (show all results)
-        console.log('No encounter selected, showing all results');
         results.sort((a, b) => new Date(b.observation_date) - new Date(a.observation_date));
       }
       
@@ -220,7 +208,6 @@ const ResultsTab = () => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    console.log('Uploading DICOM files:', files.length);
     setLoading(true);
 
     try {
@@ -238,23 +225,14 @@ const ResultsTab = () => {
         },
       });
 
-      console.log('Upload response:', response.data);
-
       if (response.data.success) {
-        console.log('Upload successful, response:', response.data);
-        
         // Show what was uploaded
         if (response.data.data?.studies) {
-          console.log('Uploaded studies:', response.data.data.studies);
         }
         
         // Force reload of imaging studies
-        console.log('Reloading studies for patient:', currentPatient.id);
         const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
-        console.log('Reloaded imaging studies response:', imagingResponse.data);
-        
         const studies = imagingResponse.data?.data || [];
-        console.log('Setting imaging results to:', studies);
         setImagingResults(studies);
         
         alert(`Successfully uploaded ${files.length} DICOM file(s)`);
@@ -307,7 +285,6 @@ const ResultsTab = () => {
             Showing all laboratory results for this patient
           </Alert>
         )}
-
 
         <Paper sx={{ overflow: 'hidden' }}>
           {loading ? (
@@ -406,7 +383,6 @@ const ResultsTab = () => {
 
       <TabPanel value={activeTab} index={1}>
         {/* Imaging Results */}
-        {console.log('Imaging tab active, imagingResults:', imagingResults)}
         <Paper sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">Imaging Studies</Typography>
@@ -429,7 +405,6 @@ const ResultsTab = () => {
           
           {imagingResults.length > 0 ? (
             <List>
-              {console.log('Rendering imaging results:', imagingResults)}
               {imagingResults.map((study) => (
                 <Card key={study.id} sx={{ mb: 2 }}>
                   <ListItem>
@@ -477,12 +452,8 @@ const ResultsTab = () => {
                         startIcon={<ViewIcon />}
                         size="small"
                         onClick={() => {
-                          console.log('ResultsTab: Selected study:', study);
-                          console.log('ResultsTab: Study ID:', study.id);
-                          console.log('ResultsTab: Study instance UID:', study.study_instance_uid);
                           setSelectedStudy(study);
                           setShowImageViewer(true);
-                          console.log('ResultsTab: showImageViewer set to true');
                         }}
                         disabled={study.upload_status !== 'complete'}
                       >
@@ -504,7 +475,6 @@ const ResultsTab = () => {
       </TabPanel>
 
       {/* Image Viewer Dialog */}
-      {console.log('ResultsTab: Dialog render - showImageViewer:', showImageViewer, 'selectedStudy:', selectedStudy)}
       <Dialog
         open={showImageViewer}
         onClose={() => setShowImageViewer(false)}
@@ -527,7 +497,6 @@ const ResultsTab = () => {
         <DialogContent sx={{ p: 0 }}>
           {selectedStudy ? (
             <>
-              {console.log('ResultsTab: Rendering ImageViewerV2 with studyId:', selectedStudy.id)}
               <ImageViewerV2
                 studyId={selectedStudy.id}
                 seriesId={selectedStudy.series?.[0]?.series_instance_uid}
@@ -535,7 +504,6 @@ const ResultsTab = () => {
               />
             </>
           ) : (
-            console.log('ResultsTab: No selectedStudy, not rendering ImageViewerV2')
           )}
         </DialogContent>
       </Dialog>

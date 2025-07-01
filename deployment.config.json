@@ -1,0 +1,127 @@
+{
+  "deployment_profiles": {
+    "local_dev": {
+      "description": "Local development with minimal data",
+      "patient_count": 10,
+      "provider_count": 3,
+      "enable_clinical_notes": true,
+      "enable_imaging": true,
+      "enable_labs_with_ranges": true,
+      "enable_patient_provider_assignment": true,
+      "database": {
+        "type": "sqlite",
+        "path": "./data/emr.db"
+      },
+      "synthea": {
+        "seed": 12345,
+        "location": "Massachusetts",
+        "export_formats": ["fhir", "ccda", "text"],
+        "modules": ["all"]
+      }
+    },
+    "production": {
+      "description": "Production deployment with full data",
+      "patient_count": 100,
+      "provider_count": 15,
+      "enable_clinical_notes": true,
+      "enable_imaging": true,
+      "enable_labs_with_ranges": true,
+      "enable_patient_provider_assignment": true,
+      "database": {
+        "type": "sqlite",
+        "path": "./data/emr.db"
+      },
+      "synthea": {
+        "seed": 12345,
+        "location": "Massachusetts", 
+        "export_formats": ["fhir", "ccda", "text", "csv"],
+        "modules": ["all"]
+      },
+      "performance": {
+        "batch_size": 50,
+        "max_workers": 4,
+        "memory_limit": "2g"
+      }
+    },
+    "cloud": {
+      "description": "Cloud deployment optimized settings",
+      "patient_count": 200,
+      "provider_count": 20,
+      "enable_clinical_notes": true,
+      "enable_imaging": true,
+      "enable_labs_with_ranges": true,
+      "enable_patient_provider_assignment": true,
+      "database": {
+        "type": "postgresql",
+        "connection_string": "${DATABASE_URL}"
+      },
+      "synthea": {
+        "seed": 12345,
+        "location": "Massachusetts",
+        "export_formats": ["fhir", "ccda", "text"],
+        "modules": ["all"]
+      },
+      "performance": {
+        "batch_size": 100,
+        "max_workers": 8,
+        "memory_limit": "4g"
+      }
+    }
+  },
+  "synthea_settings": {
+    "java_heap_size": "2g",
+    "properties": {
+      "exporter.fhir.export": true,
+      "exporter.ccda.export": true,
+      "exporter.text.export": true,
+      "exporter.csv.export": false,
+      "exporter.baseDirectory": "./data/synthea_output",
+      "exporter.use_uuid_filenames": true,
+      "exporter.subfolders_by_id_substring": true,
+      "generate.providers.selection": "random",
+      "generate.demographics.default_population": 100000,
+      "generate.log_patients.detail": "simple",
+      "generate.only_dead_patients": false
+    },
+    "modules": {
+      "cardiovascular": true,
+      "diabetes": true,
+      "lung_cancer": true,
+      "breast_cancer": true,
+      "copd": true,
+      "covid19": true,
+      "allergies": true,
+      "asthma": true,
+      "injuries": true,
+      "medications": true,
+      "observations": true,
+      "procedures": true,
+      "immunizations": true,
+      "encounters": true,
+      "symptoms": true
+    }
+  },
+  "post_processing": {
+    "clean_names": true,
+    "add_reference_ranges": true,
+    "generate_dicom": true,
+    "import_clinical_notes": true,
+    "create_quality_measures": true,
+    "assign_providers": true,
+    "populate_clinical_catalogs": true
+  },
+  "environment_defaults": {
+    "SECRET_KEY": "CHANGE_THIS_IN_PRODUCTION",
+    "JWT_ALGORITHM": "HS256", 
+    "JWT_EXPIRATION_HOURS": 8,
+    "CORS_ORIGINS": "http://localhost,http://localhost:3000",
+    "LOG_LEVEL": "INFO",
+    "UPLOAD_MAX_SIZE_MB": 50,
+    "DICOM_STORAGE_PATH": "./uploads/dicom"
+  },
+  "test_settings": {
+    "run_tests_after_setup": true,
+    "test_categories": ["unit", "integration", "fhir_conformance"],
+    "min_coverage_percent": 80
+  }
+}

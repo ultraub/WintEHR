@@ -120,17 +120,12 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
     if (vitalsData) {
       // Check blood pressure data specifically
       const bpData = vitalsData.filter(v => v.display === 'Blood pressure panel with all children optional');
-      console.log('VitalsOverview - Blood pressure data found:', bpData.length, 'readings');
       if (bpData.length > 0) {
-        console.log('VitalsOverview - Sample BP data structure:', JSON.stringify(bpData[0], null, 2));
       }
       
       // Also check for individual systolic/diastolic readings
       const systolicData = vitalsData.filter(v => v.display && v.display.toLowerCase().includes('systolic'));
       const diastolicData = vitalsData.filter(v => v.display && v.display.toLowerCase().includes('diastolic'));
-      console.log('VitalsOverview - Systolic readings:', systolicData.length);
-      console.log('VitalsOverview - Diastolic readings:', diastolicData.length);
-      
       setAllVitalsData(vitalsData);
       setLoading(false);
     } else if (patientId) {
@@ -174,7 +169,6 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       return vitalDate >= cutoffDate && vital.display === vitalType;
     });
 
-
     // Don't group by date - use each measurement as a separate point
     const dataPoints = filteredVitals
       .map(vital => {
@@ -185,9 +179,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
 
         // Handle blood pressure specially (split systolic/diastolic)
         if ((vitalType === 'Blood pressure panel with all children optional' || vitalType === 'Blood Pressure') && vital.value) {
-          console.log('VitalsOverview - Processing BP value:', vital.value);
           const [systolic, diastolic] = vital.value.split('/').map(v => parseFloat(v));
-          console.log('VitalsOverview - Split to systolic:', systolic, 'diastolic:', diastolic);
           if (!isNaN(systolic) && !isNaN(diastolic)) {
             return {
               ...baseData,

@@ -108,7 +108,6 @@ function PatientViewRefined() {
           const alertsResponse = await api.get(`/api/patient-alerts/${id}`);
           setAlerts(alertsResponse.data?.alerts || []);
         } catch (alertError) {
-          console.log('Patient alerts endpoint not available');
           setAlerts([]);
         }
         

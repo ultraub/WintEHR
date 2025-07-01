@@ -171,7 +171,6 @@ const PatientOverview = () => {
   };
   
   const handleEditMedication = (medication) => {
-    console.log('Editing medication:', medication);
     setEditingMedication(medication);
     setNewMedication({
       medication_name: medication.medication_name || medication.medication || '',

@@ -52,8 +52,6 @@ cornerstoneWADOImageLoader.configure({
 });
 
 const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
-  console.log('ImageViewerV2: Component mounting with props:', { studyId, seriesId });
-  
   const viewerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,14 +67,12 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
   // First useEffect: Fetch data when component mounts
   useEffect(() => {
-    console.log('ImageViewerV2: Fetching data for study:', studyId);
     fetchImageData();
   }, [studyId, seriesId]);
 
   // Second useEffect: Initialize viewer when we have data and element
   useEffect(() => {
     if (!loading && imageIds.length > 0 && viewerRef.current) {
-      console.log('ImageViewerV2: Data loaded and element ready, initializing viewer');
       initializeCornerstoneViewer();
     }
   }, [loading, imageIds]);
@@ -96,22 +92,16 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
   const fetchImageData = async () => {
     try {
-      console.log('fetchImageData: Starting data fetch');
       setLoading(true);
       setError(null);
 
       // Fetch study and series information
       try {
-        console.log('ImageViewerV2: Fetching series for study ID:', studyId);
         // studyId is the numeric study ID directly
         // Fetch series information
         const seriesUrl = `/api/imaging/wado/studies/${studyId}/series`;
-        console.log('ImageViewerV2: Fetching from URL:', seriesUrl);
         const seriesResponse = await fetch(seriesUrl);
-        console.log('ImageViewerV2: Series response status:', seriesResponse.status);
         const seriesResult = await seriesResponse.json();
-        console.log('ImageViewerV2: Series result:', seriesResult);
-        
         if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
           throw new Error('No series found for this study');
         }
@@ -147,9 +137,7 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         });
 
         // Load and display the first image
-        console.log('ImageViewerV2: Image IDs created:', imageIdArray);
         if (imageIdArray.length > 0) {
-          console.log('ImageViewerV2: Loading first image:', imageIdArray[0]);
           await loadAndDisplayImage(imageIdArray[0]);
           setCurrentImageIndex(0);
         } else {
@@ -187,8 +175,6 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         return;
       }
 
-      console.log('initializeCornerstoneViewer: Enabling cornerstone');
-      
       // Enable the element
       try {
         cornerstone.enable(element);
@@ -201,16 +187,12 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       
       // Skip cornerstone-tools mouse handling entirely to avoid the error
       // We'll use the sliders for window/level and zoom controls instead
-      console.log('Skipping cornerstone-tools mouse initialization to avoid errors');
-
       // Load and display the first image
       if (imageIds.length > 0) {
-        console.log('initializeCornerstoneViewer: Loading first image');
         loadAndDisplayImage(imageIds[0]);
         setCurrentImageIndex(0);
       } else if (imageInfo.demo) {
         // If we're in demo mode due to an error, display a demo image
-        console.log('initializeCornerstoneViewer: Loading demo image');
         const demoImage = createDemoImage();
         cornerstone.displayImage(element, demoImage);
       }
@@ -222,7 +204,6 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
   const setupTools = () => {
     // Skip tool setup to avoid mouse errors
-    console.log('Skipping tool setup to avoid mouse handling errors');
   };
 
   const createDemoImage = () => {
@@ -265,7 +246,6 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
   const loadAndDisplayImage = async (imageId) => {
     try {
-      console.log('loadAndDisplayImage: Starting to load image:', imageId);
       const element = viewerRef.current;
       if (!element) {
         console.error('loadAndDisplayImage: No viewer element');
@@ -273,10 +253,7 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       }
 
       // Load the image
-      console.log('loadAndDisplayImage: Calling cornerstone.loadImage');
       const image = await cornerstone.loadImage(imageId);
-      console.log('loadAndDisplayImage: Image loaded successfully:', image);
-      
       // Display the image
       cornerstone.displayImage(element, image);
       
@@ -318,7 +295,6 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
     // Tools are disabled to avoid mouse errors
     // Just update the UI state
     setActiveTool(toolName);
-    console.log('Tool selection disabled to avoid mouse errors. Use sliders for adjustments.');
   };
 
   const handleWindowingChange = (width, center) => {
