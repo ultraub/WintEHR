@@ -10,7 +10,7 @@ import json
 
 from database.database import get_db
 from services.cql_engine import CQLTranslationEngine, SimplifiedCQLExecutor
-from auth.auth import get_current_user
+from api.auth import get_current_user
 
 
 router = APIRouter(prefix="/api/cql", tags=["CQL"])

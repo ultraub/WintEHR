@@ -583,10 +583,16 @@ const CDSHooksBuilderEnhanced = () => {
       setLoading(true);
       let response;
       
+      // Generate ID if not provided
+      const hookToSave = {
+        ...hookConfig,
+        id: hookConfig.id || `hook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+      
       if (selectedHook) {
-        response = await api.put(`/cds-hooks/hooks/${selectedHook.id}`, hookConfig);
+        response = await api.put(`/cds-hooks/hooks/${selectedHook.id}`, hookToSave);
       } else {
-        response = await api.post('/cds-hooks/hooks', hookConfig);
+        response = await api.post('/cds-hooks/hooks', hookToSave);
       }
       
       await fetchHooks();

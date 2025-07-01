@@ -10,12 +10,7 @@ from typing import Dict, List, Any, Tuple, Optional
 from sqlalchemy import and_, or_, func, case, text
 from sqlalchemy.orm import Session, Query
 
-from models.patient import Patient
-from models.condition import Condition
-from models.observation import Observation
-from models.medication_request import MedicationRequest
-from models.encounter import Encounter
-from models.practitioner import Practitioner
+from models.models import Patient, Condition, Observation, Medication as MedicationRequest, Encounter, Provider as Practitioner
 
 
 class CQLTranslationEngine:
