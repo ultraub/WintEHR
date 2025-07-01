@@ -76,6 +76,7 @@ class Patient(Base):
     devices = relationship("Device", back_populates="patient", cascade="all, delete-orphan")
     diagnostic_reports = relationship("DiagnosticReport", back_populates="patient", cascade="all, delete-orphan")
     imaging_studies = relationship("ImagingStudy", back_populates="patient", cascade="all, delete-orphan")
+    dicom_studies = relationship("DICOMStudy", back_populates="patient", cascade="all, delete-orphan")
 
 class Provider(Base):
     """Provider/Practitioner model"""
@@ -610,6 +611,7 @@ class ImagingStudy(Base):
     
     # Relationships
     patient = relationship("Patient", back_populates="imaging_studies")
+    dicom_study = relationship("DICOMStudy", back_populates="imaging_study", uselist=False)
 
 # Create indexes for common queries
 Index('idx_encounters_date', Encounter.encounter_date)
