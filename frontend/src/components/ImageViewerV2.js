@@ -223,11 +223,25 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       // Add and configure tools
       setupTools();
       
-      // Initialize mouse input
+      // Initialize mouse input for the specific element
       try {
         cornerstoneTools.mouseInput.enable(element);
+        cornerstoneTools.touchInput.enable(element);
+        cornerstoneTools.mouseWheelInput.enable(element);
+        
+        // Add tools to the specific element
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.PanTool, { mouseButtonMask: 1 });
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.ZoomTool, { mouseButtonMask: 2 });
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.WwwcTool, { mouseButtonMask: 4 });
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.LengthTool);
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.AngleTool);
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.EllipticalRoiTool);
+        cornerstoneTools.addToolForElement(element, cornerstoneTools.RectangleRoiTool);
+        
+        // Set the initial tool active
+        cornerstoneTools.setToolActiveForElement(element, 'Pan', { mouseButtonMask: 1 });
       } catch (e) {
-        console.warn('Failed to enable mouse input:', e);
+        console.warn('Failed to initialize input or tools:', e);
       }
 
       // Load and display the first image
@@ -371,18 +385,23 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
     const element = viewerRef.current;
     if (!element) return;
 
-    // Disable all tools
-    cornerstoneTools.setToolPassive('Wwwc');
-    cornerstoneTools.setToolPassive('Pan');
-    cornerstoneTools.setToolPassive('Zoom');
-    cornerstoneTools.setToolPassive('Length');
-    cornerstoneTools.setToolPassive('Angle');
-    cornerstoneTools.setToolPassive('EllipticalRoi');
-    cornerstoneTools.setToolPassive('RectangleRoi');
+    try {
+      // Disable all tools for this element
+      const tools = ['Wwwc', 'Pan', 'Zoom', 'Length', 'Angle', 'EllipticalRoi', 'RectangleRoi'];
+      tools.forEach(tool => {
+        try {
+          cornerstoneTools.setToolPassiveForElement(element, tool);
+        } catch (e) {
+          // Tool might not be added yet, ignore
+        }
+      });
 
-    // Enable selected tool
-    cornerstoneTools.setToolActive(toolName, { mouseButtonMask: 1 });
-    setActiveTool(toolName);
+      // Enable selected tool for this element
+      cornerstoneTools.setToolActiveForElement(element, toolName, { mouseButtonMask: 1 });
+      setActiveTool(toolName);
+    } catch (e) {
+      console.error('Error changing tool:', e);
+    }
   };
 
   const handleWindowingChange = (width, center) => {
