@@ -40,7 +40,24 @@ cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
 cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 cornerstoneTools.external.cornerstone = cornerstone;
 cornerstoneTools.external.Hammer = Hammer;
-cornerstoneTools.init();
+
+// Initialize cornerstone tools safely
+try {
+  cornerstoneTools.init({
+    mouseEnabled: true,
+    touchEnabled: false,
+    globalToolSyncEnabled: false,
+    showSVGCursors: false
+  });
+} catch (e) {
+  console.warn('Cornerstone tools initialization warning:', e);
+  // Try basic init if advanced options fail
+  try {
+    cornerstoneTools.init();
+  } catch (e2) {
+    console.error('Cornerstone tools initialization failed:', e2);
+  }
+}
 
 // Configure image loader for WADO-URI
 cornerstoneWADOImageLoader.configure({
@@ -122,6 +139,15 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
       // Add and configure tools
       setupTools();
+      
+      // Initialize mouse input safely
+      try {
+        if (element && element.addEventListener) {
+          cornerstoneTools.mouseInput.enable(element);
+        }
+      } catch (e) {
+        console.warn('Failed to enable mouse input:', e);
+      }
 
       // Fetch study and series information
       try {
@@ -209,25 +235,37 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
   };
 
   const setupTools = () => {
-    // Add tools
-    const WwwcTool = cornerstoneTools.WwwcTool;
-    const PanTool = cornerstoneTools.PanTool;
-    const ZoomTool = cornerstoneTools.ZoomTool;
-    const LengthTool = cornerstoneTools.LengthTool;
-    const AngleTool = cornerstoneTools.AngleTool;
-    const EllipticalRoiTool = cornerstoneTools.EllipticalRoiTool;
-    const RectangleRoiTool = cornerstoneTools.RectangleRoiTool;
+    try {
+      // Add tools with safety checks
+      const tools = [
+        { tool: cornerstoneTools.WwwcTool, name: 'Wwwc' },
+        { tool: cornerstoneTools.PanTool, name: 'Pan' },
+        { tool: cornerstoneTools.ZoomTool, name: 'Zoom' },
+        { tool: cornerstoneTools.LengthTool, name: 'Length' },
+        { tool: cornerstoneTools.AngleTool, name: 'Angle' },
+        { tool: cornerstoneTools.EllipticalRoiTool, name: 'EllipticalRoi' },
+        { tool: cornerstoneTools.RectangleRoiTool, name: 'RectangleRoi' }
+      ];
 
-    cornerstoneTools.addTool(WwwcTool);
-    cornerstoneTools.addTool(PanTool);
-    cornerstoneTools.addTool(ZoomTool);
-    cornerstoneTools.addTool(LengthTool);
-    cornerstoneTools.addTool(AngleTool);
-    cornerstoneTools.addTool(EllipticalRoiTool);
-    cornerstoneTools.addTool(RectangleRoiTool);
+      tools.forEach(({ tool, name }) => {
+        try {
+          if (tool) {
+            cornerstoneTools.addTool(tool);
+          }
+        } catch (e) {
+          console.warn(`Failed to add tool ${name}:`, e);
+        }
+      });
 
-    // Set initial tool
-    cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 1 });
+      // Set initial tool safely
+      try {
+        cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 1 });
+      } catch (e) {
+        console.warn('Failed to set initial tool:', e);
+      }
+    } catch (e) {
+      console.error('Error in setupTools:', e);
+    }
   };
 
   const createDemoImage = () => {

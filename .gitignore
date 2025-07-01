@@ -34,6 +34,9 @@ frontend/node_modules/
 backend/dist/
 *.egg-info/
 
+# Lock files (can cause issues with large changes)
+frontend/package-lock.json
+
 # Environment files
 .env
 .env.local
