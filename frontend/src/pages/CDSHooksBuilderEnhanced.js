@@ -70,7 +70,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   Webhook as WebhookIcon,
   Rule as RuleIcon,
-  Notification as NotificationIcon,
+  Notifications as NotificationIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   ContentCopy as CopyIcon,
