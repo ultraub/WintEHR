@@ -567,13 +567,21 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const handleUseTemplate = (template) => {
-    setHookConfig({
-      ...hookConfig,
-      ...template,
-      id: '', // Clear ID for new hook
+    // Create a fresh hook config from template
+    const newHookConfig = {
+      id: '', // Empty ID for new hook
+      title: template.name || '',
+      description: template.description || '',
+      hook: template.hook || 'patient-view',
+      priority: 1,
+      enabled: true,
       conditions: template.conditions.map(c => ({ ...c, id: Date.now() + Math.random() })),
       actions: template.actions.map(a => ({ ...a, id: Date.now() + Math.random() })),
-    });
+      fhirVersion: '4.0.1',
+      prefetch: {},
+      category: template.category || 'clinical',
+    };
+    setHookConfig(newHookConfig);
     setSelectedHook(null); // Clear selected hook since this is a new one
     setActiveStep(0);
     setBuilderOpen(true);
@@ -1535,7 +1543,7 @@ const CDSHooksBuilderEnhanced = () => {
               variant="contained"
               startIcon={<SaveIcon />}
               onClick={handleSaveHook}
-              disabled={loading || !hookConfig.id || !hookConfig.title}
+              disabled={loading || !hookConfig.title}
             >
               {selectedHook ? 'Update Hook' : 'Create Hook'}
             </Button>
