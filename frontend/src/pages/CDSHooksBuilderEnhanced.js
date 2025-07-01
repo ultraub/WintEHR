@@ -512,7 +512,7 @@ const CDSHooksBuilderEnhanced = () => {
   const fetchDiagnosisCodes = async () => {
     try {
       setLoadingDiagnoses(true);
-      const response = await api.get('/patient-data/conditions', { params: { limit: 200 } });
+      const response = await api.get('/api/patient-data/conditions', { params: { limit: 200 } });
       // Map the response to match our expected format
       const codes = response.data.map(item => ({
         code: item.code,
@@ -549,9 +549,9 @@ const CDSHooksBuilderEnhanced = () => {
       
       // Fetch actual patient data using the new endpoints
       const [labTests, medications, vitalSigns] = await Promise.all([
-        api.get('/patient-data/lab-tests', { params: { limit: 200 } }),
-        api.get('/patient-data/medications', { params: { limit: 200 } }),
-        api.get('/patient-data/vital-signs', { params: { limit: 50 } })
+        api.get('/api/patient-data/lab-tests', { params: { limit: 200 } }),
+        api.get('/api/patient-data/medications', { params: { limit: 200 } }),
+        api.get('/api/patient-data/vital-signs', { params: { limit: 50 } })
       ]);
       
       // Set lab tests - already in the correct format
@@ -588,7 +588,7 @@ const CDSHooksBuilderEnhanced = () => {
 
   const fetchDataSummary = async () => {
     try {
-      const response = await api.get('/actual-data/summary');
+      const response = await api.get('/api/actual-data/summary');
       setDataSummary(response.data);
     } catch (error) {
       console.error('Error fetching data summary:', error);
