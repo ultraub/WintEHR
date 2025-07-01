@@ -95,7 +95,6 @@ import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import api from '../services/api';
-import axios from 'axios';
 
 SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('bash', bash);
@@ -846,7 +845,7 @@ function FHIRExplorerEnhanced() {
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        const response = await axios.get('/fhir/R4/Patient?_count=100&_elements=id,name');
+        const response = await api.get('/fhir/R4/Patient?_count=100&_elements=id,name');
         const patients = response.data.entry?.map(entry => ({
           id: `Patient/${entry.resource.id}`,
           display: `${entry.resource.name?.[0]?.given?.[0] || ''} ${entry.resource.name?.[0]?.family || ''} (${entry.resource.id})`
@@ -900,7 +899,7 @@ function FHIRExplorerEnhanced() {
     }
     
     try {
-      const response = await axios.get(queryUrl);
+      const response = await api.get(queryUrl);
       setResponse(response.data);
       
       // Add to history
