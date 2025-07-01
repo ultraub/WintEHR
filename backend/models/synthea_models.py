@@ -612,6 +612,7 @@ class ImagingStudy(Base):
     # Relationships
     patient = relationship("Patient", back_populates="imaging_studies")
     dicom_study = relationship("DICOMStudy", back_populates="imaging_study", uselist=False)
+    result = relationship("ImagingResult", back_populates="imaging_study", uselist=False)
 
 # Create indexes for common queries
 Index('idx_encounters_date', Encounter.encounter_date)
