@@ -89,19 +89,25 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
   const [imageInfo, setImageInfo] = useState({});
   const [studyInfo, setStudyInfo] = useState(null);
 
+  // First useEffect: Fetch data when component mounts
   useEffect(() => {
-    // Delay initialization to ensure DOM is ready
-    const timer = setTimeout(() => {
-      if (viewerRef.current) {
-        initializeViewer();
-      }
-    }, 100);
-    
+    console.log('ImageViewerV2: Fetching data for study:', studyId);
+    fetchImageData();
+  }, [studyId, seriesId]);
+
+  // Second useEffect: Initialize viewer when we have data and element
+  useEffect(() => {
+    if (!loading && imageIds.length > 0 && viewerRef.current) {
+      console.log('ImageViewerV2: Data loaded and element ready, initializing viewer');
+      initializeCornerstoneViewer();
+    }
+  }, [loading, imageIds]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      clearTimeout(timer);
       if (viewerRef.current) {
         try {
-          // Disable all tools
           const toolStateManager = cornerstoneTools.globalImageIdSpecificToolStateManager;
           toolStateManager.clear();
           cornerstone.disable(viewerRef.current);
@@ -110,46 +116,13 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         }
       }
     };
-  }, [studyId, seriesId]);
+  }, []);
 
-  const initializeViewer = async () => {
+  const fetchImageData = async () => {
     try {
+      console.log('fetchImageData: Starting data fetch');
       setLoading(true);
       setError(null);
-      
-      const element = viewerRef.current;
-      if (!element) {
-        setError('Viewer element not ready');
-        setLoading(false);
-        return;
-      }
-      
-      // Check element dimensions
-      const rect = element.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        setError('Viewer container not properly sized');
-        setLoading(false);
-        return;
-      }
-      
-      // Enable the element
-      try {
-        cornerstone.enable(element);
-      } catch (err) {
-        console.warn('Cornerstone already enabled:', err);
-      }
-
-      // Add and configure tools
-      setupTools();
-      
-      // Initialize mouse input safely
-      try {
-        if (element && element.addEventListener) {
-          cornerstoneTools.mouseInput.enable(element);
-        }
-      } catch (e) {
-        console.warn('Failed to enable mouse input:', e);
-      }
 
       // Fetch study and series information
       try {
@@ -221,12 +194,52 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         });
       }
       
+      // Data fetched successfully, now we can exit loading state
       setLoading(false);
       
     } catch (err) {
-      console.error('Error initializing viewer:', err);
-      setError(err.message || 'Failed to initialize image viewer');
+      console.error('Error fetching image data:', err);
+      setError(err.message || 'Failed to load image data');
       setLoading(false);
+    }
+  };
+
+  const initializeCornerstoneViewer = () => {
+    try {
+      const element = viewerRef.current;
+      if (!element) {
+        console.error('initializeCornerstoneViewer: No element found');
+        return;
+      }
+
+      console.log('initializeCornerstoneViewer: Enabling cornerstone');
+      
+      // Enable the element
+      try {
+        cornerstone.enable(element);
+      } catch (err) {
+        console.warn('Cornerstone already enabled:', err);
+      }
+
+      // Add and configure tools
+      setupTools();
+      
+      // Initialize mouse input
+      try {
+        cornerstoneTools.mouseInput.enable(element);
+      } catch (e) {
+        console.warn('Failed to enable mouse input:', e);
+      }
+
+      // Load and display the first image
+      if (imageIds.length > 0) {
+        console.log('initializeCornerstoneViewer: Loading first image');
+        loadAndDisplayImage(imageIds[0]);
+        setCurrentImageIndex(0);
+      }
+    } catch (err) {
+      console.error('Error initializing cornerstone viewer:', err);
+      setError('Failed to initialize image viewer');
     }
   };
 
