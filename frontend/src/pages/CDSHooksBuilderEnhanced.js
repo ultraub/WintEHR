@@ -968,7 +968,7 @@ const CDSHooksBuilderEnhanced = () => {
                   
                   {/* Standard fields */}
                   {conditionType.parameters.includes('operator') && 
-                   !['lab-value', 'medication-active', 'diagnosis-code'].includes(condition.type) && (
+                   !['medication-active', 'diagnosis-code'].includes(condition.type) && (
                     <Grid item xs={12} md={3}>
                       <FormControl fullWidth>
                         <InputLabel>Operator</InputLabel>
@@ -992,8 +992,7 @@ const CDSHooksBuilderEnhanced = () => {
                     </Grid>
                   )}
                   
-                  {conditionType.parameters.includes('value') && 
-                   !['lab-value'].includes(condition.type) && (
+                  {conditionType.parameters.includes('value') && (
                     <Grid item xs={12} md={3}>
                       <TextField
                         fullWidth

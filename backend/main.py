@@ -12,6 +12,7 @@ from api.fhir import fhir_router
 from api.cds_hooks import cds_hooks_router
 from api.app import app_router
 from api.quality import quality_router
+from api.cql_api import router as cql_router
 from api.clinical.documentation import notes_router
 from api.clinical.orders import orders_router
 from api.clinical.inbox import inbox_router
@@ -54,6 +55,7 @@ app.include_router(fhir_router.router, prefix="/fhir", tags=["FHIR R4"])
 app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])
 app.include_router(app_router.router, prefix="/api", tags=["Application API"])
 app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
+app.include_router(cql_router, tags=["CQL Engine"])
 
 # Include clinical routers
 app.include_router(notes_router.router, prefix="/api", tags=["Clinical Notes"])

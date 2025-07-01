@@ -15,9 +15,8 @@ import PatientViewRefined from './pages/PatientViewRefined';
 import Analytics from './pages/Analytics';
 import FHIRExplorerEnhanced from './pages/FHIRExplorerEnhanced';
 import CDSDemo from './pages/CDSDemo';
-import CDSHooksBuilder from './pages/CDSHooksBuilder';
-import QualityMeasures from './pages/QualityMeasures';
-import CQLMeasures from './pages/CQLMeasures';
+import CDSHooksBuilderEnhanced from './pages/CDSHooksBuilderEnhanced';
+import UnifiedCQLMeasures from './pages/UnifiedCQLMeasures';
 
 // Clinical Components
 import ClinicalWorkspace from './components/clinical/ClinicalWorkspace';
@@ -269,21 +268,14 @@ function App() {
                       <Route path="/cds-hooks" element={
                         <ProtectedRoute>
                           <Layout>
-                            <CDSHooksBuilder />
+                            <CDSHooksBuilderEnhanced />
                           </Layout>
                         </ProtectedRoute>
                       } />
                       <Route path="/quality" element={
                         <ProtectedRoute>
                           <Layout>
-                            <QualityMeasures />
-                          </Layout>
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/cql-measures" element={
-                        <ProtectedRoute>
-                          <Layout>
-                            <CQLMeasures />
+                            <UnifiedCQLMeasures />
                           </Layout>
                         </ProtectedRoute>
                       } />

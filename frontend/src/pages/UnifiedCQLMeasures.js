@@ -1446,7 +1446,20 @@ const UnifiedCQLMeasures = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Validate CQL syntax and check for common errors and best practices
                   </Typography>
-                  <Button variant="outlined" fullWidth startIcon={<BugReportIcon />}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth 
+                    startIcon={<BugReportIcon />}
+                    onClick={() => {
+                      // Open translator dialog in validation mode
+                      setTranslatorDialog(true);
+                      setSnackbar({ 
+                        open: true, 
+                        message: 'Use the translator to validate your CQL code', 
+                        severity: 'info' 
+                      });
+                    }}
+                  >
                     Validate CQL
                   </Button>
                 </CardContent>
@@ -1533,6 +1546,44 @@ const UnifiedCQLMeasures = () => {
                 </Accordion>
               </Grid>
             </Grid>
+            
+            {/* CQL Examples from API */}
+            {cqlExamples.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="h6" gutterBottom>CQL Examples Library</Typography>
+                <Grid container spacing={2}>
+                  {cqlExamples.map((example, idx) => (
+                    <Grid item xs={12} md={6} key={idx}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle1" gutterBottom>
+                            {example.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {example.description}
+                          </Typography>
+                          <Box sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1, mb: 1 }}>
+                            <Typography variant="caption" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                              {example.cql.substring(0, 150)}...
+                            </Typography>
+                          </Box>
+                          <Button 
+                            size="small" 
+                            startIcon={<ContentCopyIcon />}
+                            onClick={() => {
+                              setSourceCode(example.cql);
+                              setTranslatorDialog(true);
+                            }}
+                          >
+                            Use in Translator
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
           </Box>
         </TabPanel>
       </Paper>
