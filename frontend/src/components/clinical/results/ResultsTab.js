@@ -44,7 +44,8 @@ import {
 } from '@mui/icons-material';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import api from '../../../services/api';
-import ImageViewerV2 from '../../ImageViewerV2';
+// Temporarily use simplified viewer to avoid cornerstone-tools issues
+import ImageViewerV2 from '../../ImageViewerV2_Simple';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
