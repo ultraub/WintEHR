@@ -34,3 +34,12 @@ fhir.resources==7.1.0
 
 # Synthea integration
 GitPython==3.1.40
+
+# Medical imaging
+pydicom==2.4.4
+pillow==10.1.0
+numpy==1.26.2
+# For DICOM image processing
+pylibjpeg==2.0.0
+pylibjpeg-libjpeg==2.0.0
+pylibjpeg-openjpeg==2.0.0

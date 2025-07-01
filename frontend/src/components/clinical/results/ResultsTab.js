@@ -22,19 +22,30 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
+  ListItemButton,
   Divider,
   Card,
-  CardContent
+  CardContent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Button
 } from '@mui/material';
 import {
   Science as LabIcon,
   Camera as ImagingIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
-  Remove as NormalIcon
+  Remove as NormalIcon,
+  Close as CloseIcon,
+  Visibility as ViewIcon,
+  FileUpload as UploadIcon
 } from '@mui/icons-material';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import api from '../../../services/api';
+// Temporarily use simplified viewer to avoid cornerstone-tools issues
+import ImageViewerV2 from '../../ImageViewerV2_Simple';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
@@ -60,24 +71,28 @@ const ResultsTab = () => {
   const [imagingResults, setImagingResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [selectedStudy, setSelectedStudy] = useState(null);
 
   useEffect(() => {
-    if (currentPatient && !hasLoadedInitial) {
-      console.log('ResultsTab - Initial load for patient:', currentPatient.id);
+    if (currentPatient) {
       loadResults();
       setHasLoadedInitial(true);
+    } else {
+      // Reset state when no patient is selected
+      setHasLoadedInitial(false);
+      setLabResults([]);
+      setImagingResults([]);
     }
-  }, [currentPatient]);
+  }, [currentPatient?.id]); // Use currentPatient.id to ensure it triggers on patient change
 
   useEffect(() => {
     if (currentPatient && hasLoadedInitial) {
-      console.log('ResultsTab - Reloading due to encounter change:', currentEncounter?.id);
       loadResults();
     }
   }, [currentEncounter?.id]);
 
   const loadResults = async () => {
-    console.log('Loading results for patient:', currentPatient?.id, 'encounter:', currentEncounter?.id);
     setLoading(true);
     try {
       // Load ALL lab results for the patient
@@ -89,16 +104,22 @@ const ResultsTab = () => {
       // Don't filter by encounter - instead we'll show all results
       // and highlight/sort the ones from the current encounter
       const labResponse = await api.get('/api/observations', { params });
-      console.log('Lab results loaded:', labResponse.data?.length || 0, 'results');
-      
       // Filter and sort results based on encounter context
       let results = labResponse.data || [];
+      
+      // Load imaging studies (don't filter by encounter for imaging)
+      try {
+        const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
+        const imagingData = imagingResponse.data?.data || [];
+        setImagingResults(imagingData);
+      } catch (imagingError) {
+        console.error('Error loading imaging studies:', imagingError);
+        setImagingResults([]);
+      }
       
       if (currentEncounter && currentEncounter.encounter_date) {
         // Filter to only show results up to and including the encounter date
         const encounterDate = new Date(currentEncounter.encounter_date || currentEncounter.startDate);
-        console.log('Filtering results up to encounter date:', encounterDate);
-        
         results = results.filter(result => {
           const resultDate = new Date(result.observation_date);
           return resultDate <= encounterDate;
@@ -116,17 +137,15 @@ const ResultsTab = () => {
           return new Date(b.observation_date) - new Date(a.observation_date);
         });
         
-        console.log('Filtered to', results.length, 'results for encounter context');
       } else {
         // Just sort by date if no encounter selected (show all results)
-        console.log('No encounter selected, showing all results');
         results.sort((a, b) => new Date(b.observation_date) - new Date(a.observation_date));
       }
       
       setLabResults(results);
 
-      // Load imaging results would go here when available
-      setImagingResults([]);
+      // Imaging results are already loaded above, don't clear them
+      // setImagingResults([]);
     } catch (error) {
       console.error('Error loading results:', error);
     } finally {
@@ -185,6 +204,55 @@ const ResultsTab = () => {
     }
   };
 
+  const handleDicomUpload = async (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('patient_id', currentPatient.id);
+      
+      // Add all selected files
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      const response = await api.post('/api/imaging/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.success) {
+        // Show what was uploaded
+        if (response.data.data?.studies) {
+        }
+        
+        // Force reload of imaging studies
+        const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
+        const studies = imagingResponse.data?.data || [];
+        setImagingResults(studies);
+        
+        alert(`Successfully uploaded ${files.length} DICOM file(s)`);
+        
+        // Reset the file input
+        event.target.value = '';
+        
+        // Also reload all results to ensure sync
+        setTimeout(() => {
+          loadResults();
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error uploading DICOM files:', error);
+      alert('Error uploading DICOM files: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom>
@@ -217,7 +285,6 @@ const ResultsTab = () => {
             Showing all laboratory results for this patient
           </Alert>
         )}
-
 
         <Paper sx={{ overflow: 'hidden' }}>
           {loading ? (
@@ -317,29 +384,128 @@ const ResultsTab = () => {
       <TabPanel value={activeTab} index={1}>
         {/* Imaging Results */}
         <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">Imaging Studies</Typography>
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              size="small"
+              component="label"
+            >
+              Upload DICOM
+              <input
+                type="file"
+                hidden
+                multiple
+                accept=".dcm,.DCM"
+                onChange={handleDicomUpload}
+              />
+            </Button>
+          </Box>
+          
           {imagingResults.length > 0 ? (
             <List>
-              {imagingResults.map((result, index) => (
-                <ListItem key={index} divider>
-                  <ListItemIcon>
-                    <ImagingIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={result.studyDescription}
-                    secondary={`Date: ${new Date(result.studyDate).toLocaleDateString()} | Status: ${result.status}`}
-                  />
-                </ListItem>
+              {imagingResults.map((study) => (
+                <Card key={study.id} sx={{ mb: 2 }}>
+                  <ListItem>
+                    <ListItemIcon>
+                      <ImagingIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <>
+                          <span style={{ display: 'block', fontSize: '1rem', fontWeight: 500 }}>
+                            {study.study_description || 'Imaging Study'}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                            {study.modality} • {study.number_of_series} series • {study.number_of_instances} images
+                          </span>
+                        </>
+                      }
+                      secondary={
+                        <>
+                          <span style={{ display: 'block', fontSize: '0.75rem' }}>
+                            Study Date: {study.study_date ? new Date(study.study_date).toLocaleDateString() : 'N/A'}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.75rem' }}>
+                            Accession: {study.accession_number || 'N/A'}
+                          </span>
+                          <span style={{ 
+                            display: 'inline-block', 
+                            marginTop: '4px',
+                            padding: '0 8px',
+                            borderRadius: '16px',
+                            backgroundColor: study.upload_status === 'complete' ? '#4caf50' : '#e0e0e0',
+                            color: study.upload_status === 'complete' ? 'white' : 'rgba(0, 0, 0, 0.87)',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            lineHeight: '20px'
+                          }}>
+                            {study.upload_status}
+                          </span>
+                        </>
+                      }
+                    />
+                    <Box>
+                      <Button
+                        variant="outlined"
+                        startIcon={<ViewIcon />}
+                        size="small"
+                        onClick={() => {
+                          setSelectedStudy(study);
+                          setShowImageViewer(true);
+                        }}
+                        disabled={study.upload_status !== 'complete'}
+                      >
+                        View Images
+                      </Button>
+                    </Box>
+                  </ListItem>
+                </Card>
               ))}
             </List>
           ) : (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Alert severity="info">
-                No imaging results available for this patient.
+                No imaging studies available for this patient.
               </Alert>
             </Box>
           )}
         </Paper>
       </TabPanel>
+
+      {/* Image Viewer Dialog */}
+      <Dialog
+        open={showImageViewer}
+        onClose={() => setShowImageViewer(false)}
+        maxWidth="xl"
+        fullWidth
+        PaperProps={{
+          sx: { height: '90vh' }
+        }}
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              {selectedStudy?.study_description || 'Image Viewer'}
+            </Typography>
+            <IconButton onClick={() => setShowImageViewer(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {selectedStudy ? (
+            <>
+              <ImageViewerV2
+                studyId={selectedStudy.id}
+                seriesId={selectedStudy.series?.[0]?.series_instance_uid}
+                onClose={() => setShowImageViewer(false)}
+              />
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

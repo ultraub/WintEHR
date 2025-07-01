@@ -88,6 +88,12 @@ export const ClinicalProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading patient:', error);
+      // Add more detailed error handling
+      if (error.response?.status === 404) {
+        const errorMessage = 'Failed to load patient: 404';
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+      }
       throw error;
     } finally {
       setIsLoading(false);

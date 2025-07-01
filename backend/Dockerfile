@@ -2,12 +2,17 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including DICOM image libraries
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
     curl \
+    # Libraries for DICOM image processing
+    libjpeg-dev \
+    libopenjp2-7-dev \
+    libpng-dev \
+    libtiff-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -17,8 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/logs /app/synthea/output
+# Create necessary directories including DICOM storage
+RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
 
 # Expose port
 EXPOSE 8000

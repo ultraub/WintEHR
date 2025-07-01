@@ -28,14 +28,12 @@ class CDSHooksService {
       
       // Check if this exact hook was already fired in this session
       if (this.firedHooksPerSession.has(hookKeyWithEncounter)) {
-        console.log(`Skipping ${hook} hook - already fired for this patient/encounter in session`);
         return [];
       }
       
       // Check if this hook was recently fired (debounce)
       const lastFired = this.recentHooks.get(hookKey);
       if (lastFired && (now - lastFired) < this.hookDebounceTime) {
-        console.log(`Debouncing duplicate ${hook} hook call for patient ${context.patientId}`);
         return [];
       }
       
@@ -55,7 +53,6 @@ class CDSHooksService {
       const services = discovery.data.services.filter(s => s.hook === hook);
       
       if (services.length === 0) {
-        console.log(`No CDS services registered for hook: ${hook}`);
         return [];
       }
 
@@ -197,7 +194,6 @@ class CDSHooksService {
       // Clear all entries
       this.firedHooksPerSession.clear();
     }
-    console.log('Cleared CDS hooks session cache');
   }
 
   /**

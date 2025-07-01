@@ -37,6 +37,7 @@ import {
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+// import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
 
@@ -49,7 +50,6 @@ const menuItems = [
   { text: 'CDS Demo', icon: <LightbulbIcon />, emoji: '💡', path: '/cds-demo' },
   { text: 'CDS Hooks Builder', icon: <WebhookIcon />, emoji: '🎯', path: '/cds-hooks' },
   { text: 'Quality Measures', icon: <AssessmentIcon />, emoji: '✅', path: '/quality' },
-  { text: 'CQL Measures', icon: <ScienceIcon />, emoji: '🧪', path: '/cql-measures' },
 ];
 
 function Layout({ children }) {
@@ -281,6 +281,7 @@ function Layout({ children }) {
       >
         {children}
       </Box>
+      {/* <BugReportButton /> */}
     </Box>
   );
 }

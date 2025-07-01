@@ -685,14 +685,12 @@ const QualityMeasures = () => {
                       <Button
                         size="small"
                         startIcon={<DownloadIcon />}
-                        onClick={() => console.log('Download report:', report.id)}
                       >
                         Download
                       </Button>
                       <Button
                         size="small"
                         startIcon={<EditIcon />}
-                        onClick={() => console.log('View report:', report.id)}
                       >
                         View Details
                       </Button>

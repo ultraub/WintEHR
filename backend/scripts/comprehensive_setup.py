@@ -41,6 +41,10 @@ def create_all_tables():
     tasks.Base.metadata.create_all(bind=engine)
     catalogs.Base.metadata.create_all(bind=engine)
     
+    # Import DICOM models
+    from models import dicom_models
+    dicom_models.Base.metadata.create_all(bind=engine)
+    
     print("✓ Database tables created successfully")
 
 

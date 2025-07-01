@@ -1,0 +1,119 @@
+# Multi-stage build for production frontend
+FROM node:18-alpine AS builder
+
+# Build arguments
+ARG REACT_APP_API_URL=""
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci || npm install
+
+# Copy source code
+COPY . .
+
+# Set environment variable for build
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+ENV NODE_ENV=production
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/nginx.conf 2>/dev/null || \
+    echo 'events { worker_connections 1024; } \
+    http { \
+        include /etc/nginx/mime.types; \
+        default_type application/octet-stream; \
+        \
+        server { \
+            listen 80; \
+            server_name _; \
+            root /usr/share/nginx/html; \
+            index index.html; \
+            \
+            # Enable gzip compression \
+            gzip on; \
+            gzip_vary on; \
+            gzip_proxied any; \
+            gzip_comp_level 6; \
+            gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml image/svg+xml; \
+            \
+            # Security headers \
+            add_header X-Frame-Options "SAMEORIGIN" always; \
+            add_header X-Content-Type-Options "nosniff" always; \
+            add_header X-XSS-Protection "1; mode=block" always; \
+            \
+            # Serve static files \
+            location / { \
+                try_files $uri $uri/ /index.html; \
+            } \
+            \
+            # API proxy \
+            location /api { \
+                proxy_pass http://backend:8000; \
+                proxy_http_version 1.1; \
+                proxy_set_header Upgrade $http_upgrade; \
+                proxy_set_header Connection "upgrade"; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+                proxy_read_timeout 86400; \
+            } \
+            \
+            # CDS Hooks proxy \
+            location /cds-hooks { \
+                proxy_pass http://backend:8000/cds-hooks; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+            } \
+            \
+            # FHIR proxy \
+            location /fhir { \
+                proxy_pass http://backend:8000/api/fhir; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+            } \
+            \
+            # Health check endpoint \
+            location /health { \
+                access_log off; \
+                return 200 "healthy"; \
+                add_header Content-Type text/plain; \
+            } \
+        } \
+    }' > /etc/nginx/nginx.conf
+
+# Copy built files from builder
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Create non-root user
+RUN adduser -D -H -s /sbin/nologin nginx-user && \
+    chown -R nginx-user:nginx-user /usr/share/nginx/html && \
+    chown -R nginx-user:nginx-user /var/cache/nginx && \
+    chown -R nginx-user:nginx-user /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown nginx-user:nginx-user /var/run/nginx.pid
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Switch to non-root user
+USER nginx-user
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

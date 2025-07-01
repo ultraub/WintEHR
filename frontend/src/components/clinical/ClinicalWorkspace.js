@@ -70,6 +70,7 @@ const ClinicalWorkspace = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState(0); // Start on Overview tab by default
   const [initLoading, setInitLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // Map workspace modes to tab indices
   const workspaceModeToTab = {
@@ -103,9 +104,18 @@ const ClinicalWorkspace = () => {
 
   // Load patient data if navigating directly to this page
   useEffect(() => {
-    if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
-      loadPatientFromContext(patientId);
-    }
+    const loadPatientData = async () => {
+      if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
+        try {
+          setLoadError(null);
+          await loadPatientFromContext(patientId);
+        } catch (error) {
+          console.error('Failed to load patient:', error);
+          setLoadError(error.message || 'Failed to load patient');
+        }
+      }
+    };
+    loadPatientData();
   }, [patientId, currentPatient, loadPatientFromContext]);
 
   // Initialize data when patient is loaded
@@ -153,6 +163,20 @@ const ClinicalWorkspace = () => {
     setActiveTab(newValue);
     setWorkspaceMode(tabToWorkspaceMode[newValue]);
   };
+
+  if (loadError) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error" action={
+          <Button color="inherit" size="small" onClick={() => window.location.href = '/patients'}>
+            Back to Patients
+          </Button>
+        }>
+          {loadError}
+        </Alert>
+      </Box>
+    );
+  }
 
   if (!currentPatient) {
     return (

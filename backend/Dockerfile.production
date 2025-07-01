@@ -1,0 +1,56 @@
+FROM python:3.9-slim
+
+# Build args for configuration
+ARG DEPLOYMENT_PROFILE=production
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    default-jre-headless \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -m -s /bin/bash emruser
+
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Download Synthea for data generation
+RUN curl -L https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar \
+    -o synthea-with-dependencies.jar && \
+    chown emruser:emruser synthea-with-dependencies.jar
+
+# Create necessary directories
+RUN mkdir -p data logs dicom_storage uploads && \
+    chown -R emruser:emruser /app
+
+# Copy deployment configuration
+COPY ../deployment.config.json /app/deployment.config.json 2>/dev/null || true
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV DEPLOYMENT_PROFILE=${DEPLOYMENT_PROFILE}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Switch to non-root user
+USER emruser
+
+# Expose port
+EXPOSE 8000
+
+# Start command
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
