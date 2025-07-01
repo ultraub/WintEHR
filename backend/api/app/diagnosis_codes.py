@@ -9,8 +9,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from database.database import get_db
-from models.condition import Condition
-from auth.auth import get_current_user
+from models.models import Condition
+from api.auth import get_current_user
 
 router = APIRouter()
 

@@ -9,8 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from database.database import get_db
-from models.observation import Observation
-from models.medication_request import MedicationRequest
+from models.models import Observation, Medication as MedicationRequest
 from api.auth import get_current_user
 
 router = APIRouter()

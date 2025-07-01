@@ -601,13 +601,16 @@ const CDSHooksBuilderEnhanced = () => {
       console.log('Saving hook:', hookToSave);
       console.log('Selected hook:', selectedHook);
       
-      if (selectedHook) {
-        const url = `/cds-hooks/hooks/${selectedHook.id}`;
-        console.log('Updating hook at:', url);
+      // Check if this is an existing hook by looking it up in the hooks list
+      const isExistingHook = hooks.some(h => h.id === hookToSave.id);
+      
+      if (isExistingHook) {
+        const url = `/cds-hooks/hooks/${hookToSave.id}`;
+        console.log('Updating existing hook at:', url);
         response = await api.put(url, hookToSave);
       } else {
         const url = '/cds-hooks/hooks';
-        console.log('Creating hook at:', url);
+        console.log('Creating new hook at:', url);
         response = await api.post(url, hookToSave);
       }
       
@@ -1545,7 +1548,7 @@ const CDSHooksBuilderEnhanced = () => {
               onClick={handleSaveHook}
               disabled={loading || !hookConfig.title}
             >
-              {selectedHook ? 'Update Hook' : 'Create Hook'}
+              {hooks.some(h => h.id === hookConfig.id) ? 'Update Hook' : 'Create Hook'}
             </Button>
           </Box>
         </Box>
