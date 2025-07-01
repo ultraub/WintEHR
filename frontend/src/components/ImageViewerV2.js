@@ -30,19 +30,12 @@ import {
 } from '@mui/icons-material';
 
 import cornerstone from 'cornerstone-core';
-import cornerstoneTools from 'cornerstone-tools';
 import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
 import dicomParser from 'dicom-parser';
-import Hammer from 'hammerjs';
 
-// Initialize Cornerstone
+// Initialize Cornerstone (without tools to avoid mouse errors)
 cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
 cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-cornerstoneTools.external.cornerstone = cornerstone;
-cornerstoneTools.external.Hammer = Hammer;
-
-// Initialize cornerstone tools
-cornerstoneTools.init();
 
 // Configure image loader for WADO-URI
 cornerstoneWADOImageLoader.configure({
@@ -93,8 +86,6 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
     return () => {
       if (viewerRef.current) {
         try {
-          const toolStateManager = cornerstoneTools.globalImageIdSpecificToolStateManager;
-          toolStateManager.clear();
           cornerstone.disable(viewerRef.current);
         } catch (err) {
           console.warn('Error disabling cornerstone:', err);
