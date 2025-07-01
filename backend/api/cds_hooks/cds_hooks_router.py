@@ -121,11 +121,15 @@ class CDSHookEngine:
         if not codes:
             return False
         
+        # Check both SNOMED and ICD-10 codes (SNOMED is primary)
         conditions = self.db.query(Condition).filter(
             and_(
                 Condition.patient_id == patient_id,
                 Condition.clinical_status == 'active',
-                Condition.icd10_code.in_(codes)
+                or_(
+                    Condition.snomed_code.in_(codes),
+                    Condition.icd10_code.in_(codes) if Condition.icd10_code else False
+                )
             )
         ).all()
         

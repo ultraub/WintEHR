@@ -95,8 +95,8 @@ import { format } from 'date-fns';
 import api from '../services/api';
 import axios from 'axios';
 
-// Enhanced lab test options with LOINC codes
-const LAB_TEST_OPTIONS = [
+// Placeholder - will be loaded from API
+const LAB_TEST_OPTIONS_DEFAULT = [
   // Basic Metabolic Panel
   { code: '2339-0', display: 'Glucose', unit: 'mg/dL', category: 'Chemistry', normalRange: { min: 70, max: 100 } },
   { code: '2823-3', display: 'Potassium', unit: 'mmol/L', category: 'Chemistry', normalRange: { min: 3.5, max: 5.1 } },
@@ -137,8 +137,8 @@ const LAB_TEST_OPTIONS = [
   { code: '3051-0', display: 'Free T3', unit: 'pg/mL', category: 'Thyroid', normalRange: { min: 2.3, max: 4.2 } },
 ];
 
-// Medication options with RxNorm codes
-const MEDICATION_OPTIONS = [
+// Placeholder - will be loaded from API
+const MEDICATION_OPTIONS_DEFAULT = [
   // Cardiovascular
   { code: '1000001', display: 'Lisinopril 10mg', category: 'ACE Inhibitor', rxnorm: '29046' },
   { code: '1000002', display: 'Metoprolol 50mg', category: 'Beta Blocker', rxnorm: '866426' },
@@ -161,8 +161,8 @@ const MEDICATION_OPTIONS = [
   { code: '1000013', display: 'Prednisone 10mg', category: 'Corticosteroid', rxnorm: '312615' },
 ];
 
-// Vital sign types
-const VITAL_SIGN_OPTIONS = [
+// Placeholder - will be loaded from API
+const VITAL_SIGN_OPTIONS_DEFAULT = [
   { code: '8480-6', display: 'Systolic Blood Pressure', unit: 'mmHg', category: 'Blood Pressure', normalRange: { min: 90, max: 120 } },
   { code: '8462-4', display: 'Diastolic Blood Pressure', unit: 'mmHg', category: 'Blood Pressure', normalRange: { min: 60, max: 80 } },
   { code: '8867-4', display: 'Heart Rate', unit: 'bpm', category: 'Pulse', normalRange: { min: 60, max: 100 } },
@@ -172,29 +172,8 @@ const VITAL_SIGN_OPTIONS = [
   { code: '39156-5', display: 'BMI', unit: 'kg/m²', category: 'Body Composition', normalRange: { min: 18.5, max: 24.9 } },
 ];
 
-// Common ICD-10 diagnosis codes
-const DIAGNOSIS_OPTIONS = [
-  // Cardiovascular
-  { code: 'I10', display: 'Essential (primary) hypertension', category: 'Cardiovascular' },
-  { code: 'I25.10', display: 'Atherosclerotic heart disease of native coronary artery', category: 'Cardiovascular' },
-  { code: 'I48.91', display: 'Unspecified atrial fibrillation', category: 'Cardiovascular' },
-  { code: 'I50.9', display: 'Heart failure, unspecified', category: 'Cardiovascular' },
-  
-  // Diabetes
-  { code: 'E11.9', display: 'Type 2 diabetes mellitus without complications', category: 'Endocrine' },
-  { code: 'E11.65', display: 'Type 2 diabetes mellitus with hyperglycemia', category: 'Endocrine' },
-  { code: 'E78.5', display: 'Hyperlipidemia, unspecified', category: 'Endocrine' },
-  
-  // Respiratory
-  { code: 'J44.1', display: 'COPD with acute exacerbation', category: 'Respiratory' },
-  { code: 'J45.909', display: 'Unspecified asthma, uncomplicated', category: 'Respiratory' },
-  { code: 'J18.9', display: 'Pneumonia, unspecified organism', category: 'Respiratory' },
-  
-  // Other Common
-  { code: 'N18.3', display: 'Chronic kidney disease, stage 3', category: 'Renal' },
-  { code: 'K21.9', display: 'Gastro-esophageal reflux disease', category: 'Gastrointestinal' },
-  { code: 'M79.3', display: 'Myalgia', category: 'Musculoskeletal' },
-];
+// Placeholder - will be loaded from API
+const DIAGNOSIS_OPTIONS_DEFAULT = [];
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -233,6 +212,14 @@ const CDSHooksBuilderEnhanced = () => {
   
   // State for diagnosis selector
   const [diagSearchTerm, setDiagSearchTerm] = useState('');
+  const [diagnosisOptions, setDiagnosisOptions] = useState([]);
+  const [loadingDiagnoses, setLoadingDiagnoses] = useState(false);
+  
+  // State for lab tests and medications
+  const [labTestOptions, setLabTestOptions] = useState([]);
+  const [medicationOptions, setMedicationOptions] = useState([]);
+  const [vitalSignOptions, setVitalSignOptions] = useState([]);
+  const [loadingClinicalData, setLoadingClinicalData] = useState(false);
 
   // Hook configuration state
   const [hookConfig, setHookConfig] = useState({
@@ -423,7 +410,7 @@ const CDSHooksBuilderEnhanced = () => {
       conditions: [
         {
           type: 'diagnosis-code',
-          parameters: { codes: 'E11.9', operator: 'contains' }
+          parameters: { codes: '44054006', operator: 'in' }  // SNOMED for Type 2 diabetes
         },
         {
           type: 'lab-value',
@@ -448,7 +435,7 @@ const CDSHooksBuilderEnhanced = () => {
       conditions: [
         {
           type: 'diagnosis-code',
-          parameters: { codes: 'I10', operator: 'contains' }
+          parameters: { codes: '38341003', operator: 'in' }  // SNOMED for Hypertension
         },
         {
           type: 'vital-sign',
@@ -467,11 +454,6 @@ const CDSHooksBuilderEnhanced = () => {
     },
   ];
 
-  useEffect(() => {
-    fetchHooks();
-    setTemplates(hookTemplates);
-  }, []);
-
   const fetchHooks = async () => {
     try {
       const response = await api.get('/cds-hooks/hooks');
@@ -481,6 +463,82 @@ const CDSHooksBuilderEnhanced = () => {
       setSnackbar({ open: true, message: 'Failed to fetch CDS hooks', severity: 'error' });
     }
   };
+
+  const fetchDiagnosisCodes = async () => {
+    try {
+      setLoadingDiagnoses(true);
+      const response = await api.get('/diagnosis-codes', { params: { limit: 100 } });
+      // Map the response to match our expected format
+      const codes = response.data.map(item => ({
+        code: item.code,
+        display: item.display,
+        category: 'SNOMED CT',
+        count: item.count
+      }));
+      setDiagnosisOptions(codes);
+    } catch (error) {
+      console.error('Error fetching diagnosis codes:', error);
+      // Use some common SNOMED codes as fallback
+      setDiagnosisOptions([
+        { code: '38341003', display: 'Hypertension', category: 'SNOMED CT' },
+        { code: '44054006', display: 'Diabetes mellitus type 2', category: 'SNOMED CT' },
+        { code: '73595000', display: 'Stress', category: 'SNOMED CT' },
+        { code: '195967001', display: 'Asthma', category: 'SNOMED CT' },
+      ]);
+    } finally {
+      setLoadingDiagnoses(false);
+    }
+  };
+
+  const fetchClinicalData = async () => {
+    try {
+      setLoadingClinicalData(true);
+      
+      // Fetch lab tests, medications, and vital signs in parallel
+      const [labTests, medications, vitalSigns] = await Promise.all([
+        api.get('/lab-tests', { params: { limit: 200 } }),
+        api.get('/medications', { params: { limit: 200 } }),
+        api.get('/vital-signs')
+      ]);
+      
+      // Set lab tests
+      if (labTests.data?.length > 0) {
+        setLabTestOptions(labTests.data);
+      } else {
+        setLabTestOptions(LAB_TEST_OPTIONS_DEFAULT);
+      }
+      
+      // Set medications
+      if (medications.data?.length > 0) {
+        setMedicationOptions(medications.data);
+      } else {
+        setMedicationOptions(MEDICATION_OPTIONS_DEFAULT);
+      }
+      
+      // Set vital signs
+      if (vitalSigns.data?.length > 0) {
+        setVitalSignOptions(vitalSigns.data);
+      } else {
+        setVitalSignOptions(VITAL_SIGN_OPTIONS_DEFAULT);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching clinical data:', error);
+      // Use defaults on error
+      setLabTestOptions(LAB_TEST_OPTIONS_DEFAULT);
+      setMedicationOptions(MEDICATION_OPTIONS_DEFAULT);
+      setVitalSignOptions(VITAL_SIGN_OPTIONS_DEFAULT);
+    } finally {
+      setLoadingClinicalData(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHooks();
+    fetchDiagnosisCodes();
+    fetchClinicalData();
+    setTemplates(hookTemplates);
+  }, []);
 
   const handleCreateHook = () => {
     setHookConfig({
@@ -635,8 +693,8 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderLabTestSelector = (condition) => {
-    const categories = ['all', ...new Set(LAB_TEST_OPTIONS.map(test => test.category))];
-    const filteredTests = LAB_TEST_OPTIONS.filter(test => {
+    const categories = ['all', ...new Set(labTestOptions.map(test => test.category))];
+    const filteredTests = labTestOptions.filter(test => {
       const matchesSearch = test.display.toLowerCase().includes(labSearchTerm.toLowerCase()) ||
                            test.code.includes(labSearchTerm);
       const matchesCategory = labSelectedCategory === 'all' || test.category === labSelectedCategory;
@@ -680,7 +738,7 @@ const CDSHooksBuilderEnhanced = () => {
           <Autocomplete
             options={filteredTests}
             getOptionLabel={(option) => `${option.display} (${option.code})`}
-            value={LAB_TEST_OPTIONS.find(test => test.code === condition.parameters.labTest) || null}
+            value={labTestOptions.find(test => test.code === condition.parameters.labTest) || null}
             onChange={(e, newValue) => {
               updateCondition(condition.id, {
                 parameters: { 
@@ -717,7 +775,7 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderMedicationSelector = (condition) => {
-    const filteredMeds = MEDICATION_OPTIONS.filter(med =>
+    const filteredMeds = medicationOptions.filter(med =>
       med.display.toLowerCase().includes(medSearchTerm.toLowerCase()) ||
       med.category.toLowerCase().includes(medSearchTerm.toLowerCase())
     );
@@ -745,7 +803,7 @@ const CDSHooksBuilderEnhanced = () => {
             multiple
             options={filteredMeds}
             getOptionLabel={(option) => option.display}
-            value={MEDICATION_OPTIONS.filter(med => 
+            value={medicationOptions.filter(med => 
               condition.parameters.medications?.includes(med.code)
             )}
             onChange={(e, newValue) => {
@@ -801,7 +859,7 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderDiagnosisSelector = (condition) => {
-    const filteredDiagnoses = DIAGNOSIS_OPTIONS.filter(diag =>
+    const filteredDiagnoses = diagnosisOptions.filter(diag =>
       diag.display.toLowerCase().includes(diagSearchTerm.toLowerCase()) ||
       diag.code.toLowerCase().includes(diagSearchTerm.toLowerCase())
     );
@@ -829,7 +887,7 @@ const CDSHooksBuilderEnhanced = () => {
             multiple
             options={filteredDiagnoses}
             getOptionLabel={(option) => `${option.code} - ${option.display}`}
-            value={DIAGNOSIS_OPTIONS.filter(diag => 
+            value={diagnosisOptions.filter(diag => 
               condition.parameters.codes?.split(',').map(c => c.trim()).includes(diag.code)
             )}
             onChange={(e, newValue) => {
@@ -958,12 +1016,12 @@ const CDSHooksBuilderEnhanced = () => {
                             parameters: { 
                               ...condition.parameters, 
                               type: e.target.value,
-                              unit: VITAL_SIGN_OPTIONS.find(v => v.code === e.target.value)?.unit
+                              unit: vitalSignOptions.find(v => v.code === e.target.value)?.unit
                             }
                           })}
                           label="Vital Sign Type"
                         >
-                          {VITAL_SIGN_OPTIONS.map(vital => (
+                          {vitalSignOptions.map(vital => (
                             <MenuItem key={vital.code} value={vital.code}>
                               {vital.display}
                             </MenuItem>
