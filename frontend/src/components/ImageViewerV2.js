@@ -183,15 +183,14 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       } catch (err) {
         console.error('ImageViewerV2: Error loading DICOM data:', err);
         console.error('ImageViewerV2: Error details:', err.message, err.stack);
-        // Create a demo fallback
-        const demoImage = createDemoImage();
-        cornerstone.displayImage(element, demoImage);
+        // Set error info for display later
         setImageInfo({
           studyUID: studyId,
           seriesUID: seriesId,
           demo: true,
           error: err.message
         });
+        // We'll create the demo image when the viewer is initialized
       }
       
       // Data fetched successfully, now we can exit loading state
@@ -236,6 +235,11 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         console.log('initializeCornerstoneViewer: Loading first image');
         loadAndDisplayImage(imageIds[0]);
         setCurrentImageIndex(0);
+      } else if (imageInfo.demo) {
+        // If we're in demo mode due to an error, display a demo image
+        console.log('initializeCornerstoneViewer: Loading demo image');
+        const demoImage = createDemoImage();
+        cornerstone.displayImage(element, demoImage);
       }
     } catch (err) {
       console.error('Error initializing cornerstone viewer:', err);
