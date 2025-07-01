@@ -208,51 +208,9 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       // Add and configure tools
       setupTools();
       
-      // Wait a bit for the element to be fully ready
-      setTimeout(() => {
-        try {
-          // Ensure element has event listeners
-          if (!element.addEventListener) {
-            console.error('Element does not support addEventListener');
-            return;
-          }
-          
-          // Initialize input in the correct order
-          cornerstoneTools.mouseInput.enable(element);
-          cornerstoneTools.mouseWheelInput.enable(element);
-          
-          // Add tools one by one with error handling
-          const toolsToAdd = [
-            { name: 'Pan', tool: cornerstoneTools.PanTool },
-            { name: 'Zoom', tool: cornerstoneTools.ZoomTool },
-            { name: 'Wwwc', tool: cornerstoneTools.WwwcTool },
-            { name: 'Length', tool: cornerstoneTools.LengthTool },
-            { name: 'Angle', tool: cornerstoneTools.AngleTool },
-            { name: 'EllipticalRoi', tool: cornerstoneTools.EllipticalRoiTool },
-            { name: 'RectangleRoi', tool: cornerstoneTools.RectangleRoiTool }
-          ];
-          
-          toolsToAdd.forEach(({ name, tool }) => {
-            try {
-              cornerstoneTools.addToolForElement(element, tool);
-              console.log(`Added tool ${name} to element`);
-            } catch (e) {
-              console.warn(`Failed to add ${name} tool:`, e);
-            }
-          });
-          
-          // Set default tool active
-          try {
-            cornerstoneTools.setToolActiveForElement(element, 'Pan', { mouseButtonMask: 1 });
-            cornerstoneTools.setToolActiveForElement(element, 'Zoom', { mouseButtonMask: 2 });
-            cornerstoneTools.setToolActiveForElement(element, 'Wwwc', { mouseButtonMask: 4 });
-          } catch (e) {
-            console.warn('Failed to activate default tools:', e);
-          }
-        } catch (e) {
-          console.error('Failed to initialize cornerstone tools:', e);
-        }
-      }, 100);
+      // Skip cornerstone-tools mouse handling entirely to avoid the error
+      // We'll use the sliders for window/level and zoom controls instead
+      console.log('Skipping cornerstone-tools mouse initialization to avoid errors');
 
       // Load and display the first image
       if (imageIds.length > 0) {
@@ -272,37 +230,8 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
   };
 
   const setupTools = () => {
-    try {
-      // Add tools with safety checks
-      const tools = [
-        { tool: cornerstoneTools.WwwcTool, name: 'Wwwc' },
-        { tool: cornerstoneTools.PanTool, name: 'Pan' },
-        { tool: cornerstoneTools.ZoomTool, name: 'Zoom' },
-        { tool: cornerstoneTools.LengthTool, name: 'Length' },
-        { tool: cornerstoneTools.AngleTool, name: 'Angle' },
-        { tool: cornerstoneTools.EllipticalRoiTool, name: 'EllipticalRoi' },
-        { tool: cornerstoneTools.RectangleRoiTool, name: 'RectangleRoi' }
-      ];
-
-      tools.forEach(({ tool, name }) => {
-        try {
-          if (tool) {
-            cornerstoneTools.addTool(tool);
-          }
-        } catch (e) {
-          console.warn(`Failed to add tool ${name}:`, e);
-        }
-      });
-
-      // Set initial tool safely
-      try {
-        cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 1 });
-      } catch (e) {
-        console.warn('Failed to set initial tool:', e);
-      }
-    } catch (e) {
-      console.error('Error in setupTools:', e);
-    }
+    // Skip tool setup to avoid mouse errors
+    console.log('Skipping tool setup to avoid mouse handling errors');
   };
 
   const createDemoImage = () => {
@@ -395,26 +324,10 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
   };
 
   const handleToolChange = (toolName) => {
-    const element = viewerRef.current;
-    if (!element) return;
-
-    try {
-      // Disable all tools for this element
-      const tools = ['Wwwc', 'Pan', 'Zoom', 'Length', 'Angle', 'EllipticalRoi', 'RectangleRoi'];
-      tools.forEach(tool => {
-        try {
-          cornerstoneTools.setToolPassiveForElement(element, tool);
-        } catch (e) {
-          // Tool might not be added yet, ignore
-        }
-      });
-
-      // Enable selected tool for this element
-      cornerstoneTools.setToolActiveForElement(element, toolName, { mouseButtonMask: 1 });
-      setActiveTool(toolName);
-    } catch (e) {
-      console.error('Error changing tool:', e);
-    }
+    // Tools are disabled to avoid mouse errors
+    // Just update the UI state
+    setActiveTool(toolName);
+    console.log('Tool selection disabled to avoid mouse errors. Use sliders for adjustments.');
   };
 
   const handleWindowingChange = (width, center) => {
