@@ -393,6 +393,8 @@ const UnifiedCQLMeasures = () => {
   const [sourceCode, setSourceCode] = useState('');
   const [translatedCode, setTranslatedCode] = useState('');
   const [translationAnalysis, setTranslationAnalysis] = useState(null);
+  const [cqlExamples, setCqlExamples] = useState([]);
+  const [loadingExamples, setLoadingExamples] = useState(false);
   
   // Helper function for safe date formatting
   const formatDate = (dateValue, formatString = 'MMM dd, yyyy', defaultValue = 'N/A') => {

@@ -89,6 +89,7 @@ import {
   Build as BuildIcon,
   Preview as PreviewIcon,
   Timeline as TimelineIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import api from '../services/api';
@@ -222,6 +223,16 @@ const CDSHooksBuilderEnhanced = () => {
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  
+  // State for lab test selector
+  const [labSearchTerm, setLabSearchTerm] = useState('');
+  const [labSelectedCategory, setLabSelectedCategory] = useState('all');
+  
+  // State for medication selector
+  const [medSearchTerm, setMedSearchTerm] = useState('');
+  
+  // State for diagnosis selector
+  const [diagSearchTerm, setDiagSearchTerm] = useState('');
 
   // Hook configuration state
   const [hookConfig, setHookConfig] = useState({
@@ -624,14 +635,11 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderLabTestSelector = (condition) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('all');
-    
     const categories = ['all', ...new Set(LAB_TEST_OPTIONS.map(test => test.category))];
     const filteredTests = LAB_TEST_OPTIONS.filter(test => {
-      const matchesSearch = test.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           test.code.includes(searchTerm);
-      const matchesCategory = selectedCategory === 'all' || test.category === selectedCategory;
+      const matchesSearch = test.display.toLowerCase().includes(labSearchTerm.toLowerCase()) ||
+                           test.code.includes(labSearchTerm);
+      const matchesCategory = labSelectedCategory === 'all' || test.category === labSelectedCategory;
       return matchesSearch && matchesCategory;
     });
 
@@ -642,8 +650,8 @@ const CDSHooksBuilderEnhanced = () => {
             fullWidth
             size="small"
             placeholder="Search lab tests..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={labSearchTerm}
+            onChange={(e) => setLabSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -656,8 +664,8 @@ const CDSHooksBuilderEnhanced = () => {
         <Grid item xs={12}>
           <FormControl size="small">
             <Select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              value={labSelectedCategory}
+              onChange={(e) => setLabSelectedCategory(e.target.value)}
               displayEmpty
             >
               {categories.map(cat => (
@@ -708,10 +716,9 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderMedicationSelector = (condition) => {
-    const [searchTerm, setSearchTerm] = useState('');
     const filteredMeds = MEDICATION_OPTIONS.filter(med =>
-      med.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      med.category.toLowerCase().includes(searchTerm.toLowerCase())
+      med.display.toLowerCase().includes(medSearchTerm.toLowerCase()) ||
+      med.category.toLowerCase().includes(medSearchTerm.toLowerCase())
     );
 
     return (
@@ -721,8 +728,8 @@ const CDSHooksBuilderEnhanced = () => {
             fullWidth
             size="small"
             placeholder="Search medications..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={medSearchTerm}
+            onChange={(e) => setMedSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -793,10 +800,9 @@ const CDSHooksBuilderEnhanced = () => {
   };
 
   const renderDiagnosisSelector = (condition) => {
-    const [searchTerm, setSearchTerm] = useState('');
     const filteredDiagnoses = DIAGNOSIS_OPTIONS.filter(diag =>
-      diag.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      diag.code.toLowerCase().includes(searchTerm.toLowerCase())
+      diag.display.toLowerCase().includes(diagSearchTerm.toLowerCase()) ||
+      diag.code.toLowerCase().includes(diagSearchTerm.toLowerCase())
     );
 
     return (
@@ -806,8 +812,8 @@ const CDSHooksBuilderEnhanced = () => {
             fullWidth
             size="small"
             placeholder="Search diagnoses..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={diagSearchTerm}
+            onChange={(e) => setDiagSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
