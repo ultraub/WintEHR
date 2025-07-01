@@ -181,6 +181,9 @@ class CDSHookEngine:
             )
         ).order_by(Observation.observation_date.desc()).all()
         
+        if operator == 'missing':
+            return len(labs) == 0
+        
         if not labs:
             return False
         

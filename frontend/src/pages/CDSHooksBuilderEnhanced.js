@@ -326,7 +326,7 @@ const CDSHooksBuilderEnhanced = () => {
       value: 'vital-sign',
       label: 'Vital Sign',
       description: 'Check vital signs against normal ranges',
-      parameters: ['vitalType', 'operator', 'value', 'timeframe'],
+      parameters: ['type', 'operator', 'value', 'timeframe'],
       category: 'Vitals',
       hasSearch: true,
     },
@@ -452,7 +452,7 @@ const CDSHooksBuilderEnhanced = () => {
         },
         {
           type: 'vital-sign',
-          parameters: { vitalType: '8480-6', operator: 'gt', value: 140 }
+          parameters: { type: '8480-6', operator: 'gt', value: 140 }
         }
       ],
       actions: [
@@ -685,7 +685,8 @@ const CDSHooksBuilderEnhanced = () => {
               updateCondition(condition.id, {
                 parameters: { 
                   ...condition.parameters, 
-                  labTest: newValue?.code || '',
+                  code: newValue?.code || '',  // Backend expects 'code'
+                  labTest: newValue?.code || '',  // Keep for display
                   unit: newValue?.unit || ''
                 }
               });
@@ -947,16 +948,16 @@ const CDSHooksBuilderEnhanced = () => {
                   )}
                   
                   {/* Vital signs selector */}
-                  {condition.type === 'vital-sign' && conditionType.parameters.includes('vitalType') && (
+                  {condition.type === 'vital-sign' && conditionType.parameters.includes('type') && (
                     <Grid item xs={12} md={6}>
                       <FormControl fullWidth>
                         <InputLabel>Vital Sign Type</InputLabel>
                         <Select
-                          value={condition.parameters.vitalType || ''}
+                          value={condition.parameters.type || ''}
                           onChange={(e) => updateCondition(condition.id, {
                             parameters: { 
                               ...condition.parameters, 
-                              vitalType: e.target.value,
+                              type: e.target.value,
                               unit: VITAL_SIGN_OPTIONS.find(v => v.code === e.target.value)?.unit
                             }
                           })}
