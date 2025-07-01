@@ -383,7 +383,7 @@ const CDSHooksBuilderEnhanced = () => {
   const hookTemplates = [
     {
       name: 'Drug-Drug Interaction Alert',
-      category: 'Safety',
+      category: 'safety',
       hook: 'medication-prescribe',
       description: 'Alert for potential drug interactions',
       conditions: [
@@ -404,7 +404,7 @@ const CDSHooksBuilderEnhanced = () => {
     },
     {
       name: 'Diabetes Care Gap',
-      category: 'Quality',
+      category: 'quality',
       hook: 'patient-view',
       description: 'Identify missing diabetes screenings',
       conditions: [
@@ -429,7 +429,7 @@ const CDSHooksBuilderEnhanced = () => {
     },
     {
       name: 'Hypertension Management',
-      category: 'Clinical',
+      category: 'clinical',
       hook: 'patient-view',
       description: 'Blood pressure control recommendations',
       conditions: [
@@ -467,7 +467,7 @@ const CDSHooksBuilderEnhanced = () => {
   const fetchDiagnosisCodes = async () => {
     try {
       setLoadingDiagnoses(true);
-      const response = await api.get('/diagnosis-codes', { params: { limit: 100 } });
+      const response = await api.get('/api/diagnosis-codes', { params: { limit: 100 } });
       // Map the response to match our expected format
       const codes = response.data.map(item => ({
         code: item.code,
@@ -496,9 +496,9 @@ const CDSHooksBuilderEnhanced = () => {
       
       // Fetch lab tests, medications, and vital signs in parallel
       const [labTests, medications, vitalSigns] = await Promise.all([
-        api.get('/lab-tests', { params: { limit: 200 } }),
-        api.get('/medications', { params: { limit: 200 } }),
-        api.get('/vital-signs')
+        api.get('/api/lab-tests', { params: { limit: 200 } }),
+        api.get('/api/medications', { params: { limit: 200 } }),
+        api.get('/api/vital-signs')
       ]);
       
       // Set lab tests
@@ -574,6 +574,7 @@ const CDSHooksBuilderEnhanced = () => {
       conditions: template.conditions.map(c => ({ ...c, id: Date.now() + Math.random() })),
       actions: template.actions.map(a => ({ ...a, id: Date.now() + Math.random() })),
     });
+    setSelectedHook(null); // Clear selected hook since this is a new one
     setActiveStep(0);
     setBuilderOpen(true);
   };
@@ -1516,7 +1517,17 @@ const CDSHooksBuilderEnhanced = () => {
             <Button
               variant="outlined"
               startIcon={<PlayIcon />}
-              onClick={() => handleTestHook(hookConfig)}
+              onClick={() => {
+                if (!hookConfig.id) {
+                  setSnackbar({ 
+                    open: true, 
+                    message: 'Please save the hook before testing', 
+                    severity: 'warning' 
+                  });
+                } else {
+                  handleTestHook(hookConfig);
+                }
+              }}
             >
               Test Hook
             </Button>
