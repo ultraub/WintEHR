@@ -11,8 +11,8 @@ class DICOMStudy(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     study_instance_uid = Column(String(64), unique=True, index=True)
-    patient_id = Column(Integer, ForeignKey('patients.id'))
-    imaging_study_id = Column(Integer, ForeignKey('imaging_studies.id'), nullable=True)
+    patient_id = Column(String, ForeignKey('patients.id'))
+    imaging_study_id = Column(String, ForeignKey('imaging_studies.id'), nullable=True)
     
     # Study metadata
     study_date = Column(DateTime)

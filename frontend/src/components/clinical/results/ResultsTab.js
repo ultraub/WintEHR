@@ -230,15 +230,31 @@ const ResultsTab = () => {
       console.log('Upload response:', response.data);
 
       if (response.data.success) {
+        console.log('Upload successful, response:', response.data);
+        
+        // Show what was uploaded
+        if (response.data.data?.studies) {
+          console.log('Uploaded studies:', response.data.data.studies);
+        }
+        
         // Force reload of imaging studies
+        console.log('Reloading studies for patient:', currentPatient.id);
         const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
-        console.log('Reloaded imaging studies:', imagingResponse.data);
-        setImagingResults(imagingResponse.data?.data || []);
+        console.log('Reloaded imaging studies response:', imagingResponse.data);
+        
+        const studies = imagingResponse.data?.data || [];
+        console.log('Setting imaging results to:', studies);
+        setImagingResults(studies);
         
         alert(`Successfully uploaded ${files.length} DICOM file(s)`);
         
         // Reset the file input
         event.target.value = '';
+        
+        // Also reload all results to ensure sync
+        setTimeout(() => {
+          loadResults();
+        }, 500);
       }
     } catch (error) {
       console.error('Error uploading DICOM files:', error);
