@@ -1,50 +1,88 @@
-# EMR System Deployment Guide
+# Teaching EMR System - Production Deployment Guide
 
 ## Overview
 
-This guide provides comprehensive instructions for deploying the EMR Training System on AWS EC2 or locally.
+This guide provides comprehensive instructions for deploying the Teaching EMR System with 100+ patients and full Synthea data integration across multiple platforms.
 
-## Prerequisites
+## System Requirements
 
-### Local Development
-- Python 3.8+ (Python 3.7 will NOT work with FastAPI/Pydantic v2)
-- Node.js 16+ and npm
-- Java 8+ (for Synthea patient generation)
+### Minimum Requirements
+- **CPU**: 2 vCPUs
+- **RAM**: 4 GB
+- **Storage**: 30 GB
+- **OS**: Linux (Ubuntu 20.04+ or Amazon Linux 2)
+
+### Recommended Production Requirements
+- **CPU**: 4 vCPUs
+- **RAM**: 8 GB
+- **Storage**: 100 GB SSD
+- **OS**: Ubuntu 20.04 LTS or Amazon Linux 2
+
+### Software Dependencies
+- Docker 20.10+
+- Docker Compose 2.0+
+- Python 3.9+ (Python 3.7 will NOT work)
+- Java 11+ (for Synthea patient generation)
 - Git
 
-### AWS EC2 Deployment
-- EC2 instance (t3.medium or larger recommended)
-- Amazon Linux 2, Ubuntu, or similar
-- Security group allowing ports: 22 (SSH), 80 (HTTP), 8000 (API)
+## Deployment Profiles
+
+The system supports three deployment profiles:
+
+- **local_dev**: 10 patients, minimal resources, development testing
+- **production**: 100 patients, full features, recommended for demos
+- **cloud**: 200 patients, PostgreSQL, enhanced performance
 
 ## Quick Start
 
-### Option 1: Automated AWS Deployment
+### Option 1: Automated Production Deployment
 
-1. **Launch EC2 instance** with Amazon Linux 2
-2. **SSH into the instance**:
-   ```bash
-   ssh -i your-key.pem ec2-user@your-instance-ip
-   ```
-3. **Run deployment script**:
-   ```bash
-   curl -O https://raw.githubusercontent.com/your-repo/EMR/master/deploy-aws-v2.sh
-   chmod +x deploy-aws-v2.sh
-   ./deploy-aws-v2.sh
-   ```
+#### AWS CloudFormation (Recommended)
+```bash
+aws cloudformation create-stack \
+  --stack-name emr-production \
+  --template-body file://cloudformation-emr-production.yaml \
+  --parameters \
+    ParameterKey=KeyPairName,ParameterValue=your-key-pair \
+    ParameterKey=DeploymentProfile,ParameterValue=production \
+  --capabilities CAPABILITY_IAM
+```
 
-### Option 2: Docker Deployment
+#### AWS EC2 Script
+```bash
+./deploy-ec2-production.sh
+```
+
+#### Azure ARM Template
+```bash
+az deployment group create \
+  --resource-group emr-production \
+  --template-file azure-deploy-production.json \
+  --parameters deploymentProfile=production
+```
+
+### Option 2: Docker Deployment with 100+ Patients
 
 1. **Clone repository**:
    ```bash
-   git clone https://github.com/your-repo/EMR.git
+   git clone <repository-url> EMR
    cd EMR
    ```
-2. **Build and run**:
+
+2. **Deploy with production profile**:
    ```bash
-   docker build -t emr-system .
-   docker run -d -p 80:80 --name emr-system emr-system
+   # Using docker-compose
+   docker-compose -f docker-compose.deployment.yml up -d
+   docker-compose -f docker-compose.deployment.yml --profile setup up data-init
+   
+   # Or using standalone Dockerfile
+   docker build -f Dockerfile.standalone.fixed -t emr-system .
+   docker run -d -p 80:80 --name emr-production emr-system
    ```
+
+3. **Access the system**:
+   - Frontend: http://localhost
+   - API: http://localhost:8000/docs
 
 ### Option 3: Manual Setup
 

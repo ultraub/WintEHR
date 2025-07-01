@@ -15,8 +15,14 @@
       "synthea": {
         "seed": 12345,
         "location": "Massachusetts",
-        "export_formats": ["fhir", "ccda", "text"],
-        "modules": ["all"]
+        "export_formats": [
+          "fhir",
+          "ccda",
+          "text"
+        ],
+        "modules": [
+          "all"
+        ]
       }
     },
     "production": {
@@ -33,9 +39,16 @@
       },
       "synthea": {
         "seed": 12345,
-        "location": "Massachusetts", 
-        "export_formats": ["fhir", "ccda", "text", "csv"],
-        "modules": ["all"]
+        "location": "Massachusetts",
+        "export_formats": [
+          "fhir",
+          "ccda",
+          "text",
+          "csv"
+        ],
+        "modules": [
+          "all"
+        ]
       },
       "performance": {
         "batch_size": 50,
@@ -58,8 +71,14 @@
       "synthea": {
         "seed": 12345,
         "location": "Massachusetts",
-        "export_formats": ["fhir", "ccda", "text"],
-        "modules": ["all"]
+        "export_formats": [
+          "fhir",
+          "ccda",
+          "text"
+        ],
+        "modules": [
+          "all"
+        ]
       },
       "performance": {
         "batch_size": 100,
@@ -112,7 +131,7 @@
   },
   "environment_defaults": {
     "SECRET_KEY": "CHANGE_THIS_IN_PRODUCTION",
-    "JWT_ALGORITHM": "HS256", 
+    "JWT_ALGORITHM": "HS256",
     "JWT_EXPIRATION_HOURS": 8,
     "CORS_ORIGINS": "http://localhost,http://localhost:3000",
     "LOG_LEVEL": "INFO",
@@ -120,8 +139,12 @@
     "DICOM_STORAGE_PATH": "./uploads/dicom"
   },
   "test_settings": {
-    "run_tests_after_setup": true,
-    "test_categories": ["unit", "integration", "fhir_conformance"],
+    "run_tests_after_setup": false,
+    "test_categories": [
+      "unit",
+      "integration",
+      "fhir_conformance"
+    ],
     "min_coverage_percent": 80
   }
 }

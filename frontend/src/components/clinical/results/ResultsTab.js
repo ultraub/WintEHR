@@ -503,8 +503,7 @@ const ResultsTab = () => {
                 onClose={() => setShowImageViewer(false)}
               />
             </>
-          ) : (
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </Box>

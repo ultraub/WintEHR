@@ -50,7 +50,7 @@ class EMRDeploymentSetup:
         logger.info("Checking prerequisites...")
         
         requirements = {
-            'python3': ['python3', '--version'],
+            'python': ['python', '--version'],
             'npm': ['npm', '--version'],
             'java': ['java', '-version'],
             'docker': ['docker', '--version'],
@@ -117,9 +117,16 @@ class EMRDeploymentSetup:
         url = "https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar"
         
         try:
-            subprocess.run([
-                'wget', '-O', str(synthea_jar), url
-            ], check=True)
+            # Try wget first, fallback to curl
+            try:
+                subprocess.run([
+                    'wget', '-O', str(synthea_jar), url
+                ], check=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # Use curl as fallback (macOS)
+                subprocess.run([
+                    'curl', '-L', '-o', str(synthea_jar), url
+                ], check=True)
             logger.info("Synthea downloaded successfully")
         except subprocess.CalledProcessError:
             logger.error("Failed to download Synthea")
@@ -164,8 +171,8 @@ class EMRDeploymentSetup:
         try:
             # Create database tables
             subprocess.run([
-                sys.executable, '-c',
-                "from database import engine, Base; Base.metadata.create_all(bind=engine)"
+                'python', '-c',
+                "from database.database import engine; from models.models import Base; Base.metadata.create_all(bind=engine)"
             ], check=True)
             logger.info("Database tables created")
         except subprocess.CalledProcessError:
@@ -180,11 +187,12 @@ class EMRDeploymentSetup:
         
         os.chdir('backend')
         try:
-            # Run optimized import script
+            # Use comprehensive setup for more reliable import
             subprocess.run([
-                sys.executable, 
-                'scripts/optimized_synthea_import.py',
-                '--batch-size', str(self.profile_config.get('performance', {}).get('batch_size', 50))
+                'python', 
+                'scripts/comprehensive_setup.py',
+                '--skip-synthea',  # We already generated data
+                '--patients', str(self.profile_config['patient_count'])
             ], check=True)
             
             logger.info("Synthea FHIR data imported")
@@ -193,7 +201,7 @@ class EMRDeploymentSetup:
             if self.profile_config['enable_clinical_notes']:
                 logger.info("Importing clinical notes...")
                 subprocess.run([
-                    sys.executable,
+                    'python',
                     'scripts/import_synthea_with_notes.py'
                 ], check=True)
                 logger.info("Clinical notes imported")
@@ -215,7 +223,7 @@ class EMRDeploymentSetup:
             if not os.path.exists(provider_script):
                 provider_script = 'scripts/create_sample_providers.py'
             
-            cmd = [sys.executable, provider_script]
+            cmd = ['python', provider_script]
             if 'enhanced' in provider_script:
                 cmd.extend(['--count', str(self.profile_config['provider_count'])])
             
@@ -242,7 +250,7 @@ class EMRDeploymentSetup:
             if not os.path.exists(assignment_script):
                 assignment_script = 'scripts/assign_patients_to_providers.py'
             
-            cmd = [sys.executable, assignment_script]
+            cmd = ['python', assignment_script]
             if 'auto' in assignment_script:
                 cmd.append('--force')  # Force reassignment for fresh deployments
             
@@ -265,7 +273,7 @@ class EMRDeploymentSetup:
         os.chdir('backend')
         try:
             subprocess.run([
-                sys.executable,
+                'python',
                 'scripts/add_reference_ranges.py'
             ], check=True)
             logger.info("Lab reference ranges added")
@@ -286,7 +294,7 @@ class EMRDeploymentSetup:
         os.chdir('backend')
         try:
             subprocess.run([
-                sys.executable,
+                'python',
                 'scripts/generate_dicom_for_synthea.py'
             ], check=True)
             logger.info("DICOM files generated")
@@ -306,7 +314,7 @@ class EMRDeploymentSetup:
         os.chdir('backend')
         try:
             subprocess.run([
-                sys.executable,
+                'python',
                 'scripts/populate_clinical_catalogs.py'
             ], check=True)
             logger.info("Clinical catalogs populated")
@@ -345,7 +353,7 @@ class EMRDeploymentSetup:
         os.chdir('backend')
         try:
             cmd = [
-                sys.executable, '-m', 'pytest',
+                'python', '-m', 'pytest',
                 'tests/', '-v',
                 '--cov=.', 
                 f'--cov-fail-under={self.config["test_settings"]["min_coverage_percent"]}'

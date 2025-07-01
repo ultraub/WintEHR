@@ -1,12 +1,15 @@
-# EMR Training System
+# Teaching EMR System
 
-A modern Electronic Medical Records (EMR) system designed for healthcare education and training, featuring FHIR R4 API support, Clinical Decision Support (CDS) Hooks, and comprehensive patient management capabilities.
+A comprehensive Electronic Medical Records (EMR) system designed for healthcare education and training, featuring FHIR R4 API support, Clinical Decision Support (CDS) Hooks, DICOM medical imaging, and production-ready deployment with 100+ synthetic patients.
 
-## 🚀 Quick Start - Recommended Approach
+## 🚀 Quick Start - Production Deployment
 
-### Fresh Installation Guide
+### Deployment Options
 
-Based on extensive testing, here's the most reliable way to deploy this system:
+The system supports multiple deployment profiles:
+- **local_dev**: 10 patients for development
+- **production**: 100+ patients with full medical history (recommended)
+- **cloud**: 200+ patients for large-scale deployments
 
 #### Option 1: Local Development (Recommended for Testing)
 
@@ -46,23 +49,30 @@ Based on extensive testing, here's the most reliable way to deploy this system:
    npm start
    ```
 
-4. **Initialize Database**
+4. **Initialize Database with 100+ Patients**
    ```bash
    cd backend
+   # Automated setup with production profile
+   python scripts/unified_deployment_setup.py --profile production
+   
+   # Or manually:
    python scripts/create_sample_providers.py
    python scripts/populate_clinical_catalogs.py
-   python scripts/optimized_synthea_import.py --patients 25
+   python scripts/optimized_synthea_import.py --patients 100
+   python scripts/add_reference_ranges.py
    ```
 
-#### Option 2: Docker Deployment (Most Reliable for Production)
+#### Option 2: Docker Deployment (Production-Ready)
 
-1. **Use the Fixed Dockerfile**
+1. **Deploy with 100+ Patients**
    ```bash
-   # Copy the fixed Dockerfile
-   cp Dockerfile.standalone.fixed Dockerfile.standalone
+   # Using production docker-compose
+   docker-compose -f docker-compose.deployment.yml up -d
+   docker-compose -f docker-compose.deployment.yml --profile setup up data-init
    
-   # Build and run
-   docker-compose -f docker-compose.standalone.yml up -d --build
+   # Or using standalone Dockerfile
+   docker build -f Dockerfile.standalone.fixed -t emr-system .
+   docker run -d -p 80:80 --name emr-production emr-system
    ```
 
 2. **If Build Fails**, use the simplified deployment:
@@ -73,22 +83,38 @@ Based on extensive testing, here's the most reliable way to deploy this system:
    ./deploy-ec2-simple.sh
    ```
 
-### AWS EC2 Deployment (Production)
+### Production Deployment Options
 
-For AWS deployment, use our tested approach:
-
+#### AWS CloudFormation (Recommended)
 ```bash
-# On your EC2 instance (Amazon Linux 2, Ubuntu, etc.)
-curl -O https://raw.githubusercontent.com/ultraub/MedGenEMR/master/deploy-ec2-simple.sh
-chmod +x deploy-ec2-simple.sh
-./deploy-ec2-simple.sh
+aws cloudformation create-stack \
+  --stack-name emr-production \
+  --template-body file://cloudformation-emr-production.yaml \
+  --parameters ParameterKey=DeploymentProfile,ParameterValue=production \
+  --capabilities CAPABILITY_IAM
 ```
 
-This script automatically:
-- Detects your OS and installs dependencies
-- Fixes common issues (npm ci → npm install, path problems)
-- Handles directory structure variations
-- Provides troubleshooting commands
+#### AWS EC2 Script
+```bash
+./deploy-ec2-production.sh
+```
+
+#### Azure ARM Template
+```bash
+az deployment group create \
+  --resource-group emr-production \
+  --template-file azure-deploy-production.json
+```
+
+All deployment options include:
+- 100+ synthetic patients with complete medical history
+- Full lab results with reference ranges
+- DICOM medical imaging support
+- Clinical notes and documentation
+- CDS Hooks integration
+- FHIR R4 API compliance
+- Automated backups
+- Production-ready configuration
 
 ## 🌟 Features
 
