@@ -144,8 +144,8 @@ const ResultsTab = () => {
       
       setLabResults(results);
 
-      // Load imaging results would go here when available
-      setImagingResults([]);
+      // Imaging results are already loaded above, don't clear them
+      // setImagingResults([]);
     } catch (error) {
       console.error('Error loading results:', error);
     } finally {
@@ -449,6 +449,9 @@ const ResultsTab = () => {
                         startIcon={<ViewIcon />}
                         size="small"
                         onClick={() => {
+                          console.log('ResultsTab: Selected study:', study);
+                          console.log('ResultsTab: Study ID:', study.id);
+                          console.log('ResultsTab: Study instance UID:', study.study_instance_uid);
                           setSelectedStudy(study);
                           setShowImageViewer(true);
                         }}

@@ -151,10 +151,15 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
       // Fetch study and series information
       try {
+        console.log('ImageViewerV2: Fetching series for study ID:', studyId);
         // studyId is the numeric study ID directly
         // Fetch series information
-        const seriesResponse = await fetch(`/api/imaging/wado/studies/${studyId}/series`);
+        const seriesUrl = `/api/imaging/wado/studies/${studyId}/series`;
+        console.log('ImageViewerV2: Fetching from URL:', seriesUrl);
+        const seriesResponse = await fetch(seriesUrl);
+        console.log('ImageViewerV2: Series response status:', seriesResponse.status);
         const seriesResult = await seriesResponse.json();
+        console.log('ImageViewerV2: Series result:', seriesResult);
         
         if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
           throw new Error('No series found for this study');
@@ -191,13 +196,18 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
         });
 
         // Load and display the first image
+        console.log('ImageViewerV2: Image IDs created:', imageIdArray);
         if (imageIdArray.length > 0) {
+          console.log('ImageViewerV2: Loading first image:', imageIdArray[0]);
           await loadAndDisplayImage(imageIdArray[0]);
           setCurrentImageIndex(0);
+        } else {
+          throw new Error('No image IDs generated');
         }
         
       } catch (err) {
-        console.error('Error loading DICOM data:', err);
+        console.error('ImageViewerV2: Error loading DICOM data:', err);
+        console.error('ImageViewerV2: Error details:', err.message, err.stack);
         // Create a demo fallback
         const demoImage = createDemoImage();
         cornerstone.displayImage(element, demoImage);
@@ -292,11 +302,17 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
   const loadAndDisplayImage = async (imageId) => {
     try {
+      console.log('loadAndDisplayImage: Starting to load image:', imageId);
       const element = viewerRef.current;
-      if (!element) return;
+      if (!element) {
+        console.error('loadAndDisplayImage: No viewer element');
+        return;
+      }
 
       // Load the image
+      console.log('loadAndDisplayImage: Calling cornerstone.loadImage');
       const image = await cornerstone.loadImage(imageId);
+      console.log('loadAndDisplayImage: Image loaded successfully:', image);
       
       // Display the image
       cornerstone.displayImage(element, image);
