@@ -41,23 +41,8 @@ cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 cornerstoneTools.external.cornerstone = cornerstone;
 cornerstoneTools.external.Hammer = Hammer;
 
-// Initialize cornerstone tools safely
-try {
-  cornerstoneTools.init({
-    mouseEnabled: true,
-    touchEnabled: false,
-    globalToolSyncEnabled: false,
-    showSVGCursors: false
-  });
-} catch (e) {
-  console.warn('Cornerstone tools initialization warning:', e);
-  // Try basic init if advanced options fail
-  try {
-    cornerstoneTools.init();
-  } catch (e2) {
-    console.error('Cornerstone tools initialization failed:', e2);
-  }
-}
+// Initialize cornerstone tools
+cornerstoneTools.init();
 
 // Configure image loader for WADO-URI
 cornerstoneWADOImageLoader.configure({
@@ -223,26 +208,51 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       // Add and configure tools
       setupTools();
       
-      // Initialize mouse input for the specific element
-      try {
-        cornerstoneTools.mouseInput.enable(element);
-        cornerstoneTools.touchInput.enable(element);
-        cornerstoneTools.mouseWheelInput.enable(element);
-        
-        // Add tools to the specific element
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.PanTool, { mouseButtonMask: 1 });
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.ZoomTool, { mouseButtonMask: 2 });
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.WwwcTool, { mouseButtonMask: 4 });
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.LengthTool);
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.AngleTool);
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.EllipticalRoiTool);
-        cornerstoneTools.addToolForElement(element, cornerstoneTools.RectangleRoiTool);
-        
-        // Set the initial tool active
-        cornerstoneTools.setToolActiveForElement(element, 'Pan', { mouseButtonMask: 1 });
-      } catch (e) {
-        console.warn('Failed to initialize input or tools:', e);
-      }
+      // Wait a bit for the element to be fully ready
+      setTimeout(() => {
+        try {
+          // Ensure element has event listeners
+          if (!element.addEventListener) {
+            console.error('Element does not support addEventListener');
+            return;
+          }
+          
+          // Initialize input in the correct order
+          cornerstoneTools.mouseInput.enable(element);
+          cornerstoneTools.mouseWheelInput.enable(element);
+          
+          // Add tools one by one with error handling
+          const toolsToAdd = [
+            { name: 'Pan', tool: cornerstoneTools.PanTool },
+            { name: 'Zoom', tool: cornerstoneTools.ZoomTool },
+            { name: 'Wwwc', tool: cornerstoneTools.WwwcTool },
+            { name: 'Length', tool: cornerstoneTools.LengthTool },
+            { name: 'Angle', tool: cornerstoneTools.AngleTool },
+            { name: 'EllipticalRoi', tool: cornerstoneTools.EllipticalRoiTool },
+            { name: 'RectangleRoi', tool: cornerstoneTools.RectangleRoiTool }
+          ];
+          
+          toolsToAdd.forEach(({ name, tool }) => {
+            try {
+              cornerstoneTools.addToolForElement(element, tool);
+              console.log(`Added tool ${name} to element`);
+            } catch (e) {
+              console.warn(`Failed to add ${name} tool:`, e);
+            }
+          });
+          
+          // Set default tool active
+          try {
+            cornerstoneTools.setToolActiveForElement(element, 'Pan', { mouseButtonMask: 1 });
+            cornerstoneTools.setToolActiveForElement(element, 'Zoom', { mouseButtonMask: 2 });
+            cornerstoneTools.setToolActiveForElement(element, 'Wwwc', { mouseButtonMask: 4 });
+          } catch (e) {
+            console.warn('Failed to activate default tools:', e);
+          }
+        } catch (e) {
+          console.error('Failed to initialize cornerstone tools:', e);
+        }
+      }, 100);
 
       // Load and display the first image
       if (imageIds.length > 0) {
@@ -353,6 +363,9 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
       // Get default viewport for the image
       const viewport = cornerstone.getDefaultViewportForImage(element, image);
       cornerstone.setViewport(element, viewport);
+      
+      // Force a resize to ensure proper rendering
+      cornerstone.resize(element);
       
       // Update state
       setViewport(viewport);
