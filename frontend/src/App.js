@@ -13,7 +13,7 @@ import PatientList from './pages/PatientList';
 import PatientDetail from './pages/PatientDetail';
 import PatientViewRefined from './pages/PatientViewRefined';
 import Analytics from './pages/Analytics';
-import FHIRExplorer from './pages/FHIRExplorer';
+import FHIRExplorerEnhanced from './pages/FHIRExplorerEnhanced';
 import CDSDemo from './pages/CDSDemo';
 import CDSHooksBuilder from './pages/CDSHooksBuilder';
 import QualityMeasures from './pages/QualityMeasures';
@@ -255,7 +255,7 @@ function App() {
                       <Route path="/fhir" element={
                         <ProtectedRoute>
                           <Layout>
-                            <FHIRExplorer />
+                            <FHIRExplorerEnhanced />
                           </Layout>
                         </ProtectedRoute>
                       } />
