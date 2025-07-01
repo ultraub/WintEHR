@@ -43,7 +43,7 @@ function PatientList() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [openNewPatient, setOpenNewPatient] = useState(false);
-  const [activeTab, setActiveTab] = useState(0); // 0: My Patients, 1: All Patients
+  const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients - Default to All Patients
   const [myPatientsCount, setMyPatientsCount] = useState(0);
 
   const columns = [

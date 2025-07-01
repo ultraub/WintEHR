@@ -209,6 +209,7 @@ const CDSHooksBuilderEnhanced = () => {
   
   // State for medication selector
   const [medSearchTerm, setMedSearchTerm] = useState('');
+  const [selectedMedCategory, setSelectedMedCategory] = useState('all');
   
   // State for diagnosis selector
   const [diagSearchTerm, setDiagSearchTerm] = useState('');
@@ -331,6 +332,22 @@ const CDSHooksBuilderEnhanced = () => {
       parameters: ['gapType', 'timeframe'],
       category: 'Quality',
     },
+    {
+      value: 'lab-missing',
+      label: 'Missing Lab Test',
+      description: 'Check if a lab test has not been performed within a timeframe',
+      parameters: ['labTest', 'timeframe'],
+      category: 'Laboratory',
+      hasSearch: true,
+    },
+    {
+      value: 'medication-missing',
+      label: 'Missing Medication',
+      description: 'Check if patient is NOT on specific medications',
+      parameters: ['medications'],
+      category: 'Medications',
+      hasSearch: true,
+    },
   ];
 
   // Enhanced action types
@@ -403,18 +420,18 @@ const CDSHooksBuilderEnhanced = () => {
       ]
     },
     {
-      name: 'Diabetes Care Gap',
+      name: 'Diabetes Care Gap - A1C',
       category: 'quality',
       hook: 'patient-view',
-      description: 'Identify missing diabetes screenings',
+      description: 'Identify missing diabetes A1C screenings',
       conditions: [
         {
           type: 'diagnosis-code',
           parameters: { codes: '44054006', operator: 'in' }  // SNOMED for Type 2 diabetes
         },
         {
-          type: 'lab-value',
-          parameters: { labTest: '4548-4', timeframe: 90, operator: 'missing' }
+          type: 'lab-missing',
+          parameters: { labTest: '4548-4', timeframe: 90 }  // A1C test missing in 90 days
         }
       ],
       actions: [
@@ -422,7 +439,34 @@ const CDSHooksBuilderEnhanced = () => {
           type: 'suggestion',
           parameters: {
             label: 'Order HbA1c Test',
-            description: 'Patient is due for diabetes monitoring'
+            description: 'Patient with diabetes is due for quarterly A1C monitoring (last >90 days ago)'
+          }
+        }
+      ]
+    },
+    {
+      name: 'Kidney Monitoring for Diabetes',
+      category: 'quality',
+      hook: 'patient-view',
+      description: 'Monitor kidney function in diabetic patients',
+      conditions: [
+        {
+          type: 'diagnosis-code',
+          parameters: { codes: '44054006', operator: 'in' }  // Type 2 diabetes
+        },
+        {
+          type: 'lab-missing',
+          parameters: { labTest: '33914-3', timeframe: 365 }  // eGFR missing in 1 year
+        }
+      ],
+      actions: [
+        {
+          type: 'info-card',
+          parameters: {
+            summary: 'Annual Kidney Function Screening Due',
+            detail: 'Patient with diabetes needs annual kidney function monitoring (eGFR)',
+            indicator: 'info',
+            source: 'ADA Standards of Care'
           }
         }
       ]
@@ -467,12 +511,12 @@ const CDSHooksBuilderEnhanced = () => {
   const fetchDiagnosisCodes = async () => {
     try {
       setLoadingDiagnoses(true);
-      const response = await api.get('/api/diagnosis-codes', { params: { limit: 100 } });
+      const response = await api.get('/diagnosis-codes', { params: { limit: 200 } });
       // Map the response to match our expected format
       const codes = response.data.map(item => ({
         code: item.code,
         display: item.display,
-        category: 'SNOMED CT',
+        category: item.system || 'SNOMED CT',
         count: item.count
       }));
       setDiagnosisOptions(codes);
@@ -484,6 +528,12 @@ const CDSHooksBuilderEnhanced = () => {
         { code: '44054006', display: 'Diabetes mellitus type 2', category: 'SNOMED CT' },
         { code: '73595000', display: 'Stress', category: 'SNOMED CT' },
         { code: '195967001', display: 'Asthma', category: 'SNOMED CT' },
+        { code: '53741008', display: 'Coronary artery disease', category: 'SNOMED CT' },
+        { code: '49436004', display: 'Atrial fibrillation', category: 'SNOMED CT' },
+        { code: '84114007', display: 'Heart failure', category: 'SNOMED CT' },
+        { code: '13645005', display: 'COPD', category: 'SNOMED CT' },
+        { code: '233604007', display: 'Pneumonia', category: 'SNOMED CT' },
+        { code: '35489007', display: 'Depression', category: 'SNOMED CT' },
       ]);
     } finally {
       setLoadingDiagnoses(false);
@@ -496,28 +546,48 @@ const CDSHooksBuilderEnhanced = () => {
       
       // Fetch lab tests, medications, and vital signs in parallel
       const [labTests, medications, vitalSigns] = await Promise.all([
-        api.get('/api/lab-tests', { params: { limit: 200 } }),
-        api.get('/api/medications', { params: { limit: 200 } }),
-        api.get('/api/vital-signs')
+        api.get('/catalogs/lab-tests', { params: { limit: 200 } }),
+        api.get('/catalogs/medications', { params: { limit: 200, formulary_only: false } }),
+        api.get('/vital-signs')
       ]);
       
-      // Set lab tests
+      // Set lab tests - map the catalog format to the expected format
       if (labTests.data?.length > 0) {
-        setLabTestOptions(labTests.data);
+        const mappedLabTests = labTests.data.map(test => ({
+          code: test.loinc_code || test.test_code,
+          display: test.test_name,
+          category: test.test_category || 'Other',
+          unit: test.unit || '', // Unit may not be available in catalog
+          normalRange: test.normalRange || {} // Normal range may not be available in catalog
+        }));
+        setLabTestOptions(mappedLabTests);
       } else {
         setLabTestOptions(LAB_TEST_OPTIONS_DEFAULT);
       }
       
-      // Set medications
+      // Set medications - map the catalog format to the expected format
       if (medications.data?.length > 0) {
-        setMedicationOptions(medications.data);
+        const mappedMedications = medications.data.map(med => ({
+          code: med.id,
+          display: `${med.generic_name} ${med.strength || ''} ${med.dosage_form || ''}`.trim(),
+          category: med.drug_class || 'Other',
+          rxnorm: med.rxnorm_code || med.id // Use rxnorm_code if available
+        }));
+        setMedicationOptions(mappedMedications);
       } else {
         setMedicationOptions(MEDICATION_OPTIONS_DEFAULT);
       }
       
       // Set vital signs
       if (vitalSigns.data?.length > 0) {
-        setVitalSignOptions(vitalSigns.data);
+        const mappedVitalSigns = vitalSigns.data.map(vital => ({
+          code: vital.code,
+          display: vital.display,
+          unit: vital.unit,
+          category: vital.category || 'Vitals',
+          normalRange: vital.normalRange || {}
+        }));
+        setVitalSignOptions(mappedVitalSigns);
       } else {
         setVitalSignOptions(VITAL_SIGN_OPTIONS_DEFAULT);
       }
@@ -766,58 +836,69 @@ const CDSHooksBuilderEnhanced = () => {
           </FormControl>
         </Grid>
         <Grid item xs={12}>
-          <Autocomplete
-            options={filteredTests}
-            getOptionLabel={(option) => `${option.display} (${option.code})`}
-            value={labTestOptions.find(test => test.code === condition.parameters.labTest) || null}
-            onChange={(e, newValue) => {
-              updateCondition(condition.id, {
-                parameters: { 
-                  ...condition.parameters, 
-                  code: newValue?.code || '',  // Backend expects 'code'
-                  labTest: newValue?.code || '',  // Keep for display
-                  unit: newValue?.unit || ''
-                }
-              });
-            }}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Box>
-                  <Typography variant="body2">{option.display}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {option.code} | {option.category} | Normal: {
-                      option.normalRange.min !== undefined && option.normalRange.max !== undefined
-                        ? `${option.normalRange.min}-${option.normalRange.max}`
-                        : option.normalRange.min !== undefined
-                        ? `≥${option.normalRange.min}`
-                        : `≤${option.normalRange.max}`
-                    } {option.unit}
-                  </Typography>
+          {loadingClinicalData ? (
+            <Box display="flex" alignItems="center" gap={2} p={2}>
+              <CircularProgress size={20} />
+              <Typography variant="body2">Loading lab tests...</Typography>
+            </Box>
+          ) : (
+            <Autocomplete
+              options={filteredTests}
+              getOptionLabel={(option) => `${option.display} (${option.code})`}
+              value={labTestOptions.find(test => test.code === condition.parameters.labTest) || null}
+              onChange={(e, newValue) => {
+                updateCondition(condition.id, {
+                  parameters: { 
+                    ...condition.parameters, 
+                    code: newValue?.code || '',  // Backend expects 'code'
+                    labTest: newValue?.code || '',  // Keep for display
+                    unit: newValue?.unit || ''
+                  }
+                });
+              }}
+              renderOption={(props, option) => (
+                <Box component="li" {...props}>
+                  <Box>
+                    <Typography variant="body2">{option.display}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {option.code} | {option.category} | Normal: {
+                        option.normalRange.min !== undefined && option.normalRange.max !== undefined
+                          ? `${option.normalRange.min}-${option.normalRange.max}`
+                          : option.normalRange.min !== undefined
+                          ? `≥${option.normalRange.min}`
+                          : `≤${option.normalRange.max}`
+                      } {option.unit}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            )}
-            renderInput={(params) => (
-              <TextField {...params} label="Select Lab Test" required />
-            )}
-          />
+              )}
+              renderInput={(params) => (
+                <TextField {...params} label="Select Lab Test" required />
+              )}
+            />
+          )}
         </Grid>
       </Grid>
     );
   };
 
   const renderMedicationSelector = (condition) => {
-    const filteredMeds = medicationOptions.filter(med =>
-      med.display.toLowerCase().includes(medSearchTerm.toLowerCase()) ||
-      med.category.toLowerCase().includes(medSearchTerm.toLowerCase())
-    );
+    const categories = ['all', ...new Set(medicationOptions.map(med => med.category).filter(Boolean))];
+    
+    const filteredMeds = medicationOptions.filter(med => {
+      const matchesSearch = (med.display || '').toLowerCase().includes(medSearchTerm.toLowerCase()) ||
+                           (med.category || '').toLowerCase().includes(medSearchTerm.toLowerCase());
+      const matchesCategory = selectedMedCategory === 'all' || med.category === selectedMedCategory;
+      return matchesSearch && matchesCategory;
+    });
 
     return (
       <Grid container spacing={2}>
-        <Grid item xs={12}>
+        <Grid item xs={12} md={8}>
           <TextField
             fullWidth
             size="small"
-            placeholder="Search medications..."
+            placeholder="Search medications by name or class..."
             value={medSearchTerm}
             onChange={(e) => setMedSearchTerm(e.target.value)}
             InputProps={{
@@ -828,6 +909,21 @@ const CDSHooksBuilderEnhanced = () => {
               ),
             }}
           />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <FormControl fullWidth size="small">
+            <Select
+              value={selectedMedCategory}
+              onChange={(e) => setSelectedMedCategory(e.target.value)}
+              displayEmpty
+            >
+              {categories.map(cat => (
+                <MenuItem key={cat} value={cat}>
+                  {cat === 'all' ? 'All Drug Classes' : cat}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Grid>
         <Grid item xs={12}>
           <Autocomplete
@@ -850,13 +946,21 @@ const CDSHooksBuilderEnhanced = () => {
                 <Box>
                   <Typography variant="body2">{option.display}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {option.category} | RxNorm: {option.rxnorm}
+                    {option.category}
                   </Typography>
                 </Box>
               </Box>
             )}
             renderInput={(params) => (
-              <TextField {...params} label="Select Medications" />
+              <TextField 
+                {...params} 
+                label="Select Medications" 
+                required
+                helperText={condition.parameters.medications?.length > 0 ? 
+                  `${condition.parameters.medications.length} medication(s) selected` : 
+                  'Start typing to search medications'
+                }
+              />
             )}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => (
@@ -864,27 +968,42 @@ const CDSHooksBuilderEnhanced = () => {
                   variant="outlined"
                   label={option.display}
                   size="small"
+                  color="primary"
                   {...getTagProps({ index })}
                 />
               ))
             }
           />
         </Grid>
-        {condition.parameters.medications?.length > 0 && (
-          <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={condition.parameters.interactions || false}
-                  onChange={(e) => updateCondition(condition.id, {
-                    parameters: { ...condition.parameters, interactions: e.target.checked }
-                  })}
-                />
-              }
-              label="Check for drug interactions"
-            />
-          </Grid>
-        )}
+        <Grid item xs={12}>
+          <FormControl component="fieldset">
+            <FormLabel component="legend">Condition Options</FormLabel>
+            <FormGroup row>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={condition.parameters.interactions || false}
+                    onChange={(e) => updateCondition(condition.id, {
+                      parameters: { ...condition.parameters, interactions: e.target.checked }
+                    })}
+                  />
+                }
+                label="Check for drug interactions"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={condition.parameters.checkAllergies || false}
+                    onChange={(e) => updateCondition(condition.id, {
+                      parameters: { ...condition.parameters, checkAllergies: e.target.checked }
+                    })}
+                  />
+                }
+                label="Check for allergies"
+              />
+            </FormGroup>
+          </FormControl>
+        </Grid>
       </Grid>
     );
   };
@@ -1016,14 +1135,14 @@ const CDSHooksBuilderEnhanced = () => {
               <Grid item xs={12} md={8}>
                 <Grid container spacing={2}>
                   {/* Special handling for lab tests */}
-                  {condition.type === 'lab-value' && conditionType.parameters.includes('labTest') && (
+                  {(condition.type === 'lab-value' || condition.type === 'lab-missing') && conditionType.parameters.includes('labTest') && (
                     <Grid item xs={12}>
                       {renderLabTestSelector(condition)}
                     </Grid>
                   )}
                   
                   {/* Special handling for medications */}
-                  {condition.type === 'medication-active' && conditionType.parameters.includes('medications') && (
+                  {(condition.type === 'medication-active' || condition.type === 'medication-missing') && conditionType.parameters.includes('medications') && (
                     <Grid item xs={12}>
                       {renderMedicationSelector(condition)}
                     </Grid>
@@ -1038,33 +1157,60 @@ const CDSHooksBuilderEnhanced = () => {
                   
                   {/* Vital signs selector */}
                   {condition.type === 'vital-sign' && conditionType.parameters.includes('type') && (
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth>
-                        <InputLabel>Vital Sign Type</InputLabel>
-                        <Select
-                          value={condition.parameters.type || ''}
-                          onChange={(e) => updateCondition(condition.id, {
-                            parameters: { 
-                              ...condition.parameters, 
-                              type: e.target.value,
-                              unit: vitalSignOptions.find(v => v.code === e.target.value)?.unit
-                            }
-                          })}
-                          label="Vital Sign Type"
-                        >
-                          {vitalSignOptions.map(vital => (
-                            <MenuItem key={vital.code} value={vital.code}>
-                              {vital.display}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth>
+                          <InputLabel>Vital Sign Type</InputLabel>
+                          <Select
+                            value={condition.parameters.type || ''}
+                            onChange={(e) => {
+                              const selectedVital = vitalSignOptions.find(v => v.code === e.target.value);
+                              updateCondition(condition.id, {
+                                parameters: { 
+                                  ...condition.parameters, 
+                                  type: e.target.value,
+                                  unit: selectedVital?.unit || '',
+                                  // Reset component if changing from/to blood pressure
+                                  component: e.target.value === '85354-9' ? 'systolic' : undefined
+                                }
+                              });
+                            }}
+                            label="Vital Sign Type"
+                          >
+                            <MenuItem value="85354-9">Blood Pressure</MenuItem>
+                            {vitalSignOptions.map(vital => (
+                              <MenuItem key={vital.code} value={vital.code}>
+                                {vital.display}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      
+                      {/* Blood pressure component selector */}
+                      {condition.parameters.type === '85354-9' && (
+                        <Grid item xs={12} md={3}>
+                          <FormControl fullWidth>
+                            <InputLabel>Component</InputLabel>
+                            <Select
+                              value={condition.parameters.component || 'systolic'}
+                              onChange={(e) => updateCondition(condition.id, {
+                                parameters: { ...condition.parameters, component: e.target.value }
+                              })}
+                              label="Component"
+                            >
+                              <MenuItem value="systolic">Systolic</MenuItem>
+                              <MenuItem value="diastolic">Diastolic</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                      )}
+                    </>
                   )}
                   
                   {/* Standard fields */}
                   {conditionType.parameters.includes('operator') && 
-                   !['medication-active', 'diagnosis-code'].includes(condition.type) && (
+                   !['medication-active', 'diagnosis-code', 'lab-missing', 'medication-missing'].includes(condition.type) && (
                     <Grid item xs={12} md={3}>
                       <FormControl fullWidth>
                         <InputLabel>Operator</InputLabel>

@@ -4,7 +4,7 @@ API endpoints for clinical data lookup (lab tests, medications, vital signs)
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, or_
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -42,25 +42,25 @@ async def get_lab_tests(
     
     # Query unique lab tests with their codes and units
     query = db.query(
-        Observation.code.label('code'),
+        Observation.loinc_code.label('code'),
         Observation.display.label('display'),
-        Observation.unit.label('unit'),
+        Observation.value_unit.label('unit'),
         func.count(Observation.id).label('count')
     ).filter(
         Observation.observation_type == 'laboratory',
-        Observation.code.isnot(None),
+        Observation.loinc_code.isnot(None),
         Observation.display.isnot(None)
     ).group_by(
-        Observation.code,
+        Observation.loinc_code,
         Observation.display,
-        Observation.unit
+        Observation.value_unit
     )
     
     if search:
         search_term = f"%{search}%"
         query = query.filter(
-            db.or_(
-                Observation.code.ilike(search_term),
+            or_(
+                Observation.loinc_code.ilike(search_term),
                 Observation.display.ilike(search_term)
             )
         )

@@ -11,7 +11,6 @@ from datetime import datetime, date, timedelta
 import json
 import uuid
 from enum import Enum
-
 from database.database import get_db
 from models.models import Patient, Encounter, Provider, Organization, Observation, Condition, Medication
 
@@ -78,8 +77,12 @@ class CDSHookEngine:
             return self._check_diagnosis_code(patient_id, parameters)
         elif condition_type == 'medication-active':
             return self._check_active_medication(patient_id, parameters)
+        elif condition_type == 'medication-missing':
+            return not self._check_active_medication(patient_id, parameters)
         elif condition_type == 'lab-value':
             return self._check_lab_value(patient_id, parameters)
+        elif condition_type == 'lab-missing':
+            return self._check_lab_missing(patient_id, parameters)
         elif condition_type == 'vital-sign':
             return self._check_vital_sign(patient_id, parameters)
         
@@ -216,34 +219,82 @@ class CDSHookEngine:
         
         return False
     
+    def _check_lab_missing(self, patient_id: str, parameters: dict) -> bool:
+        """Check if a lab test is missing within a timeframe"""
+        code = parameters.get('code') or parameters.get('labTest')
+        timeframe = int(parameters.get('timeframe', 90))  # days
+        
+        if not code:
+            return False
+        
+        # Get recent lab results
+        cutoff_date = datetime.now().date() - timedelta(days=timeframe)
+        labs = self.db.query(Observation).filter(
+            and_(
+                Observation.patient_id == patient_id,
+                Observation.observation_type == 'laboratory',
+                Observation.loinc_code == code,
+                Observation.observation_date >= cutoff_date
+            )
+        ).count()
+        
+        # Return True if no labs found (missing)
+        return labs == 0
+    
     def _check_vital_sign(self, patient_id: str, parameters: dict) -> bool:
         """Check vital signs against normal ranges"""
         vital_type = parameters.get('type')
         operator = parameters.get('operator', 'gt')
         value = float(parameters.get('value', 0))
         timeframe = int(parameters.get('timeframe', 7))  # days
+        component = parameters.get('component', 'systolic')  # For blood pressure
         
         if not vital_type:
             return False
         
         # Get recent vital signs
         cutoff_date = datetime.now().date() - timedelta(days=timeframe)
-        vitals = self.db.query(Observation).filter(
-            and_(
-                Observation.patient_id == patient_id,
-                Observation.observation_type == 'vital-signs',
-                Observation.display.ilike(f'%{vital_type}%'),
-                Observation.observation_date >= cutoff_date
-            )
-        ).order_by(Observation.observation_date.desc()).all()
+        
+        # Special handling for blood pressure
+        if vital_type == '85354-9':  # Blood pressure panel LOINC code
+            vitals = self.db.query(Observation).filter(
+                and_(
+                    Observation.patient_id == patient_id,
+                    Observation.observation_type == 'vital-signs',
+                    Observation.loinc_code == '85354-9',  # Blood pressure panel
+                    Observation.observation_date >= cutoff_date
+                )
+            ).order_by(Observation.observation_date.desc()).all()
+        else:
+            # Use LOINC code for other vital signs
+            vitals = self.db.query(Observation).filter(
+                and_(
+                    Observation.patient_id == patient_id,
+                    Observation.observation_type == 'vital-signs',
+                    Observation.loinc_code == vital_type,
+                    Observation.observation_date >= cutoff_date
+                )
+            ).order_by(Observation.observation_date.desc()).all()
         
         if not vitals:
             return False
         
         latest_vital = vitals[0]
         try:
+            # Handle blood pressure values (e.g., "126/76")
+            if vital_type == '85354-9' and latest_vital.value:
+                if '/' in latest_vital.value:
+                    systolic, diastolic = latest_vital.value.split('/')
+                    if component == 'systolic':
+                        vital_value = float(systolic)
+                    elif component == 'diastolic':
+                        vital_value = float(diastolic)
+                    else:
+                        return False
+                else:
+                    return False
             # Try value_quantity first, then value
-            if latest_vital.value_quantity is not None:
+            elif latest_vital.value_quantity is not None:
                 vital_value = float(latest_vital.value_quantity)
             elif latest_vital.value:
                 vital_value = float(latest_vital.value)
@@ -637,6 +688,110 @@ def initialize_sample_hooks():
             ],
             "fhirVersion": "4.0.1"
         },
+        "blood-pressure-monitoring": {
+            "id": "blood-pressure-monitoring",
+            "title": "Blood Pressure Monitoring",
+            "description": "Monitors blood pressure values and alerts for hypertension",
+            "hook": "patient-view",
+            "priority": 1,
+            "enabled": True,
+            "conditions": [
+                {
+                    "id": "1",
+                    "type": "vital-sign",
+                    "parameters": {
+                        "type": "85354-9",
+                        "component": "systolic",
+                        "operator": "ge",
+                        "value": "140",
+                        "timeframe": "3650"
+                    }
+                }
+            ],
+            "actions": [
+                {
+                    "id": "1",
+                    "type": "warning-card",
+                    "parameters": {
+                        "summary": "Stage 2 Hypertension",
+                        "detail": "Patient's systolic blood pressure is ≥140 mmHg. Consider antihypertensive therapy per ACC/AHA guidelines.",
+                        "indicator": "warning",
+                        "source": "ACC/AHA Hypertension Guidelines",
+                        "sourceUrl": "https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings"
+                    }
+                }
+            ],
+            "fhirVersion": "4.0.1"
+        },
+        "stage-1-hypertension": {
+            "id": "stage-1-hypertension",
+            "title": "Stage 1 Hypertension Alert",
+            "description": "Alerts for Stage 1 Hypertension (systolic 130-139 or diastolic 80-89)",
+            "hook": "patient-view",
+            "priority": 2,
+            "enabled": True,
+            "conditions": [
+                {
+                    "id": "1",
+                    "type": "vital-sign",
+                    "parameters": {
+                        "type": "85354-9",
+                        "component": "systolic",
+                        "operator": "ge",
+                        "value": "130",
+                        "timeframe": "90"
+                    }
+                }
+            ],
+            "actions": [
+                {
+                    "id": "1",
+                    "type": "info-card",
+                    "parameters": {
+                        "summary": "Stage 1 Hypertension",
+                        "detail": "Patient's blood pressure indicates Stage 1 Hypertension (≥130/80). Consider lifestyle modifications and cardiovascular risk assessment.",
+                        "indicator": "info",
+                        "source": "ACC/AHA Hypertension Guidelines"
+                    }
+                }
+            ],
+            "fhirVersion": "4.0.1"
+        },
+        "hypertensive-crisis": {
+            "id": "hypertensive-crisis",
+            "title": "Hypertensive Crisis Alert",
+            "description": "Alerts for hypertensive crisis (systolic ≥180 or diastolic ≥120)",
+            "hook": "patient-view",
+            "priority": 1,
+            "enabled": True,
+            "conditions": [
+                {
+                    "id": "1",
+                    "type": "vital-sign",
+                    "parameters": {
+                        "type": "85354-9",
+                        "component": "systolic",
+                        "operator": "ge",
+                        "value": "180",
+                        "timeframe": "1"
+                    }
+                }
+            ],
+            "actions": [
+                {
+                    "id": "1",
+                    "type": "critical-card",
+                    "parameters": {
+                        "summary": "Hypertensive Crisis",
+                        "detail": "Patient's systolic blood pressure is ≥180 mmHg. Immediate evaluation and treatment needed.",
+                        "indicator": "critical",
+                        "source": "ACC/AHA Hypertension Guidelines",
+                        "sourceUrl": "https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings/hypertensive-crisis-when-you-should-call-911-for-high-blood-pressure"
+                    }
+                }
+            ],
+            "fhirVersion": "4.0.1"
+        },
         "opioid-risk-assessment": {
             "id": "opioid-risk-assessment",
             "title": "Opioid Risk Assessment",
@@ -663,6 +818,93 @@ def initialize_sample_hooks():
                         "detail": "Patient is on opioid therapy. Consider:\n- Risk assessment (ORT/SOAPP)\n- Naloxone prescription\n- State PDMP check\n- Urine drug screening",
                         "indicator": "warning",
                         "source": "CDC Opioid Guidelines"
+                    }
+                }
+            ],
+            "fhirVersion": "4.0.1"
+        },
+        "missing-diabetes-labs": {
+            "id": "missing-diabetes-labs",
+            "title": "Missing Diabetes Labs",
+            "description": "Alerts when diabetic patients are missing routine labs",
+            "hook": "patient-view",
+            "priority": 2,
+            "enabled": True,
+            "conditions": [
+                {
+                    "id": "1",
+                    "type": "diagnosis-code",
+                    "parameters": {
+                        "codes": "44054006",
+                        "operator": "in"
+                    }
+                },
+                {
+                    "id": "2",
+                    "type": "lab-missing",
+                    "parameters": {
+                        "labTest": "4548-4",
+                        "timeframe": "90"
+                    },
+                    "logic": "AND"
+                }
+            ],
+            "actions": [
+                {
+                    "id": "1",
+                    "type": "info-card",
+                    "parameters": {
+                        "summary": "A1C Due for Diabetes Patient",
+                        "detail": "Patient with diabetes has not had an A1C test in over 90 days. ADA recommends quarterly monitoring for most patients with diabetes.",
+                        "indicator": "info",
+                        "source": "ADA Standards of Care"
+                    }
+                }
+            ],
+            "fhirVersion": "4.0.1"
+        },
+        "statin-for-diabetes": {
+            "id": "statin-for-diabetes",
+            "title": "Statin Therapy for Diabetes",
+            "description": "Recommends statin therapy for diabetic patients not on statins",
+            "hook": "patient-view",
+            "priority": 3,
+            "enabled": True,
+            "conditions": [
+                {
+                    "id": "1",
+                    "type": "diagnosis-code",
+                    "parameters": {
+                        "codes": "44054006",
+                        "operator": "in"
+                    }
+                },
+                {
+                    "id": "2",
+                    "type": "patient-age",
+                    "parameters": {
+                        "operator": "ge",
+                        "value": "40"
+                    },
+                    "logic": "AND"
+                },
+                {
+                    "id": "3",
+                    "type": "medication-missing",
+                    "parameters": {
+                        "medications": "atorvastatin,simvastatin,rosuvastatin,pravastatin"
+                    },
+                    "logic": "AND"
+                }
+            ],
+            "actions": [
+                {
+                    "id": "1",
+                    "type": "suggestion",
+                    "parameters": {
+                        "label": "Consider Statin Therapy",
+                        "description": "Patient with diabetes age ≥40 not on statin therapy. ADA recommends moderate-intensity statin therapy for primary prevention.",
+                        "source": "ADA Standards of Care"
                     }
                 }
             ],
