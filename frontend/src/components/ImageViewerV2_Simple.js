@@ -47,6 +47,8 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
   
   const viewerRef = useRef(null);
   const activeToolRef = useRef('Wwwc');
+  const currentImageIndexRef = useRef(0);
+  const imageIdsRef = useRef([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -56,10 +58,18 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
   const [zoom, setZoom] = useState(1);
   const [activeTool, setActiveTool] = useState('Wwwc'); // Default to window/level tool
   
-  // Update ref when activeTool changes
+  // Update refs when state changes
   useEffect(() => {
     activeToolRef.current = activeTool;
   }, [activeTool]);
+  
+  useEffect(() => {
+    currentImageIndexRef.current = currentImageIndex;
+  }, [currentImageIndex]);
+  
+  useEffect(() => {
+    imageIdsRef.current = imageIds;
+  }, [imageIds]);
 
   // Fetch image data
   useEffect(() => {
@@ -200,9 +210,6 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       let startY = 0;
       let mouseButton = 0;
       
-      // Get reference to handleImageNavigation from parent scope
-      const navigateImage = handleImageNavigation;
-      
       // Mouse down handler
       const handleMouseDown = (e) => {
         if (!element) return;
@@ -277,11 +284,19 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       
       // Wheel handler for image navigation
       const handleWheel = (e) => {
-        if (imageIds.length <= 1) return;
+        if (imageIdsRef.current.length <= 1) return;
         
         e.preventDefault();
         const direction = e.deltaY > 0 ? 1 : -1;
-        navigateImage(direction);
+        
+        // Calculate new index using ref values
+        const currentIdx = currentImageIndexRef.current;
+        const newIndex = currentIdx + direction;
+        
+        if (newIndex >= 0 && newIndex < imageIdsRef.current.length) {
+          setCurrentImageIndex(newIndex);
+          loadAndDisplayImage(imageIdsRef.current[newIndex]);
+        }
       };
       
       // Add mouse event listeners
@@ -497,7 +512,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
             pointerEvents: 'none'
           }}
         >
-          <div>Left Click: Window/Level</div>
+          <div>Left Click: Adjust Contrast/Brightness</div>
           <div>Middle Click: Pan</div>
           <div>Right Click: Zoom</div>
           {imageIds.length > 1 && (
@@ -512,7 +527,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
         <Stack direction="row" spacing={4}>
           <Box sx={{ minWidth: 200 }}>
-            <Typography variant="caption">Window Width</Typography>
+            <Typography variant="caption">Window Width (Contrast)</Typography>
             <Slider
               value={windowWidth}
               onChange={(e, value) => handleWindowingChange(value, windowCenter)}
@@ -523,7 +538,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
           </Box>
           
           <Box sx={{ minWidth: 200 }}>
-            <Typography variant="caption">Window Center</Typography>
+            <Typography variant="caption">Window Center (Brightness)</Typography>
             <Slider
               value={windowCenter}
               onChange={(e, value) => handleWindowingChange(windowWidth, value)}
