@@ -202,6 +202,7 @@ const CDSHooksBuilderEnhanced = () => {
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [dataSummary, setDataSummary] = useState(null);
   
   // State for lab test selector
   const [labSearchTerm, setLabSearchTerm] = useState('');
@@ -511,13 +512,15 @@ const CDSHooksBuilderEnhanced = () => {
   const fetchDiagnosisCodes = async () => {
     try {
       setLoadingDiagnoses(true);
-      const response = await api.get('/diagnosis-codes', { params: { limit: 200 } });
+      const response = await api.get('/patient-data/conditions', { params: { limit: 200 } });
       // Map the response to match our expected format
       const codes = response.data.map(item => ({
         code: item.code,
         display: item.display,
-        category: item.system || 'SNOMED CT',
-        count: item.count
+        category: 'SNOMED CT',
+        count: item.count,
+        active_count: item.active_count,
+        avg_duration_days: item.avg_duration_days
       }));
       setDiagnosisOptions(codes);
     } catch (error) {
@@ -544,50 +547,30 @@ const CDSHooksBuilderEnhanced = () => {
     try {
       setLoadingClinicalData(true);
       
-      // Fetch lab tests, medications, and vital signs in parallel
+      // Fetch actual patient data using the new endpoints
       const [labTests, medications, vitalSigns] = await Promise.all([
-        api.get('/catalogs/lab-tests', { params: { limit: 200 } }),
-        api.get('/catalogs/medications', { params: { limit: 200, formulary_only: false } }),
-        api.get('/vital-signs')
+        api.get('/patient-data/lab-tests', { params: { limit: 200 } }),
+        api.get('/patient-data/medications', { params: { limit: 200 } }),
+        api.get('/patient-data/vital-signs', { params: { limit: 50 } })
       ]);
       
-      // Set lab tests - map the catalog format to the expected format
+      // Set lab tests - already in the correct format
       if (labTests.data?.length > 0) {
-        const mappedLabTests = labTests.data.map(test => ({
-          code: test.loinc_code || test.test_code,
-          display: test.test_name,
-          category: test.test_category || 'Other',
-          unit: test.unit || '', // Unit may not be available in catalog
-          normalRange: test.normalRange || {} // Normal range may not be available in catalog
-        }));
-        setLabTestOptions(mappedLabTests);
+        setLabTestOptions(labTests.data);
       } else {
         setLabTestOptions(LAB_TEST_OPTIONS_DEFAULT);
       }
       
-      // Set medications - map the catalog format to the expected format
+      // Set medications - already in the correct format
       if (medications.data?.length > 0) {
-        const mappedMedications = medications.data.map(med => ({
-          code: med.id,
-          display: `${med.generic_name} ${med.strength || ''} ${med.dosage_form || ''}`.trim(),
-          category: med.drug_class || 'Other',
-          rxnorm: med.rxnorm_code || med.id // Use rxnorm_code if available
-        }));
-        setMedicationOptions(mappedMedications);
+        setMedicationOptions(medications.data);
       } else {
         setMedicationOptions(MEDICATION_OPTIONS_DEFAULT);
       }
       
-      // Set vital signs
+      // Set vital signs - already in the correct format
       if (vitalSigns.data?.length > 0) {
-        const mappedVitalSigns = vitalSigns.data.map(vital => ({
-          code: vital.code,
-          display: vital.display,
-          unit: vital.unit,
-          category: vital.category || 'Vitals',
-          normalRange: vital.normalRange || {}
-        }));
-        setVitalSignOptions(mappedVitalSigns);
+        setVitalSignOptions(vitalSigns.data);
       } else {
         setVitalSignOptions(VITAL_SIGN_OPTIONS_DEFAULT);
       }
@@ -603,10 +586,20 @@ const CDSHooksBuilderEnhanced = () => {
     }
   };
 
+  const fetchDataSummary = async () => {
+    try {
+      const response = await api.get('/actual-data/summary');
+      setDataSummary(response.data);
+    } catch (error) {
+      console.error('Error fetching data summary:', error);
+    }
+  };
+
   useEffect(() => {
     fetchHooks();
     fetchDiagnosisCodes();
     fetchClinicalData();
+    fetchDataSummary();
     setTemplates(hookTemplates);
   }, []);
 
@@ -858,17 +851,18 @@ const CDSHooksBuilderEnhanced = () => {
               }}
               renderOption={(props, option) => (
                 <Box component="li" {...props}>
-                  <Box>
+                  <Box sx={{ width: '100%' }}>
                     <Typography variant="body2">{option.display}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {option.code} | {option.category} | Normal: {
-                        option.normalRange.min !== undefined && option.normalRange.max !== undefined
-                          ? `${option.normalRange.min}-${option.normalRange.max}`
-                          : option.normalRange.min !== undefined
-                          ? `≥${option.normalRange.min}`
-                          : `≤${option.normalRange.max}`
-                      } {option.unit}
+                      {option.code} | {option.category} | Used {option.count || 0} times
+                      {option.unit && ` | Unit: ${option.unit}`}
                     </Typography>
+                    {(option.min_value !== null || option.max_value !== null) && (
+                      <Typography variant="caption" color="primary" display="block">
+                        Range: {option.min_value !== null ? option.min_value.toFixed(2) : '?'} - {option.max_value !== null ? option.max_value.toFixed(2) : '?'}
+                        {option.avg_value !== null && ` | Avg: ${option.avg_value.toFixed(2)}`}
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -943,11 +937,17 @@ const CDSHooksBuilderEnhanced = () => {
             }}
             renderOption={(props, option) => (
               <Box component="li" {...props}>
-                <Box>
+                <Box sx={{ width: '100%' }}>
                   <Typography variant="body2">{option.display}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {option.category}
+                    {option.category} | Prescribed {option.count || 0} times
                   </Typography>
+                  {(option.common_dosages?.length > 0 || option.common_routes?.length > 0) && (
+                    <Typography variant="caption" color="primary" display="block">
+                      {option.common_dosages?.length > 0 && `Dosages: ${option.common_dosages.slice(0, 2).join(', ')}`}
+                      {option.common_routes?.length > 0 && ` | Routes: ${option.common_routes.join(', ')}`}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
             )}
@@ -1050,13 +1050,19 @@ const CDSHooksBuilderEnhanced = () => {
             }}
             renderOption={(props, option) => (
               <Box component="li" {...props}>
-                <Box>
+                <Box sx={{ width: '100%' }}>
                   <Typography variant="body2">
                     <strong>{option.code}</strong> - {option.display}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {option.category}
+                    {option.category} | Diagnosed {option.count || 0} times
+                    {option.active_count !== undefined && ` | ${option.active_count} active cases`}
                   </Typography>
+                  {option.avg_duration_days && (
+                    <Typography variant="caption" color="primary" display="block">
+                      Avg duration: {option.avg_duration_days} days
+                    </Typography>
+                  )}
                 </Box>
               </Box>
             )}
@@ -1176,11 +1182,23 @@ const CDSHooksBuilderEnhanced = () => {
                               });
                             }}
                             label="Vital Sign Type"
+                            renderValue={(selected) => {
+                              const vital = vitalSignOptions.find(v => v.code === selected);
+                              return vital ? `${vital.display} (${vital.count || 0} records)` : selected;
+                            }}
                           >
                             <MenuItem value="85354-9">Blood Pressure</MenuItem>
                             {vitalSignOptions.map(vital => (
                               <MenuItem key={vital.code} value={vital.code}>
-                                {vital.display}
+                                <Box>
+                                  <Typography variant="body2">{vital.display}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {vital.count || 0} records | Unit: {vital.unit}
+                                    {(vital.min_value !== null && vital.max_value !== null) && 
+                                      ` | Range: ${vital.min_value.toFixed(1)}-${vital.max_value.toFixed(1)}`
+                                    }
+                                  </Typography>
+                                </Box>
                               </MenuItem>
                             ))}
                           </Select>
@@ -1718,7 +1736,7 @@ const CDSHooksBuilderEnhanced = () => {
             CDS Hooks Builder
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Create and manage clinical decision support hooks with enhanced specificity
+            Create and manage clinical decision support hooks using actual patient data for enhanced clinical relevance
           </Typography>
         </Box>
         <Button
@@ -1734,6 +1752,7 @@ const CDSHooksBuilderEnhanced = () => {
       <Paper sx={{ mb: 3 }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
           <Tab label="Active Hooks" icon={<Badge badgeContent={hooks.filter(h => h.enabled).length} color="primary"><RuleIcon /></Badge>} />
+          <Tab label="Data Overview" icon={<AssessmentIcon />} />
           <Tab label="Templates" icon={<AutoAwesomeIcon />} />
           <Tab label="Test Console" icon={<PreviewIcon />} />
           <Tab label="Documentation" icon={<HelpIcon />} />
@@ -1839,6 +1858,143 @@ const CDSHooksBuilderEnhanced = () => {
 
         <TabPanel value={tabValue} index={1}>
           <Typography variant="h6" gutterBottom>
+            Available Clinical Data Overview
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            This overview shows the actual clinical data available in your system for creating CDS hooks
+          </Typography>
+          
+          {dataSummary ? (
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                      <ScienceIcon color="primary" />
+                      <Typography variant="h6">Laboratory Tests</Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Actual lab tests performed on patients
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                      <Box>
+                        <Typography variant="h4" color="primary">
+                          {dataSummary.lab_tests?.distinct_tests || 0}
+                        </Typography>
+                        <Typography variant="caption">Distinct Tests</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="h4" color="secondary">
+                          {dataSummary.lab_tests?.total_observations || 0}
+                        </Typography>
+                        <Typography variant="caption">Total Results</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                      <FavoriteIcon color="error" />
+                      <Typography variant="h6">Vital Signs</Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Vital signs recorded for patients
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                      <Box>
+                        <Typography variant="h4" color="primary">
+                          {dataSummary.vital_signs?.distinct_vitals || 0}
+                        </Typography>
+                        <Typography variant="caption">Distinct Vitals</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="h4" color="secondary">
+                          {dataSummary.vital_signs?.total_observations || 0}
+                        </Typography>
+                        <Typography variant="caption">Total Records</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                      <PharmacyIcon color="success" />
+                      <Typography variant="h6">Medications</Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Medications prescribed to patients
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                      <Box>
+                        <Typography variant="h4" color="primary">
+                          {dataSummary.medications?.distinct_medications || 0}
+                        </Typography>
+                        <Typography variant="caption">Distinct Meds</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="h4" color="secondary">
+                          {dataSummary.medications?.total_prescriptions || 0}
+                        </Typography>
+                        <Typography variant="caption">Total Prescriptions</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                      <AssessmentIcon color="warning" />
+                      <Typography variant="h6">Conditions</Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Medical conditions diagnosed for patients
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                      <Box>
+                        <Typography variant="h4" color="primary">
+                          {dataSummary.conditions?.distinct_conditions || 0}
+                        </Typography>
+                        <Typography variant="caption">Distinct Conditions</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="h4" color="secondary">
+                          {dataSummary.conditions?.total_diagnoses || 0}
+                        </Typography>
+                        <Typography variant="caption">Total Diagnoses</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          ) : (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          )}
+
+          <Alert severity="success" sx={{ mt: 3 }}>
+            <Typography variant="body2">
+              <strong>Real Data Integration:</strong> This CDS Hooks Builder is powered by actual patient data from your EMR system. 
+              All lab tests, medications, vital signs, and conditions shown are based on real clinical data that has been recorded for patients.
+              This ensures your CDS rules are relevant to your actual patient population and clinical workflows.
+            </Typography>
+          </Alert>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={2}>
+          <Typography variant="h6" gutterBottom>
             Hook Templates
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
@@ -1874,7 +2030,7 @@ const CDSHooksBuilderEnhanced = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={3}>
           <Typography variant="h6" gutterBottom>
             Test Console
           </Typography>
@@ -1890,7 +2046,7 @@ const CDSHooksBuilderEnhanced = () => {
           </Box>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={4}>
           <Typography variant="h6" gutterBottom>
             CDS Hooks Documentation
           </Typography>
