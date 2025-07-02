@@ -83,8 +83,8 @@ def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
     }
     
     # Handle deceased status
-    if hasattr(patient, 'deceased_date') and patient.deceased_date:
-        resource["deceasedDateTime"] = patient.deceased_date.isoformat()
+    if hasattr(patient, 'date_of_death') and patient.date_of_death:
+        resource["deceasedDateTime"] = patient.date_of_death.isoformat()
     else:
         resource["deceasedBoolean"] = False
     
@@ -260,6 +260,12 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
         resource["encounter"] = {
             "reference": f"Encounter/{observation.encounter_id}"
         }
+    
+    # Add performer reference if available
+    if observation.provider_id:
+        resource["performer"] = [{
+            "reference": f"Practitioner/{observation.provider_id}"
+        }]
     
     # Add reference ranges
     if observation.reference_range_low is not None or observation.reference_range_high is not None:

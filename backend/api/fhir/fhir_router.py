@@ -312,16 +312,16 @@ class FHIRSearchProcessor:
             if modifier == "missing":
                 is_missing = value == "true"
                 if is_missing:
-                    query = query.filter(Patient.deceased_date.is_(None))
+                    query = query.filter(Patient.date_of_death.is_(None))
                 else:
-                    query = query.filter(Patient.deceased_date.isnot(None))
+                    query = query.filter(Patient.date_of_death.isnot(None))
             else:
                 # If value is "true", find deceased patients
                 is_deceased = value == "true"
                 if is_deceased:
-                    query = query.filter(Patient.deceased_date.isnot(None))
+                    query = query.filter(Patient.date_of_death.isnot(None))
                 else:
-                    query = query.filter(Patient.deceased_date.is_(None))
+                    query = query.filter(Patient.date_of_death.is_(None))
         
         return query
     
@@ -535,8 +535,8 @@ class FHIRSearchProcessor:
         elif param == "onset-date":
             query = self._apply_date_filter(query, Condition.onset_date, value, modifier)
         elif param == "recorded-date":
-            # Map to created_at field
-            query = self._apply_date_filter(query, Condition.created_at, value, modifier)
+            # Map to recorded_date field
+            query = self._apply_date_filter(query, Condition.recorded_date, value, modifier)
         elif param == "abatement-date":
             query = self._apply_date_filter(query, Condition.abatement_date, value, modifier)
         elif param == "encounter":
