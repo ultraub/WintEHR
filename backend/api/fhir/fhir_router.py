@@ -18,14 +18,16 @@ import io
 from enum import Enum
 
 from database.database import get_db
-from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Condition, Medication, Provider
+from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Condition, Medication, Provider, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
 from .schemas import *
 from .bulk_export import BulkExportRouter
 from .batch_transaction import BatchProcessor
 from .converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir,
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
-    organization_to_fhir, location_to_fhir
+    organization_to_fhir, location_to_fhir, allergy_intolerance_to_fhir,
+    immunization_to_fhir, procedure_to_fhir, care_plan_to_fhir,
+    device_to_fhir, diagnostic_report_to_fhir, imaging_study_to_fhir
 )
 
 router = APIRouter(prefix="/R4", tags=["FHIR R4"])
@@ -90,6 +92,59 @@ RESOURCE_MAPPINGS = {
         "search_params": [
             "identifier", "status", "name", "type", "address", "position",
             "_id", "_lastUpdated"
+        ]
+    },
+    "AllergyIntolerance": {
+        "model": Allergy,
+        "search_params": [
+            "identifier", "clinical-status", "verification-status", "type", "category",
+            "criticality", "code", "patient", "encounter", "onset", "date",
+            "recorder", "asserter", "_id", "_lastUpdated"
+        ]
+    },
+    "Immunization": {
+        "model": Immunization,
+        "search_params": [
+            "identifier", "status", "vaccine-code", "patient", "date", "lot-number",
+            "manufacturer", "performer", "reaction", "reaction-date", "reason-code",
+            "reason-reference", "_id", "_lastUpdated"
+        ]
+    },
+    "Procedure": {
+        "model": Procedure,
+        "search_params": [
+            "identifier", "status", "category", "code", "subject", "patient",
+            "encounter", "date", "performer", "reason-code", "reason-reference",
+            "body-site", "outcome", "_id", "_lastUpdated"
+        ]
+    },
+    "CarePlan": {
+        "model": CarePlan,
+        "search_params": [
+            "identifier", "status", "intent", "category", "subject", "patient",
+            "encounter", "date", "period", "addresses", "goal", "activity-code",
+            "_id", "_lastUpdated"
+        ]
+    },
+    "Device": {
+        "model": Device,
+        "search_params": [
+            "identifier", "status", "type", "manufacturer", "model", "patient",
+            "organization", "udi-carrier", "udi-di", "device-name", "_id", "_lastUpdated"
+        ]
+    },
+    "DiagnosticReport": {
+        "model": DiagnosticReport,
+        "search_params": [
+            "identifier", "status", "category", "code", "subject", "patient",
+            "encounter", "date", "issued", "performer", "result", "_id", "_lastUpdated"
+        ]
+    },
+    "ImagingStudy": {
+        "model": ImagingStudy,
+        "search_params": [
+            "identifier", "status", "subject", "patient", "started", "modality",
+            "body-site", "instance", "series", "dicom-class", "_id", "_lastUpdated"
         ]
     }
 }
@@ -255,6 +310,20 @@ class FHIRSearchProcessor:
             query = self._handle_organization_params(query, base_param, value, modifier)
         elif self.resource_type == "Location":
             query = self._handle_location_params(query, base_param, value, modifier)
+        elif self.resource_type == "AllergyIntolerance":
+            query = self._handle_allergy_params(query, base_param, value, modifier)
+        elif self.resource_type == "Immunization":
+            query = self._handle_immunization_params(query, base_param, value, modifier)
+        elif self.resource_type == "Procedure":
+            query = self._handle_procedure_params(query, base_param, value, modifier)
+        elif self.resource_type == "CarePlan":
+            query = self._handle_careplan_params(query, base_param, value, modifier)
+        elif self.resource_type == "Device":
+            query = self._handle_device_params(query, base_param, value, modifier)
+        elif self.resource_type == "DiagnosticReport":
+            query = self._handle_diagnostic_report_params(query, base_param, value, modifier)
+        elif self.resource_type == "ImagingStudy":
+            query = self._handle_imaging_study_params(query, base_param, value, modifier)
         
         return query
     
@@ -695,6 +764,251 @@ class FHIRSearchProcessor:
         
         return query
     
+    def _handle_allergy_params(self, query, param, value, modifier):
+        """Handle AllergyIntolerance-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Allergy.patient_id == value)
+        elif param == "clinical-status":
+            # Token search - exact match
+            query = query.filter(Allergy.clinical_status == value)
+        elif param == "verification-status":
+            # Token search - exact match
+            query = query.filter(Allergy.verification_status == value)
+        elif param == "type":
+            # Token search - exact match
+            query = query.filter(Allergy.allergy_type == value)
+        elif param == "category":
+            # Token search - exact match
+            query = query.filter(Allergy.category == value)
+        elif param == "criticality":
+            # Token search - exact match
+            query = query.filter(Allergy.severity == value)
+        elif param == "code":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Allergy.snomed_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Allergy.snomed_code == value,
+                        Allergy.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Allergy.encounter_id == None)
+                else:
+                    query = query.filter(Allergy.encounter_id != None)
+            else:
+                query = query.filter(Allergy.encounter_id == value)
+        elif param == "onset":
+            query = self._apply_date_filter(query, Allergy.onset_date, value, modifier)
+        elif param == "date":
+            # Use onset_date as the main date
+            query = self._apply_date_filter(query, Allergy.onset_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(Allergy.id == value)
+        
+        return query
+    
+    def _handle_immunization_params(self, query, param, value, modifier):
+        """Handle Immunization-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Immunization.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Immunization.status == value)
+        elif param == "vaccine-code":
+            # Token search - can search CVX code or description
+            system, code = self._parse_token_value(value)
+            if system and "cvx" in system.lower():
+                query = query.filter(Immunization.cvx_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Immunization.cvx_code == value,
+                        Immunization.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "date":
+            query = self._apply_date_filter(query, Immunization.immunization_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(Immunization.id == value)
+        
+        return query
+    
+    def _handle_procedure_params(self, query, param, value, modifier):
+        """Handle Procedure-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(Procedure.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Procedure.status == value)
+        elif param == "code":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Procedure.snomed_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Procedure.snomed_code == value,
+                        Procedure.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Procedure.encounter_id == None)
+                else:
+                    query = query.filter(Procedure.encounter_id != None)
+            else:
+                query = query.filter(Procedure.encounter_id == value)
+        elif param == "date":
+            query = self._apply_date_filter(query, Procedure.procedure_date, value, modifier)
+        elif param == "reason-code":
+            query = query.filter(
+                or_(
+                    Procedure.reason_code.ilike(f"%{value}%"),
+                    Procedure.reason_description.ilike(f"%{value}%")
+                )
+            )
+        elif param == "outcome":
+            query = query.filter(Procedure.outcome.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(Procedure.id == value)
+        
+        return query
+    
+    def _handle_careplan_params(self, query, param, value, modifier):
+        """Handle CarePlan-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(CarePlan.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(CarePlan.status == value)
+        elif param == "intent":
+            # Token search - exact match
+            query = query.filter(CarePlan.intent == value)
+        elif param == "category":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(CarePlan.snomed_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        CarePlan.snomed_code == value,
+                        CarePlan.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(CarePlan.encounter_id == None)
+                else:
+                    query = query.filter(CarePlan.encounter_id != None)
+            else:
+                query = query.filter(CarePlan.encounter_id == value)
+        elif param == "date":
+            query = self._apply_date_filter(query, CarePlan.start_date, value, modifier)
+        elif param == "period":
+            query = self._apply_date_filter(query, CarePlan.start_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(CarePlan.id == value)
+        
+        return query
+    
+    def _handle_device_params(self, query, param, value, modifier):
+        """Handle Device-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Device.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Device.status == value)
+        elif param == "type":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Device.snomed_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        Device.snomed_code == value,
+                        Device.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "udi-carrier" or param == "udi-di":
+            query = query.filter(Device.udi.ilike(f"%{value}%"))
+        elif param == "device-name":
+            query = query.filter(Device.description.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(Device.id == value)
+        
+        return query
+    
+    def _handle_diagnostic_report_params(self, query, param, value, modifier):
+        """Handle DiagnosticReport-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(DiagnosticReport.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(DiagnosticReport.status == value)
+        elif param == "code":
+            # Token search - can search LOINC code or description
+            system, code = self._parse_token_value(value)
+            if system and "loinc" in system.lower():
+                query = query.filter(DiagnosticReport.loinc_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        DiagnosticReport.loinc_code == value,
+                        DiagnosticReport.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(DiagnosticReport.encounter_id == None)
+                else:
+                    query = query.filter(DiagnosticReport.encounter_id != None)
+            else:
+                query = query.filter(DiagnosticReport.encounter_id == value)
+        elif param == "date" or param == "issued":
+            query = self._apply_date_filter(query, DiagnosticReport.report_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(DiagnosticReport.id == value)
+        
+        return query
+    
+    def _handle_imaging_study_params(self, query, param, value, modifier):
+        """Handle ImagingStudy-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(ImagingStudy.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(ImagingStudy.status == value)
+        elif param == "modality":
+            # Token search - exact match
+            query = query.filter(ImagingStudy.modality == value)
+        elif param == "started":
+            query = self._apply_date_filter(query, ImagingStudy.study_date, value, modifier)
+        elif param == "body-site":
+            query = query.filter(ImagingStudy.body_part.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(ImagingStudy.id == value)
+        
+        return query
+    
     def _apply_date_filter(self, query, field, value, modifier):
         """Apply date filters with FHIR prefixes (ge, le, gt, lt, eq, ne) and modifiers"""
         if modifier in ["ge", "gt", "le", "lt", "eq", "ne", "above", "below", "missing"]:
@@ -1069,7 +1383,14 @@ async def search_resources(
         "MedicationRequest": medication_request_to_fhir,
         "Practitioner": practitioner_to_fhir,
         "Organization": organization_to_fhir,
-        "Location": location_to_fhir
+        "Location": location_to_fhir,
+        "AllergyIntolerance": allergy_intolerance_to_fhir,
+        "Immunization": immunization_to_fhir,
+        "Procedure": procedure_to_fhir,
+        "CarePlan": care_plan_to_fhir,
+        "Device": device_to_fhir,
+        "DiagnosticReport": diagnostic_report_to_fhir,
+        "ImagingStudy": imaging_study_to_fhir
     }
     
     converter = converter_map.get(resource_type)
@@ -1143,7 +1464,14 @@ async def get_resource(
         "MedicationRequest": medication_request_to_fhir,
         "Practitioner": practitioner_to_fhir,
         "Organization": organization_to_fhir,
-        "Location": location_to_fhir
+        "Location": location_to_fhir,
+        "AllergyIntolerance": allergy_intolerance_to_fhir,
+        "Immunization": immunization_to_fhir,
+        "Procedure": procedure_to_fhir,
+        "CarePlan": care_plan_to_fhir,
+        "Device": device_to_fhir,
+        "DiagnosticReport": diagnostic_report_to_fhir,
+        "ImagingStudy": imaging_study_to_fhir
     }
     
     converter = converter_map.get(resource_type)
