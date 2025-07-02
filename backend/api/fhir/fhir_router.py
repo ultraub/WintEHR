@@ -36,22 +36,24 @@ RESOURCE_MAPPINGS = {
         "model": Patient,
         "search_params": [
             "identifier", "name", "family", "given", "birthdate", "gender", 
-            "address", "telecom", "active", "_id", "_lastUpdated"
+            "address", "address-city", "address-state", "address-postalcode",
+            "telecom", "active", "deceased", "_id", "_lastUpdated"
         ]
     },
     "Encounter": {
         "model": Encounter,
         "search_params": [
             "identifier", "status", "class", "type", "subject", "participant",
-            "period", "reason-code", "reason-reference", "location", "_id", "_lastUpdated"
+            "period", "date", "reason-code", "reason-reference", "location", 
+            "service-provider", "_id", "_lastUpdated"
         ]
     },
     "Observation": {
         "model": Observation,
         "search_params": [
-            "identifier", "status", "category", "code", "subject", "encounter",
-            "effective", "performer", "value-quantity", "value-string", "component-code",
-            "component-value-quantity", "_id", "_lastUpdated"
+            "identifier", "status", "category", "code", "subject", "patient", "encounter",
+            "date", "effective", "performer", "value-quantity", "value-string", 
+            "value-concept", "component-code", "component-value-quantity", "_id", "_lastUpdated"
         ]
     },
     "Condition": {
@@ -113,8 +115,45 @@ class FHIRSearchProcessor:
             raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
         self.model = self.resource_config["model"]
     
+    def _validate_search_parameters(self, params: Dict[str, Any]) -> None:
+        """Validate search parameters against allowed list"""
+        allowed_params = set(self.resource_config["search_params"])
+        # Add common control parameters
+        allowed_params.update(['_count', '_offset', '_sort', '_include', 
+                              '_revinclude', '_summary', '_total', '_format'])
+        
+        errors = []
+        for param in params:
+            # Skip pagination parameters that are handled separately
+            if param in ['_count', '_offset', '_total', '_include', '_revinclude']:
+                continue
+                
+            # Extract base parameter name (remove modifiers and chains)
+            base_param = param.split(':')[0].split('.')[0]
+            
+            # Check if parameter is allowed
+            if base_param not in allowed_params and not base_param.startswith('_'):
+                errors.append(f"Unknown search parameter '{base_param}' for resource type {self.resource_type}")
+        
+        if errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "resourceType": "OperationOutcome",
+                    "issue": [{
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": error,
+                        "expression": [f"{self.resource_type}.search"]
+                    } for error in errors]
+                }
+            )
+    
     def build_query(self, search_params: Dict[str, Any]):
         """Build SQLAlchemy query from FHIR search parameters"""
+        # Validate parameters first
+        self._validate_search_parameters(search_params)
+        
         query = self.db.query(self.model)
         
         # Handle include parameters for joins
@@ -151,6 +190,21 @@ class FHIRSearchProcessor:
         
         return query
     
+    def _parse_search_value(self, value):
+        """Parse search value that may contain comma-separated values for OR logic"""
+        if isinstance(value, list):
+            return value
+        if ',' in value:
+            return [v.strip() for v in value.split(',')]
+        return [value]
+    
+    def _parse_token_value(self, value: str) -> tuple[Optional[str], str]:
+        """Parse token value that may contain system|code format"""
+        if '|' in value:
+            parts = value.split('|', 1)
+            return parts[0] if parts[0] else None, parts[1]
+        return None, value
+    
     def _handle_control_parameter(self, query, param, value):
         """Handle FHIR control parameters like _count, _sort, etc."""
         if param == "_count":
@@ -161,10 +215,12 @@ class FHIRSearchProcessor:
         elif param == "_lastUpdated":
             query = self._apply_last_updated_filter(query, value)
         elif param == "_id":
-            if isinstance(value, list):
-                query = query.filter(self.model.id.in_(value))
+            # Support comma-separated IDs
+            ids = self._parse_search_value(value)
+            if len(ids) > 1:
+                query = query.filter(self.model.id.in_(ids))
             else:
-                query = query.filter(self.model.id == value)
+                query = query.filter(self.model.id == ids[0])
         
         return query
     
@@ -219,33 +275,76 @@ class FHIRSearchProcessor:
         elif param == "birthdate":
             query = self._apply_date_filter(query, Patient.date_of_birth, value, modifier)
         elif param == "gender":
-            # FHIR gender values should map to our M/F values
-            if value.lower() == "male":
-                query = query.filter(Patient.gender == "M")
-            elif value.lower() == "female":
-                query = query.filter(Patient.gender == "F")
-            else:
-                query = query.filter(Patient.gender == value)
+            # Handle case-insensitive gender search
+            query = query.filter(func.lower(Patient.gender) == value.lower())
         elif param == "identifier":
             query = query.filter(Patient.mrn == value)
+        elif param == "address":
+            # Search across all address fields
+            query = query.filter(
+                or_(
+                    Patient.address.ilike(f"%{value}%"),
+                    Patient.city.ilike(f"%{value}%"),
+                    Patient.state.ilike(f"%{value}%"),
+                    Patient.zip_code.ilike(f"%{value}%")
+                )
+            )
+        elif param == "telecom":
+            # Search phone and email
+            query = query.filter(
+                or_(
+                    Patient.phone.ilike(f"%{value}%"),
+                    Patient.email.ilike(f"%{value}%")
+                )
+            )
+        elif param == "address-city":
+            query = self._apply_string_filter(query, Patient.city, value, modifier)
+        elif param == "address-state":
+            query = self._apply_string_filter(query, Patient.state, value, modifier)
+        elif param == "address-postalcode":
+            query = self._apply_string_filter(query, Patient.zip_code, value, modifier)
+        elif param == "active":
+            # Handle active status
+            is_active = value.lower() == "true"
+            query = query.filter(Patient.is_active == is_active)
+        elif param == "deceased":
+            # Handle deceased status - check if deceased_date is set
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Patient.deceased_date.is_(None))
+                else:
+                    query = query.filter(Patient.deceased_date.isnot(None))
+            else:
+                # If value is "true", find deceased patients
+                is_deceased = value.lower() == "true"
+                if is_deceased:
+                    query = query.filter(Patient.deceased_date.isnot(None))
+                else:
+                    query = query.filter(Patient.deceased_date.is_(None))
         
         return query
     
     def _handle_encounter_params(self, query, param, value, modifier):
         """Handle Encounter-specific search parameters"""
         if param == "subject" or param == "patient":
-            # Handle chained parameter: subject.family, subject.given, etc.
-            if "." in value:
-                chain_param, chain_value = value.split(".", 1)
-                if chain_param in ["family", "given", "name"]:
+            # Check if this is a chained parameter (modifier contains Patient.xxx)
+            if modifier and "Patient." in modifier:
+                # Parse the chain: Patient.family, Patient.given, etc.
+                _, chain_param = modifier.split(".", 1)
+                if chain_param == "family":
+                    query = query.join(Patient).filter(Patient.last_name.ilike(f"%{value}%"))
+                elif chain_param == "given":
+                    query = query.join(Patient).filter(Patient.first_name.ilike(f"%{value}%"))
+                elif chain_param == "name":
                     query = query.join(Patient).filter(
-                        Patient.last_name.ilike(f"%{chain_value}%") if chain_param == "family"
-                        else Patient.first_name.ilike(f"%{chain_value}%") if chain_param == "given"
-                        else or_(
-                            Patient.first_name.ilike(f"%{chain_value}%"),
-                            Patient.last_name.ilike(f"%{chain_value}%")
+                        or_(
+                            Patient.first_name.ilike(f"%{value}%"),
+                            Patient.last_name.ilike(f"%{value}%")
                         )
                     )
+                elif chain_param == "gender":
+                    query = query.join(Patient).filter(func.lower(Patient.gender) == value.lower())
             else:
                 # Handle FHIR reference format: Patient/123 or just 123
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
@@ -261,6 +360,48 @@ class FHIRSearchProcessor:
                     query = self._apply_date_filter(query, Encounter.encounter_date, v, modifier)
             else:
                 query = self._apply_date_filter(query, Encounter.encounter_date, value, modifier)
+        elif param == "location":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Encounter.location_id.is_(None))
+                else:
+                    query = query.filter(Encounter.location_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Location/123 or just 123
+                location_id = value.replace("Location/", "") if value.startswith("Location/") else value
+                query = query.filter(Encounter.location_id == location_id)
+        elif param == "participant":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Encounter.provider_id.is_(None))
+                else:
+                    query = query.filter(Encounter.provider_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                provider_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Encounter.provider_id == provider_id)
+        elif param == "class":
+            # Search by encounter class
+            query = query.filter(Encounter.encounter_class == value)
+        elif param == "reason-code":
+            # Search in chief complaint
+            query = self._apply_string_filter(query, Encounter.chief_complaint, value, modifier)
+        elif param == "service-provider":
+            # Search by organization
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Encounter.organization_id.is_(None))
+                else:
+                    query = query.filter(Encounter.organization_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Organization/123 or just 123
+                org_id = value.replace("Organization/", "") if value.startswith("Organization/") else value
+                query = query.filter(Encounter.organization_id == org_id)
         
         return query
     
@@ -279,14 +420,63 @@ class FHIRSearchProcessor:
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Observation.patient_id == patient_id)
         elif param == "code":
-            query = query.filter(Observation.loinc_code == value)
+            # Support comma-separated LOINC codes with system|code format
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://loinc.org" or not system:
+                    # LOINC code search - exact match for tokens
+                    or_conditions.append(Observation.loinc_code == code_value)
+                
+                # Support :text modifier for display text search
+                if modifier == "text":
+                    or_conditions.append(Observation.display.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
         elif param == "category":
             query = query.filter(Observation.observation_type == value)
         elif param == "value-quantity":
             # Handle quantity searches with units
             query = self._apply_quantity_filter(query, Observation.value_quantity, value, modifier)
-        elif param == "effective":
+        elif param == "effective" or param == "date":
             query = self._apply_date_filter(query, Observation.observation_date, value, modifier)
+        elif param == "status":
+            # Handle observation status
+            query = query.filter(Observation.status == value)
+        elif param == "performer":
+            # Handle performer reference
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Observation.provider_id.is_(None))
+                else:
+                    query = query.filter(Observation.provider_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                provider_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Observation.provider_id == provider_id)
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Observation.encounter_id.is_(None))
+                else:
+                    query = query.filter(Observation.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Observation.encounter_id == encounter_id)
+        elif param == "value-string":
+            # Search string values
+            query = self._apply_string_filter(query, Observation.value, value, modifier)
+        elif param == "value-concept":
+            # Search coded values
+            query = self._apply_string_filter(query, Observation.value_code, value, modifier)
         
         return query
     
@@ -304,7 +494,33 @@ class FHIRSearchProcessor:
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Condition.patient_id == patient_id)
         elif param == "code":
-            query = query.filter(Condition.icd10_code == value)
+            # Support comma-separated values for OR logic
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://snomed.info/sct":
+                    # SNOMED code search
+                    or_conditions.append(Condition.snomed_code == code_value)
+                elif system == "http://hl7.org/fhir/sid/icd-10":
+                    # ICD-10 code search
+                    or_conditions.append(Condition.icd10_code == code_value)
+                elif not system:
+                    # No system specified, search all code fields and description
+                    or_conditions.extend([
+                        Condition.snomed_code == code_value,
+                        Condition.icd10_code == code_value,
+                        Condition.description.ilike(f"%{code_value}%")
+                    ])
+                
+                # Support :text modifier for description search
+                if modifier == "text":
+                    or_conditions.append(Condition.description.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
         elif param == "clinical-status":
             query = query.filter(Condition.clinical_status == value)
         elif param == "onset-date":
@@ -331,6 +547,18 @@ class FHIRSearchProcessor:
             query = query.filter(Medication.status == value)
         elif param == "authored-on":
             query = self._apply_date_filter(query, Medication.start_date, value, modifier)
+        elif param == "requester":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Medication.prescriber_id.is_(None))
+                else:
+                    query = query.filter(Medication.prescriber_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                prescriber_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Medication.prescriber_id == prescriber_id)
         
         return query
     
@@ -357,6 +585,9 @@ class FHIRSearchProcessor:
             query = query.filter(Provider.active == (value.lower() == "true"))
         elif param == "identifier":
             query = query.filter(or_(Provider.id == value, Provider.npi == value))
+        elif param == "qualification":
+            # Search in specialty field
+            query = query.filter(Provider.specialty.ilike(f"%{value}%"))
         
         return query
     
@@ -424,23 +655,39 @@ class FHIRSearchProcessor:
             try:
                 date_obj = datetime.strptime(date_value, "%Y-%m-%d").date()
             except:
-                # Invalid date - return empty results
-                return query.filter(False)
+                # Invalid date format - raise proper error
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "resourceType": "OperationOutcome",
+                        "issue": [{
+                            "severity": "error",
+                            "code": "invalid",
+                            "diagnostics": f"Invalid date format: '{date_value}'. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ",
+                            "expression": ["Bundle.entry.request.url"]
+                        }]
+                    }
+                )
+        
+        # Convert date to string format for comparison with database strings
+        # Database format: "2003-11-12 23:17:36.000000"
+        date_str = date_obj.strftime('%Y-%m-%d')
         
         if prefix == "eq":
-            query = query.filter(field == date_obj)
+            # For equality, check if date starts with the date string
+            query = query.filter(func.substr(field, 1, 10) == date_str)
         elif prefix == "ne":
-            query = query.filter(field != date_obj)
+            query = query.filter(func.substr(field, 1, 10) != date_str)
         elif prefix == "gt" or prefix == "above":
-            # :above is same as gt for dates
-            query = query.filter(field > date_obj)
+            # For greater than, add time to ensure we get dates after midnight
+            query = query.filter(field > f"{date_str} 23:59:59")
         elif prefix == "ge":
-            query = query.filter(field >= date_obj)
+            query = query.filter(field >= f"{date_str} 00:00:00")
         elif prefix == "lt" or prefix == "below":
-            # :below is same as lt for dates
-            query = query.filter(field < date_obj)
+            query = query.filter(field < f"{date_str} 00:00:00")
         elif prefix == "le":
-            query = query.filter(field <= date_obj)
+            # For less than or equal, include the entire day
+            query = query.filter(field <= f"{date_str} 23:59:59")
         
         return query
     

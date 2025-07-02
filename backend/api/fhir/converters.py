@@ -4,8 +4,59 @@ Converts between database models and FHIR resources
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location
+
+
+# Helper functions for FHIR resource creation
+def create_reference(resource_type: str, resource_id: str, display: str = None) -> Dict[str, Any]:
+    """Create a properly formatted FHIR reference"""
+    reference = {
+        "reference": f"{resource_type}/{resource_id}"
+    }
+    if display:
+        reference["display"] = display
+    return reference
+
+
+def create_codeable_concept(
+    system: str = None, 
+    code: str = None, 
+    display: str = None, 
+    text: str = None,
+    additional_codings: List[Dict[str, str]] = None
+) -> Dict[str, Any]:
+    """Create a properly formatted FHIR CodeableConcept"""
+    concept = {"coding": []}
+    
+    if system and code:
+        coding = {"system": system, "code": code}
+        if display:
+            coding["display"] = display
+        concept["coding"].append(coding)
+    
+    if additional_codings:
+        concept["coding"].extend(additional_codings)
+    
+    if text:
+        concept["text"] = text
+    elif display and not text:
+        concept["text"] = display
+    
+    return concept
+
+
+def create_identifier(system: str, value: str, use: str = None, type_dict: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Create a properly formatted FHIR Identifier"""
+    identifier = {
+        "system": system,
+        "value": value
+    }
+    if use:
+        identifier["use"] = use
+    if type_dict:
+        identifier["type"] = type_dict
+    return identifier
 
 
 def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
@@ -15,10 +66,11 @@ def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
         "id": str(patient.id),
         "meta": {
             "versionId": "1",
-            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+            "lastUpdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "profile": ["http://hl7.org/fhir/StructureDefinition/Patient"]
         },
         "identifier": [],
-        "active": True,
+        "active": patient.is_active if hasattr(patient, 'is_active') else True,
         "name": [
             {
                 "use": "official",
@@ -26,16 +78,26 @@ def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
                 "given": [patient.first_name] if patient.first_name else []
             }
         ],
-        "gender": "male" if patient.gender == "M" else "female" if patient.gender == "F" else "unknown",
+        "gender": patient.gender if patient.gender in ["male", "female", "other", "unknown"] else "unknown",
         "birthDate": patient.date_of_birth.isoformat() if patient.date_of_birth else None
     }
     
-    # Add identifiers
+    # Handle deceased status
+    if hasattr(patient, 'deceased_date') and patient.deceased_date:
+        resource["deceasedDateTime"] = patient.deceased_date.isoformat()
+    else:
+        resource["deceasedBoolean"] = False
+    
+    # Add identifiers using helper
     if patient.ssn:
-        resource["identifier"].append({
-            "system": "http://hl7.org/fhir/sid/us-ssn",
-            "value": patient.ssn
-        })
+        resource["identifier"].append(
+            create_identifier("http://hl7.org/fhir/sid/us-ssn", patient.ssn, "official")
+        )
+    
+    if hasattr(patient, 'mrn') and patient.mrn:
+        resource["identifier"].append(
+            create_identifier("http://hospital.example.org/mrn", patient.mrn, "usual")
+        )
     
     # Add contact info
     resource["telecom"] = []
@@ -102,9 +164,7 @@ def encounter_to_fhir(encounter: Encounter) -> Dict[str, Any]:
                 "text": encounter.encounter_type
             }
         ],
-        "subject": {
-            "reference": f"Patient/{encounter.patient_id}"
-        },
+        "subject": create_reference("Patient", encounter.patient_id),
         "period": {
             "start": encounter.encounter_date.isoformat() + "Z" if encounter.encounter_date else None
         }
@@ -153,12 +213,7 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
         },
         "status": observation.status or "final",
         "category": [],
-        "code": {
-            "coding": []
-        },
-        "subject": {
-            "reference": f"Patient/{observation.patient_id}"
-        },
+        "subject": create_reference("Patient", observation.patient_id),
         "effectiveDateTime": observation.observation_date.isoformat() + "Z" if observation.observation_date else None
     }
     
@@ -182,11 +237,12 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
     
     # Add LOINC code
     if observation.loinc_code:
-        resource["code"]["coding"].append({
-            "system": "http://loinc.org",
-            "code": observation.loinc_code,
-            "display": observation.display
-        })
+        resource["code"] = create_codeable_concept(
+            system="http://loinc.org",
+            code=observation.loinc_code,
+            display=observation.display,
+            text=observation.display
+        )
     
     # Add value
     if observation.value_quantity is not None:
