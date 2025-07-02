@@ -61,6 +61,32 @@
 - ✅ `value-concept` → `value_code`
 - ✅ `patient` alias for `subject`
 
+**Condition Resource**:
+- ✅ `verification-status` → `verification_status`
+- ✅ `severity` → `severity`
+- ✅ `recorded-date` → `created_at`
+- ✅ `abatement-date` → `abatement_date`
+- ✅ `encounter` → `encounter_id`
+
+**MedicationRequest Resource**:
+- ✅ `intent` → hardcoded "order"
+- ✅ `code` → `rxnorm_code`
+- ✅ `encounter` → `encounter_id`
+
+#### 7. Token Search Exact Match ✅
+- Fixed all token searches to use exact match instead of case-insensitive
+- Affected parameters:
+  - Patient: gender, active, deceased
+  - Encounter: status, class
+  - Observation: status, category
+  - Condition: clinical-status, verification-status, severity
+  - MedicationRequest: status, intent
+  - Practitioner: active
+  - Organization: type, active
+  - Location: type, status
+- Fixed all `:missing` modifier boolean comparisons
+- All tests still pass (55/55)
+
 ## Test Results
 
 **Current Status**: 100% Pass Rate (55/55 tests)
@@ -87,8 +113,8 @@
 ## Remaining Work
 
 ### Phase 1 Completion
-- [ ] Add remaining search parameters for Condition, MedicationRequest
-- [ ] Fix token searches to be truly exact match
+- [x] Add remaining search parameters for Condition, MedicationRequest
+- [x] Fix token searches to be truly exact match
 - [ ] Add streaming support for bulk export
 
 ### Phase 2: Resource Structure

@@ -60,15 +60,15 @@ RESOURCE_MAPPINGS = {
         "model": Condition,
         "search_params": [
             "identifier", "clinical-status", "verification-status", "category", "severity",
-            "code", "subject", "encounter", "onset-date", "onset-age", "recorded-date",
-            "_id", "_lastUpdated"
+            "code", "subject", "patient", "encounter", "onset-date", "onset-age", 
+            "recorded-date", "abatement-date", "_id", "_lastUpdated"
         ]
     },
     "MedicationRequest": {
         "model": Medication,
         "search_params": [
-            "identifier", "status", "intent", "category", "medication", "subject",
-            "encounter", "authored-on", "requester", "_id", "_lastUpdated"
+            "identifier", "status", "intent", "category", "medication", "code", 
+            "subject", "patient", "encounter", "authored-on", "requester", "_id", "_lastUpdated"
         ]
     },
     "Practitioner": {
@@ -275,8 +275,8 @@ class FHIRSearchProcessor:
         elif param == "birthdate":
             query = self._apply_date_filter(query, Patient.date_of_birth, value, modifier)
         elif param == "gender":
-            # Handle case-insensitive gender search
-            query = query.filter(func.lower(Patient.gender) == value.lower())
+            # Token search - exact match
+            query = query.filter(Patient.gender == value)
         elif param == "identifier":
             query = query.filter(Patient.mrn == value)
         elif param == "address":
@@ -304,20 +304,20 @@ class FHIRSearchProcessor:
         elif param == "address-postalcode":
             query = self._apply_string_filter(query, Patient.zip_code, value, modifier)
         elif param == "active":
-            # Handle active status
-            is_active = value.lower() == "true"
+            # Token search - exact match for boolean
+            is_active = value == "true"
             query = query.filter(Patient.is_active == is_active)
         elif param == "deceased":
             # Handle deceased status - check if deceased_date is set
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Patient.deceased_date.is_(None))
                 else:
                     query = query.filter(Patient.deceased_date.isnot(None))
             else:
                 # If value is "true", find deceased patients
-                is_deceased = value.lower() == "true"
+                is_deceased = value == "true"
                 if is_deceased:
                     query = query.filter(Patient.deceased_date.isnot(None))
                 else:
@@ -344,12 +344,13 @@ class FHIRSearchProcessor:
                         )
                     )
                 elif chain_param == "gender":
-                    query = query.join(Patient).filter(func.lower(Patient.gender) == value.lower())
+                    query = query.join(Patient).filter(Patient.gender == value)
             else:
                 # Handle FHIR reference format: Patient/123 or just 123
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Encounter.patient_id == patient_id)
         elif param == "status":
+            # Token search - exact match
             query = query.filter(Encounter.status == value)
         elif param == "type":
             query = query.filter(Encounter.encounter_type.ilike(f"%{value}%"))
@@ -363,7 +364,7 @@ class FHIRSearchProcessor:
         elif param == "location":
             if modifier == "missing":
                 # Handle :missing modifier
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Encounter.location_id.is_(None))
                 else:
@@ -375,7 +376,7 @@ class FHIRSearchProcessor:
         elif param == "participant":
             if modifier == "missing":
                 # Handle :missing modifier
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Encounter.provider_id.is_(None))
                 else:
@@ -385,7 +386,7 @@ class FHIRSearchProcessor:
                 provider_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
                 query = query.filter(Encounter.provider_id == provider_id)
         elif param == "class":
-            # Search by encounter class
+            # Token search - exact match
             query = query.filter(Encounter.encounter_class == value)
         elif param == "reason-code":
             # Search in chief complaint
@@ -393,7 +394,7 @@ class FHIRSearchProcessor:
         elif param == "service-provider":
             # Search by organization
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Encounter.organization_id.is_(None))
                 else:
@@ -438,6 +439,7 @@ class FHIRSearchProcessor:
             if or_conditions:
                 query = query.filter(or_(*or_conditions))
         elif param == "category":
+            # Token search - exact match
             query = query.filter(Observation.observation_type == value)
         elif param == "value-quantity":
             # Handle quantity searches with units
@@ -445,12 +447,12 @@ class FHIRSearchProcessor:
         elif param == "effective" or param == "date":
             query = self._apply_date_filter(query, Observation.observation_date, value, modifier)
         elif param == "status":
-            # Handle observation status
+            # Token search - exact match
             query = query.filter(Observation.status == value)
         elif param == "performer":
             # Handle performer reference
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Observation.provider_id.is_(None))
                 else:
@@ -462,7 +464,7 @@ class FHIRSearchProcessor:
         elif param == "encounter":
             # Handle encounter reference
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Observation.encounter_id.is_(None))
                 else:
@@ -522,9 +524,33 @@ class FHIRSearchProcessor:
             if or_conditions:
                 query = query.filter(or_(*or_conditions))
         elif param == "clinical-status":
+            # Token search - exact match
             query = query.filter(Condition.clinical_status == value)
+        elif param == "verification-status":
+            # Token search - exact match
+            query = query.filter(Condition.verification_status == value)
+        elif param == "severity":
+            # Token search - exact match
+            query = query.filter(Condition.severity == value)
         elif param == "onset-date":
             query = self._apply_date_filter(query, Condition.onset_date, value, modifier)
+        elif param == "recorded-date":
+            # Map to created_at field
+            query = self._apply_date_filter(query, Condition.created_at, value, modifier)
+        elif param == "abatement-date":
+            query = self._apply_date_filter(query, Condition.abatement_date, value, modifier)
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Condition.encounter_id.is_(None))
+                else:
+                    query = query.filter(Condition.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Condition.encounter_id == encounter_id)
         
         return query
     
@@ -544,13 +570,14 @@ class FHIRSearchProcessor:
         elif param == "medication":
             query = query.filter(Medication.medication_name.ilike(f"%{value}%"))
         elif param == "status":
+            # Token search - exact match
             query = query.filter(Medication.status == value)
         elif param == "authored-on":
             query = self._apply_date_filter(query, Medication.start_date, value, modifier)
         elif param == "requester":
             if modifier == "missing":
                 # Handle :missing modifier
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(Medication.prescriber_id.is_(None))
                 else:
@@ -559,6 +586,44 @@ class FHIRSearchProcessor:
                 # Handle FHIR reference format: Practitioner/123 or just 123
                 prescriber_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
                 query = query.filter(Medication.prescriber_id == prescriber_id)
+        elif param == "code":
+            # Search by RxNorm code with system|code support
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://www.nlm.nih.gov/research/umls/rxnorm" or not system:
+                    # RxNorm code search - exact match for tokens
+                    or_conditions.append(Medication.rxnorm_code == code_value)
+                
+                # Support :text modifier for medication name search
+                if modifier == "text":
+                    or_conditions.append(Medication.medication_name.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Medication.encounter_id.is_(None))
+                else:
+                    query = query.filter(Medication.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Medication.encounter_id == encounter_id)
+        elif param == "intent":
+            # Intent is always "order" for prescriptions in our system
+            if value == "order":
+                # Return all results since all are orders
+                pass
+            else:
+                # No results if searching for other intents
+                query = query.filter(False)
         
         return query
     
@@ -582,7 +647,8 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Provider.first_name.ilike(f"%{value}%"))
         elif param == "active":
-            query = query.filter(Provider.active == (value.lower() == "true"))
+            # Token search - exact match for boolean
+            query = query.filter(Provider.active == (value == "true"))
         elif param == "identifier":
             query = query.filter(or_(Provider.id == value, Provider.npi == value))
         elif param == "qualification":
@@ -599,10 +665,11 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Organization.name.ilike(f"%{value}%"))
         elif param == "type":
+            # Token search - exact match
             query = query.filter(Organization.type == value)
         elif param == "active":
             # Organization doesn't have active field, so return all if true
-            if value.lower() != "true":
+            if value != "true":
                 query = query.filter(False)  # Return empty if searching for inactive
         elif param == "identifier":
             query = query.filter(Organization.id == value)
@@ -617,10 +684,11 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Location.name.ilike(f"%{value}%"))
         elif param == "type":
+            # Token search - exact match
             query = query.filter(Location.type == value)
         elif param == "status":
             # Location doesn't have status field, so return all if active
-            if value.lower() != "active":
+            if value != "active":
                 query = query.filter(False)  # Return empty if not active
         elif param == "identifier":
             query = query.filter(Location.id == value)
@@ -696,7 +764,7 @@ class FHIRSearchProcessor:
         # Handle modifier-based filtering
         if modifier in ["above", "below", "missing"]:
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(field == None)
                 else:
@@ -778,7 +846,7 @@ class FHIRSearchProcessor:
         elif modifier == "contains":
             query = query.filter(field.contains(value))
         elif modifier == "missing":
-            is_missing = value.lower() == "true"
+            is_missing = value == "true"
             if is_missing:
                 query = query.filter(or_(field == None, field == ""))
             else:
