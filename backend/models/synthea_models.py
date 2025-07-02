@@ -59,6 +59,9 @@ class Patient(Base):
     insurance_name = Column(String)
     insurance_id = Column(String)
     
+    # FHIR fields
+    is_active = Column(Boolean, default=True)  # FHIR active status
+    
     # System fields
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -111,6 +114,7 @@ class Provider(Base):
     # Relationships
     organization = relationship("Organization", back_populates="providers")
     encounters = relationship("Encounter", back_populates="provider")
+    observations = relationship("Observation", back_populates="provider")
 
 class Organization(Base):
     """Healthcare organization model"""
@@ -318,6 +322,7 @@ class Observation(Base):
     # Foreign keys
     patient_id = Column(String, ForeignKey("patients.id"), nullable=False, index=True)
     encounter_id = Column(String, ForeignKey("encounters.id"), index=True)
+    provider_id = Column(String, ForeignKey("providers.id"), index=True)  # FHIR performer
     
     # Observation details
     observation_date = Column(DateTime, nullable=False, index=True)
@@ -345,6 +350,7 @@ class Observation(Base):
     # Relationships
     patient = relationship("Patient", back_populates="observations")
     encounter = relationship("Encounter", back_populates="observations")
+    provider = relationship("Provider")  # FHIR performer relationship
 
 class Procedure(Base):
     """Procedure model"""

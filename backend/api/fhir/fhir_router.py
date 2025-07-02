@@ -18,14 +18,16 @@ import io
 from enum import Enum
 
 from database.database import get_db
-from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Condition, Medication, Provider
+from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Condition, Medication, Provider, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
 from .schemas import *
 from .bulk_export import BulkExportRouter
 from .batch_transaction import BatchProcessor
 from .converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir,
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
-    organization_to_fhir, location_to_fhir
+    organization_to_fhir, location_to_fhir, allergy_intolerance_to_fhir,
+    immunization_to_fhir, procedure_to_fhir, care_plan_to_fhir,
+    device_to_fhir, diagnostic_report_to_fhir, imaging_study_to_fhir
 )
 
 router = APIRouter(prefix="/R4", tags=["FHIR R4"])
@@ -36,37 +38,39 @@ RESOURCE_MAPPINGS = {
         "model": Patient,
         "search_params": [
             "identifier", "name", "family", "given", "birthdate", "gender", 
-            "address", "telecom", "active", "_id", "_lastUpdated"
+            "address", "address-city", "address-state", "address-postalcode",
+            "telecom", "active", "deceased", "_id", "_lastUpdated"
         ]
     },
     "Encounter": {
         "model": Encounter,
         "search_params": [
             "identifier", "status", "class", "type", "subject", "participant",
-            "period", "reason-code", "reason-reference", "location", "_id", "_lastUpdated"
+            "period", "date", "reason-code", "reason-reference", "location", 
+            "service-provider", "_id", "_lastUpdated"
         ]
     },
     "Observation": {
         "model": Observation,
         "search_params": [
-            "identifier", "status", "category", "code", "subject", "encounter",
-            "effective", "performer", "value-quantity", "value-string", "component-code",
-            "component-value-quantity", "_id", "_lastUpdated"
+            "identifier", "status", "category", "code", "subject", "patient", "encounter",
+            "date", "effective", "performer", "value-quantity", "value-string", 
+            "value-concept", "component-code", "component-value-quantity", "_id", "_lastUpdated"
         ]
     },
     "Condition": {
         "model": Condition,
         "search_params": [
             "identifier", "clinical-status", "verification-status", "category", "severity",
-            "code", "subject", "encounter", "onset-date", "onset-age", "recorded-date",
-            "_id", "_lastUpdated"
+            "code", "subject", "patient", "encounter", "onset-date", "onset-age", 
+            "recorded-date", "abatement-date", "_id", "_lastUpdated"
         ]
     },
     "MedicationRequest": {
         "model": Medication,
         "search_params": [
-            "identifier", "status", "intent", "category", "medication", "subject",
-            "encounter", "authored-on", "requester", "_id", "_lastUpdated"
+            "identifier", "status", "intent", "category", "medication", "code", 
+            "subject", "patient", "encounter", "authored-on", "requester", "_id", "_lastUpdated"
         ]
     },
     "Practitioner": {
@@ -88,6 +92,59 @@ RESOURCE_MAPPINGS = {
         "search_params": [
             "identifier", "status", "name", "type", "address", "position",
             "_id", "_lastUpdated"
+        ]
+    },
+    "AllergyIntolerance": {
+        "model": Allergy,
+        "search_params": [
+            "identifier", "clinical-status", "verification-status", "type", "category",
+            "criticality", "code", "patient", "encounter", "onset", "date",
+            "recorder", "asserter", "_id", "_lastUpdated"
+        ]
+    },
+    "Immunization": {
+        "model": Immunization,
+        "search_params": [
+            "identifier", "status", "vaccine-code", "patient", "date", "lot-number",
+            "manufacturer", "performer", "reaction", "reaction-date", "reason-code",
+            "reason-reference", "_id", "_lastUpdated"
+        ]
+    },
+    "Procedure": {
+        "model": Procedure,
+        "search_params": [
+            "identifier", "status", "category", "code", "subject", "patient",
+            "encounter", "date", "performer", "reason-code", "reason-reference",
+            "body-site", "outcome", "_id", "_lastUpdated"
+        ]
+    },
+    "CarePlan": {
+        "model": CarePlan,
+        "search_params": [
+            "identifier", "status", "intent", "category", "subject", "patient",
+            "encounter", "date", "period", "addresses", "goal", "activity-code",
+            "_id", "_lastUpdated"
+        ]
+    },
+    "Device": {
+        "model": Device,
+        "search_params": [
+            "identifier", "status", "type", "manufacturer", "model", "patient",
+            "organization", "udi-carrier", "udi-di", "device-name", "_id", "_lastUpdated"
+        ]
+    },
+    "DiagnosticReport": {
+        "model": DiagnosticReport,
+        "search_params": [
+            "identifier", "status", "category", "code", "subject", "patient",
+            "encounter", "date", "issued", "performer", "result", "_id", "_lastUpdated"
+        ]
+    },
+    "ImagingStudy": {
+        "model": ImagingStudy,
+        "search_params": [
+            "identifier", "status", "subject", "patient", "started", "modality",
+            "body-site", "instance", "series", "dicom-class", "_id", "_lastUpdated"
         ]
     }
 }
@@ -113,8 +170,45 @@ class FHIRSearchProcessor:
             raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
         self.model = self.resource_config["model"]
     
+    def _validate_search_parameters(self, params: Dict[str, Any]) -> None:
+        """Validate search parameters against allowed list"""
+        allowed_params = set(self.resource_config["search_params"])
+        # Add common control parameters
+        allowed_params.update(['_count', '_offset', '_sort', '_include', 
+                              '_revinclude', '_summary', '_total', '_format'])
+        
+        errors = []
+        for param in params:
+            # Skip pagination parameters that are handled separately
+            if param in ['_count', '_offset', '_total', '_include', '_revinclude']:
+                continue
+                
+            # Extract base parameter name (remove modifiers and chains)
+            base_param = param.split(':')[0].split('.')[0]
+            
+            # Check if parameter is allowed
+            if base_param not in allowed_params and not base_param.startswith('_'):
+                errors.append(f"Unknown search parameter '{base_param}' for resource type {self.resource_type}")
+        
+        if errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "resourceType": "OperationOutcome",
+                    "issue": [{
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": error,
+                        "expression": [f"{self.resource_type}.search"]
+                    } for error in errors]
+                }
+            )
+    
     def build_query(self, search_params: Dict[str, Any]):
         """Build SQLAlchemy query from FHIR search parameters"""
+        # Validate parameters first
+        self._validate_search_parameters(search_params)
+        
         query = self.db.query(self.model)
         
         # Handle include parameters for joins
@@ -151,6 +245,21 @@ class FHIRSearchProcessor:
         
         return query
     
+    def _parse_search_value(self, value):
+        """Parse search value that may contain comma-separated values for OR logic"""
+        if isinstance(value, list):
+            return value
+        if ',' in value:
+            return [v.strip() for v in value.split(',')]
+        return [value]
+    
+    def _parse_token_value(self, value: str) -> tuple[Optional[str], str]:
+        """Parse token value that may contain system|code format"""
+        if '|' in value:
+            parts = value.split('|', 1)
+            return parts[0] if parts[0] else None, parts[1]
+        return None, value
+    
     def _handle_control_parameter(self, query, param, value):
         """Handle FHIR control parameters like _count, _sort, etc."""
         if param == "_count":
@@ -161,10 +270,12 @@ class FHIRSearchProcessor:
         elif param == "_lastUpdated":
             query = self._apply_last_updated_filter(query, value)
         elif param == "_id":
-            if isinstance(value, list):
-                query = query.filter(self.model.id.in_(value))
+            # Support comma-separated IDs
+            ids = self._parse_search_value(value)
+            if len(ids) > 1:
+                query = query.filter(self.model.id.in_(ids))
             else:
-                query = query.filter(self.model.id == value)
+                query = query.filter(self.model.id == ids[0])
         
         return query
     
@@ -199,6 +310,20 @@ class FHIRSearchProcessor:
             query = self._handle_organization_params(query, base_param, value, modifier)
         elif self.resource_type == "Location":
             query = self._handle_location_params(query, base_param, value, modifier)
+        elif self.resource_type == "AllergyIntolerance":
+            query = self._handle_allergy_params(query, base_param, value, modifier)
+        elif self.resource_type == "Immunization":
+            query = self._handle_immunization_params(query, base_param, value, modifier)
+        elif self.resource_type == "Procedure":
+            query = self._handle_procedure_params(query, base_param, value, modifier)
+        elif self.resource_type == "CarePlan":
+            query = self._handle_careplan_params(query, base_param, value, modifier)
+        elif self.resource_type == "Device":
+            query = self._handle_device_params(query, base_param, value, modifier)
+        elif self.resource_type == "DiagnosticReport":
+            query = self._handle_diagnostic_report_params(query, base_param, value, modifier)
+        elif self.resource_type == "ImagingStudy":
+            query = self._handle_imaging_study_params(query, base_param, value, modifier)
         
         return query
     
@@ -219,38 +344,82 @@ class FHIRSearchProcessor:
         elif param == "birthdate":
             query = self._apply_date_filter(query, Patient.date_of_birth, value, modifier)
         elif param == "gender":
-            # FHIR gender values should map to our M/F values
-            if value.lower() == "male":
-                query = query.filter(Patient.gender == "M")
-            elif value.lower() == "female":
-                query = query.filter(Patient.gender == "F")
-            else:
-                query = query.filter(Patient.gender == value)
+            # Token search - exact match
+            query = query.filter(Patient.gender == value)
         elif param == "identifier":
             query = query.filter(Patient.mrn == value)
+        elif param == "address":
+            # Search across all address fields
+            query = query.filter(
+                or_(
+                    Patient.address.ilike(f"%{value}%"),
+                    Patient.city.ilike(f"%{value}%"),
+                    Patient.state.ilike(f"%{value}%"),
+                    Patient.zip_code.ilike(f"%{value}%")
+                )
+            )
+        elif param == "telecom":
+            # Search phone and email
+            query = query.filter(
+                or_(
+                    Patient.phone.ilike(f"%{value}%"),
+                    Patient.email.ilike(f"%{value}%")
+                )
+            )
+        elif param == "address-city":
+            query = self._apply_string_filter(query, Patient.city, value, modifier)
+        elif param == "address-state":
+            query = self._apply_string_filter(query, Patient.state, value, modifier)
+        elif param == "address-postalcode":
+            query = self._apply_string_filter(query, Patient.zip_code, value, modifier)
+        elif param == "active":
+            # Token search - exact match for boolean
+            is_active = value == "true"
+            query = query.filter(Patient.is_active == is_active)
+        elif param == "deceased":
+            # Handle deceased status - check if deceased_date is set
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Patient.date_of_death.is_(None))
+                else:
+                    query = query.filter(Patient.date_of_death.isnot(None))
+            else:
+                # If value is "true", find deceased patients
+                is_deceased = value == "true"
+                if is_deceased:
+                    query = query.filter(Patient.date_of_death.isnot(None))
+                else:
+                    query = query.filter(Patient.date_of_death.is_(None))
         
         return query
     
     def _handle_encounter_params(self, query, param, value, modifier):
         """Handle Encounter-specific search parameters"""
         if param == "subject" or param == "patient":
-            # Handle chained parameter: subject.family, subject.given, etc.
-            if "." in value:
-                chain_param, chain_value = value.split(".", 1)
-                if chain_param in ["family", "given", "name"]:
+            # Check if this is a chained parameter (modifier contains Patient.xxx)
+            if modifier and "Patient." in modifier:
+                # Parse the chain: Patient.family, Patient.given, etc.
+                _, chain_param = modifier.split(".", 1)
+                if chain_param == "family":
+                    query = query.join(Patient).filter(Patient.last_name.ilike(f"%{value}%"))
+                elif chain_param == "given":
+                    query = query.join(Patient).filter(Patient.first_name.ilike(f"%{value}%"))
+                elif chain_param == "name":
                     query = query.join(Patient).filter(
-                        Patient.last_name.ilike(f"%{chain_value}%") if chain_param == "family"
-                        else Patient.first_name.ilike(f"%{chain_value}%") if chain_param == "given"
-                        else or_(
-                            Patient.first_name.ilike(f"%{chain_value}%"),
-                            Patient.last_name.ilike(f"%{chain_value}%")
+                        or_(
+                            Patient.first_name.ilike(f"%{value}%"),
+                            Patient.last_name.ilike(f"%{value}%")
                         )
                     )
+                elif chain_param == "gender":
+                    query = query.join(Patient).filter(Patient.gender == value)
             else:
                 # Handle FHIR reference format: Patient/123 or just 123
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Encounter.patient_id == patient_id)
         elif param == "status":
+            # Token search - exact match
             query = query.filter(Encounter.status == value)
         elif param == "type":
             query = query.filter(Encounter.encounter_type.ilike(f"%{value}%"))
@@ -261,6 +430,48 @@ class FHIRSearchProcessor:
                     query = self._apply_date_filter(query, Encounter.encounter_date, v, modifier)
             else:
                 query = self._apply_date_filter(query, Encounter.encounter_date, value, modifier)
+        elif param == "location":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Encounter.location_id.is_(None))
+                else:
+                    query = query.filter(Encounter.location_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Location/123 or just 123
+                location_id = value.replace("Location/", "") if value.startswith("Location/") else value
+                query = query.filter(Encounter.location_id == location_id)
+        elif param == "participant":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Encounter.provider_id.is_(None))
+                else:
+                    query = query.filter(Encounter.provider_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                provider_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Encounter.provider_id == provider_id)
+        elif param == "class":
+            # Token search - exact match
+            query = query.filter(Encounter.encounter_class == value)
+        elif param == "reason-code":
+            # Search in chief complaint
+            query = self._apply_string_filter(query, Encounter.chief_complaint, value, modifier)
+        elif param == "service-provider":
+            # Search by organization
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Encounter.organization_id.is_(None))
+                else:
+                    query = query.filter(Encounter.organization_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Organization/123 or just 123
+                org_id = value.replace("Organization/", "") if value.startswith("Organization/") else value
+                query = query.filter(Encounter.organization_id == org_id)
         
         return query
     
@@ -279,14 +490,64 @@ class FHIRSearchProcessor:
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Observation.patient_id == patient_id)
         elif param == "code":
-            query = query.filter(Observation.loinc_code == value)
+            # Support comma-separated LOINC codes with system|code format
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://loinc.org" or not system:
+                    # LOINC code search - exact match for tokens
+                    or_conditions.append(Observation.loinc_code == code_value)
+                
+                # Support :text modifier for display text search
+                if modifier == "text":
+                    or_conditions.append(Observation.display.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
         elif param == "category":
+            # Token search - exact match
             query = query.filter(Observation.observation_type == value)
         elif param == "value-quantity":
             # Handle quantity searches with units
             query = self._apply_quantity_filter(query, Observation.value_quantity, value, modifier)
-        elif param == "effective":
+        elif param == "effective" or param == "date":
             query = self._apply_date_filter(query, Observation.observation_date, value, modifier)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Observation.status == value)
+        elif param == "performer":
+            # Handle performer reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Observation.provider_id.is_(None))
+                else:
+                    query = query.filter(Observation.provider_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                provider_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Observation.provider_id == provider_id)
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Observation.encounter_id.is_(None))
+                else:
+                    query = query.filter(Observation.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Observation.encounter_id == encounter_id)
+        elif param == "value-string":
+            # Search string values
+            query = self._apply_string_filter(query, Observation.value, value, modifier)
+        elif param == "value-concept":
+            # Search coded values
+            query = self._apply_string_filter(query, Observation.value_code, value, modifier)
         
         return query
     
@@ -304,11 +565,61 @@ class FHIRSearchProcessor:
                 patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
                 query = query.filter(Condition.patient_id == patient_id)
         elif param == "code":
-            query = query.filter(Condition.icd10_code == value)
+            # Support comma-separated values for OR logic
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://snomed.info/sct":
+                    # SNOMED code search
+                    or_conditions.append(Condition.snomed_code == code_value)
+                elif system == "http://hl7.org/fhir/sid/icd-10":
+                    # ICD-10 code search
+                    or_conditions.append(Condition.icd10_code == code_value)
+                elif not system:
+                    # No system specified, search all code fields and description
+                    or_conditions.extend([
+                        Condition.snomed_code == code_value,
+                        Condition.icd10_code == code_value,
+                        Condition.description.ilike(f"%{code_value}%")
+                    ])
+                
+                # Support :text modifier for description search
+                if modifier == "text":
+                    or_conditions.append(Condition.description.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
         elif param == "clinical-status":
+            # Token search - exact match
             query = query.filter(Condition.clinical_status == value)
+        elif param == "verification-status":
+            # Token search - exact match
+            query = query.filter(Condition.verification_status == value)
+        elif param == "severity":
+            # Token search - exact match
+            query = query.filter(Condition.severity == value)
         elif param == "onset-date":
             query = self._apply_date_filter(query, Condition.onset_date, value, modifier)
+        elif param == "recorded-date":
+            # Map to recorded_date field
+            query = self._apply_date_filter(query, Condition.recorded_date, value, modifier)
+        elif param == "abatement-date":
+            query = self._apply_date_filter(query, Condition.abatement_date, value, modifier)
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Condition.encounter_id.is_(None))
+                else:
+                    query = query.filter(Condition.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Condition.encounter_id == encounter_id)
         
         return query
     
@@ -328,9 +639,60 @@ class FHIRSearchProcessor:
         elif param == "medication":
             query = query.filter(Medication.medication_name.ilike(f"%{value}%"))
         elif param == "status":
+            # Token search - exact match
             query = query.filter(Medication.status == value)
         elif param == "authored-on":
             query = self._apply_date_filter(query, Medication.start_date, value, modifier)
+        elif param == "requester":
+            if modifier == "missing":
+                # Handle :missing modifier
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Medication.prescriber_id.is_(None))
+                else:
+                    query = query.filter(Medication.prescriber_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Practitioner/123 or just 123
+                prescriber_id = value.replace("Practitioner/", "") if value.startswith("Practitioner/") else value
+                query = query.filter(Medication.prescriber_id == prescriber_id)
+        elif param == "code":
+            # Search by RxNorm code with system|code support
+            codes = self._parse_search_value(value)
+            or_conditions = []
+            
+            for code in codes:
+                system, code_value = self._parse_token_value(code)
+                
+                if system == "http://www.nlm.nih.gov/research/umls/rxnorm" or not system:
+                    # RxNorm code search - exact match for tokens
+                    or_conditions.append(Medication.rxnorm_code == code_value)
+                
+                # Support :text modifier for medication name search
+                if modifier == "text":
+                    or_conditions.append(Medication.medication_name.ilike(f"%{code_value}%"))
+            
+            if or_conditions:
+                query = query.filter(or_(*or_conditions))
+        elif param == "encounter":
+            # Handle encounter reference
+            if modifier == "missing":
+                is_missing = value == "true"
+                if is_missing:
+                    query = query.filter(Medication.encounter_id.is_(None))
+                else:
+                    query = query.filter(Medication.encounter_id.isnot(None))
+            else:
+                # Handle FHIR reference format: Encounter/123 or just 123
+                encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+                query = query.filter(Medication.encounter_id == encounter_id)
+        elif param == "intent":
+            # Intent is always "order" for prescriptions in our system
+            if value == "order":
+                # Return all results since all are orders
+                pass
+            else:
+                # No results if searching for other intents
+                query = query.filter(False)
         
         return query
     
@@ -354,9 +716,13 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Provider.first_name.ilike(f"%{value}%"))
         elif param == "active":
-            query = query.filter(Provider.active == (value.lower() == "true"))
+            # Token search - exact match for boolean
+            query = query.filter(Provider.active == (value == "true"))
         elif param == "identifier":
             query = query.filter(or_(Provider.id == value, Provider.npi == value))
+        elif param == "qualification":
+            # Search in specialty field
+            query = query.filter(Provider.specialty.ilike(f"%{value}%"))
         
         return query
     
@@ -368,10 +734,11 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Organization.name.ilike(f"%{value}%"))
         elif param == "type":
+            # Token search - exact match
             query = query.filter(Organization.type == value)
         elif param == "active":
             # Organization doesn't have active field, so return all if true
-            if value.lower() != "true":
+            if value != "true":
                 query = query.filter(False)  # Return empty if searching for inactive
         elif param == "identifier":
             query = query.filter(Organization.id == value)
@@ -386,13 +753,259 @@ class FHIRSearchProcessor:
             else:
                 query = query.filter(Location.name.ilike(f"%{value}%"))
         elif param == "type":
+            # Token search - exact match
             query = query.filter(Location.type == value)
         elif param == "status":
             # Location doesn't have status field, so return all if active
-            if value.lower() != "active":
+            if value != "active":
                 query = query.filter(False)  # Return empty if not active
         elif param == "identifier":
             query = query.filter(Location.id == value)
+        
+        return query
+    
+    def _handle_allergy_params(self, query, param, value, modifier):
+        """Handle AllergyIntolerance-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Allergy.patient_id == value)
+        elif param == "clinical-status":
+            # Token search - exact match
+            query = query.filter(Allergy.clinical_status == value)
+        elif param == "verification-status":
+            # Token search - exact match
+            query = query.filter(Allergy.verification_status == value)
+        elif param == "type":
+            # Token search - exact match
+            query = query.filter(Allergy.allergy_type == value)
+        elif param == "category":
+            # Token search - exact match
+            query = query.filter(Allergy.category == value)
+        elif param == "criticality":
+            # Token search - exact match
+            query = query.filter(Allergy.severity == value)
+        elif param == "code":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Allergy.snomed_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Allergy.snomed_code == value,
+                        Allergy.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Allergy.encounter_id == None)
+                else:
+                    query = query.filter(Allergy.encounter_id != None)
+            else:
+                query = query.filter(Allergy.encounter_id == value)
+        elif param == "onset":
+            query = self._apply_date_filter(query, Allergy.onset_date, value, modifier)
+        elif param == "date":
+            # Use onset_date as the main date
+            query = self._apply_date_filter(query, Allergy.onset_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(Allergy.id == value)
+        
+        return query
+    
+    def _handle_immunization_params(self, query, param, value, modifier):
+        """Handle Immunization-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Immunization.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Immunization.status == value)
+        elif param == "vaccine-code":
+            # Token search - can search CVX code or description
+            system, code = self._parse_token_value(value)
+            if system and "cvx" in system.lower():
+                query = query.filter(Immunization.cvx_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Immunization.cvx_code == value,
+                        Immunization.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "date":
+            query = self._apply_date_filter(query, Immunization.immunization_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(Immunization.id == value)
+        
+        return query
+    
+    def _handle_procedure_params(self, query, param, value, modifier):
+        """Handle Procedure-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(Procedure.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Procedure.status == value)
+        elif param == "code":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Procedure.snomed_code == code)
+            else:
+                # Search description if no system specified
+                query = query.filter(
+                    or_(
+                        Procedure.snomed_code == value,
+                        Procedure.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(Procedure.encounter_id == None)
+                else:
+                    query = query.filter(Procedure.encounter_id != None)
+            else:
+                query = query.filter(Procedure.encounter_id == value)
+        elif param == "date":
+            query = self._apply_date_filter(query, Procedure.procedure_date, value, modifier)
+        elif param == "reason-code":
+            query = query.filter(
+                or_(
+                    Procedure.reason_code.ilike(f"%{value}%"),
+                    Procedure.reason_description.ilike(f"%{value}%")
+                )
+            )
+        elif param == "outcome":
+            query = query.filter(Procedure.outcome.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(Procedure.id == value)
+        
+        return query
+    
+    def _handle_careplan_params(self, query, param, value, modifier):
+        """Handle CarePlan-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(CarePlan.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(CarePlan.status == value)
+        elif param == "intent":
+            # Token search - exact match
+            query = query.filter(CarePlan.intent == value)
+        elif param == "category":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(CarePlan.snomed_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        CarePlan.snomed_code == value,
+                        CarePlan.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(CarePlan.encounter_id == None)
+                else:
+                    query = query.filter(CarePlan.encounter_id != None)
+            else:
+                query = query.filter(CarePlan.encounter_id == value)
+        elif param == "date":
+            query = self._apply_date_filter(query, CarePlan.start_date, value, modifier)
+        elif param == "period":
+            query = self._apply_date_filter(query, CarePlan.start_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(CarePlan.id == value)
+        
+        return query
+    
+    def _handle_device_params(self, query, param, value, modifier):
+        """Handle Device-specific search parameters"""
+        if param == "patient":
+            query = query.filter(Device.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(Device.status == value)
+        elif param == "type":
+            # Token search - can search SNOMED code or description
+            system, code = self._parse_token_value(value)
+            if system and "snomed" in system.lower():
+                query = query.filter(Device.snomed_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        Device.snomed_code == value,
+                        Device.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "udi-carrier" or param == "udi-di":
+            query = query.filter(Device.udi.ilike(f"%{value}%"))
+        elif param == "device-name":
+            query = query.filter(Device.description.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(Device.id == value)
+        
+        return query
+    
+    def _handle_diagnostic_report_params(self, query, param, value, modifier):
+        """Handle DiagnosticReport-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(DiagnosticReport.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(DiagnosticReport.status == value)
+        elif param == "code":
+            # Token search - can search LOINC code or description
+            system, code = self._parse_token_value(value)
+            if system and "loinc" in system.lower():
+                query = query.filter(DiagnosticReport.loinc_code == code)
+            else:
+                query = query.filter(
+                    or_(
+                        DiagnosticReport.loinc_code == value,
+                        DiagnosticReport.description.ilike(f"%{value}%")
+                    )
+                )
+        elif param == "encounter":
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(DiagnosticReport.encounter_id == None)
+                else:
+                    query = query.filter(DiagnosticReport.encounter_id != None)
+            else:
+                query = query.filter(DiagnosticReport.encounter_id == value)
+        elif param == "date" or param == "issued":
+            query = self._apply_date_filter(query, DiagnosticReport.report_date, value, modifier)
+        elif param == "identifier":
+            query = query.filter(DiagnosticReport.id == value)
+        
+        return query
+    
+    def _handle_imaging_study_params(self, query, param, value, modifier):
+        """Handle ImagingStudy-specific search parameters"""
+        if param == "patient" or param == "subject":
+            query = query.filter(ImagingStudy.patient_id == value)
+        elif param == "status":
+            # Token search - exact match
+            query = query.filter(ImagingStudy.status == value)
+        elif param == "modality":
+            # Token search - exact match
+            query = query.filter(ImagingStudy.modality == value)
+        elif param == "started":
+            query = self._apply_date_filter(query, ImagingStudy.study_date, value, modifier)
+        elif param == "body-site":
+            query = query.filter(ImagingStudy.body_part.ilike(f"%{value}%"))
+        elif param == "identifier":
+            query = query.filter(ImagingStudy.id == value)
         
         return query
     
@@ -424,23 +1037,39 @@ class FHIRSearchProcessor:
             try:
                 date_obj = datetime.strptime(date_value, "%Y-%m-%d").date()
             except:
-                # Invalid date - return empty results
-                return query.filter(False)
+                # Invalid date format - raise proper error
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "resourceType": "OperationOutcome",
+                        "issue": [{
+                            "severity": "error",
+                            "code": "invalid",
+                            "diagnostics": f"Invalid date format: '{date_value}'. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ",
+                            "expression": ["Bundle.entry.request.url"]
+                        }]
+                    }
+                )
+        
+        # Convert date to string format for comparison with database strings
+        # Database format: "2003-11-12 23:17:36.000000"
+        date_str = date_obj.strftime('%Y-%m-%d')
         
         if prefix == "eq":
-            query = query.filter(field == date_obj)
+            # For equality, check if date starts with the date string
+            query = query.filter(func.substr(field, 1, 10) == date_str)
         elif prefix == "ne":
-            query = query.filter(field != date_obj)
+            query = query.filter(func.substr(field, 1, 10) != date_str)
         elif prefix == "gt" or prefix == "above":
-            # :above is same as gt for dates
-            query = query.filter(field > date_obj)
+            # For greater than, add time to ensure we get dates after midnight
+            query = query.filter(field > f"{date_str} 23:59:59")
         elif prefix == "ge":
-            query = query.filter(field >= date_obj)
+            query = query.filter(field >= f"{date_str} 00:00:00")
         elif prefix == "lt" or prefix == "below":
-            # :below is same as lt for dates
-            query = query.filter(field < date_obj)
+            query = query.filter(field < f"{date_str} 00:00:00")
         elif prefix == "le":
-            query = query.filter(field <= date_obj)
+            # For less than or equal, include the entire day
+            query = query.filter(field <= f"{date_str} 23:59:59")
         
         return query
     
@@ -449,7 +1078,7 @@ class FHIRSearchProcessor:
         # Handle modifier-based filtering
         if modifier in ["above", "below", "missing"]:
             if modifier == "missing":
-                is_missing = value.lower() == "true"
+                is_missing = value == "true"
                 if is_missing:
                     query = query.filter(field == None)
                 else:
@@ -531,7 +1160,7 @@ class FHIRSearchProcessor:
         elif modifier == "contains":
             query = query.filter(field.contains(value))
         elif modifier == "missing":
-            is_missing = value.lower() == "true"
+            is_missing = value == "true"
             if is_missing:
                 query = query.filter(or_(field == None, field == ""))
             else:
@@ -754,7 +1383,14 @@ async def search_resources(
         "MedicationRequest": medication_request_to_fhir,
         "Practitioner": practitioner_to_fhir,
         "Organization": organization_to_fhir,
-        "Location": location_to_fhir
+        "Location": location_to_fhir,
+        "AllergyIntolerance": allergy_intolerance_to_fhir,
+        "Immunization": immunization_to_fhir,
+        "Procedure": procedure_to_fhir,
+        "CarePlan": care_plan_to_fhir,
+        "Device": device_to_fhir,
+        "DiagnosticReport": diagnostic_report_to_fhir,
+        "ImagingStudy": imaging_study_to_fhir
     }
     
     converter = converter_map.get(resource_type)
@@ -828,7 +1464,14 @@ async def get_resource(
         "MedicationRequest": medication_request_to_fhir,
         "Practitioner": practitioner_to_fhir,
         "Organization": organization_to_fhir,
-        "Location": location_to_fhir
+        "Location": location_to_fhir,
+        "AllergyIntolerance": allergy_intolerance_to_fhir,
+        "Immunization": immunization_to_fhir,
+        "Procedure": procedure_to_fhir,
+        "CarePlan": care_plan_to_fhir,
+        "Device": device_to_fhir,
+        "DiagnosticReport": diagnostic_report_to_fhir,
+        "ImagingStudy": imaging_study_to_fhir
     }
     
     converter = converter_map.get(resource_type)

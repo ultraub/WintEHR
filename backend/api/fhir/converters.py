@@ -4,8 +4,59 @@ Converts between database models and FHIR resources
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional
-from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location
+from typing import Dict, Any, Optional, List
+from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
+
+
+# Helper functions for FHIR resource creation
+def create_reference(resource_type: str, resource_id: str, display: str = None) -> Dict[str, Any]:
+    """Create a properly formatted FHIR reference"""
+    reference = {
+        "reference": f"{resource_type}/{resource_id}"
+    }
+    if display:
+        reference["display"] = display
+    return reference
+
+
+def create_codeable_concept(
+    system: str = None, 
+    code: str = None, 
+    display: str = None, 
+    text: str = None,
+    additional_codings: List[Dict[str, str]] = None
+) -> Dict[str, Any]:
+    """Create a properly formatted FHIR CodeableConcept"""
+    concept = {"coding": []}
+    
+    if system and code:
+        coding = {"system": system, "code": code}
+        if display:
+            coding["display"] = display
+        concept["coding"].append(coding)
+    
+    if additional_codings:
+        concept["coding"].extend(additional_codings)
+    
+    if text:
+        concept["text"] = text
+    elif display and not text:
+        concept["text"] = display
+    
+    return concept
+
+
+def create_identifier(system: str, value: str, use: str = None, type_dict: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Create a properly formatted FHIR Identifier"""
+    identifier = {
+        "system": system,
+        "value": value
+    }
+    if use:
+        identifier["use"] = use
+    if type_dict:
+        identifier["type"] = type_dict
+    return identifier
 
 
 def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
@@ -15,10 +66,11 @@ def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
         "id": str(patient.id),
         "meta": {
             "versionId": "1",
-            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+            "lastUpdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "profile": ["http://hl7.org/fhir/StructureDefinition/Patient"]
         },
         "identifier": [],
-        "active": True,
+        "active": patient.is_active if hasattr(patient, 'is_active') else True,
         "name": [
             {
                 "use": "official",
@@ -26,16 +78,26 @@ def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
                 "given": [patient.first_name] if patient.first_name else []
             }
         ],
-        "gender": "male" if patient.gender == "M" else "female" if patient.gender == "F" else "unknown",
+        "gender": patient.gender if patient.gender in ["male", "female", "other", "unknown"] else "unknown",
         "birthDate": patient.date_of_birth.isoformat() if patient.date_of_birth else None
     }
     
-    # Add identifiers
+    # Handle deceased status
+    if hasattr(patient, 'date_of_death') and patient.date_of_death:
+        resource["deceasedDateTime"] = patient.date_of_death.isoformat()
+    else:
+        resource["deceasedBoolean"] = False
+    
+    # Add identifiers using helper
     if patient.ssn:
-        resource["identifier"].append({
-            "system": "http://hl7.org/fhir/sid/us-ssn",
-            "value": patient.ssn
-        })
+        resource["identifier"].append(
+            create_identifier("http://hl7.org/fhir/sid/us-ssn", patient.ssn, "official")
+        )
+    
+    if hasattr(patient, 'mrn') and patient.mrn:
+        resource["identifier"].append(
+            create_identifier("http://hospital.example.org/mrn", patient.mrn, "usual")
+        )
     
     # Add contact info
     resource["telecom"] = []
@@ -102,9 +164,7 @@ def encounter_to_fhir(encounter: Encounter) -> Dict[str, Any]:
                 "text": encounter.encounter_type
             }
         ],
-        "subject": {
-            "reference": f"Patient/{encounter.patient_id}"
-        },
+        "subject": create_reference("Patient", encounter.patient_id),
         "period": {
             "start": encounter.encounter_date.isoformat() + "Z" if encounter.encounter_date else None
         }
@@ -153,12 +213,7 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
         },
         "status": observation.status or "final",
         "category": [],
-        "code": {
-            "coding": []
-        },
-        "subject": {
-            "reference": f"Patient/{observation.patient_id}"
-        },
+        "subject": create_reference("Patient", observation.patient_id),
         "effectiveDateTime": observation.observation_date.isoformat() + "Z" if observation.observation_date else None
     }
     
@@ -182,11 +237,12 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
     
     # Add LOINC code
     if observation.loinc_code:
-        resource["code"]["coding"].append({
-            "system": "http://loinc.org",
-            "code": observation.loinc_code,
-            "display": observation.display
-        })
+        resource["code"] = create_codeable_concept(
+            system="http://loinc.org",
+            code=observation.loinc_code,
+            display=observation.display,
+            text=observation.display
+        )
     
     # Add value
     if observation.value_quantity is not None:
@@ -204,6 +260,12 @@ def observation_to_fhir(observation: Observation) -> Dict[str, Any]:
         resource["encounter"] = {
             "reference": f"Encounter/{observation.encounter_id}"
         }
+    
+    # Add performer reference if available
+    if observation.provider_id:
+        resource["performer"] = [{
+            "reference": f"Practitioner/{observation.provider_id}"
+        }]
     
     # Add reference ranges
     if observation.reference_range_low is not None or observation.reference_range_high is not None:
@@ -605,5 +667,351 @@ def location_to_fhir(location: Location) -> Dict[str, Any]:
         resource["managingOrganization"] = {
             "reference": f"Organization/{location.organization_id}"
         }
+    
+    return resource
+
+def allergy_intolerance_to_fhir(allergy: Allergy) -> Dict[str, Any]:
+    """Convert Allergy model to FHIR AllergyIntolerance resource"""
+    resource = {
+        "resourceType": "AllergyIntolerance",
+        "id": str(allergy.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "clinicalStatus": {
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+                "code": allergy.clinical_status or "active",
+                "display": (allergy.clinical_status or "active").title()
+            }]
+        },
+        "verificationStatus": {
+            "coding": [{
+                "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification", 
+                "code": allergy.verification_status or "confirmed",
+                "display": (allergy.verification_status or "confirmed").title()
+            }]
+        },
+        "type": allergy.allergy_type or "allergy",
+        "category": [allergy.category] if allergy.category else ["environment"],
+        "criticality": allergy.severity or "low",
+        "code": {
+            "coding": [],
+            "text": allergy.description
+        },
+        "patient": create_reference("Patient", allergy.patient_id)
+    }
+    
+    # Add SNOMED code if available
+    if allergy.snomed_code:
+        resource["code"]["coding"].append({
+            "system": "http://snomed.info/sct",
+            "code": allergy.snomed_code,
+            "display": allergy.description
+        })
+    
+    # Add onset date
+    if allergy.onset_date:
+        resource["onsetDateTime"] = allergy.onset_date.isoformat()
+    
+    # Add resolution date if resolved
+    if allergy.resolution_date:
+        resource["lastOccurrence"] = allergy.resolution_date.isoformat()
+        
+    # Add encounter reference if available
+    if allergy.encounter_id:
+        resource["encounter"] = create_reference("Encounter", allergy.encounter_id)
+    
+    # Add reaction information
+    if allergy.reaction:
+        resource["reaction"] = [{
+            "manifestation": [{
+                "text": allergy.reaction
+            }],
+            "severity": allergy.severity or "mild"
+        }]
+    
+    return resource
+
+
+def immunization_to_fhir(immunization: Immunization) -> Dict[str, Any]:
+    """Convert Immunization model to FHIR Immunization resource"""
+    resource = {
+        "resourceType": "Immunization",
+        "id": str(immunization.id),
+        "meta": {
+            "versionId": "1", 
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": immunization.status or "completed",
+        "vaccineCode": {
+            "coding": [],
+            "text": immunization.description
+        },
+        "patient": create_reference("Patient", immunization.patient_id),
+        "occurrenceDateTime": immunization.immunization_date.isoformat() if immunization.immunization_date else None,
+        "primarySource": True
+    }
+    
+    # Add CVX code if available
+    if immunization.cvx_code:
+        resource["vaccineCode"]["coding"].append({
+            "system": "http://hl7.org/fhir/sid/cvx",
+            "code": immunization.cvx_code,
+            "display": immunization.description
+        })
+    
+    # Add dose quantity
+    if immunization.dose_quantity:
+        resource["doseQuantity"] = {
+            "value": immunization.dose_quantity,
+            "unit": "mL",
+            "system": "http://unitsofmeasure.org",
+            "code": "mL"
+        }
+    
+    # Add encounter reference if available
+    if immunization.encounter_id:
+        resource["encounter"] = create_reference("Encounter", immunization.encounter_id)
+    
+    return resource
+
+
+def procedure_to_fhir(procedure: Procedure) -> Dict[str, Any]:
+    """Convert Procedure model to FHIR Procedure resource"""
+    resource = {
+        "resourceType": "Procedure", 
+        "id": str(procedure.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": procedure.status or "completed",
+        "code": {
+            "coding": [],
+            "text": procedure.description
+        },
+        "subject": create_reference("Patient", procedure.patient_id),
+        "performedDateTime": procedure.procedure_date.isoformat() if procedure.procedure_date else None
+    }
+    
+    # Add SNOMED code if available
+    if procedure.snomed_code:
+        resource["code"]["coding"].append({
+            "system": "http://snomed.info/sct", 
+            "code": procedure.snomed_code,
+            "display": procedure.description
+        })
+    
+    # Add reason for procedure
+    if procedure.reason_code or procedure.reason_description:
+        resource["reasonCode"] = [{
+            "coding": [],
+            "text": procedure.reason_description or procedure.reason_code
+        }]
+        if procedure.reason_code:
+            resource["reasonCode"][0]["coding"].append({
+                "code": procedure.reason_code,
+                "display": procedure.reason_description
+            })
+    
+    # Add outcome
+    if procedure.outcome:
+        resource["outcome"] = {
+            "text": procedure.outcome
+        }
+    
+    # Add encounter reference if available  
+    if procedure.encounter_id:
+        resource["encounter"] = create_reference("Encounter", procedure.encounter_id)
+    
+    return resource
+
+
+def care_plan_to_fhir(care_plan: CarePlan) -> Dict[str, Any]:
+    """Convert CarePlan model to FHIR CarePlan resource"""
+    resource = {
+        "resourceType": "CarePlan",
+        "id": str(care_plan.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": care_plan.status or "active",
+        "intent": care_plan.intent or "plan",
+        "title": care_plan.description,
+        "description": care_plan.description,
+        "subject": create_reference("Patient", care_plan.patient_id),
+        "period": {
+            "start": care_plan.start_date.isoformat() if care_plan.start_date else None,
+            "end": care_plan.end_date.isoformat() if care_plan.end_date else None
+        }
+    }
+    
+    # Add category
+    if care_plan.snomed_code:
+        resource["category"] = [{
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": care_plan.snomed_code,
+                "display": care_plan.description
+            }],
+            "text": care_plan.description
+        }]
+    
+    # Add addresses (reason for care plan)
+    if care_plan.reason_code or care_plan.reason_description:
+        resource["addresses"] = [{
+            "coding": [],
+            "text": care_plan.reason_description or care_plan.reason_code
+        }]
+        if care_plan.reason_code:
+            resource["addresses"][0]["coding"].append({
+                "code": care_plan.reason_code,
+                "display": care_plan.reason_description
+            })
+    
+    # Add activities if available
+    if care_plan.activities:
+        resource["activity"] = care_plan.activities
+    
+    # Add encounter reference if available
+    if care_plan.encounter_id:
+        resource["encounter"] = create_reference("Encounter", care_plan.encounter_id)
+    
+    return resource
+
+
+def device_to_fhir(device: Device) -> Dict[str, Any]:
+    """Convert Device model to FHIR Device resource"""
+    resource = {
+        "resourceType": "Device",
+        "id": str(device.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": device.status or "active",
+        "deviceName": [{
+            "name": device.description,
+            "type": "other"
+        }],
+        "patient": create_reference("Patient", device.patient_id)
+    }
+    
+    # Add device type
+    if device.snomed_code:
+        resource["type"] = {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": device.snomed_code,
+                "display": device.description
+            }],
+            "text": device.description
+        }
+    
+    # Add UDI if available
+    if device.udi:
+        resource["udiCarrier"] = [{
+            "deviceIdentifier": device.udi,
+            "carrierHRF": device.udi
+        }]
+    
+    return resource
+
+
+def diagnostic_report_to_fhir(diagnostic_report: DiagnosticReport) -> Dict[str, Any]:
+    """Convert DiagnosticReport model to FHIR DiagnosticReport resource"""
+    resource = {
+        "resourceType": "DiagnosticReport",
+        "id": str(diagnostic_report.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": diagnostic_report.status or "final",
+        "subject": create_reference("Patient", diagnostic_report.patient_id),
+        "effectiveDateTime": diagnostic_report.report_date.isoformat() if diagnostic_report.report_date else None
+    }
+    
+    # Add code
+    if diagnostic_report.loinc_code:
+        resource["code"] = {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": diagnostic_report.loinc_code,
+                "display": diagnostic_report.description
+            }],
+            "text": diagnostic_report.description
+        }
+    else:
+        resource["code"] = {
+            "text": diagnostic_report.description
+        }
+    
+    # Add encounter reference if available
+    if diagnostic_report.encounter_id:
+        resource["encounter"] = create_reference("Encounter", diagnostic_report.encounter_id)
+    
+    # Add result observations if available
+    if diagnostic_report.result_observations:
+        resource["result"] = []
+        for obs_id in diagnostic_report.result_observations:
+            resource["result"].append(create_reference("Observation", obs_id))
+    
+    return resource
+
+
+def imaging_study_to_fhir(imaging_study: ImagingStudy) -> Dict[str, Any]:
+    """Convert ImagingStudy model to FHIR ImagingStudy resource"""
+    resource = {
+        "resourceType": "ImagingStudy",
+        "id": str(imaging_study.id),
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        },
+        "status": imaging_study.status or "available",
+        "subject": create_reference("Patient", imaging_study.patient_id),
+        "started": imaging_study.study_date.isoformat() if imaging_study.study_date else None,
+        "numberOfSeries": imaging_study.number_of_series or 1,
+        "numberOfInstances": imaging_study.number_of_instances or 1
+    }
+    
+    # Add modality
+    if imaging_study.modality:
+        resource["modality"] = [{
+            "system": "http://dicom.nema.org/resources/ontology/DCM",
+            "code": imaging_study.modality,
+            "display": imaging_study.modality
+        }]
+    
+    # Add procedure code
+    if imaging_study.snomed_code:
+        resource["procedureCode"] = [{
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": imaging_study.snomed_code,
+                "display": imaging_study.description
+            }],
+            "text": imaging_study.description
+        }]
+    
+    # Add series information
+    resource["series"] = [{
+        "uid": f"1.2.3.{imaging_study.id}",
+        "number": 1,
+        "modality": {
+            "system": "http://dicom.nema.org/resources/ontology/DCM",
+            "code": imaging_study.modality or "CT",
+            "display": imaging_study.modality or "CT"
+        },
+        "description": imaging_study.description,
+        "numberOfInstances": imaging_study.number_of_instances or 1,
+        "bodySite": {
+            "text": imaging_study.body_part
+        } if imaging_study.body_part else None
+    }]
     
     return resource
