@@ -2,51 +2,38 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: ../Dockerfile.production.complete
     container_name: emr-backend
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/emr.db}
-      - SECRET_KEY=${SECRET_KEY:-development-secret-key-change-in-production}
-      - JWT_ALGORITHM=HS256
-      - JWT_EXPIRATION_HOURS=8
-      - CORS_ORIGINS=http://localhost,http://localhost:3000,http://localhost:80
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/logs:/app/logs
-      - ./backend/uploads:/app/uploads
-      - dicom-data:/app/uploads/dicom
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
     networks:
       - emr-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
 
-  frontend:
-    build: ./frontend
-    container_name: emr-frontend
+  nginx:
+    image: nginx:alpine
+    container_name: emr-nginx
     ports:
       - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro
     depends_on:
       - backend
     networks:
       - emr-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
 
 networks:
   emr-network:
     driver: bridge
-
-volumes:
-  emr-data:
-  emr-logs:
-  dicom-data:
