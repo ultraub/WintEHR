@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  # Frontend builder service
+  frontend-builder:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.build
+    container_name: emr-frontend-builder
+    volumes:
+      - ./frontend/build:/build
+    networks:
+      - emr-network
+
   backend:
     build:
       context: ./backend
@@ -20,6 +31,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      - frontend-builder
 
   nginx:
     image: nginx:alpine
@@ -31,6 +44,7 @@ services:
       - ./frontend/build:/usr/share/nginx/html:ro
     depends_on:
       - backend
+      - frontend-builder
     networks:
       - emr-network
 

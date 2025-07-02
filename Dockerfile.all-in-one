@@ -1,0 +1,66 @@
+# All-in-one Dockerfile for MedGenEMR
+# Includes backend, frontend, nginx, and Synthea
+
+FROM python:3.9-slim AS backend-builder
+
+WORKDIR /app/backend
+
+# Install system dependencies including Java for Synthea
+RUN apt-get update && apt-get install -y \
+    gcc g++ git curl default-jre-headless sqlite3 nginx supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY backend/ .
+
+# Download Synthea
+RUN curl -L https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar \
+    -o synthea-with-dependencies.jar
+
+# Create necessary directories
+RUN mkdir -p data logs dicom_storage /var/log/supervisor
+
+# Frontend build stage
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy frontend code
+COPY frontend/ .
+
+# Build with empty API URL for production
+ENV REACT_APP_API_URL=""
+RUN npm run build
+
+# Final stage
+FROM backend-builder
+
+# Copy built frontend
+COPY --from=frontend-builder /app/build /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy startup script and supervisord config
+COPY startup-all-in-one.sh /app/startup.sh
+COPY supervisord-all-in-one.conf /app/supervisord.conf
+RUN chmod +x /app/startup.sh
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PATIENT_COUNT=50
+
+EXPOSE 80 8000
+
+CMD ["/app/startup.sh"]
