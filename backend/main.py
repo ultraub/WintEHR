@@ -73,9 +73,15 @@ app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
 app.include_router(emr_router, tags=["EMR Extensions"])  # Already has /api/emr prefix
 app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])  # Already has /api/clinical-canvas prefix
 
-# Add compatibility route for frontend auth endpoints
+# Add compatibility routes for frontend
 from emr_api.auth import router as auth_router_compat
 app.include_router(auth_router_compat, prefix="/api/auth", tags=["Authentication"])
+
+# Legacy API compatibility
+from api.patients import router as patients_router
+from api.encounters import router as encounters_router
+app.include_router(patients_router, prefix="/api", tags=["Patients"])
+app.include_router(encounters_router, prefix="/api", tags=["Encounters"])
 # Legacy routers - commented out for FHIR-native implementation
 # TODO: Migrate these to use FHIR APIs
 # app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])

@@ -48,7 +48,13 @@ const Login = () => {
   const loadProviders = async () => {
     try {
       const response = await api.get('/api/auth/providers');
-      setProviders(response.data);
+      // Extract providers array and map to expected format
+      const providerList = response.data.providers || [];
+      const formattedProviders = providerList.map(p => ({
+        ...p,
+        display_name: p.name || p.display_name
+      }));
+      setProviders(formattedProviders);
     } catch (error) {
       console.error('Error loading providers:', error);
       setError('Failed to load provider list. Please refresh and try again.');

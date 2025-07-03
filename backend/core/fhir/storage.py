@@ -370,8 +370,13 @@ class FHIRStorageEngine:
         # Add ordering
         query += " ORDER BY r.last_updated DESC"
         
-        # Get total count
-        count_query = f"SELECT COUNT(DISTINCT r.id) FROM ({query.replace('SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated', 'SELECT r.id')}) AS count_query"
+        # Get total count - build a separate count query
+        count_query = f"""
+            SELECT COUNT(DISTINCT r.id) 
+            FROM fhir.resources r
+            {" ".join(join_clauses) if join_clauses else ""}
+            WHERE {" AND ".join(where_clauses)}
+        """
         count_result = await self.session.execute(text(count_query), params)
         total_count = count_result.scalar()
         
