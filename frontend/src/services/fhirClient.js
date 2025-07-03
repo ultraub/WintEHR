@@ -1,0 +1,309 @@
+/**
+ * FHIR Client Service
+ * 
+ * A FHIR-endpoint-agnostic client that can work with any FHIR R4 server.
+ * Discovers server capabilities and adapts functionality accordingly.
+ */
+
+import axios from 'axios';
+
+class FHIRClient {
+  constructor(config = {}) {
+    this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
+    this.auth = config.auth || null;
+    this.capabilities = null;
+    this.httpClient = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'Content-Type': 'application/fhir+json',
+        'Accept': 'application/fhir+json'
+      }
+    });
+
+    // Add auth interceptor if configured
+    if (this.auth) {
+      this.httpClient.interceptors.request.use(config => {
+        if (this.auth.token) {
+          config.headers.Authorization = `Bearer ${this.auth.token}`;
+        }
+        return config;
+      });
+    }
+
+    // Initialize capabilities on creation
+    this.discoverCapabilities();
+  }
+
+  /**
+   * Discover server capabilities via metadata endpoint
+   */
+  async discoverCapabilities() {
+    try {
+      const response = await this.httpClient.get('/metadata');
+      this.capabilities = response.data;
+      console.log('FHIR Server Capabilities discovered:', {
+        fhirVersion: this.capabilities.fhirVersion,
+        resourceTypes: this.capabilities.rest?.[0]?.resource?.map(r => r.type),
+        supportsTransaction: this.capabilities.rest?.[0]?.interaction?.some(i => i.code === 'transaction')
+      });
+      return this.capabilities;
+    } catch (error) {
+      console.error('Failed to discover FHIR capabilities:', error);
+      // Continue without capabilities - assume basic FHIR compliance
+      return null;
+    }
+  }
+
+  /**
+   * Check if server supports a specific resource type
+   */
+  supportsResource(resourceType) {
+    if (!this.capabilities) return true; // Assume support if no capabilities
+    
+    const resources = this.capabilities.rest?.[0]?.resource || [];
+    return resources.some(r => r.type === resourceType);
+  }
+
+  /**
+   * Check if server supports a specific operation
+   */
+  supportsOperation(resourceType, operation) {
+    if (!this.capabilities) return true; // Assume support if no capabilities
+    
+    const resources = this.capabilities.rest?.[0]?.resource || [];
+    const resource = resources.find(r => r.type === resourceType);
+    if (!resource) return false;
+    
+    return resource.interaction?.some(i => i.code === operation);
+  }
+
+  /**
+   * Create a new resource
+   */
+  async create(resourceType, resource) {
+    if (!this.supportsResource(resourceType)) {
+      throw new Error(`Server does not support ${resourceType} resources`);
+    }
+
+    const response = await this.httpClient.post(`/${resourceType}`, resource);
+    return {
+      id: response.headers.location?.split('/').pop() || resource.id,
+      location: response.headers.location,
+      etag: response.headers.etag,
+      resource: response.data
+    };
+  }
+
+  /**
+   * Read a resource by ID
+   */
+  async read(resourceType, id) {
+    const response = await this.httpClient.get(`/${resourceType}/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Update a resource
+   */
+  async update(resourceType, id, resource) {
+    // Ensure resource has correct ID
+    resource.id = id;
+    
+    const response = await this.httpClient.put(`/${resourceType}/${id}`, resource);
+    return {
+      id: id,
+      etag: response.headers.etag,
+      lastModified: response.headers['last-modified']
+    };
+  }
+
+  /**
+   * Delete a resource
+   */
+  async delete(resourceType, id) {
+    await this.httpClient.delete(`/${resourceType}/${id}`);
+    return { deleted: true };
+  }
+
+  /**
+   * Search for resources
+   */
+  async search(resourceType, params = {}) {
+    const response = await this.httpClient.get(`/${resourceType}`, { params });
+    
+    // Extract resources from bundle
+    const bundle = response.data;
+    const resources = bundle.entry?.map(entry => entry.resource) || [];
+    
+    return {
+      resources,
+      total: bundle.total || resources.length,
+      bundle
+    };
+  }
+
+  /**
+   * Execute a custom operation
+   */
+  async operation(operation, resourceType = null, id = null, parameters = null) {
+    let url = '';
+    
+    if (resourceType && id) {
+      // Instance level operation
+      url = `/${resourceType}/${id}/$${operation}`;
+    } else if (resourceType) {
+      // Type level operation
+      url = `/${resourceType}/$${operation}`;
+    } else {
+      // System level operation
+      url = `/$${operation}`;
+    }
+
+    const response = await this.httpClient.post(url, parameters);
+    return response.data;
+  }
+
+  /**
+   * Process a batch/transaction bundle
+   */
+  async batch(bundle) {
+    if (!this.supportsOperation(null, 'transaction')) {
+      throw new Error('Server does not support transaction bundles');
+    }
+
+    const response = await this.httpClient.post('/', bundle);
+    return response.data;
+  }
+
+  /**
+   * Get resource history
+   */
+  async history(resourceType, id = null) {
+    let url = '';
+    
+    if (id) {
+      url = `/${resourceType}/${id}/_history`;
+    } else {
+      url = `/${resourceType}/_history`;
+    }
+
+    const response = await this.httpClient.get(url);
+    return response.data;
+  }
+
+  /**
+   * Helper: Build a reference object
+   */
+  static reference(resourceType, id, display = null) {
+    const ref = {
+      reference: `${resourceType}/${id}`
+    };
+    if (display) {
+      ref.display = display;
+    }
+    return ref;
+  }
+
+  /**
+   * Helper: Extract ID from reference
+   */
+  static extractId(reference) {
+    if (typeof reference === 'string') {
+      return reference.split('/').pop();
+    }
+    return reference?.reference?.split('/').pop();
+  }
+
+  /**
+   * Helper: Build search query string
+   */
+  static buildSearchParams(criteria) {
+    const params = new URLSearchParams();
+    
+    Object.entries(criteria).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => params.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        params.append(key, value);
+      }
+    });
+    
+    return params;
+  }
+
+  /**
+   * Patient-specific convenience methods
+   */
+  async getPatient(id) {
+    return this.read('Patient', id);
+  }
+
+  async searchPatients(params) {
+    return this.search('Patient', params);
+  }
+
+  async getPatientEverything(id) {
+    return this.operation('everything', 'Patient', id);
+  }
+
+  /**
+   * Observation-specific convenience methods
+   */
+  async getObservations(patientId, category = null) {
+    const params = { patient: patientId };
+    if (category) params.category = category;
+    return this.search('Observation', params);
+  }
+
+  async getVitalSigns(patientId) {
+    return this.getObservations(patientId, 'vital-signs');
+  }
+
+  async getLabResults(patientId) {
+    return this.getObservations(patientId, 'laboratory');
+  }
+
+  /**
+   * Medication-specific convenience methods
+   */
+  async getMedications(patientId, status = 'active') {
+    return this.search('MedicationRequest', {
+      patient: patientId,
+      status
+    });
+  }
+
+  /**
+   * Condition-specific convenience methods
+   */
+  async getConditions(patientId, clinicalStatus = 'active') {
+    return this.search('Condition', {
+      patient: patientId,
+      'clinical-status': clinicalStatus
+    });
+  }
+
+  /**
+   * Encounter-specific convenience methods
+   */
+  async getEncounters(patientId, status = null) {
+    const params = { patient: patientId };
+    if (status) params.status = status;
+    return this.search('Encounter', params);
+  }
+
+  /**
+   * AllergyIntolerance-specific convenience methods
+   */
+  async getAllergies(patientId) {
+    return this.search('AllergyIntolerance', {
+      patient: patientId
+    });
+  }
+}
+
+// Export singleton instance for common use
+export const fhirClient = new FHIRClient();
+
+// Also export class for custom instances
+export default FHIRClient;
