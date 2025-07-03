@@ -34,7 +34,7 @@ import {
   FiberManualRecord as DotIcon
 } from '@mui/icons-material';
 import { format, differenceInYears, parseISO, isToday, isYesterday, differenceInDays } from 'date-fns';
-import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 import { useClinical } from '../contexts/ClinicalContext';
 import VitalSignsTrends from '../components/VitalSignsTrends';
 import LabTrends from '../components/clinical/charts/LabTrends';
@@ -59,57 +59,128 @@ function PatientViewRefined() {
     const fetchPatientSummary = async () => {
       try {
         setLoading(true);
+        
+        // Fetch patient data
+        const fhirPatient = await fhirClient.read('Patient', id);
+        
+        // Transform FHIR patient to expected format
+        const name = fhirPatient.name?.[0] || {};
+        const telecom = fhirPatient.telecom || [];
+        const address = fhirPatient.address?.[0] || {};
+        const phone = telecom.find(t => t.system === 'phone')?.value;
+        const email = telecom.find(t => t.system === 'email')?.value;
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        const transformedPatient = {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate,
+          gender: fhirPatient.gender,
+          phone: phone,
+          email: email,
+          address: address.line?.join(', ') || '',
+          city: address.city,
+          state: address.state,
+          zip_code: address.postalCode
+        };
+        
+        // Fetch additional data using FHIR APIs
         const [
-          patientResponse,
-          encountersResponse,
-          conditionsResponse,
-          medicationsResponse,
-          observationsResponse,
-          vitalsResponse
+          encountersResult,
+          conditionsResult,
+          medicationsResult,
+          observationsResult
         ] = await Promise.all([
-          api.get(`/api/patients/${id}`),
-          api.get(`/api/encounters?patient_id=${id}&limit=5`),
-          api.get(`/api/conditions?patient_id=${id}&active=true`),
-          api.get(`/api/medications?patient_id=${id}&active=true`),
-          // Note: observation_type filters removed as field is null in current dataset
-          api.get(`/api/observations?patient_id=${id}&limit=210`).then(response => {
-            // Split observations into lab and vitals on frontend
-            const allObs = response.data || [];
-            const labObs = allObs.filter(obs => {
-              const display = obs.display?.toLowerCase() || '';
-              return !display.includes('blood pressure') && !display.includes('heart rate') && 
-                     !display.includes('temperature') && !display.includes('weight') && 
-                     !display.includes('height') && !display.includes('oxygen') && 
-                     !display.includes('respiratory') && !display.includes('bmi') && 
-                     !display.includes('pulse') && !display.includes('bp');
-            }).slice(0, 10);
-            const vitalsObs = allObs.filter(obs => {
-              const display = obs.display?.toLowerCase() || '';
-              return display.includes('blood pressure') || display.includes('heart rate') || 
-                     display.includes('temperature') || display.includes('weight') || 
-                     display.includes('height') || display.includes('oxygen') || 
-                     display.includes('respiratory') || display.includes('bmi') || 
-                     display.includes('pulse') || display.includes('bp');
-            }).slice(0, 200);
-            return { labObs, vitalsObs };
-          }),
-          Promise.resolve({ data: [] }) // Placeholder for second API call
+          fhirClient.getEncounters(id),
+          fhirClient.getConditions(id, 'active'),
+          fhirClient.getMedications(id, 'active'),
+          fhirClient.getObservations(id)
         ]);
+        
+        // Transform encounters
+        const transformedEncounters = encountersResult.resources.slice(0, 5).map(enc => {
+          const type = enc.type?.[0];
+          const period = enc.period || {};
+          return {
+            id: enc.id,
+            patient_id: id,
+            encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+            encounter_date: period.start || enc.date,
+            status: enc.status,
+            provider: enc.participant?.find(p => 
+              p.type?.[0]?.coding?.[0]?.code === 'ATND'
+            )?.individual?.display || 'Unknown Provider'
+          };
+        });
+        
+        // Transform conditions
+        const transformedConditions = conditionsResult.resources.map(cond => ({
+          id: cond.id,
+          patient_id: id,
+          code: cond.code?.coding?.[0]?.code,
+          display: cond.code?.text || cond.code?.coding?.[0]?.display || 'Unknown',
+          clinical_status: cond.clinicalStatus?.coding?.[0]?.code || 'active',
+          onset_date: cond.onsetDateTime || cond.onsetPeriod?.start
+        }));
+        
+        // Transform medications
+        const transformedMedications = medicationsResult.resources.map(med => ({
+          id: med.id,
+          patient_id: id,
+          medication_name: med.medicationCodeableConcept?.text || 
+                          med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
+          dosage: med.dosageInstruction?.[0]?.text || '',
+          status: med.status,
+          authored_on: med.authoredOn
+        }));
+        
+        // Transform and categorize observations
+        const allObs = observationsResult.resources.map(obs => ({
+          id: obs.id,
+          patient_id: id,
+          display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+          value: obs.valueQuantity?.value || obs.valueString || '',
+          unit: obs.valueQuantity?.unit || '',
+          observation_date: obs.effectiveDateTime || obs.issued,
+          status: obs.status
+        }));
+        
+        // Split observations into lab and vitals
+        const labObs = allObs.filter(obs => {
+          const display = obs.display?.toLowerCase() || '';
+          return !display.includes('blood pressure') && !display.includes('heart rate') && 
+                 !display.includes('temperature') && !display.includes('weight') && 
+                 !display.includes('height') && !display.includes('oxygen') && 
+                 !display.includes('respiratory') && !display.includes('bmi') && 
+                 !display.includes('pulse') && !display.includes('bp');
+        }).slice(0, 10);
+        
+        const vitalsObs = allObs.filter(obs => {
+          const display = obs.display?.toLowerCase() || '';
+          return display.includes('blood pressure') || display.includes('heart rate') || 
+                 display.includes('temperature') || display.includes('weight') || 
+                 display.includes('height') || display.includes('oxygen') || 
+                 display.includes('respiratory') || display.includes('bmi') || 
+                 display.includes('pulse') || display.includes('bp');
+        }).slice(0, 200);
+        
+        const observationsResponse = { labObs, vitalsObs };
 
-        setPatient(patientResponse.data);
-        setEncounters(encountersResponse.data);
-        setConditions(conditionsResponse.data);
-        setMedications(medicationsResponse.data);
+        setPatient(transformedPatient);
+        setEncounters(transformedEncounters);
+        setConditions(transformedConditions);
+        setMedications(transformedMedications);
         setRecentLabs(observationsResponse.labObs);
         setVitalsData(observationsResponse.vitalsObs);
         
-        // Try to load alerts separately (optional)
-        try {
-          const alertsResponse = await api.get(`/api/patient-alerts/${id}`);
-          setAlerts(alertsResponse.data?.alerts || []);
-        } catch (alertError) {
-          setAlerts([]);
-        }
+        // Patient alerts would come from CDS hooks or FHIR Flag resources
+        // For now, set empty alerts
+        setAlerts([]);
         
         // Load patient in clinical context with proper transformation
         await loadPatient(id);

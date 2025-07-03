@@ -39,7 +39,8 @@ import {
   Edit as EditIcon
 } from '@mui/icons-material';
 import { format, differenceInYears } from 'date-fns';
-import api from '../services/api';
+import { useClinical } from '../contexts/ClinicalContext';
+import { fhirClient } from '../services/fhirClient';
 import EditableModal from '../components/EditableModal';
 import PatientSummary from '../components/PatientSummary';
 import VitalSignsTab from '../components/VitalSignsTab';
@@ -63,6 +64,7 @@ function TabPanel({ children, value, index, ...other }) {
 function PatientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentPatient, loadPatient, isLoading: contextLoading } = useClinical();
   const [patient, setPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
   const [conditions, setConditions] = useState([]);
@@ -82,35 +84,71 @@ function PatientDetail() {
   const [selectedEncounter, setSelectedEncounter] = useState(null);
 
   useEffect(() => {
-    fetchPatientData();
-  }, [id]);
+    if (currentPatient && currentPatient.id === id) {
+      // Use data from context
+      setPatient(currentPatient);
+      setConditions(currentPatient.problems || []);
+      setMedications(currentPatient.medications || []);
+      fetchAdditionalData();
+    } else {
+      // Load patient data
+      loadPatientData();
+    }
+  }, [id, currentPatient]);
 
-  const fetchPatientData = async () => {
+  const loadPatientData = async () => {
     try {
       setLoading(true);
-      const [
-        patientResponse,
-        encountersResponse,
-        conditionsResponse,
-        medicationsResponse,
-        observationsResponse,
-      ] = await Promise.all([
-        api.get(`/api/patients/${id}`),
-        api.get(`/api/encounters?patient_id=${id}`),
-        api.get(`/api/conditions?patient_id=${id}`),
-        api.get(`/api/medications?patient_id=${id}`),
-        api.get(`/api/observations?patient_id=${id}`),
-      ]);
+      await loadPatient(id);
+    } catch (err) {
+      console.error('Error loading patient:', err);
+      setError('Failed to load patient data');
+    }
+  };
 
-      setPatient(patientResponse.data);
-      setEncounters(encountersResponse.data);
-      setConditions(conditionsResponse.data);
-      setMedications(medicationsResponse.data);
-      setObservations(observationsResponse.data);
+  const fetchAdditionalData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch encounters and observations using FHIR
+      const [encountersResult, observationsResult] = await Promise.all([
+        fhirClient.getEncounters(id),
+        fhirClient.getObservations(id)
+      ]);
+      
+      // Transform encounters
+      const transformedEncounters = encountersResult.resources.map(enc => {
+        const type = enc.type?.[0];
+        const period = enc.period || {};
+        return {
+          id: enc.id,
+          patient_id: id,
+          encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+          encounter_date: period.start || enc.date,
+          status: enc.status,
+          provider: enc.participant?.find(p => 
+            p.type?.[0]?.coding?.[0]?.code === 'ATND'
+          )?.individual?.display || 'Unknown Provider'
+        };
+      });
+      
+      // Transform observations
+      const transformedObservations = observationsResult.resources.map(obs => ({
+        id: obs.id,
+        patient_id: id,
+        observation_type: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+        value: obs.valueQuantity?.value || obs.valueString || '',
+        unit: obs.valueQuantity?.unit || '',
+        date: obs.effectiveDateTime || obs.issued,
+        status: obs.status
+      }));
+      
+      setEncounters(transformedEncounters);
+      setObservations(transformedObservations);
       setError(null);
     } catch (err) {
-      console.error('Error fetching patient data:', err);
-      setError('Failed to load patient data');
+      console.error('Error fetching additional data:', err);
+      setError('Failed to load complete patient data');
     } finally {
       setLoading(false);
     }

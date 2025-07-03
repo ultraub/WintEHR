@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
+import { fhirClient } from '../services/fhirClient';
 import api from '../services/api';
 import PatientForm from '../components/PatientForm';
 
@@ -123,11 +124,44 @@ function PatientList() {
   const fetchMyPatients = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/auth/my-patients', {
-        params: { search: searchTerm },
+      // For now, use the same as all patients but filter by provider
+      // In a real implementation, this would use FHIR search with practitioner parameter
+      const searchParams = {
+        _count: 100,
+        _sort: '-_lastUpdated'
+      };
+      
+      if (searchTerm) {
+        // FHIR search supports name parameter for patient names
+        searchParams.name = searchTerm;
+      }
+      
+      const result = await fhirClient.searchPatients(searchParams);
+      
+      // Transform FHIR patients to expected format
+      const transformedPatients = result.resources.map(fhirPatient => {
+        const name = fhirPatient.name?.[0] || {};
+        const telecom = fhirPatient.telecom || [];
+        const phone = telecom.find(t => t.system === 'phone')?.value;
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        return {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate,
+          gender: fhirPatient.gender,
+          phone: phone || '',
+          insurance_name: '' // Would need to fetch Coverage resources for insurance
+        };
       });
-      setPatients(response.data);
-      setMyPatientsCount(response.data.length);
+      
+      setPatients(transformedPatients);
+      setMyPatientsCount(transformedPatients.length);
       setError(null);
     } catch (err) {
       console.error('Error fetching my patients:', err);
@@ -140,10 +174,41 @@ function PatientList() {
   const fetchAllPatients = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/auth/all-patients', {
-        params: { search: searchTerm },
+      const searchParams = {
+        _count: 100,
+        _sort: '-_lastUpdated'
+      };
+      
+      if (searchTerm) {
+        // FHIR search supports name parameter for patient names
+        searchParams.name = searchTerm;
+      }
+      
+      const result = await fhirClient.searchPatients(searchParams);
+      
+      // Transform FHIR patients to expected format
+      const transformedPatients = result.resources.map(fhirPatient => {
+        const name = fhirPatient.name?.[0] || {};
+        const telecom = fhirPatient.telecom || [];
+        const phone = telecom.find(t => t.system === 'phone')?.value;
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        return {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate,
+          gender: fhirPatient.gender,
+          phone: phone || '',
+          insurance_name: '' // Would need to fetch Coverage resources for insurance
+        };
       });
-      setAllPatients(response.data);
+      
+      setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {
       console.error('Error fetching all patients:', err);
@@ -162,14 +227,63 @@ function PatientList() {
 
   const handleCreatePatient = async (patientData) => {
     try {
-      const response = await api.post('/api/patients', patientData);
+      // Transform to FHIR Patient resource
+      const fhirPatient = {
+        resourceType: 'Patient',
+        identifier: [
+          {
+            type: {
+              coding: [{
+                system: 'http://terminology.hl7.org/CodeSystem/v2-0203',
+                code: 'MR'
+              }]
+            },
+            value: patientData.mrn
+          }
+        ],
+        name: [{
+          use: 'official',
+          family: patientData.last_name,
+          given: patientData.first_name ? [patientData.first_name] : []
+        }],
+        birthDate: patientData.date_of_birth,
+        gender: patientData.gender?.toLowerCase(),
+        telecom: []
+      };
+      
+      if (patientData.phone) {
+        fhirPatient.telecom.push({
+          system: 'phone',
+          value: patientData.phone,
+          use: 'home'
+        });
+      }
+      
+      if (patientData.email) {
+        fhirPatient.telecom.push({
+          system: 'email',
+          value: patientData.email
+        });
+      }
+      
+      if (patientData.address || patientData.city || patientData.state || patientData.zip_code) {
+        fhirPatient.address = [{
+          use: 'home',
+          line: patientData.address ? [patientData.address] : [],
+          city: patientData.city,
+          state: patientData.state,
+          postalCode: patientData.zip_code
+        }];
+      }
+      
+      const result = await fhirClient.create('Patient', fhirPatient);
       setOpenNewPatient(false);
       if (activeTab === 0) {
         fetchMyPatients();
       } else {
         fetchAllPatients();
       }
-      navigate(`/patients/${response.data.id}`);
+      navigate(`/patients/${result.id}`);
     } catch (err) {
       console.error('Error creating patient:', err);
       setError('Failed to create patient');

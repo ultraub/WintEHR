@@ -39,6 +39,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { format, isToday, startOfDay, endOfDay } from 'date-fns';
 import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -74,12 +75,28 @@ function Dashboard() {
       // Add provider-specific data if logged in
       if (currentUser?.id) {
         promises.push(
-          api.get('/api/encounters', {
-            params: {
-              start_date: startOfDay(new Date()).toISOString(),
-              end_date: endOfDay(new Date()).toISOString(),
-              provider_id: currentUser.id
-            }
+          // Get today's encounters using FHIR
+          fhirClient.search('Encounter', {
+            date: `ge${startOfDay(new Date()).toISOString()}`,
+            date: `le${endOfDay(new Date()).toISOString()}`,
+            _sort: '-date'
+          }).then(result => {
+            // Transform FHIR encounters to expected format
+            const transformedEncounters = result.resources.map(enc => {
+              const type = enc.type?.[0];
+              const period = enc.period || {};
+              return {
+                id: enc.id,
+                patient_id: fhirClient.extractId(enc.subject),
+                encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+                encounter_date: period.start || enc.date,
+                status: enc.status,
+                provider: enc.participant?.find(p => 
+                  p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                )?.individual?.display || 'Unknown Provider'
+              };
+            });
+            return { data: transformedEncounters };
           }),
           api.get('/api/tasks', {
             params: {

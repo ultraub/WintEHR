@@ -32,7 +32,7 @@ import {
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 import axios from 'axios';
 
 SyntaxHighlighter.registerLanguage('json', json);
@@ -75,8 +75,24 @@ function CDSDemo() {
 
   const fetchPatients = async () => {
     try {
-      const response = await api.get('/api/patients?limit=50');
-      setPatients(response.data);
+      const result = await fhirClient.searchPatients({ _count: 50 });
+      // Transform FHIR patients to expected format
+      const transformedPatients = result.resources.map(fhirPatient => {
+        const name = fhirPatient.name?.[0] || {};
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        return {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate
+        };
+      });
+      setPatients(transformedPatients);
     } catch (err) {
       console.error('Error fetching patients:', err);
       setError('Failed to load patients');
