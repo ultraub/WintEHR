@@ -2,12 +2,14 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies including DICOM image libraries
+# Install system dependencies including DICOM image libraries and Java for Synthea
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
     curl \
+    # Java for Synthea
+    openjdk-17-jdk \
     # Libraries for DICOM image processing
     libjpeg-dev \
     libopenjp2-7-dev \
