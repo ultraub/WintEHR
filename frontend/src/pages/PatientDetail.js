@@ -238,7 +238,11 @@ function PatientDetail() {
 
   const handleEncounterUpdate = () => {
     // Refresh patient data after encounter update
-    fetchPatientData();
+    if (currentPatient && currentPatient.id === id) {
+      fetchAdditionalData();
+    } else {
+      loadPatientData();
+    }
   };
 
   if (loading) {

@@ -146,7 +146,7 @@ const Login = () => {
               onKeyPress={handleKeyPress}
               disabled={loading}
             >
-              {providers.map((provider) => (
+              {providers && providers.length > 0 ? providers.map((provider) => (
                 <MenuItem key={provider.id} value={provider.id}>
                   <Box>
                     <Typography variant="body1">
@@ -158,7 +158,7 @@ const Login = () => {
                     </Typography>
                   </Box>
                 </MenuItem>
-              ))}
+              )) : null}
             </Select>
           </FormControl>
 
