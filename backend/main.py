@@ -8,7 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from api.fhir import fhir_router
+# Import new FHIR router
+from fhir_api.router import fhir_router
+
+# Import legacy routers (to be migrated)
 from api.cds_hooks import cds_hooks_router
 from api.app import app_router
 from api.quality import quality_router
@@ -23,13 +26,9 @@ from api.app import diagnosis_codes, clinical_data, actual_patient_data
 from api import auth
 from api.imaging import router as imaging_router
 from api.dicomweb import router as dicomweb_router
-from database.database import engine, Base
-# Import all models so they get registered with Base
-from models.session import UserSession, PatientProviderAssignment
-from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance, ImagingResult
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Import database components
+from database import init_db, close_db
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -49,10 +48,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on startup."""
+    await init_db()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    await close_db()
+
 # Include routers
 from api.health import router as health_router
 app.include_router(health_router, prefix="/api", tags=["Health Check"])
-app.include_router(fhir_router.router, prefix="/fhir", tags=["FHIR R4"])
+app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
 app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])
 app.include_router(app_router.router, prefix="/api", tags=["Application API"])
 app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
@@ -79,7 +89,7 @@ async def root():
         "message": "Teaching EMR System",
         "version": "1.0.0",
         "endpoints": {
-            "fhir": "/fhir",
+            "fhir": "/fhir/R4",
             "cds_hooks": "/cds-hooks",
             "api": "/api",
             "docs": "/docs"
