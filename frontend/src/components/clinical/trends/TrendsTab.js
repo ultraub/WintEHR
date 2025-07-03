@@ -22,7 +22,7 @@ import { useClinical } from '../../../contexts/ClinicalContext';
 import VitalSignsTrends from '../../VitalSignsTrends';
 import LabTrends from '../charts/LabTrends';
 import VitalsOverview from '../charts/VitalsOverview';
-import api from '../../../services/api';
+import { fhirClient } from '../../../services/fhirClient';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
@@ -57,18 +57,55 @@ const TrendsTab = () => {
   const fetchVitalsData = async () => {
     setLoading(true);
     try {
-      // Note: observation_type filter removed as field is null in current dataset
-      const response = await api.get(`/api/observations?patient_id=${currentPatient.id}&limit=200`);
-      // Filter for vital signs on frontend since observation_type is null
-      const vitalsData = response.data.filter(obs => {
-        const display = obs.display?.toLowerCase() || '';
-        return display.includes('blood pressure') || display.includes('heart rate') || 
-               display.includes('temperature') || display.includes('weight') || 
-               display.includes('height') || display.includes('oxygen') || 
-               display.includes('respiratory') || display.includes('bmi') || 
-               display.includes('pulse') || display.includes('bp');
+      // Fetch vital signs using FHIR
+      const result = await fhirClient.getVitalSigns(currentPatient.id);
+      
+      // Transform FHIR observations to expected format
+      const transformedVitals = result.resources.map(obs => {
+        const value = obs.valueQuantity?.value || obs.valueString || '';
+        const unit = obs.valueQuantity?.unit || '';
+        
+        // Handle blood pressure component observations
+        if (obs.component && obs.component.length > 0) {
+          const systolic = obs.component.find(c => 
+            c.code?.coding?.some(coding => 
+              coding.code === '8480-6' || coding.display?.toLowerCase().includes('systolic')
+            )
+          )?.valueQuantity?.value;
+          
+          const diastolic = obs.component.find(c => 
+            c.code?.coding?.some(coding => 
+              coding.code === '8462-4' || coding.display?.toLowerCase().includes('diastolic')
+            )
+          )?.valueQuantity?.value;
+          
+          if (systolic && diastolic) {
+            return {
+              id: obs.id,
+              patient_id: currentPatient.id,
+              observation_date: obs.effectiveDateTime || obs.issued,
+              display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Blood Pressure',
+              value: `${systolic}/${diastolic}`,
+              value_quantity: null,
+              unit: 'mmHg',
+              status: obs.status
+            };
+          }
+        }
+        
+        return {
+          id: obs.id,
+          patient_id: currentPatient.id,
+          observation_date: obs.effectiveDateTime || obs.issued,
+          display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+          value: value.toString(),
+          value_quantity: typeof value === 'number' ? value : parseFloat(value),
+          unit: unit,
+          status: obs.status
+        };
       });
-      setVitalsData(vitalsData || []);
+      
+      setVitalsData(transformedVitals);
     } catch (error) {
       console.error('Error fetching vitals data:', error);
       setVitalsData([]);

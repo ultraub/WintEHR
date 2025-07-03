@@ -43,7 +43,7 @@ import { format } from 'date-fns';
 import { useDocumentation } from '../../../contexts/DocumentationContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import SOAPEditor from './SOAPEditor';
-import api from '../../../services/api';
+import { fhirClient } from '../../../services/fhirClient';
 
 const DocumentationTab = () => {
   const { currentPatient } = useClinical();
@@ -77,12 +77,9 @@ const DocumentationTab = () => {
     if (!currentPatient) return;
     
     try {
-      const response = await api.get('/api/encounters', {
-        params: {
-          patient_id: currentPatient.id,
-          limit: 20
-        }
-      });
+      // Fetch encounters using FHIR
+      const result = await fhirClient.getEncounters(currentPatient.id);
+      const response = { data: result.resources.slice(0, 20) };
       
       // Filter encounters that have notes
       const notesFromEncounters = response.data

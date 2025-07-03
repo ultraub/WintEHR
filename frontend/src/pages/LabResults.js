@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Paper, Typography, Chip, CircularProgress, Alert } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
-import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 
 function LabResults() {
   const [observations, setObservations] = useState([]);
@@ -69,8 +69,59 @@ function LabResults() {
   const fetchLabResults = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/observations?observation_type=laboratory');
-      setObservations(response.data);
+      // Search for all lab results across all patients
+      const searchParams = {
+        category: 'laboratory',
+        _sort: '-date',
+        _count: 100,
+        _include: 'Observation:patient'
+      };
+      
+      const result = await fhirClient.search('Observation', searchParams);
+      
+      // Transform FHIR observations to expected format
+      const transformedObservations = await Promise.all(result.resources.map(async (obs) => {
+        // Extract patient info from the included resources or fetch separately
+        let patientInfo = { first_name: 'Unknown', last_name: 'Patient' };
+        
+        if (obs.subject?.reference) {
+          const patientId = fhirClient.extractId(obs.subject);
+          try {
+            const patient = await fhirClient.read('Patient', patientId);
+            const name = patient.name?.[0] || {};
+            patientInfo = {
+              first_name: name.given?.join(' ') || '',
+              last_name: name.family || ''
+            };
+          } catch (err) {
+            console.error('Error fetching patient info:', err);
+          }
+        }
+        
+        // Determine interpretation based on reference range
+        let interpretation = 'Normal';
+        if (obs.interpretation?.[0]?.coding?.[0]?.code) {
+          const code = obs.interpretation[0].coding[0].code;
+          if (code === 'H' || code === 'HH') interpretation = 'High';
+          else if (code === 'L' || code === 'LL') interpretation = 'Low';
+          else if (code === 'A') interpretation = 'Abnormal';
+        }
+        
+        return {
+          id: obs.id,
+          observation_date: obs.effectiveDateTime || obs.issued,
+          patient: patientInfo,
+          display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+          value: obs.valueQuantity?.value || obs.valueString || '',
+          unit: obs.valueQuantity?.unit || '',
+          interpretation: interpretation,
+          reference_range_low: obs.referenceRange?.[0]?.low?.value,
+          reference_range_high: obs.referenceRange?.[0]?.high?.value,
+          status: obs.status
+        };
+      }));
+      
+      setObservations(transformedObservations);
       setError(null);
     } catch (err) {
       console.error('Error fetching lab results:', err);

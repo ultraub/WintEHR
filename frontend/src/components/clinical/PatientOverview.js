@@ -146,20 +146,36 @@ const PatientOverview = () => {
   const handleAddMedication = async () => {
     try {
       if (editingMedication) {
-        // Update existing medication
-        await api.put(`/api/medications/${editingMedication.id}`, {
-          medication_name: newMedication.medication_name,
-          dosage: newMedication.dosage,
-          frequency: newMedication.frequency,
-          status: newMedication.status
-        });
+        // Update existing medication using FHIR
+        const medicationResource = await fhirClient.read('MedicationRequest', editingMedication.id);
+        medicationResource.dosageInstruction = [{
+          text: newMedication.dosage
+        }];
+        medicationResource.status = newMedication.status;
+        await fhirClient.update('MedicationRequest', editingMedication.id, medicationResource);
       } else {
-        // Create new medication
-        await api.post('/api/medications', {
-          patient_id: currentPatient.id,
-          start_date: new Date().toISOString().split('T')[0],
-          ...newMedication
-        });
+        // Create new medication using FHIR
+        const medicationResource = {
+          resourceType: 'MedicationRequest',
+          status: newMedication.status || 'active',
+          intent: 'order',
+          medicationCodeableConcept: {
+            text: newMedication.medication_name
+          },
+          subject: fhirClient.reference('Patient', currentPatient.id),
+          dosageInstruction: [{
+            text: newMedication.dosage,
+            timing: {
+              repeat: {
+                frequency: 1,
+                period: 1,
+                periodUnit: 'd'
+              }
+            }
+          }],
+          authoredOn: new Date().toISOString()
+        };
+        await fhirClient.create('MedicationRequest', medicationResource);
       }
       setMedicationsDialog(false);
       setNewMedication({ medication_name: '', dosage: '', frequency: '', status: 'active' });
@@ -184,7 +200,10 @@ const PatientOverview = () => {
   
   const handleDeleteMedication = async (medication) => {
     try {
-      await api.delete(`/api/medications/${medication.id}`);
+      // Update medication status to stopped instead of deleting
+      const medicationResource = await fhirClient.read('MedicationRequest', medication.id);
+      medicationResource.status = 'stopped';
+      await fhirClient.update('MedicationRequest', medication.id, medicationResource);
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {
@@ -195,31 +214,73 @@ const PatientOverview = () => {
   const handleAddProblem = async () => {
     try {
       if (editingProblem) {
-        // Update existing problem
-        const updateData = {
-          description: newProblem.description,
-          clinical_status: newProblem.clinical_status
+        // Update existing condition using FHIR
+        const conditionResource = await fhirClient.read('Condition', editingProblem.id);
+        conditionResource.code.text = newProblem.description;
+        conditionResource.clinicalStatus = {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+            code: newProblem.clinical_status
+          }]
         };
         
-        // Only add optional fields if they have values
-        if (newProblem.snomed_code) updateData.snomed_code = newProblem.snomed_code;
-        if (newProblem.icd10_code) updateData.icd10_code = newProblem.icd10_code;
+        // Update codes if provided
+        if (newProblem.snomed_code || newProblem.icd10_code) {
+          conditionResource.code.coding = [];
+          if (newProblem.snomed_code) {
+            conditionResource.code.coding.push({
+              system: 'http://snomed.info/sct',
+              code: newProblem.snomed_code
+            });
+          }
+          if (newProblem.icd10_code) {
+            conditionResource.code.coding.push({
+              system: 'http://hl7.org/fhir/sid/icd-10',
+              code: newProblem.icd10_code
+            });
+          }
+        }
         
-        await api.put(`/api/conditions/${editingProblem.id}`, updateData);
+        await fhirClient.update('Condition', editingProblem.id, conditionResource);
       } else {
-        // Create new problem
-        const problemData = {
-          patient_id: currentPatient.id,
-          description: newProblem.description,
-          clinical_status: newProblem.clinical_status,
-          verification_status: "confirmed"
+        // Create new condition using FHIR
+        const conditionResource = {
+          resourceType: 'Condition',
+          subject: fhirClient.reference('Patient', currentPatient.id),
+          code: {
+            text: newProblem.description,
+            coding: []
+          },
+          clinicalStatus: {
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+              code: newProblem.clinical_status
+            }]
+          },
+          verificationStatus: {
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/condition-ver-status',
+              code: 'confirmed'
+            }]
+          },
+          onsetDateTime: new Date().toISOString()
         };
         
-        // Only add optional fields if they have values
-        if (newProblem.snomed_code) problemData.snomed_code = newProblem.snomed_code;
-        if (newProblem.icd10_code) problemData.icd10_code = newProblem.icd10_code;
+        // Add codes if provided
+        if (newProblem.snomed_code) {
+          conditionResource.code.coding.push({
+            system: 'http://snomed.info/sct',
+            code: newProblem.snomed_code
+          });
+        }
+        if (newProblem.icd10_code) {
+          conditionResource.code.coding.push({
+            system: 'http://hl7.org/fhir/sid/icd-10',
+            code: newProblem.icd10_code
+          });
+        }
         
-        await api.post('/api/conditions', problemData);
+        await fhirClient.create('Condition', conditionResource);
       }
       setProblemsDialog(false);
       setNewProblem({ description: '', clinical_status: 'active', snomed_code: '', icd10_code: '' });
@@ -245,7 +306,15 @@ const PatientOverview = () => {
   
   const handleDeleteProblem = async (problem) => {
     try {
-      await api.delete(`/api/conditions/${problem.id}`);
+      // Update condition status to resolved instead of deleting
+      const conditionResource = await fhirClient.read('Condition', problem.id);
+      conditionResource.clinicalStatus = {
+        coding: [{
+          system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+          code: 'resolved'
+        }]
+      };
+      await fhirClient.update('Condition', problem.id, conditionResource);
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {

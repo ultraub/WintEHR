@@ -31,7 +31,7 @@ import {
 import { format, differenceInYears } from 'date-fns';
 import { useClinical } from '../../contexts/ClinicalContext';
 import { useNavigate } from 'react-router-dom';
-import api from '../../services/api';
+import { fhirClient } from '../../services/fhirClient';
 
 
 const PatientHeader = ({ 
@@ -52,15 +52,30 @@ const PatientHeader = ({
   const loadEncounters = async () => {
     setLoadingEncounters(true);
     try {
-      const response = await api.get('/api/encounters', {
-        params: {
+      // Fetch encounters using FHIR
+      const result = await fhirClient.getEncounters(currentPatient.id);
+      
+      // Transform and sort encounters
+      const transformedEncounters = result.resources.map(enc => {
+        const type = enc.type?.[0];
+        const period = enc.period || {};
+        return {
+          id: enc.id,
           patient_id: currentPatient.id,
-          sort: 'start_date',
-          order: 'desc',
-          limit: 10
-        }
+          encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+          encounter_date: period.start || enc.date,
+          start_date: period.start || enc.date,
+          status: enc.status,
+          provider: enc.participant?.find(p => 
+            p.type?.[0]?.coding?.[0]?.code === 'ATND'
+          )?.individual?.display || 'Unknown Provider'
+        };
       });
-      const encounterList = response.data || [];
+      
+      // Sort by date descending and take top 10
+      const encounterList = transformedEncounters
+        .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+        .slice(0, 10);
       setEncounters(encounterList);
       
       // If no encounter is currently selected and we have encounters, select the most recent one

@@ -43,6 +43,7 @@ import {
   FileUpload as UploadIcon
 } from '@mui/icons-material';
 import { useClinical } from '../../../contexts/ClinicalContext';
+import { fhirClient } from '../../../services/fhirClient';
 import api from '../../../services/api';
 // Temporarily use simplified viewer to avoid cornerstone-tools issues
 import ImageViewerV2 from '../../ImageViewerV2_Simple';
@@ -95,17 +96,22 @@ const ResultsTab = () => {
   const loadResults = async () => {
     setLoading(true);
     try {
-      // Load ALL lab results for the patient
-      const params = {
-        patient_id: currentPatient.id,
-        observation_type: 'laboratory'
-      };
+      // Load lab results using FHIR
+      const labResult = await fhirClient.getLabResults(currentPatient.id);
       
-      // Don't filter by encounter - instead we'll show all results
-      // and highlight/sort the ones from the current encounter
-      const labResponse = await api.get('/api/observations', { params });
-      // Filter and sort results based on encounter context
-      let results = labResponse.data || [];
+      // Transform FHIR observations to expected format
+      let results = labResult.resources.map(obs => ({
+        id: obs.id,
+        patient_id: currentPatient.id,
+        observation_date: obs.effectiveDateTime || obs.issued,
+        display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+        value: obs.valueQuantity?.value || obs.valueString || '',
+        unit: obs.valueQuantity?.unit || '',
+        status: obs.status,
+        encounter_id: obs.encounter ? fhirClient.extractId(obs.encounter) : null,
+        interpretation: obs.interpretation?.[0]?.coding?.[0]?.code,
+        reference_range: obs.referenceRange?.[0]?.text
+      }));
       
       // Load imaging studies (don't filter by encounter for imaging)
       try {

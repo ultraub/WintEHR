@@ -40,6 +40,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { fhirClient } from '../services/fhirClient';
 import api from '../services/api';
 
 function TabPanel({ children, value, index, ...other }) {
@@ -85,17 +86,62 @@ const EncounterDetail = ({
     
     try {
       setLoading(true);
+      
+      // Fetch all data for the patient and filter by encounter
+      const patientId = patient?.id || encounter.patient_id;
+      
       const [
-        medicationsResponse,
-        observationsResponse,
-        conditionsResponse,
-        providerResponse
+        medicationsResult,
+        observationsResult,
+        conditionsResult
       ] = await Promise.all([
-        api.get(`/api/medications?encounter_id=${encounter.id}`),
-        api.get(`/api/observations?encounter_id=${encounter.id}`),
-        api.get(`/api/conditions?encounter_id=${encounter.id}`),
-        encounter.provider_id ? api.get(`/api/providers/${encounter.provider_id}`) : Promise.resolve({ data: null })
+        fhirClient.getMedications(patientId),
+        fhirClient.getObservations(patientId),
+        fhirClient.getConditions(patientId)
       ]);
+      
+      // Filter resources by encounter reference
+      const encounterRef = `Encounter/${encounter.id}`;
+      
+      const medicationsResponse = {
+        data: medicationsResult.resources
+          .filter(med => med.encounter?.reference === encounterRef)
+          .map(med => ({
+            id: med.id,
+            medication_name: med.medicationCodeableConcept?.text || 
+                           med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
+            dosage: med.dosageInstruction?.[0]?.text || '',
+            status: med.status,
+            start_date: med.authoredOn
+          }))
+      };
+      
+      const observationsResponse = {
+        data: observationsResult.resources
+          .filter(obs => obs.encounter?.reference === encounterRef)
+          .map(obs => ({
+            id: obs.id,
+            display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+            value: obs.valueQuantity?.value || obs.valueString || '',
+            unit: obs.valueQuantity?.unit || '',
+            observation_date: obs.effectiveDateTime || obs.issued,
+            status: obs.status
+          }))
+      };
+      
+      const conditionsResponse = {
+        data: conditionsResult.resources
+          .filter(cond => cond.encounter?.reference === encounterRef)
+          .map(cond => ({
+            id: cond.id,
+            description: cond.code?.text || cond.code?.coding?.[0]?.display || 'Unknown',
+            clinical_status: cond.clinicalStatus?.coding?.[0]?.code || 'active',
+            onset_date: cond.onsetDateTime || cond.onsetPeriod?.start
+          }))
+      };
+      
+      // Provider info is in the encounter itself
+      const providerResponse = { data: null };
 
       setEncounterData({
         medications: medicationsResponse.data || [],
