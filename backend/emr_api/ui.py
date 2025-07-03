@@ -16,7 +16,7 @@ from sqlalchemy import text
 import uuid
 import json
 
-from ..database import get_db_session
+from database import get_db_session
 from .auth import require_auth
 
 router = APIRouter()

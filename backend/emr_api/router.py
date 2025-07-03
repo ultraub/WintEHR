@@ -17,7 +17,7 @@ from sqlalchemy import text
 import json
 import uuid
 
-from ..database import get_db_session
+from database import get_db_session
 from .auth import router as auth_router
 from .workflow import router as workflow_router
 from .ui import router as ui_router

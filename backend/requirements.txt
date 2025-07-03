@@ -47,3 +47,7 @@ numpy==1.26.2
 pylibjpeg==2.0.0
 pylibjpeg-libjpeg==2.0.0
 pylibjpeg-openjpeg==2.0.0
+
+# AI and utilities
+anthropic==0.25.0
+python-dotenv==1.0.0

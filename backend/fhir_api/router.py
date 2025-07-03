@@ -12,11 +12,11 @@ from datetime import datetime
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.fhir.storage import FHIRStorageEngine
-from ..core.fhir.validator import FHIRValidator
-from ..core.fhir.operations import OperationHandler
-from ..core.fhir.search import SearchParameterHandler
-from ..database import get_db_session
+from core.fhir.storage import FHIRStorageEngine
+from core.fhir.validator import FHIRValidator
+from core.fhir.operations import OperationHandler
+from core.fhir.search import SearchParameterHandler
+from database import get_db_session
 from fhir.resources import construct_fhir_element
 from fhir.resources.bundle import Bundle
 from fhir.resources.parameters import Parameters
@@ -45,7 +45,7 @@ SUPPORTED_RESOURCES = [
 ]
 
 
-@fhir_router.get("/metadata", response_model=CapabilityStatement)
+@fhir_router.get("/metadata")
 async def get_capability_statement():
     """
     Get server capability statement.
@@ -53,7 +53,7 @@ async def get_capability_statement():
     Returns the server's CapabilityStatement resource describing
     what operations and resources are supported.
     """
-    return CapabilityStatement(
+    capability_statement = CapabilityStatement(
         status="active",
         date=datetime.now().isoformat(),
         kind="instance",
@@ -111,9 +111,12 @@ async def get_capability_statement():
             )
         ]
     )
+    
+    # Convert to dict for JSON response
+    return capability_statement.dict()
 
 
-@fhir_router.post("/", response_model=Bundle)
+@fhir_router.post("/")
 async def process_bundle(
     bundle: Bundle,
     db: AsyncSession = Depends(get_db_session)
@@ -138,7 +141,7 @@ async def process_bundle(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@fhir_router.get("/{resource_type}", response_model=Bundle)
+@fhir_router.get("/{resource_type}")
 async def search_resources(
     resource_type: str,
     request: Request,
@@ -226,7 +229,7 @@ async def search_resources(
     if "_revinclude" in result_params:
         await _process_revincludes(storage, bundle, result_params["_revinclude"])
     
-    return bundle
+    return bundle.dict()
 
 
 @fhir_router.post("/{resource_type}")
@@ -273,11 +276,17 @@ async def create_resource(
         response = Response(status_code=201)
         response.headers["Location"] = f"{resource_type}/{fhir_id}"
         response.headers["ETag"] = f'W/"{version_id}"'
-        response.headers["Last-Modified"] = last_updated.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        if isinstance(last_updated, datetime):
+            response.headers["Last-Modified"] = last_updated.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        else:
+            response.headers["Last-Modified"] = last_updated
         
         return response
         
     except Exception as e:
+        import traceback
+        print(f"Error in create_resource: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -469,7 +478,7 @@ async def get_type_history(
             }
         })
     
-    return bundle
+    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}/{id}/_history", response_model=Bundle)
@@ -518,7 +527,7 @@ async def get_instance_history(
             }
         })
     
-    return bundle
+    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}/{id}/_history/{version_id}")

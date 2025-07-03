@@ -36,6 +36,11 @@ database_url = os.getenv(
     "DATABASE_URL",
     config.get_main_option("sqlalchemy.url")
 )
+
+# Convert asyncpg URL to psycopg2 for Alembic (synchronous)
+if database_url and "asyncpg" in database_url:
+    database_url = database_url.replace("postgresql+asyncpg", "postgresql")
+
 config.set_main_option("sqlalchemy.url", database_url)
 
 

@@ -1,39 +1,77 @@
-version: '3.8'
-
 services:
-  # Frontend builder service
-  frontend-builder:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.build
-    container_name: emr-frontend-builder
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: emr-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: medgenemr
+    ports:
+      - "5432:5432"
     volumes:
-      - ./frontend/build:/build
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - emr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Backend API
   backend:
     build:
       context: ./backend
-      dockerfile: ../Dockerfile.production.complete
+      dockerfile: Dockerfile
     container_name: emr-backend
     ports:
       - "8000:8000"
     volumes:
+      - ./backend:/app
       - ./data:/app/data
       - ./logs:/app/logs
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/medgenemr
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
     networks:
       - emr-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     depends_on:
-      - frontend-builder
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        cd /app &&
+        alembic upgrade head &&
+        echo 'Database migrations complete' &&
+        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      "
 
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: emr-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_FHIR_ENDPOINT=http://localhost:8000/fhir/R4
+      - REACT_APP_EMR_API=http://localhost:8000/api/emr
+      - REACT_APP_CLINICAL_CANVAS_API=http://localhost:8000/api/clinical-canvas
+    networks:
+      - emr-network
+    depends_on:
+      - backend
+
+  # Nginx (optional, for production-like setup)
   nginx:
     image: nginx:alpine
     container_name: emr-nginx
@@ -41,13 +79,15 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./frontend/build:/usr/share/nginx/html:ro
     depends_on:
       - backend
-      - frontend-builder
+      - frontend
     networks:
       - emr-network
 
 networks:
   emr-network:
     driver: bridge
+
+volumes:
+  postgres_data:

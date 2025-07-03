@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db_session
-from ..emr_api.auth import require_auth
+from database import get_db_session
+from emr_api.auth import require_auth
 from .canvas_service import ClinicalCanvasService
 
 router = APIRouter(prefix="/api/clinical-canvas", tags=["Clinical Canvas"])

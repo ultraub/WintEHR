@@ -7,7 +7,7 @@ Implements versioning, history tracking, and search parameter extraction.
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,15 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from fhir.resources import construct_fhir_element
 from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
+
+
+class FHIRJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for FHIR resources that handles date/datetime objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class FHIRStorageEngine:
@@ -79,7 +88,7 @@ class FHIRStorageEngine:
             'fhir_id': fhir_id,
             'version_id': version_id,
             'last_updated': last_updated,
-            'resource': json.dumps(resource_dict)
+            'resource': json.dumps(resource_dict, cls=FHIRJSONEncoder)
         })
         
         resource_id = result.scalar()
@@ -225,7 +234,7 @@ class FHIRStorageEngine:
             'id': resource_id,
             'version_id': new_version,
             'last_updated': last_updated,
-            'resource': json.dumps(resource_dict)
+            'resource': json.dumps(resource_dict, cls=FHIRJSONEncoder)
         })
         
         # Create history entry
@@ -578,7 +587,7 @@ class FHIRStorageEngine:
             'resource_id': resource_id,
             'version_id': version_id,
             'operation': operation,
-            'resource': json.dumps(resource_data)
+            'resource': json.dumps(resource_data, cls=FHIRJSONEncoder)
         })
     
     async def _extract_search_parameters(

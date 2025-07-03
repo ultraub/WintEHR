@@ -98,7 +98,7 @@ class FHIRValidator:
                             entry_type = entry.resource.resource_type
                             entry_issues = self._validate_structure(
                                 entry_type,
-                                entry.resource.dict()
+                                json.loads(entry.resource.json())
                             )
                             for issue in entry_issues:
                                 # Update expression to include entry path

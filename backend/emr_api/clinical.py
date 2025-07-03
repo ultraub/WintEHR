@@ -16,9 +16,9 @@ from sqlalchemy import text
 import uuid
 import json
 
-from ..database import get_db_session
+from database import get_db_session
 from .auth import require_auth
-from ..core.fhir.storage import FHIRStorageEngine
+from core.fhir.storage import FHIRStorageEngine
 
 router = APIRouter()
 

@@ -19,12 +19,51 @@ import bcrypt
 import jwt
 import os
 
-from ..database import get_db_session
+from database import get_db_session
 
 router = APIRouter()
 
 # Security
 security = HTTPBearer(auto_error=False)
+
+
+@router.get("/providers")
+async def get_providers(db: AsyncSession = Depends(get_db_session)):
+    """
+    Get list of available providers for login.
+    
+    Returns practitioners with active user accounts.
+    """
+    # For now, return demo providers
+    # In production, this would query the FHIR Practitioner resources
+    demo_providers = [
+        {
+            "id": "dr-smith",
+            "name": "Dr. Sarah Smith",
+            "role": "Primary Care Physician",
+            "department": "Internal Medicine"
+        },
+        {
+            "id": "dr-jones", 
+            "name": "Dr. Michael Jones",
+            "role": "Cardiologist",
+            "department": "Cardiology"
+        },
+        {
+            "id": "nurse-wilson",
+            "name": "Nancy Wilson, RN",
+            "role": "Registered Nurse",
+            "department": "Emergency"
+        },
+        {
+            "id": "admin-user",
+            "name": "System Administrator",
+            "role": "Administrator",
+            "department": "IT"
+        }
+    ]
+    
+    return {"providers": demo_providers}
 
 # JWT settings
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
@@ -110,7 +149,7 @@ async def require_auth(user: Dict[str, Any] = Depends(get_current_user)) -> Dict
     return user
 
 
-async def require_role(required_role: str):
+def require_role(required_role: str):
     """Require a specific role for an endpoint."""
     async def role_checker(user: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
         if user["role"] != required_role and user["role"] != "admin":
@@ -188,80 +227,136 @@ async def login(
     db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Login with username/password.
+    Login with provider_id (demo mode) or username/password.
     
     Returns JWT token for subsequent requests.
     """
-    # Validate credentials
-    if not login_data.get("username") or not login_data.get("password"):
-        raise HTTPException(status_code=400, detail="Username and password required")
-    
-    # Get user
-    query = text("""
-        SELECT id, username, email, password_hash, role, practitioner_id
-        FROM emr.users
-        WHERE username = :username AND is_active = true
-    """)
-    
-    result = await db.execute(query, {"username": login_data["username"]})
-    user = result.first()
-    
-    if not user or not AuthService.verify_password(login_data["password"], user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Update last login
-    update_query = text("""
-        UPDATE emr.users
-        SET last_login = :last_login
-        WHERE id = :user_id
-    """)
-    
-    await db.execute(update_query, {
-        "last_login": datetime.now(timezone.utc),
-        "user_id": user.id
-    })
-    
-    # Create session
-    session_id = uuid.uuid4()
-    token = AuthService.create_token(str(user.id), user.username, user.role)
-    
-    session_query = text("""
-        INSERT INTO emr.sessions (
-            id, user_id, token, expires_at
-        ) VALUES (
-            :id, :user_id, :token, :expires_at
+    # Check if this is a provider-based login (demo mode)
+    if login_data.get("provider_id"):
+        # Demo provider login - create session without password
+        provider_id = login_data["provider_id"]
+        
+        # Map provider IDs to demo users
+        provider_map = {
+            "dr-smith": {"username": "dr.smith", "name": "Dr. Sarah Smith", "role": "physician"},
+            "dr-jones": {"username": "dr.jones", "name": "Dr. Michael Jones", "role": "physician"},
+            "nurse-wilson": {"username": "nurse.wilson", "name": "Nancy Wilson, RN", "role": "nurse"},
+            "admin-user": {"username": "admin", "name": "System Administrator", "role": "admin"}
+        }
+        
+        if provider_id not in provider_map:
+            raise HTTPException(status_code=404, detail="Provider not found")
+        
+        provider_info = provider_map[provider_id]
+        
+        # Create session token
+        token = AuthService.create_token(
+            user_id=provider_id,
+            username=provider_info["username"],
+            role=provider_info["role"]
         )
-    """)
+        
+        # Create session
+        session_id = uuid.uuid4()
+        create_session_query = text("""
+            INSERT INTO emr.sessions (
+                id, user_id, token, expires_at, user_agent, ip_address
+            ) VALUES (
+                :id, :user_id, :token, :expires_at, :user_agent, :ip_address
+            )
+        """)
+        
+        try:
+            await db.execute(create_session_query, {
+                "id": session_id,
+                "user_id": provider_id,  # Using provider_id as user_id for demo
+                "token": token,
+                "expires_at": datetime.now(timezone.utc) + timedelta(hours=24),
+                "user_agent": request.headers.get("User-Agent", ""),
+                "ip_address": request.client.host if request.client else None
+            })
+            await db.commit()
+        except Exception:
+            # Sessions table might not exist yet, continue anyway for demo
+            pass
+        
+        return {
+            "session_token": token,
+            "provider": {
+                "id": provider_id,
+                "name": provider_info["name"],
+                "role": provider_info["role"]
+            }
+        }
     
-    await db.execute(session_query, {
-        "id": session_id,
-        "user_id": user.id,
-        "token": token,
-        "expires_at": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
-    })
+    # Regular username/password login
+    elif login_data.get("username") and login_data.get("password"):
+        # Get user
+        query = text("""
+            SELECT id, username, email, password_hash, role, practitioner_id
+            FROM emr.users
+            WHERE username = :username AND is_active = true
+        """)
     
-    # Create audit log
-    audit_query = text("""
-        INSERT INTO emr.audit_logs (
-            user_id, action, details, ip_address, user_agent
-        ) VALUES (
-            :user_id, :action, :details, :ip_address, :user_agent
-        )
-    """)
-    
-    await db.execute(audit_query, {
-        "user_id": user.id,
-        "action": "login",
-        "details": json.dumps({"username": user.username}),
-        "ip_address": request.client.host if request.client else None,
-        "user_agent": request.headers.get("User-Agent")
-    })
-    
-    await db.commit()
-    
-    return {
-        "token": token,
-        "user": {
+        result = await db.execute(query, {"username": login_data["username"]})
+        user = result.first()
+        
+        if not user or not AuthService.verify_password(login_data["password"], user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Update last login
+        update_query = text("""
+            UPDATE emr.users
+            SET last_login = :last_login
+            WHERE id = :user_id
+        """)
+        
+        await db.execute(update_query, {
+            "last_login": datetime.now(timezone.utc),
+            "user_id": user.id
+        })
+        
+        # Create session
+        session_id = uuid.uuid4()
+        token = AuthService.create_token(str(user.id), user.username, user.role)
+        
+        session_query = text("""
+            INSERT INTO emr.sessions (
+                id, user_id, token, expires_at
+            ) VALUES (
+                :id, :user_id, :token, :expires_at
+            )
+        """)
+        
+        await db.execute(session_query, {
+            "id": session_id,
+            "user_id": user.id,
+            "token": token,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+        })
+        
+        # Create audit log
+        audit_query = text("""
+            INSERT INTO emr.audit_logs (
+                user_id, action, details, ip_address, user_agent
+            ) VALUES (
+                :user_id, :action, :details, :ip_address, :user_agent
+            )
+        """)
+        
+        await db.execute(audit_query, {
+            "user_id": user.id,
+            "action": "login",
+            "details": json.dumps({"username": user.username}),
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("User-Agent")
+        })
+        
+        await db.commit()
+        
+        return {
+            "token": token,
+            "user": {
             "id": str(user.id),
             "username": user.username,
             "email": user.email,
@@ -269,6 +364,16 @@ async def login(
             "practitionerId": user.practitioner_id
         }
     }
+    else:
+        raise HTTPException(status_code=400, detail="Provider ID or username/password required")
+
+
+@router.get("/me")
+async def get_current_user(
+    user: Dict[str, Any] = Depends(require_auth)
+):
+    """Get current user information."""
+    return user
 
 
 @router.post("/logout")
