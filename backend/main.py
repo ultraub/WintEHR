@@ -11,6 +11,9 @@ import uvicorn
 # Import new FHIR router
 from fhir_api.router import fhir_router
 
+# Import new EMR router
+from emr_api.router import emr_router
+
 # Import legacy routers (to be migrated)
 from api.cds_hooks import cds_hooks_router
 from api.app import app_router
@@ -63,6 +66,7 @@ async def shutdown_event():
 from api.health import router as health_router
 app.include_router(health_router, prefix="/api", tags=["Health Check"])
 app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
+app.include_router(emr_router, tags=["EMR Extensions"])  # Already has /api/emr prefix
 app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])
 app.include_router(app_router.router, prefix="/api", tags=["Application API"])
 app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])

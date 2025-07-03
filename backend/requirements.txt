@@ -6,6 +6,8 @@ sqlalchemy==2.0.23
 
 # Database
 alembic==1.12.1
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
 
 # HTTP/API
 httpx==0.25.2
@@ -23,6 +25,8 @@ psutil==5.9.6
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
+bcrypt==4.1.2
+PyJWT==2.8.0
 
 # Development tools
 pytest==7.4.3
