@@ -1,0 +1,43 @@
+# Core dependencies - verified working with Python 3.13
+fastapi
+uvicorn[standard]
+pydantic
+sqlalchemy
+typing-extensions
+
+# Database - async support
+alembic
+asyncpg
+psycopg2-binary
+
+# HTTP/API
+httpx
+requests
+aiofiles
+
+# Security - authentication
+python-jose
+passlib
+python-multipart
+bcrypt
+PyJWT
+
+# Development tools
+pytest
+pytest-cov
+pytest-asyncio
+python-dotenv
+
+# FHIR specific - verified version
+fhir.resources==7.1.0
+
+# AI integration
+anthropic
+
+# System utilities
+psutil
+
+# Medical imaging (optional - install if needed)
+# pydicom
+# pillow
+# numpy

@@ -7,6 +7,7 @@ Implements versioning, history tracking, and search parameter extraction.
 
 import json
 import uuid
+from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
@@ -16,13 +17,18 @@ from fhir.resources import construct_fhir_element
 from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
+from .synthea_validator import SyntheaFHIRValidator
+
 
 class FHIRJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder for FHIR resources that handles date/datetime objects."""
+    """Custom JSON encoder for FHIR resources that handles date/datetime objects and Decimal types."""
     
     def default(self, obj):
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
+        # Handle Decimal types for monetary amounts and measurements
+        if isinstance(obj, Decimal):
+            return float(obj)
         return super().default(obj)
 
 
@@ -31,6 +37,7 @@ class FHIRStorageEngine:
     
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.validator = SyntheaFHIRValidator()
     
     async def create_resource(
         self,

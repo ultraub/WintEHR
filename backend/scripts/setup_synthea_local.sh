@@ -1,23 +1,26 @@
 #!/bin/bash
-# Setup Synthea for generating FHIR patient data
+# Setup Synthea for generating FHIR patient data - LOCAL DEVELOPMENT VERSION
 
 set -e
 
-echo "Setting up Synthea patient generator..."
+echo "Setting up Synthea patient generator for local development..."
 
 # Check if Java is installed
 if ! command -v java &> /dev/null; then
-    echo "Java not found. Please ensure Java is installed in the container."
+    echo "Java not found. Please install Java first."
     exit 1
 fi
 
+# Use local synthea directory
+SYNTHEA_DIR="../synthea"
+
 # Create synthea directory if not exists
-mkdir -p /app/synthea
+mkdir -p "$SYNTHEA_DIR"
 
 # Clone Synthea if not exists
-if [ ! -d "/app/synthea/.git" ]; then
+if [ ! -d "$SYNTHEA_DIR/.git" ]; then
     echo "Cloning Synthea repository..."
-    cd /app
+    cd ..
     if [ -d "synthea" ]; then
         rm -rf synthea
     fi
@@ -25,7 +28,7 @@ if [ ! -d "/app/synthea/.git" ]; then
     cd synthea
 else
     echo "Synthea already exists, updating..."
-    cd /app/synthea
+    cd "$SYNTHEA_DIR"
     git pull || echo "Could not update, using existing version"
 fi
 
@@ -37,8 +40,8 @@ else
     echo "Synthea already built, skipping build step"
 fi
 
-# Configure Synthea for FHIR R4 output
-echo "Configuring Synthea for FHIR R4..."
+# Configure Synthea for FHIR R4 output with 5 patients
+echo "Configuring Synthea for FHIR R4 with 5 patients..."
 mkdir -p src/main/resources
 cat > src/main/resources/synthea.properties << 'EOF'
 # FHIR Configuration
@@ -54,7 +57,7 @@ exporter.practitioner.fhir.export = false
 # Output directory
 exporter.baseDirectory = ./output/
 
-# Generate configuration
+# Generate configuration for 5 patients
 generate.log_patients.detail = simple
 generate.only_alive_patients = true
 generate.default_population = 5
@@ -65,3 +68,4 @@ generate.demographics.default_state = Massachusetts
 EOF
 
 echo "Synthea setup complete!"
+echo "Next: Run ./run_synthea_local.sh to generate 5 patients"

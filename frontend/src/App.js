@@ -17,6 +17,11 @@ import FHIRExplorerEnhanced from './pages/FHIRExplorerEnhanced';
 import CDSDemo from './pages/CDSDemo';
 import CDSHooksBuilderEnhanced from './pages/CDSHooksBuilderEnhanced';
 import UnifiedCQLMeasures from './pages/UnifiedCQLMeasures';
+import EncounterList from './pages/EncounterList';
+import LabResults from './pages/LabResults';
+import Alerts from './pages/Alerts';
+import PatientNew from './pages/PatientNew';
+import EncounterSchedule from './pages/EncounterSchedule';
 
 // Clinical Components
 import ClinicalWorkspace from './components/clinical/ClinicalWorkspace';
@@ -276,6 +281,41 @@ function App() {
                         <ProtectedRoute>
                           <Layout>
                             <UnifiedCQLMeasures />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/encounters" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <EncounterList />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/encounters/schedule" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <EncounterSchedule />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/lab-results" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <LabResults />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/alerts" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Alerts />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/new" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <PatientNew />
                           </Layout>
                         </ProtectedRoute>
                       } />

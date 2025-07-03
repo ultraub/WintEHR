@@ -13,7 +13,7 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.fhir.storage import FHIRStorageEngine
-from core.fhir.validator import FHIRValidator
+from core.fhir.synthea_validator import SyntheaFHIRValidator
 from core.fhir.operations import OperationHandler
 from core.fhir.search import SearchParameterHandler
 from database import get_db_session
@@ -41,7 +41,12 @@ SUPPORTED_RESOURCES = [
     "Immunization", "AllergyIntolerance", "DocumentReference",
     "Task", "ServiceRequest", "Specimen", "Device",
     "Questionnaire", "QuestionnaireResponse", "ValueSet",
-    "CodeSystem", "ConceptMap", "StructureDefinition"
+    "CodeSystem", "ConceptMap", "StructureDefinition",
+    # Additional resources from Synthea
+    "PractitionerRole", "CareTeam", "Claim", "Coverage",
+    "ExplanationOfBenefit", "MedicationAdministration",
+    "Composition", "Media", "SupplyDelivery", "Schedule",
+    "Slot", "Communication", "CommunicationRequest"
 ]
 
 
@@ -251,7 +256,7 @@ async def create_resource(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = FHIRValidator()
+    validator = SyntheaFHIRValidator()
     
     # Get resource data
     resource_data = await request.json()
@@ -355,7 +360,7 @@ async def update_resource(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = FHIRValidator()
+    validator = SyntheaFHIRValidator()
     
     # Get resource data
     resource_data = await request.json()
@@ -582,7 +587,7 @@ async def type_operation(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = FHIRValidator()
+    validator = SyntheaFHIRValidator()
     operation_handler = OperationHandler(storage, validator)
     
     try:
@@ -618,7 +623,7 @@ async def instance_operation(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = FHIRValidator()
+    validator = SyntheaFHIRValidator()
     operation_handler = OperationHandler(storage, validator)
     
     try:
@@ -647,7 +652,7 @@ async def system_operation(
     Execute a system-level operation.
     """
     storage = FHIRStorageEngine(db)
-    validator = FHIRValidator()
+    validator = SyntheaFHIRValidator()
     operation_handler = OperationHandler(storage, validator)
     
     try:

@@ -77,8 +77,7 @@ function Dashboard() {
         promises.push(
           // Get today's encounters using FHIR
           fhirClient.search('Encounter', {
-            date: `ge${startOfDay(new Date()).toISOString()}`,
-            date: `le${endOfDay(new Date()).toISOString()}`,
+            date: [`ge${startOfDay(new Date()).toISOString()}`, `le${endOfDay(new Date()).toISOString()}`],
             _sort: '-date'
           }).then(result => {
             // Transform FHIR encounters to expected format
@@ -98,12 +97,25 @@ function Dashboard() {
             });
             return { data: transformedEncounters };
           }),
-          api.get('/api/tasks', {
-            params: {
-              assigned_to: currentUser.id,
-              status: 'pending',
-              limit: 5
-            }
+          // Get pending tasks using FHIR
+          fhirClient.search('Task', {
+            owner: `Practitioner/${currentUser.id}`,
+            status: 'requested,accepted,in-progress',
+            _sort: '-authored-on',
+            _count: 5
+          }).then(result => {
+            // Transform FHIR tasks to expected format
+            const transformedTasks = result.resources.map(task => ({
+              id: task.id,
+              title: task.description || task.code?.text || 'Task',
+              priority: task.priority || 'routine',
+              patient_id: fhirClient.extractId(task.for),
+              patient_name: task.for?.display || 'Unknown Patient',
+              due_date: task.restriction?.period?.end,
+              status: task.status,
+              type: task.code?.coding?.[0]?.code || 'review'
+            }));
+            return { data: transformedTasks };
           }),
           api.get('/api/clinical/alerts', {
             params: {
@@ -112,12 +124,30 @@ function Dashboard() {
               acknowledged: false
             }
           }),
-          api.get('/api/lab-results', {
-            params: {
-              status: 'final',
-              reviewed: false,
-              limit: 10
-            }
+          // Get recent lab results using FHIR
+          fhirClient.search('Observation', {
+            category: 'laboratory',
+            status: 'final',
+            _sort: '-date',
+            _count: 10
+          }).then(result => {
+            // Transform FHIR observations to expected format
+            const transformedLabs = result.resources.map(obs => {
+              const abnormal = obs.interpretation?.[0]?.coding?.[0]?.code !== 'N';
+              return {
+                id: obs.id,
+                test_name: obs.code?.text || obs.code?.coding?.[0]?.display || 'Lab Test',
+                patient_id: fhirClient.extractId(obs.subject),
+                patient_name: obs.subject?.display || 'Unknown Patient',
+                collection_date: obs.effectiveDateTime || obs.effectivePeriod?.start,
+                abnormal_flag: abnormal,
+                value: obs.valueQuantity ? 
+                  `${obs.valueQuantity.value} ${obs.valueQuantity.unit}` : 
+                  obs.valueString || 'N/A',
+                reviewed: false // Would need extension to track this
+              };
+            });
+            return { data: transformedLabs };
           }),
           api.get('/api/quality/measures/summary')
         );
@@ -135,6 +165,36 @@ function Dashboard() {
         setCriticalAlerts(results[5]?.data || []);
         setRecentLabResults(results[6]?.data || []);
         setQualityMetrics(results[7]?.data || null);
+        
+        // Also get patient name for today's encounters
+        if (results[3]?.data?.length > 0) {
+          const patientIds = results[3].data.map(enc => enc.patient_id).filter(Boolean);
+          const uniquePatientIds = [...new Set(patientIds)];
+          
+          // Fetch patient names
+          const patientPromises = uniquePatientIds.map(id => 
+            fhirClient.read('Patient', id).catch(() => null)
+          );
+          
+          const patients = await Promise.all(patientPromises);
+          const patientMap = {};
+          patients.forEach(patient => {
+            if (patient) {
+              const name = patient.name?.[0];
+              const displayName = name ? 
+                `${name.given?.join(' ') || ''} ${name.family || ''}`.trim() : 
+                'Unknown Patient';
+              patientMap[patient.id] = displayName;
+            }
+          });
+          
+          // Update encounters with patient names
+          const encountersWithNames = results[3].data.map(enc => ({
+            ...enc,
+            patient_name: patientMap[enc.patient_id] || 'Unknown Patient'
+          }));
+          setTodaysSchedule(encountersWithNames);
+        }
       }
       
       setError(null);
@@ -184,7 +244,7 @@ function Dashboard() {
       icon: <TaskIcon />,
       color: '#f57c00',
       subtitle: 'Requires action',
-      action: () => navigate('/clinical/workspace', { state: { tab: 'tasks' } }),
+      action: () => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks' } }),
     },
     {
       title: 'Unreviewed Labs',
@@ -341,7 +401,7 @@ function Dashboard() {
                       cursor: 'pointer',
                       '&:hover': { bgcolor: 'action.hover' }
                     }}
-                    onClick={() => navigate(`/encounters/${appointment.id}`)}
+                    onClick={() => navigate(`/patients/${appointment.patient_id}`)}
                   >
                     <ListItemAvatar>
                       <Avatar sx={{ bgcolor: appointment.status === 'completed' ? '#4caf50' : '#ff9800' }}>
@@ -394,7 +454,7 @@ function Dashboard() {
               <Button 
                 size="small" 
                 endIcon={<ArrowForwardIcon />}
-                onClick={() => navigate('/clinical/workspace', { state: { tab: 'tasks' } })}
+                onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks' } })}
               >
                 View All
               </Button>
@@ -453,7 +513,7 @@ function Dashboard() {
                 <Button 
                   size="small" 
                   endIcon={<ArrowForwardIcon />}
-                  onClick={() => navigate('/quality-measures')}
+                  onClick={() => navigate('/quality')}
                 >
                   View Details
                 </Button>
@@ -576,7 +636,7 @@ function Dashboard() {
                   variant="contained"
                   color="secondary"
                   startIcon={<EventNoteIcon />}
-                  onClick={() => navigate('/encounters/new')}
+                  onClick={() => navigate('/encounters/schedule')}
                 >
                   Schedule Appointment
                 </Button>
@@ -585,7 +645,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<LabIcon />}
-                  onClick={() => navigate('/lab-results/new')}
+                  onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'orders', orderType: 'laboratory' } })}
                 >
                   Enter Lab Results
                 </Button>
@@ -594,7 +654,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<TaskIcon />}
-                  onClick={() => navigate('/clinical/workspace', { state: { tab: 'tasks', action: 'new' } })}
+                  onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks', action: 'new' } })}
                 >
                   Create Task
                 </Button>
@@ -603,7 +663,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<AssessmentIcon />}
-                  onClick={() => navigate('/quality-measures')}
+                  onClick={() => navigate('/quality')}
                 >
                   Quality Reports
                 </Button>

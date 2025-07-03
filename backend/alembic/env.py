@@ -11,6 +11,10 @@ from pathlib import Path
 # Add parent directory to path to import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -75,6 +79,14 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Get database URL from environment
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        # Convert async URL to sync for Alembic
+        if database_url.startswith('postgresql+asyncpg://'):
+            database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
+        config.set_main_option('sqlalchemy.url', database_url)
+    
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
