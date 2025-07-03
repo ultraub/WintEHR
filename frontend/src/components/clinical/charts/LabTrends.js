@@ -30,7 +30,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import { format, parseISO, subDays } from 'date-fns';
-import api from '../../../services/api';
+import { fhirClient } from '../../../services/fhirClient';
 
 const LabTrends = ({ patientId, height = 300 }) => {
   const [allLabData, setAllLabData] = useState([]);
@@ -59,13 +59,26 @@ const LabTrends = ({ patientId, height = 300 }) => {
     setError(null);
     
     try {
-      // Fetch all lab observations for this patient within the time range
-      // Note: observation_type filter removed as field is null in current dataset
-      const response = await api.get(`/api/observations?patient_id=${patientId}&limit=100`);
+      // Fetch lab observations using FHIR
+      const result = await fhirClient.getLabResults(patientId);
+      
+      // Transform FHIR observations to expected format
+      const transformedData = result.resources.map(obs => ({
+        id: obs.id,
+        patient_id: patientId,
+        observation_date: obs.effectiveDateTime || obs.issued,
+        display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
+        loinc_code: obs.code?.coding?.find(c => c.system?.includes('loinc'))?.code || obs.code?.coding?.[0]?.code,
+        value: obs.valueQuantity?.value || obs.valueString || '',
+        value_unit: obs.valueQuantity?.unit || '',
+        unit: obs.valueQuantity?.unit || '',
+        status: obs.status,
+        reference_range: obs.referenceRange?.[0]?.text
+      }));
 
       // Filter by time range on frontend
       const cutoffDate = timeRange === 'all' ? new Date(0) : subDays(new Date(), timeRange);
-      const filteredByTime = response.data.filter(obs => {
+      const filteredByTime = transformedData.filter(obs => {
         const obsDate = parseISO(obs.observation_date);
         return obsDate >= cutoffDate;
       });
