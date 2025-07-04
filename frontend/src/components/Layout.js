@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -39,6 +39,8 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { ThemeToggleContext } from '../App';
+import { Flag as FlagIcon } from '@mui/icons-material';
 // import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
@@ -69,6 +71,7 @@ function Layout({ children }) {
   const { count: notificationCount, loading: notificationsLoading } = useNotifications();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const themeContext = useContext(ThemeToggleContext);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -209,6 +212,22 @@ function Layout({ children }) {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'EMR'}
           </Typography>
+          
+          {/* Theme Toggle */}
+          {themeContext && (
+            <IconButton
+              color="inherit"
+              onClick={themeContext.toggleTheme}
+              sx={{ mr: 2 }}
+              title={themeContext.isPatriotic ? "Switch to Original Theme" : "Switch to Patriotic Theme"}
+            >
+              {themeContext.isPatriotic ? (
+                <FlagIcon />
+              ) : (
+                <span style={{ fontSize: '1.5rem' }}>🎨</span>
+              )}
+            </IconButton>
+          )}
           
           {/* Provider Info */}
           {user && (

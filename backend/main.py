@@ -26,7 +26,7 @@ from api.websocket.websocket_router import router as websocket_router
 from api import auth
 
 # Import routers needed for CDS hooks
-from api.app import actual_patient_data
+# from api.app import actual_patient_data  # TODO: Create this module
 
 # TODO: Migrate these to use FHIR APIs
 # from api.cds_hooks import cds_hooks_router
@@ -112,8 +112,9 @@ app.include_router(imaging_studies_router, tags=["Imaging Studies"])
 
 # Legacy API compatibility layers removed - frontend now uses FHIR APIs directly
 # Legacy routers - commented out for FHIR-native implementation
-# TODO: Migrate these to use FHIR APIs
-# app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])
+# Include CDS Hooks router
+from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
+app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
 # app.include_router(app_router.router, prefix="/api", tags=["Application API"])
 # app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
 # app.include_router(cql_router, tags=["CQL Engine"])
@@ -126,7 +127,10 @@ app.include_router(imaging_studies_router, tags=["Imaging Studies"])
 # app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
 # Include auth and data routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(actual_patient_data.router, prefix="/api", tags=["Actual Patient Data"])
+
+# Include patient data API for CDS Hooks
+from api.patient_data import router as patient_data_router
+app.include_router(patient_data_router, prefix="/api", tags=["Patient Data"])
 
 # TODO: Migrate these to use FHIR APIs
 # app.include_router(allergies.router, prefix="/api", tags=["Allergies"])

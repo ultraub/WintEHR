@@ -157,12 +157,14 @@ export const ClinicalProvider = ({ children }) => {
       
       // Transform medications
       patient.medications = medicationsResult.resources.map(med => {
-        // Debug: Log the medication structure
-        console.log('Medication FHIR resource:', med);
-        
         // Extract medication name - check multiple possible locations
         let medicationName = 'Unknown';
-        if (med.medicationCodeableConcept?.text) {
+        // Check for 'medication' field (used in some FHIR versions)
+        if (med.medication?.text) {
+          medicationName = med.medication.text;
+        } else if (med.medication?.coding?.[0]?.display) {
+          medicationName = med.medication.coding[0].display;
+        } else if (med.medicationCodeableConcept?.text) {
           medicationName = med.medicationCodeableConcept.text;
         } else if (med.medicationCodeableConcept?.coding?.[0]?.display) {
           medicationName = med.medicationCodeableConcept.coding[0].display;

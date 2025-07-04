@@ -1,27 +1,23 @@
-# MedGenEMR - FHIR-Native Teaching EMR System
+# MedGenEMR - Modern FHIR-Native Electronic Medical Records System
 
-A modern, FHIR R4 compliant Electronic Medical Records (EMR) system designed for healthcare education and training. Built with a FHIR-first architecture, featuring complete FHIR API support, Clinical Decision Support (CDS) Hooks, DICOM medical imaging, and production-ready deployment.
+A comprehensive, educational EMR system built with React and FastAPI, featuring full FHIR R4 compliance, CDS Hooks integration, and modern clinical workflows.
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker and Docker Compose
-- 8GB RAM minimum
-- 10GB free disk space
+**Prerequisites:**
+- Python 3.9+
+- Node.js 16+
+- PostgreSQL 12+
 
-### Local Development
-
+**Start the entire system:**
 ```bash
-# Clone repository
-git clone https://github.com/ultraub/MedGenEMR.git
-cd MedGenEMR
-
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
+./start.sh
 ```
+
+That's it! The system will:
+- Start the backend API server on http://localhost:8000
+- Start the frontend React app on http://localhost:3000
+- Set up all dependencies automatically
 
 ### Access Points
 - **EMR Frontend**: http://localhost:3000

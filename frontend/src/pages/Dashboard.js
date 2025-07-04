@@ -78,13 +78,14 @@ function Dashboard() {
           fhirClient.search('Task', { 
             status: 'requested,accepted,in-progress',
             _summary: 'count' 
-          })
-        ]).then(([patients, encounters, tasks]) => ({
+          }),
+          fhirClient.search('Practitioner', { _summary: 'count' })
+        ]).then(([patients, encounters, tasks, practitioners]) => ({
           data: {
             total_patients: patients.total || 0,
             today_encounters: encounters.total || 0,
             pending_tasks: tasks.total || 0,
-            active_providers: 4 // Hardcoded for now
+            active_providers: practitioners.total || 0
           }
         })),
         
@@ -97,18 +98,54 @@ function Dashboard() {
           data: result.resources || []
         })),
         
-        // Encounter trends - mock data for now
-        Promise.resolve({
-          data: [
-            { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), count: 12 },
-            { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), count: 19 },
-            { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), count: 15 },
-            { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), count: 17 },
-            { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), count: 14 },
-            { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), count: 8 },
-            { date: new Date().toISOString(), count: 5 }
-          ]
-        })
+        // Encounter trends - fetch real data from last 30 days
+        (async () => {
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30);
+          
+          try {
+            // Fetch all encounters from the last 30 days
+            const result = await fhirClient.search('Encounter', {
+              date: `ge${startDate.toISOString()}`,
+              _count: 1000, // Get more encounters for trend
+              _sort: 'date'
+            });
+            
+            // Group encounters by date
+            const encountersByDate = {};
+            (result.resources || []).forEach(encounter => {
+              const date = encounter.period?.start || encounter.date;
+              if (date) {
+                const dateKey = format(new Date(date), 'yyyy-MM-dd');
+                encountersByDate[dateKey] = (encountersByDate[dateKey] || 0) + 1;
+              }
+            });
+            
+            // Create array for last 7 days with counts
+            const trendData = [];
+            for (let i = 6; i >= 0; i--) {
+              const date = new Date();
+              date.setDate(date.getDate() - i);
+              const dateKey = format(date, 'yyyy-MM-dd');
+              trendData.push({
+                date: date.toISOString(),
+                count: encountersByDate[dateKey] || 0
+              });
+            }
+            
+            return { data: trendData };
+          } catch (error) {
+            console.error('Error fetching encounter trends:', error);
+            // Return empty data on error
+            return {
+              data: Array.from({ length: 7 }, (_, i) => ({
+                date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString(),
+                count: 0
+              }))
+            };
+          }
+        })()
       ];
 
       // Add provider-specific data if logged in
@@ -156,7 +193,7 @@ function Dashboard() {
             }));
             return { data: transformedTasks };
           }),
-          api.get('/api/clinical/alerts', {
+          api.get('/api/clinical/alerts/', {
             params: {
               provider_id: currentUser.id,
               severity: 'critical',

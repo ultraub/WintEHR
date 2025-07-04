@@ -111,7 +111,7 @@ class Encounter(Base):
     payer_id = Column(String, ForeignKey("payers.id"), index=True)
     
     # FHIR R4 enhancements
-    appointment_id = Column(String, ForeignKey("appointments.id"))
+    # appointment_id = Column(String, ForeignKey("appointments.id"))  # Disabled due to duplicate table
     part_of_id = Column(String, ForeignKey("encounters.id"))  # Episode of care
     service_provider_id = Column(String, ForeignKey("organizations.id"))
     
@@ -158,7 +158,7 @@ class Encounter(Base):
     provider = relationship("Provider", back_populates="encounters", foreign_keys=[provider_id])
     organization = relationship("Organization", back_populates="encounters", foreign_keys=[organization_id])
     payer = relationship("Payer")
-    appointment = relationship("Appointment", back_populates="encounters")
+    # appointment = relationship("Appointment", back_populates="encounters")  # Disabled due to duplicate table
     service_provider = relationship("Organization", foreign_keys=[service_provider_id])
     part_of = relationship("Encounter", remote_side=[id])
 
@@ -366,64 +366,6 @@ class Specimen(Base):
     patient = relationship("Patient")
     collector = relationship("Provider")
 
-class Appointment(Base):
-    """Appointment model for scheduling"""
-    __tablename__ = "appointments"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    synthea_id = Column(String, unique=True, index=True)
-    
-    # Appointment identification
-    identifier = Column(JSON)
-    
-    # Status and classification
-    status = Column(String, nullable=False, default="proposed", index=True)
-    cancellation_reason = Column(JSON)
-    service_category = Column(JSON)
-    service_type = Column(JSON)
-    specialty = Column(JSON)
-    appointment_type = Column(JSON)
-    reason_code = Column(JSON)
-    reason_reference = Column(JSON)
-    priority = Column(Integer, default=0)
-    
-    # Scheduling
-    description = Column(Text)
-    supporting_information = Column(JSON)
-    start = Column(DateTime, index=True)
-    end = Column(DateTime)
-    minutes_duration = Column(Integer)
-    slot = Column(JSON)
-    
-    # Metadata
-    created = Column(DateTime, default=datetime.utcnow)
-    comment = Column(Text)
-    patient_instruction = Column(Text)
-    
-    # Participants (stored as JSON for flexibility)
-    participant = Column(JSON)  # Required participants with status
-    
-    # Requested period
-    requested_period = Column(JSON)
-    
-    # FHIR storage
-    fhir_json = Column(JSON)
-    fhir_meta = Column(JSON)
-    extensions = Column(JSON)
-    
-    # System fields
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Table constraints
-    __table_args__ = (
-        CheckConstraint("status IN ('proposed', 'pending', 'booked', 'arrived', 'fulfilled', 'cancelled', 'noshow', 'entered-in-error', 'checked-in', 'waitlist')", name='check_appointment_status'),
-        Index('idx_appointment_start_status', 'start', 'status'),
-        Index('idx_appointment_created', 'created'),
-    )
-    
-    # Relationships
-    encounters = relationship("Encounter", back_populates="appointment")
-
 # Enhanced existing models with FHIR storage
 class Observation(Base):
     """Enhanced Observation model with comprehensive FHIR R4 fields"""
@@ -524,15 +466,148 @@ class Observation(Base):
     device = relationship("Device")
     specimen = relationship("Specimen")
 
+
+class Provider(Base):
+    """Provider model for healthcare practitioners"""
+    __tablename__ = "providers"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Identifiers
+    npi = Column(String, unique=True, index=True)  # National Provider Identifier
+    dea = Column(String)  # DEA number for prescribing
+    state_license = Column(String)
+    
+    # Name components
+    prefix = Column(String)
+    first_name = Column(String, nullable=False, index=True)
+    middle_name = Column(String)
+    last_name = Column(String, nullable=False, index=True)
+    suffix = Column(String)
+    
+    # Contact information
+    address = Column(String)
+    city = Column(String)
+    state = Column(String)
+    zip_code = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    
+    # Professional information
+    specialty = Column(String, index=True)
+    organization_id = Column(String, ForeignKey("organizations.id"))
+    active = Column(Boolean, default=True)
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        Index('idx_provider_name', 'last_name', 'first_name'),
+        Index('idx_provider_specialty', 'specialty'),
+        Index('idx_provider_org', 'organization_id'),
+    )
+    
+    # Relationships
+    encounters = relationship("Encounter", back_populates="provider")
+    organization = relationship("Organization")
+
+
+class Organization(Base):
+    """Organization model for healthcare facilities"""
+    __tablename__ = "organizations"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Basic information
+    name = Column(String, nullable=False, index=True)
+    alias = Column(String)
+    type = Column(String, index=True)
+    active = Column(Boolean, default=True)
+    
+    # Contact information
+    address = Column(String)
+    city = Column(String)
+    state = Column(String)
+    zip_code = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    website = Column(String)
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        Index('idx_organization_name', 'name'),
+        Index('idx_organization_type', 'type'),
+    )
+    
+    # Relationships
+    providers = relationship("Provider", back_populates="organization")
+    encounters = relationship("Encounter", back_populates="organization", foreign_keys="[Encounter.organization_id]")
+
+
+class Location(Base):
+    """Location model for places where healthcare is provided"""
+    __tablename__ = "locations"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Basic information
+    name = Column(String, nullable=False, index=True)
+    alias = Column(String)
+    status = Column(String, default="active")
+    mode = Column(String)  # instance | kind
+    type = Column(JSON)  # CodeableConcept
+    
+    # Contact and address
+    address = Column(String)
+    city = Column(String)
+    state = Column(String)
+    zip_code = Column(String)
+    phone = Column(String)
+    
+    # Physical details
+    position = Column(JSON)  # Longitude/latitude
+    managing_organization_id = Column(String, ForeignKey("organizations.id"))
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        Index('idx_location_name', 'name'),
+        Index('idx_location_org', 'managing_organization_id'),
+    )
+    
+    # Relationships
+    managing_organization = relationship("Organization")
+
+
 # Add indexes to existing models
 Patient.__table_args__ = Patient.__table_args__ + (
     Index('idx_patients_managing_org', 'managing_organization_id'),
     Index('idx_patients_gp', 'general_practitioner_id'),
 )
-
-# Add FHIR storage columns to all existing models that don't have them
-for model_class in [Provider, Organization, Location, Condition, Medication, Procedure, Immunization, Allergy, CarePlan, Payer, Claim, Device, DiagnosticReport, ImagingStudy]:
-    if not hasattr(model_class, 'fhir_json'):
-        model_class.fhir_json = Column(JSON)
-        model_class.fhir_meta = Column(JSON)
-        model_class.extensions = Column(JSON)
