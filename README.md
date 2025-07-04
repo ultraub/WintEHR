@@ -40,17 +40,30 @@ That's it! The system will:
 - **Frontend Agnostic**: React frontend works with any FHIR R4 server
 
 ### Clinical Features
-- **Patient Management**: Comprehensive patient demographics and clinical data
+- **Patient Management**: Comprehensive patient demographics with insurance coverage display
 - **Clinical Workspace**: Integrated view of:
-  - Medications (FHIR MedicationRequest)
-  - Conditions (FHIR Condition)
-  - Vitals (FHIR Observation)
+  - Medications (FHIR MedicationRequest) with provider names and vital signs mapping
+  - Conditions (FHIR Condition) 
+  - Vitals (FHIR Observation) with standardized LOINC code mapping
   - Lab Results (FHIR Observation/DiagnosticReport)
-  - Allergies (FHIR AllergyIntolerance)
+  - Allergies (FHIR AllergyIntolerance) with severity-based alerts
   - Clinical Notes (FHIR DocumentReference)
+  - Insurance Coverage (FHIR Coverage) with payer organization resolution
+- **Dedicated Clinical Pages**: 
+  - Patient Medications with prescription history and status tracking
+  - Patient Allergies with reaction management and safety alerts
+  - Patient Problems (conditions) with comprehensive clinical status
 - **DICOM Viewer**: Full-featured medical imaging viewer
-- **CDS Hooks**: Clinical decision support integration
-- **Provider Management**: Multiple provider support with FHIR Practitioner resources
+- **CDS Hooks**: Clinical decision support with 12+ built-in hooks:
+  - Diabetes A1C monitoring and management alerts
+  - Hypertension staging and treatment recommendations  
+  - Kidney function alerts (eGFR monitoring)
+  - Pain management follow-up reminders
+  - Elderly care comprehensive assessments
+  - Opioid risk assessment and safety alerts
+  - Missing lab test reminders for chronic conditions
+- **Provider Management**: Centralized provider resolution with FHIR Practitioner resources
+- **Authentication System**: Session-based auth with provider selection and patient assignments
 
 ## 📁 Architecture
 
@@ -134,15 +147,42 @@ docker run -d -p 80:80 -p 8000:8000 medgenemr
 - [Testing Guide](docs/TESTING.md) - Comprehensive testing procedures
 - [Additional Docs](docs/) - DICOM, CDS Hooks, and more
 
-## 🧪 Test Data
+## 🧪 Test Data & Synthea Integration
 
-The system includes 6 test patients with comprehensive clinical data:
+### Included Test Patients
+The system includes 6 comprehensive test patients with full clinical histories:
 - John Q Test (Hypertension, Diabetes)
 - David Williams (CAD, Hyperlipidemia)
 - Linda Brown (Asthma, Anxiety)
 - Michael Brown (COPD, Osteoarthritis)
 - Patricia Brown (Hypothyroidism, Depression)
 - Mary Brown (Atrial fibrillation, Osteoporosis)
+
+### Synthea Synthetic Data Generation
+Generate unlimited realistic patient data using our consolidated Synthea workflow:
+
+```bash
+# Generate 10 patients with full clinical data
+cd backend
+python scripts/synthea_workflow.py full --count 10
+
+# Generate patients for specific location
+python scripts/synthea_workflow.py generate --count 5 --state California --city "Los Angeles"
+
+# Import existing FHIR files
+python scripts/synthea_workflow.py import --files patient*.json
+
+# Validate imported data integrity
+python scripts/synthea_workflow.py validate
+```
+
+The Synthea integration provides:
+- **Realistic Demographics**: Age-appropriate conditions and medications
+- **Complete Medical Histories**: Multi-year patient timelines
+- **Provider Networks**: Realistic healthcare provider assignments  
+- **Insurance Coverage**: Payer and coverage information
+- **Clinical Encounters**: Hospital, outpatient, and emergency visits
+- **FHIR Compliance**: All data as valid FHIR R4 resources
 
 ## 🛠️ Troubleshooting
 
