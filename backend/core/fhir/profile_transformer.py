@@ -99,9 +99,28 @@ class SyntheaProfileHandler(ProfileHandler):
         resource_type = resource.get('resourceType')
         
         if resource_type == 'Encounter':
-            # Synthea uses single class object instead of array
-            if 'class' in resource and not isinstance(resource['class'], list):
-                resource['class'] = [resource['class']]
+            # Fix field mappings for fhir.resources library
+            # 1. class -> class_fhir (array of CodeableConcept)
+            if 'class' in resource:
+                class_field = resource.pop('class')
+                if isinstance(class_field, list):
+                    # Convert each to CodeableConcept
+                    resource['class_fhir'] = [self._to_codeable_concept(c) for c in class_field]
+                else:
+                    # Convert single class to CodeableConcept array
+                    resource['class_fhir'] = [self._to_codeable_concept(class_field)]
+            
+            # 2. period -> actualPeriod 
+            if 'period' in resource:
+                resource['actualPeriod'] = resource.pop('period')
+            
+            # 3. reasonCode -> reason (simpler mapping)
+            if 'reasonCode' in resource:
+                reason_codes = resource.pop('reasonCode')
+                if not isinstance(reason_codes, list):
+                    reason_codes = [reason_codes]
+                # Map directly as reason uses CodeableConcept
+                resource['reason'] = [{'use': [r]} for r in reason_codes]
             
             # Fix participant structure: individual → actor
             if 'participant' in resource and isinstance(resource['participant'], list):
@@ -138,6 +157,19 @@ class SyntheaProfileHandler(ProfileHandler):
                                 form['data'] = base64.b64encode(form['data']).decode('utf-8')
         
         return resource
+    
+    def _to_codeable_concept(self, coding_or_concept: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a Coding or simple {code, system} to CodeableConcept."""
+        if isinstance(coding_or_concept, dict):
+            # If it already has 'coding' array, it's probably a CodeableConcept
+            if 'coding' in coding_or_concept:
+                return coding_or_concept
+            # If it has 'code' and 'system', convert to CodeableConcept  
+            elif 'code' in coding_or_concept:
+                return {
+                    'coding': [coding_or_concept]
+                }
+        return coding_or_concept
 
 
 class USCoreProfileHandler(ProfileHandler):
@@ -185,9 +217,27 @@ class USCoreProfileHandler(ProfileHandler):
                                 name['family'] = parts[-1]
         
         elif resource_type == 'Encounter':
-            # Handle Synthea-generated US Core Encounters that need class array fix
-            if 'class' in resource and not isinstance(resource['class'], list):
-                resource['class'] = [resource['class']]
+            # Fix field mappings for fhir.resources library  
+            # 1. class -> class_fhir (due to Python reserved word)
+            if 'class' in resource:
+                class_field = resource.pop('class')
+                if isinstance(class_field, list):
+                    # Take first element if it's an array
+                    resource['class_fhir'] = class_field[0] if class_field else {}
+                else:
+                    resource['class_fhir'] = class_field
+            
+            # 2. period -> actualPeriod 
+            if 'period' in resource:
+                resource['actualPeriod'] = resource.pop('period')
+            
+            # 3. reasonCode -> reason
+            if 'reasonCode' in resource:
+                reason_codes = resource.pop('reasonCode')
+                if not isinstance(reason_codes, list):
+                    reason_codes = [reason_codes]
+                # Create reason structure with concept field
+                resource['reason'] = [{'use': [{'concept': code}]} for code in reason_codes]
             
             # Fix participant structure: individual → actor (common in Synthea data)
             if 'participant' in resource and isinstance(resource['participant'], list):
@@ -239,7 +289,7 @@ class ProfileAwareFHIRTransformer:
         
         # Resource-specific array fields that need special handling
         self.resource_array_fields = {
-            'Encounter': {'class', 'type', 'participant'},
+            'Encounter': {'type', 'participant'},  # Note: 'class' is NOT an array in R4
             'Device': {'type'},
             'Patient': {'identifier', 'name', 'telecom', 'address', 'contact', 'communication', 'generalPractitioner', 'link'},
             'Condition': {'category', 'bodySite'},
@@ -349,10 +399,6 @@ class ProfileAwareFHIRTransformer:
         
         # Fix Encounter structure
         elif resource_type == 'Encounter':
-            # Ensure class is array
-            if 'class' in resource and not isinstance(resource['class'], list):
-                resource['class'] = [resource['class']]
-                
             # Fix participant structure: individual → actor
             if 'participant' in resource:
                 for participant in resource.get('participant', []):
