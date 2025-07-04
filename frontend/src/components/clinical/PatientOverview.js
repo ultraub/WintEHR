@@ -611,7 +611,7 @@ const PatientOverview = () => {
                       <ListItemText
                         primary={
                           <>
-                            <span style={{ marginRight: '8px' }}>{problem.description}</span>
+                            <span style={{ marginRight: '8px' }}>{problem.description || problem.display || 'Unknown condition'}</span>
                             {problem.snomed_code && (
                               <Chip 
                                 label={`SNOMED: ${problem.snomed_code}`} 
