@@ -139,7 +139,7 @@ function PatientList() {
       const result = await fhirClient.searchPatients(searchParams);
       
       // Transform FHIR patients to expected format
-      const transformedPatients = result.resources.map(fhirPatient => {
+      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
         const name = fhirPatient.name?.[0] || {};
         const telecom = fhirPatient.telecom || [];
         const phone = telecom.find(t => t.system === 'phone')?.value;
@@ -147,6 +147,32 @@ function PatientList() {
           id.type?.coding?.[0]?.code === 'MR' || 
           id.system?.includes('mrn')
         )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        // Fetch insurance/coverage information
+        let insuranceName = '';
+        try {
+          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
+          if (coverageResult.resources && coverageResult.resources.length > 0) {
+            const coverage = coverageResult.resources[0];
+            // Extract payer name from coverage
+            if (coverage.payor && coverage.payor.length > 0) {
+              const payorRef = coverage.payor[0].reference;
+              if (payorRef) {
+                const payorId = payorRef.split('/').pop();
+                try {
+                  const payorResult = await fhirClient.read('Organization', payorId);
+                  insuranceName = payorResult.name || '';
+                } catch (e) {
+                  // If organization fetch fails, try to get name from display
+                  insuranceName = coverage.payor[0].display || '';
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Coverage fetch failed, insurance will remain empty
+          console.debug('No coverage found for patient:', fhirPatient.id);
+        }
         
         return {
           id: fhirPatient.id,
@@ -156,9 +182,9 @@ function PatientList() {
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
-          insurance_name: '' // Would need to fetch Coverage resources for insurance
+          insurance_name: insuranceName
         };
-      });
+      }));
       
       setPatients(transformedPatients);
       setMyPatientsCount(transformedPatients.length);
@@ -187,7 +213,7 @@ function PatientList() {
       const result = await fhirClient.searchPatients(searchParams);
       
       // Transform FHIR patients to expected format
-      const transformedPatients = result.resources.map(fhirPatient => {
+      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
         const name = fhirPatient.name?.[0] || {};
         const telecom = fhirPatient.telecom || [];
         const phone = telecom.find(t => t.system === 'phone')?.value;
@@ -195,6 +221,32 @@ function PatientList() {
           id.type?.coding?.[0]?.code === 'MR' || 
           id.system?.includes('mrn')
         )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        // Fetch insurance/coverage information
+        let insuranceName = '';
+        try {
+          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
+          if (coverageResult.resources && coverageResult.resources.length > 0) {
+            const coverage = coverageResult.resources[0];
+            // Extract payer name from coverage
+            if (coverage.payor && coverage.payor.length > 0) {
+              const payorRef = coverage.payor[0].reference;
+              if (payorRef) {
+                const payorId = payorRef.split('/').pop();
+                try {
+                  const payorResult = await fhirClient.read('Organization', payorId);
+                  insuranceName = payorResult.name || '';
+                } catch (e) {
+                  // If organization fetch fails, try to get name from display
+                  insuranceName = coverage.payor[0].display || '';
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Coverage fetch failed, insurance will remain empty
+          console.debug('No coverage found for patient:', fhirPatient.id);
+        }
         
         return {
           id: fhirPatient.id,
@@ -204,9 +256,9 @@ function PatientList() {
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
-          insurance_name: '' // Would need to fetch Coverage resources for insurance
+          insurance_name: insuranceName
         };
-      });
+      }));
       
       setAllPatients(transformedPatients);
       setError(null);

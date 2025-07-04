@@ -606,6 +606,112 @@ class Location(Base):
     managing_organization = relationship("Organization")
 
 
+class Payer(Base):
+    """Payer model for insurance companies and coverage providers"""
+    __tablename__ = "payers"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Basic information
+    name = Column(String, nullable=False, index=True)
+    type = Column(String, index=True)  # government, commercial, etc.
+    active = Column(Boolean, default=True)
+    
+    # Contact information
+    address = Column(String)
+    city = Column(String)
+    state = Column(String)
+    zip_code = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    website = Column(String)
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        Index('idx_payer_name', 'name'),
+        Index('idx_payer_type', 'type'),
+    )
+
+
+class Coverage(Base):
+    """Coverage model for insurance coverage information"""
+    __tablename__ = "coverage"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Foreign keys
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False, index=True)
+    payer_id = Column(String, ForeignKey("payers.id"), index=True)
+    
+    # Coverage details
+    identifier = Column(JSON)  # Coverage identifiers
+    status = Column(String, default="active", index=True)
+    type = Column(JSON)  # Type of coverage
+    policy_holder_id = Column(String, ForeignKey("patients.id"))
+    subscriber_id = Column(String, ForeignKey("patients.id"))
+    beneficiary_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    dependent = Column(String)  # Dependent number
+    
+    # Coverage period
+    period_start = Column(Date)
+    period_end = Column(Date)
+    
+    # Network
+    network = Column(String)
+    
+    # Order of coverage
+    order = Column(Integer, default=1)
+    
+    # Class information (e.g., group, plan, subgroup)
+    class_info = Column(JSON)
+    
+    # Cost information
+    cost_to_beneficiary = Column(JSON)
+    
+    # Payor information
+    payor = Column(JSON)  # References to Organization or Patient
+    
+    # Contract and subrogation
+    contract = Column(JSON)  # References to Contract
+    subrogation = Column(Boolean, default=False)
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'cancelled', 'draft', 'entered-in-error')", name='check_coverage_status'),
+        Index('idx_coverage_patient', 'patient_id'),
+        Index('idx_coverage_payer', 'payer_id'),
+        Index('idx_coverage_status', 'status'),
+        Index('idx_coverage_period', 'period_start', 'period_end'),
+    )
+    
+    # Relationships
+    patient = relationship("Patient")
+    payer = relationship("Payer")
+    policy_holder = relationship("Patient", foreign_keys=[policy_holder_id])
+    subscriber = relationship("Patient", foreign_keys=[subscriber_id])
+    beneficiary = relationship("Patient", foreign_keys=[beneficiary_id])
+
+
 # Add indexes to existing models
 Patient.__table_args__ = Patient.__table_args__ + (
     Index('idx_patients_managing_org', 'managing_organization_id'),

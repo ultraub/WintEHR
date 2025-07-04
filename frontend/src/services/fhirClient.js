@@ -305,6 +305,43 @@ class FHIRClient {
       patient: patientId
     });
   }
+
+  /**
+   * Coverage-specific convenience methods
+   */
+  async getCoverage(patientId) {
+    return this.search('Coverage', {
+      beneficiary: patientId
+    });
+  }
+
+  async getCoverageById(id) {
+    return this.read('Coverage', id);
+  }
+
+  async getActiveCoverage(patientId) {
+    return this.search('Coverage', {
+      beneficiary: patientId,
+      status: 'active'
+    });
+  }
+
+  async createCoverage(coverage) {
+    return this.create('Coverage', coverage);
+  }
+
+  async updateCoverage(id, coverage) {
+    return this.update('Coverage', id, coverage);
+  }
+
+  /**
+   * Organization-specific convenience methods for payers
+   */
+  async getPayers() {
+    return this.search('Organization', {
+      type: 'payer'
+    });
+  }
 }
 
 // Export singleton instance for common use
