@@ -164,7 +164,7 @@ export const WebSocketProvider = ({ children }) => {
     return () => {
       disconnect();
     };
-  }, [user, connect, disconnect]);
+  }, [user]); // Only depend on user, not on connect/disconnect
 
   // Cleanup on unmount
   useEffect(() => {

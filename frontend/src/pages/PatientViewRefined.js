@@ -453,7 +453,7 @@ function PatientViewRefined() {
                 {conditions.slice(0, 3).map((condition) => (
                   <Chip
                     key={condition.id}
-                    label={condition.description}
+                    label={condition.display || condition.description || 'Unknown condition'}
                     size="small"
                     sx={{ mr: 0.5, mb: 0.5 }}
                   />

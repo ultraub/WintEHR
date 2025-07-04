@@ -66,10 +66,47 @@ function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      // Use FHIR endpoints to gather dashboard data
       const promises = [
-        api.get('/api/dashboard/stats'),
-        api.get('/api/dashboard/recent-activity'),
-        api.get('/api/dashboard/encounter-trends'),
+        // Dashboard stats - count resources
+        Promise.all([
+          fhirClient.search('Patient', { _summary: 'count' }),
+          fhirClient.search('Encounter', { 
+            date: `ge${startOfDay(new Date()).toISOString()}`,
+            _summary: 'count' 
+          }),
+          fhirClient.search('Task', { 
+            status: 'requested,accepted,in-progress',
+            _summary: 'count' 
+          })
+        ]).then(([patients, encounters, tasks]) => ({
+          data: {
+            total_patients: patients.total || 0,
+            today_encounters: encounters.total || 0,
+            pending_tasks: tasks.total || 0,
+            active_providers: 4 // Hardcoded for now
+          }
+        })),
+        
+        // Recent activity - get recent encounters
+        fhirClient.search('Encounter', {
+          _sort: '-date',
+          _count: 10,
+          _include: 'Encounter:patient'
+        }).then(result => ({
+          data: result.resources || []
+        })),
+        
+        // Encounter trends - mock data for now
+        Promise.resolve({
+          data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{
+              label: 'Encounters',
+              data: [12, 19, 15, 17, 14, 8, 5]
+            }]
+          }
+        })
       ];
 
       // Add provider-specific data if logged in

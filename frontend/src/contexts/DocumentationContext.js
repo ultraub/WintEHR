@@ -50,14 +50,26 @@ export const DocumentationProvider = ({ children }) => {
       }
     }
 
-    // Extract note type from type coding
-    const noteType = fhirDoc.type?.coding?.[0]?.code || 'progress';
+    // Extract note type from type coding and map LOINC code back to type
+    const loinc = fhirDoc.type?.coding?.[0]?.code;
+    const codeToType = {
+      '11506-3': 'progress',
+      '34117-2': 'history_physical',
+      '11488-4': 'consultation',
+      '18842-5': 'discharge',
+      '11504-8': 'operative',
+      '28570-0': 'procedure',
+      '51845-6': 'emergency',
+      '34133-9': 'summary'
+    };
+    const noteType = codeToType[loinc] || 'progress';
 
     return {
       id: fhirDoc.id,
       patientId: fhirDoc.subject?.reference?.split('/')[1],
       encounterId: fhirDoc.context?.encounter?.[0]?.reference?.split('/')[1],
       noteType,
+      title: getNoteTypeDisplay(noteType),
       templateId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/template-id')?.valueString,
       status: fhirDoc.status,
       authorId: fhirDoc.author?.[0]?.reference?.split('/')[1],
