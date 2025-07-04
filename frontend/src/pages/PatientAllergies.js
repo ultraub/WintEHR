@@ -39,7 +39,7 @@ import {
   ArrowBack as ArrowBackIcon,
   LocalHospital as MedicalIcon,
   Restaurant as FoodIcon,
-  Eco as EnvironmentalIcon,
+  Nature as EnvironmentalIcon,
   Block as NoAllergiesIcon,
   HighlightOff as RemoveIcon
 } from '@mui/icons-material';
