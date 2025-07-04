@@ -99,48 +99,117 @@ class SyntheaProfileHandler(ProfileHandler):
         resource_type = resource.get('resourceType')
         
         if resource_type == 'Encounter':
-            # Fix field mappings for fhir.resources library
-            # 1. class -> class_fhir (array of CodeableConcept)
+            # Fix Encounter fields for proper JSON/FHIR validation
+            # 1. class field - convert to array of CodeableConcept
             if 'class' in resource:
-                class_field = resource.pop('class')
+                class_field = resource['class']
                 if isinstance(class_field, list):
-                    # Convert each to CodeableConcept
-                    resource['class_fhir'] = [self._to_codeable_concept(c) for c in class_field]
+                    resource['class'] = [self._to_codeable_concept(c) for c in class_field]
                 else:
-                    # Convert single class to CodeableConcept array
-                    resource['class_fhir'] = [self._to_codeable_concept(class_field)]
+                    resource['class'] = [self._to_codeable_concept(class_field)]
             
-            # 2. period -> actualPeriod 
+            # 2. period -> actualPeriod (R4 field name change)
             if 'period' in resource:
                 resource['actualPeriod'] = resource.pop('period')
             
-            # 3. reasonCode -> reason (simpler mapping)
+            # 3. reasonCode -> reason (with proper EncounterReason structure)
             if 'reasonCode' in resource:
                 reason_codes = resource.pop('reasonCode')
                 if not isinstance(reason_codes, list):
                     reason_codes = [reason_codes]
-                # Map directly as reason uses CodeableConcept
-                resource['reason'] = [{'use': [r]} for r in reason_codes]
+                # Create proper EncounterReason structure with 'use' field
+                resource['reason'] = []
+                for reason_code in reason_codes:
+                    resource['reason'].append({
+                        'use': [self._to_codeable_concept(reason_code)]
+                    })
             
-            # Fix participant structure: individual → actor
+            # 4. Fix participant structure: individual → actor
             if 'participant' in resource and isinstance(resource['participant'], list):
                 for participant in resource['participant']:
                     if isinstance(participant, dict) and 'individual' in participant:
                         participant['actor'] = participant.pop('individual')
         
         elif resource_type == 'Procedure':
-            # Synthea uses performedPeriod which needs to be performed
+            # Fix performedPeriod -> performed (polymorphic field)
             if 'performedPeriod' in resource and 'performed' not in resource:
                 resource['performed'] = resource.pop('performedPeriod')
             elif 'performedDateTime' in resource and 'performed' not in resource:
                 resource['performed'] = resource.pop('performedDateTime')
+            
+            # Fix reasonCode -> reasonCode (ensure array)
+            if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
+                resource['reasonCode'] = [resource['reasonCode']]
         
         elif resource_type == 'Device':
-            # Fix type to be array
+            # Fix type to be array of CodeableConcept
             if 'type' in resource and not isinstance(resource['type'], list):
-                resource['type'] = [resource['type']]
+                resource['type'] = [self._to_codeable_concept(resource['type'])]
+            elif 'type' in resource:
+                resource['type'] = [self._to_codeable_concept(t) for t in resource['type']]
+            
             # Remove deprecated fields
             resource.pop('distinctIdentifier', None)
+            
+            # Fix deviceName structure
+            if 'deviceName' in resource:
+                device_names = resource.pop('deviceName')
+                if isinstance(device_names, str):
+                    resource['deviceName'] = [{'name': device_names, 'type': 'user-friendly-name'}]
+                elif isinstance(device_names, dict):
+                    resource['deviceName'] = [device_names]
+                elif isinstance(device_names, list):
+                    resource['deviceName'] = device_names
+            
+            # Fix UDI carrier issues
+            if 'udiCarrier' in resource and isinstance(resource['udiCarrier'], list):
+                for carrier in resource['udiCarrier']:
+                    if isinstance(carrier, dict) and 'deviceIdentifier' in carrier and 'issuer' not in carrier:
+                        carrier['issuer'] = 'Unknown'  # Required field
+        
+        elif resource_type == 'MedicationRequest':
+            # Fix medication field (polymorphic)
+            if 'medicationReference' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationReference')
+            elif 'medicationCodeableConcept' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationCodeableConcept')
+                
+            # Fix reasonCode -> reasonCode (ensure array)
+            if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
+                resource['reasonCode'] = [resource['reasonCode']]
+        
+        elif resource_type == 'MedicationAdministration':
+            # Fix occurrence field naming (common typo)
+            if 'occurenceDateTime' in resource:
+                resource['occurenceDateTime'] = resource.pop('occurenceDateTime')
+            elif 'occurencePeriod' in resource:
+                resource['occurencePeriod'] = resource.pop('occurencePeriod')
+        
+        elif resource_type == 'DocumentReference':
+            # Fix context to be array
+            if 'context' in resource and not isinstance(resource['context'], list):
+                resource['context'] = [resource['context']]
+            
+            # Fix content.format structure
+            if 'content' in resource and isinstance(resource['content'], list):
+                for content in resource['content']:
+                    if isinstance(content, dict):
+                        # Move format to attachment if present
+                        if 'format' in content:
+                            if 'attachment' not in content:
+                                content['attachment'] = {}
+                            # Remove format from content level
+                            content.pop('format', None)
+        
+        elif resource_type == 'SupplyDelivery':
+            # Fix suppliedItem to be array
+            if 'suppliedItem' in resource and not isinstance(resource['suppliedItem'], list):
+                resource['suppliedItem'] = [resource['suppliedItem']]
+            
+            # Ensure each suppliedItem has proper structure
+            for item in resource.get('suppliedItem', []):
+                if isinstance(item, dict) and 'quantity' not in item and 'itemCodeableConcept' in item:
+                    item['quantity'] = {'value': 1}
         
         elif resource_type == 'DiagnosticReport':
             # Handle base64 data in presentedForm
@@ -155,6 +224,23 @@ class SyntheaProfileHandler(ProfileHandler):
                                 # If can't decode, convert to base64
                                 import base64
                                 form['data'] = base64.b64encode(form['data']).decode('utf-8')
+        
+        elif resource_type == 'ExplanationOfBenefit':
+            # Fix contained resources
+            if 'contained' in resource and isinstance(resource['contained'], list):
+                fixed_contained = []
+                for contained in resource['contained']:
+                    if isinstance(contained, dict):
+                        # Ensure resourceType is set
+                        if 'resourceType' not in contained:
+                            if 'kind' in contained:
+                                contained['resourceType'] = contained.pop('kind')
+                            elif 'name' in contained and 'telecom' in contained:
+                                contained['resourceType'] = 'Organization'
+                            elif 'name' in contained:
+                                contained['resourceType'] = 'Practitioner'
+                        fixed_contained.append(contained)
+                resource['contained'] = fixed_contained
         
         return resource
     
@@ -217,35 +303,64 @@ class USCoreProfileHandler(ProfileHandler):
                                 name['family'] = parts[-1]
         
         elif resource_type == 'Encounter':
-            # Fix field mappings for fhir.resources library  
-            # 1. class -> class_fhir (due to Python reserved word)
+            # Apply the same comprehensive fixes as SyntheaProfileHandler
             if 'class' in resource:
-                class_field = resource.pop('class')
+                class_field = resource['class']
                 if isinstance(class_field, list):
-                    # Take first element if it's an array
-                    resource['class_fhir'] = class_field[0] if class_field else {}
+                    resource['class'] = [self._to_codeable_concept(c) for c in class_field]
                 else:
-                    resource['class_fhir'] = class_field
+                    resource['class'] = [self._to_codeable_concept(class_field)]
             
-            # 2. period -> actualPeriod 
             if 'period' in resource:
                 resource['actualPeriod'] = resource.pop('period')
             
-            # 3. reasonCode -> reason
             if 'reasonCode' in resource:
                 reason_codes = resource.pop('reasonCode')
                 if not isinstance(reason_codes, list):
                     reason_codes = [reason_codes]
-                # Create reason structure with concept field
-                resource['reason'] = [{'use': [{'concept': code}]} for code in reason_codes]
+                resource['reason'] = []
+                for reason_code in reason_codes:
+                    resource['reason'].append({
+                        'use': [self._to_codeable_concept(reason_code)]
+                    })
             
-            # Fix participant structure: individual → actor (common in Synthea data)
             if 'participant' in resource and isinstance(resource['participant'], list):
                 for participant in resource['participant']:
                     if isinstance(participant, dict) and 'individual' in participant:
                         participant['actor'] = participant.pop('individual')
         
+        elif resource_type == 'Procedure':
+            # Apply same fixes as SyntheaProfileHandler
+            if 'performedPeriod' in resource and 'performed' not in resource:
+                resource['performed'] = resource.pop('performedPeriod')
+            elif 'performedDateTime' in resource and 'performed' not in resource:
+                resource['performed'] = resource.pop('performedDateTime')
+            if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
+                resource['reasonCode'] = [resource['reasonCode']]
+        
+        elif resource_type == 'MedicationRequest':
+            # Apply same fixes as SyntheaProfileHandler
+            if 'medicationReference' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationReference')
+            elif 'medicationCodeableConcept' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationCodeableConcept')
+            if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
+                resource['reasonCode'] = [resource['reasonCode']]
+        
         return resource
+    
+    def _to_codeable_concept(self, coding_or_concept: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a Coding or simple {code, system} to CodeableConcept."""
+        if isinstance(coding_or_concept, dict):
+            # If it already has 'coding' array, it's probably a CodeableConcept
+            if 'coding' in coding_or_concept:
+                return coding_or_concept
+            # If it has 'code' and 'system', convert to CodeableConcept  
+            elif 'code' in coding_or_concept:
+                return {
+                    'coding': [coding_or_concept]
+                }
+        return coding_or_concept
 
 
 class ProfileAwareFHIRTransformer:
