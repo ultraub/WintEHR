@@ -157,32 +157,75 @@ export const ClinicalProvider = ({ children }) => {
       
       // Transform medications
       patient.medications = medicationsResult.resources.map(med => {
+        // Debug: Log the medication structure
+        console.log('Medication FHIR resource:', med);
+        
+        // Extract medication name - check multiple possible locations
+        let medicationName = 'Unknown';
+        if (med.medicationCodeableConcept?.text) {
+          medicationName = med.medicationCodeableConcept.text;
+        } else if (med.medicationCodeableConcept?.coding?.[0]?.display) {
+          medicationName = med.medicationCodeableConcept.coding[0].display;
+        } else if (med.medicationReference?.display) {
+          // Handle medicationReference if used
+          medicationName = med.medicationReference.display;
+        } else if (med.contained?.[0]?.code?.text) {
+          // Sometimes medication details are in contained resources
+          medicationName = med.contained[0].code.text;
+        } else if (med.contained?.[0]?.code?.coding?.[0]?.display) {
+          medicationName = med.contained[0].code.coding[0].display;
+        }
+        
         // Extract dosage information
         let dosage = '';
         if (med.dosageInstruction?.[0]?.text) {
+          // Use the text if available (more human-readable)
           dosage = med.dosageInstruction[0].text;
         } else if (med.dosageInstruction?.[0]?.doseAndRate?.[0]?.doseQuantity) {
           const dose = med.dosageInstruction[0].doseAndRate[0].doseQuantity;
           dosage = `${dose.value} ${dose.unit || ''}`.trim();
+        } else if (med.dosageInstruction?.[0]?.doseAndRate?.[0]?.doseRange) {
+          // Handle dose ranges
+          const range = med.dosageInstruction[0].doseAndRate[0].doseRange;
+          dosage = `${range.low?.value || ''}-${range.high?.value || ''} ${range.low?.unit || ''}`.trim();
         }
         
         // Extract frequency information
         let frequency = '';
-        if (med.dosageInstruction?.[0]?.timing?.repeat) {
+        if (med.dosageInstruction?.[0]?.timing?.code?.text) {
+          // Use timing code text if available
+          frequency = med.dosageInstruction[0].timing.code.text;
+        } else if (med.dosageInstruction?.[0]?.timing?.repeat) {
           const repeat = med.dosageInstruction[0].timing.repeat;
           if (repeat.frequency && repeat.period && repeat.periodUnit) {
-            frequency = `${repeat.frequency} times per ${repeat.periodUnit}`;
+            const periodUnit = repeat.periodUnit === 'd' ? 'day' : repeat.periodUnit;
+            frequency = `${repeat.frequency} times per ${periodUnit}`;
+          } else if (repeat.period && repeat.periodUnit) {
+            // Sometimes frequency is implied as once per period
+            const periodUnit = repeat.periodUnit === 'd' ? 'day' : repeat.periodUnit;
+            frequency = `Once per ${periodUnit}`;
+          }
+        }
+        
+        // If we still have default values, combine dosage instruction text
+        if ((medicationName === 'Unknown' || !dosage) && med.dosageInstruction?.[0]?.text) {
+          const instructionText = med.dosageInstruction[0].text;
+          // Try to parse medication name from instruction text if needed
+          if (medicationName === 'Unknown' && instructionText) {
+            // Common pattern: "Drug name X mg ..."
+            const match = instructionText.match(/^([^\d]+)/);
+            if (match) {
+              medicationName = match[1].trim();
+            }
           }
         }
         
         return {
           id: med.id,
-          medication_name: med.medicationCodeableConcept?.text || 
-                     med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
-          medication: med.medicationCodeableConcept?.text || 
-                     med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
-          dosage: dosage,
-          frequency: frequency,
+          medication_name: medicationName,
+          medication: medicationName,
+          dosage: dosage || 'See instructions',
+          frequency: frequency || 'As directed',
           status: med.status,
           source: 'prescribed',
           authoredOn: med.authoredOn

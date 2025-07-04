@@ -33,20 +33,30 @@ export const DocumentationProvider = ({ children }) => {
     
     // Parse content sections
     const sections = {};
+    let isSOAPFormat = false;
+    
     if (content) {
       try {
         const parsed = JSON.parse(content);
-        sections.subjective = parsed.subjective || '';
-        sections.objective = parsed.objective || '';
-        sections.assessment = parsed.assessment || '';
-        sections.plan = parsed.plan || '';
-        sections.chiefComplaint = parsed.chiefComplaint || '';
-        sections.historyPresentIllness = parsed.historyPresentIllness || '';
-        sections.reviewOfSystems = parsed.reviewOfSystems || '';
-        sections.physicalExam = parsed.physicalExam || '';
+        // Check if it has SOAP structure
+        if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan ||
+            parsed.chiefComplaint || parsed.historyPresentIllness || parsed.reviewOfSystems || parsed.physicalExam) {
+          isSOAPFormat = true;
+          sections.subjective = parsed.subjective || '';
+          sections.objective = parsed.objective || '';
+          sections.assessment = parsed.assessment || '';
+          sections.plan = parsed.plan || '';
+          sections.chiefComplaint = parsed.chiefComplaint || '';
+          sections.historyPresentIllness = parsed.historyPresentIllness || '';
+          sections.reviewOfSystems = parsed.reviewOfSystems || '';
+          sections.physicalExam = parsed.physicalExam || '';
+        } else {
+          // JSON but not SOAP structure
+          sections.content = JSON.stringify(parsed, null, 2);
+        }
       } catch (e) {
-        // If not JSON, treat as plain text in assessment
-        sections.assessment = content;
+        // If not JSON, treat as plain text
+        sections.content = content;
       }
     }
 
@@ -77,6 +87,7 @@ export const DocumentationProvider = ({ children }) => {
       signedAt: fhirDoc.status === 'current' ? fhirDoc.date : null,
       requiresCosignature: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/requires-cosignature')?.valueBoolean,
       cosignerId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/cosigner')?.valueReference?.reference?.split('/')[1],
+      isSOAPFormat,
       ...sections
     };
   };

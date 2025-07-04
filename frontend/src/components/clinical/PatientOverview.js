@@ -96,14 +96,16 @@ const PatientOverview = () => {
             const code = observation.code?.coding?.[0]?.code;
             const display = observation.code?.text || observation.code?.coding?.[0]?.display || '';
             const effectiveDate = observation.effectiveDateTime || observation.issued;
+            const value = observation.valueQuantity?.value;
+            const unit = observation.valueQuantity?.unit;
             
-            // Map LOINC codes to vital types
+            // Map LOINC codes or display names to vital types
             let type = null;
-            let value = null;
+            let vitalValue = null;
             
             // Extract value based on observation type
             if (observation.valueQuantity) {
-              value = observation.valueQuantity.value;
+              vitalValue = observation.valueQuantity.value;
             } else if (observation.component) {
               // Handle blood pressure with components
               if (code === '85354-9' || display.includes('Blood pressure')) {
@@ -115,13 +117,14 @@ const PatientOverview = () => {
                 )?.valueQuantity?.value;
                 if (systolic && diastolic) {
                   type = 'bloodPressure';
-                  value = `${systolic}/${diastolic}`;
+                  vitalValue = `${systolic}/${diastolic}`;
                 }
               }
             }
             
             // Map other vital signs
-            if (!type && value) {
+            if (!type && vitalValue) {
+              // Try LOINC codes first
               switch(code) {
                 case '8867-4': // Heart rate
                   type = 'heartRate';
@@ -134,12 +137,27 @@ const PatientOverview = () => {
                   type = 'oxygenSaturation';
                   break;
               }
+              
+              // Fall back to display name matching
+              if (!type) {
+                const lowerDisplay = display.toLowerCase();
+                if (lowerDisplay.includes('heart rate') || lowerDisplay.includes('pulse')) {
+                  type = 'heartRate';
+                } else if (lowerDisplay.includes('temperature')) {
+                  type = 'temperature';
+                } else if (lowerDisplay.includes('oxygen') || lowerDisplay.includes('spo2')) {
+                  type = 'oxygenSaturation';
+                } else if (lowerDisplay.includes('blood pressure')) {
+                  type = 'bloodPressure';
+                  vitalValue = value; // Use the raw value if not parsed as components
+                }
+              }
             }
             
             // Store most recent value for each type
-            if (type && value && (!vitalsMap[type] || new Date(effectiveDate) > new Date(vitalsMap[type].date))) {
+            if (type && vitalValue && (!vitalsMap[type] || new Date(effectiveDate) > new Date(vitalsMap[type].date))) {
               vitalsMap[type] = {
-                value: value,
+                value: vitalValue,
                 date: effectiveDate,
                 unit: observation.valueQuantity?.unit
               };

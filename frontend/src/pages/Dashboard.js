@@ -99,13 +99,15 @@ function Dashboard() {
         
         // Encounter trends - mock data for now
         Promise.resolve({
-          data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            datasets: [{
-              label: 'Encounters',
-              data: [12, 19, 15, 17, 14, 8, 5]
-            }]
-          }
+          data: [
+            { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), count: 12 },
+            { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), count: 19 },
+            { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), count: 15 },
+            { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), count: 17 },
+            { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), count: 14 },
+            { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), count: 8 },
+            { date: new Date().toISOString(), count: 5 }
+          ]
         })
       ];
 

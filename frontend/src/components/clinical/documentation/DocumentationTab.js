@@ -72,6 +72,8 @@ const DocumentationTab = () => {
   const [showAddendumDialog, setShowAddendumDialog] = useState(false);
   const [addendumContent, setAddendumContent] = useState('');
   const [addendumNoteId, setAddendumNoteId] = useState(null);
+  const [showNonSOAPNoteDialog, setShowNonSOAPNoteDialog] = useState(false);
+  const [nonSOAPNote, setNonSOAPNote] = useState(null);
 
   // Load encounter notes
   const loadEncounterNotes = async () => {
@@ -122,7 +124,7 @@ const DocumentationTab = () => {
     setSelectedNoteId(null);
   };
 
-  const handleSelectNote = (noteId) => {
+  const handleSelectNote = async (noteId) => {
     // Check if it's an encounter note
     if (noteId.startsWith('encounter-')) {
       const encounterNote = encounterNotes.find(n => n.id === noteId);
@@ -131,8 +133,17 @@ const DocumentationTab = () => {
         setShowEncounterNoteDialog(true);
       }
     } else {
-      setSelectedNoteId(noteId);
-      loadNote(noteId);
+      // First check if this is a non-SOAP note
+      const note = recentNotes.find(n => n.id === noteId);
+      if (note && note.isSOAPFormat === false) {
+        // Show in popup for non-SOAP notes
+        setNonSOAPNote(note);
+        setShowNonSOAPNoteDialog(true);
+      } else {
+        // Load in SOAP editor for SOAP notes
+        setSelectedNoteId(noteId);
+        loadNote(noteId);
+      }
     }
   };
 
@@ -404,7 +415,7 @@ const DocumentationTab = () => {
                           primary={
                             <Box display="flex" alignItems="center" gap={1}>
                               <Typography variant="body2">
-                                {getNoteTypeLabel(note.noteType)}
+                                {note.title || getNoteTypeLabel(note.noteType)}
                               </Typography>
                               {note.type === 'encounter' && (
                                 <Chip label="Encounter" size="small" color="info" />
@@ -417,7 +428,7 @@ const DocumentationTab = () => {
                           secondary={
                             <Box>
                               <Typography variant="caption" display="block">
-                                {format(new Date(note.createdAt), 'MM/dd/yyyy h:mm a')}
+                                {getNoteTypeLabel(note.noteType)} • {format(new Date(note.createdAt), 'MM/dd/yyyy h:mm a')}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 By: {note.authorName || note.authorId || 'Provider'}
@@ -678,6 +689,70 @@ const DocumentationTab = () => {
             disabled={!addendumContent.trim()}
           >
             Save Addendum
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Non-SOAP Note View Dialog */}
+      <Dialog
+        open={showNonSOAPNoteDialog}
+        onClose={() => setShowNonSOAPNoteDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              {nonSOAPNote?.title || 'Clinical Note'}
+            </Typography>
+            <Box>
+              <Chip label="Imported" size="small" color="info" sx={{ mr: 1 }} />
+              {nonSOAPNote?.status === 'current' && (
+                <Chip label="Signed" size="small" color="success" />
+              )}
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {nonSOAPNote && (
+            <Box sx={{ pt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Date: {format(new Date(nonSOAPNote.createdAt), 'MM/dd/yyyy h:mm a')}
+              </Typography>
+              {nonSOAPNote.authorName && (
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Author: {nonSOAPNote.authorName}
+                </Typography>
+              )}
+              <Divider sx={{ my: 2 }} />
+              <Paper sx={{ p: 3, backgroundColor: 'grey.50' }}>
+                <Typography
+                  variant="body1"
+                  component="pre"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: 'monospace',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.6
+                  }}
+                >
+                  {nonSOAPNote.content || 'No content available'}
+                </Typography>
+              </Paper>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setShowNonSOAPNoteDialog(false);
+              handleAddendum();
+            }}
+          >
+            Convert to SOAP Note
+          </Button>
+          <Button onClick={() => setShowNonSOAPNoteDialog(false)}>
+            Close
           </Button>
         </DialogActions>
       </Dialog>
