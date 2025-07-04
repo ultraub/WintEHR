@@ -47,24 +47,47 @@ class SyntheaProfileHandler(ProfileHandler):
     
     def can_handle(self, resource: Dict[str, Any]) -> bool:
         """Check if this is Synthea data."""
-        # Synthea often has specific patterns
-        meta = resource.get('meta', {})
-        profile = meta.get('profile', [])
+        # Check for Synthea-specific markers in various places
         
-        # Check for Synthea-specific markers
-        if any('synthea' in p.lower() for p in profile):
+        # 1. Check meta profiles for synthea
+        meta = resource.get('meta', {})
+        profiles = meta.get('profile', [])
+        if any('synthea' in p.lower() for p in profiles):
             return True
+        
+        # 2. Check identifier systems for Synthea
+        identifiers = resource.get('identifier', [])
+        for identifier in identifiers:
+            if isinstance(identifier, dict):
+                system = identifier.get('system', '')
+                if 'synthea' in system.lower():
+                    return True
+        
+        # 3. Check for Synthea-specific reference patterns
+        if 'reference' in str(resource) and 'urn:uuid:' in str(resource):
+            # Synthea often uses urn:uuid references
+            if resource.get('resourceType') in ['Encounter', 'Patient', 'Condition', 'Observation']:
+                return True
+        
+        # 4. Check for specific Synthea field patterns
+        if resource.get('resourceType') == 'Encounter':
+            # Synthea encounters have specific class structure and participant.individual
+            class_field = resource.get('class')
+            participants = resource.get('participant', [])
             
-        # Check for common Synthea patterns
+            if (isinstance(class_field, dict) and 
+                any(isinstance(p, dict) and 'individual' in p for p in participants)):
+                return True
+        
+        # 5. Check for bundle patterns
         if resource.get('resourceType') == 'Bundle':
             entries = resource.get('entry', [])
             if entries and len(entries) > 0:
-                # Synthea bundles often have specific structure
-                first_entry = entries[0].get('resource', {})
-                if first_entry.get('resourceType') == 'Patient':
-                    # Check for Synthea-specific extensions
-                    extensions = first_entry.get('extension', [])
-                    return any('synthea' in str(ext).lower() for ext in extensions)
+                # Check if any entries have Synthea patterns
+                for entry in entries[:5]:  # Check first 5 entries
+                    entry_resource = entry.get('resource', {})
+                    if self.can_handle(entry_resource):
+                        return True
         
         return False
     
@@ -160,6 +183,17 @@ class USCoreProfileHandler(ProfileHandler):
                             if len(parts) >= 2:
                                 name['given'] = parts[:-1]
                                 name['family'] = parts[-1]
+        
+        elif resource_type == 'Encounter':
+            # Handle Synthea-generated US Core Encounters that need class array fix
+            if 'class' in resource and not isinstance(resource['class'], list):
+                resource['class'] = [resource['class']]
+            
+            # Fix participant structure: individual → actor (common in Synthea data)
+            if 'participant' in resource and isinstance(resource['participant'], list):
+                for participant in resource['participant']:
+                    if isinstance(participant, dict) and 'individual' in participant:
+                        participant['actor'] = participant.pop('individual')
         
         return resource
 
