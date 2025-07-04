@@ -16,6 +16,12 @@ export const useNotifications = () => {
   const fetchNotificationCount = useCallback(async () => {
     if (!user) return;
 
+    // TODO: Implement notification count endpoint
+    // For now, just set count to 0 to avoid 404 errors
+    setCount(0);
+    return;
+
+    /* Disabled until endpoint is implemented
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/fhir/R4/notifications/count`, {
@@ -32,8 +38,8 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Error fetching notification count:', error);
     } finally {
-      setLoading(false);
-    }
+    */
+    setLoading(false);
   }, [user]);
 
   // Function to fetch notifications list

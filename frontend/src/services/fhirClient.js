@@ -214,6 +214,11 @@ class FHIRClient {
     return reference?.reference?.split('/').pop();
   }
 
+  // Instance method for backward compatibility
+  extractId(reference) {
+    return FHIRClient.extractId(reference);
+  }
+
   /**
    * Helper: Build search query string
    */

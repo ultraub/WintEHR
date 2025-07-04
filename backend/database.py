@@ -11,10 +11,14 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 from contextlib import asynccontextmanager
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Database URL from environment
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/medgenemr"
+    "postgresql+asyncpg://emr_user:emr_password@localhost:5432/emr_db"
 )
 
 # Create async engine

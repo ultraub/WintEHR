@@ -29,7 +29,8 @@ import { format } from 'date-fns';
 import InfoIcon from '@mui/icons-material/Info';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { fhirApi } from '../services/api';
+import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 
 const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }) => {
   const [auditEvents, setAuditEvents] = useState([]);
@@ -104,7 +105,7 @@ const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }
         params.append('patient', `Patient/${patientId}`);
       }
 
-      const response = await fhirApi.search('AuditEvent', params);
+      const response = await fhirClient.search('AuditEvent', params);
 
       if (response.entry) {
         setAuditEvents(response.entry.map(e => e.resource));

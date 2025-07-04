@@ -73,7 +73,13 @@ export const WebSocketProvider = ({ children }) => {
     if (!user) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
+      // Skip WebSocket connection if no valid token
+      if (!token || token === 'null') {
+        console.log('WebSocket: Skipping connection - no valid auth token');
+        return;
+      }
+      
       const wsUrl = `${WS_URL}?token=${encodeURIComponent(token)}`;
       
       wsRef.current = new WebSocket(wsUrl);
@@ -108,16 +114,19 @@ export const WebSocketProvider = ({ children }) => {
         setIsConnected(false);
         wsRef.current = null;
 
-        // Attempt to reconnect with exponential backoff
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-        reconnectAttempts.current += 1;
+        // Only attempt to reconnect if we have a valid token
+        const token = localStorage.getItem('auth_token');
+        if (token && token !== 'null' && reconnectAttempts.current < 3) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          reconnectAttempts.current += 1;
 
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (user) {
-            console.log(`Attempting to reconnect... (attempt ${reconnectAttempts.current})`);
-            connect();
-          }
-        }, delay);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (user) {
+              console.log(`Attempting to reconnect... (attempt ${reconnectAttempts.current})`);
+              connect();
+            }
+          }, delay);
+        }
       };
 
       wsRef.current.onerror = (error) => {
