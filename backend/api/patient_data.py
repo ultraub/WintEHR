@@ -11,7 +11,7 @@ from datetime import datetime, date, timedelta
 import json
 
 from database import get_db_session as get_db
-from models.models import Patient, Encounter, Observation, Condition, Medication
+from models.models import Patient, Encounter, Observation
 from models.synthea_models import Provider, Organization
 
 router = APIRouter(tags=["Patient Data"])

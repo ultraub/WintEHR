@@ -12,7 +12,7 @@ import json
 import uuid
 from enum import Enum
 from database import get_db_session as get_db
-from models.models import Patient, Encounter, Provider, Organization, Observation, Condition, Medication
+from models.models import Patient, Encounter, Provider, Organization, Observation
 
 router = APIRouter(tags=["CDS Hooks"])
 
