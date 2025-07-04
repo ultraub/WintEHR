@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers
-revision = '002_emr_schema'
-down_revision = '001_fhir_schema'
+revision = '002_create_emr_schema'
+down_revision = '001_create_fhir_schema'
 branch_labels = None
 depends_on = None
 

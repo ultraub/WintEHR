@@ -246,12 +246,26 @@ class SyntheaFHIRImporter:
                     # Debug: check if key transformations happened
                     if resource_type == 'Encounter':
                         original_class = resource_data.get('class')
-                        new_class = transformed_resource.get('class_fhir')
-                        print(f"    class: {original_class} -> class_fhir: {new_class}")
+                        new_class = transformed_resource.get('class')
+                        new_actual_period = transformed_resource.get('actualPeriod')
+                        new_reason = transformed_resource.get('reason')
+                        
+                        print(f"    Original class: {original_class}")
+                        print(f"    Transformed class: {new_class}")
+                        print(f"    Transformed actualPeriod: {bool(new_actual_period)}")
+                        print(f"    Transformed reason: {bool(new_reason)}")
                         
                         original_participant = resource_data.get('participant', [{}])[0].get('individual') if resource_data.get('participant') else None
                         new_participant = transformed_resource.get('participant', [{}])[0].get('actor') if transformed_resource.get('participant') else None  
                         print(f"    participant: individual={bool(original_participant)} -> actor={bool(new_participant)}")
+                        
+                        # Check if transformations are actually happening
+                        if original_class == new_class:
+                            print(f"    ⚠️  WARNING: class field was NOT transformed!")
+                        if 'period' in transformed_resource:
+                            print(f"    ⚠️  WARNING: period field still exists (should be actualPeriod)!")
+                        if 'reasonCode' in transformed_resource:
+                            print(f"    ⚠️  WARNING: reasonCode field still exists (should be reason)!")
                     
                 except Exception as transform_error:
                     print(f"  ❌ Transformation error for {resource_type}: {transform_error}")
@@ -275,12 +289,13 @@ class SyntheaFHIRImporter:
                     if has_error:
                         print(f"Validation error for {resource_type}: {[i.diagnostics for i in validation_result.issue if i.severity in ['error', 'fatal']]}")
                         self.stats["validation_errors"] += 1
-                        # Continue with original data if validation fails
-                        transformed_resource = resource_data
+                        # Continue with transformed resource - DON'T fall back to original
+                        print(f"  ⚠️  Continuing with transformed resource despite validation errors")
                 except Exception as validation_error:
                     print(f"Validation exception for {resource_type}: {validation_error}")
                     self.stats["validation_errors"] += 1
                     # Use transformed resource even if validation fails
+                    print(f"  ⚠️  Continuing with transformed resource despite validation exception")
                 
                 # Create resource (use transformed version)
                 fhir_id, version_id, last_updated = await storage.create_resource(

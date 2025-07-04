@@ -22,6 +22,13 @@ from api.websocket.websocket_router import router as websocket_router
 
 # Import legacy routers (to be migrated)
 # TODO: Migrate these to use FHIR APIs
+# Import auth router
+from api import auth
+
+# Import routers needed for CDS hooks
+from api.app import actual_patient_data
+
+# TODO: Migrate these to use FHIR APIs
 # from api.cds_hooks import cds_hooks_router
 # from api.app import app_router
 # from api.quality import quality_router
@@ -32,8 +39,7 @@ from api.websocket.websocket_router import router as websocket_router
 # from api.clinical.tasks import tasks_router
 # from api.clinical.catalogs import catalog_router
 # from api.app.routers import allergies
-# from api.app import diagnosis_codes, clinical_data, actual_patient_data
-# from api import auth
+# from api.app import diagnosis_codes, clinical_data
 # from api.imaging import router as imaging_router
 # from api.dicomweb import router as dicomweb_router
 
@@ -91,6 +97,19 @@ app.include_router(auth_migration_router, tags=["Authentication Migration"])
 # Add WebSocket support
 app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
 
+# Add new API routers for missing functionality
+from routers.catalogs import router as catalogs_router
+from routers.clinical_tasks import router as clinical_tasks_router
+from routers.clinical_alerts import router as clinical_alerts_router
+from routers.quality_measures import router as quality_measures_router
+from routers.imaging_studies import router as imaging_studies_router
+
+app.include_router(catalogs_router, tags=["Clinical Catalogs"])
+app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
+app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
+app.include_router(quality_measures_router, tags=["Quality Measures"])
+app.include_router(imaging_studies_router, tags=["Imaging Studies"])
+
 # Legacy API compatibility layers removed - frontend now uses FHIR APIs directly
 # Legacy routers - commented out for FHIR-native implementation
 # TODO: Migrate these to use FHIR APIs
@@ -105,11 +124,14 @@ app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
 # app.include_router(inbox_router.router, prefix="/api", tags=["Clinical Inbox"])
 # app.include_router(tasks_router.router, prefix="/api", tags=["Clinical Tasks"])
 # app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
+# Include auth and data routers
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(actual_patient_data.router, prefix="/api", tags=["Actual Patient Data"])
+
+# TODO: Migrate these to use FHIR APIs
 # app.include_router(allergies.router, prefix="/api", tags=["Allergies"])
 # app.include_router(diagnosis_codes.router, prefix="/api", tags=["Diagnosis Codes"])
 # app.include_router(clinical_data.router, prefix="/api", tags=["Clinical Data"])
-# app.include_router(actual_patient_data.router, prefix="/api", tags=["Actual Patient Data"])
-# app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 # app.include_router(imaging_router, prefix="/api/imaging", tags=["Medical Imaging"])
 # app.include_router(dicomweb_router, prefix="/api/dicomweb", tags=["DICOMweb"])
 

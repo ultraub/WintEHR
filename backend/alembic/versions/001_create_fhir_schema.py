@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers
-revision = '001_fhir_schema'
+revision = '001_create_fhir_schema'
 down_revision = None
 branch_labels = None
 depends_on = None

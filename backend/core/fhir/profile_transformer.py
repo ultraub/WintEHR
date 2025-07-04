@@ -100,7 +100,7 @@ class SyntheaProfileHandler(ProfileHandler):
         
         if resource_type == 'Encounter':
             # Fix Encounter fields for proper JSON/FHIR validation
-            # 1. class field - convert to array of CodeableConcept
+            # 1. class field - should be array of CodeableConcept in R4
             if 'class' in resource:
                 class_field = resource['class']
                 if isinstance(class_field, list):
@@ -256,6 +256,17 @@ class SyntheaProfileHandler(ProfileHandler):
                     'coding': [coding_or_concept]
                 }
         return coding_or_concept
+    
+    def _to_coding(self, coding_or_concept: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a CodeableConcept or simple {code, system} to Coding."""
+        if isinstance(coding_or_concept, dict):
+            # If it has 'coding' array, extract the first coding
+            if 'coding' in coding_or_concept and isinstance(coding_or_concept['coding'], list):
+                return coding_or_concept['coding'][0] if coding_or_concept['coding'] else {}
+            # If it has 'code' and 'system', it's already a Coding
+            elif 'code' in coding_or_concept:
+                return coding_or_concept
+        return coding_or_concept
 
 
 class USCoreProfileHandler(ProfileHandler):
@@ -360,6 +371,17 @@ class USCoreProfileHandler(ProfileHandler):
                 return {
                     'coding': [coding_or_concept]
                 }
+        return coding_or_concept
+    
+    def _to_coding(self, coding_or_concept: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a CodeableConcept or simple {code, system} to Coding."""
+        if isinstance(coding_or_concept, dict):
+            # If it has 'coding' array, extract the first coding
+            if 'coding' in coding_or_concept and isinstance(coding_or_concept['coding'], list):
+                return coding_or_concept['coding'][0] if coding_or_concept['coding'] else {}
+            # If it has 'code' and 'system', it's already a Coding
+            elif 'code' in coding_or_concept:
+                return coding_or_concept
         return coding_or_concept
 
 

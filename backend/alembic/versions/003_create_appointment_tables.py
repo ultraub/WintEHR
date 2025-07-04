@@ -10,34 +10,66 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '003'
-down_revision = '002'
+revision = '003_create_appointment_tables'
+down_revision = '002_create_emr_schema'
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Create appointment status enum
+    # Create appointment status enum with raw SQL
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE appointmentstatus AS ENUM (
+                'proposed', 'pending', 'booked', 'arrived', 'fulfilled', 
+                'cancelled', 'noshow', 'entered-in-error', 'checked-in', 'waitlist'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    
+    # Create participant status enum with raw SQL
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE participantstatus AS ENUM (
+                'accepted', 'declined', 'tentative', 'needs-action'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    
+    # Create participant required enum with raw SQL
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE participantrequired AS ENUM (
+                'required', 'optional', 'information-only'
+            );
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    
+    # Reference the enums for use in table creation
     appointment_status_enum = postgresql.ENUM(
         'proposed', 'pending', 'booked', 'arrived', 'fulfilled', 
         'cancelled', 'noshow', 'entered-in-error', 'checked-in', 'waitlist',
-        name='appointmentstatus'
+        name='appointmentstatus',
+        create_type=False
     )
-    appointment_status_enum.create(op.get_bind())
     
-    # Create participant status enum
     participant_status_enum = postgresql.ENUM(
         'accepted', 'declined', 'tentative', 'needs-action',
-        name='participantstatus'
+        name='participantstatus',
+        create_type=False
     )
-    participant_status_enum.create(op.get_bind())
     
-    # Create participant required enum
     participant_required_enum = postgresql.ENUM(
         'required', 'optional', 'information-only',
-        name='participantrequired'
+        name='participantrequired',
+        create_type=False
     )
-    participant_required_enum.create(op.get_bind())
 
     # Create appointments table
     op.create_table(
