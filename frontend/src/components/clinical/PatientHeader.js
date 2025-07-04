@@ -32,6 +32,7 @@ import { format, differenceInYears } from 'date-fns';
 import { useClinical } from '../../contexts/ClinicalContext';
 import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../services/fhirClient';
+import { providerService } from '../../services/providerService';
 
 
 const PatientHeader = ({ 
@@ -55,10 +56,15 @@ const PatientHeader = ({
       // Fetch encounters using FHIR
       const result = await fhirClient.getEncounters(currentPatient.id);
       
-      // Transform and sort encounters
-      const transformedEncounters = result.resources.map(enc => {
+      // Transform and sort encounters with proper provider resolution
+      const transformedEncounters = await Promise.all(result.resources.map(async (enc) => {
         const type = enc.type?.[0];
         const period = enc.period || {};
+        
+        // Resolve provider information
+        const provider = await providerService.resolveProviderFromEncounter(enc);
+        const providerName = providerService.getProviderDisplayName(provider);
+        
         return {
           id: enc.id,
           patient_id: currentPatient.id,
@@ -66,11 +72,10 @@ const PatientHeader = ({
           encounter_date: period.start || enc.date,
           start_date: period.start || enc.date,
           status: enc.status,
-          provider: enc.participant?.find(p => 
-            p.type?.[0]?.coding?.[0]?.code === 'ATND'
-          )?.individual?.display || 'Unknown Provider'
+          provider: providerName,
+          provider_id: provider?.id || null
         };
-      });
+      }));
       
       // Sort by date descending and take top 10
       const encounterList = transformedEncounters

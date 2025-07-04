@@ -28,19 +28,20 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import VitalSignsTrends from './VitalSignsTrends';
+import { vitalSignsService } from '../services/vitalSignsService';
 
 const VitalSignsTab = ({ observations, onOpenModal, patientId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVitalTypes, setSelectedVitalTypes] = useState([]);
 
-  // Filter vital signs observations
+  // Filter vital signs observations using the vital signs service
   const vitalSigns = useMemo(() => {
-    return observations.filter(obs => obs.observation_type === 'vital-signs');
+    return vitalSignsService.filterVitalSigns(observations);
   }, [observations]);
 
   // Get unique vital types for filter pills
   const vitalTypes = useMemo(() => {
-    const types = [...new Set(vitalSigns.map(obs => obs.display))];
+    const types = [...new Set(vitalSigns.map(obs => vitalSignsService.getDisplayName(obs)))];
     return types.sort();
   }, [vitalSigns]);
 
@@ -49,46 +50,30 @@ const VitalSignsTab = ({ observations, onOpenModal, patientId }) => {
     let filtered = vitalSigns;
 
     if (searchTerm) {
-      filtered = filtered.filter(obs =>
-        obs.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        obs.value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(obs => {
+        const displayName = vitalSignsService.getDisplayName(obs);
+        const value = vitalSignsService.getValue(obs);
+        return displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               (value && value.toString().toLowerCase().includes(searchTerm.toLowerCase()));
+      });
     }
 
     if (selectedVitalTypes.length > 0) {
       filtered = filtered.filter(obs =>
-        selectedVitalTypes.includes(obs.display)
+        selectedVitalTypes.includes(vitalSignsService.getDisplayName(obs))
       );
     }
 
-    return filtered.sort((a, b) => new Date(b.observation_date) - new Date(a.observation_date));
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.effectiveDateTime || a.observation_date || a.date);
+      const dateB = new Date(b.effectiveDateTime || b.observation_date || b.date);
+      return dateB - dateA;
+    });
   }, [vitalSigns, searchTerm, selectedVitalTypes]);
 
-  // Check if vital is abnormal (simplified logic)
+  // Check if vital is abnormal using the vital signs service
   const isAbnormal = (vital) => {
-    const value = parseFloat(vital.value);
-    const display = vital.display.toLowerCase();
-
-    if (display.includes('blood pressure') || display.includes('bp')) {
-      if (typeof vital.value === 'string' && vital.value.includes('/')) {
-        const [systolic, diastolic] = vital.value.split('/').map(Number);
-        return systolic > 140 || systolic < 90 || diastolic > 90 || diastolic < 60;
-      }
-    }
-    if (display.includes('heart rate') || display.includes('pulse')) {
-      return value > 100 || value < 60;
-    }
-    if (display.includes('temperature')) {
-      return value > 99.5 || value < 97.0;
-    }
-    if (display.includes('oxygen') || display.includes('o2') || display.includes('sat')) {
-      return value < 95;
-    }
-    if (display.includes('respiratory') || display.includes('breath')) {
-      return value > 20 || value < 12;
-    }
-
-    return false;
+    return vitalSignsService.isAbnormal(vital);
   };
 
   const handleVitalTypeToggle = (type) => {
@@ -232,11 +217,11 @@ const VitalSignsTab = ({ observations, onOpenModal, patientId }) => {
                   }}
                 >
                   <TableCell>
-                    {format(new Date(vital.observation_date), 'MM/dd/yyyy h:mm a')}
+                    {format(new Date(vital.effectiveDateTime || vital.observation_date || vital.date), 'MM/dd/yyyy h:mm a')}
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {vital.display}
+                      {vitalSignsService.getDisplayName(vital)}
                       {isAbnormal(vital) && (
                         <WarningIcon color="warning" fontSize="small" />
                       )}
@@ -250,10 +235,10 @@ const VitalSignsTab = ({ observations, onOpenModal, patientId }) => {
                         color: isAbnormal(vital) ? 'warning.dark' : 'inherit'
                       }}
                     >
-                      {vital.value}
+                      {vitalSignsService.formatValue(vital)}
                     </Typography>
                   </TableCell>
-                  <TableCell>{vital.unit}</TableCell>
+                  <TableCell>{vitalSignsService.getUnit(vital)}</TableCell>
                   <TableCell>
                     <Chip 
                       label={isAbnormal(vital) ? 'Abnormal' : 'Normal'}
