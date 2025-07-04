@@ -335,22 +335,15 @@ async def login(
             "expires_at": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
         })
         
-        # Create audit log
-        audit_query = text("""
-            INSERT INTO emr.audit_logs (
-                user_id, action, details, ip_address, user_agent
-            ) VALUES (
-                :user_id, :action, :details, :ip_address, :user_agent
-            )
-        """)
-        
-        await db.execute(audit_query, {
-            "user_id": user.id,
-            "action": "login",
-            "details": json.dumps({"username": user.username}),
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("User-Agent")
-        })
+        # Create FHIR audit log
+        from api.services.audit_service import AuditService
+        await AuditService.create_login_audit(
+            db=db,
+            user_id=str(user.id),
+            success=True,
+            details={"username": user.username},
+            request=request
+        )
         
         await db.commit()
         
@@ -395,21 +388,13 @@ async def logout(
     
     await db.execute(delete_query, {"token": token})
     
-    # Create audit log
-    audit_query = text("""
-        INSERT INTO emr.audit_logs (
-            user_id, action, ip_address, user_agent
-        ) VALUES (
-            :user_id, :action, :ip_address, :user_agent
-        )
-    """)
-    
-    await db.execute(audit_query, {
-        "user_id": uuid.UUID(user["id"]),
-        "action": "logout",
-        "ip_address": request.client.host if request.client else None,
-        "user_agent": request.headers.get("User-Agent")
-    })
+    # Create FHIR audit log
+    from api.services.audit_service import AuditService
+    await AuditService.create_logout_audit(
+        db=db,
+        user_id=user["id"],
+        request=request
+    )
     
     await db.commit()
     

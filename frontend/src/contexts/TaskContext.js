@@ -261,7 +261,7 @@ export const TaskProvider = ({ children }) => {
       searchParams._count = filters.limit || 50;
       
       const result = await fhirClient.search('Task', searchParams);
-      const tasks = result.resources.map(transformFHIRTask);
+      const tasks = (result.resources || []).map(transformFHIRTask);
       setTasks(tasks);
     } catch (error) {
       console.error('Error loading tasks:', error);

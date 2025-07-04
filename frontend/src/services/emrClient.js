@@ -11,6 +11,10 @@ class EMRClient {
   constructor(config = {}) {
     this.baseUrl = config.baseUrl || process.env.REACT_APP_EMR_API || '/api/emr';
     this.enabled = config.enabled !== false && process.env.REACT_APP_EMR_FEATURES !== 'false';
+    // Disable EMR features by default if not explicitly enabled
+    if (process.env.REACT_APP_EMR_FEATURES === undefined) {
+      this.enabled = false;
+    }
     this.auth = config.auth || null;
     this.capabilities = {
       auth: false,

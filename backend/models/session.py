@@ -1,6 +1,6 @@
 """Simple session management without complex relationships"""
 from sqlalchemy import Column, String, DateTime, Boolean
-from database.database import Base
+from database import Base
 from datetime import datetime
 import uuid
 

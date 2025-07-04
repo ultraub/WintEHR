@@ -61,7 +61,7 @@ const TrendsTab = () => {
       const result = await fhirClient.getVitalSigns(currentPatient.id);
       
       // Transform FHIR observations to expected format
-      const transformedVitals = result.resources.map(obs => {
+      const transformedVitals = (result.resources || []).map(obs => {
         const value = obs.valueQuantity?.value || obs.valueString || '';
         const unit = obs.valueQuantity?.unit || '';
         

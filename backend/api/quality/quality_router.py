@@ -12,7 +12,7 @@ import json
 import uuid
 from enum import Enum
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.models import Patient, Encounter, Provider, Organization, Observation, Condition, Medication
 
 router = APIRouter(prefix="/quality", tags=["Quality Measures"])

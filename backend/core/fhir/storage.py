@@ -18,6 +18,10 @@ from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, Bundl
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
 from .synthea_validator import SyntheaFHIRValidator
+try:
+    from api.websocket.fhir_notifications import notification_service
+except ImportError:
+    notification_service = None
 
 
 class FHIRJSONEncoder(json.JSONEncoder):
@@ -112,6 +116,14 @@ class FHIRStorageEngine:
         await self._extract_references(resource_id, resource_dict)
         
         await self.session.commit()
+        
+        # Send WebSocket notification
+        if notification_service:
+            await notification_service.notify_resource_created(
+            resource_type=resource_type,
+            resource_id=fhir_id,
+            resource_data=resource_dict
+        )
         
         return fhir_id, version_id, last_updated
     
@@ -259,6 +271,14 @@ class FHIRStorageEngine:
         
         await self.session.commit()
         
+        # Send WebSocket notification
+        if notification_service:
+            await notification_service.notify_resource_updated(
+            resource_type=resource_type,
+            resource_id=fhir_id,
+            resource_data=resource_dict
+        )
+        
         return new_version, last_updated
     
     async def delete_resource(
@@ -308,6 +328,14 @@ class FHIRStorageEngine:
             await self._delete_references(resource_id)
             
             await self.session.commit()
+            
+            # Send WebSocket notification
+            if notification_service:
+                await notification_service.notify_resource_deleted(
+                resource_type=resource_type,
+                resource_id=fhir_id
+            )
+            
             return True
         
         return False

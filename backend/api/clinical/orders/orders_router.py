@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.clinical.orders import Order, MedicationOrder, LaboratoryOrder, ImagingOrder, OrderSet
 from models.models import Provider, Patient
 # from api.cds_hooks.cds_services import check_medication_interactions

@@ -546,7 +546,7 @@ const DocumentationTab = () => {
                 <MenuItem value="">
                   <em>No template</em>
                 </MenuItem>
-                {noteTemplates
+                {(noteTemplates || [])
                   .filter(t => !t.noteType || t.noteType === newNoteType)
                   .map(template => (
                     <MenuItem key={template.id} value={template.id}>

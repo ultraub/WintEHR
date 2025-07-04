@@ -10,7 +10,7 @@ from pydicom.errors import InvalidDicomError
 import uuid
 import json
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance, ImagingResult
 from models.synthea_models import Patient, ImagingStudy
 # from api.auth import get_current_user  # Disabled for teaching purposes

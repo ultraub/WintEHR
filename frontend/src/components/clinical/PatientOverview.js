@@ -76,49 +76,88 @@ const PatientOverview = () => {
       if (!currentPatient?.id) return;
       
       try {
-        const response = await api.get('/api/observations', {
-          params: {
-            patient_id: currentPatient.id,
-            observation_type: 'vital-signs',
-            limit: 10
-          }
+        // Use FHIR API to get vital signs observations
+        const searchResult = await fhirClient.search('Observation', {
+          patient: currentPatient.id,
+          category: 'vital-signs',
+          _sort: '-date',
+          _count: 20
         });
         
-        // Process vitals data
-        const vitalsData = response.data;
+        // Process vitals data - searchResult contains { resources, total, bundle }
+        const vitalsData = searchResult.resources || [];
+        console.log('Loaded vitals:', vitalsData);
+        
         if (vitalsData.length > 0) {
           // Group by observation type and get most recent
           const vitalsMap = {};
-          vitalsData.forEach(vital => {
-            const displayName = vital.display || '';
-            // Normalize display names for consistent mapping
-            let type = displayName.toLowerCase();
+          
+          vitalsData.forEach(observation => {
+            const code = observation.code?.coding?.[0]?.code;
+            const display = observation.code?.text || observation.code?.coding?.[0]?.display || '';
+            const effectiveDate = observation.effectiveDateTime || observation.issued;
             
-            // Map common vital signs to standardized keys
-            if (displayName.includes('Blood pressure panel')) {
-              // Handle blood pressure separately as it contains multiple values
-              // We'll need to look for systolic and diastolic separately
-            } else if (displayName === 'Heart rate') {
-              type = 'heart rate';
-            } else if (displayName === 'Body Temperature' || displayName.includes('Temperature')) {
-              type = 'body temperature';
-            } else if (displayName.includes('Oxygen saturation')) {
-              type = 'oxygen saturation';
+            // Map LOINC codes to vital types
+            let type = null;
+            let value = null;
+            
+            // Extract value based on observation type
+            if (observation.valueQuantity) {
+              value = observation.valueQuantity.value;
+            } else if (observation.component) {
+              // Handle blood pressure with components
+              if (code === '85354-9' || display.includes('Blood pressure')) {
+                const systolic = observation.component.find(c => 
+                  c.code?.coding?.[0]?.code === '8480-6'
+                )?.valueQuantity?.value;
+                const diastolic = observation.component.find(c => 
+                  c.code?.coding?.[0]?.code === '8462-4'
+                )?.valueQuantity?.value;
+                if (systolic && diastolic) {
+                  type = 'bloodPressure';
+                  value = `${systolic}/${diastolic}`;
+                }
+              }
             }
             
-            if (!vitalsMap[type] || new Date(vital.observation_date) > new Date(vitalsMap[type].observation_date)) {
-              vitalsMap[type] = vital;
+            // Map other vital signs
+            if (!type && value) {
+              switch(code) {
+                case '8867-4': // Heart rate
+                  type = 'heartRate';
+                  break;
+                case '8310-5': // Body temperature
+                  type = 'temperature';
+                  break;
+                case '2708-6': // Oxygen saturation
+                case '59408-5': // Oxygen saturation in Arterial blood by Pulse oximetry
+                  type = 'oxygenSaturation';
+                  break;
+              }
+            }
+            
+            // Store most recent value for each type
+            if (type && value && (!vitalsMap[type] || new Date(effectiveDate) > new Date(vitalsMap[type].date))) {
+              vitalsMap[type] = {
+                value: value,
+                date: effectiveDate,
+                unit: observation.valueQuantity?.unit
+              };
             }
           });
           
+          // Get the most recent date from all vitals
+          const mostRecentDate = Object.values(vitalsMap).reduce((latest, vital) => {
+            const vitalDate = new Date(vital.date);
+            return !latest || vitalDate > latest ? vitalDate : latest;
+          }, null);
+          
           setRecentVitals({
-            bloodPressure: vitalsMap['blood pressure']?.value || vitalsMap['systolic blood pressure']?.value_quantity && vitalsMap['diastolic blood pressure']?.value_quantity 
-              ? `${vitalsMap['systolic blood pressure']?.value_quantity}/${vitalsMap['diastolic blood pressure']?.value_quantity}`
-              : null,
-            heartRate: vitalsMap['heart rate']?.value_quantity,
-            temperature: vitalsMap['body temperature']?.value_quantity,
-            oxygenSaturation: vitalsMap['oxygen saturation']?.value_quantity,
-            recordedAt: vitalsData[0].observation_date
+            bloodPressure: vitalsMap.bloodPressure?.value,
+            heartRate: vitalsMap.heartRate?.value,
+            temperature: vitalsMap.temperature?.value,
+            oxygenSaturation: vitalsMap.oxygenSaturation?.value,
+            recordedAt: mostRecentDate?.toISOString()
           });
         }
       } catch (error) {

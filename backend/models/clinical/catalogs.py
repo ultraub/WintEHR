@@ -3,7 +3,7 @@ Clinical catalog models for medications, labs, and other orderable items
 """
 from sqlalchemy import Column, String, Text, Boolean, Float, Integer, DateTime, JSON
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database import Base
 from datetime import datetime
 import uuid
 

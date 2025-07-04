@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
+import api from '../services/api';
 
 const OrderContext = createContext(undefined);
 
@@ -189,7 +190,7 @@ export const OrderProvider = ({ children }) => {
         _sort: '-authored'
       });
       
-      const orders = result.resources.map(transformFHIRServiceRequest);
+      const orders = (result.resources || []).map(transformFHIRServiceRequest);
       setActiveOrders(orders);
     } catch (error) {
       console.error('Error loading active orders:', error);
@@ -197,41 +198,62 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
-  // Load order sets (using hardcoded data for now)
+  // Transform FHIR Questionnaire to order set
+  const transformQuestionnaireToOrderSet = (questionnaire) => {
+    const code = questionnaire.code?.[0]?.code || questionnaire.id;
+    
+    return {
+      id: questionnaire.id,
+      name: questionnaire.title || questionnaire.name,
+      description: questionnaire.description,
+      specialty: getSpecialtyFromCode(code),
+      orders: questionnaire.item?.map(item => ({
+        type: item.extension?.find(e => e.url === 'http://medgenemr.com/order-type')?.valueCode || 'other',
+        code: item.code?.[0]?.code,
+        display: item.text || item.code?.[0]?.display,
+        priority: item.extension?.find(e => e.url === 'http://medgenemr.com/order-priority')?.valueCode || 'routine',
+        frequency: item.extension?.find(e => e.url === 'http://medgenemr.com/order-frequency')?.valueString,
+        selected: item.initial?.[0]?.valueBoolean || false,
+        linkId: item.linkId
+      })) || []
+    };
+  };
+
+  // Map order set codes to specialties
+  const getSpecialtyFromCode = (code) => {
+    const specialtyMap = {
+      'admission-basic': 'general',
+      'cardiac-workup': 'cardiology',
+      'diabetes-monitoring': 'endocrinology',
+      'sepsis-bundle': 'critical-care'
+    };
+    return specialtyMap[code] || 'general';
+  };
+
+  // Load order sets from FHIR Questionnaires
   const loadOrderSets = async (specialty) => {
     try {
-      // Mock order sets until we have a proper service
-      const mockOrderSets = [
-        {
-          id: 'admission-basic',
-          name: 'Basic Admission Orders',
-          specialty: 'general',
-          orders: [
-            { type: 'laboratory', code: '24323-8', display: 'Comprehensive metabolic panel' },
-            { type: 'laboratory', code: '58410-2', display: 'Complete blood count' },
-            { type: 'imaging', code: '36643-5', display: 'Chest X-ray' }
-          ]
-        },
-        {
-          id: 'cardiac-workup',
-          name: 'Cardiac Workup',
-          specialty: 'cardiology',
-          orders: [
-            { type: 'laboratory', code: '2157-6', display: 'Troponin' },
-            { type: 'laboratory', code: '33762-6', display: 'NT-proBNP' },
-            { type: 'imaging', code: '34552-0', display: 'EKG 12-lead' }
-          ]
-        }
-      ];
+      // Search for questionnaires with order-set-type code
+      const searchParams = {
+        code: 'http://medgenemr.com/order-set-type|',
+        _count: 50
+      };
       
-      const filtered = specialty 
-        ? mockOrderSets.filter(set => set.specialty === specialty)
-        : mockOrderSets;
+      const result = await fhirClient.search('Questionnaire', searchParams);
       
-      setOrderSets(filtered);
+      if (result.resources) {
+        const orderSets = result.resources.map(transformQuestionnaireToOrderSet);
+        
+        const filtered = specialty 
+          ? orderSets.filter(set => set.specialty === specialty)
+          : orderSets;
+        
+        setOrderSets(filtered);
+      }
     } catch (error) {
       console.error('Error loading order sets:', error);
-      throw error;
+      // Fallback to empty array instead of throwing
+      setOrderSets([]);
     }
   };
 
@@ -284,25 +306,42 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
-  // Mock drug interaction checking
+  // Check drug interactions using the API
   const checkDrugInteractions = async (order) => {
-    // In real implementation, this would call a drug interaction service
-    const mockAlerts = [];
-    
-    // Check against active medications
-    const activeMeds = activeOrders.filter(o => o.orderType === 'medication' && o.status === 'active');
-    
-    // Mock interaction check
-    if (order.medicationDetails.medicationName?.toLowerCase().includes('warfarin') && 
-        activeMeds.some(m => m.display?.toLowerCase().includes('aspirin'))) {
-      mockAlerts.push({
-        severity: 'high',
+    try {
+      // Get active medications
+      const activeMeds = activeOrders
+        .filter(o => o.orderType === 'medication' && o.status === 'active')
+        .map(med => ({
+          name: med.display || med.medicationDetails?.medicationName,
+          code: med.code
+        }));
+      
+      // Add the new medication
+      const allMeds = [...activeMeds, {
+        name: order.medicationDetails?.medicationName || order.display,
+        code: order.code
+      }];
+      
+      // Call drug interaction API
+      const response = await api.post('/api/emr/clinical/drug-interactions/check-interactions', allMeds);
+      
+      // Transform interactions to alerts
+      const alerts = response.data.interactions.map(interaction => ({
+        severity: interaction.severity,
         type: 'drug-drug',
-        message: 'Potential interaction between Warfarin and Aspirin - increased bleeding risk'
-      });
+        message: interaction.description,
+        drugs: interaction.drugs,
+        clinicalConsequence: interaction.clinical_consequence,
+        management: interaction.management
+      }));
+      
+      return alerts;
+    } catch (error) {
+      console.error('Error checking drug interactions:', error);
+      // Return empty array on error to allow order to proceed
+      return [];
     }
-    
-    return mockAlerts;
   };
 
   // Create laboratory order
@@ -398,8 +437,8 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
-  // Apply order set
-  const applyOrderSet = async (orderSetId) => {
+  // Apply order set with selected items
+  const applyOrderSet = async (orderSetId, selectedOrders = null) => {
     if (!currentPatient) {
       throw new Error('No patient selected');
     }
@@ -411,23 +450,49 @@ export const OrderProvider = ({ children }) => {
         throw new Error('Order set not found');
       }
 
-      // Create all orders in the set
-      const promises = orderSet.orders.map(orderTemplate => {
+      // Filter orders based on selection (if provided)
+      const ordersToCreate = selectedOrders 
+        ? orderSet.orders.filter(order => selectedOrders.includes(order.linkId))
+        : orderSet.orders.filter(order => order.selected);
+
+      if (ordersToCreate.length === 0) {
+        throw new Error('No orders selected');
+      }
+
+      // Create all selected orders
+      const promises = ordersToCreate.map(orderTemplate => {
         const order = {
           patientId: currentPatient.id,
           encounterId: currentEncounter?.id,
           orderType: orderTemplate.type,
-          priority: 'routine',
+          priority: orderTemplate.priority || 'routine',
           code: orderTemplate.code,
-          display: orderTemplate.display
+          display: orderTemplate.display,
+          instructions: orderTemplate.frequency
         };
 
         const fhirRequest = transformToFHIRServiceRequest(order);
+        
+        // Add order set reference
+        if (!fhirRequest.extension) fhirRequest.extension = [];
+        fhirRequest.extension.push({
+          url: 'http://medgenemr.com/order-set-reference',
+          valueReference: {
+            reference: `Questionnaire/${orderSetId}`,
+            display: orderSet.name
+          }
+        });
+
         return fhirClient.create('ServiceRequest', fhirRequest);
       });
 
-      await Promise.all(promises);
+      const results = await Promise.all(promises);
       await loadActiveOrders(currentPatient.id);
+      
+      return {
+        created: results.length,
+        orderSetName: orderSet.name
+      };
     } catch (error) {
       console.error('Error applying order set:', error);
       throw error;
@@ -441,57 +506,77 @@ export const OrderProvider = ({ children }) => {
     setCurrentOrderAlerts([]);
   };
 
-  // Search medications (mock - would integrate with drug database)
+  // Search medications using FHIR resources
   const searchMedications = async (query) => {
-    // Mock medication search with proper RxNorm codes
-    const mockMedications = [
-      { name: 'Aspirin 81mg', code: '243670', display: 'Aspirin 81 MG Oral Tablet' },
-      { name: 'Metformin 500mg', code: '860974', display: 'Metformin hydrochloride 500 MG Oral Tablet' },
-      { name: 'Lisinopril 10mg', code: '314076', display: 'Lisinopril 10 MG Oral Tablet' },
-      { name: 'Amoxicillin 500mg', code: '308192', display: 'Amoxicillin 500 MG Oral Capsule' },
-      { name: 'Omeprazole 20mg', code: '314077', display: 'Omeprazole 20 MG Oral Capsule' },
-      { name: 'Warfarin 5mg', code: '855332', display: 'Warfarin Sodium 5 MG Oral Tablet' }
-    ];
-    
-    return mockMedications.filter(med => 
-      med.name.toLowerCase().includes(query.toLowerCase())
-    );
+    try {
+      const response = await api.get('/api/emr/clinical/catalog/medications/search', {
+        params: { query, limit: 20 }
+      });
+      
+      return response.data.medications.map(med => ({
+        name: med.name,
+        code: med.code,
+        display: med.name,
+        system: med.system,
+        form: med.form
+      }));
+    } catch (error) {
+      console.error('Error searching medications:', error);
+      // Fallback to common medications
+      return [
+        { name: 'Aspirin 81mg', code: '243670', display: 'Aspirin 81 MG Oral Tablet' },
+        { name: 'Metformin 500mg', code: '860974', display: 'Metformin hydrochloride 500 MG Oral Tablet' },
+        { name: 'Lisinopril 10mg', code: '314076', display: 'Lisinopril 10 MG Oral Tablet' }
+      ].filter(med => med.name.toLowerCase().includes(query.toLowerCase()));
+    }
   };
 
-  // Search laboratory tests (mock - would integrate with lab catalog)
+  // Search laboratory tests using FHIR resources
   const searchLaboratoryTests = async (query) => {
-    // Mock lab test search with proper LOINC codes
-    const mockTests = [
-      { name: 'Complete Blood Count', code: '58410-2', display: 'Complete blood count (hemogram) panel' },
-      { name: 'Basic Metabolic Panel', code: '24323-8', display: 'Comprehensive metabolic panel' },
-      { name: 'Lipid Panel', code: '24331-1', display: 'Lipid panel with direct LDL' },
-      { name: 'Hemoglobin A1c', code: '4548-4', display: 'Hemoglobin A1c/Hemoglobin.total in Blood' },
-      { name: 'TSH', code: '3016-3', display: 'Thyrotropin [Units/volume] in Serum or Plasma' },
-      { name: 'Urinalysis', code: '24356-8', display: 'Urinalysis complete panel' },
-      { name: 'Liver Function Tests', code: '24325-3', display: 'Hepatic function panel' },
-      { name: 'PT/INR', code: '5902-2', display: 'Prothrombin time (PT)' }
-    ];
-    
-    return mockTests.filter(test => 
-      test.name.toLowerCase().includes(query.toLowerCase())
-    );
+    try {
+      const response = await api.get('/api/emr/clinical/catalog/lab-tests/search', {
+        params: { query, limit: 20 }
+      });
+      
+      return response.data.labTests.map(test => ({
+        name: test.display,
+        code: test.code,
+        display: test.display,
+        system: test.system
+      }));
+    } catch (error) {
+      console.error('Error searching lab tests:', error);
+      // Fallback to common tests
+      return [
+        { name: 'Complete Blood Count', code: '58410-2', display: 'Complete blood count (hemogram) panel' },
+        { name: 'Basic Metabolic Panel', code: '24323-8', display: 'Comprehensive metabolic panel' },
+        { name: 'Hemoglobin A1c', code: '4548-4', display: 'Hemoglobin A1c/Hemoglobin.total in Blood' }
+      ].filter(test => test.name.toLowerCase().includes(query.toLowerCase()));
+    }
   };
 
-  // Search imaging studies (mock - would integrate with radiology catalog)
+  // Search imaging studies using FHIR resources
   const searchImagingStudies = async (query) => {
-    // Mock imaging search with proper codes
-    const mockImaging = [
-      { name: 'Chest X-ray', code: '36643-5', display: 'Chest X-ray 2 Views' },
-      { name: 'CT Head', code: '24725-4', display: 'CT Head without contrast' },
-      { name: 'MRI Brain', code: '24590-2', display: 'MRI Brain without contrast' },
-      { name: 'Abdominal Ultrasound', code: '44120-2', display: 'Ultrasound of Abdomen' },
-      { name: 'Echocardiogram', code: '34552-0', display: 'Echocardiography' },
-      { name: 'CT Chest', code: '24627-2', display: 'CT Chest with contrast' }
-    ];
-    
-    return mockImaging.filter(study => 
-      study.name.toLowerCase().includes(query.toLowerCase())
-    );
+    try {
+      const response = await api.get('/api/emr/clinical/catalog/imaging-procedures/search', {
+        params: { query, limit: 20 }
+      });
+      
+      return response.data.imagingProcedures.map(proc => ({
+        name: proc.display,
+        code: proc.code,
+        display: proc.display,
+        system: proc.system
+      }));
+    } catch (error) {
+      console.error('Error searching imaging procedures:', error);
+      // Fallback to common procedures
+      return [
+        { name: 'Chest X-ray', code: '36643-5', display: 'Chest X-ray 2 Views' },
+        { name: 'CT Head', code: '24725-4', display: 'CT Head without contrast' },
+        { name: 'MRI Brain', code: '24590-2', display: 'MRI Brain without contrast' }
+      ].filter(study => study.name.toLowerCase().includes(query.toLowerCase()));
+    }
   };
 
   const value = {

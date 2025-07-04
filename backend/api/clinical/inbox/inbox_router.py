@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.clinical.tasks import InboxItem, ClinicalTask
 from models.models import Provider
 

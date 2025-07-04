@@ -35,8 +35,10 @@ import {
   Notifications as NotificationsIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../hooks/useNotifications';
 // import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
@@ -44,12 +46,18 @@ const drawerWidth = 240;
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, emoji: '🏠', path: '/dashboard' },
   { text: 'Patients', icon: <PeopleIcon />, emoji: '👥', path: '/patients' },
+  { text: 'Encounters', icon: <EventNoteIcon />, emoji: '📋', path: '/encounters' },
+  { text: 'Lab Results', icon: <ScienceIcon />, emoji: '🧪', path: '/lab-results' },
+  { text: 'Medications', icon: <PharmacyIcon />, emoji: '💊', path: '/medications' },
+  { divider: true },
   { text: 'Population Analytics', icon: <TrendingUpIcon />, emoji: '📊', path: '/analytics' },
+  { text: 'Quality Measures', icon: <AssessmentIcon />, emoji: '✅', path: '/quality' },
   { divider: true },
   { text: 'FHIR Explorer', icon: <ApiIcon />, emoji: '🔍', path: '/fhir' },
   { text: 'CDS Demo', icon: <LightbulbIcon />, emoji: '💡', path: '/cds-demo' },
   { text: 'CDS Hooks Builder', icon: <WebhookIcon />, emoji: '🎯', path: '/cds-hooks' },
-  { text: 'Quality Measures', icon: <AssessmentIcon />, emoji: '✅', path: '/quality' },
+  { divider: true },
+  { text: 'Audit Trail', icon: <SecurityIcon />, emoji: '🔐', path: '/audit-trail' },
 ];
 
 function Layout({ children }) {
@@ -58,6 +66,7 @@ function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { count: notificationCount, loading: notificationsLoading } = useNotifications();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -218,8 +227,16 @@ function Layout({ children }) {
             />
           )}
           
-          <IconButton color="inherit" sx={{ mx: 1 }}>
-            <Badge badgeContent={3} color="error">
+          <IconButton 
+            color="inherit" 
+            sx={{ mx: 1 }}
+            onClick={() => navigate('/notifications')}
+          >
+            <Badge 
+              badgeContent={notificationCount} 
+              color="error"
+              invisible={notificationCount === 0 || notificationsLoading}
+            >
               <NotificationsIcon />
             </Badge>
           </IconButton>
@@ -235,6 +252,16 @@ function Layout({ children }) {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
+            <MenuItem onClick={() => {
+              navigate('/settings');
+              handleProfileMenuClose();
+            }}>
+              <ListItemIcon>
+                <AccountCircleIcon fontSize="small" />
+              </ListItemIcon>
+              Profile & Settings
+            </MenuItem>
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />

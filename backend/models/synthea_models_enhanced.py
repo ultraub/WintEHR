@@ -5,7 +5,7 @@ Includes missing critical fields and new resources for comprehensive healthcare 
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Date, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, CheckConstraint
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database import Base
 import uuid
 from datetime import datetime
 

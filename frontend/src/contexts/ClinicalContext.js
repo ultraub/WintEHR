@@ -3,9 +3,11 @@
  * Manages clinical workflow state including current patient, encounter, and workspace
  * Now uses FHIR APIs directly for all clinical data
  */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { fhirClient } from '../services/fhirClient';
+import { usePatientUpdates } from '../hooks/useWebSocket';
+import websocketClient from '../services/websocket';
 
 const ClinicalContext = createContext();
 
@@ -18,12 +20,31 @@ export const useClinical = () => {
 };
 
 export const ClinicalProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [currentPatient, setCurrentPatient] = useState(null);
   const [currentEncounter, setCurrentEncounter] = useState(null);
   const [currentNote, setCurrentNote] = useState(null);
   const [workspaceMode, setWorkspaceMode] = useState('results');
   const [isLoading, setIsLoading] = useState(false);
+  const [realTimeUpdates, setRealTimeUpdates] = useState([]);
+
+  // Use WebSocket hook for patient updates
+  const { connected: wsConnected, lastUpdate } = usePatientUpdates(
+    currentPatient?.id,
+    { enabled: !!currentPatient }
+  );
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (token) {
+      websocketClient.connect(token).catch(console.error);
+    }
+    return () => {
+      if (!token) {
+        websocketClient.disconnect();
+      }
+    };
+  }, [token]);
 
   // Helper function to transform FHIR Patient to our interface
   const transformFHIRPatient = (fhirPatient) => {
@@ -115,7 +136,7 @@ export const ClinicalProvider = ({ children }) => {
       // Transform allergies
       patient.allergies = allergiesResult.resources.map(allergy => ({
         id: allergy.id,
-        substance: allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown',
+        allergen: allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown',
         severity: allergy.criticality || 'unknown',
         reaction: allergy.reaction?.[0]?.manifestation?.[0]?.text || '',
         status: allergy.clinicalStatus?.coding?.[0]?.code || 'active'
@@ -125,20 +146,48 @@ export const ClinicalProvider = ({ children }) => {
       patient.problems = conditionsResult.resources.map(condition => ({
         id: condition.id,
         code: condition.code?.coding?.[0]?.code,
+        description: condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown',
         display: condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown',
-        status: condition.clinicalStatus?.coding?.[0]?.code || 'active',
-        onsetDate: condition.onsetDateTime || condition.onsetPeriod?.start
+        clinicalStatus: condition.clinicalStatus?.coding?.[0]?.code || 'active',
+        clinical_status: condition.clinicalStatus?.coding?.[0]?.code || 'active',
+        onsetDate: condition.onsetDateTime || condition.onsetPeriod?.start,
+        snomed_code: condition.code?.coding?.find(c => c.system?.includes('snomed'))?.code,
+        icd10_code: condition.code?.coding?.find(c => c.system?.includes('icd') || c.system?.includes('ICD'))?.code
       }));
       
       // Transform medications
-      patient.medications = medicationsResult.resources.map(med => ({
-        id: med.id,
-        medication: med.medicationCodeableConcept?.text || 
-                   med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
-        dosage: med.dosageInstruction?.[0]?.text || '',
-        status: med.status,
-        authoredOn: med.authoredOn
-      }));
+      patient.medications = medicationsResult.resources.map(med => {
+        // Extract dosage information
+        let dosage = '';
+        if (med.dosageInstruction?.[0]?.text) {
+          dosage = med.dosageInstruction[0].text;
+        } else if (med.dosageInstruction?.[0]?.doseAndRate?.[0]?.doseQuantity) {
+          const dose = med.dosageInstruction[0].doseAndRate[0].doseQuantity;
+          dosage = `${dose.value} ${dose.unit || ''}`.trim();
+        }
+        
+        // Extract frequency information
+        let frequency = '';
+        if (med.dosageInstruction?.[0]?.timing?.repeat) {
+          const repeat = med.dosageInstruction[0].timing.repeat;
+          if (repeat.frequency && repeat.period && repeat.periodUnit) {
+            frequency = `${repeat.frequency} times per ${repeat.periodUnit}`;
+          }
+        }
+        
+        return {
+          id: med.id,
+          medication_name: med.medicationCodeableConcept?.text || 
+                     med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
+          medication: med.medicationCodeableConcept?.text || 
+                     med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown',
+          dosage: dosage,
+          frequency: frequency,
+          status: med.status,
+          source: 'prescribed',
+          authoredOn: med.authoredOn
+        };
+      });
       
       setCurrentPatient(patient);
       
@@ -288,12 +337,30 @@ export const ClinicalProvider = ({ children }) => {
     }
   }, [user]); // Only depend on user to avoid infinite loops
 
+  // Handle real-time updates
+  useEffect(() => {
+    if (lastUpdate) {
+      setRealTimeUpdates(prev => [...prev, lastUpdate].slice(-50)); // Keep last 50 updates
+      
+      // Refresh specific data based on update type
+      if (lastUpdate.resourceType === 'Observation' && currentPatient) {
+        // Could trigger a refresh of observations here
+        console.log('New observation received:', lastUpdate);
+      } else if (lastUpdate.resourceType === 'DiagnosticReport' && currentPatient) {
+        // Could trigger a refresh of lab results here
+        console.log('New diagnostic report received:', lastUpdate);
+      }
+    }
+  }, [lastUpdate, currentPatient]);
+
   const value = {
     currentPatient,
     currentEncounter,
     currentNote,
     workspaceMode,
     isLoading,
+    wsConnected,
+    realTimeUpdates,
     setCurrentPatient,
     setCurrentEncounter,
     setCurrentNote,

@@ -22,14 +22,33 @@ import LabResults from './pages/LabResults';
 import Alerts from './pages/Alerts';
 import PatientNew from './pages/PatientNew';
 import EncounterSchedule from './pages/EncounterSchedule';
+import AuditTrailPage from './pages/AuditTrailPage';
+import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
+import Reports from './pages/Reports';
+import Billing from './pages/Billing';
+import Medications from './pages/Medications';
+import Messaging from './pages/Messaging';
+import Tasks from './pages/Tasks';
+import PatientMedications from './pages/PatientMedications';
+import PatientProblems from './pages/PatientProblems';
+import PatientAllergies from './pages/PatientAllergies';
+import PatientEncounters from './pages/PatientEncounters';
+import NewEncounter from './pages/NewEncounter';
+import Schedule from './pages/Schedule';
+import NotFound from './pages/NotFound';
+import Imaging from './pages/Imaging';
 
 // Clinical Components
 import ClinicalWorkspace from './components/clinical/ClinicalWorkspace';
 import { AuthProvider } from './contexts/AuthContext';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import { ClinicalProvider } from './contexts/ClinicalContext';
 import { DocumentationProvider } from './contexts/DocumentationContext';
 import { OrderProvider } from './contexts/OrderContext';
 import { TaskProvider } from './contexts/TaskContext';
+import { InboxProvider } from './contexts/InboxContext';
+import { AppointmentProvider } from './contexts/AppointmentContext';
 
 // Create a sophisticated pastel theme with good contrast
 const theme = createTheme({
@@ -206,11 +225,14 @@ function App() {
       <CssBaseline />
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <AuthProvider>
-          <ClinicalProvider>
-            <DocumentationProvider>
-              <OrderProvider>
-                <TaskProvider>
-                  <Router>
+          <WebSocketProvider>
+            <ClinicalProvider>
+              <DocumentationProvider>
+                <OrderProvider>
+                  <TaskProvider>
+                    <InboxProvider>
+                      <AppointmentProvider>
+                      <Router>
                     <Routes>
                       <Route path="/login" element={<Login />} />
                       <Route path="/" element={<Navigate to="/patients" replace />} />
@@ -319,12 +341,141 @@ function App() {
                           </Layout>
                         </ProtectedRoute>
                       } />
+                      <Route path="/audit-trail" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AuditTrailPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/audit-trail/patient/:patientId" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AuditTrailPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/audit-trail/:resourceType/:resourceId" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AuditTrailPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/settings" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Settings />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/notifications" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Notifications />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/reports" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Reports />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/billing" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Billing />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/medications" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Medications />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/messaging" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Messaging />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/tasks" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Tasks />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/:id/medications" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <PatientMedications />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/:id/problems" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <PatientProblems />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/:id/allergies" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <PatientAllergies />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/:id/encounters" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <PatientEncounters />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/patients/:id/encounters/new" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <NewEncounter />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/schedule" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Schedule />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/imaging" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <Imaging />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+                      <Route path="*" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <NotFound />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
                     </Routes>
                   </Router>
-                </TaskProvider>
-              </OrderProvider>
-            </DocumentationProvider>
-          </ClinicalProvider>
+                      </AppointmentProvider>
+                    </InboxProvider>
+                  </TaskProvider>
+                </OrderProvider>
+              </DocumentationProvider>
+            </ClinicalProvider>
+          </WebSocketProvider>
         </AuthProvider>
       </LocalizationProvider>
     </ThemeProvider>

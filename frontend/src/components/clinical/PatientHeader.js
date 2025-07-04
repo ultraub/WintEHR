@@ -90,16 +90,21 @@ const PatientHeader = ({
   };
 
   const handleEncounterChange = async (encounterId) => {
-    if (encounterId === 'new') {
-      navigate(`/patients/${currentPatient.id}/encounters/new`);
-      return;
-    }
-    
-    const encounter = encounters.find(e => e.id === encounterId);
-    if (encounter) {
-      setCurrentEncounter(encounter);
-    } else if (!encounterId) {
-      setCurrentEncounter(null);
+    try {
+      if (encounterId === 'new') {
+        navigate(`/patients/${currentPatient.id}/encounters/new`);
+        return;
+      }
+      
+      const encounter = encounters.find(e => e.id === encounterId);
+      if (encounter) {
+        console.log('Selected encounter:', encounter);
+        setCurrentEncounter(encounter);
+      } else if (!encounterId) {
+        setCurrentEncounter(null);
+      }
+    } catch (error) {
+      console.error('Error changing encounter:', error);
     }
   };
 

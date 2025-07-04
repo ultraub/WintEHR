@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from typing import List, Optional
 from pydantic import BaseModel
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
 
 router = APIRouter()

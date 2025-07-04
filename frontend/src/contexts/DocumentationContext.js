@@ -228,7 +228,8 @@ export const DocumentationProvider = ({ children }) => {
         _count: 10
       });
       
-      const notes = result.resources.map(fhirDoc => {
+      // Ensure resources is an array
+      const notes = (result.resources || []).map(fhirDoc => {
         const note = transformFHIRDocument(fhirDoc);
         // Add author name if available
         note.authorName = fhirDoc.author?.[0]?.display || 'Provider';

@@ -20,7 +20,15 @@ from database import get_db_session
 from .auth import require_auth
 from core.fhir.storage import FHIRStorageEngine
 
+# Import drug interactions functionality
+from api.clinical.drug_interactions import router as drug_interactions_router, check_drug_interactions
+from api.clinical.catalog_search import router as catalog_search_router
+
 router = APIRouter()
+
+# Include sub-routers
+router.include_router(drug_interactions_router, prefix="/drug-interactions", tags=["Drug Interactions"])
+router.include_router(catalog_search_router, prefix="/catalog", tags=["Clinical Catalog Search"])
 
 
 @router.post("/note-assist")

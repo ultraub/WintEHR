@@ -5,7 +5,7 @@ Designed to store comprehensive FHIR R4 data from Synthea
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Date, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database import Base
 import uuid
 from datetime import datetime
 

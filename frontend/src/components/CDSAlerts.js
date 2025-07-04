@@ -30,11 +30,16 @@ import {
   CheckCircle as CheckIcon
 } from '@mui/icons-material';
 import cdsHooksService from '../services/cdsHooks';
+import { fhirClient } from '../services/fhirClient';
+import api from '../services/api';
+import { useSnackbar } from 'notistack';
 
 const CDSAlerts = ({ hook = null, patientId = null, position = 'top' }) => {
   const [cards, setCards] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
   const [expanded, setExpanded] = useState(new Set());
+  const [processingActions, setProcessingActions] = useState(new Set());
+  const { enqueueSnackbar } = useSnackbar();
 
   useEffect(() => {
     // Subscribe to CDS hook events
@@ -100,9 +105,146 @@ const CDSAlerts = ({ hook = null, patientId = null, position = 'top' }) => {
     });
   };
 
-  const handleSuggestionAction = (suggestion, action) => {
-    // TODO: Implement suggestion actions (create order, etc.)
-    alert(`Action: ${action.type} - ${action.description}`);
+  const handleSuggestionAction = async (suggestion, action) => {
+    const actionId = `${suggestion.uuid}-${action.type}`;
+    
+    // Prevent duplicate processing
+    if (processingActions.has(actionId)) {
+      return;
+    }
+    
+    setProcessingActions(prev => new Set([...prev, actionId]));
+    
+    try {
+      switch (action.type) {
+        case 'create':
+          await handleCreateAction(action, suggestion);
+          break;
+          
+        case 'update':
+          await handleUpdateAction(action, suggestion);
+          break;
+          
+        case 'delete':
+          await handleDeleteAction(action, suggestion);
+          break;
+          
+        case 'external':
+          if (action.url) {
+            window.open(action.url, '_blank');
+          }
+          break;
+          
+        default:
+          enqueueSnackbar(`Unsupported action type: ${action.type}`, { variant: 'warning' });
+      }
+      
+      // Mark the card as addressed
+      if (action.type !== 'external') {
+        enqueueSnackbar('Action completed successfully', { variant: 'success' });
+        // Optionally dismiss the card after successful action
+        handleDismiss(suggestion.uuid || suggestion.card?.uuid);
+      }
+    } catch (error) {
+      console.error('Error executing CDS action:', error);
+      enqueueSnackbar(`Failed to execute action: ${error.message}`, { variant: 'error' });
+    } finally {
+      setProcessingActions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(actionId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleCreateAction = async (action, suggestion) => {
+    if (!action.resource) {
+      throw new Error('No resource provided for create action');
+    }
+    
+    const resource = action.resource;
+    const resourceType = resource.resourceType;
+    
+    if (!resourceType) {
+      throw new Error('Resource type not specified');
+    }
+    
+    // Add patient reference if not present and we have patientId
+    if (patientId && !resource.subject && !resource.patient) {
+      if (['ServiceRequest', 'MedicationRequest', 'Observation', 'Condition'].includes(resourceType)) {
+        resource.subject = { reference: `Patient/${patientId}` };
+      } else if (resourceType === 'Appointment') {
+        resource.participant = resource.participant || [];
+        resource.participant.push({
+          actor: { reference: `Patient/${patientId}` },
+          status: 'needs-action'
+        });
+      }
+    }
+    
+    // Create the resource
+    const result = await fhirClient.create(resourceType, resource);
+    
+    // Log the action in audit trail
+    await logCDSAction(suggestion, action, result);
+    
+    return result;
+  };
+
+  const handleUpdateAction = async (action, suggestion) => {
+    if (!action.resource) {
+      throw new Error('No resource provided for update action');
+    }
+    
+    const resource = action.resource;
+    const resourceType = resource.resourceType;
+    const resourceId = resource.id;
+    
+    if (!resourceType || !resourceId) {
+      throw new Error('Resource type or ID not specified');
+    }
+    
+    // Update the resource
+    const result = await fhirClient.update(resourceType, resourceId, resource);
+    
+    // Log the action
+    await logCDSAction(suggestion, action, result);
+    
+    return result;
+  };
+
+  const handleDeleteAction = async (action, suggestion) => {
+    if (!action.resourceId || !action.resourceType) {
+      throw new Error('Resource type or ID not specified for delete action');
+    }
+    
+    // Delete the resource
+    await fhirClient.delete(action.resourceType, action.resourceId);
+    
+    // Log the action
+    await logCDSAction(suggestion, action, { deleted: true });
+  };
+
+  const logCDSAction = async (suggestion, action, result) => {
+    try {
+      await api.post('/api/emr/clinical/cds-action-log', {
+        cardId: suggestion.card?.uuid || suggestion.uuid,
+        suggestionId: suggestion.uuid,
+        action: {
+          type: action.type,
+          description: action.description,
+          resourceType: action.resource?.resourceType || action.resourceType
+        },
+        result: {
+          success: true,
+          resourceId: result.id,
+          resourceType: result.resourceType
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Failed to log CDS action:', error);
+    }
   };
 
   const renderCard = (card) => {
@@ -179,18 +321,24 @@ const CDSAlerts = ({ hook = null, patientId = null, position = 'top' }) => {
                 Suggested Actions:
               </Typography>
               <Stack spacing={1}>
-                {card.suggestions.map((suggestion, index) => (
-                  <Box key={suggestion.uuid || index}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<CheckIcon />}
-                      onClick={() => handleSuggestionAction(suggestion, suggestion.actions[0])}
-                    >
-                      {suggestion.label}
-                    </Button>
-                  </Box>
-                ))}
+                {card.suggestions.map((suggestion, index) => {
+                  const isProcessing = suggestion.actions && suggestion.actions[0] && 
+                    processingActions.has(`${suggestion.uuid}-${suggestion.actions[0].type}`);
+                  
+                  return (
+                    <Box key={suggestion.uuid || index}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<CheckIcon />}
+                        onClick={() => handleSuggestionAction(suggestion, suggestion.actions[0])}
+                        disabled={isProcessing || !suggestion.actions || suggestion.actions.length === 0}
+                      >
+                        {isProcessing ? 'Processing...' : suggestion.label}
+                      </Button>
+                    </Box>
+                  );
+                })}
               </Stack>
             </Box>
           )}

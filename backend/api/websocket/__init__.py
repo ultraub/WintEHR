@@ -1,0 +1,1 @@
+"""WebSocket module for real-time FHIR updates."""

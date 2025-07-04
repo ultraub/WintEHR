@@ -31,7 +31,8 @@ import {
   Description as DocumentIcon,
   OpenInNew as OpenInNewIcon,
   Event as EventIcon,
-  FiberManualRecord as DotIcon
+  FiberManualRecord as DotIcon,
+  Security as SecurityIcon
 } from '@mui/icons-material';
 import { format, differenceInYears, parseISO, isToday, isYesterday, differenceInDays } from 'date-fns';
 import { fhirClient } from '../services/fhirClient';
@@ -383,6 +384,12 @@ function PatientViewRefined() {
                     <ScienceIcon color="primary" />
                   </ListItemIcon>
                   <ListItemText primary="Review Results" />
+                </ListItemButton>
+                <ListItemButton onClick={() => navigate(`/audit-trail/patient/${id}`)}>
+                  <ListItemIcon>
+                    <SecurityIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary="View Audit Trail" />
                 </ListItemButton>
               </List>
             </CardContent>

@@ -47,6 +47,7 @@ import { fhirClient } from '../../../services/fhirClient';
 import api from '../../../services/api';
 // Temporarily use simplified viewer to avoid cornerstone-tools issues
 import ImageViewerV2 from '../../ImageViewerV2_Simple';
+import RealTimeResultsIndicator from './RealTimeResultsIndicator';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
@@ -100,7 +101,7 @@ const ResultsTab = () => {
       const labResult = await fhirClient.getLabResults(currentPatient.id);
       
       // Transform FHIR observations to expected format
-      let results = labResult.resources.map(obs => ({
+      let results = (labResult.resources || []).map(obs => ({
         id: obs.id,
         patient_id: currentPatient.id,
         observation_date: obs.effectiveDateTime || obs.issued,
@@ -261,9 +262,12 @@ const ResultsTab = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        Results Review
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5">
+          Results Review
+        </Typography>
+        <RealTimeResultsIndicator patientId={currentPatient?.id} />
+      </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>

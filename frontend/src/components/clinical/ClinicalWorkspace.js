@@ -21,13 +21,15 @@ import {
   Dashboard as OverviewIcon,
   Inbox as InboxIcon,
   Assignment as TasksIcon,
-  Timeline as TrendsIcon
+  Timeline as TrendsIcon,
+  Event as AppointmentsIcon
 } from '@mui/icons-material';
 import { useClinical } from '../../contexts/ClinicalContext';
 import { useDocumentation } from '../../contexts/DocumentationContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useTask } from '../../contexts/TaskContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useInbox } from '../../contexts/InboxContext';
 import PatientHeader from './PatientHeader';
 import PatientOverview from './PatientOverview';
 import DocumentationTab from './documentation/DocumentationTab';
@@ -36,6 +38,7 @@ import ResultsTab from './results/ResultsTab';
 import InboxTab from './inbox/InboxTab';
 import TasksTab from './tasks/TasksTab';
 import TrendsTab from './trends/TrendsTab';
+import AppointmentsTab from './appointments/AppointmentsTab';
 import cdsHooksService from '../../services/cdsHooks';
 import CDSAlerts from '../CDSAlerts';
 import api from '../../services/api';
@@ -66,7 +69,7 @@ const ClinicalWorkspace = () => {
   const { loadRecentNotes, loadNoteTemplates } = useDocumentation();
   const { loadActiveOrders, loadOrderSets } = useOrders();
   const { loadTasks, loadTaskStats } = useTask();
-  // const { loadInboxItems, loadInboxStats } = useInbox(); // TODO: Implement InboxContext
+  const { loadInboxItems, loadInboxStats } = useInbox();
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState(0); // Start on Overview tab by default
   const [initLoading, setInitLoading] = useState(true);
@@ -79,11 +82,12 @@ const ClinicalWorkspace = () => {
     'orders': 2,
     'results': 3,
     'trends': 4,
-    'inbox': 5,
-    'tasks': 6
+    'appointments': 5,
+    'inbox': 6,
+    'tasks': 7
   };
 
-  const tabToWorkspaceMode = ['overview', 'documentation', 'orders', 'results', 'trends', 'inbox', 'tasks'];
+  const tabToWorkspaceMode = ['overview', 'documentation', 'orders', 'results', 'trends', 'appointments', 'inbox', 'tasks'];
 
   // Handle URL parameters for mode and encounter context
   useEffect(() => {
@@ -131,8 +135,8 @@ const ClinicalWorkspace = () => {
           loadNoteTemplates(),
           loadActiveOrders(currentPatient.id),
           loadOrderSets(),
-          // loadInboxItems(), // TODO: Implement InboxContext
-          // loadInboxStats(), // TODO: Implement InboxContext
+          loadInboxItems({ patient_id: currentPatient.id }),
+          loadInboxStats(),
           loadTasks({ patient_id: currentPatient.id }),
           loadTaskStats()
         ]);
@@ -246,6 +250,11 @@ const ClinicalWorkspace = () => {
               iconPosition="start"
             />
             <Tab 
+              icon={<AppointmentsIcon />} 
+              label="Appointments" 
+              iconPosition="start"
+            />
+            <Tab 
               icon={<InboxIcon />} 
               label="Inbox" 
               iconPosition="start"
@@ -280,10 +289,14 @@ const ClinicalWorkspace = () => {
           </TabPanel>
           
           <TabPanel value={activeTab} index={5}>
-            <InboxTab />
+            <AppointmentsTab />
           </TabPanel>
           
           <TabPanel value={activeTab} index={6}>
+            <InboxTab />
+          </TabPanel>
+          
+          <TabPanel value={activeTab} index={7}>
             <TasksTab />
           </TabPanel>
         </Box>

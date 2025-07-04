@@ -244,7 +244,7 @@ function Dashboard() {
       icon: <TaskIcon />,
       color: '#f57c00',
       subtitle: 'Requires action',
-      action: () => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks' } }),
+      action: () => navigate('/tasks'),
     },
     {
       title: 'Unreviewed Labs',

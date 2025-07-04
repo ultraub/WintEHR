@@ -89,6 +89,10 @@ class SyntheaFHIRValidator(FHIRValidator):
             # Convert to valid FHIR ID
             processed['id'] = processed['id'].replace('urn:uuid:', '').replace('-', '')[:64]
         
+        # Remove resourceType if present - it's not a field in the model
+        if 'resourceType' in processed:
+            del processed['resourceType']
+        
         # Resource-specific preprocessing
         if resource_type == 'Encounter':
             processed = self._preprocess_encounter(processed)
@@ -96,144 +100,465 @@ class SyntheaFHIRValidator(FHIRValidator):
             processed = self._preprocess_medication_request(processed)
         elif resource_type == 'Procedure':
             processed = self._preprocess_procedure(processed)
+        elif resource_type == 'Organization':
+            processed = self._preprocess_organization(processed)
+        elif resource_type == 'Location':
+            processed = self._preprocess_location(processed)
         
         return processed
     
     def _preprocess_encounter(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fix Encounter-specific Synthea format issues."""
-        # Fix class field - in R4, class is a single Coding, not a CodeableConcept or list
+        # Fix class field - The fhir.resources library (R5) expects a LIST of CodeableConcept
+        # Synthea provides a single Coding object following FHIR R4 spec
+        # We need to convert: Coding -> [CodeableConcept]
         if 'class' in data:
-            if isinstance(data['class'], dict) and 'coding' in data['class']:
-                # Convert CodeableConcept to single Coding
-                data['class'] = data['class']['coding'][0] if data['class']['coding'] else {}
-            elif isinstance(data['class'], list) and len(data['class']) > 0:
-                # Convert from list to single Coding
-                if 'coding' in data['class'][0]:
-                    data['class'] = data['class'][0]['coding'][0]
-                else:
-                    data['class'] = data['class'][0]
-        
-        # Fix period - remove extra fields
-        if 'period' in data:
-            allowed_fields = ['start', 'end', 'id', 'extension']
+            if isinstance(data['class'], dict):
+                # Convert single Coding to list of CodeableConcept
+                if 'system' in data['class'] and 'code' in data['class']:
+                    # It's a Coding object - wrap in CodeableConcept and make it a list
+                    data['class'] = [{
+                        'coding': [data['class']]
+                    }]
+                elif 'coding' in data['class']:
+                    # It's already a CodeableConcept - just make it a list
+                    data['class'] = [data['class']]
+            elif isinstance(data['class'], list):
+                # Already a list - ensure each item is a CodeableConcept
+                cleaned_classes = []
+                for cls in data['class']:
+                    if isinstance(cls, dict):
+                        if 'coding' in cls:
+                            # Already a CodeableConcept
+                            cleaned_classes.append(cls)
+                        elif 'system' in cls and 'code' in cls:
+                            # It's a Coding - wrap in CodeableConcept
+                            cleaned_classes.append({'coding': [cls]})
+                data['class'] = cleaned_classes if cleaned_classes else [{'coding': [{'code': 'UNK'}]}]
+            else:
+                # Invalid format - create default
+                data['class'] = [{'coding': [{'code': 'UNK'}]}]
+        # Clean up all BackboneElement fields to remove Synthea's extra fields
+        # Period - the error shows "extra fields not permitted"
+        if 'period' in data and isinstance(data['period'], dict):
+            # Only keep standard FHIR fields
+            allowed_period_fields = {'id', 'extension', 'start', 'end'}
             data['period'] = {
                 k: v for k, v in data['period'].items() 
-                if k in allowed_fields
+                if k in allowed_period_fields
             }
         
-        # Fix participant individual references
+        # Fix participant - the error shows participant.individual has extra fields
         if 'participant' in data:
-            for participant in data['participant']:
-                if 'individual' in participant:
-                    # Ensure individual is a proper Reference
-                    if isinstance(participant['individual'], dict):
-                        # Keep only valid Reference fields
-                        allowed_fields = ['reference', 'type', 'identifier', 'display']
-                        cleaned_ref = {}
-                        for field in allowed_fields:
-                            if field in participant['individual']:
-                                cleaned_ref[field] = participant['individual'][field]
-                        participant['individual'] = cleaned_ref
+            for i, participant in enumerate(data['participant']):
+                # Clean the participant BackboneElement
+                allowed_participant_fields = {'id', 'extension', 'modifierExtension', 'type', 'period', 'individual'}
+                cleaned_participant = {
+                    k: v for k, v in participant.items()
+                    if k in allowed_participant_fields
+                }
                 
-                # Clean participant object - keep only allowed fields
-                allowed_participant_fields = ['id', 'extension', 'modifierExtension', 'type', 'period', 'individual']
-                keys_to_remove = [k for k in participant.keys() if k not in allowed_participant_fields]
-                for key in keys_to_remove:
-                    del participant[key]
+                # Clean the individual Reference
+                if 'individual' in cleaned_participant and isinstance(cleaned_participant['individual'], dict):
+                    allowed_reference_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+                    cleaned_participant['individual'] = {
+                        k: v for k, v in cleaned_participant['individual'].items()
+                        if k in allowed_reference_fields
+                    }
+                
+                data['participant'][i] = cleaned_participant
         
-        # Fix reasonCode - remove extra fields from codings
+        # Fix reasonCode - the error shows "extra fields not permitted"
         if 'reasonCode' in data:
+            cleaned_reasons = []
             for reason in data['reasonCode']:
-                if 'coding' in reason:
-                    for coding in reason['coding']:
-                        allowed_fields = ['system', 'code', 'display', 'version', 'userSelected']
-                        keys_to_remove = [k for k in coding.keys() if k not in allowed_fields]
-                        for key in keys_to_remove:
-                            del coding[key]
+                if isinstance(reason, dict):
+                    # Clean the CodeableConcept
+                    allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
+                    cleaned_reason = {
+                        k: v for k, v in reason.items()
+                        if k in allowed_cc_fields
+                    }
+                    
+                    # Clean each Coding in the CodeableConcept
+                    if 'coding' in cleaned_reason:
+                        cleaned_codings = []
+                        for coding in cleaned_reason['coding']:
+                            allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                            cleaned_codings.append({
+                                k: v for k, v in coding.items()
+                                if k in allowed_coding_fields
+                            })
+                        cleaned_reason['coding'] = cleaned_codings
+                    
+                    cleaned_reasons.append(cleaned_reason)
+            
+            if cleaned_reasons:
+                data['reasonCode'] = cleaned_reasons
+            else:
+                # Remove empty reasonCode
+                del data['reasonCode']
         
-        # Fix hospitalization if present
-        if 'hospitalization' in data:
-            # Remove extra fields
-            allowed_fields = ['origin', 'admitSource', 'reAdmission', 'dietPreference', 
-                            'specialCourtesy', 'specialArrangement', 'destination', 
-                            'dischargeDisposition', 'id', 'extension']
+        # Fix hospitalization - the error shows "extra fields not permitted"
+        if 'hospitalization' in data and isinstance(data['hospitalization'], dict):
+            allowed_hosp_fields = {
+                'id', 'extension', 'modifierExtension', 'preAdmissionIdentifier',
+                'origin', 'admitSource', 'reAdmission', 'dietPreference',
+                'specialCourtesy', 'specialArrangement', 'destination',
+                'dischargeDisposition'
+            }
             data['hospitalization'] = {
                 k: v for k, v in data['hospitalization'].items()
-                if k in allowed_fields
+                if k in allowed_hosp_fields
             }
         
         return data
     
     def _preprocess_medication_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fix MedicationRequest-specific Synthea format issues."""
-        # Fix medication reference - Synthea uses medicationCodeableConcept or medicationReference
+        # The error shows "medication -> coding" and "medication -> text" are extra fields
+        # This means the medication field is being treated as a CodeableConcept directly
+        # In FHIR R4, medication[x] can be either CodeableConcept or Reference
+        
+        # Check if medication exists and clean it
+        if 'medication' in data and isinstance(data['medication'], dict):
+            # Check if it's a CodeableConcept (has coding or text)
+            if 'coding' in data['medication'] or 'text' in data['medication']:
+                # It's a CodeableConcept - clean it
+                allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
+                cleaned_med = {
+                    k: v for k, v in data['medication'].items()
+                    if k in allowed_cc_fields
+                }
+                
+                # Clean the codings
+                if 'coding' in cleaned_med:
+                    cleaned_codings = []
+                    for coding in cleaned_med['coding']:
+                        allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                        cleaned_codings.append({
+                            k: v for k, v in coding.items()
+                            if k in allowed_coding_fields
+                        })
+                    cleaned_med['coding'] = cleaned_codings
+                
+                data['medication'] = cleaned_med
+            
+            # Check if it's a Reference (has reference field)
+            elif 'reference' in data['medication']:
+                # It's a Reference - clean it
+                allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+                data['medication'] = {
+                    k: v for k, v in data['medication'].items()
+                    if k in allowed_ref_fields
+                }
+        
+        # Fix medicationCodeableConcept if it exists (older Synthea format)
         if 'medicationCodeableConcept' in data:
-            # Move to medication[x] format
             data['medication'] = data.pop('medicationCodeableConcept')
         elif 'medicationReference' in data:
-            # This should be under medication[x]
             data['medication'] = data.pop('medicationReference')
         
-        # Fix dosageInstruction
-        if 'dosageInstruction' in data:
-            for dosage in data['dosageInstruction']:
-                # Fix asNeededBoolean field
-                if 'asNeededBoolean' in dosage:
-                    # Move to asNeeded[x]
-                    dosage['asNeeded'] = dosage.pop('asNeededBoolean')
-                
-                # Fix timing repeat
-                if 'timing' in dosage and 'repeat' in dosage['timing']:
-                    repeat = dosage['timing']['repeat']
-                    allowed_fields = ['boundsDuration', 'boundsPeriod', 'boundsRange',
-                                    'count', 'countMax', 'duration', 'durationMax',
-                                    'durationUnit', 'frequency', 'frequencyMax',
-                                    'period', 'periodMax', 'periodUnit', 'dayOfWeek',
-                                    'timeOfDay', 'when', 'offset', 'id', 'extension']
-                    keys_to_remove = [k for k in repeat.keys() if k not in allowed_fields]
-                    for key in keys_to_remove:
-                        del repeat[key]
+        # Fix reason field - the error shows "reason -> 0 -> reference" and "reason -> 0 -> display" issues
+        # This suggests reason is an array with improper Reference objects
+        if 'reason' in data and isinstance(data['reason'], list):
+            cleaned_reasons = []
+            for reason in data['reason']:
+                if isinstance(reason, dict):
+                    # Check if it's a reference (for backward compatibility)
+                    if 'reference' in reason:
+                        # Wrap in proper structure
+                        cleaned_reasons.append({
+                            'reference': {
+                                'reference': reason['reference'],
+                                'display': reason.get('display')
+                            }
+                        })
+                    # Check if it's already properly structured
+                    elif 'concept' in reason or 'reference' in reason:
+                        # Clean the reason BackboneElement
+                        allowed_reason_fields = {'id', 'extension', 'concept', 'reference'}
+                        cleaned_reason = {
+                            k: v for k, v in reason.items()
+                            if k in allowed_reason_fields
+                        }
+                        
+                        # Clean nested reference if present
+                        if 'reference' in cleaned_reason and isinstance(cleaned_reason['reference'], dict):
+                            allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+                            cleaned_reason['reference'] = {
+                                k: v for k, v in cleaned_reason['reference'].items()
+                                if k in allowed_ref_fields
+                            }
+                        
+                        cleaned_reasons.append(cleaned_reason)
+            
+            if cleaned_reasons:
+                data['reason'] = cleaned_reasons
+            else:
+                del data['reason']
         
-        # Fix reasonReference to reason
+        # Fix reasonReference (older format)
         if 'reasonReference' in data:
-            data['reason'] = data.pop('reasonReference')
+            if isinstance(data['reasonReference'], list):
+                data['reason'] = [{'reference': ref} for ref in data['reasonReference']]
+            else:
+                data['reason'] = [{'reference': data['reasonReference']}]
+            del data['reasonReference']
         
-        # Fix reasonCode field
+        # Fix reasonCode (convert to reason with concept)
         if 'reasonCode' in data:
-            # Ensure it's wrapped in reason array
             if 'reason' not in data:
                 data['reason'] = []
             for code in data['reasonCode']:
                 data['reason'].append({'concept': code})
             del data['reasonCode']
+        
+        # Fix dosageInstruction
+        if 'dosageInstruction' in data:
+            for dosage in data['dosageInstruction']:
+                # Fix asNeededBoolean -> asNeeded
+                if 'asNeededBoolean' in dosage:
+                    dosage['asNeeded'] = dosage.pop('asNeededBoolean')
+                
+                # Clean dosage fields
+                allowed_dosage_fields = {
+                    'id', 'extension', 'modifierExtension', 'sequence', 'text',
+                    'additionalInstruction', 'patientInstruction', 'timing',
+                    'asNeeded', 'asNeededFor', 'site', 'route', 'method',
+                    'doseAndRate', 'maxDosePerPeriod', 'maxDosePerAdministration',
+                    'maxDosePerLifetime'
+                }
+                keys_to_remove = [k for k in dosage.keys() if k not in allowed_dosage_fields]
+                for key in keys_to_remove:
+                    del dosage[key]
+                
+                # Clean timing if present
+                if 'timing' in dosage and isinstance(dosage['timing'], dict):
+                    allowed_timing_fields = {'id', 'extension', 'modifierExtension', 'event', 'repeat', 'code'}
+                    dosage['timing'] = {
+                        k: v for k, v in dosage['timing'].items()
+                        if k in allowed_timing_fields
+                    }
+                    
+                    # Clean repeat if present
+                    if 'repeat' in dosage['timing'] and isinstance(dosage['timing']['repeat'], dict):
+                        allowed_repeat_fields = {
+                            'id', 'extension', 'boundsDuration', 'boundsRange', 'boundsPeriod',
+                            'count', 'countMax', 'duration', 'durationMax', 'durationUnit',
+                            'frequency', 'frequencyMax', 'period', 'periodMax', 'periodUnit',
+                            'dayOfWeek', 'timeOfDay', 'when', 'offset'
+                        }
+                        dosage['timing']['repeat'] = {
+                            k: v for k, v in dosage['timing']['repeat'].items()
+                            if k in allowed_repeat_fields
+                        }
         
         return data
     
     def _preprocess_procedure(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fix Procedure-specific Synthea format issues."""
-        # Fix performedPeriod - remove extra fields
-        if 'performedPeriod' in data:
-            allowed_fields = ['start', 'end', 'id', 'extension']
+        # The error shows "performedPeriod - extra fields not permitted"
+        # Clean the Period to only include allowed fields
+        if 'performedPeriod' in data and isinstance(data['performedPeriod'], dict):
+            allowed_period_fields = {'id', 'extension', 'start', 'end'}
             data['performedPeriod'] = {
                 k: v for k, v in data['performedPeriod'].items()
-                if k in allowed_fields
+                if k in allowed_period_fields
             }
         
-        # Fix reasonReference to reason
+        # Fix reasonReference to reason (for older Synthea versions)
         if 'reasonReference' in data:
             # Convert to reason array with reference
-            data['reason'] = [{'reference': ref} for ref in data.pop('reasonReference')]
+            if isinstance(data['reasonReference'], list):
+                data['reason'] = [{'reference': ref} for ref in data['reasonReference']]
+            else:
+                data['reason'] = [{'reference': data['reasonReference']}]
+            del data['reasonReference']
         
-        # Fix reasonCode
+        # Fix reasonCode (convert to reason with concept)
         if 'reasonCode' in data:
-            # Convert to reason array with concept
             if 'reason' not in data:
                 data['reason'] = []
             for code in data['reasonCode']:
                 data['reason'].append({'concept': code})
             del data['reasonCode']
         
+        # Clean any existing reason field
+        if 'reason' in data and isinstance(data['reason'], list):
+            cleaned_reasons = []
+            for reason in data['reason']:
+                if isinstance(reason, dict):
+                    # Clean the reason BackboneElement
+                    allowed_reason_fields = {'id', 'extension', 'concept', 'reference'}
+                    cleaned_reason = {
+                        k: v for k, v in reason.items()
+                        if k in allowed_reason_fields
+                    }
+                    
+                    # Clean nested reference if present
+                    if 'reference' in cleaned_reason and isinstance(cleaned_reason['reference'], dict):
+                        allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+                        cleaned_reason['reference'] = {
+                            k: v for k, v in cleaned_reason['reference'].items()
+                            if k in allowed_ref_fields
+                        }
+                    
+                    # Clean nested concept if present
+                    if 'concept' in cleaned_reason and isinstance(cleaned_reason['concept'], dict):
+                        allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
+                        cleaned_reason['concept'] = {
+                            k: v for k, v in cleaned_reason['concept'].items()
+                            if k in allowed_cc_fields
+                        }
+                    
+                    cleaned_reasons.append(cleaned_reason)
+            
+            if cleaned_reasons:
+                data['reason'] = cleaned_reasons
+            else:
+                del data['reason']
+        
+        # Clean performer field if present
+        if 'performer' in data and isinstance(data['performer'], list):
+            cleaned_performers = []
+            for performer in data['performer']:
+                if isinstance(performer, dict):
+                    # Clean the performer BackboneElement
+                    allowed_performer_fields = {'id', 'extension', 'modifierExtension', 'function', 'actor', 'onBehalfOf'}
+                    cleaned_performer = {
+                        k: v for k, v in performer.items()
+                        if k in allowed_performer_fields
+                    }
+                    
+                    # Clean nested references
+                    for ref_field in ['actor', 'onBehalfOf']:
+                        if ref_field in cleaned_performer and isinstance(cleaned_performer[ref_field], dict):
+                            allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+                            cleaned_performer[ref_field] = {
+                                k: v for k, v in cleaned_performer[ref_field].items()
+                                if k in allowed_ref_fields
+                            }
+                    
+                    cleaned_performers.append(cleaned_performer)
+            
+            data['performer'] = cleaned_performers
+        
         return data
+    
+    def _preprocess_organization(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix Organization-specific Synthea format issues."""
+        # Synthea adds custom extensions that may cause validation issues
+        # Keep only standard extensions if validation fails
+        if 'extension' in data and isinstance(data['extension'], list):
+            # For now, keep all extensions but ensure they're properly structured
+            cleaned_extensions = []
+            for ext in data['extension']:
+                if isinstance(ext, dict) and 'url' in ext:
+                    # Basic extension structure validation
+                    allowed_ext_fields = {'id', 'extension', 'url', 'valueString', 'valueInteger', 
+                                        'valueBoolean', 'valueDateTime', 'valueCodeableConcept',
+                                        'valueReference', 'valuePeriod', 'valueQuantity'}
+                    cleaned_ext = {
+                        k: v for k, v in ext.items()
+                        if k in allowed_ext_fields or k.startswith('value')
+                    }
+                    cleaned_extensions.append(cleaned_ext)
+            
+            if cleaned_extensions:
+                data['extension'] = cleaned_extensions
+            else:
+                del data['extension']
+        
+        # Clean address if present
+        if 'address' in data and isinstance(data['address'], list):
+            cleaned_addresses = []
+            for addr in data['address']:
+                if isinstance(addr, dict):
+                    allowed_addr_fields = {'id', 'extension', 'use', 'type', 'text', 'line',
+                                         'city', 'district', 'state', 'postalCode', 'country', 'period'}
+                    cleaned_addresses.append({
+                        k: v for k, v in addr.items()
+                        if k in allowed_addr_fields
+                    })
+            data['address'] = cleaned_addresses
+        
+        # Clean telecom if present
+        if 'telecom' in data and isinstance(data['telecom'], list):
+            cleaned_telecoms = []
+            for telecom in data['telecom']:
+                if isinstance(telecom, dict):
+                    allowed_telecom_fields = {'id', 'extension', 'system', 'value', 'use', 'rank', 'period'}
+                    cleaned_telecoms.append({
+                        k: v for k, v in telecom.items()
+                        if k in allowed_telecom_fields
+                    })
+            data['telecom'] = cleaned_telecoms
+        
+        return data
+    
+    def _preprocess_location(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix Location-specific Synthea format issues."""
+        # Similar to Organization, clean any Synthea-specific extensions
+        if 'extension' in data and isinstance(data['extension'], list):
+            cleaned_extensions = []
+            for ext in data['extension']:
+                if isinstance(ext, dict) and 'url' in ext:
+                    allowed_ext_fields = {'id', 'extension', 'url', 'valueString', 'valueInteger', 
+                                        'valueBoolean', 'valueDateTime', 'valueCodeableConcept',
+                                        'valueReference', 'valuePeriod', 'valueQuantity'}
+                    cleaned_ext = {
+                        k: v for k, v in ext.items()
+                        if k in allowed_ext_fields or k.startswith('value')
+                    }
+                    cleaned_extensions.append(cleaned_ext)
+            
+            if cleaned_extensions:
+                data['extension'] = cleaned_extensions
+            else:
+                del data['extension']
+        
+        # Clean position if present
+        if 'position' in data and isinstance(data['position'], dict):
+            allowed_position_fields = {'id', 'extension', 'longitude', 'latitude', 'altitude'}
+            data['position'] = {
+                k: v for k, v in data['position'].items()
+                if k in allowed_position_fields
+            }
+        
+        # Clean address
+        if 'address' in data and isinstance(data['address'], dict):
+            allowed_addr_fields = {'id', 'extension', 'use', 'type', 'text', 'line',
+                                 'city', 'district', 'state', 'postalCode', 'country', 'period'}
+            data['address'] = {
+                k: v for k, v in data['address'].items()
+                if k in allowed_addr_fields
+            }
+        
+        # Clean managingOrganization reference
+        if 'managingOrganization' in data and isinstance(data['managingOrganization'], dict):
+            allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
+            data['managingOrganization'] = {
+                k: v for k, v in data['managingOrganization'].items()
+                if k in allowed_ref_fields
+            }
+        
+        return data
+    
+    def _validate_structure(
+        self,
+        resource_type: str,
+        resource_data: Dict[str, Any]
+    ) -> List[OperationOutcomeIssue]:
+        """
+        Validate resource structure with Synthea preprocessing.
+        
+        This overrides the parent method to ensure preprocessing happens
+        before structural validation.
+        """
+        # IMPORTANT: The resource_data here has already been preprocessed
+        # by validate_resource method, so we can call parent directly
+        return super()._validate_structure(resource_type, resource_data)
     
     def _is_valid_reference(self, reference: str) -> bool:
         """

@@ -28,11 +28,30 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       try {
-        const response = await api.get('/api/auth/me');
-        setUser(response.data);
+        // Try to get user info from the FHIR auth endpoint
+        try {
+          const response = await api.get('/api/fhir/auth/userinfo');
+          setUser(response.data);
+        } catch (fhirAuthError) {
+          // FHIR auth endpoint not available, try legacy auth/me
+          const response = await api.get('/api/auth/me');
+          setUser(response.data);
+        }
       } catch (error) {
-        console.error('Session check failed:', error);
-        localStorage.removeItem('auth_token');
+        // If FHIR auth endpoint fails, check if we have cached user data
+        const cachedUser = localStorage.getItem('auth_user');
+        if (cachedUser) {
+          try {
+            setUser(JSON.parse(cachedUser));
+          } catch (e) {
+            console.error('Invalid cached user data:', e);
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+          }
+        } else {
+          console.error('Session check failed:', error);
+          localStorage.removeItem('auth_token');
+        }
       }
     }
     setLoading(false);
@@ -47,8 +66,9 @@ export const AuthProvider = ({ children }) => {
       
       const { session_token, provider } = response.data;
       
-      // Store token
+      // Store token and user data
       localStorage.setItem('auth_token', session_token);
+      localStorage.setItem('auth_user', JSON.stringify(provider));
       
       // Set user data
       setUser(provider);
@@ -69,6 +89,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
       setUser(null);
     }
   };

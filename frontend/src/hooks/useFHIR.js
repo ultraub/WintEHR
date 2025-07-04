@@ -437,3 +437,22 @@ export function invalidateResourceCache(resourceType) {
     }
   });
 }
+
+/**
+ * Utility search functions for common resources
+ */
+export function searchPatients(params = {}) {
+  return fhirClient.get('/Patient', { params });
+}
+
+export function searchPractitioners(params = {}) {
+  return fhirClient.get('/Practitioner', { params });
+}
+
+export function searchLocations(params = {}) {
+  return fhirClient.get('/Location', { params });
+}
+
+export function searchAppointments(params = {}) {
+  return fhirClient.get('/Appointment', { params });
+}

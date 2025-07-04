@@ -17,6 +17,9 @@ from emr_api.router import emr_router
 # Import Clinical Canvas router
 from clinical_canvas.router import router as clinical_canvas_router
 
+# Import WebSocket router
+from api.websocket.websocket_router import router as websocket_router
+
 # Import legacy routers (to be migrated)
 # TODO: Migrate these to use FHIR APIs
 # from api.cds_hooks import cds_hooks_router
@@ -76,6 +79,17 @@ app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])  # Already 
 # Add compatibility routes for frontend
 from emr_api.auth import router as auth_router_compat
 app.include_router(auth_router_compat, prefix="/api/auth", tags=["Authentication"])
+
+# Add FHIR-based authentication
+from api.fhir_auth import router as fhir_auth_router
+app.include_router(fhir_auth_router, tags=["FHIR Authentication"])
+
+# Add authentication migration support
+from api.auth_migration import router as auth_migration_router
+app.include_router(auth_migration_router, tags=["Authentication Migration"])
+
+# Add WebSocket support
+app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
 
 # Legacy API compatibility layers removed - frontend now uses FHIR APIs directly
 # Legacy routers - commented out for FHIR-native implementation
