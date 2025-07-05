@@ -1,405 +1,341 @@
 #!/usr/bin/env python3
 """
-Consolidated Synthea Workflow Script
-A unified script for managing Synthea data generation, validation, and import processes.
+Unified Synthea Workflow Script
 
-This replaces multiple scattered scripts with a single, comprehensive tool for:
-- Running Synthea to generate synthetic patient data
-- Validating and transforming FHIR resources
-- Importing data into the MedGenEMR database
-- Managing database setup and cleanup
-- Generating additional clinical data (DICOM, etc.)
+This script provides a complete workflow for:
+1. Generating Synthea data
+2. Resetting and initializing the database
+3. Importing the generated data
+4. Validating the import
+
+Usage:
+    python synthea_workflow.py full              # Run complete workflow
+    python synthea_workflow.py generate          # Only generate data
+    python synthea_workflow.py import            # Only import existing data
+    python synthea_workflow.py validate          # Only validate imported data
 """
 
 import asyncio
-import json
-import os
-import sys
 import subprocess
-import argparse
+import sys
+import os
+import json
 import shutil
 from pathlib import Path
-from datetime import datetime, timezone
-from uuid import uuid4
-import time
+from datetime import datetime
+import argparse
+from typing import Optional
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import text, create_engine
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 from database import DATABASE_URL
-from importers.synthea_fhir import SyntheaFHIRImporter
 
 
 class SyntheaWorkflow:
-    """Unified Synthea workflow management."""
+    """Manages the complete Synthea data workflow."""
     
     def __init__(self):
-        self.script_dir = Path(__file__).parent
-        self.backend_dir = self.script_dir.parent
-        self.root_dir = self.backend_dir.parent
-        self.synthea_dir = self.backend_dir / "synthea"
+        self.synthea_dir = Path("../synthea")
         self.output_dir = self.synthea_dir / "output" / "fhir"
+        self.backup_dir = Path("data/synthea_backups")
+        self.log_file = Path("logs/synthea_workflow.log")
         
-        # Database setup
-        self.engine = None
-        
-    async def init_db(self):
-        """Initialize database connection."""
-        self.engine = create_async_engine(DATABASE_URL)
-        
-    async def close_db(self):
-        """Close database connection."""
-        if self.engine:
-            await self.engine.dispose()
+        # Ensure directories exist
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
     
-    def run_command(self, command, cwd=None, shell=False):
-        """Run a shell command and return the result."""
-        try:
-            print(f"Running: {' '.join(command) if isinstance(command, list) else command}")
-            result = subprocess.run(
-                command,
-                cwd=cwd or self.synthea_dir,
-                shell=shell,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            print(f"✅ Command completed successfully")
-            return result
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Command failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
-            raise
-    
-    def setup_synthea(self):
-        """Set up Synthea environment."""
-        print("🔧 Setting up Synthea environment...")
+    def log(self, message: str, level: str = "INFO"):
+        """Log a message to both console and file."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_message = f"[{timestamp}] [{level}] {message}"
         
+        print(log_message)
+        
+        with open(self.log_file, "a") as f:
+            f.write(log_message + "\n")
+    
+    def generate_synthea_data(self, count: int = 10, state: str = "Massachusetts", 
+                            city: Optional[str] = None) -> bool:
+        """Generate Synthea patient data."""
+        self.log("🏥 Generating Synthea Data")
+        self.log("=" * 60)
+        
+        # Check if Synthea exists
         if not self.synthea_dir.exists():
-            print(f"❌ Synthea directory not found: {self.synthea_dir}")
-            print("Please clone Synthea into the backend/synthea directory")
+            self.log("❌ Synthea directory not found. Please install Synthea first.", "ERROR")
+            self.log("Run: git clone https://github.com/synthetichealth/synthea.git ../synthea", "ERROR")
             return False
         
-        # Check if Synthea is built
-        gradle_jar = self.synthea_dir / "build" / "libs"
-        if not gradle_jar.exists() or not list(gradle_jar.glob("synthea-*.jar")):
-            print("🔨 Building Synthea...")
-            self.run_command(["./gradlew", "build"], cwd=self.synthea_dir)
+        # Clear previous output
+        if self.output_dir.exists():
+            self.log("📁 Backing up existing data...")
+            backup_name = f"synthea_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup_path = self.backup_dir / backup_name
+            shutil.move(str(self.output_dir), str(backup_path))
+            self.log(f"✅ Backed up to: {backup_path}")
         
-        # Ensure output directory exists
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        print("✅ Synthea environment ready")
-        return True
-    
-    def generate_patients(self, count=5, state="Massachusetts", city=None):
-        """Generate synthetic patients using Synthea."""
-        print(f"👥 Generating {count} patients...")
-        
-        # Build command
-        cmd = ["./run_synthea"]
-        if state:
-            cmd.extend(["-s", str(count), state])
-        else:
-            cmd.extend(["-p", str(count)])
-        
-        if city:
-            cmd.extend(["-c", city])
-        
-        # Run Synthea
-        self.run_command(cmd, cwd=self.synthea_dir)
-        
-        # List generated files
-        fhir_files = list(self.output_dir.glob("*.json"))
-        print(f"✅ Generated {len(fhir_files)} FHIR files")
-        
-        return fhir_files
-    
-    async def clear_database(self, confirm=False):
-        """Clear all data from the database."""
-        if not confirm:
-            response = input("⚠️  This will delete ALL data. Type 'yes' to confirm: ")
-            if response.lower() != 'yes':
-                print("❌ Database clear cancelled")
-                return False
-        
-        print("🗑️  Clearing database...")
-        
-        async with AsyncSession(self.engine) as session:
-            # Drop all tables and recreate schema
-            await session.execute(text("""
-                DROP SCHEMA IF EXISTS public CASCADE;
-                CREATE SCHEMA public;
-            """))
-            await session.commit()
-        
-        print("✅ Database cleared")
-        return True
-    
-    async def init_database_schema(self):
-        """Initialize database schema."""
-        print("🏗️  Initializing database schema...")
-        
-        # Create sync engine for table creation
-        DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://emr_user:emr_password@localhost:5432/emr_db')
-        sync_url = DATABASE_URL.replace('+asyncpg', '')
-        sync_engine = create_engine(sync_url)
-        
-        try:
-            # Import all models to create tables
-            from database import Base as DatabaseBase
-            from models import synthea_models
-            
-            DatabaseBase.metadata.create_all(sync_engine)
-            synthea_models.Base.metadata.create_all(sync_engine)
-            
-            # Try to import other models if available
-            try:
-                from models import dicom_models
-                dicom_models.Base.metadata.create_all(sync_engine)
-            except ImportError:
-                pass
-                
-            print("✅ Database schema initialized")
-        finally:
-            sync_engine.dispose()
-    
-    async def import_fhir_data(self, file_paths=None, validate=True):
-        """Import FHIR data into the database."""
-        if file_paths is None:
-            file_paths = list(self.output_dir.glob("*.json"))
-        
-        if not file_paths:
-            print("❌ No FHIR files found to import")
-            return False
-        
-        print(f"📥 Importing {len(file_paths)} FHIR files...")
-        
-        # Use the existing FHIR importer
-        importer = SyntheaFHIRImporter()
-        
-        total_imported = 0
-        for file_path in file_paths:
-            try:
-                print(f"  📄 Importing: {file_path.name}")
-                result = await importer.import_bundle_file(str(file_path))
-                total_imported += result.get('total_imported', 0)
-                print(f"    ✅ Imported {result.get('total_imported', 0)} resources")
-            except Exception as e:
-                print(f"    ❌ Failed to import {file_path.name}: {e}")
-        
-        print(f"✅ Import completed. Total resources imported: {total_imported}")
-        return True
-    
-    async def generate_sample_data(self):
-        """Generate additional sample data."""
-        print("🎲 Generating additional sample data...")
-        
-        # Run additional data generation scripts
-        # Note: Synthea already generates Practitioner resources, so we only need
-        # to run scripts for non-FHIR data or legacy compatibility
-        scripts_to_run = [
-            # "create_sample_providers.py",  # Not needed - Synthea generates Practitioner resources
-            # "assign_patients_to_providers_auto.py",  # Not needed - relationships exist in FHIR
-            "populate_clinical_catalogs.py"  # Still useful for order catalogs, etc.
+        # Build Synthea command
+        cmd = [
+            "./run_synthea",
+            "-p", str(count),
+            "-s", "0",  # Consistent seed
+            "--exporter.years_of_history", "5",
+            "--exporter.fhir.export", "true",
+            "--exporter.ccda.export", "false",
+            "--exporter.csv.export", "false",
+            "--exporter.baseDirectory", "./output",
+            f"'{state}'"
         ]
         
-        for script in scripts_to_run:
-            script_path = self.script_dir / script
-            if script_path.exists():
-                print(f"  📝 Running: {script}")
-                try:
-                    subprocess.run([sys.executable, str(script_path)], 
-                                 cwd=self.backend_dir, check=True)
-                    print(f"    ✅ {script} completed")
-                except subprocess.CalledProcessError as e:
-                    print(f"    ⚠️  {script} failed: {e}")
-            else:
-                print(f"    ⏭️  Skipping missing script: {script}")
+        if city:
+            cmd[-1] = f"'{state}' '{city}'"
         
-        print("✅ Sample data generation completed")
-    
-    async def run_full_workflow(self, patient_count=5, state="Massachusetts", clear_db=False):
-        """Run the complete Synthea workflow."""
-        print("🚀 Starting full Synthea workflow...")
-        start_time = time.time()
+        # Run Synthea
+        self.log(f"🚀 Generating {count} patients...")
+        self.log(f"Command: {' '.join(cmd)}")
         
         try:
-            # 1. Setup Synthea
-            if not self.setup_synthea():
-                return False
-            
-            # 2. Initialize database
-            await self.init_db()
-            
-            # 3. Clear database if requested
-            if clear_db:
-                if not await self.clear_database():
-                    return False
-                await self.init_database_schema()
-            
-            # 4. Generate patients
-            fhir_files = self.generate_patients(patient_count, state)
-            
-            # 5. Import FHIR data
-            await self.import_fhir_data(fhir_files)
-            
-            # 6. Generate additional sample data
-            await self.generate_sample_data()
-            
-            # 7. Generate DICOM images for imaging studies
-            await self.generate_dicom_images()
-            
-            elapsed_time = time.time() - start_time
-            print(f"🎉 Workflow completed successfully in {elapsed_time:.2f} seconds!")
-            print(f"📊 Generated and imported {patient_count} patients with complete clinical data")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Workflow failed: {e}")
-            return False
-        finally:
-            await self.close_db()
-    
-    async def validate_data(self):
-        """Validate imported data integrity."""
-        print("🔍 Validating imported data...")
-        
-        async with AsyncSession(self.engine) as session:
-            # Count resources by type
-            resource_counts = {}
-            
-            tables_to_check = [
-                ('patients', 'Patient'),
-                ('encounters', 'Encounter'),
-                ('observations', 'Observation'),
-                ('conditions', 'Condition'),
-                ('medications', 'Medication'),
-                ('procedures', 'Procedure'),
-                ('providers', 'Provider'),
-                ('organizations', 'Organization')
-            ]
-            
-            for table, resource_type in tables_to_check:
-                try:
-                    result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                    count = result.scalar()
-                    resource_counts[resource_type] = count
-                    print(f"  📋 {resource_type}: {count}")
-                except Exception as e:
-                    print(f"  ❌ Error counting {resource_type}: {e}")
-            
-            # Check for orphaned records
-            print("\n🔗 Checking data integrity...")
-            
-            # Check patient-encounter relationships
-            result = await session.execute(text("""
-                SELECT COUNT(*) FROM encounters e 
-                LEFT JOIN patients p ON e.patient_id = p.id 
-                WHERE p.id IS NULL
-            """))
-            orphaned_encounters = result.scalar()
-            if orphaned_encounters > 0:
-                print(f"  ⚠️  Found {orphaned_encounters} encounters without patients")
-            
-            # Check encounter-observation relationships
-            result = await session.execute(text("""
-                SELECT COUNT(*) FROM observations o 
-                LEFT JOIN encounters e ON o.encounter_id = e.id 
-                WHERE o.encounter_id IS NOT NULL AND e.id IS NULL
-            """))
-            orphaned_observations = result.scalar()
-            if orphaned_observations > 0:
-                print(f"  ⚠️  Found {orphaned_observations} observations without encounters")
-        
-        print("✅ Data validation completed")
-    
-    async def generate_dicom_images(self):
-        """Generate DICOM images for imported imaging studies"""
-        print("\n🏥 Generating DICOM images for imaging studies...")
-        
-        try:
-            # Import and run the DICOM generation script
-            import subprocess
-            import sys
-            
-            result = subprocess.run([
-                sys.executable, 
-                os.path.join(os.path.dirname(__file__), 'generate_dicom_images.py')
-            ], capture_output=True, text=True)
+            os.chdir(self.synthea_dir)
+            result = subprocess.run(" ".join(cmd), shell=True, capture_output=True, text=True)
+            os.chdir("..")
             
             if result.returncode == 0:
-                print("✅ DICOM generation completed successfully")
-                if result.stdout:
-                    print(result.stdout)
+                self.log(f"✅ Successfully generated {count} patients")
+                
+                # Count generated files
+                if self.output_dir.exists():
+                    files = list(self.output_dir.glob("*.json"))
+                    self.log(f"📄 Generated {len(files)} FHIR bundle files")
+                
+                return True
             else:
-                print("❌ DICOM generation failed")
-                if result.stderr:
-                    print(f"Error: {result.stderr}")
+                self.log(f"❌ Synthea generation failed: {result.stderr}", "ERROR")
+                return False
+                
         except Exception as e:
-            print(f"❌ Error running DICOM generation: {e}")
+            self.log(f"❌ Error running Synthea: {e}", "ERROR")
+            return False
+    
+    async def reset_database(self) -> bool:
+        """Reset and initialize the database."""
+        self.log("\n🗄️ Resetting Database")
+        self.log("=" * 60)
+        
+        try:
+            # Run the reset script
+            result = subprocess.run(
+                [sys.executable, "scripts/reset_and_init_database.py"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                self.log("✅ Database reset successfully")
+                return True
+            else:
+                self.log(f"❌ Database reset failed: {result.stderr}", "ERROR")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Error resetting database: {e}", "ERROR")
+            return False
+    
+    async def import_data(self) -> bool:
+        """Import Synthea data into the database."""
+        self.log("\n📥 Importing Synthea Data")
+        self.log("=" * 60)
+        
+        if not self.output_dir.exists():
+            self.log("❌ No Synthea output found. Run generate first.", "ERROR")
+            return False
+        
+        try:
+            # Run the import script
+            result = subprocess.run(
+                [sys.executable, "scripts/synthea_import.py"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                self.log("✅ Data imported successfully")
+                
+                # Extract statistics from output
+                if "Import Summary" in result.stdout:
+                    self.log("\n📊 Import Statistics:")
+                    for line in result.stdout.split('\n'):
+                        if any(keyword in line for keyword in 
+                               ['Total', 'Successfully', 'Failed', 'Resources by Type']):
+                            self.log(f"  {line.strip()}")
+                
+                return True
+            else:
+                self.log(f"❌ Import failed: {result.stderr}", "ERROR")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Error importing data: {e}", "ERROR")
+            return False
+    
+    async def validate_import(self) -> bool:
+        """Validate the imported data."""
+        self.log("\n🔍 Validating Import")
+        self.log("=" * 60)
+        
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        
+        async with engine.begin() as conn:
+            # Check resource counts
+            result = await conn.execute(text("""
+                SELECT resource_type, COUNT(*) as count
+                FROM fhir.resources
+                WHERE NOT deleted
+                GROUP BY resource_type
+                ORDER BY count DESC
+            """))
+            
+            resources = result.fetchall()
+            
+            if resources:
+                self.log("✅ Import validation successful")
+                self.log("\n📊 Resource Summary:")
+                
+                total = 0
+                for resource_type, count in resources:
+                    self.log(f"  {resource_type}: {count}")
+                    total += count
+                
+                self.log(f"\n  Total Resources: {total}")
+                
+                # Check for specific important resources
+                patient_result = await conn.execute(text("""
+                    SELECT COUNT(*) FROM fhir.resources 
+                    WHERE resource_type = 'Patient' AND NOT deleted
+                """))
+                patient_count = patient_result.scalar()
+                
+                if patient_count > 0:
+                    self.log(f"\n✅ Found {patient_count} patients")
+                    
+                    # Sample patient names
+                    sample_result = await conn.execute(text("""
+                        SELECT resource->>'id', 
+                               resource->'name'->0->>'family',
+                               resource->'name'->0->'given'->0
+                        FROM fhir.resources 
+                        WHERE resource_type = 'Patient' AND NOT deleted
+                        LIMIT 5
+                    """))
+                    
+                    self.log("\n👥 Sample Patients:")
+                    for fhir_id, family, given in sample_result:
+                        given_str = json.loads(given) if given else "Unknown"
+                        self.log(f"  - {given_str} {family or 'Unknown'} (ID: {fhir_id})")
+                
+                return True
+            else:
+                self.log("❌ No resources found in database", "ERROR")
+                return False
+        
+        await engine.dispose()
+    
+    async def run_full_workflow(self, count: int = 10, state: str = "Massachusetts", 
+                              city: Optional[str] = None) -> bool:
+        """Run the complete workflow."""
+        self.log("🚀 Starting Full Synthea Workflow")
+        self.log("=" * 60)
+        self.log(f"Parameters: count={count}, state={state}, city={city or 'Any'}")
+        
+        # Step 1: Generate data
+        if not self.generate_synthea_data(count, state, city):
+            self.log("❌ Workflow failed at data generation", "ERROR")
+            return False
+        
+        # Step 2: Reset database
+        if not await self.reset_database():
+            self.log("❌ Workflow failed at database reset", "ERROR")
+            return False
+        
+        # Step 3: Import data
+        if not await self.import_data():
+            self.log("❌ Workflow failed at data import", "ERROR")
+            return False
+        
+        # Step 4: Validate
+        if not await self.validate_import():
+            self.log("❌ Workflow failed at validation", "ERROR")
+            return False
+        
+        self.log("\n🎉 Workflow completed successfully!")
+        self.log("=" * 60)
+        return True
 
 
-def main():
-    """Main entry point for the Synthea workflow."""
-    parser = argparse.ArgumentParser(description="Synthea Workflow Management")
-    parser.add_argument('action', choices=[
-        'setup', 'generate', 'import', 'clear', 'full', 'validate'
-    ], help='Action to perform')
-    parser.add_argument('--count', '-c', type=int, default=5, help='Number of patients to generate')
-    parser.add_argument('--state', '-s', default='Massachusetts', help='State for patient generation')
-    parser.add_argument('--city', help='City for patient generation')
-    parser.add_argument('--clear-db', action='store_true', help='Clear database before import')
-    parser.add_argument('--no-validate', action='store_true', help='Skip validation during import')
-    parser.add_argument('--files', nargs='*', help='Specific FHIR files to import')
+async def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description='Synthea workflow management',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python synthea_workflow.py full                    # Run complete workflow with defaults
+  python synthea_workflow.py full --count 20        # Generate 20 patients
+  python synthea_workflow.py generate --count 5     # Only generate 5 patients
+  python synthea_workflow.py import                  # Import existing data
+  python synthea_workflow.py validate               # Validate imported data
+        """
+    )
+    
+    parser.add_argument(
+        'command',
+        choices=['full', 'generate', 'import', 'validate'],
+        help='Command to run'
+    )
+    
+    parser.add_argument(
+        '--count',
+        type=int,
+        default=10,
+        help='Number of patients to generate (default: 10)'
+    )
+    
+    parser.add_argument(
+        '--state',
+        default='Massachusetts',
+        help='State for patient generation (default: Massachusetts)'
+    )
+    
+    parser.add_argument(
+        '--city',
+        help='City for patient generation (optional)'
+    )
     
     args = parser.parse_args()
     
     workflow = SyntheaWorkflow()
     
-    async def run_action():
-        await workflow.init_db()
-        
-        try:
-            if args.action == 'setup':
-                workflow.setup_synthea()
-            
-            elif args.action == 'generate':
-                if not workflow.setup_synthea():
-                    return
-                workflow.generate_patients(args.count, args.state, args.city)
-            
-            elif args.action == 'import':
-                file_paths = None
-                if args.files:
-                    file_paths = [Path(f) for f in args.files]
-                await workflow.import_fhir_data(file_paths, not args.no_validate)
-            
-            elif args.action == 'clear':
-                await workflow.clear_database()
-                await workflow.init_database_schema()
-            
-            elif args.action == 'full':
-                await workflow.run_full_workflow(args.count, args.state, args.clear_db)
-            
-            elif args.action == 'validate':
-                await workflow.validate_data()
-        
-        finally:
-            await workflow.close_db()
-    
     try:
-        asyncio.run(run_action())
+        if args.command == 'full':
+            success = await workflow.run_full_workflow(args.count, args.state, args.city)
+        elif args.command == 'generate':
+            success = workflow.generate_synthea_data(args.count, args.state, args.city)
+        elif args.command == 'import':
+            success = await workflow.import_data()
+        elif args.command == 'validate':
+            success = await workflow.validate_import()
+        
+        sys.exit(0 if success else 1)
+        
     except KeyboardInterrupt:
-        print("\n⏹️  Workflow interrupted by user")
+        workflow.log("\n⚠️ Workflow interrupted by user", "WARNING")
+        sys.exit(1)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        workflow.log(f"\n❌ Unexpected error: {e}", "ERROR")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

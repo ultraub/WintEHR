@@ -28,7 +28,7 @@ class FHIRTransformer:
         """Initialize transformer with transformation rules."""
         # Define fields that should always be arrays in R4
         self.array_fields = {
-            'Encounter': ['class', 'type', 'diagnosis', 'account', 'statusHistory'],
+            'Encounter': ['type', 'diagnosis', 'account', 'statusHistory'],  # Note: 'class' is NOT an array in R4
             'Device': ['type', 'safety', 'property', 'specialization', 'version'],
             'DocumentReference': ['context', 'category', 'author', 'relatesTo'],
             'SupplyDelivery': ['suppliedItem'],

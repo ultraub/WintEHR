@@ -8,7 +8,7 @@ from datetime import datetime
 import json
 
 from database import get_db_session as get_db
-from models.models import FHIRResource
+# from models.models import FHIRResource  # Not used in this file
 from core.fhir.storage import FHIRStorageEngine
 from fhir.resources.communication import Communication
 from fhir.resources.reference import Reference

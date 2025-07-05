@@ -1,0 +1,33 @@
+{
+  "last_file": "Weston546_Keeling57_d39c8ef8-83af-abf5-056b-a090da6156a9.json",
+  "stats": {
+    "total_processed": 5758,
+    "total_imported": 576,
+    "total_failed": 5182,
+    "total_skipped": 0,
+    "errors_by_type": {
+      "Patient: DBAPIError": 10,
+      "Encounter: DBAPIError": 257,
+      "Condition: DBAPIError": 282,
+      "DiagnosticReport: DBAPIError": 512,
+      "DocumentReference: DBAPIError": 263,
+      "Claim: DBAPIError": 400,
+      "ExplanationOfBenefit: DBAPIError": 395,
+      "Device: DBAPIError": 51,
+      "SupplyDelivery: DBAPIError": 229,
+      "CareTeam: DBAPIError": 31,
+      "CarePlan: DBAPIError": 31,
+      "MedicationRequest: DBAPIError": 140,
+      "Observation: DBAPIError": 1527,
+      "Procedure: DBAPIError": 850,
+      "Immunization: DBAPIError": 114,
+      "Medication: DBAPIError": 23,
+      "MedicationAdministration: DBAPIError": 23,
+      "ImagingStudy: DBAPIError": 21,
+      "Provenance: DBAPIError": 10,
+      "AllergyIntolerance: DBAPIError": 13
+    },
+    "validation_errors": {}
+  },
+  "timestamp": "2025-07-05T02:28:45.289930"
+}
