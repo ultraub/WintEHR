@@ -367,6 +367,198 @@ class Specimen(Base):
     collector = relationship("Provider")
 
 # Enhanced existing models with FHIR storage
+class DiagnosticReport(Base):
+    """DiagnosticReport model for laboratory, imaging, and other diagnostic reports"""
+    __tablename__ = "diagnostic_reports"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Foreign keys
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False, index=True)
+    encounter_id = Column(String, ForeignKey("encounters.id"), index=True)
+    
+    # Report identification
+    identifier = Column(JSON)  # Report identifiers
+    based_on = Column(JSON)  # ServiceRequest references
+    status = Column(String, nullable=False, default="final", index=True)
+    category = Column(JSON)  # Service category
+    code = Column(JSON, nullable=False)  # Report code
+    
+    # Subject and context
+    subject_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    effective_datetime = Column(DateTime, index=True)
+    effective_period = Column(JSON)
+    issued = Column(DateTime, index=True)
+    
+    # Performers
+    performer = Column(JSON)  # Who performed the diagnostic service
+    results_interpreter = Column(JSON)  # Who interpreted the results
+    
+    # Specimens
+    specimen = Column(JSON)  # Specimen references
+    
+    # Results
+    result = Column(JSON)  # Observation references
+    imaging_study = Column(JSON)  # ImagingStudy references
+    media = Column(JSON)  # Images or other media
+    
+    # Conclusion
+    conclusion = Column(Text)
+    conclusion_code = Column(JSON)  # Coded conclusion
+    
+    # Presentation
+    presented_form = Column(JSON)  # Entire report as attachment
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint("status IN ('registered', 'partial', 'preliminary', 'final', 'amended', 'corrected', 'appended', 'cancelled', 'entered-in-error', 'unknown')", name='check_diagnostic_report_status'),
+        Index('idx_diagnostic_report_patient_date', 'patient_id', 'effective_datetime'),
+        Index('idx_diagnostic_report_status', 'status'),
+    )
+    
+    # Relationships
+    patient = relationship("Patient")
+    encounter = relationship("Encounter")
+
+
+class ImagingStudy(Base):
+    """ImagingStudy model for diagnostic imaging procedures"""
+    __tablename__ = "imaging_studies"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Foreign keys
+    patient_id = Column(String, ForeignKey("patients.id"), nullable=False, index=True)
+    encounter_id = Column(String, ForeignKey("encounters.id"), index=True)
+    
+    # Study identification
+    identifier = Column(JSON)  # Study identifiers
+    status = Column(String, nullable=False, default="available", index=True)
+    modality_list = Column(JSON)  # List of modalities
+    
+    # Subject and context
+    subject_id = Column(String, ForeignKey("patients.id"), nullable=False)
+    started = Column(DateTime, index=True)
+    number_of_series = Column(Integer, default=0)
+    number_of_instances = Column(Integer, default=0)
+    
+    # Clinical context
+    procedure_reference = Column(JSON)  # Reference to Procedure
+    procedure_code = Column(JSON)  # What was performed
+    reason_code = Column(JSON)  # Why study was requested
+    reason_reference = Column(JSON)  # Reference to Condition/Observation
+    
+    # Description and notes
+    description = Column(Text)
+    note = Column(JSON)
+    
+    # Series information (simplified - full series in separate table)
+    series = Column(JSON)  # Series data
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint("status IN ('registered', 'available', 'cancelled', 'entered-in-error', 'unknown')", name='check_imaging_study_status'),
+        Index('idx_imaging_study_patient_date', 'patient_id', 'started'),
+        Index('idx_imaging_study_status', 'status'),
+    )
+    
+    # Relationships
+    patient = relationship("Patient")
+    encounter = relationship("Encounter")
+    dicom_study = relationship("DICOMStudy", back_populates="imaging_study", uselist=False)
+
+
+class Device(Base):
+    """Device model for medical and non-medical devices"""
+    __tablename__ = "devices"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    synthea_id = Column(String, unique=True, index=True)
+    
+    # Foreign keys
+    patient_id = Column(String, ForeignKey("patients.id"))  # If device is affixed to patient
+    owner_id = Column(String, ForeignKey("organizations.id"))  # Organization responsible
+    location_id = Column(String, ForeignKey("locations.id"))  # Where device is found
+    parent_id = Column(String, ForeignKey("devices.id"))  # Parent device
+    
+    # Device identifiers
+    identifier = Column(JSON)  # Instance identifiers
+    udi_carrier = Column(JSON)  # Unique Device Identifier info
+    
+    # Device status
+    status = Column(String, default="active", index=True)
+    status_reason = Column(JSON)  # Why device is/is not active
+    
+    # Device details
+    definition = Column(JSON)  # Reference to DeviceDefinition
+    distinct_identifier = Column(String)  # Unique instance ID
+    manufacturer = Column(String, index=True)
+    manufacture_date = Column(Date)
+    expiration_date = Column(Date)
+    lot_number = Column(String)
+    serial_number = Column(String, unique=True)
+    model_number = Column(String, index=True)
+    part_number = Column(String)
+    
+    # Device classification
+    type = Column(JSON)  # Device type/kind
+    specialization = Column(JSON)  # Device capabilities and standards
+    version = Column(JSON)  # Device/software versions
+    
+    # Device properties
+    property = Column(JSON)  # Device characteristics
+    safety = Column(JSON)  # Safety characteristics
+    
+    # Additional information
+    device_name = Column(JSON)  # Device names
+    note = Column(JSON)  # Additional notes
+    contact = Column(JSON)  # Contact details
+    url = Column(String)  # Network address
+    
+    # FHIR storage
+    fhir_json = Column(JSON)
+    fhir_meta = Column(JSON)
+    extensions = Column(JSON)
+    
+    # System fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'inactive', 'entered-in-error', 'unknown')", name='check_device_status'),
+        Index('idx_device_patient', 'patient_id'),
+        Index('idx_device_manufacturer_model', 'manufacturer', 'model_number'),
+        Index('idx_device_status', 'status'),
+    )
+    
+    # Relationships
+    patient = relationship("Patient")
+    owner = relationship("Organization")
+    location = relationship("Location")
+    parent = relationship("Device", remote_side=[id])
+
+
 class Observation(Base):
     """Enhanced Observation model with comprehensive FHIR R4 fields"""
     __tablename__ = "observations"
@@ -386,7 +578,7 @@ class Observation(Base):
     
     # Observation metadata
     status = Column(String, default="final", index=True)
-    category = Column(JSON, index=True)
+    category = Column(JSON)
     code = Column(JSON, nullable=False)  # What was observed
     
     # Values

@@ -31,8 +31,8 @@ from api import auth
 # Import routers needed for CDS hooks
 # from api.app import actual_patient_data  # TODO: Create this module
 
-# TODO: Migrate these to use FHIR APIs
-# from api.cds_hooks import cds_hooks_router
+# Import CDS Hooks router
+from api.cds_hooks import cds_hooks_router
 # from api.app import app_router
 # from api.quality import quality_router
 # from api.cql_api import router as cql_router
@@ -123,6 +123,10 @@ app.include_router(imaging_studies_router, tags=["Imaging Studies"])
 # Include CDS Hooks router
 from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
 app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+
+# Include Notifications router
+from api.notifications import router as notifications_router
+app.include_router(notifications_router, prefix="/fhir/R4", tags=["Notifications"])
 # app.include_router(app_router.router, prefix="/api", tags=["Application API"])
 # app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
 # app.include_router(cql_router, tags=["CQL Engine"])

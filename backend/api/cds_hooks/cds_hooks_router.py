@@ -13,6 +13,8 @@ import uuid
 from enum import Enum
 from database import get_db_session as get_db
 from models.models import Patient, Encounter, Provider, Organization, Observation
+from fhir.resources.R4B.patient import Patient as FHIRPatient
+from fhir.resources.R4B.observation import Observation as FHIRObservation
 
 router = APIRouter(tags=["CDS Hooks"])
 
@@ -34,13 +36,18 @@ class CDSHookEngine:
         """Evaluate a CDS hook against the given context"""
         cards = []
         
+        print(f"Evaluating hook: {hook_config.get('id')} for patient: {context.get('patientId')}")
+        
         # Check if conditions are met
         if self._evaluate_conditions(hook_config.get('conditions', []), context):
+            print(f"Conditions met for hook: {hook_config.get('id')}")
             # Execute actions
             for action in hook_config.get('actions', []):
                 card = self._execute_action(action, context)
                 if card:
                     cards.append(card)
+        else:
+            print(f"Conditions NOT met for hook: {hook_config.get('id')}")
         
         return cards
     
@@ -62,15 +69,28 @@ class CDSHookEngine:
         patient_id = context.get('patientId')
         
         if not patient_id:
+            print(f"No patient ID in context")
             return False
         
-        # Get patient data
-        patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
-        if not patient:
+        # Get patient data from FHIR storage
+        from fhir_api.crud import get_resource
+        patient_dict = get_resource(self.db, "Patient", patient_id)
+        if not patient_dict:
+            print(f"Patient {patient_id} not found")
             return False
+        
+        try:
+            patient = FHIRPatient(**patient_dict)
+        except Exception as e:
+            print(f"Error parsing patient: {e}")
+            return False
+        
+        print(f"Checking condition type: {condition_type} with parameters: {parameters}")
         
         if condition_type == 'patient-age':
-            return self._check_patient_age(patient, parameters)
+            result = self._check_patient_age(patient, parameters)
+            print(f"Patient age check result: {result}")
+            return result
         elif condition_type == 'patient-gender':
             return self._check_patient_gender(patient, parameters)
         elif condition_type == 'diagnosis-code':
@@ -84,16 +104,19 @@ class CDSHookEngine:
         elif condition_type == 'lab-missing':
             return self._check_lab_missing(patient_id, parameters)
         elif condition_type == 'vital-sign':
-            return self._check_vital_sign(patient_id, parameters)
+            result = self._check_vital_sign(patient_id, parameters)
+            print(f"Vital sign check result: {result}")
+            return result
         
         return False
     
-    def _check_patient_age(self, patient: Patient, parameters: dict) -> bool:
+    def _check_patient_age(self, patient: FHIRPatient, parameters: dict) -> bool:
         """Check patient age condition"""
-        if not patient.date_of_birth:
+        if not patient.birthDate:
             return False
         
-        age = (datetime.now().date() - patient.date_of_birth).days / 365.25
+        birth_date = patient.birthDate.date if hasattr(patient.birthDate, 'date') else patient.birthDate
+        age = (datetime.now().date() - birth_date).days / 365.25
         operator = parameters.get('operator', 'eq')
         value = float(parameters.get('value', 0))
         
@@ -110,10 +133,10 @@ class CDSHookEngine:
         
         return False
     
-    def _check_patient_gender(self, patient: Patient, parameters: dict) -> bool:
+    def _check_patient_gender(self, patient: FHIRPatient, parameters: dict) -> bool:
         """Check patient gender condition"""
         target_gender = parameters.get('value', '').lower()
-        patient_gender = (patient.gender or '').lower()
+        patient_gender = (patient.gender or '').lower() if patient.gender else ''
         return patient_gender == target_gender
     
     def _check_diagnosis_code(self, patient_id: str, parameters: dict) -> bool:
@@ -124,23 +147,28 @@ class CDSHookEngine:
         if not codes:
             return False
         
-        # Check both SNOMED and ICD-10 codes (SNOMED is primary)
-        conditions = self.db.query(Condition).filter(
-            and_(
-                Condition.patient_id == patient_id,
-                Condition.clinical_status == 'active',
-                or_(
-                    Condition.snomed_code.in_(codes),
-                    Condition.icd10_code.in_(codes) if Condition.icd10_code else False
-                )
-            )
-        ).all()
+        # Search for active conditions with specified codes
+        from fhir_api.crud import search_resources
+        
+        # Build search for each code
+        conditions_found = []
+        for code in codes:
+            search_params = {
+                'patient': patient_id,
+                'code': code,
+                'clinical-status': 'active',
+                '_count': 100
+            }
+            
+            results = search_resources(self.db, "Condition", search_params)
+            if results and results.get('entry'):
+                conditions_found.extend(results['entry'])
         
         operator = parameters.get('operator', 'in')
         if operator == 'in':
-            return len(conditions) > 0
+            return len(conditions_found) > 0
         elif operator == 'not-in':
-            return len(conditions) == 0
+            return len(conditions_found) == 0
         
         return False
     
@@ -152,18 +180,39 @@ class CDSHookEngine:
         if not medications:
             return False
         
-        active_meds = self.db.query(Medication).filter(
-            and_(
-                Medication.patient_id == patient_id,
-                Medication.status == 'active'
-            )
-        ).all()
+        # Search for active medication requests
+        from fhir_api.crud import search_resources
         
-        for med in active_meds:
-            med_name = med.medication_name.lower()
-            for target_med in medications:
-                if target_med in med_name:
-                    return True
+        search_params = {
+            'patient': patient_id,
+            'status': 'active',
+            '_count': 100
+        }
+        
+        results = search_resources(self.db, "MedicationRequest", search_params)
+        if not results or not results.get('entry'):
+            return False
+        
+        # Check if any active medications match the requested ones
+        for entry in results['entry']:
+            med_request = entry.get('resource', {})
+            
+            # Get medication name from either medicationCodeableConcept or medicationReference
+            med_name = ''
+            if 'medicationCodeableConcept' in med_request:
+                med_name = med_request['medicationCodeableConcept'].get('text', '')
+                if not med_name and med_request['medicationCodeableConcept'].get('coding'):
+                    med_name = med_request['medicationCodeableConcept']['coding'][0].get('display', '')
+            elif 'medicationReference' in med_request:
+                # Would need to fetch the referenced Medication resource
+                med_name = med_request['medicationReference'].get('display', '')
+            
+            # Check if this medication matches any of the requested ones
+            if med_name:
+                med_name_lower = med_name.lower()
+                for target_med in medications:
+                    if target_med in med_name_lower:
+                        return True
         
         return False
     
@@ -177,33 +226,41 @@ class CDSHookEngine:
         if not code:
             return False
         
-        # Get recent lab results
-        cutoff_date = datetime.now().date() - timedelta(days=timeframe)
-        labs = self.db.query(Observation).filter(
-            and_(
-                Observation.patient_id == patient_id,
-                Observation.observation_type == 'laboratory',
-                Observation.loinc_code == code,
-                Observation.observation_date >= cutoff_date
-            )
-        ).order_by(Observation.observation_date.desc()).all()
+        # Get recent lab results from FHIR storage
+        from fhir_api.crud import search_resources
+        cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
+        
+        search_params = {
+            'patient': patient_id,
+            'category': 'laboratory',
+            'code': code,
+            'date': f'ge{cutoff_date}',
+            '_sort': '-date',
+            '_count': 1
+        }
+        
+        results = search_resources(self.db, "Observation", search_params)
         
         if operator == 'missing':
-            return len(labs) == 0
+            return not results or not results.get('entry')
         
-        if not labs:
+        if not results or not results.get('entry'):
             return False
         
-        latest_lab = labs[0]
+        # Get the latest observation
+        latest_obs_dict = results['entry'][0]['resource']
         try:
-            # Try value_quantity first, then value
-            if latest_lab.value_quantity is not None:
-                lab_value = float(latest_lab.value_quantity)
-            elif latest_lab.value:
-                lab_value = float(latest_lab.value)
+            latest_obs = FHIRObservation(**latest_obs_dict)
+        except Exception:
+            return False
+        
+        try:
+            # Get the numeric value
+            if latest_obs.valueQuantity:
+                lab_value = float(latest_obs.valueQuantity.value)
             else:
                 return False
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             return False
         
         if operator == 'gt':
@@ -227,19 +284,22 @@ class CDSHookEngine:
         if not code:
             return False
         
-        # Get recent lab results
-        cutoff_date = datetime.now().date() - timedelta(days=timeframe)
-        labs = self.db.query(Observation).filter(
-            and_(
-                Observation.patient_id == patient_id,
-                Observation.observation_type == 'laboratory',
-                Observation.loinc_code == code,
-                Observation.observation_date >= cutoff_date
-            )
-        ).count()
+        # Get recent lab results from FHIR storage
+        from fhir_api.crud import search_resources
+        cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
+        
+        search_params = {
+            'patient': patient_id,
+            'category': 'laboratory',
+            'code': code,
+            'date': f'ge{cutoff_date}',
+            '_count': 1
+        }
+        
+        results = search_resources(self.db, "Observation", search_params)
         
         # Return True if no labs found (missing)
-        return labs == 0
+        return not results or not results.get('entry')
     
     def _check_vital_sign(self, patient_id: str, parameters: dict) -> bool:
         """Check vital signs against normal ranges"""
@@ -252,55 +312,50 @@ class CDSHookEngine:
         if not vital_type:
             return False
         
-        # Get recent vital signs
-        cutoff_date = datetime.now().date() - timedelta(days=timeframe)
+        # Get recent vital signs from FHIR storage
+        from fhir_api.crud import search_resources
+        cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
         
-        # Special handling for blood pressure
-        if vital_type == '85354-9':  # Blood pressure panel LOINC code
-            vitals = self.db.query(Observation).filter(
-                and_(
-                    Observation.patient_id == patient_id,
-                    Observation.observation_type == 'vital-signs',
-                    Observation.loinc_code == '85354-9',  # Blood pressure panel
-                    Observation.observation_date >= cutoff_date
-                )
-            ).order_by(Observation.observation_date.desc()).all()
-        else:
-            # Use LOINC code for other vital signs
-            vitals = self.db.query(Observation).filter(
-                and_(
-                    Observation.patient_id == patient_id,
-                    Observation.observation_type == 'vital-signs',
-                    Observation.loinc_code == vital_type,
-                    Observation.observation_date >= cutoff_date
-                )
-            ).order_by(Observation.observation_date.desc()).all()
+        # Search for observations with the specified code
+        search_params = {
+            'patient': patient_id,
+            'category': 'vital-signs',
+            'code': vital_type,
+            'date': f'ge{cutoff_date}',
+            '_sort': '-date',
+            '_count': 1
+        }
         
-        if not vitals:
+        results = search_resources(self.db, "Observation", search_params)
+        if not results or not results.get('entry'):
             return False
         
-        latest_vital = vitals[0]
+        # Get the latest observation
+        latest_obs_dict = results['entry'][0]['resource']
         try:
-            # Handle blood pressure values (e.g., "126/76")
-            if vital_type == '85354-9' and latest_vital.value:
-                if '/' in latest_vital.value:
-                    systolic, diastolic = latest_vital.value.split('/')
-                    if component == 'systolic':
-                        vital_value = float(systolic)
-                    elif component == 'diastolic':
-                        vital_value = float(diastolic)
-                    else:
-                        return False
+            latest_obs = FHIRObservation(**latest_obs_dict)
+        except Exception:
+            return False
+        
+        try:
+            # Handle blood pressure values with components
+            if vital_type == '85354-9' and latest_obs.component:
+                for comp in latest_obs.component:
+                    comp_code = comp.code.coding[0].code if comp.code and comp.code.coding else None
+                    if component == 'systolic' and comp_code == '8480-6':
+                        vital_value = float(comp.valueQuantity.value)
+                        break
+                    elif component == 'diastolic' and comp_code == '8462-4':
+                        vital_value = float(comp.valueQuantity.value)
+                        break
                 else:
                     return False
-            # Try value_quantity first, then value
-            elif latest_vital.value_quantity is not None:
-                vital_value = float(latest_vital.value_quantity)
-            elif latest_vital.value:
-                vital_value = float(latest_vital.value)
+            # Regular vital signs with valueQuantity
+            elif latest_obs.valueQuantity:
+                vital_value = float(latest_obs.valueQuantity.value)
             else:
                 return False
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             return False
         
         if operator == 'gt':
@@ -439,31 +494,34 @@ async def execute_hook(
     db: Session = Depends(get_db)
 ):
     """Execute a specific CDS hook"""
+    # Get the hook configuration
     hook_config = hooks_storage.get(hook_id)
     if not hook_config:
-        raise HTTPException(status_code=404, detail="Hook not found")
+        raise HTTPException(status_code=404, detail=f"Hook '{hook_id}' not found")
     
+    # Check if hook is enabled
     if not hook_config.get("enabled", True):
         return {"cards": []}
+    
+    # Extract context from request
+    context = {
+        "userId": request.get("userId"),
+        "patientId": request.get("patientId"),
+        "encounterId": request.get("encounterId"),
+        **request.get("context", {})
+    }
     
     # Create execution engine
     engine = CDSHookEngine(db)
     
-    # Convert request to context
-    context = {
-        "hookInstance": request.get("hookInstance"),
-        "fhirServer": request.get("fhirServer"),
-        "hook": request.get("hook"),
-        "patientId": request.get("context", {}).get("patientId"),
-        "userId": request.get("context", {}).get("userId"),
-        "encounterId": request.get("context", {}).get("encounterId"),
-        **request.get("context", {})
-    }
-    
     # Execute hook
-    cards = engine.evaluate_hook(hook_config, context)
-    
-    return {"cards": cards}
+    try:
+        cards = engine.evaluate_hook(hook_config, context)
+        return {"cards": cards}
+    except Exception as e:
+        # Log error but don't fail - CDS Hooks should be non-blocking
+        print(f"Error executing CDS Hook {hook_id}: {str(e)}")
+        return {"cards": []}
 
 @router.get("/hooks/{hook_id}")
 async def get_hook(hook_id: str):

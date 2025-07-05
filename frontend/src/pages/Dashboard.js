@@ -17,33 +17,26 @@ import {
   Button,
   IconButton,
   Badge,
-  Divider,
 } from '@mui/material';
 import {
   People as PeopleIcon,
   EventNote as EventNoteIcon,
   LocalHospital as HospitalIcon,
   TrendingUp as TrendingUpIcon,
-  AccessTime as AccessTimeIcon,
   Person as PersonIcon,
   Assignment as TaskIcon,
   Science as LabIcon,
-  Warning as AlertIcon,
-  CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   ArrowForward as ArrowForwardIcon,
   Notifications as NotificationsIcon,
   Assessment as AssessmentIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { format, isToday, startOfDay, endOfDay } from 'date-fns';
-import api from '../services/api';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { fhirClient } from '../services/fhirClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-const COLORS = ['#E91E63', '#7C4DFF', '#FFBB28', '#FF8042', '#F48FB1'];
 
 function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -194,13 +187,129 @@ function Dashboard() {
             }));
             return { data: transformedTasks };
           }),
-          api.get('/api/clinical/alerts/', {
-            params: {
-              provider_id: currentUser.id,
-              severity: 'critical',
-              acknowledged: false
-            }
-          }),
+          // Get critical alerts based on FHIR data
+          (async () => {
+            const alerts = [];
+            
+            // Get recent lab results with critical values
+            const criticalLabs = await fhirClient.search('Observation', {
+              category: 'laboratory',
+              status: 'final',
+              _sort: '-date',
+              _count: 20
+            });
+            
+            // Check for critical lab values
+            criticalLabs.resources.forEach(obs => {
+              const interpretation = obs.interpretation?.[0]?.coding?.[0]?.code;
+              if (interpretation && ['H', 'HH', 'L', 'LL', 'A', 'AA'].includes(interpretation)) {
+                const isCritical = ['HH', 'LL', 'AA'].includes(interpretation);
+                alerts.push({
+                  id: obs.id,
+                  type: isCritical ? 'critical' : 'warning',
+                  title: isCritical ? 'Critical Lab Result' : 'Abnormal Lab Result',
+                  message: `${obs.code?.text || obs.code?.coding?.[0]?.display}: ${
+                    obs.valueQuantity ? `${obs.valueQuantity.value} ${obs.valueQuantity.unit}` : obs.valueString
+                  }`,
+                  patient_id: fhirClient.extractId(obs.subject),
+                  patient_name: obs.subject?.display || 'Unknown Patient',
+                  created_at: obs.effectiveDateTime || new Date().toISOString(),
+                  resource_type: 'Observation',
+                  resource_id: obs.id
+                });
+              }
+            });
+            
+            // Get recent vital signs that are out of range
+            const vitalSigns = await fhirClient.search('Observation', {
+              category: 'vital-signs',
+              status: 'final',
+              date: `ge${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}`, // Last 24 hours
+              _count: 50
+            });
+            
+            // Check for critical vital signs
+            vitalSigns.resources.forEach(obs => {
+              const code = obs.code?.coding?.[0]?.code;
+              let value = null;
+              let isCritical = false;
+              let message = '';
+              
+              // Extract value
+              if (obs.valueQuantity) {
+                value = obs.valueQuantity.value;
+              } else if (obs.component) {
+                // Handle blood pressure
+                const systolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8480-6')?.valueQuantity?.value;
+                const diastolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8462-4')?.valueQuantity?.value;
+                if (systolic && diastolic) {
+                  // Check for hypertensive crisis
+                  if (systolic >= 180 || diastolic >= 120) {
+                    isCritical = true;
+                    message = `Blood Pressure: ${systolic}/${diastolic} mmHg - Hypertensive Crisis`;
+                  } else if (systolic >= 140 || diastolic >= 90) {
+                    message = `Blood Pressure: ${systolic}/${diastolic} mmHg - Stage 2 Hypertension`;
+                  }
+                }
+              }
+              
+              // Check other vital signs
+              if (value !== null && !message) {
+                switch (code) {
+                  case '8867-4': // Heart rate
+                    if (value < 40 || value > 130) {
+                      isCritical = value < 30 || value > 150;
+                      message = `Heart Rate: ${value} bpm - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  case '9279-1': // Respiratory rate
+                    if (value < 10 || value > 30) {
+                      isCritical = value < 8 || value > 35;
+                      message = `Respiratory Rate: ${value} /min - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  case '2708-6': // Oxygen saturation
+                    if (value < 92) {
+                      isCritical = value < 88;
+                      message = `Oxygen Saturation: ${value}% - ${isCritical ? 'Critical' : 'Low'}`;
+                    }
+                    break;
+                  case '8310-5': // Body temperature
+                    if (value < 35 || value > 38.5) {
+                      isCritical = value < 34 || value > 40;
+                      message = `Temperature: ${value}°C - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  default:
+                    // Other vital signs not specifically handled
+                    break;
+                }
+              }
+              
+              if (message) {
+                alerts.push({
+                  id: `vital-${obs.id}`,
+                  type: isCritical ? 'critical' : 'warning',
+                  title: isCritical ? 'Critical Vital Sign' : 'Abnormal Vital Sign',
+                  message,
+                  patient_id: fhirClient.extractId(obs.subject),
+                  patient_name: obs.subject?.display || 'Unknown Patient',
+                  created_at: obs.effectiveDateTime || new Date().toISOString(),
+                  resource_type: 'Observation',
+                  resource_id: obs.id
+                });
+              }
+            });
+            
+            // Sort alerts by criticality and date
+            alerts.sort((a, b) => {
+              if (a.type === 'critical' && b.type !== 'critical') return -1;
+              if (a.type !== 'critical' && b.type === 'critical') return 1;
+              return new Date(b.created_at) - new Date(a.created_at);
+            });
+            
+            return { data: alerts.slice(0, 10) }; // Return top 10 alerts
+          })(),
           // Get recent lab results using FHIR
           fhirClient.search('Observation', {
             category: 'laboratory',
@@ -226,7 +335,147 @@ function Dashboard() {
             });
             return { data: transformedLabs };
           }),
-          api.get('/api/quality/measures/summary')
+          // Calculate quality measures based on FHIR data
+          (async () => {
+            const measures = [];
+            
+            // Get all patients for denominator calculations
+            const patientsResult = await fhirClient.search('Patient', { _count: 1000 });
+            const totalPatients = patientsResult.total || patientsResult.resources.length;
+            
+            // Measure 1: Diabetes A1C Control
+            const diabetesPatients = await fhirClient.search('Condition', {
+              code: '44054006', // SNOMED code for Type 2 diabetes
+              _count: 1000
+            });
+            
+            if (diabetesPatients.resources.length > 0) {
+              const patientIds = [...new Set(diabetesPatients.resources.map(c => fhirClient.extractId(c.subject)))];
+              let controlledCount = 0;
+              let testedCount = 0;
+              
+              // Check A1C values for each diabetic patient
+              for (const patientId of patientIds) {
+                const a1cResults = await fhirClient.search('Observation', {
+                  patient: patientId,
+                  code: '4548-4', // A1C LOINC code
+                  date: `ge${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()}`, // Last 6 months
+                  _sort: '-date',
+                  _count: 1
+                });
+                
+                if (a1cResults.resources.length > 0) {
+                  testedCount++;
+                  const latestA1c = a1cResults.resources[0];
+                  if (latestA1c.valueQuantity && latestA1c.valueQuantity.value < 7) {
+                    controlledCount++;
+                  }
+                }
+              }
+              
+              measures.push({
+                id: 'diabetes-a1c-control',
+                name: 'Diabetes: A1C Control (<7%)',
+                description: 'Percentage of patients with diabetes who have A1C under control',
+                numerator: controlledCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((controlledCount / patientIds.length) * 100) : 0,
+                target: 70,
+                status: controlledCount / patientIds.length >= 0.7 ? 'met' : 'not-met'
+              });
+              
+              measures.push({
+                id: 'diabetes-a1c-testing',
+                name: 'Diabetes: A1C Testing',
+                description: 'Percentage of patients with diabetes who had A1C test in last 6 months',
+                numerator: testedCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((testedCount / patientIds.length) * 100) : 0,
+                target: 90,
+                status: testedCount / patientIds.length >= 0.9 ? 'met' : 'not-met'
+              });
+            }
+            
+            // Measure 2: Blood Pressure Control
+            const hyperTensionPatients = await fhirClient.search('Condition', {
+              code: '38341003', // SNOMED code for Hypertension
+              _count: 1000
+            });
+            
+            if (hyperTensionPatients.resources.length > 0) {
+              const patientIds = [...new Set(hyperTensionPatients.resources.map(c => fhirClient.extractId(c.subject)))];
+              let controlledCount = 0;
+              let measuredCount = 0;
+              
+              for (const patientId of patientIds) {
+                const bpResults = await fhirClient.search('Observation', {
+                  patient: patientId,
+                  code: '85354-9', // Blood pressure panel
+                  date: `ge${new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()}`, // Last 3 months
+                  _sort: '-date',
+                  _count: 1
+                });
+                
+                if (bpResults.resources.length > 0) {
+                  measuredCount++;
+                  const latestBP = bpResults.resources[0];
+                  const systolic = latestBP.component?.find(c => c.code?.coding?.[0]?.code === '8480-6')?.valueQuantity?.value;
+                  const diastolic = latestBP.component?.find(c => c.code?.coding?.[0]?.code === '8462-4')?.valueQuantity?.value;
+                  
+                  if (systolic && diastolic && systolic < 140 && diastolic < 90) {
+                    controlledCount++;
+                  }
+                }
+              }
+              
+              measures.push({
+                id: 'bp-control',
+                name: 'Blood Pressure Control',
+                description: 'Percentage of patients with hypertension who have BP <140/90',
+                numerator: controlledCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((controlledCount / patientIds.length) * 100) : 0,
+                target: 75,
+                status: controlledCount / patientIds.length >= 0.75 ? 'met' : 'not-met'
+              });
+            }
+            
+            // Measure 3: Preventive Care - Immunizations
+            const fluVaccinations = await fhirClient.search('Immunization', {
+              'vaccine-code': '88', // Influenza vaccine
+              date: `ge${new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()}`, // Last year
+              _count: 1000
+            });
+            
+            const uniqueVaccinatedPatients = [...new Set(fluVaccinations.resources.map(imm => fhirClient.extractId(imm.patient)))];
+            
+            measures.push({
+              id: 'flu-vaccination',
+              name: 'Influenza Vaccination',
+              description: 'Percentage of patients who received flu vaccine in the last year',
+              numerator: uniqueVaccinatedPatients.length,
+              denominator: totalPatients,
+              score: totalPatients > 0 ? Math.round((uniqueVaccinatedPatients.length / totalPatients) * 100) : 0,
+              target: 80,
+              status: uniqueVaccinatedPatients.length / totalPatients >= 0.8 ? 'met' : 'not-met'
+            });
+            
+            // Calculate overall score
+            const overallScore = measures.length > 0 
+              ? Math.round(measures.reduce((sum, m) => sum + m.score, 0) / measures.length)
+              : 0;
+            const measuresMet = measures.filter(m => m.status === 'met').length;
+            
+            return {
+              data: {
+                overall_score: overallScore,
+                measures_met: measuresMet,
+                total_measures: measures.length,
+                measures: measures,
+                top_measures: measures.sort((a, b) => b.score - a.score).slice(0, 5)
+              }
+            };
+          })()
         );
       }
 

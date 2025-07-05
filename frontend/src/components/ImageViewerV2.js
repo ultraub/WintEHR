@@ -51,7 +51,7 @@ cornerstoneWADOImageLoader.configure({
   }
 });
 
-const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
+const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
   const viewerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -97,44 +97,91 @@ const ImageViewerV2 = ({ studyId, seriesId, onClose }) => {
 
       // Fetch study and series information
       try {
-        // studyId is the numeric study ID directly
-        // Fetch series information
-        const seriesUrl = `/api/imaging/wado/studies/${studyId}/series`;
-        const seriesResponse = await fetch(seriesUrl);
-        const seriesResult = await seriesResponse.json();
-        if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
-          throw new Error('No series found for this study');
-        }
-
-        // Find the target series
-        let targetSeries = seriesResult.data[0];
-        if (seriesId) {
-          const found = seriesResult.data.find(s => s.series_instance_uid === seriesId);
-          if (found) targetSeries = found;
-        }
-
-        if (!targetSeries.instances || targetSeries.instances.length === 0) {
-          throw new Error('No images found in this series');
-        }
-
-        // Create image IDs for all instances
-        const instances = targetSeries.instances;
-        const imageIdArray = instances.map(inst => {
-          // Use the full URL for WADO-URI
+        let imageIdArray = [];
+        let studyInfo = {};
+        
+        if (fhirStudy) {
+          // Use FHIR ImagingStudy data
+          const series = fhirStudy.series || [];
+          if (series.length === 0) {
+            throw new Error('No series found in FHIR ImagingStudy');
+          }
+          
+          // Find the target series
+          let targetSeries = series[0];
+          if (seriesId) {
+            const found = series.find(s => s.uid === seriesId);
+            if (found) targetSeries = found;
+          }
+          
+          // Get WADO endpoint from FHIR study
+          const endpointRef = fhirStudy.endpoint?.[0]?.reference;
           const baseUrl = window.location.origin;
-          return `wadouri:${baseUrl}/api/imaging/wado/instances/${inst.id}`;
-        });
+          
+          // Create image IDs for instances
+          if (targetSeries.instance && targetSeries.instance.length > 0) {
+            imageIdArray = targetSeries.instance.map((inst, index) => {
+              // Use instance UID or generate from index
+              return `wadouri:${baseUrl}/api/imaging/wado/studies/${studyId}/series/${targetSeries.uid}/instances/${inst.uid || index}`;
+            });
+          } else {
+            // If no instances, create placeholder based on numberOfInstances
+            const numInstances = targetSeries.numberOfInstances || 1;
+            for (let i = 0; i < numInstances; i++) {
+              imageIdArray.push(`wadouri:${baseUrl}/api/imaging/wado/studies/${studyId}/series/${targetSeries.uid}/instances/${i}`);
+            }
+          }
+          
+          studyInfo = {
+            studyUID: fhirStudy.identifier?.find(id => id.system === 'urn:dicom:uid')?.value?.replace('urn:oid:', '') || studyId,
+            seriesUID: targetSeries.uid,
+            studyDescription: fhirStudy.description || 'FHIR Imaging Study',
+            seriesDescription: targetSeries.description || 'Series',
+            modality: targetSeries.modality?.code || fhirStudy.modality?.[0]?.code || 'OT',
+            instanceCount: targetSeries.numberOfInstances || targetSeries.instance?.length || 0,
+            studyDate: fhirStudy.started || new Date().toISOString()
+          };
+        } else {
+          // Legacy mode - use numeric study ID
+          const seriesUrl = `/api/imaging/wado/studies/${studyId}/series`;
+          const seriesResponse = await fetch(seriesUrl);
+          const seriesResult = await seriesResponse.json();
+          if (!seriesResult.success || !seriesResult.data || seriesResult.data.length === 0) {
+            throw new Error('No series found for this study');
+          }
+
+          // Find the target series
+          let targetSeries = seriesResult.data[0];
+          if (seriesId) {
+            const found = seriesResult.data.find(s => s.series_instance_uid === seriesId);
+            if (found) targetSeries = found;
+          }
+
+          if (!targetSeries.instances || targetSeries.instances.length === 0) {
+            throw new Error('No images found in this series');
+          }
+
+          // Create image IDs for all instances
+          const instances = targetSeries.instances;
+          imageIdArray = instances.map(inst => {
+            // Use the full URL for WADO-URI
+            const baseUrl = window.location.origin;
+            return `wadouri:${baseUrl}/api/imaging/wado/instances/${inst.id}`;
+          });
+          
+          studyInfo = {
+            studyUID: studyId,
+            seriesUID: targetSeries.series_instance_uid,
+            studyDescription: targetSeries.series_description || 'Unknown Series',
+            seriesDescription: targetSeries.series_description || 'Unknown Series',
+            modality: targetSeries.modality,
+            instanceCount: instances.length,
+            studyDate: new Date().toISOString()
+          };
+        }
         
         setImageIds(imageIdArray);
-        setImageInfo({
-          studyUID: studyId,
-          seriesUID: targetSeries.series_instance_uid,
-          studyDescription: targetSeries.series_description || 'Unknown Series',
-          seriesDescription: targetSeries.series_description || 'Unknown Series',
-          modality: targetSeries.modality,
-          instanceCount: instances.length,
-          studyDate: new Date().toISOString()
-        });
+        setImageInfo(studyInfo);
 
         // Load and display the first image
         if (imageIdArray.length > 0) {

@@ -1066,6 +1066,427 @@ class FHIRStorageEngine:
                         'value_string': ref
                     })
         
+        elif resource_type == 'MedicationRequest':
+            # Medication code
+            if 'medicationCodeableConcept' in resource_data and 'coding' in resource_data['medicationCodeableConcept']:
+                for coding in resource_data['medicationCodeableConcept']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'medication',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Requester reference
+            if 'requester' in resource_data and 'reference' in resource_data['requester']:
+                params_to_extract.append({
+                    'param_name': 'requester',
+                    'param_type': 'reference',
+                    'value_string': resource_data['requester']['reference']
+                })
+            
+            # Authored on date
+            if 'authoredOn' in resource_data:
+                try:
+                    authored_date = datetime.fromisoformat(
+                        resource_data['authoredOn'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'authoredon',
+                        'param_type': 'date',
+                        'value_date': authored_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
+        
+        elif resource_type == 'Encounter':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Class
+            if 'class' in resource_data and 'code' in resource_data['class']:
+                params_to_extract.append({
+                    'param_name': 'class',
+                    'param_type': 'token',
+                    'value_token_system': resource_data['class'].get('system'),
+                    'value_token_code': resource_data['class']['code']
+                })
+            
+            # Type
+            if 'type' in resource_data:
+                for type_item in resource_data['type']:
+                    if 'coding' in type_item:
+                        for coding in type_item['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'type',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Date/Period
+            if 'period' in resource_data:
+                if 'start' in resource_data['period']:
+                    try:
+                        period_start = datetime.fromisoformat(
+                            resource_data['period']['start'].replace('Z', '+00:00')
+                        )
+                        params_to_extract.append({
+                            'param_name': 'date',
+                            'param_type': 'date',
+                            'value_date': period_start
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
+        
+        elif resource_type == 'Procedure':
+            # Code
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Performed date
+            if 'performedDateTime' in resource_data:
+                try:
+                    performed_date = datetime.fromisoformat(
+                        resource_data['performedDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': performed_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse performedDateTime: {resource_data.get('performedDateTime')} - {e}")
+            elif 'performedPeriod' in resource_data and 'start' in resource_data['performedPeriod']:
+                try:
+                    performed_date = datetime.fromisoformat(
+                        resource_data['performedPeriod']['start'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': performed_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse performedPeriod.start: {resource_data.get('performedPeriod', {}).get('start')} - {e}")
+        
+        elif resource_type == 'Immunization':
+            # Vaccine code
+            if 'vaccineCode' in resource_data and 'coding' in resource_data['vaccineCode']:
+                for coding in resource_data['vaccineCode']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'vaccine-code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Patient reference
+            if 'patient' in resource_data and 'reference' in resource_data['patient']:
+                ref = resource_data['patient']['reference']
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+            
+            # Date
+            if 'occurrenceDateTime' in resource_data:
+                try:
+                    occurrence_date = datetime.fromisoformat(
+                        resource_data['occurrenceDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': occurrence_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse occurrenceDateTime: {resource_data.get('occurrenceDateTime')} - {e}")
+        
+        elif resource_type == 'AllergyIntolerance':
+            # Code
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Clinical status
+            if 'clinicalStatus' in resource_data and 'coding' in resource_data['clinicalStatus']:
+                for coding in resource_data['clinicalStatus']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'clinical-status',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Patient reference
+            if 'patient' in resource_data and 'reference' in resource_data['patient']:
+                ref = resource_data['patient']['reference']
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+        
+        elif resource_type == 'DiagnosticReport':
+            # Code
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Date
+            if 'effectiveDateTime' in resource_data:
+                try:
+                    effective_date = datetime.fromisoformat(
+                        resource_data['effectiveDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': effective_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
+        
+        elif resource_type == 'CarePlan':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Date
+            if 'period' in resource_data and 'start' in resource_data['period']:
+                try:
+                    period_start = datetime.fromisoformat(
+                        resource_data['period']['start'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': period_start
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
+        
+        elif resource_type == 'Claim':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Patient reference
+            if 'patient' in resource_data and 'reference' in resource_data['patient']:
+                ref = resource_data['patient']['reference']
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+            
+            # Created date
+            if 'created' in resource_data:
+                try:
+                    created_date = datetime.fromisoformat(
+                        resource_data['created'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'created',
+                        'param_type': 'date',
+                        'value_date': created_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
+        
+        elif resource_type == 'ExplanationOfBenefit':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Patient reference
+            if 'patient' in resource_data and 'reference' in resource_data['patient']:
+                ref = resource_data['patient']['reference']
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+            
+            # Created date
+            if 'created' in resource_data:
+                try:
+                    created_date = datetime.fromisoformat(
+                        resource_data['created'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'created',
+                        'param_type': 'date',
+                        'value_date': created_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
+        
         # Insert all search parameters
         for param in params_to_extract:
             query = text("""

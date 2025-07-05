@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useClinical } from '../contexts/ClinicalContext';
-import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Paper,
@@ -10,13 +8,11 @@ import {
   InputAdornment,
   IconButton,
   Chip,
-  CircularProgress,
   Alert,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   Tabs,
   Tab,
   Badge,
@@ -31,13 +27,11 @@ import {
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
 import { fhirClient } from '../services/fhirClient';
-import api from '../services/api';
 import PatientForm from '../components/PatientForm';
+import { getPatientDetailUrl } from '../utils/navigationUtils';
 
 function PatientList() {
   const navigate = useNavigate();
-  const { loadPatient } = useClinical();
-  const { user } = useAuth();
   const [patients, setPatients] = useState([]);
   const [allPatients, setAllPatients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +98,7 @@ function PatientList() {
           size="small"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/patients/${params.row.id}`);
+            navigate(getPatientDetailUrl(params.row.id));
           }}
         >
           View
@@ -335,7 +329,7 @@ function PatientList() {
       } else {
         fetchAllPatients();
       }
-      navigate(`/patients/${result.id}`);
+      navigate(getPatientDetailUrl(result.id));
     } catch (err) {
       console.error('Error creating patient:', err);
       setError('Failed to create patient');

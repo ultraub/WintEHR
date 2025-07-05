@@ -442,17 +442,17 @@ export function invalidateResourceCache(resourceType) {
  * Utility search functions for common resources
  */
 export function searchPatients(params = {}) {
-  return fhirClient.get('/Patient', { params });
+  return fhirClient.search('Patient', params);
 }
 
 export function searchPractitioners(params = {}) {
-  return fhirClient.get('/Practitioner', { params });
+  return fhirClient.search('Practitioner', params);
 }
 
 export function searchLocations(params = {}) {
-  return fhirClient.get('/Location', { params });
+  return fhirClient.search('Location', params);
 }
 
 export function searchAppointments(params = {}) {
-  return fhirClient.get('/Appointment', { params });
+  return fhirClient.search('Appointment', params);
 }

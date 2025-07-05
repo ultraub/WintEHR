@@ -16,6 +16,7 @@ from models.synthea_models import Patient, ImagingStudy
 # from api.auth import get_current_user  # Disabled for teaching purposes
 from pydantic import BaseModel
 from typing import Any, Optional, Dict
+from api.fhir.imaging_converter import dicom_study_to_fhir_imaging_study, create_wado_endpoint
 
 router = APIRouter()
 
@@ -268,6 +269,37 @@ async def get_patient_studies(
         message=f"Found {len(studies)} studies",
         data=[study.to_dict() for study in studies]
     )
+
+
+@router.get("/fhir/imaging-study/{patient_id}")
+async def get_fhir_imaging_studies(
+    patient_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get FHIR ImagingStudy resources for a patient"""
+    studies = db.query(DICOMStudy).filter(
+        DICOMStudy.patient_id == patient_id
+    ).order_by(DICOMStudy.study_date.desc()).all()
+    
+    # Convert to FHIR ImagingStudy resources
+    fhir_studies = []
+    for study in studies:
+        fhir_study = dicom_study_to_fhir_imaging_study(study)
+        fhir_studies.append(fhir_study)
+    
+    # Return as FHIR Bundle
+    return {
+        "resourceType": "Bundle",
+        "type": "searchset",
+        "total": len(fhir_studies),
+        "entry": [
+            {
+                "fullUrl": f"ImagingStudy/{study['id']}",
+                "resource": study
+            }
+            for study in fhir_studies
+        ]
+    }
 
 
 @router.get("/study/{study_id}", response_model=StandardResponse)

@@ -4,8 +4,8 @@ This directory contains utility scripts for managing the MedGenEMR system. Many 
 
 ## Primary Scripts
 
-### `synthea_workflow.py` ⭐ **RECOMMENDED**
-**Consolidated Synthea workflow management script** - Replaces multiple scattered scripts with a unified tool.
+### `synthea_workflow.py` ⭐ **MAIN WORKFLOW**
+**Consolidated Synthea workflow management** - The primary tool for synthetic patient data.
 
 ```bash
 # Full workflow - generate and import patients
@@ -17,36 +17,64 @@ python synthea_workflow.py generate --count 5 --state California
 # Import existing FHIR files
 python synthea_workflow.py import --files patient1.json patient2.json
 
-# Validate imported data
-python synthea_workflow.py validate
-
-# Clear database
+# Clear database and setup schema
 python synthea_workflow.py clear
-
-# Setup Synthea environment
-python synthea_workflow.py setup
 ```
 
-**Features:**
-- Generates synthetic patients using Synthea
-- Validates and imports FHIR data
-- Sets up database schema
-- Manages data integrity
-- Provides comprehensive logging
+### `init_database_tables.py` ⭐ **DATABASE SETUP**
+**Initialize all database tables** - Creates complete database schema.
+
+```bash
+# Initialize all tables (Patients, Observations, Devices, ImagingStudy, etc.)
+python init_database_tables.py
+```
+
+### `sample_data.py` ⭐ **NEW - CONSOLIDATED**
+**Create sample test data** - Replaces multiple individual scripts.
+
+```bash
+# Create all types of sample data
+python sample_data.py --all
+
+# Create specific types
+python sample_data.py --patients 10 --providers 5 --communications 3
+```
+
+### `imaging_tools.py` ⭐ **NEW - CONSOLIDATED**
+**DICOM and imaging utilities** - All imaging-related functionality.
+
+```bash
+# Generate DICOM files for existing studies
+python imaging_tools.py generate
+
+# Create generic test DICOM files
+python imaging_tools.py generic --count 5
+
+# Add imaging studies to patients
+python imaging_tools.py add --count 2
+```
 
 ## Specialized Scripts
 
 ### Database Management
+- `init_fhir_schema.py` - Initialize FHIR-specific schema
+- `update_fhir_schema.py` - Update FHIR schema tables
+- `optimize_fhir_indexes.py` - Optimize database performance
 - `clear_database.py` - Clear all database data
-- `init_fhir_schema.py` - Initialize FHIR database schema
 
-### Data Import/Export
-- `direct_synthea_import.py` - Direct import bypassing validation
-- `import_all_synthea_resources.py` - Comprehensive resource import
+### Clinical Setup
+- `populate_clinical_catalogs.py` - Populate medication, lab, imaging catalogs
+- `assign_patients_to_providers.py` - Assign patients to providers
+- `create_order_sets.py` - Create clinical order sets
+- `create_drug_interactions.py` - Create drug interaction data
 
-### Clinical Data Generation
-- `create_sample_providers.py` - Generate sample healthcare providers
-- `assign_patients_to_providers_auto.py` - Auto-assign patients to providers
+### Clinical Data Enhancement
+- `add_clinical_notes.py` - Add clinical notes to patients
+- `add_reference_ranges.py` - Add lab reference ranges
+
+### Utilities
+- `analyze_validation_errors.py` - Debug FHIR validation issues
+- `comprehensive_setup.py` - Complete system setup (legacy)
 - `populate_clinical_catalogs.py` - Populate clinical reference data
 
 ### DICOM and Imaging
@@ -91,19 +119,22 @@ Before running scripts, ensure:
 
 ## Script Categories
 
-### 🟢 **Active & Maintained**
-- `synthea_workflow.py` - Primary workflow tool
-- `direct_synthea_import.py` - Emergency import tool
-- `clear_database.py` - Database management
+### Recent Consolidation (December 2024)
 
-### 🟡 **Specialized Use Cases**
-- DICOM generation scripts
-- Clinical catalog population
-- Provider management scripts
+To improve maintainability, we've consolidated many scripts:
 
-### 🔴 **Deprecated**
-- Multiple `optimized_*` scripts (use `synthea_workflow.py`)
-- Multiple `comprehensive_*` scripts (use `synthea_workflow.py`)
+**New Consolidated Scripts:**
+- `sample_data.py` - Combines all sample data creation functionality
+- `imaging_tools.py` - Combines all DICOM and imaging utilities
+
+**Removed Scripts (functionality moved to consolidated scripts):**
+- Individual sample creation scripts → `sample_data.py`
+- Individual imaging scripts → `imaging_tools.py`
+- Various import scripts → `synthea_workflow.py`
+- Redundant provider scripts → `sample_data.py`
+
+**Archived Scripts:**
+- `clean_patient_names.py` → `archive/` (one-time fix)
 
 ## Contributing
 

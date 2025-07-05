@@ -30,18 +30,21 @@ import { useOrders } from '../../contexts/OrderContext';
 import { useTask } from '../../contexts/TaskContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useInbox } from '../../contexts/InboxContext';
+import { decodeFhirId } from '../../utils/navigationUtils';
 import PatientHeader from './PatientHeader';
 import PatientOverview from './PatientOverview';
 import DocumentationTab from './documentation/DocumentationTab';
 import OrdersTab from './orders/OrdersTab';
+import FHIROrdersTab from './orders/FHIROrdersTab';
 import ResultsTab from './results/ResultsTab';
 import InboxTab from './inbox/InboxTab';
+import FHIRInboxTab from './inbox/FHIRInboxTab';
 import TasksTab from './tasks/TasksTab';
+import FHIRTasksTab from './tasks/FHIRTasksTab';
 import TrendsTab from './trends/TrendsTab';
 import AppointmentsTab from './appointments/AppointmentsTab';
-import cdsHooksService from '../../services/cdsHooks';
+import { cdsHooksClient } from '../../services/cdsHooksClient';
 import CDSAlerts from '../CDSAlerts';
-import api from '../../services/api';
 
 
 const TabPanel = ({ children, value, index, ...other }) => {
@@ -62,8 +65,12 @@ const TabPanel = ({ children, value, index, ...other }) => {
   );
 };
 
+// Configuration flag to use FHIR-based components
+const USE_FHIR_COMPONENTS = true;
+
 const ClinicalWorkspace = () => {
-  const { patientId } = useParams();
+  const { patientId: encodedPatientId } = useParams();
+  const patientId = decodeFhirId(encodedPatientId);
   const location = useLocation();
   const { currentPatient, loadPatient: loadPatientFromContext, loadEncounter: loadEncounterFromContext, workspaceMode, setWorkspaceMode, isLoading, currentEncounter, setCurrentEncounter } = useClinical();
   const { loadRecentNotes, loadNoteTemplates } = useDocumentation();
@@ -143,7 +150,7 @@ const ClinicalWorkspace = () => {
 
         // Fire patient-view CDS hook only once per patient
         const userId = currentUser?.id || 'demo-user';
-        await cdsHooksService.firePatientView(
+        await cdsHooksClient.firePatientView(
           currentPatient.id,
           userId,
           null // Don't include encounter ID to prevent re-firing on encounter changes
@@ -277,7 +284,7 @@ const ClinicalWorkspace = () => {
           </TabPanel>
           
           <TabPanel value={activeTab} index={2}>
-            <OrdersTab />
+            {USE_FHIR_COMPONENTS ? <FHIROrdersTab /> : <OrdersTab />}
           </TabPanel>
           
           <TabPanel value={activeTab} index={3}>
@@ -293,11 +300,11 @@ const ClinicalWorkspace = () => {
           </TabPanel>
           
           <TabPanel value={activeTab} index={6}>
-            <InboxTab />
+            {USE_FHIR_COMPONENTS ? <FHIRInboxTab /> : <InboxTab />}
           </TabPanel>
           
           <TabPanel value={activeTab} index={7}>
-            <TasksTab />
+            {USE_FHIR_COMPONENTS ? <FHIRTasksTab /> : <TasksTab />}
           </TabPanel>
         </Box>
       </Paper>

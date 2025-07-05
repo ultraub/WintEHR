@@ -30,12 +30,21 @@ COPY . .
 # Create necessary directories including DICOM storage
 RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
 
+# Install postgresql client for pg_isready
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
+# Make entrypoint executable
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Expose port
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Run with multiple workers for production
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

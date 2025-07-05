@@ -40,7 +40,8 @@ import {
   Remove as NormalIcon,
   Close as CloseIcon,
   Visibility as ViewIcon,
-  FileUpload as UploadIcon
+  FileUpload as UploadIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import { fhirClient } from '../../../services/fhirClient';
@@ -97,7 +98,16 @@ const ResultsTab = () => {
   const loadResults = async () => {
     setLoading(true);
     try {
-      // Load lab results using FHIR
+      // Load lab results using FHIR - first try DiagnosticReport for grouped results
+      const diagnosticReports = await fhirClient.search('DiagnosticReport', {
+        patient: currentPatient.id,
+        category: 'LAB',
+        _sort: '-issued',
+        _count: 100,
+        _include: 'DiagnosticReport:result'
+      });
+      
+      // Also load individual lab observations
       const labResult = await fhirClient.getLabResults(currentPatient.id);
       
       // Transform FHIR observations to expected format
@@ -108,17 +118,58 @@ const ResultsTab = () => {
         display: obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown',
         value: obs.valueQuantity?.value || obs.valueString || '',
         unit: obs.valueQuantity?.unit || '',
+        value_quantity: obs.valueQuantity?.value,
+        value_unit: obs.valueQuantity?.unit,
         status: obs.status,
         encounter_id: obs.encounter ? fhirClient.extractId(obs.encounter) : null,
         interpretation: obs.interpretation?.[0]?.coding?.[0]?.code,
-        reference_range: obs.referenceRange?.[0]?.text
+        reference_range: obs.referenceRange?.[0]?.text,
+        reference_range_low: obs.referenceRange?.[0]?.low?.value,
+        reference_range_high: obs.referenceRange?.[0]?.high?.value,
+        loinc_code: obs.code?.coding?.find(c => c.system === 'http://loinc.org')?.code
       }));
       
-      // Load imaging studies (don't filter by encounter for imaging)
+      // Load imaging studies using FHIR ImagingStudy resources
       try {
-        const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
-        const imagingData = imagingResponse.data?.data || [];
+        const imagingStudies = await fhirClient.search('ImagingStudy', {
+          patient: currentPatient.id,
+          _sort: '-started',
+          _count: 100
+        });
+        
+        // Transform FHIR ImagingStudy resources to expected format
+        const imagingData = (imagingStudies.resources || []).map(study => ({
+          id: study.id,
+          patient_id: currentPatient.id,
+          study_instance_uid: study.identifier?.find(id => id.system === 'urn:dicom:uid')?.value || study.id,
+          study_date: study.started,
+          study_description: study.description || study.procedureCode?.[0]?.text || 'Imaging Study',
+          modality: study.series?.[0]?.modality?.code || 'Unknown',
+          number_of_series: study.numberOfSeries || study.series?.length || 0,
+          number_of_instances: study.numberOfInstances || 
+            study.series?.reduce((sum, s) => sum + (s.numberOfInstances || 0), 0) || 0,
+          accession_number: study.identifier?.find(id => id.type?.coding?.[0]?.code === 'ACSN')?.value,
+          upload_status: 'complete',
+          series: study.series || []
+        }));
+        
         setImagingResults(imagingData);
+        
+        // Also try legacy API for backward compatibility
+        try {
+          const legacyResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
+          const legacyData = legacyResponse.data?.data || [];
+          // Merge with FHIR data, avoiding duplicates
+          const mergedData = [...imagingData];
+          legacyData.forEach(legacy => {
+            if (!mergedData.find(d => d.id === legacy.id)) {
+              mergedData.push(legacy);
+            }
+          });
+          setImagingResults(mergedData);
+        } catch (err) {
+          // Ignore legacy API errors
+        }
       } catch (imagingError) {
         console.error('Error loading imaging studies:', imagingError);
         setImagingResults([]);
@@ -151,8 +202,46 @@ const ResultsTab = () => {
       
       setLabResults(results);
 
-      // Imaging results are already loaded above, don't clear them
-      // setImagingResults([]);
+      // Load imaging studies using FHIR ImagingStudy resources
+      try {
+        const imagingStudiesResult = await fhirClient.getImagingStudies(currentPatient.id);
+        const imagingStudies = imagingStudiesResult.resources || [];
+        
+        // Transform FHIR ImagingStudy to display format
+        const studies = imagingStudies.map(study => ({
+          id: study.id,
+          fhirId: study.id,
+          study_instance_uid: study.identifier?.find(id => id.system === 'urn:dicom:uid')?.value?.replace('urn:oid:', ''),
+          study_description: study.description || 'Imaging Study',
+          modality: study.modality?.[0]?.code || 'Unknown',
+          study_date: study.started,
+          accession_number: study.identifier?.find(id => id.type?.coding?.[0]?.code === 'ACSN')?.value,
+          number_of_series: study.numberOfSeries || study.series?.length || 0,
+          number_of_instances: study.numberOfInstances || 0,
+          series: study.series?.map(s => ({
+            series_instance_uid: s.uid,
+            series_description: s.description,
+            modality: s.modality?.code,
+            number_of_instances: s.numberOfInstances,
+            instances: s.instance
+          })) || [],
+          upload_status: study.status === 'available' ? 'complete' : 'processing',
+          endpoint: study.endpoint?.[0]?.reference
+        }));
+        
+        setImagingResults(studies);
+      } catch (imagingError) {
+        console.error('Error loading imaging studies:', imagingError);
+        // Try fallback to legacy API
+        try {
+          const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
+          const studies = imagingResponse.data?.data || [];
+          setImagingResults(studies);
+        } catch (fallbackError) {
+          console.error('Fallback imaging API also failed:', fallbackError);
+          setImagingResults([]);
+        }
+      }
     } catch (error) {
       console.error('Error loading results:', error);
     } finally {
@@ -161,25 +250,40 @@ const ResultsTab = () => {
   };
 
   const getInterpretationIcon = (interpretation) => {
-    switch (interpretation?.toLowerCase()) {
-      case 'high':
+    switch (interpretation?.toUpperCase()) {
+      case 'H':
+      case 'HH':
+      case 'HU':
+      case '>':
         return <TrendingUpIcon color="error" />;
-      case 'low':
+      case 'L':
+      case 'LL':
+      case 'LU':
+      case '<':
         return <TrendingDownIcon color="warning" />;
-      case 'normal':
+      case 'N':
+      case 'NORMAL':
         return <NormalIcon color="success" />;
+      case 'A':
+      case 'AA':
+        return <WarningIcon color="error" />;
       default:
         return <NormalIcon />;
     }
   };
 
   const getInterpretationColor = (interpretation) => {
-    switch (interpretation?.toLowerCase()) {
-      case 'high':
+    switch (interpretation?.toUpperCase()) {
+      case 'HH':
+      case 'LL':
+      case 'AA':
+      case 'A':
         return 'error';
-      case 'low':
+      case 'H':
+      case 'L':
         return 'warning';
-      case 'normal':
+      case 'N':
+      case 'NORMAL':
         return 'success';
       default:
         return 'default';
@@ -190,12 +294,18 @@ const ResultsTab = () => {
     if (result.value_quantity && result.value_unit) {
       return `${result.value_quantity} ${result.value_unit}`;
     }
+    if (result.value && result.unit) {
+      return `${result.value} ${result.unit}`;
+    }
     return result.value || 'N/A';
   };
 
   const formatReferenceRange = (result) => {
     if (result.reference_range_low && result.reference_range_high) {
-      return `${result.reference_range_low} - ${result.reference_range_high} ${result.value_unit || ''}`;
+      return `${result.reference_range_low} - ${result.reference_range_high} ${result.value_unit || result.unit || ''}`;
+    }
+    if (result.reference_range) {
+      return result.reference_range;
     }
     return 'N/A';
   };
@@ -510,6 +620,7 @@ const ResultsTab = () => {
               <ImageViewerV2
                 studyId={selectedStudy.id}
                 seriesId={selectedStudy.series?.[0]?.series_instance_uid}
+                fhirStudy={selectedStudy.fhirId ? selectedStudy : null}
                 onClose={() => setShowImageViewer(false)}
               />
             </>

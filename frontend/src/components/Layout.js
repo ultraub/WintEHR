@@ -15,7 +15,6 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
-  Badge,
   Menu,
   MenuItem,
   Chip,
@@ -32,15 +31,14 @@ import {
   Lightbulb as LightbulbIcon,
   Webhook as WebhookIcon,
   Assessment as AssessmentIcon,
-  Notifications as NotificationsIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   Security as SecurityIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { useNotifications } from '../hooks/useNotifications';
 import { ThemeToggleContext } from '../App';
 import { Flag as FlagIcon } from '@mui/icons-material';
+import NotificationBell from './NotificationBell';
 // import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
@@ -68,7 +66,6 @@ function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { count: notificationCount, loading: notificationsLoading } = useNotifications();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const themeContext = useContext(ThemeToggleContext);
@@ -232,7 +229,7 @@ function Layout({ children }) {
           {/* Provider Info */}
           {user && (
             <Chip
-              label={user.display_name}
+              label={user.display_name || user.name || user.username || 'Provider'}
               variant="outlined"
               sx={{ 
                 mr: 2, 
@@ -246,19 +243,7 @@ function Layout({ children }) {
             />
           )}
           
-          <IconButton 
-            color="inherit" 
-            sx={{ mx: 1 }}
-            onClick={() => navigate('/notifications')}
-          >
-            <Badge 
-              badgeContent={notificationCount} 
-              color="error"
-              invisible={notificationCount === 0 || notificationsLoading}
-            >
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+          <NotificationBell />
           <IconButton color="inherit" onClick={handleProfileMenuOpen}>
             <AccountCircleIcon />
           </IconButton>

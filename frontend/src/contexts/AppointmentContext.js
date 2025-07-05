@@ -168,35 +168,40 @@ export function AppointmentProvider({ children }) {
 
   // Helper function to build FHIR search parameters
   const buildSearchParams = useCallback((filters, pagination) => {
-    const params = new URLSearchParams();
+    const params = {};
     
     // Add pagination
-    params.append('_count', pagination.size.toString());
-    params.append('_offset', (pagination.page * pagination.size).toString());
+    params._count = pagination.size.toString();
+    params._offset = (pagination.page * pagination.size).toString();
     
     // Add filters
     if (filters.status) {
-      params.append('status', filters.status);
+      params.status = filters.status;
     }
     
     if (filters.patient) {
-      params.append('patient', filters.patient);
+      params.patient = filters.patient;
     }
     
     if (filters.practitioner) {
-      params.append('practitioner', filters.practitioner);
+      params.practitioner = filters.practitioner;
     }
     
     if (filters.location) {
-      params.append('location', filters.location);
+      params.location = filters.location;
     }
     
     if (filters.dateRange.start) {
-      params.append('date', `ge${filters.dateRange.start}`);
+      params.date = `ge${filters.dateRange.start}`;
     }
     
     if (filters.dateRange.end) {
-      params.append('date', `le${filters.dateRange.end}`);
+      // If we already have a start date, combine them
+      if (params.date) {
+        params.date = [params.date, `le${filters.dateRange.end}`];
+      } else {
+        params.date = `le${filters.dateRange.end}`;
+      }
     }
     
     return params;
@@ -209,12 +214,12 @@ export function AppointmentProvider({ children }) {
     try {
       const filters = customFilters || state.filters;
       const pagination = customPagination || state.pagination;
-      const params = buildSearchParams(filters, pagination);
+      const searchParams = buildSearchParams(filters, pagination);
       
-      const response = await fhirClient.get(`/Appointment?${params.toString()}`);
+      const response = await fhirClient.search('Appointment', searchParams);
       
-      const appointments = response.data.entry?.map(entry => entry.resource) || [];
-      const total = response.data.total || 0;
+      const appointments = response.resources || [];
+      const total = response.total || 0;
       
       dispatch({
         type: APPOINTMENT_ACTIONS.FETCH_APPOINTMENTS_SUCCESS,
@@ -247,14 +252,14 @@ export function AppointmentProvider({ children }) {
         ...appointmentData
       };
       
-      const response = await fhirClient.post('/Appointment', fhirAppointment);
+      const response = await fhirClient.create('Appointment', fhirAppointment);
       
       dispatch({
         type: APPOINTMENT_ACTIONS.CREATE_APPOINTMENT_SUCCESS,
-        payload: response.data
+        payload: response.resource || fhirAppointment
       });
       
-      return response.data;
+      return response.resource || fhirAppointment;
     } catch (error) {
       console.error('Error creating appointment:', error);
       dispatch({
@@ -270,14 +275,14 @@ export function AppointmentProvider({ children }) {
     dispatch({ type: APPOINTMENT_ACTIONS.UPDATE_APPOINTMENT_START });
     
     try {
-      const response = await fhirClient.put(`/Appointment/${appointmentId}`, updateData);
+      const response = await fhirClient.update('Appointment', appointmentId, updateData);
       
       dispatch({
         type: APPOINTMENT_ACTIONS.UPDATE_APPOINTMENT_SUCCESS,
-        payload: response.data
+        payload: updateData
       });
       
-      return response.data;
+      return updateData;
     } catch (error) {
       console.error('Error updating appointment:', error);
       dispatch({
@@ -326,7 +331,7 @@ export function AppointmentProvider({ children }) {
     dispatch({ type: APPOINTMENT_ACTIONS.DELETE_APPOINTMENT_START });
     
     try {
-      await fhirClient.delete(`/Appointment/${appointmentId}`);
+      await fhirClient.delete('Appointment', appointmentId);
       
       dispatch({
         type: APPOINTMENT_ACTIONS.DELETE_APPOINTMENT_SUCCESS,
@@ -345,8 +350,8 @@ export function AppointmentProvider({ children }) {
   // Get appointment by ID
   const getAppointment = useCallback(async (appointmentId) => {
     try {
-      const response = await fhirClient.get(`/Appointment/${appointmentId}`);
-      return response.data;
+      const appointment = await fhirClient.read('Appointment', appointmentId);
+      return appointment;
     } catch (error) {
       console.error('Error fetching appointment:', error);
       throw error;

@@ -26,7 +26,7 @@ import time
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import text
+from sqlalchemy import text, create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from database import DATABASE_URL
 from importers.synthea_fhir import SyntheaFHIRImporter
@@ -143,14 +143,29 @@ class SyntheaWorkflow:
         """Initialize database schema."""
         print("🏗️  Initializing database schema...")
         
-        # Import models to create tables
-        from models.models import Base
-        from database import engine as sync_engine
+        # Create sync engine for table creation
+        DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://emr_user:emr_password@localhost:5432/emr_db')
+        sync_url = DATABASE_URL.replace('+asyncpg', '')
+        sync_engine = create_engine(sync_url)
         
-        # Create all tables
-        Base.metadata.create_all(sync_engine)
-        
-        print("✅ Database schema initialized")
+        try:
+            # Import all models to create tables
+            from database import Base as DatabaseBase
+            from models import synthea_models
+            
+            DatabaseBase.metadata.create_all(sync_engine)
+            synthea_models.Base.metadata.create_all(sync_engine)
+            
+            # Try to import other models if available
+            try:
+                from models import dicom_models
+                dicom_models.Base.metadata.create_all(sync_engine)
+            except ImportError:
+                pass
+                
+            print("✅ Database schema initialized")
+        finally:
+            sync_engine.dispose()
     
     async def import_fhir_data(self, file_paths=None, validate=True):
         """Import FHIR data into the database."""
@@ -184,10 +199,12 @@ class SyntheaWorkflow:
         print("🎲 Generating additional sample data...")
         
         # Run additional data generation scripts
+        # Note: Synthea already generates Practitioner resources, so we only need
+        # to run scripts for non-FHIR data or legacy compatibility
         scripts_to_run = [
-            "create_sample_providers.py",
-            "assign_patients_to_providers_auto.py",
-            "populate_clinical_catalogs.py"
+            # "create_sample_providers.py",  # Not needed - Synthea generates Practitioner resources
+            # "assign_patients_to_providers_auto.py",  # Not needed - relationships exist in FHIR
+            "populate_clinical_catalogs.py"  # Still useful for order catalogs, etc.
         ]
         
         for script in scripts_to_run:
@@ -232,6 +249,9 @@ class SyntheaWorkflow:
             
             # 6. Generate additional sample data
             await self.generate_sample_data()
+            
+            # 7. Generate DICOM images for imaging studies
+            await self.generate_dicom_images()
             
             elapsed_time = time.time() - start_time
             print(f"🎉 Workflow completed successfully in {elapsed_time:.2f} seconds!")
@@ -297,7 +317,31 @@ class SyntheaWorkflow:
                 print(f"  ⚠️  Found {orphaned_observations} observations without encounters")
         
         print("✅ Data validation completed")
-        return resource_counts
+    
+    async def generate_dicom_images(self):
+        """Generate DICOM images for imported imaging studies"""
+        print("\n🏥 Generating DICOM images for imaging studies...")
+        
+        try:
+            # Import and run the DICOM generation script
+            import subprocess
+            import sys
+            
+            result = subprocess.run([
+                sys.executable, 
+                os.path.join(os.path.dirname(__file__), 'generate_dicom_images.py')
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print("✅ DICOM generation completed successfully")
+                if result.stdout:
+                    print(result.stdout)
+            else:
+                print("❌ DICOM generation failed")
+                if result.stderr:
+                    print(f"Error: {result.stderr}")
+        except Exception as e:
+            print(f"❌ Error running DICOM generation: {e}")
 
 
 def main():

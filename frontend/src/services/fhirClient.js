@@ -208,10 +208,25 @@ class FHIRClient {
    * Helper: Extract ID from reference
    */
   static extractId(reference) {
+    if (!reference) return null;
+    
+    // Handle string references
     if (typeof reference === 'string') {
+      // Handle absolute URLs
+      if (reference.startsWith('http://') || reference.startsWith('https://')) {
+        const parts = reference.split('/');
+        return parts[parts.length - 1];
+      }
+      // Handle relative references (ResourceType/id)
       return reference.split('/').pop();
     }
-    return reference?.reference?.split('/').pop();
+    
+    // Handle reference objects
+    if (reference.reference) {
+      return FHIRClient.extractId(reference.reference);
+    }
+    
+    return null;
   }
 
   // Instance method for backward compatibility
@@ -271,11 +286,12 @@ class FHIRClient {
   /**
    * Medication-specific convenience methods
    */
-  async getMedications(patientId, status = 'active') {
-    return this.search('MedicationRequest', {
-      patient: patientId,
-      status
-    });
+  async getMedications(patientId, status = null) {
+    const params = { patient: patientId };
+    if (status) {
+      params.status = status;
+    }
+    return this.search('MedicationRequest', params);
   }
 
   /**
@@ -341,6 +357,20 @@ class FHIRClient {
     return this.search('Organization', {
       type: 'payer'
     });
+  }
+
+  /**
+   * ImagingStudy-specific convenience methods
+   */
+  async getImagingStudies(patientId) {
+    return this.search('ImagingStudy', {
+      patient: patientId,
+      _sort: '-started'
+    });
+  }
+
+  async getImagingStudy(studyId) {
+    return this.read('ImagingStudy', studyId);
   }
 }
 
