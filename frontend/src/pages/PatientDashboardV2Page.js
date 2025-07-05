@@ -1,12 +1,17 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import PatientDashboardV3 from '../components/clinical/dashboard/PatientDashboardV3';
+import PatientSummaryV4 from '../components/clinical/dashboard/PatientSummaryV4';
 
 const PatientDashboardV2Page = () => {
   const { id } = useParams();
   
-  // Using V3 component which has modernized UI with improved performance
-  return <PatientDashboardV3 patientId={id} />;
+  
+  if (!id) {
+    return <div>No patient ID provided</div>;
+  }
+  
+  // Using V4 component which provides a beautiful patient summary with clinical workspace integration
+  return <PatientSummaryV4 patientId={id} />;
 };
 
 export default PatientDashboardV2Page;

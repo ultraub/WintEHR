@@ -36,7 +36,7 @@ fhir_router = APIRouter(prefix="/fhir/R4", tags=["FHIR"])
 SUPPORTED_RESOURCES = [
     "Patient", "Practitioner", "Organization", "Location",
     "Encounter", "Appointment", "Observation", "Condition",
-    "Procedure", "MedicationRequest", "MedicationStatement",
+    "Procedure", "Medication", "MedicationRequest", "MedicationStatement",
     "DiagnosticReport", "ImagingStudy", "CarePlan", "Goal",
     "Immunization", "AllergyIntolerance", "DocumentReference",
     "Task", "ServiceRequest", "Specimen", "Device",
@@ -46,7 +46,9 @@ SUPPORTED_RESOURCES = [
     "PractitionerRole", "CareTeam", "Claim", "Coverage",
     "ExplanationOfBenefit", "MedicationAdministration",
     "Composition", "Media", "SupplyDelivery", "Schedule",
-    "Slot", "Communication", "CommunicationRequest"
+    "Slot", "Communication", "CommunicationRequest",
+    # Recently identified missing resources
+    "Provenance"
 ]
 
 

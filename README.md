@@ -162,15 +162,20 @@ docker run -d -p 80:80 -p 8000:8000 medgenemr
 ## 🧪 Test Data & Synthea Integration
 
 ### Available FHIR Resources
-The system contains **3,461 FHIR resources** across multiple resource types:
+The system contains **20,115 FHIR resources** across 24 resource types:
 - **Patients**: 11 comprehensive test patients with full clinical histories
-- **Encounters**: 209 clinical encounters across all care settings
-- **Observations**: 1,090 lab results and vital signs with LOINC codes
-- **Conditions**: 161 diagnosed conditions with SNOMED/ICD-10 coding
-- **Medications**: 70 medication requests with detailed prescribing information
-- **Procedures**: 421 medical procedures with CPT coding
-- **Claims**: 279 insurance claims with coverage details
-- **Plus**: Allergies, immunizations, care plans, care teams, imaging studies, and more
+- **Encounters**: 1,105 clinical encounters across all care settings
+- **Observations**: 7,157 lab results and vital signs with LOINC codes
+- **Conditions**: 391 diagnosed conditions with SNOMED/ICD-10 coding
+- **Medications**: 515 medication resources with full RxNorm coding
+- **MedicationRequest**: 807 medication requests with detailed prescribing information
+- **Procedures**: 2,136 medical procedures with CPT coding
+- **Claims**: 1,912 insurance claims with coverage details
+- **DiagnosticReport**: 1,793 diagnostic reports with results
+- **DocumentReference**: 1,105 clinical documents
+- **Plus**: Allergies, immunizations, care plans, care teams, imaging studies, provenance, and more
+
+**Key Improvement**: Added full Medication resource support, fixing medication display issues in patient dashboard
 
 ### Synthea Synthetic Data Generation
 Generate unlimited realistic patient data using our consolidated Synthea workflow:
@@ -183,11 +188,14 @@ python scripts/synthea_workflow.py full --count 10
 # Generate patients for specific location
 python scripts/synthea_workflow.py generate --count 5 --state California --city "Los Angeles"
 
-# Import existing FHIR files
-python scripts/synthea_workflow.py import --files patient*.json
+# Import FHIR data (recommended for production)
+python scripts/synthea_import.py synthea/output/fhir
 
-# Validate imported data integrity
-python scripts/synthea_workflow.py validate
+# Import with validation (for development/debugging)
+python scripts/synthea_import_with_validation.py --no-strict
+
+# Wipe database and reimport fresh data
+python scripts/wipe_fhir_db.py && python scripts/synthea_import.py
 ```
 
 The Synthea integration provides:

@@ -64,8 +64,9 @@ cd frontend && npm install  # Fix missing deps
 
 - **Frontend**: 12 FHIR-native components in `/src/components/clinical/`
 - **Backend**: FHIR R4 API at `/fhir/R4/`, data in `fhir` schema
-- **Resources**: 3,461 Synthea FHIR resources available
-- **Recent Fix**: fhirClient returns `resources` array, not `entry`
+- **Resources**: 20,115 Synthea FHIR resources (10 patients) with full Medication support
+- **FHIR Support**: Added Medication and Provenance resources to SUPPORTED_RESOURCES
+- **Import System**: Unified Synthea import with validation modes for performance vs accuracy
 
 ## 🔧 Common Tasks
 
@@ -117,19 +118,29 @@ import { Warning as WarningIcon } from '@mui/material';
 - **Error Patterns**: `PROJECT_INTEGRITY_GUIDE.md`
 - **API Reference**: `docs/API_ENDPOINTS.md`
 
-## 🧪 Testing
+## 🧪 Testing & Data Management
 
 ```bash
 # Backend FHIR tests
 docker exec emr-backend pytest tests/test_fhir_endpoints.py -v
 
-# Generate Synthea data (max 5 patients)
-cd backend && python scripts/synthea_workflow.py full --count 5
+# Generate fresh Synthea data
+cd backend && python scripts/synthea_workflow.py full --count 10
+
+# Import Synthea data (recommended for production)
+python scripts/synthea_import.py synthea/output/fhir
+
+# Import with validation (for development/debugging)
+python scripts/synthea_import_with_validation.py --no-strict
+
+# Wipe database and reimport
+python scripts/wipe_fhir_db.py && python scripts/synthea_import.py
 
 # Debug data issues
+- Check FHIR resource endpoints: http://localhost:8000/fhir/R4/Patient
+- Verify resource counts: http://localhost:8000/fhir/R4/Medication
+- Review medication references resolve correctly
 - Add console.log to see actual data structure
-- Check browser console for FHIR object rendering
-- Verify API returns data: http://localhost:8000/fhir/R4/Patient
 ```
 
 ## 📋 Session Checklist

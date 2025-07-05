@@ -49,8 +49,10 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { fhirClient } from '../../../services/fhirClient';
 
 const PatientSummaryV4 = ({ patientId }) => {
+  
   const theme = useTheme();
   const navigate = useNavigate();
   const { searchResources } = useFHIRResource();
@@ -83,7 +85,8 @@ const PatientSummaryV4 = ({ patientId }) => {
           encountersResult,
           allergiesResult
         ] = await Promise.allSettled([
-          searchResources('Patient', { _id: patientId }),
+          // Use direct read for patient instead of search
+          fhirClient.read('Patient', patientId).then(patient => ({ resources: [patient] })),
           searchResources('Condition', { patient: patientId, _count: 10, _sort: '-onset-date' }),
           searchResources('MedicationRequest', { patient: patientId, _count: 10, _sort: '-date' }),
           searchResources('Observation', { patient: patientId, _count: 20, _sort: '-date' }),
@@ -91,10 +94,13 @@ const PatientSummaryV4 = ({ patientId }) => {
           searchResources('AllergyIntolerance', { patient: patientId, _count: 10 })
         ]);
 
+        // Process medications - skip reference resolution since they return 404s
+        const medications = medicationsResult.status === 'fulfilled' ? medicationsResult.value.resources || [] : [];
+
         setPatientData({
           patient: patientResult.status === 'fulfilled' ? patientResult.value.resources?.[0] : null,
           conditions: conditionsResult.status === 'fulfilled' ? conditionsResult.value.resources || [] : [],
-          medications: medicationsResult.status === 'fulfilled' ? medicationsResult.value.resources || [] : [],
+          medications: medications,
           observations: observationsResult.status === 'fulfilled' ? observationsResult.value.resources || [] : [],
           encounters: encountersResult.status === 'fulfilled' ? encountersResult.value.resources || [] : [],
           allergies: allergiesResult.status === 'fulfilled' ? allergiesResult.value.resources || [] : []
@@ -109,7 +115,7 @@ const PatientSummaryV4 = ({ patientId }) => {
     };
 
     loadPatientData();
-  }, [patientId, searchResources]);
+  }, [patientId]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {
@@ -348,7 +354,19 @@ const PatientSummaryV4 = ({ patientId }) => {
                   {currentMedications.map((med, index) => (
                     <ListItem key={med.id} disablePadding>
                       <ListItemText
-                        primary={med.medication?.concept?.text || med.medicationCodeableConcept?.text || 'Unknown medication'}
+                        primary={
+                          // Try direct medication concept first
+                          med.medicationCodeableConcept?.text ||
+                          med.medicationCodeableConcept?.coding?.[0]?.display ||
+                          med.medication?.concept?.text ||
+                          med.medication?.concept?.coding?.[0]?.display ||
+                          med.medication?.display ||
+                          // Try resolved medication reference
+                          med._resolvedMedication?.code?.text ||
+                          med._resolvedMedication?.code?.coding?.[0]?.display ||
+                          // Fallback for unresolved references
+                          (med.medication?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
+                        }
                         primaryTypographyProps={{ variant: 'body2', noWrap: true }}
                         secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}
                         secondaryTypographyProps={{ variant: 'caption' }}
