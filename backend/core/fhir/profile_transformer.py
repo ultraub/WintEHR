@@ -18,6 +18,8 @@ from typing import Dict, Any, List, Optional, Union, Set
 from datetime import datetime
 from pathlib import Path
 import logging
+
+from .field_definitions import clean_resource
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
@@ -100,25 +102,28 @@ class SyntheaProfileHandler(ProfileHandler):
         
         if resource_type == 'Encounter':
             # Fix Encounter fields for proper JSON/FHIR validation
-            # 1. class field - should be a single Coding in R4, not an array
+            # 1. class field - should be a LIST of CodeableConcepts in R4
             if 'class' in resource:
                 class_field = resource['class']
-                if isinstance(class_field, list):
-                    # Take the first element if it's incorrectly an array
-                    resource['class'] = self._to_coding(class_field[0] if class_field else {})
-                elif isinstance(class_field, dict) and 'coding' in class_field:
-                    # Convert CodeableConcept to Coding
-                    resource['class'] = self._to_coding(class_field)
-                # else: assume it's already a proper Coding object
+                if not isinstance(class_field, list):
+                    # Convert single value to list
+                    if isinstance(class_field, dict):
+                        resource['class'] = [self._to_codeable_concept(class_field)]
+                    else:
+                        resource['class'] = [class_field]
+                else:
+                    # It's already a list, ensure each element is a CodeableConcept
+                    resource['class'] = [self._to_codeable_concept(item) for item in class_field]
                 
-                # Clean the Coding object
-                if isinstance(resource['class'], dict):
-                    allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
-                    resource['class'] = self._clean_fields(resource['class'], allowed_coding_fields)
+                # Clean each CodeableConcept in the list
+                if isinstance(resource['class'], list):
+                    resource['class'] = [self._clean_codeable_concept(cc) for cc in resource['class'] if isinstance(cc, dict)]
             
-            # 2. Clean period field - remove extra fields  
-            if 'period' in resource and isinstance(resource['period'], dict):
-                resource['period'] = self._clean_period(resource['period'])
+            # 2. Transform period -> actualPeriod (fhir.resources uses actualPeriod)
+            if 'period' in resource:
+                resource['actualPeriod'] = resource.pop('period')
+                if isinstance(resource['actualPeriod'], dict):
+                    resource['actualPeriod'] = self._clean_period(resource['actualPeriod'])
             
             # 3. Fix participant structure: individual → actor and clean fields
             if 'participant' in resource and isinstance(resource['participant'], list):
@@ -144,9 +149,18 @@ class SyntheaProfileHandler(ProfileHandler):
                         cleaned_participants.append(participant)
                 resource['participant'] = cleaned_participants
             
-            # 4. Clean reasonCode array
-            if 'reasonCode' in resource and isinstance(resource['reasonCode'], list):
-                resource['reasonCode'] = [self._clean_codeable_concept(r) for r in resource['reasonCode'] if isinstance(r, dict)]
+            # 4. Transform reasonCode -> reason (fhir.resources uses reason)
+            if 'reasonCode' in resource:
+                reason_codes = resource.pop('reasonCode')
+                if not isinstance(reason_codes, list):
+                    reason_codes = [reason_codes]
+                # Transform to reason structure with 'use' field
+                resource['reason'] = []
+                for reason_code in reason_codes:
+                    if isinstance(reason_code, dict):
+                        resource['reason'].append({
+                            'use': [self._clean_codeable_concept(reason_code)]
+                        })
             
             # 5. Clean hospitalization if present
             if 'hospitalization' in resource and isinstance(resource['hospitalization'], dict):
@@ -159,23 +173,16 @@ class SyntheaProfileHandler(ProfileHandler):
                 resource['hospitalization'] = self._clean_fields(resource['hospitalization'], allowed_hosp_fields)
         
         elif resource_type == 'Procedure':
-            # Fix performedPeriod -> performed (polymorphic field)
-            if 'performedPeriod' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedPeriod')
-            elif 'performedDateTime' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedDateTime')
+            # Transform performed[x] to occurrence[x] (fhir.resources uses occurrence)
+            if 'performedPeriod' in resource:
+                resource['occurrencePeriod'] = resource.pop('performedPeriod')
+                if isinstance(resource['occurrencePeriod'], dict):
+                    resource['occurrencePeriod'] = self._clean_period(resource['occurrencePeriod'])
+            elif 'performedDateTime' in resource:
+                resource['occurrenceDateTime'] = resource.pop('performedDateTime')
             
-            # Clean performed field if it's a Period
-            if 'performed' in resource and isinstance(resource['performed'], dict) and 'start' in resource['performed']:
-                resource['performed'] = self._clean_period(resource['performed'])
-            
-            # Fix reasonCode -> reasonCode (ensure array)
-            if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
-                resource['reasonCode'] = [resource['reasonCode']]
-            
-            # Clean reasonCode array
-            if 'reasonCode' in resource and isinstance(resource['reasonCode'], list):
-                resource['reasonCode'] = [self._clean_codeable_concept(r) for r in resource['reasonCode'] if isinstance(r, dict)]
+            # Remove reasonCode - not in fhir.resources Procedure
+            resource.pop('reasonCode', None)
             
             # Handle reason field if present (newer format)
             if 'reason' in resource and isinstance(resource['reason'], list):
@@ -219,11 +226,12 @@ class SyntheaProfileHandler(ProfileHandler):
                 resource['performer'] = cleaned_performers
         
         elif resource_type == 'Device':
-            # Fix type to be array of CodeableConcept
-            if 'type' in resource and not isinstance(resource['type'], list):
-                resource['type'] = [self._to_codeable_concept(resource['type'])]
-            elif 'type' in resource:
-                resource['type'] = [self._to_codeable_concept(t) for t in resource['type']]
+            # Ensure type is an array of CodeableConcepts
+            if 'type' in resource:
+                if not isinstance(resource['type'], list):
+                    resource['type'] = [self._to_codeable_concept(resource['type'])]
+                else:
+                    resource['type'] = [self._to_codeable_concept(t) for t in resource['type']]
             
             # Remove deprecated fields
             resource.pop('distinctIdentifier', None)
@@ -245,20 +253,24 @@ class SyntheaProfileHandler(ProfileHandler):
                         carrier['issuer'] = 'Unknown'  # Required field
         
         elif resource_type == 'MedicationRequest':
-            # Fix medication field (polymorphic)
-            if 'medicationReference' in resource and 'medication' not in resource:
-                resource['medication'] = resource.pop('medicationReference')
-            elif 'medicationCodeableConcept' in resource and 'medication' not in resource:
+            # Handle medication[x] polymorphic field
+            if 'medicationCodeableConcept' in resource and 'medication' not in resource:
                 resource['medication'] = resource.pop('medicationCodeableConcept')
+            elif 'medicationReference' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationReference')
             
             # Clean medication field based on type
             if 'medication' in resource and isinstance(resource['medication'], dict):
                 if 'reference' in resource['medication']:
-                    # It's a Reference
-                    resource['medication'] = self._clean_reference(resource['medication'])
-                else:
-                    # It's a CodeableConcept
-                    resource['medication'] = self._clean_codeable_concept(resource['medication'])
+                    # It's a Reference, wrap in CodeableReference
+                    resource['medication'] = {
+                        'reference': self._clean_reference(resource['medication'])
+                    }
+                elif 'concept' not in resource['medication'] and 'coding' in resource['medication']:
+                    # It's a CodeableConcept, wrap in CodeableReference
+                    resource['medication'] = {
+                        'concept': self._clean_codeable_concept(resource['medication'])
+                    }
             
             # Fix reasonCode -> reasonCode (ensure array)
             if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
@@ -326,11 +338,17 @@ class SyntheaProfileHandler(ProfileHandler):
                 resource['dosageInstruction'] = cleaned_dosages
         
         elif resource_type == 'MedicationAdministration':
-            # Fix occurrence field naming (common typo)
-            if 'occurenceDateTime' in resource:
-                resource['occurenceDateTime'] = resource.pop('occurenceDateTime')
-            elif 'occurencePeriod' in resource:
-                resource['occurencePeriod'] = resource.pop('occurencePeriod')
+            # Transform effective[x] to occurence[x] (fhir.resources uses occurence with typo)
+            if 'effectiveDateTime' in resource:
+                resource['occurenceDateTime'] = resource.pop('effectiveDateTime')
+            elif 'effectivePeriod' in resource:
+                resource['occurencePeriod'] = resource.pop('effectivePeriod')
+            
+            # Also handle if it's already occurrence (with correct spelling) 
+            elif 'occurrenceDateTime' in resource:
+                resource['occurenceDateTime'] = resource.pop('occurrenceDateTime')
+            elif 'occurrencePeriod' in resource:
+                resource['occurencePeriod'] = resource.pop('occurrencePeriod')
         
         elif resource_type == 'DocumentReference':
             # Fix context to be array
@@ -414,27 +432,51 @@ class SyntheaProfileHandler(ProfileHandler):
                             participant['role'] = participant['role'][0]
         
         elif resource_type == 'CarePlan':
-            # Fix activity.detail structure
+            # Fix activity structure - fhir.resources expects plannedActivityReference, not detail
             if 'activity' in resource and isinstance(resource['activity'], list):
+                new_activities = []
                 for activity in resource['activity']:
-                    if isinstance(activity, dict) and 'detail' in activity:
-                        # detail should be an object, not a reference
-                        if isinstance(activity['detail'], dict) and 'reference' in activity['detail']:
-                            # Move reference to activity.reference
-                            activity['reference'] = activity['detail']['reference']
-                            del activity['detail']
+                    if isinstance(activity, dict):
+                        new_activity = {}
+                        
+                        # Copy allowed fields
+                        for field in ['id', 'extension', 'modifierExtension', 'progress']:
+                            if field in activity:
+                                new_activity[field] = activity[field]
+                        
+                        # Handle detail field - convert to plannedActivityReference
+                        if 'detail' in activity and isinstance(activity['detail'], dict):
+                            detail = activity['detail']
+                            # Create a reference from the detail code
+                            if 'code' in detail and isinstance(detail['code'], dict):
+                                code_concept = detail['code']
+                                if 'coding' in code_concept and code_concept['coding']:
+                                    first_coding = code_concept['coding'][0]
+                                    # Create synthetic reference for the activity
+                                    new_activity['plannedActivityReference'] = {
+                                        'reference': f"ServiceRequest/{first_coding.get('code', 'unknown')}",
+                                        'display': first_coding.get('display', code_concept.get('text', 'Activity'))
+                                    }
+                        
+                        # Handle reference field
+                        elif 'reference' in activity:
+                            new_activity['plannedActivityReference'] = activity['reference']
+                        
+                        # Handle outcomeCodeableConcept/outcomeReference
+                        if 'outcomeCodeableConcept' in activity:
+                            new_activity['performedActivity'] = {
+                                'concept': activity['outcomeCodeableConcept']
+                            }
+                        elif 'outcomeReference' in activity:
+                            new_activity['performedActivity'] = {
+                                'reference': activity['outcomeReference']
+                            }
+                        
+                        if 'plannedActivityReference' in new_activity or 'performedActivity' in new_activity:
+                            new_activities.append(new_activity)
+                
+                resource['activity'] = new_activities
             
-            # Fix addresses reference structure
-            if 'addresses' in resource and isinstance(resource['addresses'], list):
-                fixed_addresses = []
-                for addr in resource['addresses']:
-                    if isinstance(addr, dict) and 'reference' in addr:
-                        fixed_addresses.append(addr)
-                    elif isinstance(addr, str):
-                        fixed_addresses.append({'reference': addr})
-                    else:
-                        fixed_addresses.append(addr)
-                resource['addresses'] = fixed_addresses
         
         elif resource_type == 'Patient':
             # Clean telecom/address arrays
@@ -443,6 +485,18 @@ class SyntheaProfileHandler(ProfileHandler):
             
             if 'address' in resource and isinstance(resource['address'], list):
                 resource['address'] = [self._clean_address(a) for a in resource['address'] if isinstance(a, dict)]
+            
+            # Fix identifier structure
+            if 'identifier' in resource and isinstance(resource['identifier'], list):
+                cleaned_identifiers = []
+                for identifier in resource['identifier']:
+                    if isinstance(identifier, dict):
+                        allowed_identifier_fields = {'id', 'extension', 'use', 'type', 'system', 'value', 'period', 'assigner'}
+                        identifier = self._clean_fields(identifier, allowed_identifier_fields)
+                        if 'type' in identifier and isinstance(identifier['type'], dict):
+                            identifier['type'] = self._clean_codeable_concept(identifier['type'])
+                        cleaned_identifiers.append(identifier)
+                resource['identifier'] = cleaned_identifiers
         
         elif resource_type == 'Observation':
             # Fix component arrays
@@ -500,6 +554,135 @@ class SyntheaProfileHandler(ProfileHandler):
                         
                         cleaned_ranges.append(range_item)
                 resource['referenceRange'] = cleaned_ranges
+        
+        elif resource_type == 'Condition':
+            # Ensure arrays for required fields
+            for field in ['category', 'bodySite', 'evidence']:
+                if field in resource and not isinstance(resource[field], list):
+                    resource[field] = [resource[field]]
+            
+            # Clean category array
+            if 'category' in resource and isinstance(resource['category'], list):
+                resource['category'] = [self._clean_codeable_concept(cat) for cat in resource['category'] if isinstance(cat, dict)]
+            
+            # Clean bodySite array
+            if 'bodySite' in resource and isinstance(resource['bodySite'], list):
+                resource['bodySite'] = [self._clean_codeable_concept(site) for site in resource['bodySite'] if isinstance(site, dict)]
+        
+        elif resource_type == 'Claim':
+            # Fix total - should be single Money object, not array
+            if 'total' in resource and isinstance(resource['total'], list):
+                # Take the first total if it's an array
+                if len(resource['total']) > 0:
+                    resource['total'] = resource['total'][0]
+                else:
+                    resource.pop('total', None)
+            
+            # Clean total Money object
+            if 'total' in resource and isinstance(resource['total'], dict):
+                allowed_money_fields = {'id', 'extension', 'value', 'currency'}
+                resource['total'] = self._clean_fields(resource['total'], allowed_money_fields)
+        
+        elif resource_type == 'Organization':
+            # Clean address/telecom arrays
+            if 'telecom' in resource and isinstance(resource['telecom'], list):
+                resource['telecom'] = [self._clean_contact_point(t) for t in resource['telecom'] if isinstance(t, dict)]
+            
+            if 'address' in resource and isinstance(resource['address'], list):
+                resource['address'] = [self._clean_address(a) for a in resource['address'] if isinstance(a, dict)]
+            
+            # Clean type array
+            if 'type' in resource and isinstance(resource['type'], list):
+                resource['type'] = [self._clean_codeable_concept(t) for t in resource['type'] if isinstance(t, dict)]
+        
+        elif resource_type == 'Location':
+            # Clean position if present
+            if 'position' in resource and isinstance(resource['position'], dict):
+                allowed_position_fields = {'id', 'extension', 'longitude', 'latitude', 'altitude'}
+                resource['position'] = self._clean_fields(resource['position'], allowed_position_fields)
+            
+            # Clean address
+            if 'address' in resource and isinstance(resource['address'], dict):
+                resource['address'] = self._clean_address(resource['address'])
+            
+            # Clean telecom array
+            if 'telecom' in resource and isinstance(resource['telecom'], list):
+                resource['telecom'] = [self._clean_contact_point(t) for t in resource['telecom'] if isinstance(t, dict)]
+        
+        elif resource_type == 'Practitioner':
+            # Clean name array
+            if 'name' in resource and isinstance(resource['name'], list):
+                resource['name'] = [self._clean_human_name(n) for n in resource['name'] if isinstance(n, dict)]
+            
+            # Clean telecom/address arrays
+            if 'telecom' in resource and isinstance(resource['telecom'], list):
+                resource['telecom'] = [self._clean_contact_point(t) for t in resource['telecom'] if isinstance(t, dict)]
+            
+            if 'address' in resource and isinstance(resource['address'], list):
+                resource['address'] = [self._clean_address(a) for a in resource['address'] if isinstance(a, dict)]
+            
+            # Clean qualification array
+            if 'qualification' in resource and isinstance(resource['qualification'], list):
+                cleaned_quals = []
+                for qual in resource['qualification']:
+                    if isinstance(qual, dict):
+                        allowed_qual_fields = {'id', 'extension', 'identifier', 'code', 'period', 'issuer'}
+                        qual = self._clean_fields(qual, allowed_qual_fields)
+                        if 'code' in qual and isinstance(qual['code'], dict):
+                            qual['code'] = self._clean_codeable_concept(qual['code'])
+                        cleaned_quals.append(qual)
+                resource['qualification'] = cleaned_quals
+        
+        elif resource_type == 'AllergyIntolerance':
+            # Ensure category is array
+            if 'category' in resource and not isinstance(resource['category'], list):
+                resource['category'] = [resource['category']]
+            
+            # Ensure reaction is array
+            if 'reaction' in resource and not isinstance(resource['reaction'], list):
+                resource['reaction'] = [resource['reaction']]
+            
+            # Clean reaction array
+            if 'reaction' in resource and isinstance(resource['reaction'], list):
+                cleaned_reactions = []
+                for reaction in resource['reaction']:
+                    if isinstance(reaction, dict):
+                        allowed_reaction_fields = {
+                            'id', 'extension', 'substance', 'manifestation',
+                            'description', 'onset', 'severity', 'exposureRoute', 'note'
+                        }
+                        reaction = self._clean_fields(reaction, allowed_reaction_fields)
+                        
+                        # Ensure manifestation is array
+                        if 'manifestation' in reaction and not isinstance(reaction['manifestation'], list):
+                            reaction['manifestation'] = [reaction['manifestation']]
+                        
+                        # Clean manifestation array
+                        if 'manifestation' in reaction and isinstance(reaction['manifestation'], list):
+                            reaction['manifestation'] = [self._clean_codeable_concept(m) for m in reaction['manifestation'] if isinstance(m, dict)]
+                        
+                        cleaned_reactions.append(reaction)
+                resource['reaction'] = cleaned_reactions
+        
+        elif resource_type == 'Immunization':
+            # Ensure arrays for required fields
+            for field in ['identifier', 'statusReason', 'performer', 'note', 'reasonCode', 'reasonReference', 'reaction', 'protocolApplied']:
+                if field in resource and not isinstance(resource[field], list):
+                    resource[field] = [resource[field]]
+            
+            # Clean performer array
+            if 'performer' in resource and isinstance(resource['performer'], list):
+                cleaned_performers = []
+                for performer in resource['performer']:
+                    if isinstance(performer, dict):
+                        allowed_performer_fields = {'id', 'extension', 'function', 'actor'}
+                        performer = self._clean_fields(performer, allowed_performer_fields)
+                        if 'function' in performer and isinstance(performer['function'], dict):
+                            performer['function'] = self._clean_codeable_concept(performer['function'])
+                        if 'actor' in performer and isinstance(performer['actor'], dict):
+                            performer['actor'] = self._clean_reference(performer['actor'])
+                        cleaned_performers.append(performer)
+                resource['performer'] = cleaned_performers
             
             # Clean main valueQuantity if present
             if 'valueQuantity' in resource and isinstance(resource['valueQuantity'], dict):
@@ -566,6 +749,9 @@ class SyntheaProfileHandler(ProfileHandler):
         
         # Ensure arrays are properly formatted
         resource = self._ensure_arrays(resource_type, resource)
+        
+        # Clean the resource to remove invalid fields
+        resource = clean_resource(resource)
         
         return resource
     
@@ -732,7 +918,7 @@ class SyntheaProfileHandler(ProfileHandler):
         """Ensure fields that should be arrays are arrays."""
         # Define fields that should always be arrays in R4
         array_fields = {
-            'Encounter': ['type', 'diagnosis', 'account', 'statusHistory', 'reasonCode', 'episodeOfCare', 'basedOn', 'classHistory'],
+            'Encounter': ['type', 'diagnosis', 'account', 'statusHistory', 'reasonCode', 'episodeOfCare', 'basedOn', 'classHistory', 'class'],
             'Device': ['type', 'safety', 'property', 'specialization', 'version', 'udiCarrier', 'deviceName', 'contact', 'note'],
             'DocumentReference': ['category', 'author', 'relatesTo', 'securityLabel', 'content'],
             'SupplyDelivery': ['suppliedItem', 'partOf', 'basedOn'],
@@ -745,12 +931,12 @@ class SyntheaProfileHandler(ProfileHandler):
             'Procedure': ['identifier', 'category', 'performer', 'reasonCode', 'reasonReference', 'bodySite', 'note', 'focalDevice', 'usedReference', 'usedCode', 'partOf', 'basedOn', 'complication', 'complicationDetail', 'followUp', 'report', 'instantiatesCanonical', 'instantiatesUri'],
             'DiagnosticReport': ['identifier', 'category', 'performer', 'specimen', 'result', 'imagingStudy', 'media', 'presentedForm', 'basedOn', 'resultsInterpreter'],
             'ImagingStudy': ['identifier', 'endpoint', 'procedureCode', 'reasonCode', 'reasonReference', 'note', 'series', 'modality', 'basedOn', 'interpreter'],
-            'Immunization': ['identifier', 'statusReason', 'vaccineCode', 'performer', 'note', 'reasonCode', 'reasonReference', 'reaction', 'protocolApplied', 'education', 'programEligibility'],
-            'AllergyIntolerance': ['identifier', 'category', 'reaction', 'note'],
+            'Immunization': ['identifier', 'statusReason', 'performer', 'note', 'reasonCode', 'reasonReference', 'reaction', 'protocolApplied', 'education', 'programEligibility'],  # vaccineCode is single CodeableConcept
+            'AllergyIntolerance': ['identifier', 'category', 'reaction', 'note'],  # type is single enum/code
             'CarePlan': ['identifier', 'instantiatesCanonical', 'instantiatesUri', 'basedOn', 'replaces', 'partOf', 'category', 'contributor', 'careTeam', 'addresses', 'supportingInfo', 'goal', 'activity', 'note'],
             'CareTeam': ['identifier', 'category', 'participant', 'reasonCode', 'reasonReference', 'managingOrganization', 'telecom', 'note'],
-            'Claim': ['identifier', 'related', 'careTeam', 'supportingInfo', 'diagnosis', 'procedure', 'insurance', 'item'],
-            'ExplanationOfBenefit': ['identifier', 'careTeam', 'supportingInfo', 'diagnosis', 'procedure', 'insurance', 'item', 'addItem', 'adjudication', 'total', 'processNote', 'benefitBalance'],
+            'Claim': ['identifier', 'related', 'careTeam', 'supportingInfo', 'diagnosis', 'procedure', 'insurance', 'item'],  # total and type are single values
+            'ExplanationOfBenefit': ['identifier', 'careTeam', 'supportingInfo', 'diagnosis', 'procedure', 'insurance', 'item', 'addItem', 'adjudication', 'processNote', 'benefitBalance'],  # total and payment are single values
         }
         
         if resource_type in array_fields:
@@ -771,6 +957,16 @@ class USCoreProfileHandler(ProfileHandler):
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition",
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab",
         "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careplan",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-documentreference",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-allergyintolerance",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-procedure",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-location",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-immunization",
+        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-device",
     }
     
     def can_handle(self, resource: Dict[str, Any]) -> bool:
@@ -806,16 +1002,18 @@ class USCoreProfileHandler(ProfileHandler):
                                 name['family'] = parts[-1]
         
         elif resource_type == 'Encounter':
-            # Apply the same comprehensive fixes as SyntheaProfileHandler
+            # Fix class field - In FHIR R4, class is a LIST of CodeableConcepts
             if 'class' in resource:
                 class_field = resource['class']
-                if isinstance(class_field, list):
-                    # Take the first element if it's incorrectly an array
-                    resource['class'] = self._to_coding(class_field[0] if class_field else {})
-                elif isinstance(class_field, dict) and 'coding' in class_field:
-                    # Convert CodeableConcept to Coding
-                    resource['class'] = self._to_coding(class_field)
-                # else: assume it's already a proper Coding object
+                if not isinstance(class_field, list):
+                    # Convert single value to list
+                    if isinstance(class_field, dict):
+                        resource['class'] = [self._to_codeable_concept(class_field)]
+                    else:
+                        resource['class'] = [class_field]
+                else:
+                    # It's already a list, ensure each element is a CodeableConcept
+                    resource['class'] = [self._to_codeable_concept(item) for item in class_field]
             
             if 'period' in resource:
                 resource['actualPeriod'] = resource.pop('period')
@@ -836,20 +1034,14 @@ class USCoreProfileHandler(ProfileHandler):
                         participant['actor'] = participant.pop('individual')
         
         elif resource_type == 'Procedure':
-            # Apply same fixes as SyntheaProfileHandler
-            if 'performedPeriod' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedPeriod')
-            elif 'performedDateTime' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedDateTime')
+            # Keep performed[x] polymorphic fields with their type suffix
+            # Ensure reasonCode is array
             if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
                 resource['reasonCode'] = [resource['reasonCode']]
         
         elif resource_type == 'MedicationRequest':
-            # Apply same fixes as SyntheaProfileHandler
-            if 'medicationReference' in resource and 'medication' not in resource:
-                resource['medication'] = resource.pop('medicationReference')
-            elif 'medicationCodeableConcept' in resource and 'medication' not in resource:
-                resource['medication'] = resource.pop('medicationCodeableConcept')
+            # Keep medication[x] polymorphic fields with their type suffix
+            # Ensure reasonCode is array
             if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
                 resource['reasonCode'] = [resource['reasonCode']]
         
@@ -915,14 +1107,14 @@ class ProfileAwareFHIRTransformer:
             'custodian', 'relatesTo', 'event', 'section', 'careTeam',
             'addresses', 'supportingInfo', 'goal', 'activity',
             'diagnosis', 'procedure', 'insurance', 'accident',
-            'item', 'addItem', 'total', 'payment', 'processNote',
+            'item', 'addItem', 'processNote',
             'benefitBalance', 'contained', 'extension', 'modifierExtension',
-            'reasonCode', 'reasonReference', 'bodySite', 'type',
+            'reasonCode', 'reasonReference', 'bodySite',
             'statusHistory', 'qualification', 'endpoint', 'safety',
             'property', 'specialization', 'version', 'severity',
             'stage', 'evidence', 'focalDevice', 'usedReference',
-            'usedCode', 'statusReason', 'vaccineCode', 'manufacturer',
-            'lotNumber', 'expirationDate', 'site', 'route', 'reaction',
+            'usedCode', 'statusReason', 'manufacturer',
+            'site', 'route', 'reaction',
             'protocolApplied', 'instantiatesCanonical', 'instantiatesUri',
             'basedOn', 'replaces', 'partOf', 'contributor', 'related',
             'managingOrganization', 'adjudication', 'specimen', 'result',
@@ -931,8 +1123,8 @@ class ProfileAwareFHIRTransformer:
         
         # Resource-specific array fields that need special handling
         self.resource_array_fields = {
-            'Encounter': {'type', 'diagnosis', 'account', 'statusHistory'},  # Note: 'class' is NOT an array in R4
-            'Device': {'type', 'safety', 'property', 'specialization', 'version'},
+            'Encounter': {'type', 'diagnosis', 'account', 'statusHistory', 'participant', 'episodeOfCare', 'basedOn', 'appointment', 'reasonCode', 'location', 'classHistory', 'class'},  # class is an array of CodeableConcepts in R4
+            'Device': {'type', 'safety', 'property', 'specialization', 'version', 'udiCarrier', 'deviceName', 'contact', 'note'},  # expirationDate, lotNumber are single values
             'DocumentReference': {'context', 'category', 'author', 'relatesTo'},
             'SupplyDelivery': {'suppliedItem'},
             'Patient': {'identifier', 'name', 'telecom', 'address', 'contact', 'communication', 'generalPractitioner', 'link'},
@@ -944,8 +1136,8 @@ class ProfileAwareFHIRTransformer:
             'Procedure': {'identifier', 'category', 'performer', 'reasonCode', 'reasonReference', 'bodySite', 'note', 'focalDevice', 'usedReference', 'usedCode'},
             'DiagnosticReport': {'identifier', 'category', 'performer', 'specimen', 'result', 'imagingStudy', 'media', 'presentedForm'},
             'ImagingStudy': {'identifier', 'endpoint', 'procedureCode', 'reasonCode', 'reasonReference', 'note', 'series'},
-            'Immunization': {'identifier', 'statusReason', 'vaccineCode', 'manufacturer', 'lotNumber', 'expirationDate', 'site', 'route', 'performer', 'note', 'reasonCode', 'reasonReference', 'reaction', 'protocolApplied'},
-            'AllergyIntolerance': {'identifier', 'category', 'reaction'},
+            'Immunization': {'identifier', 'statusReason', 'performer', 'note', 'reasonCode', 'reasonReference', 'reaction', 'protocolApplied', 'education', 'programEligibility'},  # vaccineCode is single CodeableConcept
+            'AllergyIntolerance': {'identifier', 'category', 'reaction', 'note'},  # type is single enum/code
             'CarePlan': {'identifier', 'instantiatesCanonical', 'instantiatesUri', 'basedOn', 'replaces', 'partOf', 'category', 'contributor', 'careTeam', 'addresses', 'supportingInfo', 'goal', 'activity', 'note'},
             'CareTeam': {'identifier', 'category', 'participant', 'reasonCode', 'reasonReference', 'managingOrganization', 'telecom', 'note'},
             'Claim': {'identifier', 'related', 'careTeam', 'supportingInfo', 'diagnosis', 'procedure', 'insurance', 'item'},
@@ -1013,6 +1205,9 @@ class ProfileAwareFHIRTransformer:
         # Fix references
         transformed = self._normalize_references(transformed)
         
+        # Clean the resource to remove invalid fields
+        transformed = clean_resource(transformed)
+        
         # Preserve profile information
         if profile_url:
             if 'meta' not in transformed:
@@ -1030,26 +1225,127 @@ class ProfileAwareFHIRTransformer:
         
         # Handle medication[x] polymorphic fields
         if resource_type == 'MedicationRequest':
-            if 'medicationCodeableConcept' in resource:
+            # Handle medication[x] polymorphic field
+            if 'medicationCodeableConcept' in resource and 'medication' not in resource:
                 resource['medication'] = resource.pop('medicationCodeableConcept')
-            elif 'medicationReference' in resource:
+            elif 'medicationReference' in resource and 'medication' not in resource:
                 resource['medication'] = resource.pop('medicationReference')
+            
+            # Wrap medication in CodeableReference structure
+            if 'medication' in resource and isinstance(resource['medication'], dict):
+                if 'reference' in resource['medication'] and 'concept' not in resource['medication']:
+                    # It's a Reference, wrap in CodeableReference
+                    resource['medication'] = {'reference': resource['medication']}
+                elif 'concept' not in resource['medication'] and 'coding' in resource['medication']:
+                    # It's a CodeableConcept, wrap in CodeableReference
+                    resource['medication'] = {'concept': resource['medication']}
+            
+            # Remove reasonReference - not in fhir.resources MedicationRequest
+            resource.pop('reasonReference', None)
         
         # Handle performed[x] polymorphic fields
         elif resource_type == 'Procedure':
-            if 'performedPeriod' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedPeriod')
-            elif 'performedDateTime' in resource and 'performed' not in resource:
-                resource['performed'] = resource.pop('performedDateTime')
+            # Transform performed[x] to occurrence[x] (fhir.resources uses occurrence)
+            if 'performedPeriod' in resource:
+                resource['occurrencePeriod'] = resource.pop('performedPeriod')
+            elif 'performedDateTime' in resource:
+                resource['occurrenceDateTime'] = resource.pop('performedDateTime')
+            elif 'performedString' in resource:
+                resource['occurrenceString'] = resource.pop('performedString')
+            elif 'performedAge' in resource:
+                resource['occurrenceAge'] = resource.pop('performedAge')
+            elif 'performedRange' in resource:
+                resource['occurrenceRange'] = resource.pop('performedRange')
+            
+            # Remove reasonReference - not in fhir.resources Procedure
+            resource.pop('reasonReference', None)
         
         # Handle value[x] polymorphic fields
         elif resource_type == 'Observation':
-            # Find any value[x] field and ensure it's named correctly
-            for key in list(resource.keys()):
-                if key.startswith('value') and key != 'value':
-                    # This is a value[x] field
-                    if 'value' not in resource:
-                        resource['value'] = resource.pop(key)
+            # Don't rename value[x] fields - they should keep their type suffix
+            # e.g., valueQuantity, valueCodeableConcept, valueString, etc.
+            pass
+        
+        # Fix Device structure
+        elif resource_type == 'Device':
+            # Fix UDI carrier issues - add required issuer field
+            if 'udiCarrier' in resource and isinstance(resource['udiCarrier'], list):
+                for carrier in resource['udiCarrier']:
+                    if isinstance(carrier, dict) and 'deviceIdentifier' in carrier and 'issuer' not in carrier:
+                        carrier['issuer'] = 'Unknown'  # Required field
+            
+            # Remove extra fields not in fhir.resources Device
+            for field in ['deviceName', 'distinctIdentifier', 'patient']:
+                resource.pop(field, None)
+            
+            # Fix manufacturer - should be string not array
+            if 'manufacturer' in resource and isinstance(resource['manufacturer'], list):
+                if len(resource['manufacturer']) > 0:
+                    resource['manufacturer'] = resource['manufacturer'][0]
+        
+        # Fix CareTeam structure
+        elif resource_type == 'CareTeam':
+            # Fix participant.role from array to single CodeableConcept
+            if 'participant' in resource and isinstance(resource['participant'], list):
+                for participant in resource['participant']:
+                    if isinstance(participant, dict) and 'role' in participant:
+                        if isinstance(participant['role'], list) and participant['role']:
+                            # Take the first role if it's an array
+                            participant['role'] = participant['role'][0]
+            
+            # Remove encounter field (not in fhir.resources CareTeam)
+            resource.pop('encounter', None)
+            
+            # Remove reasonCode field (not in fhir.resources CareTeam)
+            resource.pop('reasonCode', None)
+        
+        # Fix Claim structure
+        elif resource_type == 'Claim':
+            # Fix total from array to single Money object
+            if 'total' in resource and isinstance(resource['total'], list):
+                if len(resource['total']) > 0:
+                    resource['total'] = resource['total'][0]  # Take first total
+                else:
+                    resource.pop('total', None)  # Remove if empty array
+        
+        # Fix AllergyIntolerance structure
+        elif resource_type == 'AllergyIntolerance':
+            # Convert type from string to CodeableConcept if needed
+            if 'type' in resource and isinstance(resource['type'], str):
+                # Map string values to CodeableConcept
+                type_map = {
+                    'allergy': {'code': 'allergy', 'display': 'Allergy'},
+                    'intolerance': {'code': 'intolerance', 'display': 'Intolerance'}
+                }
+                type_value = resource['type']
+                if type_value in type_map:
+                    resource['type'] = {
+                        'coding': [{
+                            'system': 'http://hl7.org/fhir/allergy-intolerance-type',
+                            **type_map[type_value]
+                        }]
+                    }
+            
+            # Fix reaction.manifestation - should be array of CodeableReferences
+            if 'reaction' in resource and isinstance(resource['reaction'], list):
+                for reaction in resource['reaction']:
+                    if isinstance(reaction, dict) and 'manifestation' in reaction:
+                        if isinstance(reaction['manifestation'], list):
+                            # Convert each manifestation to CodeableReference
+                            cleaned_manifestations = []
+                            for manifestation in reaction['manifestation']:
+                                if isinstance(manifestation, dict):
+                                    # Wrap CodeableConcept in CodeableReference
+                                    codeable_ref = {
+                                        'concept': {
+                                            'coding': manifestation.get('coding', [])
+                                        }
+                                    }
+                                    # Add text to concept if present
+                                    if 'text' in manifestation:
+                                        codeable_ref['concept']['text'] = manifestation['text']
+                                    cleaned_manifestations.append(codeable_ref)
+                            reaction['manifestation'] = cleaned_manifestations
         
         # Fix Encounter structure
         elif resource_type == 'Encounter':
@@ -1058,6 +1354,274 @@ class ProfileAwareFHIRTransformer:
                 for participant in resource.get('participant', []):
                     if isinstance(participant, dict) and 'individual' in participant:
                         participant['actor'] = participant.pop('individual')
+            
+            # Transform hospitalization to admission (fhir.resources uses admission)
+            if 'hospitalization' in resource:
+                resource['admission'] = resource.pop('hospitalization')
+            
+            # Fix class field - ensure it's an array of CodeableConcepts
+            if 'class' in resource:
+                class_field = resource['class']
+                
+                # First ensure it's an array (this will be done by _ensure_common_arrays)
+                # But we need to fix the content before it becomes an array
+                if not isinstance(class_field, list):
+                    # Convert single value to CodeableConcept if needed
+                    if isinstance(class_field, dict):
+                        if 'coding' not in class_field and 'code' in class_field:
+                            # It's a Coding, wrap in CodeableConcept
+                            resource['class'] = {'coding': [class_field]}
+                        # else it's already a CodeableConcept or will be handled later
+                else:
+                    # It's already an array, fix each element
+                    fixed_classes = []
+                    for class_item in class_field:
+                        if isinstance(class_item, dict):
+                            # If it has 'coding', it's already a CodeableConcept
+                            if 'coding' in class_item:
+                                fixed_classes.append(class_item)
+                            # If it has 'code' and 'system', convert to CodeableConcept
+                            elif 'code' in class_item:
+                                fixed_classes.append({
+                                    'coding': [class_item]
+                                })
+                            else:
+                                fixed_classes.append(class_item)
+                        else:
+                            fixed_classes.append(class_item)
+                    resource['class'] = fixed_classes
+        
+        # Fix DocumentReference structure
+        elif resource_type == 'DocumentReference':
+            # Fix type - should be single CodeableConcept not array
+            if 'type' in resource and isinstance(resource['type'], list):
+                if len(resource['type']) > 0:
+                    resource['type'] = resource['type'][0]
+            
+            # Fix custodian - should be single Reference not array
+            if 'custodian' in resource and isinstance(resource['custodian'], list):
+                if len(resource['custodian']) > 0:
+                    resource['custodian'] = resource['custodian'][0]
+            
+            # Fix context - in fhir.resources it's just a Reference to Encounter
+            if 'context' in resource:
+                if isinstance(resource['context'], list) and len(resource['context']) > 0:
+                    context_item = resource['context'][0]
+                    if isinstance(context_item, dict) and 'encounter' in context_item:
+                        # Extract just the encounter reference
+                        resource['context'] = context_item['encounter']
+                    else:
+                        resource['context'] = context_item
+                elif isinstance(resource['context'], dict) and 'encounter' in resource['context']:
+                    # Extract just the encounter reference
+                    resource['context'] = resource['context']['encounter']
+            
+            # Remove format from content.attachment (not in FHIR R4)
+            if 'content' in resource and isinstance(resource['content'], list):
+                for content in resource['content']:
+                    if isinstance(content, dict) and 'format' in content:
+                        del content['format']
+        
+        # Fix ExplanationOfBenefit structure
+        elif resource_type == 'ExplanationOfBenefit':
+            # Fix type - should be single CodeableConcept not array
+            if 'type' in resource and isinstance(resource['type'], list):
+                if len(resource['type']) > 0:
+                    resource['type'] = resource['type'][0]
+            
+            # Fix payment - should be single object not array
+            if 'payment' in resource and isinstance(resource['payment'], list):
+                if len(resource['payment']) > 0:
+                    resource['payment'] = resource['payment'][0]
+            
+            # Fix contained Coverage resources - add required 'kind' field and fix payor->insurer
+            if 'contained' in resource and isinstance(resource['contained'], list):
+                for contained in resource['contained']:
+                    if isinstance(contained, dict) and contained.get('resourceType') == 'Coverage':
+                        if 'kind' not in contained:
+                            contained['kind'] = 'insurance'  # Default kind for Coverage
+                        
+                        # Fix payor -> insurer (fhir.resources uses insurer)
+                        if 'payor' in contained:
+                            contained['insurer'] = contained.pop('payor')
+                            # If insurer is an array, take first element
+                            if isinstance(contained['insurer'], list) and len(contained['insurer']) > 0:
+                                contained['insurer'] = contained['insurer'][0]
+        
+        # Fix Organization structure
+        elif resource_type == 'Organization':
+            # Remove address and telecom from root level - not supported in fhir.resources
+            # These should be in contact field for R4
+            resource.pop('address', None)
+            resource.pop('telecom', None)
+        
+        # Fix Location structure  
+        elif resource_type == 'Location':
+            # Fix address - should be single not array
+            if 'address' in resource and isinstance(resource['address'], list):
+                if len(resource['address']) > 0:
+                    resource['address'] = resource['address'][0]
+            
+            # Fix managingOrganization - should be single Reference not array
+            if 'managingOrganization' in resource and isinstance(resource['managingOrganization'], list):
+                if len(resource['managingOrganization']) > 0:
+                    resource['managingOrganization'] = resource['managingOrganization'][0]
+            
+            # Remove telecom from root - not in fhir.resources Location
+            resource.pop('telecom', None)
+            
+            # Remove physicalType - not in fhir.resources Location
+            resource.pop('physicalType', None)
+        
+        # Fix PractitionerRole structure
+        elif resource_type == 'PractitionerRole':
+            # Remove notAvailable - not in fhir.resources
+            resource.pop('notAvailable', None)
+            # Remove telecom - not in fhir.resources PractitionerRole
+            resource.pop('telecom', None)
+        
+        # Fix MedicationAdministration structure
+        elif resource_type == 'MedicationAdministration':
+            # Transform effective[x] to occurence[x] (fhir.resources uses occurence with typo)
+            if 'effectiveDateTime' in resource:
+                resource['occurenceDateTime'] = resource.pop('effectiveDateTime')
+            elif 'effectivePeriod' in resource:
+                resource['occurencePeriod'] = resource.pop('effectivePeriod')
+            
+            # Also handle if it's already occurrence (with correct spelling) 
+            elif 'occurrenceDateTime' in resource:
+                resource['occurenceDateTime'] = resource.pop('occurrenceDateTime')
+            elif 'occurrencePeriod' in resource:
+                resource['occurencePeriod'] = resource.pop('occurrencePeriod')
+            
+            # Handle medication[x] polymorphic field
+            if 'medicationCodeableConcept' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationCodeableConcept')
+            elif 'medicationReference' in resource and 'medication' not in resource:
+                resource['medication'] = resource.pop('medicationReference')
+            
+            # Wrap medication in CodeableReference structure
+            if 'medication' in resource and isinstance(resource['medication'], dict):
+                if 'reference' in resource['medication'] and 'concept' not in resource['medication']:
+                    # It's a Reference, wrap in CodeableReference
+                    resource['medication'] = {'reference': resource['medication']}
+                elif 'concept' not in resource['medication'] and 'coding' in resource['medication']:
+                    # It's a CodeableConcept, wrap in CodeableReference
+                    resource['medication'] = {'concept': resource['medication']}
+            
+            # Remove extra fields not in fhir.resources
+            resource.pop('context', None)  # use encounter field instead
+            resource.pop('reasonCode', None)
+            resource.pop('reasonReference', None)
+        
+        # Fix ImagingStudy structure
+        elif resource_type == 'ImagingStudy':
+            # Remove procedureCode - not in fhir.resources
+            resource.pop('procedureCode', None)
+            
+            # Fix series.modality and bodySite - should be CodeableConcepts not Codings
+            if 'series' in resource and isinstance(resource['series'], list):
+                for series in resource['series']:
+                    if isinstance(series, dict):
+                        # Fix modality - wrap Coding in CodeableConcept
+                        if 'modality' in series and isinstance(series['modality'], dict):
+                            if 'coding' not in series['modality'] and 'code' in series['modality']:
+                                # It's a Coding, wrap in CodeableConcept
+                                series['modality'] = {'coding': [series['modality']]}
+                        
+                        # Fix bodySite - should be CodeableReference
+                        if 'bodySite' in series and isinstance(series['bodySite'], dict):
+                            if 'coding' not in series['bodySite'] and 'code' in series['bodySite']:
+                                # It's a Coding, wrap in CodeableReference with concept
+                                series['bodySite'] = {
+                                    'concept': {
+                                        'coding': [series['bodySite']]
+                                    }
+                                }
+        
+        # Fix CarePlan structure
+        elif resource_type == 'CarePlan':
+            # Fix activity structure - fhir.resources expects plannedActivityReference, not detail
+            if 'activity' in resource and isinstance(resource['activity'], list):
+                new_activities = []
+                for activity in resource['activity']:
+                    if isinstance(activity, dict):
+                        new_activity = {}
+                        
+                        # Copy allowed fields
+                        for field in ['id', 'extension', 'modifierExtension', 'progress']:
+                            if field in activity:
+                                new_activity[field] = activity[field]
+                        
+                        # Handle detail field - convert to plannedActivityReference
+                        if 'detail' in activity and isinstance(activity['detail'], dict):
+                            detail = activity['detail']
+                            # Create a reference from the detail code
+                            if 'code' in detail and isinstance(detail['code'], dict):
+                                code_concept = detail['code']
+                                if 'coding' in code_concept and code_concept['coding']:
+                                    first_coding = code_concept['coding'][0]
+                                    # Create synthetic reference for the activity
+                                    new_activity['plannedActivityReference'] = {
+                                        'reference': f"ServiceRequest/{first_coding.get('code', 'unknown')}",
+                                        'display': first_coding.get('display', code_concept.get('text', 'Activity'))
+                                    }
+                        
+                        # Handle reference field
+                        elif 'reference' in activity:
+                            new_activity['plannedActivityReference'] = activity['reference']
+                        
+                        # Handle outcomeCodeableConcept/outcomeReference  
+                        elif 'outcomeCodeableConcept' in activity:
+                            new_activity['performedActivity'] = {
+                                'concept': activity['outcomeCodeableConcept']
+                            }
+                        elif 'outcomeReference' in activity:
+                            new_activity['performedActivity'] = {
+                                'reference': activity['outcomeReference']
+                            }
+                        
+                        # Only add if we have required fields
+                        if 'plannedActivityReference' in new_activity or 'performedActivity' in new_activity:
+                            new_activities.append(new_activity)
+                
+                resource['activity'] = new_activities
+            
+            # Fix addresses - expects CodeableReference (either concept or reference)
+            if 'addresses' in resource and isinstance(resource['addresses'], list):
+                fixed_addresses = []
+                for addr in resource['addresses']:
+                    if isinstance(addr, dict):
+                        if 'reference' in addr and 'concept' not in addr:
+                            # It's a Reference, needs to be wrapped in CodeableReference
+                            fixed_addresses.append({
+                                'reference': addr
+                            })
+                        elif 'concept' in addr:
+                            # Already has proper CodeableReference structure
+                            fixed_addresses.append(addr)
+                        elif 'display' in addr:
+                            # Create CodeableReference with concept from display
+                            fixed_addresses.append({
+                                'concept': {
+                                    'text': addr['display']
+                                }
+                            })
+                        elif 'coding' in addr:
+                            # It's a CodeableConcept, wrap in CodeableReference
+                            fixed_addresses.append({
+                                'concept': addr
+                            })
+                        else:
+                            fixed_addresses.append(addr)
+                    elif isinstance(addr, str):
+                        # String reference, wrap in CodeableReference
+                        fixed_addresses.append({
+                            'reference': {
+                                'reference': addr
+                            }
+                        })
+                resource['addresses'] = fixed_addresses
         
         return resource
     
@@ -1077,15 +1641,35 @@ class ProfileAwareFHIRTransformer:
         
         # Apply common array rules to top level only (avoid nested recursion)
         for field in self.common_array_fields:
+            # Skip fields that should be singular for specific resource types
+            if resource_type == 'DocumentReference' and field in ['custodian', 'type']:
+                continue
+            if resource_type == 'Device' and field == 'manufacturer':
+                continue
+            if resource_type == 'ExplanationOfBenefit' and field in ['type', 'payment']:
+                continue
+            if resource_type == 'Organization' and field == 'name':
+                continue  # Organization.name is singular
+            if resource_type == 'Location' and field in ['name', 'address', 'managingOrganization']:
+                continue  # Location has singular fields
             make_array(resource, field)
         
         return resource
     
     def _normalize_references(self, resource: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize reference formats throughout the resource."""
+        resource_type = resource.get('resourceType')
         
-        def fix_reference(obj: Any, key: str, value: Any):
+        def fix_reference(obj: Any, key: str, value: Any, parent_key: str = None):
             """Fix a single reference field."""
+            # Skip CarePlan addresses - they need special CodeableReference structure
+            if resource_type == 'CarePlan' and parent_key == 'addresses':
+                return value
+            
+            # Skip MedicationRequest medication - it needs CodeableReference structure
+            if resource_type == 'MedicationRequest' and parent_key == 'medication':
+                return value
+                
             if key == 'reference':
                 # This is already a reference field, don't double-wrap
                 if isinstance(value, str):
@@ -1101,12 +1685,12 @@ class ProfileAwareFHIRTransformer:
                 return value
             return value
         
-        def process_object(obj: Any) -> Any:
+        def process_object(obj: Any, parent_key: str = None) -> Any:
             """Recursively process an object to fix references."""
             if isinstance(obj, dict):
-                return {k: fix_reference(obj, k, process_object(v)) for k, v in obj.items()}
+                return {k: fix_reference(obj, k, process_object(v, k), parent_key) for k, v in obj.items()}
             elif isinstance(obj, list):
-                return [process_object(item) for item in obj]
+                return [process_object(item, parent_key) for item in obj]
             return obj
         
         return process_object(resource)

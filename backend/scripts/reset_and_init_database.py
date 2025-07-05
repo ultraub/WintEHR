@@ -110,14 +110,15 @@ async def init_fhir_schema():
                 resource JSONB NOT NULL,
                 deleted BOOLEAN DEFAULT FALSE,
                 UNIQUE(resource_type, fhir_id)
-            );
-            
-            -- Indexes for resources table
-            CREATE INDEX IF NOT EXISTS idx_resources_type ON fhir.resources(resource_type);
-            CREATE INDEX IF NOT EXISTS idx_resources_fhir_id ON fhir.resources(fhir_id);
-            CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);
-            CREATE INDEX IF NOT EXISTS idx_resources_jsonb ON fhir.resources USING gin(resource);
+            )
         """))
+        
+        # Create indexes for resources table
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_type ON fhir.resources(resource_type);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_fhir_id ON fhir.resources(fhir_id);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_jsonb ON fhir.resources USING gin(resource);"))
+        
         print("  ✅ Created table: fhir.resources")
         
         # Create resource history table
@@ -131,13 +132,14 @@ async def init_fhir_schema():
                 resource JSONB NOT NULL,
                 modified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 modified_by VARCHAR(255)
-            );
-            
-            -- Indexes for history table
-            CREATE INDEX IF NOT EXISTS idx_history_resource ON fhir.resource_history(resource_type, fhir_id);
-            CREATE INDEX IF NOT EXISTS idx_history_version ON fhir.resource_history(version_id);
-            CREATE INDEX IF NOT EXISTS idx_history_modified ON fhir.resource_history(modified_at);
+            )
         """))
+        
+        # Create indexes for history table
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_history_resource ON fhir.resource_history(resource_type, fhir_id);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_history_version ON fhir.resource_history(version_id);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_history_modified ON fhir.resource_history(modified_at);"))
+        
         print("  ✅ Created table: fhir.resource_history")
         
         # Create search parameters table
@@ -154,17 +156,18 @@ async def init_fhir_schema():
                 value_token_code VARCHAR(500),
                 value_reference VARCHAR(500),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            -- Indexes for search parameters
-            CREATE INDEX IF NOT EXISTS idx_search_params_resource ON fhir.search_params(resource_id);
-            CREATE INDEX IF NOT EXISTS idx_search_params_name ON fhir.search_params(param_name);
-            CREATE INDEX IF NOT EXISTS idx_search_params_string ON fhir.search_params(value_string);
-            CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(value_number);
-            CREATE INDEX IF NOT EXISTS idx_search_params_date ON fhir.search_params(value_date);
-            CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(value_token_system, value_token_code);
-            CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(value_reference);
+            )
         """))
+        
+        # Create indexes for search parameters
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_resource ON fhir.search_params(resource_id);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_name ON fhir.search_params(param_name);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_string ON fhir.search_params(value_string);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(value_number);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_date ON fhir.search_params(value_date);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(value_token_system, value_token_code);"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(value_reference);"))
+        
         print("  ✅ Created table: fhir.search_params")
         
         # Create search parameters definition table
@@ -177,19 +180,19 @@ async def init_fhir_schema():
                 expression TEXT,
                 description TEXT,
                 UNIQUE(resource_type, name)
-            );
-            
-            -- Index for search parameter lookups
-            CREATE INDEX IF NOT EXISTS idx_search_parameters_lookup ON fhir.search_parameters(resource_type, name);
+            )
         """))
+        
+        # Create index for search parameter lookups
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_parameters_lookup ON fhir.search_parameters(resource_type, name);"))
+        
         print("  ✅ Created table: fhir.search_parameters")
         
         # Grant permissions
-        await conn.execute(text("""
-            GRANT ALL ON SCHEMA fhir TO emr_user;
-            GRANT ALL ON ALL TABLES IN SCHEMA fhir TO emr_user;
-            GRANT ALL ON ALL SEQUENCES IN SCHEMA fhir TO emr_user;
-        """))
+        await conn.execute(text("GRANT ALL ON SCHEMA fhir TO emr_user;"))
+        await conn.execute(text("GRANT ALL ON ALL TABLES IN SCHEMA fhir TO emr_user;"))
+        await conn.execute(text("GRANT ALL ON ALL SEQUENCES IN SCHEMA fhir TO emr_user;"))
+        
         print("  ✅ Granted permissions to emr_user")
     
     await engine.dispose()
@@ -214,4 +217,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main()
+    asyncio.run(main())

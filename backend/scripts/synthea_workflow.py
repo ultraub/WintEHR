@@ -232,7 +232,10 @@ class SyntheaWorkflow:
                     
                     self.log("\n👥 Sample Patients:")
                     for fhir_id, family, given in sample_result:
-                        given_str = json.loads(given) if given else "Unknown"
+                        try:
+                            given_str = json.loads(given) if given else "Unknown"
+                        except:
+                            given_str = str(given) if given else "Unknown"
                         self.log(f"  - {given_str} {family or 'Unknown'} (ID: {fhir_id})")
                 
                 return True
