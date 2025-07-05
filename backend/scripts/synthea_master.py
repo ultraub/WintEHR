@@ -1,38 +1,45 @@
 #!/usr/bin/env python3
 """
-Synthea Master Script - Unified Synthea Management Tool
+Synthea Master Script - Unified Synthea Data Management
 
-This script provides a complete workflow for Synthea operations:
-1. Setup and installation of Synthea
-2. Data generation with various options
-3. Database management (reset/wipe)
-4. Data import with configurable validation
-5. Validation and reporting
-6. DICOM generation (optional)
+This script consolidates all Synthea operations into a single, comprehensive tool:
+- Setup and installation of Synthea
+- Data generation with configurable options  
+- Database management (wipe, reset)
+- Data import with multiple validation modes
+- DICOM generation for imaging workflows
+- Complete end-to-end workflows
 
-Usage:
-    python synthea_master.py setup                           # Install/setup Synthea
-    python synthea_master.py generate --count 10             # Generate 10 patients
-    python synthea_master.py wipe                           # Wipe database
-    python synthea_master.py import --validation-mode light # Import with validation
-    python synthea_master.py full --count 5                 # Complete workflow
-    python synthea_master.py validate                       # Validate existing data
-    python synthea_master.py dicom                          # Generate DICOM files
+Usage Examples:
+    # Complete workflow (most common)
+    python synthea_master.py full --count 10
+    
+    # Individual operations
+    python synthea_master.py setup                    # Install/setup Synthea
+    python synthea_master.py generate --count 20      # Generate patients
+    python synthea_master.py wipe                     # Clear database
+    python synthea_master.py import --validation-mode light  # Import with validation
+    python synthea_master.py validate                 # Validate existing data
+    python synthea_master.py dicom                    # Generate DICOM files
+    
+    # Advanced workflows
+    python synthea_master.py full --count 50 --validation-mode strict --include-dicom
+    python synthea_master.py generate --state California --city "Los Angeles"
 """
 
 import asyncio
 import subprocess
 import sys
-import os
 import json
 import shutil
-import uuid
+import time
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Tuple
 import argparse
+from typing import Optional
 import logging
 from collections import defaultdict
+import uuid
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -52,327 +59,404 @@ logger = logging.getLogger(__name__)
 
 
 class SyntheaMaster:
-    """Master class for all Synthea operations."""
+    """Unified Synthea data management tool."""
     
-    def __init__(self):
-        self.synthea_dir = Path("../synthea")
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+        if verbose:
+            logging.getLogger().setLevel(logging.DEBUG)
+        
+        # Paths
+        self.script_dir = Path(__file__).parent
+        self.backend_dir = self.script_dir.parent
+        self.project_root = self.backend_dir.parent
+        self.synthea_dir = self.project_root / "synthea"
         self.output_dir = self.synthea_dir / "output" / "fhir"
-        self.backup_dir = Path("data/synthea_backups")
-        self.log_file = Path("logs/synthea_master.log")
-        self.engine = None
-        
-        # Statistics tracking
-        self.stats = {
-            'total_files': 0,
-            'total_processed': 0,
-            'total_imported': 0,
-            'total_failed': 0,
-            'total_validation_errors': 0,
-            'errors_by_type': defaultdict(int),
-            'resources_by_type': defaultdict(int),
-            'validation_errors_by_type': defaultdict(int)
-        }
-        
-        # Validation errors for reporting
-        self.validation_errors = []
-        
-        # Initialize transformer
-        self.transformer = ProfileAwareFHIRTransformer()
-        
-        # Try to load fhir.resources for validation
-        self.fhir_validation_available = False
-        try:
-            from fhir.resources import construct_fhir_element
-            self.construct_fhir_element = construct_fhir_element
-            self.fhir_validation_available = True
-        except ImportError:
-            logger.warning("fhir.resources not available, validation will be limited")
+        self.backup_dir = self.backend_dir / "data" / "synthea_backups"
+        self.log_dir = self.backend_dir / "logs"
+        self.log_file = self.log_dir / "synthea_master.log"
         
         # Ensure directories exist
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Statistics
+        self.stats = {
+            'start_time': datetime.now(),
+            'operations': [],
+            'errors': [],
+            'total_resources': 0,
+            'import_stats': {}
+        }
+        
+        # Database engine
+        self.engine = None
     
     def log(self, message: str, level: str = "INFO"):
-        """Log a message to both console and file."""
+        """Log a message to console, file, and internal tracking."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_message = f"[{timestamp}] [{level}] {message}"
         
-        print(log_message)
+        # Console output with colors
+        if level == "ERROR":
+            print(f"❌ {log_message}")
+        elif level == "WARN":
+            print(f"⚠️  {log_message}")
+        elif level == "SUCCESS":
+            print(f"✅ {log_message}")
+        else:
+            print(f"ℹ️  {log_message}")
         
+        # File logging
         with open(self.log_file, "a") as f:
             f.write(log_message + "\n")
+        
+        # Track in stats
+        self.stats['operations'].append({
+            'timestamp': timestamp,
+            'level': level,
+            'message': message
+        })
     
-    # =================
-    # SETUP OPERATIONS
-    # =================
-    
-    def setup_synthea(self, force_reinstall: bool = False) -> bool:
-        """Setup and install Synthea."""
+    async def setup_synthea(self) -> bool:
+        """Setup and install Synthea if not already present."""
         self.log("🔧 Setting up Synthea")
         self.log("=" * 60)
         
-        # Check if Java is installed
         try:
-            result = subprocess.run(["java", "-version"], capture_output=True, text=True)
+            # Check Java
+            result = subprocess.run(
+                ["java", "-version"], 
+                capture_output=True, text=True, 
+                timeout=10
+            )
             if result.returncode != 0:
-                self.log("❌ Java not found. Please install Java first.", "ERROR")
+                self.log("Java not found. Please install Java 11+ first.", "ERROR")
                 return False
-        except FileNotFoundError:
-            self.log("❌ Java not found. Please install Java first.", "ERROR")
-            return False
-        
-        # Create/update Synthea directory
-        if force_reinstall and self.synthea_dir.exists():
-            self.log("🗑️ Removing existing Synthea installation...")
-            shutil.rmtree(self.synthea_dir)
-        
-        if not self.synthea_dir.exists() or force_reinstall:
-            self.log("📥 Cloning Synthea repository...")
-            try:
-                subprocess.run([
-                    "git", "clone", "--depth", "1", 
-                    "https://github.com/synthetichealth/synthea.git", 
+            self.log("✅ Java found")
+            
+            # Check if Synthea exists
+            if self.synthea_dir.exists() and (self.synthea_dir / ".git").exists():
+                self.log("📁 Synthea directory found, updating...")
+                try:
+                    result = subprocess.run(
+                        ["git", "pull"],
+                        cwd=self.synthea_dir,
+                        capture_output=True, text=True,
+                        timeout=60
+                    )
+                    if result.returncode == 0:
+                        self.log("✅ Synthea updated")
+                    else:
+                        self.log("Could not update, using existing version", "WARN")
+                except subprocess.TimeoutExpired:
+                    self.log("Git update timed out, using existing version", "WARN")
+            else:
+                self.log("📥 Cloning Synthea repository...")
+                if self.synthea_dir.exists():
+                    shutil.rmtree(self.synthea_dir)
+                
+                result = subprocess.run([
+                    "git", "clone", "--depth", "1",
+                    "https://github.com/synthetichealth/synthea.git",
                     str(self.synthea_dir)
-                ], check=True)
-            except subprocess.CalledProcessError as e:
-                self.log(f"❌ Failed to clone Synthea: {e}", "ERROR")
-                return False
+                ], capture_output=True, text=True, timeout=300)
+                
+                if result.returncode != 0:
+                    self.log(f"Failed to clone Synthea: {result.stderr}", "ERROR")
+                    return False
+                self.log("✅ Synthea cloned")
+            
+            # Check if built
+            jar_file = self.synthea_dir / "build" / "libs" / "synthea-with-dependencies.jar"
+            if not jar_file.exists():
+                self.log("🔨 Building Synthea...")
+                result = subprocess.run(
+                    ["./gradlew", "build", "-x", "test"],
+                    cwd=self.synthea_dir,
+                    capture_output=True, text=True,
+                    timeout=600
+                )
+                
+                if result.returncode != 0:
+                    self.log(f"Failed to build Synthea: {result.stderr}", "ERROR")
+                    return False
+                self.log("✅ Synthea built successfully")
+            else:
+                self.log("✅ Synthea already built")
+            
+            # Configure Synthea
+            self._configure_synthea()
+            
+            self.log("🎉 Synthea setup complete!", "SUCCESS")
+            return True
+            
+        except Exception as e:
+            self.log(f"Setup failed: {e}", "ERROR")
+            return False
+    
+    def _configure_synthea(self):
+        """Configure Synthea for optimal FHIR R4 output."""
+        config_dir = self.synthea_dir / "src" / "main" / "resources"
+        config_dir.mkdir(parents=True, exist_ok=True)
         
-        # Check if already built
-        jar_file = self.synthea_dir / "build" / "libs" / "synthea-with-dependencies.jar"
-        if not jar_file.exists():
-            self.log("🔨 Building Synthea...")
-            try:
-                os.chdir(self.synthea_dir)
-                subprocess.run(["./gradlew", "build", "-x", "test"], check=True)
-                os.chdir("..")
-            except subprocess.CalledProcessError as e:
-                self.log(f"❌ Synthea build failed: {e}", "ERROR")
-                return False
-        
-        # Configure Synthea for FHIR R4 output
-        self.log("⚙️ Configuring Synthea for FHIR R4...")
-        properties_dir = self.synthea_dir / "src" / "main" / "resources"
-        properties_dir.mkdir(parents=True, exist_ok=True)
-        
-        properties_content = """# FHIR Configuration
+        config_content = """# FHIR Configuration
 exporter.fhir.export = true
 exporter.fhir_stu3.export = false
 exporter.fhir_dstu2.export = false
 exporter.ccda.export = false
 exporter.csv.export = false
 exporter.text.export = false
-exporter.hospital.fhir.export = false
-exporter.practitioner.fhir.export = false
+exporter.hospital.fhir.export = true
+exporter.practitioner.fhir.export = true
 
 # Output directory
 exporter.baseDirectory = ./output/
 
-# Generate configuration
+# Generate comprehensive patient data
 generate.log_patients.detail = simple
-generate.only_alive_patients = true
+generate.only_alive_patients = false
+generate.years_of_history = 10
 
-# Default location
+# Demographics
 generate.demographics.default_city = Boston
 generate.demographics.default_state = Massachusetts
 """
         
-        with open(properties_dir / "synthea.properties", "w") as f:
-            f.write(properties_content)
-        
-        self.log("✅ Synthea setup complete!")
-        return True
+        config_file = config_dir / "synthea.properties"
+        config_file.write_text(config_content)
+        self.log("✅ Synthea configured for FHIR R4 output")
     
-    # =====================
-    # GENERATION OPERATIONS
-    # =====================
-    
-    def generate_synthea_data(self, count: int = 10, state: str = "Massachusetts", 
-                            city: Optional[str] = None, seed: int = 0) -> bool:
+    async def generate_data(self, count: int = 10, state: str = "Massachusetts", 
+                          city: Optional[str] = None, seed: int = 0) -> bool:
         """Generate Synthea patient data."""
-        self.log("🏥 Generating Synthea Data")
+        self.log(f"🧬 Generating {count} Synthea patients")
         self.log("=" * 60)
         
-        if not self.synthea_dir.exists():
-            self.log("❌ Synthea not found. Run setup first.", "ERROR")
-            return False
-        
-        # Backup existing data
-        if self.output_dir.exists():
-            self.log("📁 Backing up existing data...")
-            backup_name = f"synthea_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            backup_path = self.backup_dir / backup_name
-            shutil.move(str(self.output_dir), str(backup_path))
-            self.log(f"✅ Backed up to: {backup_path}")
-        
-        # Generate data
-        self.log(f"🚀 Generating {count} patients...")
+        if not (self.synthea_dir / "build" / "libs" / "synthea-with-dependencies.jar").exists():
+            self.log("Synthea not properly set up. Running setup first...", "WARN")
+            if not await self.setup_synthea():
+                return False
         
         try:
-            os.chdir(self.synthea_dir)
+            # Backup existing data
+            if self.output_dir.exists() and any(self.output_dir.glob("*.json")):
+                self.log("📁 Backing up existing data...")
+                backup_name = f"synthea_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                backup_path = self.backup_dir / backup_name
+                shutil.copytree(self.output_dir, backup_path)
+                self.log(f"✅ Backed up to: {backup_path}")
             
+            # Clear output directory
+            if self.output_dir.exists():
+                shutil.rmtree(self.output_dir)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Build command
             cmd = [
                 "java", "-jar", "build/libs/synthea-with-dependencies.jar",
                 "-p", str(count),
                 "-s", str(seed),
+                "--exporter.years_of_history", "10",
+                "--exporter.fhir.export", "true",
+                "--exporter.baseDirectory", "./output",
                 state
             ]
             
             if city:
                 cmd.append(city)
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            os.chdir("..")
+            # Run generation
+            self.log(f"🚀 Running: {' '.join(cmd)}")
+            start_time = time.time()
             
-            if result.returncode == 0:
-                self.log(f"✅ Successfully generated {count} patients")
-                
-                # Count generated files
-                if self.output_dir.exists():
-                    files = list(self.output_dir.glob("*.json"))
-                    self.log(f"📄 Generated {len(files)} FHIR bundle files")
-                
-                return True
-            else:
-                self.log(f"❌ Generation failed: {result.stderr}", "ERROR")
-                return False
-                
-        except Exception as e:
-            self.log(f"❌ Error generating data: {e}", "ERROR")
-            return False
-    
-    # =====================
-    # DATABASE OPERATIONS
-    # =====================
-    
-    async def init_db(self):
-        """Initialize database connection."""
-        self.engine = create_async_engine(DATABASE_URL, echo=False)
-    
-    async def close_db(self):
-        """Close database connection."""
-        if self.engine:
-            await self.engine.dispose()
-    
-    async def wipe_database(self) -> bool:
-        """Wipe FHIR data from database."""
-        self.log("🗄️ Wiping Database")
-        self.log("=" * 60)
-        
-        try:
-            async with self.engine.begin() as conn:
-                # Delete search parameters first (foreign key constraint)
-                await conn.execute(text("DELETE FROM fhir.search_params"))
-                
-                # Delete resources
-                await conn.execute(text("DELETE FROM fhir.resources"))
-                
-                # Reset sequences
-                await conn.execute(text("ALTER SEQUENCE fhir.resources_id_seq RESTART WITH 1"))
-                
-                self.log("✅ Database wiped successfully")
-                return True
-                
-        except Exception as e:
-            self.log(f"❌ Database wipe failed: {e}", "ERROR")
-            return False
-    
-    async def reset_database(self) -> bool:
-        """Reset and initialize the database."""
-        self.log("🗄️ Resetting Database")
-        self.log("=" * 60)
-        
-        try:
             result = subprocess.run(
-                [sys.executable, "scripts/reset_and_init_database.py"],
+                cmd,
+                cwd=self.synthea_dir,
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=1800  # 30 minutes max
             )
             
-            if result.returncode == 0:
-                self.log("✅ Database reset successfully")
-                return True
-            else:
-                self.log(f"❌ Database reset failed: {result.stderr}", "ERROR")
+            duration = time.time() - start_time
+            
+            if result.returncode != 0:
+                self.log(f"Generation failed: {result.stderr}", "ERROR")
                 return False
-                
+            
+            # Verify output
+            files = list(self.output_dir.glob("*.json"))
+            if not files:
+                self.log("No FHIR files generated!", "ERROR")
+                return False
+            
+            self.log(f"✅ Generated {len(files)} FHIR files in {duration:.1f}s", "SUCCESS")
+            self.log(f"📁 Output directory: {self.output_dir}")
+            
+            # Quick stats
+            total_size = sum(f.stat().st_size for f in files)
+            self.log(f"📊 Total size: {total_size / 1024 / 1024:.1f} MB")
+            
+            return True
+            
+        except subprocess.TimeoutExpired:
+            self.log("Generation timed out (30 minutes)", "ERROR")
+            return False
         except Exception as e:
-            self.log(f"❌ Error resetting database: {e}", "ERROR")
+            self.log(f"Generation failed: {e}", "ERROR")
             return False
     
-    # ==================
-    # IMPORT OPERATIONS
-    # ==================
-    
-    def validate_resource(self, resource_data: Dict) -> Tuple[bool, Optional[Exception]]:
-        """Validate a FHIR resource if validation is available."""
-        if not self.fhir_validation_available:
-            return True, None
-        
-        try:
-            resource_type = resource_data.get('resourceType')
-            if not resource_type:
-                raise ValueError("Missing resourceType")
-            
-            # Construct FHIR resource to validate
-            fhir_resource = self.construct_fhir_element(resource_type, resource_data)
-            return True, None
-            
-        except Exception as e:
-            return False, e
-    
-    async def import_data(self, validation_mode: str = 'transform_only', 
-                         batch_size: int = 50) -> bool:
-        """Import Synthea data with configurable validation."""
-        self.log("📥 Importing Synthea Data")
+    async def wipe_database(self) -> bool:
+        """Wipe all FHIR data from the database."""
+        self.log("🗑️  Wiping FHIR database")
         self.log("=" * 60)
         
-        if not self.output_dir.exists():
-            self.log("❌ No Synthea output found. Run generate first.", "ERROR")
-            return False
-        
-        # Find all bundle files
-        files = list(self.output_dir.glob("*.json"))
-        self.log(f"📄 Found {len(files)} bundle files to import")
-        
         try:
-            for file_path in files:
-                await self._import_bundle_file(file_path, validation_mode, batch_size)
+            if not self.engine:
+                self.engine = create_async_engine(DATABASE_URL, echo=False)
             
-            self.log("✅ Data imported successfully")
-            self._print_import_stats()
+            async with AsyncSession(self.engine) as session:
+                # Wipe FHIR schema
+                await session.execute(text("DROP SCHEMA IF EXISTS fhir CASCADE"))
+                await session.execute(text("CREATE SCHEMA fhir"))
+                
+                # Recreate tables
+                await session.execute(text("""
+                    CREATE TABLE fhir.resources (
+                        id SERIAL PRIMARY KEY,
+                        resource_type VARCHAR(255) NOT NULL,
+                        fhir_id VARCHAR(255) NOT NULL,
+                        version_id INTEGER NOT NULL DEFAULT 1,
+                        last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        resource JSONB NOT NULL,
+                        UNIQUE(resource_type, fhir_id)
+                    )
+                """))
+                
+                await session.execute(text("""
+                    CREATE TABLE fhir.search_params (
+                        id SERIAL PRIMARY KEY,
+                        resource_id INTEGER REFERENCES fhir.resources(id) ON DELETE CASCADE,
+                        param_name VARCHAR(255) NOT NULL,
+                        param_type VARCHAR(50) NOT NULL,
+                        value_string TEXT,
+                        value_number DECIMAL,
+                        value_date DATE,
+                        value_token_system VARCHAR(255),
+                        value_token_code VARCHAR(255),
+                        value_reference VARCHAR(255)
+                    )
+                """))
+                
+                # Create indexes
+                await session.execute(text("""
+                    CREATE INDEX idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
+                    CREATE INDEX idx_resources_type ON fhir.resources(resource_type);
+                    CREATE INDEX idx_resources_updated ON fhir.resources(last_updated);
+                    CREATE INDEX idx_search_params_resource ON fhir.search_params(resource_id);
+                    CREATE INDEX idx_search_params_name_type ON fhir.search_params(param_name, param_type);
+                    CREATE INDEX idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
+                    CREATE INDEX idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
+                    CREATE INDEX idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
+                    CREATE INDEX idx_search_params_token ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
+                    CREATE INDEX idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
+                """))
+                
+                await session.commit()
+            
+            self.log("✅ Database wiped and reinitialized", "SUCCESS")
             return True
             
         except Exception as e:
-            self.log(f"❌ Import failed: {e}", "ERROR")
+            self.log(f"Database wipe failed: {e}", "ERROR")
             return False
     
-    async def _import_bundle_file(self, file_path: Path, validation_mode: str, 
-                                batch_size: int):
-        """Import a single bundle file."""
-        self.log(f"Processing: {file_path.name}")
+    async def import_data(self, validation_mode: str = "transform_only", 
+                        batch_size: int = 50) -> bool:
+        """Import FHIR data with configurable validation."""
+        self.log(f"📥 Importing FHIR data (validation: {validation_mode})")
+        self.log("=" * 60)
         
-        with open(file_path, 'r') as f:
-            bundle_data = json.load(f)
+        if not self.output_dir.exists():
+            self.log("No Synthea output found. Run generate first.", "ERROR")
+            return False
         
-        if bundle_data.get('resourceType') != 'Bundle':
-            self.log(f"⚠️ Not a Bundle resource: {file_path.name}", "WARNING")
-            return
+        files = list(self.output_dir.glob("*.json"))
+        if not files:
+            self.log("No FHIR files to import.", "ERROR")
+            return False
         
-        entries = bundle_data.get('entry', [])
-        
-        # Process in batches
-        async with AsyncSession(self.engine) as session:
-            for i in range(0, len(entries), batch_size):
-                batch = entries[i:i + batch_size]
-                await self._process_batch(session, batch, validation_mode)
+        try:
+            if not self.engine:
+                self.engine = create_async_engine(DATABASE_URL, echo=False)
             
-            await session.commit()
-        
-        self.stats['total_files'] += 1
+            transformer = ProfileAwareFHIRTransformer()
+            stats = {
+                'files_processed': 0,
+                'resources_processed': 0,
+                'resources_imported': 0,
+                'resources_failed': 0,
+                'errors_by_type': defaultdict(int),
+                'resources_by_type': defaultdict(int)
+            }
+            
+            self.log(f"📄 Found {len(files)} files to import")
+            
+            for file_path in files:
+                self.log(f"Processing: {file_path.name}")
+                
+                try:
+                    with open(file_path, 'r') as f:
+                        bundle_data = json.load(f)
+                    
+                    if bundle_data.get('resourceType') != 'Bundle':
+                        self.log(f"Skipping non-bundle: {file_path.name}", "WARN")
+                        continue
+                    
+                    entries = bundle_data.get('entry', [])
+                    stats['files_processed'] += 1
+                    
+                    # Process in batches
+                    async with AsyncSession(self.engine) as session:
+                        storage = FHIRStorageEngine(session)
+                        
+                        for i in range(0, len(entries), batch_size):
+                            batch = entries[i:i + batch_size]
+                            await self._process_batch(
+                                session, storage, transformer, batch, 
+                                validation_mode, stats
+                            )
+                        
+                        await session.commit()
+                    
+                except Exception as e:
+                    self.log(f"Failed to process {file_path.name}: {e}", "ERROR")
+                    stats['errors_by_type'][f"file_error"] += 1
+            
+            # Report results
+            self.log("📊 Import Summary:", "SUCCESS")
+            self.log(f"  Files processed: {stats['files_processed']}")
+            self.log(f"  Resources processed: {stats['resources_processed']}")
+            self.log(f"  Successfully imported: {stats['resources_imported']}")
+            self.log(f"  Failed: {stats['resources_failed']}")
+            
+            if stats['resources_by_type']:
+                self.log("  By resource type:")
+                for resource_type, count in sorted(stats['resources_by_type'].items()):
+                    self.log(f"    {resource_type}: {count}")
+            
+            self.stats['import_stats'] = stats
+            self.stats['total_resources'] = stats['resources_imported']
+            
+            return stats['resources_imported'] > 0
+            
+        except Exception as e:
+            self.log(f"Import failed: {e}", "ERROR")
+            return False
     
-    async def _process_batch(self, session, batch: List[Dict], validation_mode: str):
-        """Process a batch of resources."""
+    async def _process_batch(self, session, _, transformer, batch, 
+                           validation_mode, stats):
+        """Process a batch of resources with specified validation."""
         for entry in batch:
             resource = entry.get('resource', {})
             if not resource:
@@ -384,55 +468,44 @@ generate.demographics.default_state = Massachusetts
             if not resource_type:
                 continue
             
-            self.stats['total_processed'] += 1
+            stats['resources_processed'] += 1
             
             try:
-                # Validate original resource if required
-                if validation_mode in ['light', 'strict']:
-                    is_valid, error = self.validate_resource(resource)
-                    if not is_valid:
-                        self.stats['total_validation_errors'] += 1
-                        self.stats['validation_errors_by_type'][f"{resource_type}: {type(error).__name__}"] += 1
-                        
-                        if validation_mode == 'strict':
-                            self.stats['total_failed'] += 1
-                            continue
+                # Transform the resource
+                transformed = transformer.transform_resource(resource)
                 
-                # Transform resource
-                try:
-                    transformed = self.transformer.transform_resource(resource)
-                except Exception as e:
-                    if validation_mode == 'strict':
-                        self.stats['total_failed'] += 1
-                        continue
-                    else:
-                        transformed = resource
+                # Validation based on mode
+                if validation_mode == "strict":
+                    # Full FHIR validation (can be slow)
+                    from fhir.resources import construct_fhir_element
+                    construct_fhir_element(resource_type, transformed)
+                elif validation_mode == "light":
+                    # Basic structure validation
+                    if not transformed.get('resourceType') or not transformed.get('id'):
+                        raise ValueError("Missing required fields")
+                # transform_only and none modes skip validation
                 
-                # Validate transformed resource if required
-                if validation_mode in ['transform_only', 'light', 'strict']:
-                    is_valid, error = self.validate_resource(transformed)
-                    if not is_valid:
-                        self.stats['total_validation_errors'] += 1
-                        self.stats['validation_errors_by_type'][f"{resource_type}: {type(error).__name__}"] += 1
-                        
-                        if validation_mode == 'strict':
-                            self.stats['total_failed'] += 1
-                            continue
+                # Store the resource
+                await self._store_resource(
+                    session, resource_type, resource_id, transformed
+                )
                 
-                # Store resource
-                await self._store_resource(session, resource_type, resource_id, transformed)
+                stats['resources_imported'] += 1
+                stats['resources_by_type'][resource_type] += 1
                 
-                self.stats['total_imported'] += 1
-                self.stats['resources_by_type'][resource_type] += 1
+                if stats['resources_imported'] % 100 == 0:
+                    self.log(f"Progress: {stats['resources_imported']} resources imported")
                 
             except Exception as e:
-                self.stats['total_failed'] += 1
-                self.stats['errors_by_type'][f"{resource_type}: {type(e).__name__}"] += 1
+                stats['resources_failed'] += 1
+                error_key = f"{resource_type}: {type(e).__name__}"
+                stats['errors_by_type'][error_key] += 1
+                if self.verbose:
+                    self.log(f"Failed to import {resource_type}/{resource_id}: {e}")
     
-    async def _store_resource(self, session, resource_type: str, resource_id: str, 
-                             resource_data: Dict):
+    async def _store_resource(self, session, resource_type, resource_id, resource_data):
         """Store a resource in the database."""
-        # Ensure required metadata
+        # Ensure resource has required metadata
         if 'id' not in resource_data:
             resource_data['id'] = resource_id or str(uuid.uuid4())
         
@@ -445,7 +518,7 @@ generate.demographics.default_state = Massachusetts
         if 'lastUpdated' not in resource_data['meta']:
             resource_data['meta']['lastUpdated'] = datetime.now(timezone.utc).isoformat()
         
-        # Insert resource
+        # Insert into FHIR storage
         query = text("""
             INSERT INTO fhir.resources (
                 resource_type, fhir_id, version_id, last_updated, resource
@@ -473,18 +546,17 @@ generate.demographics.default_state = Massachusetts
         # Extract basic search parameters
         await self._extract_search_params(session, resource_db_id, resource_type, resource_data)
     
-    async def _extract_search_params(self, session, resource_id: int, resource_type: str, 
-                                   resource_data: Dict):
-        """Extract and store search parameters."""
+    async def _extract_search_params(self, session, resource_id, resource_type, resource_data):
+        """Extract and store basic search parameters."""
         # Always index the resource ID
         await self._add_search_param(
             session, resource_id, '_id', 'token', 
             value_string=resource_data.get('id')
         )
         
-        # Extract common search parameters by resource type
+        # Resource-specific parameters
         if resource_type == 'Patient':
-            # Name parameters
+            # Names
             if 'name' in resource_data:
                 for name in resource_data['name']:
                     if 'family' in name:
@@ -505,20 +577,6 @@ generate.demographics.default_state = Massachusetts
                     session, resource_id, 'gender', 'token',
                     value_string=resource_data['gender']
                 )
-            
-            # Birthdate
-            if 'birthDate' in resource_data:
-                birthdate = resource_data['birthDate']
-                if isinstance(birthdate, str):
-                    try:
-                        birthdate = datetime.fromisoformat(birthdate.replace('Z', '+00:00')).date()
-                    except:
-                        birthdate = datetime.strptime(birthdate, '%Y-%m-%d').date()
-                
-                await self._add_search_param(
-                    session, resource_id, 'birthdate', 'date',
-                    value_date=birthdate
-                )
         
         elif resource_type in ['Encounter', 'Observation', 'Condition']:
             # Patient reference
@@ -531,8 +589,7 @@ generate.demographics.default_state = Massachusetts
                         value_reference=patient_id
                     )
     
-    async def _add_search_param(self, session, resource_id: int, param_name: str, 
-                               param_type: str, **values):
+    async def _add_search_param(self, session, resource_id, param_name, param_type, **values):
         """Add a search parameter to the database."""
         query = text("""
             INSERT INTO fhir.search_params (
@@ -559,316 +616,305 @@ generate.demographics.default_state = Massachusetts
             'value_reference': values.get('value_reference')
         })
     
-    # =====================
-    # VALIDATION OPERATIONS
-    # =====================
-    
-    async def validate_imported_data(self) -> bool:
-        """Validate the imported data in the database."""
-        self.log("🔍 Validating Imported Data")
+    async def validate_data(self) -> bool:
+        """Validate imported FHIR data."""
+        self.log("🔍 Validating imported data")
         self.log("=" * 60)
         
         try:
-            async with self.engine.begin() as conn:
-                # Check resource counts
-                result = await conn.execute(text("""
+            if not self.engine:
+                self.engine = create_async_engine(DATABASE_URL, echo=False)
+            
+            async with AsyncSession(self.engine) as session:
+                # Count resources by type
+                result = await session.execute(text("""
                     SELECT resource_type, COUNT(*) as count
                     FROM fhir.resources
-                    WHERE NOT deleted
                     GROUP BY resource_type
                     ORDER BY count DESC
                 """))
                 
                 resources = result.fetchall()
                 
-                if resources:
-                    self.log("✅ Validation successful")
-                    self.log("\n📊 Resource Summary:")
-                    
-                    total = 0
-                    for resource_type, count in resources:
-                        self.log(f"  {resource_type}: {count}")
-                        total += count
-                    
-                    self.log(f"\n  Total Resources: {total}")
-                    
-                    # Sample patient check
-                    patient_result = await conn.execute(text("""
-                        SELECT COUNT(*) FROM fhir.resources 
-                        WHERE resource_type = 'Patient' AND NOT deleted
-                    """))
-                    patient_count = patient_result.scalar()
-                    
-                    if patient_count > 0:
-                        self.log(f"\n✅ Found {patient_count} patients")
-                        
-                        # Sample patient names
-                        sample_result = await conn.execute(text("""
-                            SELECT resource->>'id', 
-                                   resource->'name'->0->>'family',
-                                   resource->'name'->0->'given'->0
-                            FROM fhir.resources 
-                            WHERE resource_type = 'Patient' AND NOT deleted
-                            LIMIT 5
-                        """))
-                        
-                        self.log("\n👥 Sample Patients:")
-                        for fhir_id, family, given in sample_result:
-                            try:
-                                given_str = json.loads(given) if given else "Unknown"
-                            except:
-                                given_str = str(given) if given else "Unknown"
-                            self.log(f"  - {given_str} {family or 'Unknown'} (ID: {fhir_id})")
-                    
-                    return True
-                else:
-                    self.log("❌ No resources found in database", "ERROR")
+                if not resources:
+                    self.log("No resources found in database", "ERROR")
                     return False
-                    
-        except Exception as e:
-            self.log(f"❌ Validation failed: {e}", "ERROR")
-            return False
-    
-    # ==================
-    # DICOM OPERATIONS
-    # ==================
-    
-    def generate_dicom_files(self) -> bool:
-        """Generate DICOM files for imaging studies."""
-        self.log("🏥 Generating DICOM Files")
-        self.log("=" * 60)
-        
-        try:
-            result = subprocess.run(
-                [sys.executable, "scripts/generate_dicom_for_synthea.py"],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode == 0:
-                self.log("✅ DICOM files generated successfully")
+                
+                total = sum(row[1] for row in resources)
+                self.log(f"✅ Found {total} resources across {len(resources)} types:")
+                
+                for resource_type, count in resources:
+                    self.log(f"  {resource_type}: {count}")
+                
+                # Check for common issues
+                issues = []
+                
+                # Check for patients without names
+                result = await session.execute(text("""
+                    SELECT COUNT(*) FROM fhir.resources 
+                    WHERE resource_type = 'Patient' 
+                    AND NOT (resource->'name' ? 0)
+                """))
+                unnamed_patients = result.scalar()
+                if unnamed_patients > 0:
+                    issues.append(f"{unnamed_patients} patients without names")
+                
+                # Check for broken references
+                result = await session.execute(text("""
+                    SELECT COUNT(*) FROM fhir.search_params 
+                    WHERE param_type = 'reference' 
+                    AND value_reference NOT IN (
+                        SELECT fhir_id FROM fhir.resources
+                    )
+                """))
+                broken_refs = result.scalar()
+                if broken_refs > 0:
+                    issues.append(f"{broken_refs} broken references")
+                
+                if issues:
+                    self.log("⚠️  Issues found:", "WARN")
+                    for issue in issues:
+                        self.log(f"  - {issue}", "WARN")
+                else:
+                    self.log("✅ No issues found", "SUCCESS")
+                
                 return True
-            else:
-                self.log(f"❌ DICOM generation failed: {result.stderr}", "ERROR")
-                return False
                 
         except Exception as e:
-            self.log(f"❌ Error generating DICOM files: {e}", "ERROR")
+            self.log(f"Validation failed: {e}", "ERROR")
             return False
     
-    # ==================
-    # WORKFLOW OPERATIONS
-    # ==================
+    async def generate_dicom(self) -> bool:
+        """Generate DICOM files for imaging studies."""
+        self.log("🖼️  Generating DICOM files")
+        self.log("=" * 60)
+        
+        dicom_script = self.script_dir / "generate_dicom_for_synthea.py"
+        if not dicom_script.exists():
+            self.log("DICOM generation script not found", "ERROR")
+            return False
+        
+        try:
+            result = subprocess.run([
+                sys.executable, str(dicom_script)
+            ], capture_output=True, text=True, timeout=300)
+            
+            if result.returncode != 0:
+                self.log(f"DICOM generation failed: {result.stderr}", "ERROR")
+                return False
+            
+            self.log("✅ DICOM files generated", "SUCCESS")
+            return True
+            
+        except subprocess.TimeoutExpired:
+            self.log("DICOM generation timed out", "ERROR")
+            return False
+        except Exception as e:
+            self.log(f"DICOM generation failed: {e}", "ERROR")
+            return False
     
-    async def full_workflow(self, count: int = 10, state: str = "Massachusetts", 
-                           city: Optional[str] = None, validation_mode: str = 'transform_only',
-                           include_dicom: bool = False) -> bool:
+    async def full_workflow(self, count: int = 10, validation_mode: str = "transform_only",
+                          include_dicom: bool = False, state: str = "Massachusetts",
+                          city: Optional[str] = None) -> bool:
         """Run the complete Synthea workflow."""
-        self.log("🚀 Starting Full Synthea Workflow")
-        self.log("=" * 60)
-        self.log(f"Parameters: count={count}, state={state}, city={city or 'Any'}")
-        self.log(f"Validation mode: {validation_mode}")
-        self.log(f"Include DICOM: {include_dicom}")
+        self.log("🚀 Starting full Synthea workflow")
+        self.log("=" * 80)
         
-        # Step 1: Generate data
-        if not self.generate_synthea_data(count, state, city):
-            self.log("❌ Workflow failed at data generation", "ERROR")
+        workflow_start = time.time()
+        success = True
+        
+        # Step 1: Setup
+        if not await self.setup_synthea():
             return False
         
-        # Step 2: Reset database
-        if not await self.reset_database():
-            self.log("❌ Workflow failed at database reset", "ERROR")
+        # Step 2: Generate data
+        if not await self.generate_data(count, state, city):
             return False
         
-        # Step 3: Import data
+        # Step 3: Wipe database
+        if not await self.wipe_database():
+            return False
+        
+        # Step 4: Import data
         if not await self.import_data(validation_mode):
-            self.log("❌ Workflow failed at data import", "ERROR")
             return False
         
-        # Step 4: Validate
-        if not await self.validate_imported_data():
-            self.log("❌ Workflow failed at validation", "ERROR")
-            return False
+        # Step 5: Validate
+        if not await self.validate_data():
+            success = False  # Continue anyway
         
-        # Step 5: Generate DICOM files (optional)
+        # Step 6: DICOM (optional)
         if include_dicom:
-            if not self.generate_dicom_files():
-                self.log("⚠️ DICOM generation failed, but continuing...", "WARNING")
+            if not await self.generate_dicom():
+                success = False  # Continue anyway
         
-        self.log("\n🎉 Workflow completed successfully!")
-        self.log("=" * 60)
-        return True
+        workflow_duration = time.time() - workflow_start
+        
+        # Final summary
+        self.log("=" * 80)
+        if success:
+            self.log("🎉 Full workflow completed successfully!", "SUCCESS")
+        else:
+            self.log("⚠️  Workflow completed with some issues", "WARN")
+        
+        self.log(f"⏱️  Total time: {workflow_duration:.1f} seconds")
+        self.log(f"📊 Resources imported: {self.stats.get('total_resources', 0)}")
+        
+        return success
     
-    # ================
-    # UTILITY METHODS
-    # ================
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self.engine:
+            await self.engine.dispose()
     
-    def _print_import_stats(self):
-        """Print import statistics."""
-        self.log("\n" + "=" * 60)
-        self.log("📊 Import Summary")
-        self.log("=" * 60)
-        self.log(f"Total Files Processed: {self.stats['total_files']}")
-        self.log(f"Total Resources Processed: {self.stats['total_processed']}")
-        self.log(f"Successfully Imported: {self.stats['total_imported']}")
-        self.log(f"Failed: {self.stats['total_failed']}")
-        self.log(f"Validation Errors: {self.stats['total_validation_errors']}")
+    def print_stats(self):
+        """Print final statistics."""
+        duration = datetime.now() - self.stats['start_time']
         
-        if self.stats['resources_by_type']:
-            self.log("\n✅ Resources by Type:")
-            for resource_type, count in sorted(self.stats['resources_by_type'].items()):
-                self.log(f"  {resource_type}: {count}")
+        print("\n" + "=" * 60)
+        print("📊 Synthea Master - Final Statistics")
+        print("=" * 60)
+        print(f"Total Duration: {duration}")
+        print(f"Operations: {len(self.stats['operations'])}")
+        print(f"Errors: {len(self.stats['errors'])}")
+        print(f"Resources Imported: {self.stats['total_resources']}")
         
-        if self.stats['validation_errors_by_type']:
-            self.log("\n⚠️ Validation Errors by Type:")
-            for error_type, count in sorted(self.stats['validation_errors_by_type'].items()):
-                self.log(f"  {error_type}: {count}")
+        if self.stats['import_stats']:
+            print("\nImport Details:")
+            for key, value in self.stats['import_stats'].items():
+                if isinstance(value, dict):
+                    print(f"  {key}:")
+                    for k, v in value.items():
+                        print(f"    {k}: {v}")
+                else:
+                    print(f"  {key}: {value}")
         
-        if self.stats['errors_by_type']:
-            self.log("\n❌ Other Errors by Type:")
-            for error_type, count in sorted(self.stats['errors_by_type'].items()):
-                self.log(f"  {error_type}: {count}")
-        
-        # Success rate
-        total_attempts = self.stats['total_processed']
-        if total_attempts > 0:
-            success_rate = (self.stats['total_imported'] / total_attempts) * 100
-            self.log(f"\n📈 Success Rate: {success_rate:.1f}%")
-        
-        self.log("=" * 60)
-    
-    def save_report(self, filename: str = "synthea_master_report.json"):
-        """Save a detailed report of the last operation."""
-        report = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'stats': dict(self.stats),
-            'fhir_validation_available': self.fhir_validation_available,
-            'validation_errors': [
-                {
-                    'resource_type': error.get('resource_type'),
-                    'error_type': error.get('error_type'),
-                    'error_message': error.get('error_message'),
-                    'timestamp': error.get('timestamp')
-                }
-                for error in self.validation_errors
-            ]
-        }
-        
-        with open(filename, 'w') as f:
-            json.dump(report, f, indent=2)
-        
-        self.log(f"📝 Report saved to {filename}")
+        print("=" * 60)
 
 
 async def main():
-    """Main entry point with comprehensive command-line interface."""
+    """Main entry point with comprehensive CLI."""
     parser = argparse.ArgumentParser(
-        description='Synthea Master Script - Unified Synthea Management Tool',
+        description="Synthea Master - Unified Synthea Data Management",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Commands:
-  setup                     Setup/install Synthea
-  generate                  Generate patient data
-  wipe                      Wipe database FHIR data
-  reset                     Reset and initialize database
-  import                    Import existing data
-  validate                  Validate imported data
-  dicom                     Generate DICOM files
-  full                      Run complete workflow
-
 Examples:
-  python synthea_master.py setup --force
-  python synthea_master.py generate --count 20 --state California
-  python synthea_master.py import --validation-mode strict
-  python synthea_master.py full --count 5 --include-dicom
+  %(prog)s full --count 10                          # Complete workflow
+  %(prog)s setup                                    # Setup Synthea
+  %(prog)s generate --count 20 --state California   # Generate data
+  %(prog)s wipe                                     # Clear database
+  %(prog)s import --validation-mode light           # Import with validation
+  %(prog)s validate                                 # Validate data
+  %(prog)s dicom                                    # Generate DICOM
         """
     )
     
     parser.add_argument(
-        'command',
-        choices=['setup', 'generate', 'wipe', 'reset', 'import', 'validate', 'dicom', 'full'],
-        help='Command to execute'
+        "command",
+        choices=["full", "setup", "generate", "wipe", "import", "validate", "dicom"],
+        help="Operation to perform"
     )
     
     # Generation options
-    parser.add_argument('--count', type=int, default=10, help='Number of patients to generate')
-    parser.add_argument('--state', default='Massachusetts', help='State for patient generation')
-    parser.add_argument('--city', help='City for patient generation')
-    parser.add_argument('--seed', type=int, default=0, help='Random seed for reproducible generation')
+    parser.add_argument(
+        "--count", type=int, default=10,
+        help="Number of patients to generate (default: 10)"
+    )
+    parser.add_argument(
+        "--state", default="Massachusetts",
+        help="State for patient generation (default: Massachusetts)"
+    )
+    parser.add_argument(
+        "--city",
+        help="City for patient generation (optional)"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=0,
+        help="Random seed for generation (default: 0)"
+    )
     
     # Import options
     parser.add_argument(
-        '--validation-mode',
-        choices=['none', 'transform_only', 'light', 'strict'],
-        default='transform_only',
-        help='Validation mode for import'
+        "--validation-mode",
+        choices=["none", "transform_only", "light", "strict"],
+        default="transform_only",
+        help="Validation level for import (default: transform_only)"
     )
-    parser.add_argument('--batch-size', type=int, default=50, help='Batch size for import')
+    parser.add_argument(
+        "--batch-size", type=int, default=50,
+        help="Batch size for import (default: 50)"
+    )
     
-    # Setup options
-    parser.add_argument('--force', action='store_true', help='Force reinstall/reset')
+    # Workflow options
+    parser.add_argument(
+        "--include-dicom", action="store_true",
+        help="Include DICOM generation in full workflow"
+    )
     
-    # Full workflow options
-    parser.add_argument('--include-dicom', action='store_true', help='Include DICOM generation in full workflow')
-    
-    # Reporting options
-    parser.add_argument('--report-file', help='Save detailed report to file')
+    # General options
+    parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Enable verbose logging"
+    )
     
     args = parser.parse_args()
     
     # Create master instance
-    master = SyntheaMaster()
+    master = SyntheaMaster(verbose=args.verbose)
     
     try:
-        # Initialize database connection for operations that need it
-        if args.command in ['wipe', 'reset', 'import', 'validate', 'full']:
-            await master.init_db()
-        
-        # Execute command
         success = False
         
-        if args.command == 'setup':
-            success = master.setup_synthea(args.force)
+        if args.command == "setup":
+            success = await master.setup_synthea()
         
-        elif args.command == 'generate':
-            success = master.generate_synthea_data(args.count, args.state, args.city, args.seed)
-        
-        elif args.command == 'wipe':
-            success = await master.wipe_database()
-        
-        elif args.command == 'reset':
-            success = await master.reset_database()
-        
-        elif args.command == 'import':
-            success = await master.import_data(args.validation_mode, args.batch_size)
-        
-        elif args.command == 'validate':
-            success = await master.validate_imported_data()
-        
-        elif args.command == 'dicom':
-            success = master.generate_dicom_files()
-        
-        elif args.command == 'full':
-            success = await master.full_workflow(
-                args.count, args.state, args.city, args.validation_mode, args.include_dicom
+        elif args.command == "generate":
+            success = await master.generate_data(
+                count=args.count,
+                state=args.state,
+                city=args.city,
+                seed=args.seed
             )
         
-        # Save report if requested
-        if args.report_file:
-            master.save_report(args.report_file)
+        elif args.command == "wipe":
+            success = await master.wipe_database()
         
+        elif args.command == "import":
+            success = await master.import_data(
+                validation_mode=args.validation_mode,
+                batch_size=args.batch_size
+            )
+        
+        elif args.command == "validate":
+            success = await master.validate_data()
+        
+        elif args.command == "dicom":
+            success = await master.generate_dicom()
+        
+        elif args.command == "full":
+            success = await master.full_workflow(
+                count=args.count,
+                validation_mode=args.validation_mode,
+                include_dicom=args.include_dicom,
+                state=args.state,
+                city=args.city
+            )
+        
+        # Print final stats
+        if args.verbose:
+            master.print_stats()
+        
+        # Exit with appropriate code
         sys.exit(0 if success else 1)
         
     except KeyboardInterrupt:
-        master.log("\n⚠️ Operation interrupted by user", "WARNING")
+        master.log("Operation cancelled by user", "WARN")
         sys.exit(1)
     except Exception as e:
-        master.log(f"\n❌ Unexpected error: {e}", "ERROR")
+        master.log(f"Unexpected error: {e}", "ERROR")
         sys.exit(1)
     finally:
-        # Clean up database connection
-        if master.engine:
-            await master.close_db()
+        await master.cleanup()
 
 
 if __name__ == "__main__":

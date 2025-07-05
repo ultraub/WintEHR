@@ -124,17 +124,18 @@ import { Warning as WarningIcon } from '@mui/material';
 # Backend FHIR tests
 docker exec emr-backend pytest tests/test_fhir_endpoints.py -v
 
-# Generate fresh Synthea data
-cd backend && python scripts/synthea_workflow.py full --count 10
+# Complete Synthea workflow (recommended)
+cd backend && python scripts/synthea_master.py full --count 10
 
-# Import Synthea data (recommended for production)
-python scripts/synthea_import.py synthea/output/fhir
+# Individual operations  
+python scripts/synthea_master.py setup                    # Setup Synthea
+python scripts/synthea_master.py generate --count 20      # Generate patients
+python scripts/synthea_master.py wipe                     # Clear database
+python scripts/synthea_master.py import --validation-mode light  # Import with validation
+python scripts/synthea_master.py validate                 # Validate existing data
 
-# Import with validation (for development/debugging)
-python scripts/synthea_import_with_validation.py --no-strict
-
-# Wipe database and reimport
-python scripts/wipe_fhir_db.py && python scripts/synthea_import.py
+# Advanced workflows
+python scripts/synthea_master.py full --count 50 --validation-mode strict --include-dicom
 
 # Debug data issues
 - Check FHIR resource endpoints: http://localhost:8000/fhir/R4/Patient

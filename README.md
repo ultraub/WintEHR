@@ -181,21 +181,22 @@ The system contains **20,115 FHIR resources** across 24 resource types:
 Generate unlimited realistic patient data using our consolidated Synthea workflow:
 
 ```bash
-# Generate 10 patients with full clinical data
+# Complete workflow (most common)
 cd backend
-python scripts/synthea_workflow.py full --count 10
+python scripts/synthea_master.py full --count 10
 
-# Generate patients for specific location
-python scripts/synthea_workflow.py generate --count 5 --state California --city "Los Angeles"
+# Generate patients for specific location  
+python scripts/synthea_master.py generate --count 5 --state California --city "Los Angeles"
 
-# Import FHIR data (recommended for production)
-python scripts/synthea_import.py synthea/output/fhir
+# Individual operations
+python scripts/synthea_master.py setup                    # Setup Synthea
+python scripts/synthea_master.py generate --count 20      # Generate patients
+python scripts/synthea_master.py wipe                     # Clear database
+python scripts/synthea_master.py import --validation-mode light  # Import with validation
+python scripts/synthea_master.py validate                 # Validate existing data
 
-# Import with validation (for development/debugging)
-python scripts/synthea_import_with_validation.py --no-strict
-
-# Wipe database and reimport fresh data
-python scripts/wipe_fhir_db.py && python scripts/synthea_import.py
+# Advanced workflows
+python scripts/synthea_master.py full --count 50 --validation-mode strict --include-dicom
 ```
 
 The Synthea integration provides:
