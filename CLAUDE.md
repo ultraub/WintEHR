@@ -49,6 +49,17 @@ cd frontend && npm install  # Fix missing deps
 - ❌ Ignore build file validation after 3+ changes
 - ❌ Commit without user request
 
+### 4. File Creation Standards
+**DO**:
+- ✅ Use Unix line endings (LF) for all scripts
+- ✅ Set executable permissions: `chmod +x script.sh`
+- ✅ Test scripts on macOS/Linux before committing
+
+**DON'T**:
+- ❌ Create files with Windows line endings (CRLF)
+- ❌ Use `\r\n` line endings in shell scripts
+- ❌ Skip testing executable scripts
+
 ## 📍 Current State
 
 - **Frontend**: 12 FHIR-native components in `/src/components/clinical/`
@@ -92,6 +103,11 @@ import { Warning as WarningIcon } from '@mui/material';
 | `Objects are not valid as React child` | Extract text: `obj?.text \|\| obj?.coding?.[0]?.display` |
 | `conditions.filter is not a function` | Use `conditions.activeConditions` |
 | Missing clinical data | Check `fhir` schema, use `result.resources` |
+| `bad interpreter: /bin/bash^M` | Fix line endings: `sed -i '' 's/\r$//' script.sh` |
+| Pillow build fails on Python 3.13 | Use `pillow>=10.3.0` in requirements.txt |
+| asyncpg build fails on Python 3.13 | Use `asyncpg>=0.30.0` in requirements.txt |
+| cmake not found for pylibjpeg | Install cmake: `brew install cmake` |
+| pylibjpeg-openjpeg CMake error | Comment out `pylibjpeg-openjpeg` in requirements.txt |
 
 ## 📁 Key Files
 

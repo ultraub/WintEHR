@@ -1,6 +1,6 @@
 /**
- * PatientDashboardV3 Component
- * Modernized patient dashboard with active/inactive toggle and proper status filtering
+ * PatientDashboardV3Enhanced Component
+ * Enhanced version with active/inactive toggle and proper status filtering
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -100,8 +100,8 @@ const isResourceActive = (resource, resourceType) => {
       return resource.clinicalStatus?.coding?.[0]?.code === 'active';
       
     case 'MedicationRequest':
-      // Check status field - include completed for medication history
-      return ['active', 'on-hold', 'completed'].includes(resource.status);
+      // Check status field
+      return ['active', 'on-hold'].includes(resource.status);
       
     case 'CarePlan':
       return ['active', 'on-hold'].includes(resource.status);
@@ -190,12 +190,6 @@ const usePatientDashboardData = (patientId, filterStatus = 'all') => {
         careTeam: careTeamResult?.total || 0,
         coverage: coverageResult?.total || 0
       });
-
-      // Debug medication data
-      console.log('Medications fetched:', medicationsResult?.resources?.length || 0);
-      if (medicationsResult?.resources?.length > 0) {
-        console.log('First medication:', medicationsResult.resources[0]);
-      }
 
       setData({
         patient: patientResult,
@@ -452,12 +446,7 @@ const PatientDashboardV3Enhanced = ({ patientId }) => {
                       />
                     </ListItemIcon>
                     <ListItemText
-                      primary={
-                        med.medication?.concept?.text || 
-                        med.medication?.concept?.coding?.[0]?.display || 
-                        med.medicationCodeableConcept?.text || 
-                        'Unknown medication'
-                      }
+                      primary={med.medicationCodeableConcept?.text || 'Unknown medication'}
                       secondary={
                         <Stack spacing={0}>
                           <Typography variant="caption">

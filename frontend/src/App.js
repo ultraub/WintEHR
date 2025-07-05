@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { createMedicalTheme } from './themes/medicalTheme';
 
 import Layout from './components/Layout';
+import LayoutV3 from './components/LayoutV3';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -18,6 +20,15 @@ import NotFound from './pages/NotFound';
 import MedicationReconciliationPage from './pages/MedicationReconciliationPage';
 import VitalSignsPage from './pages/VitalSignsPage';
 import TrainingCenterPage from './pages/TrainingCenterPage';
+import EncountersPage from './pages/EncountersPage';
+import LabResultsPage from './pages/LabResultsPage';
+import MedicationsPage from './pages/MedicationsPage';
+import QualityMeasuresPage from './pages/QualityMeasuresPage';
+import CareGapsPage from './pages/CareGapsPage';
+import AuditTrailPage from './pages/AuditTrailPage';
+import ClinicalWorkspacePageSimple from './pages/ClinicalWorkspacePageSimple';
+import TestPage from './pages/TestPage';
+import ClinicalWorkspaceMinimal from './pages/ClinicalWorkspaceMinimal';
 
 // Clinical Components
 import ClinicalWorkspaceV2 from './components/clinical/ClinicalWorkspaceV2';
@@ -33,268 +44,39 @@ import { AppointmentProvider } from './contexts/AppointmentContext';
 import { FHIRResourceProvider } from './contexts/FHIRResourceContext';
 import { WorkflowProvider } from './contexts/WorkflowContext';
 
-// Create a context for theme toggling
-export const ThemeToggleContext = React.createContext();
+// Create a context for medical theme toggling
+export const MedicalThemeContext = React.createContext();
 
-// Add custom CSS for patriotic theme
-if (typeof document !== 'undefined') {
-  const styleId = 'patriotic-theme-styles';
-  let styleTag = document.getElementById(styleId);
-  if (!styleTag) {
-    styleTag = document.createElement('style');
-    styleTag.id = styleId;
-    document.head.appendChild(styleTag);
-  }
-  styleTag.innerHTML = `
-    body.patriotic-theme {
-      background-image: 
-        linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent),
-        linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent);
-      background-size: 50px 50px;
-    }
-  `;
-}
 
-// Theme configurations
-const createAppTheme = (isPatriotic) => {
-  // Add or remove body class
-  if (typeof document !== 'undefined') {
-    if (isPatriotic) {
-      document.body.classList.add('patriotic-theme');
-    } else {
-      document.body.classList.remove('patriotic-theme');
-    }
-  }
-  
-  const baseTheme = {
-    typography: {
-      fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-      h1: { fontWeight: 700 },
-      h2: { fontWeight: 700 },
-      h3: { fontWeight: 600 },
-      h4: { fontWeight: 600 },
-      h5: { fontWeight: 600 },
-      h6: { fontWeight: 600 },
-    },
-    shape: {
-      borderRadius: 12,
-    },
-    components: {
-      MuiAppBar: {
-        styleOverrides: {
-          root: {
-            borderRadius: 0,
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-          },
-        },
-      },
-      MuiToolbar: {
-        styleOverrides: {
-          root: {
-            borderRadius: 0,
-          },
-        },
-      },
-      MuiPaper: {
-        styleOverrides: {
-          root: {
-            borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            '&.MuiAppBar-root': {
-              borderRadius: 0,
-            },
-          },
-        },
-      },
-      MuiButton: {
-        styleOverrides: {
-          root: {
-            textTransform: 'none',
-            borderRadius: 8,
-            padding: '10px 24px',
-            fontWeight: 600,
-            transition: 'all 0.3s ease',
-          },
-          ...(isPatriotic && {
-          }),
-        },
-      },
-      MuiCard: {
-        styleOverrides: {
-          root: {
-            borderRadius: 12,
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
-            transition: 'box-shadow 0.3s ease',
-            '&:hover': {
-              boxShadow: '0 6px 24px rgba(0, 0, 0, 0.12)',
-            },
-          },
-        },
-      },
-      MuiChip: {
-        styleOverrides: {
-          root: {
-            borderRadius: 16,
-            fontWeight: 500,
-          },
-        },
-      },
-      ...(isPatriotic && {
-        MuiTableHead: {
-          styleOverrides: {
-            root: {
-              '& .MuiTableCell-root': {
-                backgroundColor: '#1976D2',
-                color: '#ffffff',
-                fontWeight: 600,
-              },
-            },
-          },
-        },
-        MuiTableRow: {
-          styleOverrides: {
-            root: {
-              '&:nth-of-type(odd)': {
-                backgroundColor: 'rgba(25, 118, 210, 0.04)',
-              },
-              '&:nth-of-type(even)': {
-                backgroundColor: 'rgba(211, 47, 47, 0.02)',
-              },
-            },
-          },
-        },
-        MuiListItemButton: {
-          styleOverrides: {
-            root: {
-              '&.Mui-selected': {
-                backgroundColor: 'rgba(25, 118, 210, 0.12)',
-                '&:hover': {
-                  backgroundColor: 'rgba(25, 118, 210, 0.16)',
-                },
-              },
-            },
-          },
-        },
-        MuiFab: {
-          styleOverrides: {
-            primary: {
-              background: 'linear-gradient(45deg, #1976D2 30%, #1565C0 90%)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #1565C0 30%, #0D47A1 90%)',
-              },
-            },
-            secondary: {
-              background: 'linear-gradient(45deg, #D32F2F 30%, #C62828 90%)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #C62828 30%, #B71C1C 90%)',
-              },
-            },
-          },
-        },
-      }),
-    },
-  };
-
-  if (isPatriotic) {
-    return createTheme({
-      ...baseTheme,
-      palette: {
-        primary: {
-          main: '#1976D2',      // Blue
-          light: '#42A5F5',     
-          dark: '#0D47A1',      
-          contrastText: '#ffffff',
-        },
-        secondary: {
-          main: '#D32F2F',      // Red
-          light: '#EF5350',     
-          dark: '#B71C1C',      
-          contrastText: '#ffffff',
-        },
-        background: {
-          default: '#FAFAFA',   
-          paper: '#ffffff',
-        },
-        action: {
-          selected: 'rgba(25, 118, 210, 0.08)',
-          hover: 'rgba(211, 47, 47, 0.04)',
-        },
-        text: {
-          primary: '#1A237E',   
-          secondary: '#3949AB',
-        },
-        success: {
-          main: '#2E7D32',
-        },
-        warning: {
-          main: '#F57C00',
-        },
-        error: {
-          main: '#C62828',
-        },
-        info: {
-          main: '#1565C0',
-        },
-      },
-    });
-  } else {
-    return createTheme({
-      ...baseTheme,
-      palette: {
-        primary: {
-          main: '#5B9FBC',      
-          light: '#7FB4CC',     
-          dark: '#4A87A0',      
-          contrastText: '#ffffff',
-        },
-        secondary: {
-          main: '#F4A09C',      
-          light: '#F7B5B2',     
-          dark: '#E88B86',      
-          contrastText: '#ffffff',
-        },
-        background: {
-          default: '#FAF9F7',   
-          paper: '#ffffff',
-        },
-        text: {
-          primary: '#2C3E50',   
-          secondary: '#5D6D7E',
-        },
-        success: {
-          main: '#4caf50',
-        },
-        warning: {
-          main: '#ff9800',
-        },
-        error: {
-          main: '#f44336',
-        },
-        info: {
-          main: '#64B5F6',
-        },
-      },
-    });
-  }
-};
 
 function App() {
-  const [isPatriotic, setIsPatriotic] = useState(() => {
-    return localStorage.getItem('theme') === 'patriotic';
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    return localStorage.getItem('medicalTheme') || 'professional';
   });
   
-  const theme = useMemo(() => createAppTheme(isPatriotic), [isPatriotic]);
+  const [currentMode, setCurrentMode] = useState(() => {
+    return localStorage.getItem('medicalMode') || 'light';
+  });
   
-  const toggleTheme = () => {
-    setIsPatriotic(prev => {
-      const newValue = !prev;
-      localStorage.setItem('theme', newValue ? 'patriotic' : 'original');
-      return newValue;
-    });
+  const theme = useMemo(() => createMedicalTheme(currentTheme, currentMode), [currentTheme, currentMode]);
+  
+  const handleThemeChange = (themeName) => {
+    setCurrentTheme(themeName);
+    localStorage.setItem('medicalTheme', themeName);
+  };
+  
+  const handleModeChange = (mode) => {
+    setCurrentMode(mode);
+    localStorage.setItem('medicalMode', mode);
   };
   
   return (
-    <ThemeToggleContext.Provider value={{ isPatriotic, toggleTheme }}>
+    <MedicalThemeContext.Provider value={{ 
+      currentTheme, 
+      currentMode, 
+      onThemeChange: handleThemeChange, 
+      onModeChange: handleModeChange 
+    }}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -316,98 +98,174 @@ function App() {
                         {/* Patient Registry */}
                         <Route path="/patients" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <PatientList />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
                         {/* Patient Chart - New FHIR-native dashboard as default */}
                         <Route path="/patients/:id" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <PatientDashboardV2Page />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
                         {/* Clinical Workspace */}
                         <Route path="/patients/:id/clinical" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <ClinicalWorkspaceV2 />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
                         {/* Specific Clinical Workflows */}
                         <Route path="/patients/:id/medication-reconciliation" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <MedicationReconciliationPage />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         <Route path="/patients/:id/encounters/:encounterId/medication-reconciliation" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <MedicationReconciliationPage />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         <Route path="/patients/:id/vital-signs" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <VitalSignsPage />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
+                        {/* Clinical Workflows */}
+                        <Route path="/dashboard" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <Dashboard />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/clinical" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <ClinicalWorkspaceMinimal />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/encounters" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <EncountersPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/lab-results" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <LabResultsPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/medications" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <MedicationsPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+
+                        {/* Population Health */}
+                        <Route path="/analytics" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <Analytics />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/quality" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <QualityMeasuresPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/care-gaps" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <CareGapsPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+
+                        {/* Developer Tools */}
+                        <Route path="/fhir" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <FHIRExplorerEnhanced />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/cds-hooks" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <TrainingCenterPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+
                         {/* Provider Workspace */}
                         <Route path="/schedule" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <Schedule />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
                         {/* Administration */}
-                        <Route path="/analytics" element={
+                        <Route path="/audit-trail" element={
                           <ProtectedRoute>
-                            <Layout>
-                              <Analytics />
-                            </Layout>
+                            <LayoutV3>
+                              <AuditTrailPage />
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         <Route path="/settings" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <Settings />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         
                         {/* Training Center */}
                         <Route path="/training" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <TrainingCenterPage />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         <Route path="/fhir-explorer" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <FHIRExplorerEnhanced />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                         <Route path="*" element={
                           <ProtectedRoute>
-                            <Layout>
+                            <LayoutV3>
                               <NotFound />
-                            </Layout>
+                            </LayoutV3>
                           </ProtectedRoute>
                         } />
                       </Routes>
@@ -424,7 +282,7 @@ function App() {
           </AuthProvider>
         </LocalizationProvider>
       </ThemeProvider>
-    </ThemeToggleContext.Provider>
+    </MedicalThemeContext.Provider>
   );
 }
 

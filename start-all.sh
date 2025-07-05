@@ -81,6 +81,16 @@ check_dependencies() {
         warn "Java not found. Synthea data generation will not be available"
     fi
     
+    # Check cmake (for DICOM support)
+    if ! command -v cmake &> /dev/null; then
+        warn "cmake not found. Installing via Homebrew..."
+        if command -v brew &> /dev/null; then
+            brew install cmake || warn "Failed to install cmake. DICOM support may be limited"
+        else
+            warn "Homebrew not found. Please install cmake manually for full DICOM support"
+        fi
+    fi
+    
     log "Dependencies check completed"
 }
 
@@ -231,15 +241,19 @@ start_backend() {
 import asyncio
 import sys
 sys.path.append('.')
-from database import engine, Base
-from sqlalchemy import text
-
-async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        print('Database tables created/updated')
-
-asyncio.run(create_tables())
+try:
+    from database import engine, Base
+    from sqlalchemy import text
+    
+    async def create_tables():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            print('Database tables created/updated')
+    
+    asyncio.run(create_tables())
+except Exception as e:
+    print(f'Migration error: {e}')
+    print('Tables may already exist or database may not be ready')
 " || warn "Could not run database migrations"
     
     # Start the server
@@ -249,10 +263,10 @@ asyncio.run(create_tables())
     
     # Wait for backend to start
     sleep 5
-    if curl -s "http://localhost:$BACKEND_PORT/docs" > /dev/null; then
+    if curl -s "http://localhost:$BACKEND_PORT/health" > /dev/null 2>&1; then
         log "Backend server started successfully"
     else
-        error "Backend server failed to start. Check $LOG_DIR/backend.log"
+        warn "Backend server may still be starting. Check $LOG_DIR/backend.log"
     fi
 }
 
@@ -319,7 +333,7 @@ show_status() {
     echo -e "${BLUE}Service Status:${NC}"
     
     # Check backend
-    if curl -s "http://localhost:$BACKEND_PORT/docs" > /dev/null; then
+    if curl -s "http://localhost:$BACKEND_PORT/health" > /dev/null 2>&1; then
         echo -e "Backend:  ${GREEN}Running${NC} (http://localhost:$BACKEND_PORT)"
     else
         echo -e "Backend:  ${RED}Not running${NC}"

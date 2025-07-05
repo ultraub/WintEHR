@@ -36,7 +36,7 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { ThemeToggleContext } from '../App';
+import { MedicalThemeContext } from '../App';
 import { Flag as FlagIcon } from '@mui/icons-material';
 import NotificationBell from './NotificationBell';
 // import BugReportButton from './BugReportButton';  // Temporarily disabled
@@ -68,7 +68,7 @@ function Layout({ children }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const themeContext = useContext(ThemeToggleContext);
+  const medicalThemeContext = useContext(MedicalThemeContext);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -211,18 +211,14 @@ function Layout({ children }) {
           </Typography>
           
           {/* Theme Toggle */}
-          {themeContext && (
+          {medicalThemeContext && (
             <IconButton
               color="inherit"
-              onClick={themeContext.toggleTheme}
+              onClick={() => medicalThemeContext.onModeChange(medicalThemeContext.currentMode === 'light' ? 'dark' : 'light')}
               sx={{ mr: 2 }}
-              title={themeContext.isPatriotic ? "Switch to Original Theme" : "Switch to Patriotic Theme"}
+              title={medicalThemeContext.currentMode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              {themeContext.isPatriotic ? (
-                <FlagIcon />
-              ) : (
-                <span style={{ fontSize: '1.5rem' }}>🎨</span>
-              )}
+              <span style={{ fontSize: '1.5rem' }}>🌙</span>
             </IconButton>
           )}
           
