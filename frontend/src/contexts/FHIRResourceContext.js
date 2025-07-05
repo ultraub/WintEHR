@@ -1,0 +1,658 @@
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { fhirClient } from '../services/fhirClient';
+
+// Action Types
+const FHIR_ACTIONS = {
+  // Resource Management
+  SET_RESOURCES: 'SET_RESOURCES',
+  ADD_RESOURCE: 'ADD_RESOURCE',
+  UPDATE_RESOURCE: 'UPDATE_RESOURCE',
+  REMOVE_RESOURCE: 'REMOVE_RESOURCE',
+  CLEAR_RESOURCES: 'CLEAR_RESOURCES',
+  
+  // Loading States
+  SET_LOADING: 'SET_LOADING',
+  SET_ERROR: 'SET_ERROR',
+  CLEAR_ERROR: 'CLEAR_ERROR',
+  
+  // Patient Context
+  SET_CURRENT_PATIENT: 'SET_CURRENT_PATIENT',
+  SET_CURRENT_ENCOUNTER: 'SET_CURRENT_ENCOUNTER',
+  
+  // Cache Management
+  SET_CACHE: 'SET_CACHE',
+  INVALIDATE_CACHE: 'INVALIDATE_CACHE',
+  
+  // Relationships
+  SET_RELATIONSHIPS: 'SET_RELATIONSHIPS',
+  ADD_RELATIONSHIP: 'ADD_RELATIONSHIP',
+  
+  // Search and Filters
+  SET_SEARCH_RESULTS: 'SET_SEARCH_RESULTS',
+  SET_FILTERS: 'SET_FILTERS'
+};
+
+// Initial State
+const initialState = {
+  // Resource Storage - organized by resource type and ID
+  resources: {
+    Patient: {},
+    Encounter: {},
+    Observation: {},
+    Condition: {},
+    MedicationRequest: {},
+    MedicationStatement: {},
+    Procedure: {},
+    DiagnosticReport: {},
+    DocumentReference: {},
+    CarePlan: {},
+    CareTeam: {},
+    AllergyIntolerance: {},
+    Immunization: {},
+    Coverage: {},
+    Claim: {},
+    ExplanationOfBenefit: {},
+    ImagingStudy: {},
+    Location: {},
+    Practitioner: {},
+    PractitionerRole: {},
+    Organization: {},
+    Device: {},
+    SupplyDelivery: {},
+    Provenance: {}
+  },
+  
+  // Resource Relationships - maps resource references
+  relationships: {
+    // Example: patientId -> { encounters: [encounterId1, encounterId2], conditions: [...] }
+  },
+  
+  // Current Context
+  currentPatient: null,
+  currentEncounter: null,
+  
+  // Loading States - per resource type
+  loading: {},
+  
+  // Errors - per resource type
+  errors: {},
+  
+  // Cache - for search results and computed data
+  cache: {
+    searches: {}, // searchKey -> { results, timestamp, ttl }
+    bundles: {},  // bundleKey -> { bundle, timestamp, ttl }
+    computed: {}  // computedKey -> { data, timestamp, ttl }
+  },
+  
+  // Search and Filter State
+  searchResults: {},
+  activeFilters: {}
+};
+
+// Reducer
+function fhirResourceReducer(state, action) {
+  switch (action.type) {
+    case FHIR_ACTIONS.SET_RESOURCES: {
+      const { resourceType, resources } = action.payload;
+      const resourceMap = {};
+      
+      if (Array.isArray(resources)) {
+        resources.forEach(resource => {
+          resourceMap[resource.id] = resource;
+        });
+      } else {
+        resourceMap[resources.id] = resources;
+      }
+      
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resourceType]: {
+            ...state.resources[resourceType],
+            ...resourceMap
+          }
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.ADD_RESOURCE: {
+      const { resourceType, resource } = action.payload;
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resourceType]: {
+            ...state.resources[resourceType],
+            [resource.id]: resource
+          }
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.UPDATE_RESOURCE: {
+      const { resourceType, resourceId, updates } = action.payload;
+      const existingResource = state.resources[resourceType]?.[resourceId];
+      if (!existingResource) return state;
+      
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resourceType]: {
+            ...state.resources[resourceType],
+            [resourceId]: {
+              ...existingResource,
+              ...updates
+            }
+          }
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.REMOVE_RESOURCE: {
+      const { resourceType, resourceId } = action.payload;
+      const { [resourceId]: removed, ...remaining } = state.resources[resourceType] || {};
+      
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resourceType]: remaining
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.CLEAR_RESOURCES: {
+      const { resourceType } = action.payload;
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resourceType]: {}
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_LOADING: {
+      const { resourceType, loading } = action.payload;
+      return {
+        ...state,
+        loading: {
+          ...state.loading,
+          [resourceType]: loading
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_ERROR: {
+      const { resourceType, error } = action.payload;
+      return {
+        ...state,
+        errors: {
+          ...state.errors,
+          [resourceType]: error
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.CLEAR_ERROR: {
+      const { resourceType } = action.payload;
+      const { [resourceType]: removed, ...remaining } = state.errors;
+      return {
+        ...state,
+        errors: remaining
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_CURRENT_PATIENT: {
+      return {
+        ...state,
+        currentPatient: action.payload
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_CURRENT_ENCOUNTER: {
+      return {
+        ...state,
+        currentEncounter: action.payload
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_CACHE: {
+      const { cacheType, key, data, ttl = 300000 } = action.payload; // 5 minute default TTL
+      return {
+        ...state,
+        cache: {
+          ...state.cache,
+          [cacheType]: {
+            ...state.cache[cacheType],
+            [key]: {
+              data,
+              timestamp: Date.now(),
+              ttl
+            }
+          }
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.INVALIDATE_CACHE: {
+      const { cacheType, key } = action.payload;
+      if (key) {
+        const { [key]: removed, ...remaining } = state.cache[cacheType] || {};
+        return {
+          ...state,
+          cache: {
+            ...state.cache,
+            [cacheType]: remaining
+          }
+        };
+      } else {
+        return {
+          ...state,
+          cache: {
+            ...state.cache,
+            [cacheType]: {}
+          }
+        };
+      }
+    }
+    
+    case FHIR_ACTIONS.SET_RELATIONSHIPS: {
+      const { patientId, relationships } = action.payload;
+      return {
+        ...state,
+        relationships: {
+          ...state.relationships,
+          [patientId]: relationships
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.ADD_RELATIONSHIP: {
+      const { patientId, resourceType, resourceId } = action.payload;
+      const existing = state.relationships[patientId] || {};
+      const existingType = existing[resourceType] || [];
+      
+      return {
+        ...state,
+        relationships: {
+          ...state.relationships,
+          [patientId]: {
+            ...existing,
+            [resourceType]: [...existingType, resourceId].filter((id, index, arr) => arr.indexOf(id) === index)
+          }
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_SEARCH_RESULTS: {
+      const { searchKey, results } = action.payload;
+      return {
+        ...state,
+        searchResults: {
+          ...state.searchResults,
+          [searchKey]: results
+        }
+      };
+    }
+    
+    case FHIR_ACTIONS.SET_FILTERS: {
+      const { resourceType, filters } = action.payload;
+      return {
+        ...state,
+        activeFilters: {
+          ...state.activeFilters,
+          [resourceType]: filters
+        }
+      };
+    }
+    
+    default:
+      return state;
+  }
+}
+
+// Create Context
+const FHIRResourceContext = createContext();
+
+// Provider Component
+export function FHIRResourceProvider({ children }) {
+  const [state, dispatch] = useReducer(fhirResourceReducer, initialState);
+
+  // Cache utilities
+  const getCachedData = useCallback((cacheType, key) => {
+    const cached = state.cache[cacheType]?.[key];
+    if (!cached) return null;
+    
+    const now = Date.now();
+    if (now - cached.timestamp > cached.ttl) {
+      // Cache expired, remove it
+      dispatch({
+        type: FHIR_ACTIONS.INVALIDATE_CACHE,
+        payload: { cacheType, key }
+      });
+      return null;
+    }
+    
+    return cached.data;
+  }, [state.cache]);
+
+  const setCachedData = useCallback((cacheType, key, data, ttl) => {
+    dispatch({
+      type: FHIR_ACTIONS.SET_CACHE,
+      payload: { cacheType, key, data, ttl }
+    });
+  }, []);
+
+  // Resource Management Functions
+  const setResources = useCallback((resourceType, resources) => {
+    dispatch({
+      type: FHIR_ACTIONS.SET_RESOURCES,
+      payload: { resourceType, resources }
+    });
+  }, []);
+
+  const addResource = useCallback((resourceType, resource) => {
+    dispatch({
+      type: FHIR_ACTIONS.ADD_RESOURCE,
+      payload: { resourceType, resource }
+    });
+    
+    // Add relationship if patient context exists
+    if (state.currentPatient && resource.subject?.reference === `Patient/${state.currentPatient.id}`) {
+      dispatch({
+        type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+        payload: {
+          patientId: state.currentPatient.id,
+          resourceType,
+          resourceId: resource.id
+        }
+      });
+    }
+  }, [state.currentPatient]);
+
+  const updateResource = useCallback((resourceType, resourceId, updates) => {
+    dispatch({
+      type: FHIR_ACTIONS.UPDATE_RESOURCE,
+      payload: { resourceType, resourceId, updates }
+    });
+  }, []);
+
+  const removeResource = useCallback((resourceType, resourceId) => {
+    dispatch({
+      type: FHIR_ACTIONS.REMOVE_RESOURCE,
+      payload: { resourceType, resourceId }
+    });
+  }, []);
+
+  const getResource = useCallback((resourceType, resourceId) => {
+    return state.resources[resourceType]?.[resourceId] || null;
+  }, [state.resources]);
+
+  const getResourcesByType = useCallback((resourceType) => {
+    return Object.values(state.resources[resourceType] || {});
+  }, [state.resources]);
+
+  const getPatientResources = useCallback((patientId, resourceType = null) => {
+    const relationships = state.relationships[patientId];
+    if (!relationships) return [];
+
+    if (resourceType) {
+      const resourceIds = relationships[resourceType] || [];
+      return resourceIds.map(id => state.resources[resourceType]?.[id]).filter(Boolean);
+    }
+
+    // Return all resources for patient
+    const allResources = [];
+    Object.entries(relationships).forEach(([type, ids]) => {
+      ids.forEach(id => {
+        const resource = state.resources[type]?.[id];
+        if (resource) {
+          allResources.push(resource);
+        }
+      });
+    });
+
+    return allResources;
+  }, [state.resources, state.relationships]);
+
+  // FHIR Operations with Caching
+  const fetchResource = useCallback(async (resourceType, resourceId, forceRefresh = false) => {
+    const cacheKey = `${resourceType}/${resourceId}`;
+    
+    if (!forceRefresh) {
+      const cached = getCachedData('resources', cacheKey);
+      if (cached) return cached;
+    }
+
+    dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
+    dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
+
+    try {
+      const resource = await fhirClient.read(resourceType, resourceId);
+      
+      addResource(resourceType, resource);
+      setCachedData('resources', cacheKey, resource);
+      
+      return resource;
+    } catch (error) {
+      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+      throw error;
+    } finally {
+      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+    }
+  }, [getCachedData, setCachedData, addResource]);
+
+  const searchResources = useCallback(async (resourceType, params = {}, forceRefresh = false) => {
+    const searchKey = `${resourceType}_${JSON.stringify(params)}`;
+    
+    if (!forceRefresh) {
+      const cached = getCachedData('searches', searchKey);
+      if (cached) {
+        setResources(resourceType, cached.resources);
+        return cached;
+      }
+    }
+
+    dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
+    dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
+
+    try {
+      const result = await fhirClient.search(resourceType, params);
+      
+      if (result.resources && result.resources.length > 0) {
+        setResources(resourceType, result.resources);
+        
+        // Build relationships for patient resources
+        if (params.patient || params.subject) {
+          const patientId = params.patient || params.subject;
+          result.resources.forEach(resource => {
+            dispatch({
+              type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+              payload: {
+                patientId,
+                resourceType,
+                resourceId: resource.id
+              }
+            });
+          });
+        }
+      }
+      
+      setCachedData('searches', searchKey, result);
+      dispatch({ type: FHIR_ACTIONS.SET_SEARCH_RESULTS, payload: { searchKey, results: result } });
+      
+      return result;
+    } catch (error) {
+      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+      throw error;
+    } finally {
+      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+    }
+  }, [getCachedData, setCachedData, setResources]);
+
+  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false) => {
+    const cacheKey = `patient_bundle_${patientId}`;
+    
+    if (!forceRefresh) {
+      const cached = getCachedData('bundles', cacheKey);
+      if (cached) return cached;
+    }
+
+    const resourceTypes = [
+      'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
+      'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
+      'CarePlan', 'CareTeam', 'Coverage'
+    ];
+
+    try {
+      const promises = resourceTypes.map(resourceType =>
+        searchResources(resourceType, { patient: patientId }, forceRefresh)
+          .catch(err => ({ resourceType, error: err.message, resources: [] }))
+      );
+
+      const results = await Promise.all(promises);
+      const bundle = {};
+      
+      results.forEach(result => {
+        if (result.error) {
+          console.warn(`Error fetching ${result.resourceType}:`, result.error);
+        }
+        bundle[result.resourceType || 'unknown'] = result.resources || [];
+      });
+
+      setCachedData('bundles', cacheKey, bundle, 600000); // 10 minute cache
+      return bundle;
+    } catch (error) {
+      console.error('Error fetching patient bundle:', error);
+      throw error;
+    }
+  }, [searchResources, getCachedData, setCachedData]);
+
+  // Patient Context Management
+  const setCurrentPatient = useCallback(async (patientId) => {
+    try {
+      const patient = await fetchResource('Patient', patientId);
+      dispatch({ type: FHIR_ACTIONS.SET_CURRENT_PATIENT, payload: patient });
+      
+      // Preload common resources for this patient
+      await fetchPatientBundle(patientId);
+      
+      return patient;
+    } catch (error) {
+      console.error('Error setting current patient:', error);
+      throw error;
+    }
+  }, [fetchResource, fetchPatientBundle]);
+
+  const setCurrentEncounter = useCallback(async (encounterId) => {
+    try {
+      const encounter = await fetchResource('Encounter', encounterId);
+      dispatch({ type: FHIR_ACTIONS.SET_CURRENT_ENCOUNTER, payload: encounter });
+      return encounter;
+    } catch (error) {
+      console.error('Error setting current encounter:', error);
+      throw error;
+    }
+  }, [fetchResource]);
+
+  // Utility Functions
+  const isLoading = useCallback((resourceType) => {
+    return state.loading[resourceType] || false;
+  }, [state.loading]);
+
+  const getError = useCallback((resourceType) => {
+    return state.errors[resourceType] || null;
+  }, [state.errors]);
+
+  const clearCache = useCallback((cacheType = null) => {
+    if (cacheType) {
+      dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType } });
+    } else {
+      // Clear all caches
+      Object.keys(state.cache).forEach(type => {
+        dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: type } });
+      });
+    }
+  }, [state.cache]);
+
+  // Context Value
+  const contextValue = {
+    // State
+    ...state,
+    
+    // Resource Management
+    setResources,
+    addResource,
+    updateResource,
+    removeResource,
+    getResource,
+    getResourcesByType,
+    getPatientResources,
+    
+    // FHIR Operations
+    fetchResource,
+    searchResources,
+    fetchPatientBundle,
+    
+    // Patient Context
+    setCurrentPatient,
+    setCurrentEncounter,
+    
+    // Utilities
+    isLoading,
+    getError,
+    clearCache,
+    getCachedData,
+    setCachedData
+  };
+
+  return (
+    <FHIRResourceContext.Provider value={contextValue}>
+      {children}
+    </FHIRResourceContext.Provider>
+  );
+}
+
+// Hook for using the context
+export function useFHIRResource() {
+  const context = useContext(FHIRResourceContext);
+  if (!context) {
+    throw new Error('useFHIRResource must be used within a FHIRResourceProvider');
+  }
+  return context;
+}
+
+// Convenience hooks for specific resource types
+export function usePatient(patientId) {
+  const { getResource, fetchResource, setCurrentPatient, currentPatient } = useFHIRResource();
+  
+  const patient = patientId ? getResource('Patient', patientId) : currentPatient;
+  
+  const loadPatient = useCallback(async (id) => {
+    if (id) {
+      return await setCurrentPatient(id);
+    }
+  }, [setCurrentPatient]);
+
+  return { patient, loadPatient };
+}
+
+export function usePatientResources(patientId, resourceType = null) {
+  const { getPatientResources, fetchPatientBundle, isLoading } = useFHIRResource();
+  
+  const resources = getPatientResources(patientId, resourceType);
+  const loading = isLoading(resourceType || 'Patient');
+  
+  const loadResources = useCallback(async (forceRefresh = false) => {
+    if (patientId) {
+      return await fetchPatientBundle(patientId, forceRefresh);
+    }
+  }, [patientId, fetchPatientBundle]);
+
+  return { resources, loading, loadResources };
+}
+
+export default FHIRResourceContext;

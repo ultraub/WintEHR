@@ -10,37 +10,18 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PatientList from './pages/PatientList';
-import PatientDetail from './pages/PatientDetail';
-import PatientViewRefined from './pages/PatientViewRefined';
 import Analytics from './pages/Analytics';
 import FHIRExplorerEnhanced from './pages/FHIRExplorerEnhanced';
-import CDSDemo from './pages/CDSDemo';
-import CDSHooksBuilderEnhanced from './pages/CDSHooksBuilderEnhanced';
-import UnifiedCQLMeasures from './pages/UnifiedCQLMeasures';
-import EncounterList from './pages/EncounterList';
-import LabResults from './pages/LabResults';
-import Alerts from './pages/Alerts';
-import PatientNew from './pages/PatientNew';
-import EncounterSchedule from './pages/EncounterSchedule';
-import AuditTrailPage from './pages/AuditTrailPage';
 import Settings from './pages/Settings';
-import Notifications from './pages/Notifications';
-import Reports from './pages/Reports';
-import Billing from './pages/Billing';
-import Medications from './pages/Medications';
-import Messaging from './pages/Messaging';
-import Tasks from './pages/Tasks';
-import PatientMedications from './pages/PatientMedications';
-import PatientProblems from './pages/PatientProblems';
-import PatientAllergies from './pages/PatientAllergies';
-import PatientEncounters from './pages/PatientEncounters';
-import NewEncounter from './pages/NewEncounter';
 import Schedule from './pages/Schedule';
 import NotFound from './pages/NotFound';
-import Imaging from './pages/Imaging';
+import MedicationReconciliationPage from './pages/MedicationReconciliationPage';
+import VitalSignsPage from './pages/VitalSignsPage';
+import TrainingCenterPage from './pages/TrainingCenterPage';
 
 // Clinical Components
 import ClinicalWorkspace from './components/clinical/ClinicalWorkspace';
+import PatientDashboardV2Page from './pages/PatientDashboardV2Page';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { ClinicalProvider } from './contexts/ClinicalContext';
@@ -49,6 +30,7 @@ import { OrderProvider } from './contexts/OrderContext';
 import { TaskProvider } from './contexts/TaskContext';
 import { InboxProvider } from './contexts/InboxContext';
 import { AppointmentProvider } from './contexts/AppointmentContext';
+import { FHIRResourceProvider } from './contexts/FHIRResourceContext';
 
 // Create a context for theme toggling
 export const ThemeToggleContext = React.createContext();
@@ -317,23 +299,19 @@ function App() {
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <AuthProvider>
             <WebSocketProvider>
-              <ClinicalProvider>
-                <DocumentationProvider>
-                  <OrderProvider>
-                    <TaskProvider>
-                      <InboxProvider>
-                        <AppointmentProvider>
+              <FHIRResourceProvider>
+                <ClinicalProvider>
+                  <DocumentationProvider>
+                    <OrderProvider>
+                      <TaskProvider>
+                        <InboxProvider>
+                          <AppointmentProvider>
                         <Router>
                       <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/" element={<Navigate to="/patients" replace />} />
-                        <Route path="/dashboard" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Dashboard />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
+                        
+                        {/* Patient Registry */}
                         <Route path="/patients" element={
                           <ProtectedRoute>
                             <Layout>
@@ -341,115 +319,62 @@ function App() {
                             </Layout>
                           </ProtectedRoute>
                         } />
+                        
+                        {/* Patient Chart - New FHIR-native dashboard as default */}
                         <Route path="/patients/:id" element={
                           <ProtectedRoute>
                             <Layout>
-                              <PatientViewRefined />
+                              <PatientDashboardV2Page />
                             </Layout>
                           </ProtectedRoute>
                         } />
-                        <Route path="/patients/:id/detail" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientDetail />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/clinical-workspace/:patientId" element={
+                        
+                        {/* Clinical Workspace */}
+                        <Route path="/patients/:id/clinical" element={
                           <ProtectedRoute>
                             <Layout>
                               <ClinicalWorkspace />
                             </Layout>
                           </ProtectedRoute>
                         } />
+                        
+                        {/* Specific Clinical Workflows */}
+                        <Route path="/patients/:id/medication-reconciliation" element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <MedicationReconciliationPage />
+                            </Layout>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/patients/:id/encounters/:encounterId/medication-reconciliation" element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <MedicationReconciliationPage />
+                            </Layout>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/patients/:id/vital-signs" element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <VitalSignsPage />
+                            </Layout>
+                          </ProtectedRoute>
+                        } />
+                        
+                        {/* Provider Workspace */}
+                        <Route path="/schedule" element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <Schedule />
+                            </Layout>
+                          </ProtectedRoute>
+                        } />
+                        
+                        {/* Administration */}
                         <Route path="/analytics" element={
                           <ProtectedRoute>
                             <Layout>
                               <Analytics />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/fhir" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <FHIRExplorerEnhanced />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/cds-demo" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <CDSDemo />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/cds-hooks" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <CDSHooksBuilderEnhanced />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/quality" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <UnifiedCQLMeasures />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/encounters" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <EncounterList />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/encounters/schedule" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <EncounterSchedule />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/lab-results" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <LabResults />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/alerts" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Alerts />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/new" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientNew />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/audit-trail" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <AuditTrailPage />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/audit-trail/patient/:patientId" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <AuditTrailPage />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/audit-trail/:resourceType/:resourceId" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <AuditTrailPage />
                             </Layout>
                           </ProtectedRoute>
                         } />
@@ -460,94 +385,19 @@ function App() {
                             </Layout>
                           </ProtectedRoute>
                         } />
-                        <Route path="/notifications" element={
+                        
+                        {/* Training Center */}
+                        <Route path="/training" element={
                           <ProtectedRoute>
                             <Layout>
-                              <Notifications />
+                              <TrainingCenterPage />
                             </Layout>
                           </ProtectedRoute>
                         } />
-                        <Route path="/reports" element={
+                        <Route path="/fhir-explorer" element={
                           <ProtectedRoute>
                             <Layout>
-                              <Reports />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/billing" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Billing />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/medications" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Medications />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/messaging" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Messaging />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/tasks" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Tasks />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/:id/medications" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientMedications />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/:id/problems" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientProblems />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/:id/allergies" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientAllergies />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/:id/encounters" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <PatientEncounters />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/patients/:id/encounters/new" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <NewEncounter />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/schedule" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Schedule />
-                            </Layout>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/imaging" element={
-                          <ProtectedRoute>
-                            <Layout>
-                              <Imaging />
+                              <FHIRExplorerEnhanced />
                             </Layout>
                           </ProtectedRoute>
                         } />
@@ -560,12 +410,13 @@ function App() {
                         } />
                       </Routes>
                     </Router>
-                        </AppointmentProvider>
-                      </InboxProvider>
-                    </TaskProvider>
-                  </OrderProvider>
-                </DocumentationProvider>
-              </ClinicalProvider>
+                          </AppointmentProvider>
+                        </InboxProvider>
+                      </TaskProvider>
+                    </OrderProvider>
+                  </DocumentationProvider>
+                </ClinicalProvider>
+              </FHIRResourceProvider>
             </WebSocketProvider>
           </AuthProvider>
         </LocalizationProvider>
