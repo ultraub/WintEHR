@@ -311,6 +311,39 @@ Track all new components, modifications, and dependencies created during the fro
 
 ### 🚧 In Progress Components
 
+#### 1. PatientDashboardV3 Component
+- **Path**: `/frontend/src/components/clinical/dashboard/PatientDashboardV3.js`
+- **Created**: 2025-01-05
+- **Purpose**: Enhanced patient dashboard with fixed refresh handling and proper error states
+- **Features**:
+  - Fixed infinite refresh loop issue
+  - Proper patient ID handling with setCurrentPatient
+  - Enhanced error states and loading indicators
+  - All features from V2 with improved stability
+- **Key Fixes**:
+  - Removed refreshCounter causing infinite loops
+  - Fixed setCurrentPatient to accept ID string only
+  - Added proper dependency arrays to useEffect hooks
+
+#### 2. Clinical Workspace Modes
+- **Status**: Implementing workflow-based clinical interface
+- **Components Completed**:
+  - **DocumentationMode** (`/frontend/src/components/clinical/workspace/modes/DocumentationMode.js`)
+    - SOAP note documentation
+    - Chief complaint, HPI, ROS, Physical exam
+    - Assessment and plan with ICD-10 coding
+    - Auto-save functionality
+  - **OrdersMode** (`/frontend/src/components/clinical/workspace/modes/OrdersMode.js`)
+    - Order sets and CPOE functionality
+    - Labs, imaging, medications, referrals
+    - Order favorites and recent orders
+    - Protocol-based ordering
+  - **ResultsReviewMode** (`/frontend/src/components/clinical/workspace/modes/ResultsReviewMode.js`)
+    - Lab results review with trending
+    - Imaging results viewer
+    - Critical value alerts
+    - Results acknowledgment workflow
+
 ### 📋 Planned Components
 
 #### Clinical Components
@@ -338,7 +371,8 @@ Track all new components, modifications, and dependencies created during the fro
 ├── timeline/
 │   └── FHIRResourceTimeline.js
 ├── dashboard/
-│   └── PatientDashboardV2.js
+│   ├── PatientDashboardV2.js
+│   └── PatientDashboardV3.js
 ├── tabs/
 │   ├── ChartReviewTab.js
 │   ├── OrdersResultsTab.js
@@ -348,6 +382,11 @@ Track all new components, modifications, and dependencies created during the fro
 │   └── VitalSignsFlowsheet.js
 ├── medications/
 │   └── MedicationReconciliation.js
+├── workspace/
+│   └── modes/
+│       ├── DocumentationMode.js
+│       ├── OrdersMode.js
+│       └── ResultsReviewMode.js
 ├── problems/ (planned)
 ├── labs/ (planned)
 ├── immunizations/ (planned)
@@ -443,3 +482,31 @@ Track all new components, modifications, and dependencies created during the fro
 2. **FHIR Mapping Guide**: Which UI elements map to which FHIR resources
 3. **Clinical Workflow Guide**: How to perform common tasks
 4. **Developer Guide**: How to add new FHIR-based features
+
+## Known Issues & Tasks Remaining
+
+### Critical Issues (January 2025):
+1. **Database Schema Mismatch**
+   - FHIR resources stored in `fhir` schema, not `public`
+   - Frontend may be querying wrong schema
+   - Need to verify backend storage module configuration
+
+2. **Clinical Data Not Displaying**
+   - Data exists in database (verified via SQL)
+   - Frontend components show empty states
+   - Likely API query or schema reference issue
+
+3. **Notification Endpoint 404s**
+   - `/api/emr/notifications/preferences` returning 404
+   - Need to implement notification endpoints or handle gracefully
+
+4. **Remaining Clinical Workspace Modes**
+   - Still need to implement remaining workflow modes
+   - Integration with main ClinicalWorkspace component pending
+
+### Next Steps:
+1. Debug and fix frontend FHIR API queries to properly fetch data
+2. Implement missing notification endpoints
+3. Complete remaining Clinical Workspace modes
+4. Full application layout and navigation redesign
+5. Performance optimization for large datasets

@@ -40,19 +40,24 @@ That's it! The system will:
 - **Frontend Agnostic**: React frontend works with any FHIR R4 server
 
 ### Clinical Features
-- **Patient Management**: Comprehensive patient demographics with insurance coverage display
-- **Clinical Workspace**: Integrated view of:
-  - Medications (FHIR MedicationRequest) with provider names and vital signs mapping
-  - Conditions (FHIR Condition) 
-  - Vitals (FHIR Observation) with standardized LOINC code mapping
-  - Lab Results (FHIR Observation/DiagnosticReport)
-  - Allergies (FHIR AllergyIntolerance) with severity-based alerts
-  - Clinical Notes (FHIR DocumentReference)
-  - Insurance Coverage (FHIR Coverage) with payer organization resolution
-- **Dedicated Clinical Pages**: 
-  - Patient Medications with prescription history and status tracking
-  - Patient Allergies with reaction management and safety alerts
-  - Patient Problems (conditions) with comprehensive clinical status
+- **Patient Dashboard V2**: Comprehensive FHIR-native patient summary with:
+  - Demographics & insurance coverage (FHIR Patient/Coverage)
+  - Recent encounters with status tracking
+  - Active conditions (problem list) with SNOMED/ICD-10 codes
+  - Current medications with detailed information
+  - Allergies & intolerances with severity alerts
+  - Recent vital signs with trending
+  - Care team and care plan management
+  - Integrated timeline view of all resources
+- **Clinical Workspace**: Advanced clinical tabs including:
+  - **Chart Review**: Problem list, medications, allergies, immunizations
+  - **Orders & Results**: Lab results with trending, diagnostic reports, imaging studies
+  - **Care Management**: Care plans, care teams, goals tracking
+  - **Financial**: Claims history, coverage details, billing summaries
+- **Medication Reconciliation**: Complete workflow for admission/discharge
+- **Vital Signs Flowsheet**: Tabular and chart views with LOINC mapping
+- **Timeline Visualization**: Chronological view of all FHIR resources
+- **Training Center**: Educational platform for physician/informaticist training
 - **DICOM Viewer**: Full-featured medical imaging viewer
 - **CDS Hooks**: Clinical decision support with 12+ built-in hooks:
   - Diabetes A1C monitoring and management alerts
@@ -62,8 +67,8 @@ That's it! The system will:
   - Elderly care comprehensive assessments
   - Opioid risk assessment and safety alerts
   - Missing lab test reminders for chronic conditions
-- **Provider Management**: Centralized provider resolution with FHIR Practitioner resources
-- **Authentication System**: Session-based auth with provider selection and patient assignments
+- **State Management**: Centralized FHIR resource context with caching
+- **Custom Hooks**: Simplified React hooks for FHIR resource access
 
 ## 📁 Architecture
 
@@ -93,6 +98,8 @@ MedGenEMR/
 - **PostgreSQL JSONB**: Flexible storage for FHIR resources
 - **API Separation**: `/fhir/R4/*` for FHIR, `/api/emr/*` for EMR extensions
 - **Frontend Agnostic**: React app can work with any FHIR server
+- **Component Architecture**: Modular clinical components with FHIR hooks
+- **State Management**: Centralized FHIR resource context with relationship mapping
 
 ## 🔧 Development
 
@@ -141,22 +148,29 @@ docker run -d -p 80:80 -p 8000:8000 medgenemr
 
 ## 📚 Documentation
 
-- [Architecture Guide](ARCHITECTURE.md) - System design and technical details
+- [Architecture Guide](docs/consolidated/ARCHITECTURE.md) - System design and technical details
 - [FHIR Implementation](docs/FHIR_README.md) - FHIR API documentation
-- [Migration Guide](MIGRATION_GUIDE.md) - Migrating from legacy to FHIR
+- [Frontend Redesign Plan](docs/FRONTEND_REDESIGN_PLAN.md) - Comprehensive redesign strategy
+- [Frontend Redesign Tracker](docs/FRONTEND_REDESIGN_TRACKER.md) - Implementation progress
+- [Project Integrity Guide](PROJECT_INTEGRITY_GUIDE.md) - Error patterns and best practices
+- [Document Index](DOCUMENT_INDEX.md) - Complete documentation registry
+- [Migration Plan](docs/MIGRATION_PLAN.md) - Legacy to FHIR migration status
 - [Testing Guide](docs/TESTING.md) - Comprehensive testing procedures
+- [API Endpoints](docs/API_ENDPOINTS.md) - Complete API reference
 - [Additional Docs](docs/) - DICOM, CDS Hooks, and more
 
 ## 🧪 Test Data & Synthea Integration
 
-### Included Test Patients
-The system includes 6 comprehensive test patients with full clinical histories:
-- John Q Test (Hypertension, Diabetes)
-- David Williams (CAD, Hyperlipidemia)
-- Linda Brown (Asthma, Anxiety)
-- Michael Brown (COPD, Osteoarthritis)
-- Patricia Brown (Hypothyroidism, Depression)
-- Mary Brown (Atrial fibrillation, Osteoporosis)
+### Available FHIR Resources
+The system contains **3,461 FHIR resources** across multiple resource types:
+- **Patients**: 11 comprehensive test patients with full clinical histories
+- **Encounters**: 209 clinical encounters across all care settings
+- **Observations**: 1,090 lab results and vital signs with LOINC codes
+- **Conditions**: 161 diagnosed conditions with SNOMED/ICD-10 coding
+- **Medications**: 70 medication requests with detailed prescribing information
+- **Procedures**: 421 medical procedures with CPT coding
+- **Claims**: 279 insurance claims with coverage details
+- **Plus**: Allergies, immunizations, care plans, care teams, imaging studies, and more
 
 ### Synthea Synthetic Data Generation
 Generate unlimited realistic patient data using our consolidated Synthea workflow:

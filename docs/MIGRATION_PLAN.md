@@ -21,14 +21,14 @@ These endpoints can be directly replaced with FHIR API calls:
 | `POST /api/conditions` | `POST /fhir/R4/Condition` | Direct FHIR |
 | `GET /api/providers` | `GET /fhir/R4/Practitioner` | Direct FHIR |
 
-### 2. FHIR with Search Parameters
-These require specific FHIR search parameters:
+### 2. FHIR with Search Parameters (IMPLEMENTED)
+These have been successfully migrated with specific FHIR search parameters:
 
-| Legacy Endpoint | FHIR Replacement | Search Parameters |
-|----------------|------------------|-------------------|
-| `GET /api/observations?observation_type=laboratory` | `GET /fhir/R4/Observation?category=laboratory` | Use category search |
-| `GET /api/lab-results` | `GET /fhir/R4/Observation?category=laboratory&_sort=-date` | Category + sorting |
-| `GET /api/tasks` | `GET /fhir/R4/Task` | May need status filters |
+| Legacy Endpoint | FHIR Replacement | Implementation Status |
+|----------------|------------------|----------------------|
+| ~~`GET /api/observations?observation_type=laboratory`~~ | `GET /fhir/R4/Observation?category=laboratory` | ✅ Implemented |
+| ~~`GET /api/lab-results`~~ | `GET /fhir/R4/Observation?category=laboratory&_sort=-date` | ✅ Implemented |
+| ~~`GET /api/tasks`~~ | `GET /fhir/R4/Task` | ✅ Implemented |
 
 ### 3. EMR Extensions (Keep as EMR APIs)
 These remain in the EMR extension layer as per architecture:

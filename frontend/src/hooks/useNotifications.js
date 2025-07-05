@@ -28,9 +28,14 @@ export const useNotifications = () => {
       if (response.ok) {
         const data = await response.json();
         setCount(data.count || 0);
+      } else if (response.status === 404) {
+        // Notifications endpoint not yet implemented - set count to 0
+        setCount(0);
       }
     } catch (error) {
-      console.error('Error fetching notification count:', error);
+      // Silently handle error since notifications are not critical
+      console.debug('Notifications not available:', error);
+      setCount(0);
     } finally {
       setLoading(false);
     }

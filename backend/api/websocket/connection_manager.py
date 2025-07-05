@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Set, Optional, Any
 from datetime import datetime
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,12 @@ class Subscription(BaseModel):
     client_id: str
     resource_types: List[str] = []
     patient_ids: List[str] = []
-    created_at: datetime = datetime.utcnow()
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
     
     def matches(self, resource_type: str, patient_id: Optional[str] = None) -> bool:
         """Check if this subscription matches the given criteria."""
@@ -36,8 +41,13 @@ class WebSocketMessage(BaseModel):
     """Standard WebSocket message format."""
     type: str  # "subscription", "update", "ping", "pong", "error"
     data: Optional[Dict[str, Any]] = None
-    timestamp: datetime = datetime.utcnow()
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     message_id: Optional[str] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class ConnectionManager:

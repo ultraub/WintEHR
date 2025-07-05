@@ -20,7 +20,7 @@ import VitalSignsPage from './pages/VitalSignsPage';
 import TrainingCenterPage from './pages/TrainingCenterPage';
 
 // Clinical Components
-import ClinicalWorkspace from './components/clinical/ClinicalWorkspace';
+import ClinicalWorkspaceV2 from './components/clinical/ClinicalWorkspaceV2';
 import PatientDashboardV2Page from './pages/PatientDashboardV2Page';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
@@ -31,6 +31,7 @@ import { TaskProvider } from './contexts/TaskContext';
 import { InboxProvider } from './contexts/InboxContext';
 import { AppointmentProvider } from './contexts/AppointmentContext';
 import { FHIRResourceProvider } from './contexts/FHIRResourceContext';
+import { WorkflowProvider } from './contexts/WorkflowContext';
 
 // Create a context for theme toggling
 export const ThemeToggleContext = React.createContext();
@@ -300,13 +301,14 @@ function App() {
           <AuthProvider>
             <WebSocketProvider>
               <FHIRResourceProvider>
-                <ClinicalProvider>
-                  <DocumentationProvider>
-                    <OrderProvider>
-                      <TaskProvider>
-                        <InboxProvider>
-                          <AppointmentProvider>
-                        <Router>
+                <WorkflowProvider>
+                  <ClinicalProvider>
+                    <DocumentationProvider>
+                      <OrderProvider>
+                        <TaskProvider>
+                          <InboxProvider>
+                            <AppointmentProvider>
+                          <Router>
                       <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/" element={<Navigate to="/patients" replace />} />
@@ -333,7 +335,7 @@ function App() {
                         <Route path="/patients/:id/clinical" element={
                           <ProtectedRoute>
                             <Layout>
-                              <ClinicalWorkspace />
+                              <ClinicalWorkspaceV2 />
                             </Layout>
                           </ProtectedRoute>
                         } />
@@ -410,12 +412,13 @@ function App() {
                         } />
                       </Routes>
                     </Router>
-                          </AppointmentProvider>
-                        </InboxProvider>
-                      </TaskProvider>
-                    </OrderProvider>
-                  </DocumentationProvider>
-                </ClinicalProvider>
+                            </AppointmentProvider>
+                          </InboxProvider>
+                        </TaskProvider>
+                      </OrderProvider>
+                    </DocumentationProvider>
+                  </ClinicalProvider>
+                </WorkflowProvider>
               </FHIRResourceProvider>
             </WebSocketProvider>
           </AuthProvider>

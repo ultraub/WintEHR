@@ -1,8 +1,11 @@
-# EMR System API Endpoints Reference
+# MedGenEMR FHIR-Native API Endpoints Reference
 
 ## Base URLs
 - **Local Development**: `http://localhost:8000`
 - **Production**: `http://your-domain.com`
+
+## Overview
+MedGenEMR provides a complete FHIR R4 compliant API with optional EMR extensions. All clinical data is accessed through standard FHIR endpoints, ensuring interoperability with any FHIR client.
 
 ## FHIR R4 Endpoints
 
@@ -106,51 +109,47 @@ Returns available CDS services
 }
 ```
 
-## Application API Endpoints
+## EMR Extension API Endpoints
 
-### Authentication
-```
-GET /api/auth/providers              # List all providers
-POST /api/auth/login                 # Login
-POST /api/auth/logout                # Logout
-GET /api/auth/me                     # Current user info
-```
+**Note**: These are optional extensions to core FHIR functionality. All clinical data should be accessed via FHIR endpoints when possible.
 
-### Patients
+### Authentication (EMR Extension)
 ```
-GET /api/patients                    # List all patients
-GET /api/patients/{patient-id}       # Get patient details
-GET /api/patients/{patient-id}/summary  # Patient summary
+GET /api/emr/auth/providers          # List all providers
+POST /api/emr/auth/login             # Provider login
+POST /api/emr/auth/logout            # Logout
+GET /api/emr/auth/me                 # Current user info
 ```
 
-### Clinical Data
+### Clinical Decision Support
 ```
-GET /api/patients/{patient-id}/conditions      # Conditions/Diagnoses
-GET /api/patients/{patient-id}/medications     # Medications
-GET /api/patients/{patient-id}/observations    # Labs/Vitals
-GET /api/patients/{patient-id}/encounters      # Encounters
-GET /api/patients/{patient-id}/allergies       # Allergies
+GET /api/emr/clinical/alerts         # Active clinical alerts
+POST /api/emr/clinical/evaluate      # Evaluate CDS rules
 ```
 
-### Documentation & Notes
+### Workflow Extensions
 ```
-GET /api/notes/patient/{patient-id}            # Get notes
-POST /api/notes                                 # Create note
-PUT /api/notes/{note-id}                        # Update note
-```
-
-### Orders
-```
-GET /api/orders/patient/{patient-id}           # Get orders
-POST /api/orders                                # Create order
+GET /api/emr/workflow/tasks          # Workflow tasks
+POST /api/emr/workflow/complete      # Complete workflow step
 ```
 
-### Clinical Catalogs
+### UI State Management
 ```
-GET /api/catalogs/medications                   # Medication catalog
-GET /api/catalogs/lab-tests                     # Lab test catalog
-GET /api/catalogs/imaging                       # Imaging catalog
+GET /api/emr/ui/state                # User UI preferences
+POST /api/emr/ui/state               # Save UI state
 ```
+
+**⚠️ Deprecated Legacy Endpoints**
+The following endpoints have been removed in favor of FHIR APIs:
+- ~~`/api/patients/*`~~ → Use `/fhir/R4/Patient`
+- ~~`/api/encounters/*`~~ → Use `/fhir/R4/Encounter`
+- ~~`/api/observations/*`~~ → Use `/fhir/R4/Observation`
+- ~~`/api/conditions/*`~~ → Use `/fhir/R4/Condition`
+- ~~`/api/medications/*`~~ → Use `/fhir/R4/MedicationRequest`
+- ~~`/api/allergies/*`~~ → Use `/fhir/R4/AllergyIntolerance`
+- ~~`/api/notes/*`~~ → Use `/fhir/R4/DocumentReference`
+- ~~`/api/orders/*`~~ → Use `/fhir/R4/ServiceRequest`
+- ~~`/api/catalogs/*`~~ → Use FHIR terminology services
 
 ## Testing Endpoints
 
@@ -171,17 +170,42 @@ GET /openapi.json  # OpenAPI spec
 
 ### Get Patient List (FHIR)
 ```bash
-curl http://your-domain/fhir/R4/Patient?_count=10
+curl http://localhost:8000/fhir/R4/Patient?_count=10
 ```
 
-### Get Patient Conditions (FHIR)
+### Get Patient Everything Bundle (FHIR)
 ```bash
-curl http://your-domain/fhir/R4/Condition?patient=PATIENT_ID
+curl "http://localhost:8000/fhir/R4/Patient/[id]/$everything"
+```
+
+### Search Patient Resources (FHIR)
+```bash
+# Get all conditions for a patient
+curl "http://localhost:8000/fhir/R4/Condition?patient=PATIENT_ID"
+
+# Get recent lab results
+curl "http://localhost:8000/fhir/R4/Observation?patient=PATIENT_ID&category=laboratory&_sort=-date"
+
+# Get active medications
+curl "http://localhost:8000/fhir/R4/MedicationRequest?patient=PATIENT_ID&status=active"
+```
+
+### Create FHIR Resources
+```bash
+# Create a new patient
+curl -X POST http://localhost:8000/fhir/R4/Patient \
+  -H "Content-Type: application/fhir+json" \
+  -d '{
+    "resourceType": "Patient",
+    "name": [{"given": ["John"], "family": "Doe"}],
+    "gender": "male",
+    "birthDate": "1990-01-01"
+  }'
 ```
 
 ### Trigger CDS Hook
 ```bash
-curl -X POST http://your-domain/cds-hooks/diabetes-a1c-monitoring \
+curl -X POST http://localhost:8000/cds-hooks/diabetes-a1c-monitoring \
   -H "Content-Type: application/json" \
   -d '{
     "hookInstance": "test-123",
@@ -192,9 +216,9 @@ curl -X POST http://your-domain/cds-hooks/diabetes-a1c-monitoring \
   }'
 ```
 
-### Login
+### EMR Login
 ```bash
-curl -X POST http://your-domain/api/auth/login \
+curl -X POST http://localhost:8000/api/emr/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "provider_id": "PROVIDER_ID"

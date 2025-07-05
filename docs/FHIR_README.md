@@ -104,12 +104,16 @@ curl -X POST http://localhost:8000/fhir/R4/ \
 The frontend can work with ANY FHIR R4 server. Configure in `frontend/.env`:
 
 ```env
-# Use local MedGenEMR
+# Use local MedGenEMR (default)
 REACT_APP_FHIR_ENDPOINT=http://localhost:8000/fhir/R4
 
 # Or use public FHIR servers
 REACT_APP_FHIR_ENDPOINT=https://hapi.fhir.org/baseR4
 # REACT_APP_FHIR_ENDPOINT=https://launch.smarthealthit.org/v/r4/fhir
+
+# Enable EMR extensions (optional)
+REACT_APP_EMR_FEATURES=true
+REACT_APP_EMR_ENDPOINT=http://localhost:8000/api/emr
 ```
 
 ## 🧪 Testing the Implementation

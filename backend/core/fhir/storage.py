@@ -20,6 +20,7 @@ from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, Bundl
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
 from .synthea_validator import SyntheaFHIRValidator
+from .reference_utils import ReferenceUtils
 try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:
@@ -993,7 +994,10 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both standard Patient/id and urn:uuid: formats
+                resource_type_ref, resource_id = ReferenceUtils.extract_resource_type_and_id(ref)
+                if resource_type_ref == 'Patient' or (resource_type_ref is None and ref.startswith('urn:uuid:')):
+                    # For urn:uuid refs, we assume subject refers to patient in Observation context
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
