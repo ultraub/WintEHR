@@ -11,7 +11,7 @@ Implements comprehensive FHIR search functionality including:
 
 import re
 from typing import Dict, List, Tuple, Any, Optional, Set
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 
@@ -23,6 +23,7 @@ class SearchParameterHandler:
     TOKEN_MODIFIERS = {':text', ':not', ':above', ':below', ':in', ':not-in'}
     DATE_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     NUMBER_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
+    QUANTITY_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     REFERENCE_MODIFIERS = {':missing', ':type', ':identifier'}
     
     # Common search parameters applicable to all resources
@@ -124,15 +125,17 @@ class SearchParameterHandler:
                 where_clauses.append(where_clause)
                 continue
             
-            # Regular search parameters
-            join_clauses.append(
-                f"LEFT JOIN fhir.search_params {alias} ON {alias}.resource_id = r.id"
-            )
-            
             # Build WHERE clause based on parameter type
             param_type = param_data['type']
             modifier = param_data.get('modifier')
             values = param_data['values']
+            
+            # Quantity searches don't use search_params table
+            if param_type != 'quantity':
+                # Regular search parameters
+                join_clauses.append(
+                    f"LEFT JOIN fhir.search_params {alias} ON {alias}.resource_id = r.id"
+                )
             
             if param_type == 'string':
                 where_clause = self._build_string_clause(
@@ -152,6 +155,10 @@ class SearchParameterHandler:
                 )
             elif param_type == 'reference':
                 where_clause = self._build_reference_clause(
+                    alias, param_data['name'], values, modifier, param_counter, sql_params
+                )
+            elif param_type == 'quantity':
+                where_clause = self._build_quantity_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
             else:
@@ -229,7 +236,9 @@ class SearchParameterHandler:
         """Parse a single search parameter."""
         # Extract modifier if present
         if ':' in param_name:
-            base_param, modifier = param_name.split(':', 1)
+            parts = param_name.split(':', 1)
+            base_param = parts[0]
+            modifier = parts[1]
         else:
             base_param = param_name
             modifier = None
@@ -239,8 +248,12 @@ class SearchParameterHandler:
         if not param_type:
             return None
         
-        # Validate modifier
-        if modifier and not self._is_valid_modifier(param_type, modifier):
+        # Special handling for reference parameters with resource type modifier
+        if param_type == 'reference' and modifier and modifier not in ['missing', 'type', 'identifier']:
+            # The modifier is a resource type (e.g., subject:Patient)
+            # Keep it as the modifier for special handling in _build_reference_clause
+            pass
+        elif modifier and not self._is_valid_modifier(param_type, modifier):
             return None
         
         # Parse values based on type
@@ -286,6 +299,8 @@ class SearchParameterHandler:
             return modifier_with_colon in self.DATE_MODIFIERS
         elif param_type == 'number':
             return modifier_with_colon in self.NUMBER_MODIFIERS
+        elif param_type == 'quantity':
+            return modifier_with_colon in self.QUANTITY_MODIFIERS
         elif param_type == 'reference':
             return modifier_with_colon in self.REFERENCE_MODIFIERS or '.' in modifier
         
@@ -327,6 +342,11 @@ class SearchParameterHandler:
                 return {'type': ref_type, 'id': ref_id}
             else:
                 return {'type': None, 'id': value}
+        
+        elif param_type == 'quantity':
+            # Quantity format: [comparator]number[|system|code]
+            # For now, parse as number
+            return self._parse_number_value(value)
         
         return None
     
@@ -426,9 +446,9 @@ class SearchParameterHandler:
                 conditions.append(f"{alias}.value_string ILIKE :{param_key}")
                 sql_params[param_key] = f"%{value}%"
             else:
-                # Default string search (starts with)
-                conditions.append(f"{alias}.value_string ILIKE :{param_key}")
-                sql_params[param_key] = f"{value}%"
+                # Default string search - case-insensitive exact match
+                conditions.append(f"LOWER({alias}.value_string) = LOWER(:{param_key})")
+                sql_params[param_key] = value
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name
@@ -455,24 +475,36 @@ class SearchParameterHandler:
             
             if system is not None and code is not None:
                 # Both system and code specified
-                system_key = f"token_system_{counter}_{i}"
-                code_key = f"token_code_{counter}_{i}"
-                conditions.append(
-                    f"({alias}.value_token_system = :{system_key} AND "
-                    f"{alias}.value_token_code = :{code_key})"
-                )
-                sql_params[system_key] = system
-                sql_params[code_key] = code
+                if system == '':
+                    # Empty system means no system
+                    code_key = f"token_code_{counter}_{i}"
+                    conditions.append(
+                        f"({alias}.value_token_system IS NULL AND "
+                        f"{alias}.value_token_code = :{code_key})"
+                    )
+                    sql_params[code_key] = code
+                else:
+                    system_key = f"token_system_{counter}_{i}"
+                    code_key = f"token_code_{counter}_{i}"
+                    conditions.append(
+                        f"({alias}.value_token_system = :{system_key} AND "
+                        f"{alias}.value_token_code = :{code_key})"
+                    )
+                    sql_params[system_key] = system
+                    sql_params[code_key] = code
             elif code is not None:
-                # Only code specified
+                # Only code specified - match any system
                 code_key = f"token_code_{counter}_{i}"
                 conditions.append(f"{alias}.value_token_code = :{code_key}")
                 sql_params[code_key] = code
             elif system is not None:
                 # Only system specified
-                system_key = f"token_system_{counter}_{i}"
-                conditions.append(f"{alias}.value_token_system = :{system_key}")
-                sql_params[system_key] = system
+                if system == '':
+                    conditions.append(f"{alias}.value_token_system IS NULL")
+                else:
+                    system_key = f"token_system_{counter}_{i}"
+                    conditions.append(f"{alias}.value_token_system = :{system_key}")
+                    sql_params[system_key] = system
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name
@@ -594,28 +626,85 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for reference parameter."""
-        # This would be more complex in a full implementation
-        # For now, use string search on the reference value
         conditions = []
         
-        for i, value_dict in enumerate(values):
-            ref_type = value_dict.get('type')
-            ref_id = value_dict.get('id')
-            
-            if ref_type and ref_id:
-                ref_key = f"ref_{counter}_{i}"
-                conditions.append(f"{alias}.value_string = :{ref_key}")
-                sql_params[ref_key] = f"{ref_type}/{ref_id}"
-            elif ref_id:
-                ref_key = f"ref_{counter}_{i}"
-                conditions.append(f"{alias}.value_string LIKE :{ref_key}")
-                sql_params[ref_key] = f"%/{ref_id}"
+        # Handle resource type modifier (e.g., subject:Patient)
+        if modifier and ':' not in modifier and modifier != 'type':
+            # The modifier is a resource type constraint
+            for i, value_dict in enumerate(values):
+                ref_id = value_dict.get('id')
+                if ref_id:
+                    ref_key = f"ref_{counter}_{i}"
+                    conditions.append(f"{alias}.value_string = :{ref_key}")
+                    sql_params[ref_key] = f"{modifier}/{ref_id}"
+        else:
+            # Standard reference handling
+            for i, value_dict in enumerate(values):
+                ref_type = value_dict.get('type')
+                ref_id = value_dict.get('id')
+                
+                if ref_type and ref_id:
+                    ref_key = f"ref_{counter}_{i}"
+                    conditions.append(f"{alias}.value_string = :{ref_key}")
+                    sql_params[ref_key] = f"{ref_type}/{ref_id}"
+                elif ref_id:
+                    # Match any reference ending with this ID
+                    ref_key = f"ref_{counter}_{i}"
+                    conditions.append(f"{alias}.value_string LIKE :{ref_key}")
+                    sql_params[ref_key] = f"%/{ref_id}"
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name
         
         if conditions:
             return f"({alias}.param_name = :{param_name_key} AND ({' OR '.join(conditions)}))"
+        return "1=1"
+    
+    def _build_quantity_clause(
+        self,
+        alias: str,
+        param_name: str,
+        values: List[Dict],
+        modifier: Optional[str],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for quantity parameter."""
+        # For value-quantity searches, we need to query the JSONB directly
+        # since quantities have complex structure (value, unit, system, code)
+        conditions = []
+        
+        for i, value_dict in enumerate(values):
+            prefix = value_dict['prefix']
+            value = value_dict['value']
+            
+            # Build JSONB path query
+            if param_name == 'value-quantity':
+                jsonb_path = "r.resource->'valueQuantity'->>'value'"
+            else:
+                # Generic quantity path
+                jsonb_path = f"r.resource->'{param_name}'->>'value'"
+            
+            number_key = f"quantity_{counter}_{i}"
+            
+            if prefix == 'eq':
+                conditions.append(f"({jsonb_path})::numeric = :{number_key}")
+            elif prefix == 'ne':
+                conditions.append(f"({jsonb_path})::numeric != :{number_key}")
+            elif prefix == 'lt':
+                conditions.append(f"({jsonb_path})::numeric < :{number_key}")
+            elif prefix == 'le':
+                conditions.append(f"({jsonb_path})::numeric <= :{number_key}")
+            elif prefix == 'gt':
+                conditions.append(f"({jsonb_path})::numeric > :{number_key}")
+            elif prefix == 'ge':
+                conditions.append(f"({jsonb_path})::numeric >= :{number_key}")
+            
+            sql_params[number_key] = float(value)
+        
+        if conditions:
+            # For quantity searches, don't use search_params table
+            return f"({' OR '.join(conditions)})"
         return "1=1"
     
     def _build_has_clause(
@@ -651,10 +740,12 @@ class SearchParameterHandler:
                 end = start.replace(month=start.month + 1)
         elif precision == 'day':
             start = date_value.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = start.replace(day=start.day + 1) if start.day < 28 else start.replace(hour=23, minute=59, second=59, microsecond=999999)
+            # Add one day
+            from datetime import timedelta
+            end = start + timedelta(days=1)
         else:
-            # Time precision
+            # Time precision - exact match
             start = date_value
-            end = date_value
+            end = date_value + timedelta(microseconds=1)
         
         return start, end

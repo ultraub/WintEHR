@@ -20,6 +20,9 @@ from clinical_canvas.router import router as clinical_canvas_router
 # Import WebSocket router
 from api.websocket.websocket_router import router as websocket_router
 
+# Import FHIR content negotiation middleware
+from fhir_api.content_negotiation import content_negotiation_middleware
+
 # Import legacy routers (to be migrated)
 # TODO: Migrate these to use FHIR APIs
 # Import auth router
@@ -63,6 +66,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add FHIR content negotiation middleware
+@app.middleware("http")
+async def add_content_negotiation(request, call_next):
+    return await content_negotiation_middleware(request, call_next)
 
 # Startup and shutdown events
 @app.on_event("startup")

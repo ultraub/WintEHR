@@ -6,13 +6,13 @@ Handles all resource types, search operations, and custom operations.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, Body
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response as FastAPIResponse
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.fhir.storage import FHIRStorageEngine
+from core.fhir.storage import FHIRStorageEngine, ConditionalCreateExistingResource
 from core.fhir.synthea_validator import SyntheaFHIRValidator
 from core.fhir.operations import OperationHandler
 from core.fhir.search import SearchParameterHandler
@@ -123,7 +123,7 @@ async def get_capability_statement():
 
 @fhir_router.post("/")
 async def process_bundle(
-    bundle: Bundle,
+    request: Request,
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -133,6 +133,31 @@ async def process_bundle(
     """
     storage = FHIRStorageEngine(db)
     
+    # Get the raw request body
+    try:
+        bundle_data = await request.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON in request body: {str(e)}"
+        )
+    
+    # Validate it's a Bundle
+    if not isinstance(bundle_data, dict) or bundle_data.get('resourceType') != 'Bundle':
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a FHIR Bundle resource"
+        )
+    
+    # Construct Bundle object
+    try:
+        bundle = Bundle(**bundle_data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Bundle resource: {str(e)}"
+        )
+    
     if bundle.type not in ["batch", "transaction"]:
         raise HTTPException(
             status_code=400,
@@ -141,9 +166,119 @@ async def process_bundle(
     
     try:
         response_bundle = await storage.process_bundle(bundle)
-        return response_bundle
+        print(f"DEBUG: Response bundle type: {type(response_bundle)}")
+        if response_bundle is None:
+            print("ERROR: Response bundle is None!")
+            raise HTTPException(status_code=500, detail="Bundle processing returned None")
+        return response_bundle.dict()
     except Exception as e:
+        import traceback
+        print(f"ERROR in process_bundle: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@fhir_router.get("/{resource_type}/_history")
+async def get_type_history(
+    resource_type: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    _count: Optional[int] = Query(None, alias="_count"),
+    _since: Optional[str] = Query(None, alias="_since"),
+    _at: Optional[str] = Query(None, alias="_at"),
+    _page: Optional[int] = Query(None, alias="_page")
+):
+    """
+    Get history for all resources of a type.
+    """
+    if resource_type not in SUPPORTED_RESOURCES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Resource type {resource_type} not supported"
+        )
+    
+    storage = FHIRStorageEngine(db)
+    
+    # Parse datetime parameters
+    since = None
+    at = None
+    if _since:
+        try:
+            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
+    
+    if _at:
+        try:
+            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+    
+    # Calculate pagination
+    count = _count or 100
+    page = _page or 1
+    offset = (page - 1) * count
+    
+    # Get history
+    history = await storage.get_history(
+        resource_type=resource_type,
+        offset=offset,
+        limit=count,
+        since=since,
+        at=at
+    )
+    
+    # Get total count for pagination
+    total_history = await storage.get_history(
+        resource_type=resource_type,
+        limit=999999,  # Get all for count
+        since=since,
+        at=at
+    )
+    total = len(total_history)
+    
+    # Build history bundle
+    bundle = Bundle(
+        type="history",
+        total=total,
+        entry=[]
+    )
+    
+    # Add navigation links
+    base_url = str(request.url).split('?')[0]
+    params_dict = dict(request.query_params)
+    
+    bundle.link = [
+        {"relation": "self", "url": str(request.url)}
+    ]
+    
+    if page > 1:
+        prev_params = params_dict.copy()
+        prev_params['_page'] = str(page - 1)
+        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
+        bundle.link.append({"relation": "previous", "url": prev_url})
+    
+    if offset + count < total:
+        next_params = params_dict.copy()
+        next_params['_page'] = str(page + 1)
+        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
+        bundle.link.append({"relation": "next", "url": next_url})
+    
+    for entry in history:
+        bundle.entry.append({
+            "fullUrl": f"{base_url.replace('/_history', '')}/{entry['id']}/_history/{entry['versionId']}",
+            "resource": entry['resource'],
+            "request": {
+                "method": entry['operation'].upper(),
+                "url": f"{resource_type}/{entry['id']}"
+            },
+            "response": {
+                "status": "200",
+                "lastModified": entry['lastUpdated']
+            }
+        })
+    
+    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}")
@@ -170,7 +305,7 @@ async def search_resources(
         )
     
     storage = FHIRStorageEngine(db)
-    search_handler = SearchParameterHandler()
+    search_handler = SearchParameterHandler(storage._get_search_parameter_definitions())
     
     # Get all query parameters
     query_params = dict(request.query_params)
@@ -241,8 +376,7 @@ async def search_resources(
 async def create_resource(
     resource_type: str,
     request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    if_none_exist: Optional[str] = Query(None, alias="If-None-Exist")
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
     Create a new resource.
@@ -257,6 +391,9 @@ async def create_resource(
     
     storage = FHIRStorageEngine(db)
     validator = SyntheaFHIRValidator()
+    
+    # Check for If-None-Exist header
+    if_none_exist = request.headers.get("If-None-Exist")
     
     # Get resource data
     resource_data = await request.json()
@@ -277,7 +414,7 @@ async def create_resource(
             if_none_exist
         )
         
-        # Build response
+        # Build response for newly created resource
         response = Response(status_code=201)
         response.headers["Location"] = f"{resource_type}/{fhir_id}"
         response.headers["ETag"] = f'W/"{version_id}"'
@@ -288,11 +425,154 @@ async def create_resource(
         
         return response
         
+    except ConditionalCreateExistingResource as e:
+        # Conditional create found existing resource - return 200 OK
+        response = Response(status_code=200)
+        response.headers["Location"] = f"{resource_type}/{e.fhir_id}"
+        response.headers["ETag"] = f'W/"{e.version_id}"'
+        if isinstance(e.last_updated, datetime):
+            response.headers["Last-Modified"] = e.last_updated.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        else:
+            response.headers["Last-Modified"] = str(e.last_updated)
+        
+        return response
+        
+    except TypeError as e:
+        # This is likely the "an integer is required (got type str)" error
+        import traceback
+        print(f"TypeError in create_resource: {e}")
+        print(f"Resource type: {resource_type}")
+        print(f"Traceback: {traceback.format_exc()}")
+        # Try to identify which field is causing the issue
+        if resource_type == "Observation" and "component" in resource_data:
+            print("DEBUG: Checking component structure...")
+            for i, comp in enumerate(resource_data.get("component", [])):
+                if "valueQuantity" in comp:
+                    vq = comp["valueQuantity"]
+                    print(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         import traceback
         print(f"Error in create_resource: {e}")
+        print(f"Resource type: {resource_type}")
         print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@fhir_router.get("/{resource_type}/{id}/_history")
+async def get_instance_history(
+    resource_type: str,
+    id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    _count: Optional[int] = Query(None, alias="_count"),
+    _since: Optional[str] = Query(None, alias="_since"),
+    _at: Optional[str] = Query(None, alias="_at"),
+    _page: Optional[int] = Query(None, alias="_page")
+):
+    """
+    Get history for a specific resource.
+    """
+    if resource_type not in SUPPORTED_RESOURCES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Resource type {resource_type} not supported"
+        )
+    
+    storage = FHIRStorageEngine(db)
+    
+    # Parse datetime parameters
+    since = None
+    at = None
+    if _since:
+        try:
+            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
+    
+    if _at:
+        try:
+            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+    
+    # Calculate pagination
+    count = _count or 100
+    page = _page or 1
+    offset = (page - 1) * count
+    
+    # Get history
+    history = await storage.get_history(
+        resource_type=resource_type,
+        fhir_id=id,
+        offset=offset,
+        limit=count,
+        since=since,
+        at=at
+    )
+    
+    # Get total count for pagination
+    total_history = await storage.get_history(
+        resource_type=resource_type,
+        fhir_id=id,
+        limit=999999,  # Get all for count
+        since=since,
+        at=at
+    )
+    total = len(total_history)
+    
+    # Build history bundle
+    bundle = Bundle(
+        type="history",
+        total=total,
+        entry=[]
+    )
+    
+    # Add navigation links
+    base_url = str(request.url).split('?')[0]
+    params_dict = dict(request.query_params)
+    
+    bundle.link = [
+        {"relation": "self", "url": str(request.url)}
+    ]
+    
+    if page > 1:
+        prev_params = params_dict.copy()
+        prev_params['_page'] = str(page - 1)
+        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
+        bundle.link.append({"relation": "previous", "url": prev_url})
+    
+    if offset + count < total:
+        next_params = params_dict.copy()
+        next_params['_page'] = str(page + 1)
+        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
+        bundle.link.append({"relation": "next", "url": next_url})
+    
+    # Check if resource exists
+    if not history:
+        # Check if resource exists at all
+        current = await storage.read_resource(resource_type, id)
+        if not current:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Resource {resource_type}/{id} not found"
+            )
+    
+    for entry in history:
+        bundle.entry.append({
+            "fullUrl": f"{base_url.replace('/_history', '')}/_history/{entry['versionId']}",
+            "resource": entry['resource'],
+            "request": {
+                "method": entry['operation'].upper(),
+                "url": f"{resource_type}/{id}"
+            },
+            "response": {
+                "status": "200",
+                "lastModified": entry['lastUpdated']
+            }
+        })
+    
+    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}/{id}")
@@ -345,8 +625,7 @@ async def update_resource(
     resource_type: str,
     id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    if_match: Optional[str] = Query(None, alias="If-Match")
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
     Update a resource.
@@ -361,6 +640,9 @@ async def update_resource(
     
     storage = FHIRStorageEngine(db)
     validator = SyntheaFHIRValidator()
+    
+    # Check for If-Match header
+    if_match = request.headers.get("If-Match")
     
     # Get resource data
     resource_data = await request.json()
@@ -438,64 +720,15 @@ async def delete_resource(
     return Response(status_code=204)
 
 
-@fhir_router.get("/{resource_type}/_history", response_model=Bundle)
-async def get_type_history(
-    resource_type: str,
-    db: AsyncSession = Depends(get_db_session),
-    _count: Optional[int] = Query(None, alias="_count"),
-    _since: Optional[str] = Query(None, alias="_since"),
-    _at: Optional[str] = Query(None, alias="_at")
-):
-    """
-    Get history for all resources of a type.
-    """
-    if resource_type not in SUPPORTED_RESOURCES:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Resource type {resource_type} not supported"
-        )
-    
-    storage = FHIRStorageEngine(db)
-    
-    # Get history
-    history = await storage.get_history(
-        resource_type=resource_type,
-        limit=_count or 100
-    )
-    
-    # Build history bundle
-    bundle = Bundle(
-        type="history",
-        entry=[]
-    )
-    
-    for entry in history:
-        bundle.entry.append({
-            "fullUrl": f"{resource_type}/{entry['id']}",
-            "resource": entry['resource'],
-            "request": {
-                "method": entry['operation'].upper(),
-                "url": f"{resource_type}/{entry['id']}"
-            },
-            "response": {
-                "status": "200",
-                "lastModified": entry['lastUpdated']
-            }
-        })
-    
-    return bundle.dict()
-
-
-@fhir_router.get("/{resource_type}/{id}/_history", response_model=Bundle)
-async def get_instance_history(
+@fhir_router.get("/{resource_type}/{id}/_history/{version_id}")
+async def read_version(
     resource_type: str,
     id: str,
-    db: AsyncSession = Depends(get_db_session),
-    _count: Optional[int] = Query(None, alias="_count"),
-    _since: Optional[str] = Query(None, alias="_since")
+    version_id: int,
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Get history for a specific resource.
+    Read a specific version of a resource.
     """
     if resource_type not in SUPPORTED_RESOURCES:
         raise HTTPException(
@@ -505,34 +738,21 @@ async def get_instance_history(
     
     storage = FHIRStorageEngine(db)
     
-    # Get history
-    history = await storage.get_history(
-        resource_type=resource_type,
-        fhir_id=id,
-        limit=_count or 100
-    )
+    # Read specific version
+    resource = await storage.read_resource(resource_type, id, version_id)
     
-    # Build history bundle
-    bundle = Bundle(
-        type="history",
-        entry=[]
-    )
+    if not resource:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Resource {resource_type}/{id}/_history/{version_id} not found"
+        )
     
-    for entry in history:
-        bundle.entry.append({
-            "fullUrl": f"{resource_type}/{id}/_history/{entry['versionId']}",
-            "resource": entry['resource'],
-            "request": {
-                "method": entry['operation'].upper(),
-                "url": f"{resource_type}/{id}"
-            },
-            "response": {
-                "status": "200",
-                "lastModified": entry['lastUpdated']
-            }
-        })
+    # Build response
+    response = JSONResponse(content=resource)
+    response.headers["ETag"] = f'W/"{version_id}"'
+    response.headers["Last-Modified"] = resource.get("meta", {}).get("lastUpdated", "")
     
-    return bundle.dict()
+    return response
 
 
 @fhir_router.get("/{resource_type}/{id}/_history/{version_id}")

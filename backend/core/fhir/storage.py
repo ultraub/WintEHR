@@ -7,12 +7,14 @@ Implements versioning, history tracking, and search parameter extraction.
 
 import json
 import uuid
+import re
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
+from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from fhir.resources import construct_fhir_element
 from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
@@ -22,6 +24,15 @@ try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:
     notification_service = None
+
+
+class ConditionalCreateExistingResource(Exception):
+    """Raised when conditional create finds an existing resource."""
+    def __init__(self, fhir_id: str, version_id: int, last_updated: datetime):
+        self.fhir_id = fhir_id
+        self.version_id = version_id
+        self.last_updated = last_updated
+        super().__init__(f"Resource already exists: {fhir_id}")
 
 
 class FHIRJSONEncoder(json.JSONEncoder):
@@ -43,6 +54,120 @@ class FHIRStorageEngine:
         self.session = session
         self.validator = SyntheaFHIRValidator()
     
+    def _get_search_parameter_definitions(self) -> Dict[str, Dict]:
+        """Get search parameter definitions for all resource types."""
+        return {
+            'Patient': {
+                'identifier': {'type': 'token'},
+                'name': {'type': 'string'},
+                'family': {'type': 'string'},
+                'given': {'type': 'string'},
+                'gender': {'type': 'token'},
+                'birthdate': {'type': 'date'},
+                'address': {'type': 'string'},
+                'phone': {'type': 'token'},
+                'email': {'type': 'token'}
+            },
+            'Observation': {
+                'code': {'type': 'token'},
+                'category': {'type': 'token'},
+                'value-quantity': {'type': 'quantity'},
+                'date': {'type': 'date'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'performer': {'type': 'reference'},
+                'status': {'type': 'token'}
+            },
+            'Condition': {
+                'code': {'type': 'token'},
+                'clinical-status': {'type': 'token'},
+                'severity': {'type': 'token'},
+                'onset-date': {'type': 'date'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'encounter': {'type': 'reference'}
+            },
+            'Medication': {
+                'code': {'type': 'token'},
+                'status': {'type': 'token'},
+                'form': {'type': 'token'}
+            },
+            'MedicationRequest': {
+                'code': {'type': 'token'},
+                'status': {'type': 'token'},
+                'intent': {'type': 'token'},
+                'patient': {'type': 'reference'},
+                'subject': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'authoredon': {'type': 'date'}
+            },
+            'Encounter': {
+                'status': {'type': 'token'},
+                'class': {'type': 'token'},
+                'type': {'type': 'token'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'date': {'type': 'date'},
+                'period': {'type': 'date'}
+            },
+            'Practitioner': {
+                'name': {'type': 'string'},
+                'family': {'type': 'string'},
+                'given': {'type': 'string'},
+                'identifier': {'type': 'token'},
+                'active': {'type': 'token'}
+            },
+            'Organization': {
+                'name': {'type': 'string'},
+                'identifier': {'type': 'token'},
+                'type': {'type': 'token'},
+                'active': {'type': 'token'}
+            },
+            'Procedure': {
+                'code': {'type': 'token'},
+                'status': {'type': 'token'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'date': {'type': 'date'},
+                'performed': {'type': 'date'}
+            },
+            'AllergyIntolerance': {
+                'code': {'type': 'token'},
+                'clinical-status': {'type': 'token'},
+                'type': {'type': 'token'},
+                'category': {'type': 'token'},
+                'patient': {'type': 'reference'},
+                'date': {'type': 'date'}
+            },
+            'Immunization': {
+                'vaccine-code': {'type': 'token'},
+                'status': {'type': 'token'},
+                'patient': {'type': 'reference'},
+                'date': {'type': 'date'},
+                'encounter': {'type': 'reference'}
+            },
+            'DiagnosticReport': {
+                'code': {'type': 'token'},
+                'status': {'type': 'token'},
+                'category': {'type': 'token'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'date': {'type': 'date'},
+                'issued': {'type': 'date'}
+            },
+            'ImagingStudy': {
+                'status': {'type': 'token'},
+                'modality': {'type': 'token'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'started': {'type': 'date'}
+            }
+        }
+    
     async def create_resource(
         self,
         resource_type: str,
@@ -60,10 +185,18 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (fhir_id, version_id, last_updated)
         """
+        
         # Validate resource
         try:
+            # Ensure resourceType is set
+            if 'resourceType' not in resource_data:
+                resource_data['resourceType'] = resource_type
+            
             fhir_resource = construct_fhir_element(resource_type, resource_data)
             resource_dict = fhir_resource.dict(exclude_none=True)
+            
+            # Ensure resourceType is in the final dict
+            resource_dict['resourceType'] = resource_type
         except Exception as e:
             raise ValueError(f"Invalid FHIR resource: {str(e)}")
         
@@ -82,7 +215,27 @@ class FHIRStorageEngine:
         if if_none_exist:
             existing = await self._search_by_criteria(resource_type, if_none_exist)
             if existing:
-                return existing[0]['fhir_id'], existing[0]['version_id'], existing[0]['last_updated']
+                # Return the first matching resource
+                # For conditional create, we need to signal that we found an existing resource
+                # by raising a special exception that the router can catch
+                first_match = existing[0]
+                # Extract metadata from the existing resource
+                existing_id = first_match.get('id')
+                existing_meta = first_match.get('meta', {})
+                existing_version = int(existing_meta.get('versionId', 1))
+                existing_updated = existing_meta.get('lastUpdated')
+                
+                if existing_updated:
+                    # Parse the lastUpdated timestamp
+                    if isinstance(existing_updated, str):
+                        existing_updated = datetime.fromisoformat(existing_updated.replace('Z', '+00:00'))
+                else:
+                    existing_updated = datetime.now(timezone.utc)
+                
+                # Raise a custom exception to indicate existing resource found
+                raise ConditionalCreateExistingResource(
+                    existing_id, existing_version, existing_updated
+                )
         
         # Insert resource
         query = text("""
@@ -94,13 +247,15 @@ class FHIRStorageEngine:
             RETURNING id
         """)
         
-        result = await self.session.execute(query, {
+        params = {
             'resource_type': resource_type,
             'fhir_id': fhir_id,
             'version_id': version_id,
             'last_updated': last_updated,
             'resource': json.dumps(resource_dict, cls=FHIRJSONEncoder)
-        })
+        }
+        
+        result = await self.session.execute(query, params)
         
         resource_id = result.scalar()
         
@@ -201,8 +356,15 @@ class FHIRStorageEngine:
         """
         # Validate resource
         try:
+            # Ensure resourceType is set
+            if 'resourceType' not in resource_data:
+                resource_data['resourceType'] = resource_type
+            
             fhir_resource = construct_fhir_element(resource_type, resource_data)
             resource_dict = fhir_resource.dict(exclude_none=True)
+            
+            # Ensure resourceType is in the final dict
+            resource_dict['resourceType'] = resource_type
         except Exception as e:
             raise ValueError(f"Invalid FHIR resource: {str(e)}")
         
@@ -228,8 +390,15 @@ class FHIRStorageEngine:
         resource_id, current_version = row
         
         # Check if-match condition
-        if if_match and f'W/"{current_version}"' != if_match:
-            raise ValueError("Resource version mismatch")
+        if if_match:
+            # Parse ETag - can be W/"version" or just "version"
+            etag_match = re.match(r'^(?:W/)?"?([^"]+)"?$', if_match)
+            if etag_match:
+                requested_version = etag_match.group(1)
+                if str(current_version) != requested_version:
+                    raise ValueError(f"Resource version mismatch: current version is {current_version}, but If-Match specified {requested_version}")
+            else:
+                raise ValueError(f"Invalid If-Match header format: {if_match}")
         
         # Update metadata
         new_version = current_version + 1
@@ -352,76 +521,65 @@ class FHIRStorageEngine:
         
         Args:
             resource_type: FHIR resource type
-            search_params: Search parameters
+            search_params: Search parameters (already parsed by SearchParameterHandler)
             offset: Result offset for pagination
             limit: Maximum results to return
             
         Returns:
             Tuple of (resources, total_count)
         """
-        # Build search query
+        from .search import SearchParameterHandler
+        
+        # Initialize search handler
+        search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+        
+        # Build search query using the handler
+        join_clauses, where_clauses, sql_params = search_handler.build_search_query(
+            resource_type, search_params
+        )
+        
+        # Build base query
         base_query = """
             SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated
             FROM fhir.resources r
         """
         
-        where_clauses = [
+        # Add base where clauses
+        base_where = [
             "r.resource_type = :resource_type",
             "r.deleted = false"
         ]
+        sql_params['resource_type'] = resource_type
         
-        params = {'resource_type': resource_type}
-        join_clauses = []
-        param_count = 0
-        
-        # Process search parameters
-        for param_name, param_value in search_params.items():
-            if param_name.startswith('_'):
-                # Handle special parameters
-                continue
-                
-            param_count += 1
-            alias = f"sp{param_count}"
-            
-            join_clauses.append(
-                f"JOIN fhir.search_params {alias} ON {alias}.resource_id = r.id"
-            )
-            
-            where_clauses.append(f"{alias}.param_name = :param_name_{param_count}")
-            params[f'param_name_{param_count}'] = param_name
-            
-            # Handle different parameter types
-            if isinstance(param_value, str):
-                where_clauses.append(f"{alias}.value_string = :param_value_{param_count}")
-                params[f'param_value_{param_count}'] = param_value
-            # Add other parameter type handling as needed
+        # Combine clauses
+        all_where_clauses = base_where + where_clauses
         
         # Build final query
         query = base_query
         if join_clauses:
             query += " " + " ".join(join_clauses)
-        query += " WHERE " + " AND ".join(where_clauses)
+        query += " WHERE " + " AND ".join(all_where_clauses)
         
         # Add ordering
         query += " ORDER BY r.last_updated DESC"
         
-        # Get total count - build a separate count query
+        # Get total count
         count_query = f"""
             SELECT COUNT(DISTINCT r.id) 
             FROM fhir.resources r
             {" ".join(join_clauses) if join_clauses else ""}
-            WHERE {" AND ".join(where_clauses)}
+            WHERE {" AND ".join(all_where_clauses)}
         """
-        count_result = await self.session.execute(text(count_query), params)
-        total_count = count_result.scalar()
+        count_result = await self.session.execute(text(count_query), sql_params)
+        total_count = count_result.scalar() or 0
         
         # Add pagination
         query += " LIMIT :limit OFFSET :offset"
-        params['limit'] = limit
-        params['offset'] = offset
+        sql_params['limit'] = limit
+        sql_params['offset'] = offset
         
         # Execute search
-        result = await self.session.execute(text(query), params)
+        result = await self.session.execute(text(query), sql_params)
         resources = []
         
         for row in result:
@@ -435,7 +593,9 @@ class FHIRStorageEngine:
         resource_type: Optional[str] = None,
         fhir_id: Optional[str] = None,
         offset: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        since: Optional[datetime] = None,
+        at: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
         Get resource history.
@@ -445,12 +605,14 @@ class FHIRStorageEngine:
             fhir_id: Filter by resource ID (optional)
             offset: Result offset
             limit: Maximum results
+            since: Only include changes since this time
+            at: Only include changes at or before this time
             
         Returns:
             List of history entries
         """
         query = """
-            SELECT rh.resource, rh.version_id, rh.operation, rh.modified_at,
+            SELECT rh.resource, rh.version_id, rh.operation, rh.transaction_time,
                    r.resource_type, r.fhir_id
             FROM fhir.resource_history rh
             JOIN fhir.resources r ON rh.resource_id = r.id
@@ -466,8 +628,16 @@ class FHIRStorageEngine:
         if fhir_id:
             query += " AND r.fhir_id = :fhir_id"
             params['fhir_id'] = fhir_id
+            
+        if since:
+            query += " AND rh.transaction_time > :since"
+            params['since'] = since
+            
+        if at:
+            query += " AND rh.transaction_time <= :at"
+            params['at'] = at
         
-        query += " ORDER BY rh.modified_at DESC LIMIT :limit OFFSET :offset"
+        query += " ORDER BY rh.transaction_time DESC LIMIT :limit OFFSET :offset"
         params['limit'] = limit
         params['offset'] = offset
         
@@ -478,7 +648,7 @@ class FHIRStorageEngine:
             resource_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
             history.append({
                 'resource': resource_data,
-                'versionId': row[1],
+                'versionId': str(row[1]),
                 'operation': row[2],
                 'lastUpdated': row[3].isoformat(),
                 'resourceType': row[4],
@@ -543,11 +713,18 @@ class FHIRStorageEngine:
         request = entry.request
         resource = entry.resource
         
+        print(f"DEBUG: Processing bundle entry")
+        print(f"DEBUG: Entry type: {type(entry)}")
+        print(f"DEBUG: Has request: {request is not None}")
+        print(f"DEBUG: Has resource: {resource is not None}")
+        
         if not request:
             raise ValueError("Bundle entry missing request")
         
         method = request.method
         url = request.url
+        
+        print(f"DEBUG: Method: {method}, URL: {url}")
         
         # Parse URL to get resource type and ID
         url_parts = url.split('/')
@@ -562,8 +739,9 @@ class FHIRStorageEngine:
                 fhir_id, version_id, last_updated = await self.create_resource(
                     resource_type,
                     resource.dict(exclude_none=True),
-                    request.ifNoneExist
+                    getattr(request, 'ifNoneExist', None)
                 )
+                print(f"DEBUG: Created resource - ID: {fhir_id}, Version: {version_id}")
                 response_entry.response = BundleEntryResponse(
                     status="201",
                     location=f"{resource_type}/{fhir_id}/_history/{version_id}",
@@ -577,7 +755,7 @@ class FHIRStorageEngine:
                     resource_type,
                     fhir_id,
                     resource.dict(exclude_none=True),
-                    request.ifMatch
+                    getattr(request, 'ifMatch', None)
                 )
                 response_entry.response = BundleEntryResponse(
                     status="200",
@@ -594,8 +772,72 @@ class FHIRStorageEngine:
                 )
         
         elif method == "GET":
-            # Read
-            if fhir_id:
+            # Handle both read (with ID) and search (with query parameters)
+            if '?' in url:
+                # This is a search query
+                try:
+                    # Parse the URL
+                    url_parts = url.split('?')
+                    resource_type = url_parts[0].split('/')[0]
+                    query_string = url_parts[1] if len(url_parts) > 1 else ""
+                    
+                    # Parse query parameters
+                    from urllib.parse import parse_qs
+                    query_params = parse_qs(query_string)
+                    # Convert lists to single values for simplicity
+                    query_params = {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
+                    
+                    # Execute search
+                    from .search import SearchParameterHandler
+                    search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+                    search_params, result_params = search_handler.parse_search_params(
+                        resource_type, query_params
+                    )
+                    
+                    # Get count parameter
+                    count = int(query_params.get('_count', 10))
+                    
+                    # Execute search
+                    resources, total = await self.search_resources(
+                        resource_type,
+                        search_params,
+                        offset=0,
+                        limit=count
+                    )
+                    
+                    # Build search bundle
+                    search_bundle = {
+                        "resourceType": "Bundle",
+                        "type": "searchset",
+                        "total": total,
+                        "entry": [
+                            {
+                                "fullUrl": f"{resource_type}/{res['id']}",
+                                "resource": res,
+                                "search": {"mode": "match"}
+                            }
+                            for res in resources
+                        ]
+                    }
+                    
+                    response_entry.resource = construct_fhir_element("Bundle", search_bundle)
+                    response_entry.response = BundleEntryResponse(status="200")
+                    
+                except Exception as e:
+                    print(f"ERROR in batch search: {e}")
+                    response_entry.response = BundleEntryResponse(
+                        status="500",
+                        outcome={
+                            "resourceType": "OperationOutcome",
+                            "issue": [{
+                                "severity": "error",
+                                "code": "exception",
+                                "details": {"text": f"Error processing search: {str(e)}"}
+                            }]
+                        }
+                    )
+            elif fhir_id:
+                # This is a read operation
                 resource_data = await self.read_resource(resource_type, fhir_id)
                 if resource_data:
                     response_entry.resource = construct_fhir_element(
@@ -604,6 +846,19 @@ class FHIRStorageEngine:
                     response_entry.response = BundleEntryResponse(status="200")
                 else:
                     response_entry.response = BundleEntryResponse(status="404")
+            else:
+                # Invalid URL format
+                response_entry.response = BundleEntryResponse(
+                    status="400",
+                    outcome={
+                        "resourceType": "OperationOutcome",
+                        "issue": [{
+                            "severity": "error",
+                            "code": "invalid",
+                            "details": {"text": f"Invalid request URL: {url}"}
+                        }]
+                    }
+                )
         
         return response_entry
     
@@ -637,13 +892,9 @@ class FHIRStorageEngine:
         resource_data: Dict[str, Any]
     ):
         """Extract and store search parameters from a resource."""
-        # This is a simplified version - full implementation would use
-        # SearchParameter definitions to extract all searchable values
-        
-        # Extract common parameters
         params_to_extract = []
         
-        # ID parameter
+        # Extract common parameters
         if 'id' in resource_data:
             params_to_extract.append({
                 'param_name': '_id',
@@ -651,7 +902,6 @@ class FHIRStorageEngine:
                 'value_string': resource_data['id']
             })
         
-        # LastUpdated parameter
         if 'meta' in resource_data and 'lastUpdated' in resource_data['meta']:
             params_to_extract.append({
                 'param_name': '_lastUpdated',
@@ -663,17 +913,35 @@ class FHIRStorageEngine:
         
         # Resource-specific parameters
         if resource_type == 'Patient':
-            # Extract patient-specific search parameters
+            # Gender
+            if 'gender' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'gender',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['gender']
+                })
+            
+            # Birth date
+            if 'birthDate' in resource_data:
+                birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d') if isinstance(resource_data['birthDate'], str) else resource_data['birthDate']
+                params_to_extract.append({
+                    'param_name': 'birthdate',
+                    'param_type': 'date',
+                    'value_date': birth_date
+                })
+            
+            # Identifiers
             if 'identifier' in resource_data:
                 for identifier in resource_data['identifier']:
-                    if 'system' in identifier and 'value' in identifier:
+                    if 'value' in identifier:
                         params_to_extract.append({
                             'param_name': 'identifier',
                             'param_type': 'token',
-                            'value_token_system': identifier['system'],
+                            'value_token_system': identifier.get('system'),
                             'value_token_code': identifier['value']
                         })
             
+            # Names
             if 'name' in resource_data:
                 for name in resource_data['name']:
                     if 'family' in name:
@@ -690,7 +958,115 @@ class FHIRStorageEngine:
                                 'value_string': given
                             })
         
-        # Insert search parameters
+        elif resource_type == 'Observation':
+            # Code
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Date (effectiveDateTime or effectivePeriod)
+            if 'effectiveDateTime' in resource_data:
+                try:
+                    effective_date = datetime.fromisoformat(
+                        resource_data['effectiveDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': effective_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
+            elif 'effectivePeriod' in resource_data and 'start' in resource_data['effectivePeriod']:
+                try:
+                    effective_date = datetime.fromisoformat(
+                        resource_data['effectivePeriod']['start'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': effective_date
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"WARNING: Could not parse effectivePeriod.start: {resource_data.get('effectivePeriod', {}).get('start')} - {e}")
+        
+        elif resource_type == 'Condition':
+            # Code
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Clinical status
+            if 'clinicalStatus' in resource_data and 'coding' in resource_data['clinicalStatus']:
+                for coding in resource_data['clinicalStatus']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'clinical-status',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                if ref.startswith('Patient/'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+        
+        # Insert all search parameters
         for param in params_to_extract:
             query = text("""
                 INSERT INTO fhir.search_params (
@@ -704,12 +1080,20 @@ class FHIRStorageEngine:
                 )
             """)
             
+            # Ensure numeric values are properly typed
+            value_number = param.get('value_number')
+            if value_number is not None:
+                try:
+                    value_number = float(value_number)
+                except (ValueError, TypeError):
+                    value_number = None
+            
             await self.session.execute(query, {
                 'resource_id': resource_id,
                 'param_name': param['param_name'],
                 'param_type': param['param_type'],
                 'value_string': param.get('value_string'),
-                'value_number': param.get('value_number'),
+                'value_number': value_number,
                 'value_date': param.get('value_date'),
                 'value_token_system': param.get('value_token_system'),
                 'value_token_code': param.get('value_token_code')
@@ -780,19 +1164,37 @@ class FHIRStorageEngine:
         resource_type: str,
         criteria: str
     ) -> List[Dict[str, Any]]:
-        """Search by simple criteria string (for conditional operations)."""
-        # Parse simple search criteria (e.g., "identifier=12345")
-        # This is a simplified implementation
-        parts = criteria.split('=')
-        if len(parts) == 2:
-            param_name = parts[0]
-            param_value = parts[1]
-            
-            results, _ = await self.search_resources(
-                resource_type,
-                {param_name: param_value},
-                limit=1
-            )
-            return results
+        """Search by search criteria string (for conditional operations)."""
+        from .search import SearchParameterHandler
         
-        return []
+        # Parse search criteria into parameters
+        # Handle multiple parameters separated by &
+        search_params = {}
+        
+        # Split by & to handle multiple parameters
+        param_pairs = criteria.split('&')
+        
+        for param_pair in param_pairs:
+            # Handle different operators: =, :=, etc.
+            if '=' in param_pair:
+                param_name, param_value = param_pair.split('=', 1)
+                # URL decode the value
+                from urllib.parse import unquote
+                param_value = unquote(param_value)
+                search_params[param_name] = param_value
+        
+        if not search_params:
+            return []
+        
+        # Initialize search handler and parse parameters
+        search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+        parsed_params, _ = search_handler.parse_search_params(resource_type, search_params)
+        
+        # Search for matching resources
+        results, _ = await self.search_resources(
+            resource_type,
+            parsed_params,
+            limit=10  # Return up to 10 matches for conditional create
+        )
+        
+        return results

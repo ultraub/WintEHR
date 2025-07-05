@@ -104,6 +104,8 @@ class SyntheaFHIRValidator(FHIRValidator):
             processed = self._preprocess_organization(processed)
         elif resource_type == 'Location':
             processed = self._preprocess_location(processed)
+        elif resource_type == 'Observation':
+            processed = self._preprocess_observation(processed)
         
         return processed
     
@@ -443,6 +445,142 @@ class SyntheaFHIRValidator(FHIRValidator):
                     cleaned_performers.append(cleaned_performer)
             
             data['performer'] = cleaned_performers
+        
+        return data
+    
+    def _preprocess_observation(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix Observation-specific format issues, particularly for components and reference ranges."""
+        # Clean component field if present
+        if 'component' in data and isinstance(data['component'], list):
+            cleaned_components = []
+            for component in data['component']:
+                if isinstance(component, dict):
+                    # Clean the component BackboneElement
+                    allowed_component_fields = {
+                        'id', 'extension', 'modifierExtension', 'code', 
+                        'valueQuantity', 'valueCodeableConcept', 'valueString',
+                        'valueBoolean', 'valueInteger', 'valueRange', 'valueRatio',
+                        'valueSampledData', 'valueTime', 'valueDateTime', 'valuePeriod',
+                        'dataAbsentReason', 'interpretation', 'referenceRange'
+                    }
+                    cleaned_component = {
+                        k: v for k, v in component.items()
+                        if k in allowed_component_fields
+                    }
+                    
+                    # Clean nested CodeableConcept (code)
+                    if 'code' in cleaned_component and isinstance(cleaned_component['code'], dict):
+                        allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
+                        cleaned_component['code'] = {
+                            k: v for k, v in cleaned_component['code'].items()
+                            if k in allowed_cc_fields
+                        }
+                        
+                        # Clean nested Coding
+                        if 'coding' in cleaned_component['code']:
+                            cleaned_codings = []
+                            for coding in cleaned_component['code']['coding']:
+                                allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                                cleaned_codings.append({
+                                    k: v for k, v in coding.items()
+                                    if k in allowed_coding_fields
+                                })
+                            cleaned_component['code']['coding'] = cleaned_codings
+                    
+                    # Clean valueQuantity if present
+                    if 'valueQuantity' in cleaned_component and isinstance(cleaned_component['valueQuantity'], dict):
+                        allowed_quantity_fields = {'id', 'extension', 'value', 'comparator', 'unit', 'system', 'code'}
+                        cleaned_quantity = {
+                            k: v for k, v in cleaned_component['valueQuantity'].items()
+                            if k in allowed_quantity_fields
+                        }
+                        # Ensure value is numeric
+                        if 'value' in cleaned_quantity and cleaned_quantity['value'] is not None:
+                            try:
+                                cleaned_quantity['value'] = float(cleaned_quantity['value'])
+                            except (ValueError, TypeError):
+                                pass
+                        cleaned_component['valueQuantity'] = cleaned_quantity
+                    
+                    cleaned_components.append(cleaned_component)
+            
+            data['component'] = cleaned_components
+        
+        # Clean referenceRange field if present
+        if 'referenceRange' in data and isinstance(data['referenceRange'], list):
+            cleaned_ranges = []
+            for ref_range in data['referenceRange']:
+                if isinstance(ref_range, dict):
+                    # Clean the referenceRange BackboneElement
+                    allowed_range_fields = {
+                        'id', 'extension', 'modifierExtension', 'low', 'high',
+                        'type', 'appliesTo', 'age', 'text'
+                    }
+                    cleaned_range = {
+                        k: v for k, v in ref_range.items()
+                        if k in allowed_range_fields
+                    }
+                    
+                    # Clean low/high Quantity fields
+                    for quantity_field in ['low', 'high']:
+                        if quantity_field in cleaned_range and isinstance(cleaned_range[quantity_field], dict):
+                            allowed_quantity_fields = {'id', 'extension', 'value', 'comparator', 'unit', 'system', 'code'}
+                            cleaned_quantity = {
+                                k: v for k, v in cleaned_range[quantity_field].items()
+                                if k in allowed_quantity_fields
+                            }
+                            # Ensure value is numeric
+                            if 'value' in cleaned_quantity and cleaned_quantity['value'] is not None:
+                                try:
+                                    cleaned_quantity['value'] = float(cleaned_quantity['value'])
+                                except (ValueError, TypeError):
+                                    pass
+                            cleaned_range[quantity_field] = cleaned_quantity
+                    
+                    cleaned_ranges.append(cleaned_range)
+            
+            data['referenceRange'] = cleaned_ranges
+        
+        # Clean interpretation field if present
+        if 'interpretation' in data and isinstance(data['interpretation'], list):
+            cleaned_interpretations = []
+            for interpretation in data['interpretation']:
+                if isinstance(interpretation, dict):
+                    allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
+                    cleaned_interpretation = {
+                        k: v for k, v in interpretation.items()
+                        if k in allowed_cc_fields
+                    }
+                    
+                    # Clean nested Coding
+                    if 'coding' in cleaned_interpretation:
+                        cleaned_codings = []
+                        for coding in cleaned_interpretation['coding']:
+                            allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                            cleaned_codings.append({
+                                k: v for k, v in coding.items()
+                                if k in allowed_coding_fields
+                            })
+                        cleaned_interpretation['coding'] = cleaned_codings
+                    
+                    cleaned_interpretations.append(cleaned_interpretation)
+            
+            data['interpretation'] = cleaned_interpretations
+        
+        # Clean main valueQuantity if present
+        if 'valueQuantity' in data and isinstance(data['valueQuantity'], dict):
+            allowed_quantity_fields = {'id', 'extension', 'value', 'comparator', 'unit', 'system', 'code'}
+            cleaned_quantity = {
+                k: v for k, v in data['valueQuantity'].items()
+                if k in allowed_quantity_fields
+            }
+            # Ensure value is numeric
+            if 'value' in cleaned_quantity and cleaned_quantity['value'] is not None:
+                try:
+                    cleaned_quantity['value'] = float(cleaned_quantity['value'])
+                except (ValueError, TypeError):
+                    pass
+            data['valueQuantity'] = cleaned_quantity
         
         return data
     

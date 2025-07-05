@@ -1441,8 +1441,23 @@ async def cancel_export(export_id: str, db: Session = Depends(get_db)):
 
 # Batch and Transaction endpoint
 @router.post("/")
-async def batch_transaction(bundle: dict, db: Session = Depends(get_db)):
+async def batch_transaction(request: Request, db: Session = Depends(get_db)):
     """Handle FHIR batch and transaction bundles"""
+    try:
+        bundle = await request.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON in request body: {str(e)}"
+        )
+    
+    # Validate it's a Bundle
+    if not isinstance(bundle, dict) or bundle.get('resourceType') != 'Bundle':
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a FHIR Bundle resource"
+        )
+    
     processor = BatchProcessor(db)
     return processor.process_bundle(bundle)
 
