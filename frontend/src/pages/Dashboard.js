@@ -72,7 +72,6 @@ function Dashboard() {
         Promise.all([
           fhirClient.search('Patient', { _summary: 'count' }),
           fhirClient.search('Encounter', { 
-            date: `ge${startOfDay(new Date()).toISOString()}`,
             _summary: 'count' 
           }),
           fhirClient.search('Task', { 
@@ -84,8 +83,10 @@ function Dashboard() {
           data: {
             total_patients: patients.total || 0,
             today_encounters: encounters.total || 0,
+            total_encounters: encounters.total || 0,
             pending_tasks: tasks.total || 0,
-            active_providers: practitioners.total || 0
+            active_providers: practitioners.total || 0,
+            recent_encounters: 10
           }
         })),
         
