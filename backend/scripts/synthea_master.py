@@ -328,6 +328,7 @@ generate.demographics.default_state = Massachusetts
                         fhir_id VARCHAR(255) NOT NULL,
                         version_id INTEGER NOT NULL DEFAULT 1,
                         last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        deleted BOOLEAN DEFAULT FALSE,
                         resource JSONB NOT NULL,
                         UNIQUE(resource_type, fhir_id)
                     )
