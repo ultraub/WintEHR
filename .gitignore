@@ -76,3 +76,4 @@ backend/scripts/data/synthea_backups/synthea_backup_*.json
 backend/scripts/data/synthea_backups/synthea_backup_*/*.json
 backup/synthea_*/output/fhir/*.json
 backup/synthea_*/output/metadata/*.json
+*.dcm
