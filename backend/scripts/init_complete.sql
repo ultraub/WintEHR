@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS fhir.resource_history (
     operation VARCHAR(20) NOT NULL, -- 'create', 'update', 'delete'
     resource JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- Foreign key to resources table
     CONSTRAINT fk_resource_history_resource 
