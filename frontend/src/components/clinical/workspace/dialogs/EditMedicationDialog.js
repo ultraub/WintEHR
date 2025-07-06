@@ -125,16 +125,56 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
 
       // Extract dosage information
       const dosageInstruction = medicationRequest.dosageInstruction?.[0] || {};
-      const dosage = dosageInstruction.doseAndRate?.[0]?.doseQuantity?.value?.toString() || '';
-      const route = dosageInstruction.route?.coding?.[0]?.code || 'oral';
-      const frequency = dosageInstruction.timing?.code?.coding?.[0]?.code || 'once-daily';
-      const instructions = dosageInstruction.text || '';
+      
+      // Extract dosage - handle both doseAndRate and doseQuantity formats
+      let dosage = '';
+      if (dosageInstruction.doseAndRate?.[0]?.doseQuantity) {
+        const doseQty = dosageInstruction.doseAndRate[0].doseQuantity;
+        dosage = `${doseQty.value} ${doseQty.unit || ''}`.trim();
+      } else if (dosageInstruction.doseQuantity) {
+        const doseQty = dosageInstruction.doseQuantity;
+        dosage = `${doseQty.value} ${doseQty.unit || ''}`.trim();
+      }
+      
+      // Extract route - check both coding and text
+      const route = dosageInstruction.route?.coding?.[0]?.code || 
+                   dosageInstruction.route?.text?.toLowerCase() || 
+                   'oral';
+      
+      // Extract frequency - check multiple possible locations
+      let frequency = 'once-daily';
+      if (dosageInstruction.timing?.code?.coding?.[0]?.code) {
+        frequency = dosageInstruction.timing.code.coding[0].code;
+      } else if (dosageInstruction.timing?.repeat?.frequency === 1 && dosageInstruction.timing?.repeat?.period === 1) {
+        const periodUnit = dosageInstruction.timing.repeat.periodUnit;
+        if (periodUnit === 'd') frequency = 'once-daily';
+        else if (periodUnit === 'wk') frequency = 'weekly';
+      } else if (dosageInstruction.timing?.repeat?.frequency === 2 && dosageInstruction.timing?.repeat?.period === 1 && dosageInstruction.timing?.repeat?.periodUnit === 'd') {
+        frequency = 'twice-daily';
+      } else if (dosageInstruction.timing?.repeat?.frequency === 3 && dosageInstruction.timing?.repeat?.period === 1 && dosageInstruction.timing?.repeat?.periodUnit === 'd') {
+        frequency = 'three-times-daily';
+      } else if (dosageInstruction.timing?.repeat?.frequency === 4 && dosageInstruction.timing?.repeat?.period === 1 && dosageInstruction.timing?.repeat?.periodUnit === 'd') {
+        frequency = 'four-times-daily';
+      }
+      
+      const instructions = dosageInstruction.text || dosageInstruction.patientInstruction || '';
 
       // Extract dispense information
       const dispenseRequest = medicationRequest.dispenseRequest || {};
-      const quantity = dispenseRequest.quantity?.value?.toString() || '';
+      
+      // Extract quantity with unit
+      let quantity = '';
+      if (dispenseRequest.quantity) {
+        quantity = `${dispenseRequest.quantity.value} ${dispenseRequest.quantity.unit || ''}`.trim();
+      }
+      
       const refills = dispenseRequest.numberOfRepeatsAllowed || 0;
-      const duration = dispenseRequest.expectedSupplyDuration?.value?.toString() || '';
+      
+      // Extract duration with unit
+      let duration = '';
+      if (dispenseRequest.expectedSupplyDuration) {
+        duration = `${dispenseRequest.expectedSupplyDuration.value} ${dispenseRequest.expectedSupplyDuration.unit || 'days'}`.trim();
+      }
 
       // Extract other fields
       const indication = medicationRequest.reasonCode?.[0]?.text || '';
@@ -231,9 +271,17 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
         return;
       }
 
+      // Ensure we have the resource ID
+      if (!medicationRequest.id) {
+        setError('Cannot update medication: missing resource ID');
+        return;
+      }
+
       // Create updated FHIR MedicationRequest resource
       const updatedMedicationRequest = {
         ...medicationRequest, // Preserve existing fields like id, meta, etc.
+        resourceType: 'MedicationRequest', // Ensure resourceType is set
+        id: medicationRequest.id, // Explicitly set ID
         status: formData.status,
         intent: 'order',
         priority: formData.priority,
@@ -312,9 +360,18 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
 
       // Call the onSave callback with the updated medication request
       await onSave(updatedMedicationRequest);
+      
+      // Close dialog on success
       handleClose();
     } catch (err) {
-      setError(err.message || 'Failed to update medication');
+      console.error('Error saving medication:', err);
+      // Ensure we always set a string error message
+      const errorMessage = typeof err === 'string' ? err : 
+                          err?.message || 
+                          err?.response?.data?.message || 
+                          err?.response?.data?.detail || 
+                          'Failed to update medication';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -327,7 +384,14 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
         await onDelete(medicationRequest.id);
         handleClose();
       } catch (err) {
-        setError(err.message || 'Failed to delete medication');
+        console.error('Error deleting medication:', err);
+        // Ensure we always set a string error message
+        const errorMessage = typeof err === 'string' ? err : 
+                            err?.message || 
+                            err?.response?.data?.message || 
+                            err?.response?.data?.detail || 
+                            'Failed to delete medication';
+        setError(errorMessage);
         setLoading(false);
       }
     }
@@ -356,8 +420,8 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
         }}
       >
         <DialogTitle>
-          <Typography variant="h6">Edit Medication</Typography>
-          <Typography variant="body2" color="text.secondary">
+          Edit Medication
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Medication Request ID: {medicationRequest.id}
           </Typography>
         </DialogTitle>
@@ -381,6 +445,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedMedication}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     setSearchQuery(value);
                     handleSearchMedications(value);
@@ -642,9 +707,9 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
                     ...prev,
                     startDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                 />
               </Grid>
 
@@ -656,9 +721,9 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
                     ...prev,
                     endDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                   minDate={formData.startDate}
                 />
               </Grid>

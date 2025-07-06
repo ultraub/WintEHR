@@ -2,13 +2,21 @@
  * Search Service
  * Provides unified search functionality across all clinical catalogs
  */
-import { fhirClient } from './fhirClient';
+import axios from 'axios';
 
 class SearchService {
   constructor() {
     this.baseUrl = '/api/emr/clinical/catalog';
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
+    
+    // Create a dedicated HTTP client for catalog searches
+    this.httpClient = axios.create({
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
   }
 
   /**
@@ -29,7 +37,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/conditions/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/conditions/search`, {
         params: { query, limit }
       });
       
@@ -60,7 +68,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/medications/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/medications/search`, {
         params: { query, limit }
       });
       
@@ -91,7 +99,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/lab-tests/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests/search`, {
         params: { query, limit }
       });
       
@@ -122,7 +130,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/imaging-procedures/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/imaging-procedures/search`, {
         params: { query, limit }
       });
       
@@ -162,7 +170,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/all/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/all/search`, {
         params: { query, limit }
       });
       
@@ -212,7 +220,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/procedures/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/procedures/search`, {
         params: { query, limit }
       });
       
@@ -243,7 +251,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/document-types/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/document-types/search`, {
         params: { query, limit }
       });
       
@@ -274,7 +282,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/practitioners/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/practitioners/search`, {
         params: { query, limit }
       });
       
@@ -305,7 +313,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/organizations/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/organizations/search`, {
         params: { query, limit }
       });
       
@@ -336,7 +344,7 @@ class SearchService {
     }
 
     try {
-      const response = await fhirClient.get(`${this.baseUrl}/vaccines/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/vaccines/search`, {
         params: { query, limit }
       });
       

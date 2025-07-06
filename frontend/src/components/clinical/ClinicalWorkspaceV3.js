@@ -23,7 +23,8 @@ import {
   Fab,
   SpeedDial,
   SpeedDialIcon,
-  SpeedDialAction
+  SpeedDialAction,
+  Snackbar
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -101,6 +102,7 @@ const ClinicalWorkspaceV3 = () => {
   const [tabNotifications, setTabNotifications] = useState({});
   const [newNoteDialogOpen, setNewNoteDialogOpen] = useState(false);
   const [newOrderDialogOpen, setNewOrderDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
   // Load patient data
   useEffect(() => {
@@ -167,12 +169,50 @@ const ClinicalWorkspaceV3 = () => {
 
   // Handle print
   const handlePrint = () => {
+    // Add print-specific styles temporarily
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @media print {
+        /* Hide navigation and controls during print */
+        .MuiSpeedDial-root,
+        .MuiTabs-root,
+        .MuiIconButton-root,
+        .MuiButton-root:not(.print-show) {
+          display: none !important;
+        }
+        
+        /* Ensure content fills the page */
+        body { margin: 0; }
+        .MuiBox-root { overflow: visible !important; }
+        
+        /* Show patient header clearly */
+        .MuiPaper-root { box-shadow: none !important; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Print and remove styles
     window.print();
+    setTimeout(() => style.remove(), 100);
   };
 
   // Handle refresh
-  const handleRefresh = () => {
-    window.location.reload();
+  const handleRefresh = async () => {
+    if (currentPatient) {
+      try {
+        // Refresh patient data without full page reload
+        await setCurrentPatient(patientId);
+        // Show success feedback
+        setSnackbar({ open: true, message: 'Patient data refreshed successfully' });
+      } catch (error) {
+        console.error('Failed to refresh patient data:', error);
+        setSnackbar({ open: true, message: 'Failed to refresh data. Reloading page...' });
+        // Fallback to page reload after a short delay
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    } else {
+      window.location.reload();
+    }
   };
 
   // Speed dial actions
@@ -248,17 +288,26 @@ const ClinicalWorkspaceV3 = () => {
         onNavigateToTab={handleTabChange}
       />
 
-      {/* CDS Alerts Panel */}
-      <Box sx={{ px: 2, pt: 1 }}>
+      {/* CDS Alerts Panel - Enhanced with Multiple Presentation Modes */}
+      <Box sx={{ px: 2, pt: 1, flexShrink: 0 }}>
         <CDSAlertsPanel 
           patientId={patientId}
           hook="patient-view"
-          compact={false}
+          compact={true}
           maxAlerts={3}
           autoRefresh={false}
+          useEnhancedHooks={true}
+          debugMode={false}
           onAlertAction={(alert, action, suggestion) => {
-            console.log('CDS Alert Action:', { alert, action, suggestion });
-            // Handle CDS alert actions here
+            // Handle different actions
+            if (action === 'accept' && suggestion) {
+              // Could trigger FHIR resource creation, navigation, etc.
+              console.debug('Accepting CDS suggestion:', suggestion);
+            } else if (action === 'reject') {
+              console.debug('Rejecting CDS alert:', alert.summary);
+            } else if (action === 'dismiss') {
+              console.debug('Dismissing CDS alert:', alert.summary);
+            }
           }}
         />
       </Box>
@@ -417,11 +466,16 @@ const ClinicalWorkspaceV3 = () => {
           Customize Layout
         </MenuItem>
         <MenuItem onClick={() => {
-          // TODO: Implement preferences dialog
           setSettingsAnchor(null);
+          // Store current tab preference
+          if (currentPatient) {
+            localStorage.setItem(`workspace-tab-${currentPatient.id}`, activeTab);
+          }
+          // Show feedback
+          setSnackbar({ open: true, message: 'Preferences saved! Your current tab will be remembered for this patient.' });
         }}>
           <SettingsIcon sx={{ mr: 1 }} />
-          Preferences
+          Save Preferences
         </MenuItem>
       </Menu>
 
@@ -431,6 +485,15 @@ const ClinicalWorkspaceV3 = () => {
         onClose={() => setIsLayoutBuilderOpen(false)}
         onSelectLayout={handleLayoutSelect}
         patientId={patientId}
+      />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ open: false, message: '' })}
+        message={snackbar.message}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
   );

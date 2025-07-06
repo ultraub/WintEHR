@@ -49,9 +49,28 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
   // Initialize form with existing condition data
   useEffect(() => {
     if (condition && open) {
-      const clinicalStatus = condition.clinicalStatus?.coding?.[0]?.code || 'active';
-      const verificationStatus = condition.verificationStatus?.coding?.[0]?.code || 'confirmed';
-      const onsetDate = condition.onsetDateTime ? parseISO(condition.onsetDateTime) : null;
+      // Extract clinical status - handle both coding array and direct code
+      const clinicalStatus = condition.clinicalStatus?.coding?.[0]?.code || 
+                           condition.clinicalStatus?.code || 
+                           'active';
+      
+      // Extract verification status - handle both coding array and direct code
+      const verificationStatus = condition.verificationStatus?.coding?.[0]?.code || 
+                               condition.verificationStatus?.code || 
+                               'confirmed';
+      
+      // Extract onset date - check multiple possible fields
+      let onsetDate = null;
+      if (condition.onsetDateTime) {
+        onsetDate = parseISO(condition.onsetDateTime);
+      } else if (condition.onsetPeriod?.start) {
+        onsetDate = parseISO(condition.onsetPeriod.start);
+      } else if (condition.onsetAge) {
+        // Could calculate approximate date from age if needed
+        onsetDate = null;
+      }
+      
+      // Extract notes
       const notes = condition.note?.[0]?.text || '';
       
       // Extract condition code and display
@@ -66,14 +85,30 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         source: 'existing'
       } : null;
 
+      // Extract severity
+      let severity = '';
+      if (condition.severity?.coding?.[0]?.code) {
+        const severityCode = condition.severity.coding[0].code;
+        // Map SNOMED severity codes to our simple values
+        if (severityCode === '255604002') severity = 'mild';
+        else if (severityCode === '6736007') severity = 'moderate';
+        else if (severityCode === '24484000') severity = 'severe';
+        else severity = condition.severity.coding[0].display || '';
+      } else if (condition.severity?.text) {
+        severity = condition.severity.text.toLowerCase();
+      }
+
+      // Extract category - default to problem-list-item
+      const categoryCode = condition.category?.[0]?.coding?.[0]?.code || 'problem-list-item';
+
       setFormData({
         problemText,
         selectedProblem,
         clinicalStatus,
         verificationStatus,
-        severity: '', // TODO: Extract from condition.severity if available
+        severity,
         onsetDate,
-        category: 'problem-list-item',
+        category: categoryCode,
         notes
       });
     }
@@ -130,9 +165,17 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         return;
       }
 
+      // Ensure we have the resource ID
+      if (!condition.id) {
+        setError('Cannot update problem: missing resource ID');
+        return;
+      }
+
       // Create updated FHIR Condition resource
       const updatedCondition = {
         ...condition, // Preserve existing fields like id, meta, etc.
+        resourceType: 'Condition', // Ensure resourceType is set
+        id: condition.id, // Explicitly set ID
         clinicalStatus: {
           coding: [{
             system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
@@ -193,7 +236,14 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
       await onSave(updatedCondition);
       handleClose();
     } catch (err) {
-      setError(err.message || 'Failed to update problem');
+      console.error('Error saving problem:', err);
+      // Ensure we always set a string error message
+      const errorMessage = typeof err === 'string' ? err : 
+                          err?.message || 
+                          err?.response?.data?.message || 
+                          err?.response?.data?.detail || 
+                          'Failed to update problem';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -206,7 +256,14 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         await onDelete(condition.id);
         handleClose();
       } catch (err) {
-        setError(err.message || 'Failed to delete problem');
+        console.error('Error deleting problem:', err);
+        // Ensure we always set a string error message
+        const errorMessage = typeof err === 'string' ? err : 
+                            err?.message || 
+                            err?.response?.data?.message || 
+                            err?.response?.data?.detail || 
+                            'Failed to delete problem';
+        setError(errorMessage);
         setLoading(false);
       }
     }
@@ -228,8 +285,8 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         }}
       >
         <DialogTitle>
-          <Typography variant="h6">Edit Problem</Typography>
-          <Typography variant="body2" color="text.secondary">
+          Edit Problem
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Condition ID: {condition.id}
           </Typography>
         </DialogTitle>
@@ -252,6 +309,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedProblem}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     setSearchQuery(value);
                     handleSearchConditions(value);
@@ -384,9 +442,9 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
                     ...prev,
                     onsetDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                   maxDate={new Date()}
                 />
               </Grid>

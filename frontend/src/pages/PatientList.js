@@ -25,6 +25,7 @@ import {
   Refresh as RefreshIcon,
   People as PeopleIcon,
   PersonSearch as PersonSearchIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
@@ -42,6 +43,7 @@ function PatientList() {
   const [openNewPatient, setOpenNewPatient] = useState(false);
   const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients - Default to All Patients
   const [myPatientsCount, setMyPatientsCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const columns = [
     {
@@ -338,11 +340,16 @@ function PatientList() {
     }
   };
 
-  const handleRefresh = () => {
-    if (activeTab === 0) {
-      fetchMyPatients();
-    } else {
-      fetchAllPatients();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (activeTab === 0) {
+        await fetchMyPatients();
+      } else {
+        await fetchAllPatients();
+      }
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -351,9 +358,49 @@ function PatientList() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Patients</Typography>
         <Box>
-          <IconButton onClick={handleRefresh} sx={{ mr: 1 }}>
-            <RefreshIcon />
-          </IconButton>
+          <Tooltip title="Export patient list">
+            <IconButton 
+              onClick={() => {
+                const data = currentPatients.map(p => ({
+                  MRN: p.mrn,
+                  Name: `${p.last_name}, ${p.first_name}`,
+                  'Date of Birth': p.date_of_birth,
+                  Gender: p.gender,
+                  Phone: p.phone,
+                  Insurance: p.insurance_name
+                }));
+                const csv = [
+                  Object.keys(data[0]).join(','),
+                  ...data.map(row => Object.values(row).map(v => `"${v || ''}"`).join(','))
+                ].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `patient-list-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              sx={{ mr: 1 }}
+            >
+              <DownloadIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Refresh patient list">
+            <IconButton 
+              onClick={handleRefresh} 
+              sx={{ mr: 1 }}
+              disabled={isRefreshing}
+            >
+              <RefreshIcon sx={{ 
+                animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              }} />
+            </IconButton>
+          </Tooltip>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -427,7 +474,7 @@ function PatientList() {
           disableRowSelectionOnClick
           loading={loading}
           onRowClick={(params) => {
-            navigate(`/patients/${params.row.id}`);
+            navigate(getPatientDetailUrl(params.row.id));
           }}
           sx={{
             '& .MuiDataGrid-row:hover': {

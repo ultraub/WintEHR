@@ -36,16 +36,12 @@ import {
   TrendingDown as TrendingDownIcon,
   ArrowForward as ArrowIcon,
   Refresh as RefreshIcon,
-  CalendarMonth as CalendarIcon,
-  Psychology as CDSIcon,
-  Info as InfoIcon,
-  Error as ErrorIcon
+  CalendarMonth as CalendarIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
-import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -149,8 +145,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [cdsAlerts, setCdsAlerts] = useState([]);
-  const [cdsLoading, setCdsLoading] = useState(false);
   const [stats, setStats] = useState({
     activeProblems: 0,
     activeMedications: 0,
@@ -162,7 +156,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   // Load all patient data
   useEffect(() => {
     loadDashboardData();
-    loadCDSAlerts();
   }, [patientId]);
 
   // Reload data when resources change
@@ -236,75 +229,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  const loadCDSAlerts = useCallback(async () => {
-    if (!patientId) return;
-    
-    // Check cache first
-    const cacheKey = `cds-alerts-${patientId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      const { alerts, timestamp } = JSON.parse(cached);
-      // Use cache if less than 10 minutes old
-      if (Date.now() - timestamp < 600000) {
-        setCdsAlerts(alerts);
-        return;
-      }
-    }
-    
-    setCdsLoading(true);
-    try {
-      // Get available services for patient-view hook
-      const services = await cdsHooksClient.discoverServices();
-      const patientViewServices = services.filter(s => s.hook === 'patient-view');
-      
-      const allAlerts = [];
-      
-      // Process services in parallel instead of sequentially
-      const servicePromises = patientViewServices.map(async (service) => {
-        try {
-          const response = await cdsHooksClient.callService(service.id, {
-            hook: 'patient-view',
-            hookInstance: `summary-${Date.now()}`,
-            context: {
-              patientId: patientId
-            }
-          });
-          
-          if (response.cards) {
-            return response.cards.map(card => ({
-              ...card,
-              serviceId: service.id,
-              serviceName: service.title || service.id,
-              timestamp: new Date()
-            }));
-          }
-        } catch (serviceError) {
-          console.error(`Error executing CDS service ${service.id}:`, serviceError);
-        }
-        return [];
-      });
-      
-      const results = await Promise.all(servicePromises);
-      results.forEach(alerts => allAlerts.push(...alerts));
-      
-      setCdsAlerts(allAlerts);
-      
-      // Cache the results
-      sessionStorage.setItem(cacheKey, JSON.stringify({
-        alerts: allAlerts,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.error('Error loading CDS alerts:', error);
-    } finally {
-      setCdsLoading(false);
-    }
-  }, [patientId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     loadDashboardData();
-    loadCDSAlerts();
   };
 
   // Get recent items
@@ -413,59 +341,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
       </Grid>
 
-      {/* CDS Alerts */}
-      {cdsAlerts.length > 0 && (
-        <Card sx={{ mb: 3 }}>
-          <CardHeader
-            title="Clinical Decision Support Alerts"
-            titleTypographyProps={{ variant: 'h6' }}
-            avatar={<CDSIcon color="warning" />}
-            action={
-              <Chip 
-                label={`${cdsAlerts.length} Active`}
-                color="warning"
-                size="small"
-              />
-            }
-          />
-          <CardContent>
-            {cdsAlerts.slice(0, 3).map((alert, index) => (
-              <Alert 
-                key={index}
-                severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
-                sx={{ mb: index < 2 ? 1 : 0 }}
-                action={
-                  alert.suggestions && alert.suggestions.length > 0 && (
-                    <Button size="small" variant="outlined">
-                      View Actions
-                    </Button>
-                  )
-                }
-              >
-                <Typography variant="subtitle2" gutterBottom>
-                  {alert.summary}
-                </Typography>
-                <Typography variant="body2">
-                  {alert.detail}
-                </Typography>
-              </Alert>
-            ))}
-            {cdsAlerts.length > 3 && (
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                sx={{ mt: 2 }}
-                onClick={() => {
-                  // Navigate to CDS developer tools
-                  window.open('/cds-hooks', '_blank');
-                }}
-              >
-                View All {cdsAlerts.length} CDS Alerts
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Clinical Alerts */}
       {allergies.length > 0 && (

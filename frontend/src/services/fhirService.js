@@ -5,7 +5,7 @@
 
 class FHIRService {
   constructor() {
-    this.baseUrl = '/api/emr/fhir/R4';
+    this.baseUrl = '/fhir/R4';
   }
 
   /**
@@ -25,8 +25,18 @@ class FHIRService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to create ${resourceType}`);
+        let errorMessage = `Failed to create ${resourceType}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If error response is not JSON, use status text
+          errorMessage = `${errorMessage}: ${response.statusText} (${response.status})`;
+        }
+        
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        throw error;
       }
 
       return await response.json();
@@ -54,8 +64,18 @@ class FHIRService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to update ${resourceType}`);
+        let errorMessage = `Failed to update ${resourceType}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If error response is not JSON, use status text
+          errorMessage = `${errorMessage}: ${response.statusText} (${response.status})`;
+        }
+        
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        throw error;
       }
 
       return await response.json();
@@ -78,8 +98,18 @@ class FHIRService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to delete ${resourceType}`);
+        let errorMessage = `Failed to delete ${resourceType}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If error response is not JSON, use status text
+          errorMessage = `${errorMessage}: ${response.statusText} (${response.status})`;
+        }
+        
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        throw error;
       }
 
       return true;

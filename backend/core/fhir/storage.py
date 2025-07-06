@@ -269,7 +269,7 @@ class FHIRStorageEngine:
         await self._extract_search_parameters(resource_id, resource_type, resource_dict)
         
         # Extract references
-        await self._extract_references(resource_id, resource_dict)
+        await self._extract_references(resource_id, resource_dict, "", resource_type)
         
         await self.session.commit()
         
@@ -437,7 +437,7 @@ class FHIRStorageEngine:
         
         # Update references
         await self._delete_references(resource_id)
-        await self._extract_references(resource_id, resource_dict)
+        await self._extract_references(resource_id, resource_dict, "", resource_type)
         
         await self.session.commit()
         
@@ -1528,7 +1528,8 @@ class FHIRStorageEngine:
         self,
         resource_id: UUID,
         resource_data: Dict[str, Any],
-        path: str = ""
+        path: str = "",
+        source_type: str = None
     ):
         """Extract and store references from a resource."""
         for key, value in resource_data.items():
@@ -1543,29 +1544,35 @@ class FHIRStorageEngine:
                     
                     query = text("""
                         INSERT INTO fhir.references (
-                            source_id, target_type, target_id, reference_path
+                            source_id, source_type, target_type, target_id, reference_path, reference_value
                         ) VALUES (
-                            :source_id, :target_type, :target_id, :reference_path
+                            :source_id, :source_type, :target_type, :target_id, :reference_path, :reference_value
                         )
                     """)
                     
+                    # Get source type from parameter or resource
+                    if not source_type:
+                        source_type = resource_data.get('resourceType', 'Unknown')
+                    
                     await self.session.execute(query, {
                         'source_id': resource_id,
+                        'source_type': source_type,
                         'target_type': target_type,
                         'target_id': target_id,
-                        'reference_path': path  # Parent path of the reference
+                        'reference_path': path,  # Parent path of the reference
+                        'reference_value': value  # Full reference value
                     })
             
             elif isinstance(value, dict):
                 # Recurse into nested objects
-                await self._extract_references(resource_id, value, current_path)
+                await self._extract_references(resource_id, value, current_path, source_type)
             
             elif isinstance(value, list):
                 # Recurse into arrays
                 for i, item in enumerate(value):
                     if isinstance(item, dict):
                         await self._extract_references(
-                            resource_id, item, f"{current_path}[{i}]"
+                            resource_id, item, f"{current_path}[{i}]", source_type
                         )
     
     async def _delete_search_parameters(self, resource_id: UUID):

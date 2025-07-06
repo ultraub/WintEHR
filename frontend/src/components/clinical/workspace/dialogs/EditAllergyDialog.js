@@ -204,10 +204,17 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         return;
       }
 
+      // Ensure we have the resource ID
+      if (!allergyIntolerance.id) {
+        setError('Cannot update allergy: missing resource ID');
+        return;
+      }
+
       // Create updated FHIR AllergyIntolerance resource
       const updatedAllergyIntolerance = {
         ...allergyIntolerance, // Preserve existing fields like id, meta, etc.
         resourceType: 'AllergyIntolerance',
+        id: allergyIntolerance.id, // Explicitly set ID
         clinicalStatus: {
           coding: [{
             system: 'http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical',
@@ -260,7 +267,14 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       await onSave(updatedAllergyIntolerance);
       handleClose();
     } catch (err) {
-      setError(err.message || 'Failed to update allergy');
+      console.error('Error saving allergy:', err);
+      // Ensure we always set a string error message
+      const errorMessage = typeof err === 'string' ? err : 
+                          err?.message || 
+                          err?.response?.data?.message || 
+                          err?.response?.data?.detail || 
+                          'Failed to update allergy';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -273,7 +287,14 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         await onDelete(allergyIntolerance.id);
         handleClose();
       } catch (err) {
-        setError(err.message || 'Failed to delete allergy');
+        console.error('Error deleting allergy:', err);
+        // Ensure we always set a string error message
+        const errorMessage = typeof err === 'string' ? err : 
+                            err?.message || 
+                            err?.response?.data?.message || 
+                            err?.response?.data?.detail || 
+                            'Failed to delete allergy';
+        setError(errorMessage);
         setLoading(false);
       }
     }
@@ -302,8 +323,8 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         }}
       >
         <DialogTitle>
-          <Typography variant="h6">Edit Allergy/Intolerance</Typography>
-          <Typography variant="body2" color="text.secondary">
+          Edit Allergy/Intolerance
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Allergy ID: {allergyIntolerance.id}
           </Typography>
         </DialogTitle>

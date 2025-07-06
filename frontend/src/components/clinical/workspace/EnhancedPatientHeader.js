@@ -2,7 +2,7 @@
  * Enhanced Patient Header Component
  * Comprehensive patient demographics and clinical summary for the workspace
  */
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
@@ -16,7 +16,11 @@ import {
   Divider,
   Button,
   useTheme,
-  alpha
+  alpha,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -34,7 +38,12 @@ import {
   CalendarMonth as CalendarIcon,
   Badge as BadgeIcon,
   HealthAndSafety as InsuranceIcon,
-  Groups as TeamIcon
+  Groups as TeamIcon,
+  Edit as EditIcon,
+  History as HistoryIcon,
+  Share as ShareIcon,
+  Description as DocumentIcon,
+  Security as SecurityIcon
 } from '@mui/icons-material';
 import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
@@ -44,6 +53,7 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { currentPatient, getPatientResources } = useFHIRResource();
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
 
   // Get patient resources
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
@@ -280,6 +290,7 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
                   <IconButton 
                     size="small"
                     sx={{ padding: 0.5 }}
+                    onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
                   >
                     <MoreIcon fontSize="small" />
                   </IconButton>
@@ -289,6 +300,81 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
           </Grid>
         </Grid>
       </Box>
+
+      {/* More Options Menu */}
+      <Menu
+        anchorEl={moreMenuAnchor}
+        open={Boolean(moreMenuAnchor)}
+        onClose={() => setMoreMenuAnchor(null)}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={() => {
+          setMoreMenuAnchor(null);
+          navigate(`/patients/${patientId}/edit`);
+        }}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit Demographics</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setMoreMenuAnchor(null);
+          onNavigateToTab('timeline');
+        }}>
+          <ListItemIcon>
+            <HistoryIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>View History</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setMoreMenuAnchor(null);
+          // Generate shareable link
+          const shareUrl = `${window.location.origin}/patients/${patientId}/view?readonly=true`;
+          if (navigator.share) {
+            navigator.share({
+              title: `Patient: ${currentPatient.name?.[0]?.given?.join(' ')} ${currentPatient.name?.[0]?.family}`,
+              text: 'Patient medical record',
+              url: shareUrl
+            }).catch(err => console.log('Error sharing:', err));
+          } else {
+            // Fallback: copy to clipboard
+            navigator.clipboard.writeText(shareUrl).then(() => {
+              console.log('Share link copied to clipboard');
+            });
+          }
+        }}>
+          <ListItemIcon>
+            <ShareIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Share Patient Info</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setMoreMenuAnchor(null);
+          onNavigateToTab('documentation');
+        }}>
+          <ListItemIcon>
+            <DocumentIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>View Documents</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setMoreMenuAnchor(null);
+          // Navigate to privacy settings page
+          navigate(`/patients/${patientId}/privacy`);
+        }}>
+          <ListItemIcon>
+            <SecurityIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Privacy Settings</ListItemText>
+        </MenuItem>
+      </Menu>
     </Paper>
   );
 };

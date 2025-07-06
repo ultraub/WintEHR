@@ -94,17 +94,95 @@ const eventTypes = {
 // Get event date
 const getEventDate = (event) => {
   // Try different date fields based on resource type
-  return event.effectiveDateTime || 
-         event.authoredOn || 
-         event.dateTime ||
-         event.occurrenceDateTime ||
-         event.performedDateTime ||      // For procedures
-         event.performedPeriod?.start || // For procedures with period
-         event.date ||
-         event.period?.start ||
-         event.recordedDate ||
-         event.meta?.lastUpdated ||
-         null;
+  switch (event.resourceType) {
+    case 'Procedure':
+      return event.performedDateTime || 
+             event.performedPeriod?.start || 
+             event.performedPeriod?.end ||
+             event.occurrenceDateTime ||
+             event.occurrencePeriod?.start ||
+             event.date ||
+             event.recordedDate ||
+             null; // Don't fall back to meta.lastUpdated for procedures
+             
+    case 'Observation':
+      return event.effectiveDateTime || 
+             event.effectivePeriod?.start ||
+             event.issued ||
+             event.date ||
+             null;
+             
+    case 'MedicationRequest':
+      return event.authoredOn || 
+             event.dosageInstruction?.[0]?.timing?.event?.[0] ||
+             event.dispenseRequest?.validityPeriod?.start ||
+             null;
+             
+    case 'Condition':
+      return event.onsetDateTime || 
+             event.onsetPeriod?.start ||
+             event.recordedDate ||
+             event.dateRecorded ||
+             null;
+             
+    case 'Encounter':
+      return event.period?.start || 
+             event.period?.end ||
+             event.date ||
+             null;
+             
+    case 'AllergyIntolerance':
+      return event.onsetDateTime ||
+             event.onsetPeriod?.start ||
+             event.recordedDate ||
+             event.assertedDate ||
+             null;
+             
+    case 'Immunization':
+      return event.occurrenceDateTime ||
+             event.occurrenceString ||
+             event.date ||
+             null;
+             
+    case 'DiagnosticReport':
+      return event.effectiveDateTime ||
+             event.effectivePeriod?.start ||
+             event.issued ||
+             null;
+             
+    case 'ImagingStudy':
+      return event.started ||
+             event.date ||
+             null;
+             
+    case 'DocumentReference':
+      return event.date ||
+             event.created ||
+             event.indexed ||
+             null;
+             
+    case 'CarePlan':
+      return event.period?.start ||
+             event.created ||
+             event.date ||
+             null;
+             
+    case 'Goal':
+      return event.startDate ||
+             event.target?.[0]?.dueDate ||
+             event.statusDate ||
+             null;
+             
+    default:
+      // Generic fallback for other resource types
+      return event.effectiveDateTime || 
+             event.authoredOn || 
+             event.dateTime ||
+             event.date ||
+             event.period?.start ||
+             event.recordedDate ||
+             null; // Avoid using meta.lastUpdated as it's not a clinical date
+  }
 };
 
 // Timeline Event Component
@@ -369,22 +447,25 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       // Period filter
       if (filterPeriod !== 'all') {
         const eventDate = getEventDate(event);
-        if (eventDate) {
-          const date = parseISO(eventDate);
-          const periodMap = {
-            '7d': subDays(new Date(), 7),
-            '30d': subDays(new Date(), 30),
-            '90d': subDays(new Date(), 90),
-            '6m': subMonths(new Date(), 6),
-            '1y': subYears(new Date(), 1),
-            '5y': subYears(new Date(), 5)
-          };
-          if (!isWithinInterval(date, {
-            start: periodMap[filterPeriod],
-            end: new Date()
-          })) {
-            return false;
-          }
+        if (!eventDate) {
+          // Exclude events without dates when filtering by period
+          return false;
+        }
+        
+        const date = parseISO(eventDate);
+        const periodMap = {
+          '7d': subDays(new Date(), 7),
+          '30d': subDays(new Date(), 30),
+          '90d': subDays(new Date(), 90),
+          '6m': subMonths(new Date(), 6),
+          '1y': subYears(new Date(), 1),
+          '5y': subYears(new Date(), 5)
+        };
+        if (!isWithinInterval(date, {
+          start: periodMap[filterPeriod],
+          end: new Date()
+        })) {
+          return false;
         }
       }
 
@@ -398,7 +479,12 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     return [...filteredEvents].sort((a, b) => {
       const dateA = getEventDate(a);
       const dateB = getEventDate(b);
-      if (!dateA || !dateB) return 0;
+      
+      // Handle cases where one or both dates are null
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1; // Put items without dates at the end
+      if (!dateB) return -1; // Put items without dates at the end
+      
       return new Date(dateB) - new Date(dateA);
     });
   }, [filteredEvents]);

@@ -33,7 +33,7 @@ class CDSHooksClient {
     }
 
     try {
-      const response = await this.httpClient.get('/');
+      const response = await this.httpClient.get('/cds-services');
       this.servicesCache = response.data.services || [];
       this.servicesCacheTime = now;
       return this.servicesCache;
@@ -59,7 +59,7 @@ class CDSHooksClient {
     }
 
     try {
-      const response = await this.httpClient.post(`/${hookId}`, context);
+      const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
       
       // Cache the response
       this.requestCache.set(cacheKey, {
@@ -95,19 +95,24 @@ class CDSHooksClient {
     const services = await this.discoverServices();
     const patientViewServices = services.filter(s => s.hook === 'patient-view');
     
-    const context = {
-      userId,
-      patientId,
-      context: {
-        patientId,
-        encounterId
-      }
-    };
-
     const allCards = [];
     
     for (const service of patientViewServices) {
-      const result = await this.executeHook(service.id, context);
+      // Properly format context according to CDS Hooks v1.0 spec
+      const hookContext = {
+        hook: 'patient-view',
+        hookInstance: `${service.id}-${Date.now()}`,
+        context: {
+          patientId,
+          userId
+        }
+      };
+      
+      if (encounterId) {
+        hookContext.context.encounterId = encounterId;
+      }
+      
+      const result = await this.executeHook(service.id, hookContext);
       if (result.cards && result.cards.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
@@ -127,21 +132,27 @@ class CDSHooksClient {
     const services = await this.discoverServices();
     const prescribeServices = services.filter(s => s.hook === 'medication-prescribe');
     
-    const context = {
-      userId,
-      patientId,
-      context: {
-        patientId,
-        medications
-      }
-    };
-
     const allCards = [];
     
     for (const service of prescribeServices) {
-      const result = await this.executeHook(service.id, context);
+      // Properly format context according to CDS Hooks v1.0 spec
+      const hookContext = {
+        hook: 'medication-prescribe',
+        hookInstance: `${service.id}-${Date.now()}`,
+        context: {
+          patientId,
+          userId,
+          medications
+        }
+      };
+      
+      const result = await this.executeHook(service.id, hookContext);
       if (result.cards && result.cards.length > 0) {
-        allCards.push(...result.cards);
+        allCards.push(...result.cards.map(card => ({
+          ...card,
+          serviceId: service.id,
+          serviceTitle: service.title
+        })));
       }
     }
 
@@ -155,21 +166,27 @@ class CDSHooksClient {
     const services = await this.discoverServices();
     const orderServices = services.filter(s => s.hook === 'order-sign');
     
-    const context = {
-      userId,
-      patientId,
-      context: {
-        patientId,
-        draftOrders: orders
-      }
-    };
-
     const allCards = [];
     
     for (const service of orderServices) {
-      const result = await this.executeHook(service.id, context);
+      // Properly format context according to CDS Hooks v1.0 spec
+      const hookContext = {
+        hook: 'order-sign',
+        hookInstance: `${service.id}-${Date.now()}`,
+        context: {
+          patientId,
+          userId,
+          draftOrders: orders
+        }
+      };
+      
+      const result = await this.executeHook(service.id, hookContext);
       if (result.cards && result.cards.length > 0) {
-        allCards.push(...result.cards);
+        allCards.push(...result.cards.map(card => ({
+          ...card,
+          serviceId: service.id,
+          serviceTitle: service.title
+        })));
       }
     }
 
