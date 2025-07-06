@@ -269,10 +269,18 @@ class FHIRStorageEngine:
         )
         
         # Extract search parameters
-        await self._extract_search_parameters(resource_id, resource_type, resource_dict)
+        try:
+            await self._extract_search_parameters(resource_id, resource_type, resource_dict)
+            print(f"DEBUG: Successfully extracted search parameters for {resource_type} {fhir_id}")
+        except Exception as e:
+            print(f"ERROR: Failed to extract search parameters for {resource_type} {fhir_id}: {e}")
+            # Don't fail the whole operation, but log the error
         
         # Extract references
-        await self._extract_references(resource_id, resource_dict, "", resource_type)
+        try:
+            await self._extract_references(resource_id, resource_dict, "", resource_type)
+        except Exception as e:
+            print(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
         
         await self.session.commit()
         
@@ -439,11 +447,18 @@ class FHIRStorageEngine:
         
         # Update search parameters
         await self._delete_search_parameters(resource_id)
-        await self._extract_search_parameters(resource_id, resource_type, resource_dict)
+        try:
+            await self._extract_search_parameters(resource_id, resource_type, resource_dict)
+            print(f"DEBUG: Successfully updated search parameters for {resource_type} {fhir_id}")
+        except Exception as e:
+            print(f"ERROR: Failed to update search parameters for {resource_type} {fhir_id}: {e}")
         
         # Update references
         await self._delete_references(resource_id)
-        await self._extract_references(resource_id, resource_dict, "", resource_type)
+        try:
+            await self._extract_references(resource_id, resource_dict, "", resource_type)
+        except Exception as e:
+            print(f"ERROR: Failed to update references for {resource_type} {fhir_id}: {e}")
         
         await self.session.commit()
         
@@ -899,6 +914,7 @@ class FHIRStorageEngine:
         resource_data: Dict[str, Any]
     ):
         """Extract and store search parameters from a resource."""
+        print(f"DEBUG: Extracting search parameters for {resource_type} resource {resource_id}")
         params_to_extract = []
         
         # Extract common parameters
@@ -1498,7 +1514,9 @@ class FHIRStorageEngine:
                     print(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
         
         # Insert all search parameters
-        for param in params_to_extract:
+        print(f"DEBUG: Found {len(params_to_extract)} search parameters to store")
+        for i, param in enumerate(params_to_extract):
+            print(f"DEBUG: Param {i+1}: {param}")
             query = text("""
                 INSERT INTO fhir.search_params (
                     resource_id, param_name, param_type,

@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { fhirClient } from '../services/fhirClient';
+import { useFHIRResource } from './FHIRResourceContext';
 
 // Action types
 const APPOINTMENT_ACTIONS = {
@@ -165,6 +166,7 @@ const AppointmentContext = createContext(null);
 // Provider component
 export function AppointmentProvider({ children }) {
   const [state, dispatch] = useReducer(appointmentReducer, initialState);
+  const { refreshPatientResources } = useFHIRResource();
 
   // Helper function to build FHIR search parameters
   const buildSearchParams = useCallback((filters, pagination) => {
@@ -254,6 +256,14 @@ export function AppointmentProvider({ children }) {
       
       const response = await fhirClient.create('Appointment', fhirAppointment);
       
+      // Refresh patient resources if patient is involved
+      const patientParticipant = fhirAppointment.participant?.find(p => 
+        p.actor?.reference?.startsWith('Patient/'));
+      if (patientParticipant) {
+        const patientId = patientParticipant.actor.reference.replace('Patient/', '');
+        await refreshPatientResources(patientId);
+      }
+      
       dispatch({
         type: APPOINTMENT_ACTIONS.CREATE_APPOINTMENT_SUCCESS,
         payload: response.resource || fhirAppointment
@@ -276,6 +286,14 @@ export function AppointmentProvider({ children }) {
     
     try {
       const response = await fhirClient.update('Appointment', appointmentId, updateData);
+      
+      // Refresh patient resources if patient is involved
+      const patientParticipant = updateData.participant?.find(p => 
+        p.actor?.reference?.startsWith('Patient/'));
+      if (patientParticipant) {
+        const patientId = patientParticipant.actor.reference.replace('Patient/', '');
+        await refreshPatientResources(patientId);
+      }
       
       dispatch({
         type: APPOINTMENT_ACTIONS.UPDATE_APPOINTMENT_SUCCESS,
@@ -331,7 +349,18 @@ export function AppointmentProvider({ children }) {
     dispatch({ type: APPOINTMENT_ACTIONS.DELETE_APPOINTMENT_START });
     
     try {
+      // Read appointment to get patient reference before deleting
+      const appointment = await fhirClient.read('Appointment', appointmentId);
+      
       await fhirClient.delete('Appointment', appointmentId);
+      
+      // Refresh patient resources if patient is involved
+      const patientParticipant = appointment.participant?.find(p => 
+        p.actor?.reference?.startsWith('Patient/'));
+      if (patientParticipant) {
+        const patientId = patientParticipant.actor.reference.replace('Patient/', '');
+        await refreshPatientResources(patientId);
+      }
       
       dispatch({
         type: APPOINTMENT_ACTIONS.DELETE_APPOINTMENT_SUCCESS,

@@ -43,17 +43,17 @@ import {
   Science as LabIcon
 } from '@mui/icons-material';
 
-// Common lab test configurations
+// Common lab test configurations - Updated with actual Synthea LOINC codes
 const LAB_PROFILES = {
   'basic-metabolic': {
     name: 'Basic Metabolic Panel',
     tests: [
-      { code: '2345-7', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: '#ff6b6b' },
-      { code: '2160-0', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: '#4ecdc4' },
-      { code: '2951-2', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: '#45b7d1' },
-      { code: '2823-3', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: '#f7b731' },
-      { code: '2075-0', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: '#5f27cd' },
-      { code: '1963-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: '#00d2d3' }
+      { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: '#ff6b6b' },
+      { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: '#4ecdc4' },
+      { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: '#45b7d1' },
+      { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: '#f7b731' },
+      { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: '#5f27cd' },
+      { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: '#00d2d3' }
     ]
   },
   'liver-function': {
@@ -93,10 +93,24 @@ const LAB_PROFILES = {
       { code: '3053-6', name: 'T4 Free', unit: 'ng/dL', normalRange: [0.9, 1.7], color: '#4ecdc4' },
       { code: '3052-8', name: 'T3 Free', unit: 'pg/mL', normalRange: [2.3, 4.2], color: '#45b7d1' }
     ]
+  },
+  'synthea-available': {
+    name: 'Available Lab Tests',
+    tests: [
+      { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: '#ff6b6b' },
+      { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: '#4ecdc4' },
+      { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: '#45b7d1' },
+      { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: '#f7b731' },
+      { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: '#5f27cd' },
+      { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: '#00d2d3' },
+      { code: '4548-4', name: 'Hemoglobin A1c', unit: '%', normalRange: [4.0, 5.6], color: '#e17055' },
+      { code: '49765-1', name: 'Calcium', unit: 'mg/dL', normalRange: [8.5, 10.5], color: '#6c5ce7' },
+      { code: '6299-2', name: 'Urea Nitrogen', unit: 'mg/dL', normalRange: [7, 20], color: '#a29bfe' }
+    ]
   }
 };
 
-const LabTrendsChart = ({ patientId, observations, selectedProfile = 'basic-metabolic', height = 400 }) => {
+const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-available', height = 400 }) => {
   const theme = useTheme();
   const [profile, setProfile] = useState(selectedProfile);
   const [selectedTest, setSelectedTest] = useState(null);
@@ -318,7 +332,7 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'basic-meta
               <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
               <XAxis 
                 dataKey="date" 
-                tickFormatter={(date) => format(new Date(date), 'MMM d')}
+                tickFormatter={(date) => format(new Date(date), 'MMM d, yyyy')}
                 tick={{ fontSize: 12 }}
                 stroke={theme.palette.text.secondary}
               />

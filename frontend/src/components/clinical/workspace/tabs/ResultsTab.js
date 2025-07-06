@@ -74,6 +74,42 @@ import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 
+// Reference ranges for common lab tests (based on LOINC codes)
+const REFERENCE_RANGES = {
+  '2339-0': { low: 70, high: 100, unit: 'mg/dL' },     // Glucose
+  '38483-4': { low: 0.6, high: 1.2, unit: 'mg/dL' },  // Creatinine
+  '2947-0': { low: 136, high: 145, unit: 'mmol/L' },   // Sodium
+  '6298-4': { low: 3.5, high: 5.0, unit: 'mmol/L' },  // Potassium
+  '2069-3': { low: 98, high: 107, unit: 'mmol/L' },    // Chloride
+  '20565-8': { low: 22, high: 29, unit: 'mmol/L' },    // CO2
+  '4548-4': { low: 4.0, high: 5.6, unit: '%' },        // Hemoglobin A1c
+  '49765-1': { low: 8.5, high: 10.5, unit: 'mg/dL' },  // Calcium
+  '6299-2': { low: 7, high: 20, unit: 'mg/dL' }        // Urea Nitrogen
+};
+
+// Add reference ranges to observations if missing
+const enhanceObservationWithReferenceRange = (observation) => {
+  if (observation.referenceRange && observation.referenceRange.length > 0) {
+    return observation; // Already has reference range
+  }
+  
+  const loincCode = observation.code?.coding?.[0]?.code;
+  const refRange = REFERENCE_RANGES[loincCode];
+  
+  if (refRange) {
+    return {
+      ...observation,
+      referenceRange: [{
+        low: { value: refRange.low, unit: refRange.unit },
+        high: { value: refRange.high, unit: refRange.unit },
+        text: `${refRange.low}-${refRange.high} ${refRange.unit}`
+      }]
+    };
+  }
+  
+  return observation;
+};
+
 // Get result status icon and color
 const getResultStatus = (observation) => {
   if (!observation.status) return { icon: <PendingIcon />, color: 'default' };
@@ -378,13 +414,14 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     const otherResults = [];
     
     observations.forEach(o => {
-      const category = o.category?.[0]?.coding?.[0]?.code;
+      const enhancedObs = enhanceObservationWithReferenceRange(o);
+      const category = enhancedObs.category?.[0]?.coding?.[0]?.code;
       if (category === 'laboratory') {
-        labResults.push(o);
+        labResults.push(enhancedObs);
       } else if (category === 'vital-signs') {
-        vitalSigns.push(o);
+        vitalSigns.push(enhancedObs);
       } else {
-        otherResults.push(o);
+        otherResults.push(enhancedObs);
       }
     });
     

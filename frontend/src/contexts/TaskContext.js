@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState } from 'react';
 import api from '../services/api';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
+import { useFHIRResource } from './FHIRResourceContext';
 
 const TaskContext = createContext(undefined);
 
@@ -19,6 +20,7 @@ export const useTask = () => {
 
 export const TaskProvider = ({ children }) => {
   const { currentPatient } = useClinical();
+  const { refreshPatientResources } = useFHIRResource();
   const [inboxItems, setInboxItems] = useState([]);
   const [inboxStats, setInboxStats] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -305,6 +307,11 @@ export const TaskProvider = ({ children }) => {
       const fhirTask = transformToFHIRTask(taskData);
       const result = await fhirClient.create('Task', fhirTask);
       
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+      
       await loadTasks();
       await loadTaskStats();
       
@@ -327,6 +334,11 @@ export const TaskProvider = ({ children }) => {
       // Transform to FHIR and update
       const fhirTask = transformToFHIRTask(updatedTask);
       await fhirClient.update('Task', taskId, fhirTask);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       await loadTasks();
       await loadTaskStats();
@@ -366,6 +378,11 @@ export const TaskProvider = ({ children }) => {
       }
       
       await fhirClient.update('Task', taskId, currentFhirTask);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       await loadTasks();
       await loadTaskStats();

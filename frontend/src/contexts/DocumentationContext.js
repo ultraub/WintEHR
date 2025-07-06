@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
+import { useFHIRResource } from './FHIRResourceContext';
 
 const DocumentationContext = createContext(undefined);
 
@@ -18,6 +19,7 @@ export const useDocumentation = () => {
 
 export const DocumentationProvider = ({ children }) => {
   const { currentPatient, currentEncounter, setCurrentNote: setClinicalContextNote } = useClinical();
+  const { refreshPatientResources } = useFHIRResource();
   const [currentNote, setCurrentNote] = useState(null);
   const [noteTemplates, setNoteTemplates] = useState([]);
   const [recentNotes, setRecentNotes] = useState([]);
@@ -347,6 +349,11 @@ export const DocumentationProvider = ({ children }) => {
       setClinicalContextNote(savedNote);
       setIsDirty(false);
 
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
     } catch (error) {
@@ -378,6 +385,11 @@ export const DocumentationProvider = ({ children }) => {
       });
       
       await fhirClient.update('DocumentReference', currentNote.id, fhirDoc);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       // Reload the note to get updated status
       await loadNote(currentNote.id);
@@ -434,6 +446,11 @@ export const DocumentationProvider = ({ children }) => {
 
       const result = await fhirClient.create('DocumentReference', fhirDoc);
 
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
       
@@ -454,6 +471,11 @@ export const DocumentationProvider = ({ children }) => {
       }
       
       await fhirClient.delete('DocumentReference', noteId);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       if (currentNote?.id === noteId) {
         clearCurrentNote();

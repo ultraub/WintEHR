@@ -74,6 +74,7 @@ import {
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -523,6 +524,91 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Send medication to pharmacy workflow
+  const handleSendToPharmacy = async (order) => {
+    if (order.resourceType !== 'MedicationRequest') {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Only medication orders can be sent to pharmacy'
+        });
+      }
+      return;
+    }
+
+    try {
+      // Update pharmacy status to pending
+      await axios.put(`/api/clinical/pharmacy/status/${order.id}`, {
+        status: 'pending',
+        notes: 'Sent from orders tab',
+        updated_by: 'Current User' // This would come from auth context
+      });
+
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send to pharmacy:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to send medication to pharmacy'
+        });
+      }
+    }
+  };
+
+  // Batch send selected orders to pharmacy
+  const handleBatchSendToPharmacy = async () => {
+    const medicationOrders = sortedOrders.filter(order => 
+      selectedOrders.has(order.id) && order.resourceType === 'MedicationRequest'
+    );
+
+    if (medicationOrders.length === 0) {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'warning',
+          message: 'No medication orders selected'
+        });
+      }
+      return;
+    }
+
+    try {
+      // Send all selected medication orders to pharmacy
+      const promises = medicationOrders.map(order =>
+        axios.put(`/api/clinical/pharmacy/status/${order.id}`, {
+          status: 'pending',
+          notes: 'Batch sent from orders tab',
+          updated_by: 'Current User'
+        })
+      );
+
+      await Promise.all(promises);
+
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: `${medicationOrders.length} medication orders sent to pharmacy`
+        });
+      }
+
+      // Clear selections
+      setSelectedOrders(new Set());
+    } catch (error) {
+      console.error('Failed to batch send to pharmacy:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to send selected orders to pharmacy'
+        });
+      }
+    }
+  };
+
   const handleOrderAction = (order, action) => {
     switch (action) {
       case 'view':
@@ -540,8 +626,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         console.log('Reorder:', order.id);
         break;
       case 'send':
-        // TODO: Implement send to pharmacy
-        console.log('Send to pharmacy:', order.id);
+        handleSendToPharmacy(order);
         break;
       case 'print':
         window.print();
@@ -590,8 +675,9 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
               <Button
                 variant="outlined"
                 startIcon={<SendIcon />}
+                onClick={handleBatchSendToPharmacy}
               >
-                Send Selected ({selectedOrders.size})
+                Send to Pharmacy ({selectedOrders.size})
               </Button>
               <Button
                 variant="outlined"

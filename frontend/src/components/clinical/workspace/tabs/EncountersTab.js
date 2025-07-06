@@ -62,6 +62,7 @@ import {
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounterClass) => {
@@ -184,7 +185,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
           startIcon={<NotesIcon />}
           onClick={onViewDetails}
         >
-          View Notes
+          View Summary
         </Button>
         <Button 
           size="small" 
@@ -221,10 +222,23 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedEncounter, setSelectedEncounter] = useState(null);
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Handle encounter selection for summary dialog
+  const handleViewEncounterDetails = (encounter) => {
+    setSelectedEncounter(encounter);
+    setSummaryDialogOpen(true);
+  };
+
+  const handleCloseSummaryDialog = () => {
+    setSummaryDialogOpen(false);
+    setSelectedEncounter(null);
+  };
 
   // Get encounters
   const encounters = getPatientResources(patientId, 'Encounter') || [];
@@ -382,7 +396,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
             <EncounterCard
               key={encounter.id}
               encounter={encounter}
-              onViewDetails={() => {}}
+              onViewDetails={() => handleViewEncounterDetails(encounter)}
               onEdit={() => {}}
             />
           ))}
@@ -415,7 +429,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
                     </Typography>
                     <Button 
                       size="small" 
-                      onClick={() => {}}
+                      onClick={() => handleViewEncounterDetails(encounter)}
                       sx={{ mt: 1 }}
                     >
                       View Details
@@ -427,6 +441,14 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           ))}
         </Timeline>
       )}
+
+      {/* Encounter Summary Dialog */}
+      <EncounterSummaryDialog
+        open={summaryDialogOpen}
+        onClose={handleCloseSummaryDialog}
+        encounter={selectedEncounter}
+        patientId={patientId}
+      />
     </Box>
   );
 };

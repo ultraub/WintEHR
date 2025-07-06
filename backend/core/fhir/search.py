@@ -126,6 +126,14 @@ class SearchParameterHandler:
                 where_clauses.append(where_clause)
                 continue
             
+            # Handle _id parameter specially - search directly in resources table
+            if param_name == '_id':
+                where_clause = self._build_id_clause(
+                    param_data, param_counter, sql_params
+                )
+                where_clauses.append(where_clause)
+                continue
+            
             # Build WHERE clause based on parameter type
             param_type = param_data['type']
             modifier = param_data.get('modifier')
@@ -517,6 +525,32 @@ class SearchParameterHandler:
                 return f"({alias}.param_name = :{param_name_key} AND ({' OR '.join(conditions)}))"
         return "1=1"
     
+    def _build_id_clause(
+        self,
+        param_data: Dict,
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for _id parameter - search directly in resources table."""
+        values = param_data['values']
+        conditions = []
+        
+        for i, value_dict in enumerate(values):
+            # _id values should be simple strings, but handle both formats
+            if isinstance(value_dict, dict):
+                id_value = value_dict.get('code') or value_dict.get('value')
+            else:
+                id_value = str(value_dict)
+            
+            if id_value:
+                id_key = f"resource_id_{counter}_{i}"
+                conditions.append(f"r.fhir_id = :{id_key}")
+                sql_params[id_key] = id_value
+        
+        if conditions:
+            return f"({' OR '.join(conditions)})"
+        return "1=1"
+    
     def _build_date_clause(
         self,
         alias: str,
@@ -636,9 +670,14 @@ class SearchParameterHandler:
                 ref_id = value_dict.get('id')
                 if ref_id:
                     ref_key = f"ref_{counter}_{i}"
-                    # For reference parameters, we store just the ID in value_reference
-                    conditions.append(f"{alias}.value_reference = :{ref_key}")
+                    ref_full_key = f"ref_full_{counter}_{i}"
+                    
+                    # Check both storage formats:
+                    # 1. Just ID in value_reference (e.g., "patient-id")
+                    # 2. Full reference in value_string (e.g., "Patient/patient-id")
+                    conditions.append(f"({alias}.value_reference = :{ref_key} OR {alias}.value_string = :{ref_full_key})")
                     sql_params[ref_key] = ref_id
+                    sql_params[ref_full_key] = f"{modifier}/{ref_id}"
         else:
             # Standard reference handling
             for i, value_dict in enumerate(values):
@@ -647,9 +686,25 @@ class SearchParameterHandler:
                 
                 if ref_id:
                     ref_key = f"ref_{counter}_{i}"
-                    # For reference parameters, we store just the ID in value_reference
-                    conditions.append(f"{alias}.value_reference = :{ref_key}")
+                    ref_full_key = f"ref_full_{counter}_{i}"
+                    
+                    # Check both storage formats:
+                    # 1. Just ID in value_reference (e.g., "patient-id") 
+                    # 2. Full reference in value_string (e.g., "Patient/patient-id")
+                    condition_parts = [f"{alias}.value_reference = :{ref_key}"]
                     sql_params[ref_key] = ref_id
+                    
+                    # If we have a resource type, also check for full reference format
+                    if ref_type:
+                        condition_parts.append(f"{alias}.value_string = :{ref_full_key}")
+                        sql_params[ref_full_key] = f"{ref_type}/{ref_id}"
+                    else:
+                        # If no type specified, check for common patterns
+                        patient_full_key = f"ref_patient_{counter}_{i}"
+                        condition_parts.append(f"{alias}.value_string = :{patient_full_key}")
+                        sql_params[patient_full_key] = f"Patient/{ref_id}"
+                    
+                    conditions.append(f"({' OR '.join(condition_parts)})")
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name

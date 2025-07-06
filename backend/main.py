@@ -137,12 +137,24 @@ app.include_router(notifications_router, prefix="/fhir/R4", tags=["Notifications
 # app.include_router(inbox_router.router, prefix="/api", tags=["Clinical Inbox"])
 # app.include_router(tasks_router.router, prefix="/api", tags=["Clinical Tasks"])
 # app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
-# Include auth and data routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# Include auth routers (both legacy and enhanced)
+app.include_router(auth.router, prefix="/api/auth/legacy", tags=["Legacy Authentication"])
+
+# Include enhanced auth with optional JWT
+from api.auth_enhanced import router as auth_enhanced_router
+app.include_router(auth_enhanced_router, tags=["Enhanced Authentication"])
 
 # Include patient data API for CDS Hooks
 from api.patient_data import router as patient_data_router
 app.include_router(patient_data_router, prefix="/api", tags=["Patient Data"])
+
+# Include pharmacy workflow API
+from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
+app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
+
+# Include DICOM service API
+from api.dicom.dicom_service import router as dicom_router
+app.include_router(dicom_router, tags=["DICOM Services"])
 
 # TODO: Migrate these to use FHIR APIs
 # app.include_router(allergies.router, prefix="/api", tags=["Allergies"])

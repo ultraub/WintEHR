@@ -43,6 +43,7 @@ import { InboxProvider } from './contexts/InboxContext';
 import { AppointmentProvider } from './contexts/AppointmentContext';
 import { FHIRResourceProvider } from './contexts/FHIRResourceContext';
 import { WorkflowProvider } from './contexts/WorkflowContext';
+import { ClinicalWorkflowProvider } from './contexts/ClinicalWorkflowContext';
 
 // Create a context for medical theme toggling
 export const MedicalThemeContext = React.createContext();
@@ -90,6 +91,7 @@ function App() {
                         <TaskProvider>
                           <InboxProvider>
                             <AppointmentProvider>
+                              <ClinicalWorkflowProvider>
                           <Router>
                       <Routes>
                         <Route path="/login" element={<Login />} />
@@ -270,6 +272,7 @@ function App() {
                         } />
                       </Routes>
                     </Router>
+                              </ClinicalWorkflowProvider>
                             </AppointmentProvider>
                           </InboxProvider>
                         </TaskProvider>

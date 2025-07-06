@@ -39,6 +39,22 @@ class FHIRService {
         throw error;
       }
 
+      // Check if response has content before parsing JSON
+      const contentLength = response.headers.get('content-length');
+      if (contentLength === '0' || !response.headers.get('content-type')?.includes('application/json')) {
+        // Return success object for empty responses
+        const location = response.headers.get('location');
+        const resourceId = location ? location.split('/').pop() : null;
+        return { 
+          success: true, 
+          resourceType,
+          id: resourceId,
+          versionId: response.headers.get('etag')?.replace(/[W/"]*/g, ''),
+          lastModified: response.headers.get('last-modified'),
+          status: response.status
+        };
+      }
+      
       return await response.json();
     } catch (error) {
       console.error(`Error creating ${resourceType}:`, error);
@@ -78,6 +94,19 @@ class FHIRService {
         throw error;
       }
 
+      // Check if response has content before parsing JSON
+      const contentLength = response.headers.get('content-length');
+      if (contentLength === '0' || !response.headers.get('content-type')?.includes('application/json')) {
+        // Return success object for empty responses
+        return { 
+          success: true, 
+          resourceType,
+          id: resourceId,
+          versionId: response.headers.get('etag')?.replace(/[W/"]*/g, ''),
+          lastModified: response.headers.get('last-modified')
+        };
+      }
+      
       return await response.json();
     } catch (error) {
       console.error(`Error updating ${resourceType}:`, error);

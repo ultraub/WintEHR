@@ -4,9 +4,9 @@ services:
     image: postgres:15-alpine
     container_name: emr-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: medgenemr
+      POSTGRES_USER: emr_user
+      POSTGRES_PASSWORD: emr_password
+      POSTGRES_DB: emr_db
     ports:
       - "5432:5432"
     volumes:
@@ -14,7 +14,7 @@ services:
     networks:
       - emr-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U emr_user"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,9 +31,11 @@ services:
       - ./backend:/app
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./backend/data/generated_dicoms:/app/data/generated_dicoms
     environment:
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/medgenemr
+      - DATABASE_URL=postgresql+asyncpg://emr_user:emr_password@postgres:5432/emr_db
+      - JWT_ENABLED=false
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
     networks:
@@ -44,10 +46,21 @@ services:
     command: >
       sh -c "
         echo 'Waiting for database...' &&
-        sleep 5 &&
+        sleep 10 &&
         cd /app &&
+        echo 'Creating database schema...' &&
+        python -c \"
+import asyncio
+import asyncpg
+async def init():
+    conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
+    await conn.execute('CREATE SCHEMA IF NOT EXISTS fhir')
+    await conn.close()
+asyncio.run(init())
+        \" &&
         echo 'Running database initialization...' &&
-        python scripts/init_database.py || echo 'Database init failed, continuing...' &&
+        python scripts/init_search_tables.py || echo 'Search tables init skipped' &&
+        python scripts/init_database.py || echo 'Database init skipped' &&
         echo 'Starting server...' &&
         uvicorn main:app --host 0.0.0.0 --port 8000 --reload
       "

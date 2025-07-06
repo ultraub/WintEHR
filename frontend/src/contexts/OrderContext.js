@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
+import { useFHIRResource } from './FHIRResourceContext';
 import api from '../services/api';
 
 const OrderContext = createContext(undefined);
@@ -19,6 +20,7 @@ export const useOrders = () => {
 
 export const OrderProvider = ({ children }) => {
   const { currentPatient, currentEncounter } = useClinical();
+  const { refreshPatientResources } = useFHIRResource();
   const [activeOrders, setActiveOrders] = useState([]);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [orderSets, setOrderSets] = useState([]);
@@ -296,6 +298,11 @@ export const OrderProvider = ({ children }) => {
       const fhirRequest = transformToFHIRServiceRequest(order);
       const result = await fhirClient.create('ServiceRequest', fhirRequest);
 
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+      
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
@@ -367,6 +374,11 @@ export const OrderProvider = ({ children }) => {
       const fhirRequest = transformToFHIRServiceRequest(order);
       const result = await fhirClient.create('ServiceRequest', fhirRequest);
 
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
@@ -400,6 +412,11 @@ export const OrderProvider = ({ children }) => {
       const fhirRequest = transformToFHIRServiceRequest(order);
       const result = await fhirClient.create('ServiceRequest', fhirRequest);
 
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
@@ -427,6 +444,11 @@ export const OrderProvider = ({ children }) => {
       });
       
       await fhirClient.update('ServiceRequest', orderId, fhirRequest);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       if (currentPatient) {
         await loadActiveOrders(currentPatient.id);
@@ -487,6 +509,12 @@ export const OrderProvider = ({ children }) => {
       });
 
       const results = await Promise.all(promises);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
+      
       await loadActiveOrders(currentPatient.id);
       
       return {

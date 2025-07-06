@@ -73,13 +73,14 @@ import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import fhirService from '../../../../services/fhirService';
+import { intelligentCache } from '../../../../utils/intelligentCache';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
-  const [filter, setFilter] = useState('active');
+  const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -765,13 +766,15 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const { 
     getPatientResources, 
     searchResources, 
-    isLoading 
+    isLoading,
+    refreshPatientResources 
   } = useFHIRResource();
   
   const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Force re-render after updates
 
   useEffect(() => {
     // Data is already loaded by FHIRResourceContext
@@ -784,8 +787,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const createdCondition = await fhirService.createCondition(condition);
       console.log('Problem created successfully:', createdCondition);
       
-      // Refresh the patient resources to show the new condition
-      await fhirService.refreshPatientResources(patientId);
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -806,8 +809,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const createdMedication = await fhirService.createMedicationRequest(medicationRequest);
       console.log('Medication prescribed successfully:', createdMedication);
       
-      // Refresh the patient resources to show the new medication
-      await fhirService.refreshPatientResources(patientId);
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -828,8 +831,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const createdAllergy = await fhirService.createAllergyIntolerance(allergyIntolerance);
       console.log('Allergy added successfully:', createdAllergy);
       
-      // Refresh the patient resources to show the new allergy
-      await fhirService.refreshPatientResources(patientId);
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -850,16 +853,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      console.log('Updating problem:', updatedCondition);
       const result = await fhirService.updateCondition(updatedCondition.id, updatedCondition);
-      console.log('Problem updated successfully:', result);
       
-      // Refresh the patient resources to show the updated condition
-      await fhirService.refreshPatientResources(patientId);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
       
       // Show success message
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -877,8 +881,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       await fhirService.deleteCondition(conditionId);
       console.log('Problem deleted successfully');
       
-      // Refresh the patient resources to remove the deleted condition
-      await fhirService.refreshPatientResources(patientId);
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -903,12 +907,15 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const result = await fhirService.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
       console.log('Medication updated successfully:', result);
       
-      // Refresh the patient resources to show the updated medication
-      await fhirService.refreshPatientResources(patientId);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
       
       // Show success message
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -927,7 +934,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       console.log('Medication deleted successfully');
       
       // Refresh the patient resources to remove the deleted medication
-      await fhirService.refreshPatientResources(patientId);
+      await refreshPatientResources(patientId);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -952,12 +959,15 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const result = await fhirService.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
       console.log('Allergy updated successfully:', result);
       
-      // Refresh the patient resources to show the updated allergy
-      await fhirService.refreshPatientResources(patientId);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
       
       // Show success message
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -976,7 +986,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       console.log('Allergy deleted successfully');
       
       // Refresh the patient resources to remove the deleted allergy
-      await fhirService.refreshPatientResources(patientId);
+      await refreshPatientResources(patientId);
       
       // Optionally show a success message
       // Note: onNotificationUpdate expects a count, not an object
@@ -991,12 +1001,73 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  // Get resources
-  const conditions = getPatientResources(patientId, 'Condition') || [];
-  const medications = getPatientResources(patientId, 'MedicationRequest') || [];
-  const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
+  // Get resources - with refreshKey to force updates
+  const [conditions, setConditions] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [allergies, setAllergies] = useState([]);
   const observations = getPatientResources(patientId, 'Observation') || [];
   const immunizations = getPatientResources(patientId, 'Immunization') || [];
+  
+  // Load conditions, medications, and allergies with refresh capability
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        // Force refresh only when refreshKey changes (after updates)
+        const forceRefresh = refreshKey > 0;
+        
+        // Clear intelligent cache when force refreshing
+        if (forceRefresh) {
+          // Clear the intelligent cache for this patient's conditions
+          const conditionParams = { patient: patientId, _count: 1000, _sort: '-recorded-date' };
+          const conditionCacheKey = `searches:Condition_${JSON.stringify(conditionParams)}`;
+          intelligentCache.delete(conditionCacheKey);
+          
+          const medicationParams = { patient: patientId, _count: 1000, _sort: '-authored' };
+          const medicationCacheKey = `searches:MedicationRequest_${JSON.stringify(medicationParams)}`;
+          intelligentCache.delete(medicationCacheKey);
+          
+          const allergyParams = { patient: patientId, _count: 1000, _sort: '-date' };
+          const allergyCacheKey = `searches:AllergyIntolerance_${JSON.stringify(allergyParams)}`;
+          intelligentCache.delete(allergyCacheKey);
+        }
+        
+        // Load conditions
+        const conditionsResult = await searchResources('Condition', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-recorded-date' 
+        }, forceRefresh);
+        console.log('Loaded conditions:', conditionsResult.resources?.length, conditionsResult.resources?.map(c => ({ 
+          id: c.id, 
+          text: c.code?.text,
+          clinicalStatus: c.clinicalStatus?.coding?.[0]?.code 
+        })));
+        setConditions(conditionsResult.resources || []);
+        
+        // Load medications
+        const medicationsResult = await searchResources('MedicationRequest', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-authored' 
+        }, forceRefresh);
+        setMedications(medicationsResult.resources || []);
+        
+        // Load allergies
+        const allergiesResult = await searchResources('AllergyIntolerance', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-date' 
+        }, forceRefresh);
+        setAllergies(allergiesResult.resources || []);
+      } catch (error) {
+        console.error('Error loading resources:', error);
+      }
+    };
+    
+    if (patientId) {
+      loadResources();
+    }
+  }, [patientId, refreshKey]); // Remove searchResources from dependencies to prevent loops
 
   if (loading) {
     return (

@@ -61,8 +61,29 @@ for i in {1..30}; do
     fi
 done
 
-# Run database initialization
-echo -e "${BLUE}🔧 Running database initialization...${NC}"
+# Run database initialization and table creation
+echo -e "${BLUE}🔧 Initializing database and search tables...${NC}"
+
+# Ensure database tables and permissions are set up
+PGPASSWORD=emr_password psql -h localhost -p 5432 -U emr_user -d emr_db -c "
+DO \$\$
+BEGIN
+    -- Add deleted column if missing
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'fhir' 
+        AND table_name = 'resources' 
+        AND column_name = 'deleted'
+    ) THEN
+        ALTER TABLE fhir.resources ADD COLUMN deleted BOOLEAN DEFAULT FALSE;
+    END IF;
+END\$\$;
+" >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Database column check skipped${NC}"
+
+# Initialize search tables if needed
+python scripts/init_search_tables.py >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Search tables initialization skipped${NC}"
+
+# Run main database initialization
 python scripts/init_database.py >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
 
 cd ..
@@ -107,6 +128,14 @@ echo -e "   🌐 Frontend:    http://localhost:3000"
 echo -e "   🔧 Backend:     http://localhost:8000"
 echo -e "   📚 API Docs:    http://localhost:8000/docs"
 echo -e "   🔍 FHIR API:    http://localhost:8000/fhir/R4"
+echo ""
+echo -e "${BLUE}✨ New Features Included:${NC}"
+echo -e "   💊 Pharmacy Workflows with Medication Dispensing"
+echo -e "   🩻 DICOM Imaging Viewer with Real Images"
+echo -e "   📊 Lab Results with Reference Ranges & Trends"
+echo -e "   🔄 Cross-Module Clinical Workflow Integration"
+echo -e "   🔐 Optional JWT Authentication (disabled by default)"
+echo -e "   🔍 Enhanced FHIR Search with Reference Resolution"
 echo ""
 echo -e "${YELLOW}💡 Tip: Use Ctrl+C to stop all services${NC}"
 echo ""

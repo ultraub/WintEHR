@@ -31,10 +31,13 @@ import {
   Assignment as ChartIcon,
   EventNote as EncountersIcon,
   Science as ResultsIcon,
-  LocalPharmacy as OrdersIcon,
+  LocalPharmacy as PharmacyIcon,
   Description as DocumentationIcon,
   Assignment as CarePlanIcon,
+  Assignment,
+  Assignment as OrdersIcon,
   Timeline as TimelineIcon,
+  Image as ImagingIcon,
   Psychology as CDSIcon,
   ViewModule as LayoutIcon,
   Add as AddIcon,
@@ -61,16 +64,20 @@ import ChartReviewTab from './workspace/tabs/ChartReviewTab';
 import EncountersTab from './workspace/tabs/EncountersTab';
 import ResultsTab from './workspace/tabs/ResultsTab';
 import OrdersTab from './workspace/tabs/OrdersTab';
+import PharmacyTab from './workspace/tabs/PharmacyTab';
 import DocumentationTab from './workspace/tabs/DocumentationTab';
 import CarePlanTab from './workspace/tabs/CarePlanTab';
 import TimelineTab from './workspace/tabs/TimelineTab';
+import ImagingTab from './workspace/tabs/ImagingTab';
 // Tab Configuration
 const TAB_CONFIG = [
   { id: 'summary', label: 'Summary', icon: <DashboardIcon />, component: SummaryTab },
   { id: 'chart', label: 'Chart Review', icon: <ChartIcon />, component: ChartReviewTab },
   { id: 'encounters', label: 'Encounters', icon: <EncountersIcon />, component: EncountersTab },
   { id: 'results', label: 'Results', icon: <ResultsIcon />, component: ResultsTab },
-  { id: 'orders', label: 'Orders', icon: <OrdersIcon />, component: OrdersTab },
+  { id: 'orders', label: 'Orders', icon: <Assignment />, component: OrdersTab },
+  { id: 'pharmacy', label: 'Pharmacy', icon: <PharmacyIcon />, component: PharmacyTab },
+  { id: 'imaging', label: 'Imaging', icon: <ImagingIcon />, component: ImagingTab },
   { id: 'documentation', label: 'Documentation', icon: <DocumentationIcon />, component: DocumentationTab },
   { id: 'careplan', label: 'Care Plan', icon: <CarePlanIcon />, component: CarePlanTab },
   { id: 'timeline', label: 'Timeline', icon: <TimelineIcon />, component: TimelineTab }
