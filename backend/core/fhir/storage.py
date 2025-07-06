@@ -11,7 +11,6 @@ import re
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
-from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
@@ -886,7 +885,7 @@ class FHIRStorageEngine:
     
     async def _create_history_entry(
         self,
-        resource_id: UUID,
+        resource_id: int,
         version_id: int,
         operation: str,
         resource_data: Dict[str, Any]
@@ -909,7 +908,7 @@ class FHIRStorageEngine:
     
     async def _extract_search_parameters(
         self,
-        resource_id: UUID,
+        resource_id: int,
         resource_type: str,
         resource_data: Dict[str, Any]
     ):
@@ -1550,7 +1549,7 @@ class FHIRStorageEngine:
     
     async def _extract_references(
         self,
-        resource_id: UUID,
+        resource_id: int,
         resource_data: Dict[str, Any],
         path: str = "",
         source_type: str = None
@@ -1599,7 +1598,7 @@ class FHIRStorageEngine:
                             resource_id, item, f"{current_path}[{i}]", source_type
                         )
     
-    async def _delete_search_parameters(self, resource_id: UUID):
+    async def _delete_search_parameters(self, resource_id: int):
         """Delete all search parameters for a resource."""
         query = text("""
             DELETE FROM fhir.search_params
@@ -1607,7 +1606,7 @@ class FHIRStorageEngine:
         """)
         await self.session.execute(query, {'resource_id': resource_id})
     
-    async def _delete_references(self, resource_id: UUID):
+    async def _delete_references(self, resource_id: int):
         """Delete all references for a resource."""
         query = text("""
             DELETE FROM fhir.references

@@ -72,6 +72,8 @@ async def fix_urn_references(session: AsyncSession):
         ('CarePlan', 'encounter', 'Encounter'),
         ('ExplanationOfBenefit', 'patient', 'Patient'),
         ('Claim', 'patient', 'Patient'),
+        ('ImagingStudy', 'subject', 'Patient'),
+        ('ImagingStudy', 'encounter', 'Encounter'),
     ]
     
     total_fixed = 0
@@ -165,7 +167,8 @@ async def ensure_search_parameters(session: AsyncSession):
         ('DiagnosticReport', 'subject'),
         ('DocumentReference', 'subject'),
         ('CarePlan', 'subject'),
-        ('Coverage', 'beneficiary')
+        ('Coverage', 'beneficiary'),
+        ('ImagingStudy', 'subject')
     ]
     
     for resource_type, patient_field in patient_params:

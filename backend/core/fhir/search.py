@@ -690,17 +690,19 @@ class SearchParameterHandler:
                     
                     # Check both storage formats:
                     # 1. Just ID in value_reference (e.g., "patient-id") 
-                    # 2. Full reference in value_string (e.g., "Patient/patient-id")
+                    # 2. Full reference in value_reference or value_string (e.g., "Patient/patient-id")
                     condition_parts = [f"{alias}.value_reference = :{ref_key}"]
                     sql_params[ref_key] = ref_id
                     
                     # If we have a resource type, also check for full reference format
                     if ref_type:
+                        condition_parts.append(f"{alias}.value_reference = :{ref_full_key}")
                         condition_parts.append(f"{alias}.value_string = :{ref_full_key}")
                         sql_params[ref_full_key] = f"{ref_type}/{ref_id}"
                     else:
                         # If no type specified, check for common patterns
                         patient_full_key = f"ref_patient_{counter}_{i}"
+                        condition_parts.append(f"{alias}.value_reference = :{patient_full_key}")
                         condition_parts.append(f"{alias}.value_string = :{patient_full_key}")
                         sql_params[patient_full_key] = f"Patient/{ref_id}"
                     

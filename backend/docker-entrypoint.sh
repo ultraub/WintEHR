@@ -37,7 +37,17 @@ asyncio.run(init_schemas())
 
 # Run SQL initialization
 echo "Running SQL initialization..."
-PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f scripts/init_complete.sql 2>/dev/null || echo "⚠️  SQL initialization skipped"
+if [ -f "/app/scripts/init_complete.sql" ]; then
+    PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f /app/scripts/init_complete.sql || echo "⚠️  SQL initialization failed: $?"
+elif [ -f "scripts/init_complete.sql" ]; then
+    PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f scripts/init_complete.sql || echo "⚠️  SQL initialization failed: $?"
+else
+    echo "⚠️  init_complete.sql not found! Looking in:"
+    echo "   - /app/scripts/"
+    echo "   - ./scripts/"
+    ls -la /app/scripts/ 2>/dev/null || echo "   /app/scripts/ does not exist"
+    ls -la scripts/ 2>/dev/null || echo "   ./scripts/ does not exist"
+fi
 
 # Initialize FHIR tables
 echo "Initializing FHIR tables..."
@@ -46,6 +56,15 @@ python scripts/init_database.py || echo "⚠️  FHIR table initialization skipp
 # Initialize search tables
 echo "Initializing search tables..."
 python scripts/init_search_tables.py || echo "⚠️  Search table initialization skipped"
+
+# Generate DICOM files for existing imaging studies if not already present
+echo "Checking DICOM files for imaging studies..."
+if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "✅ DICOM files already exist"
+else
+    echo "Generating DICOM files for imaging studies..."
+    python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
+fi
 
 # Create necessary directories
 echo "Creating directories..."
