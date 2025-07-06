@@ -26,12 +26,10 @@ import MedicationsPage from './pages/MedicationsPage';
 import QualityMeasuresPage from './pages/QualityMeasuresPage';
 import CareGapsPage from './pages/CareGapsPage';
 import AuditTrailPage from './pages/AuditTrailPage';
-import ClinicalWorkspacePageSimple from './pages/ClinicalWorkspacePageSimple';
 import TestPage from './pages/TestPage';
-import ClinicalWorkspaceMinimal from './pages/ClinicalWorkspaceMinimal';
 
 // Clinical Components
-import ClinicalWorkspaceV2 from './components/clinical/ClinicalWorkspaceV2';
+import ClinicalWorkspaceV3 from './components/clinical/ClinicalWorkspaceV3';
 import PatientDashboardV2Page from './pages/PatientDashboardV2Page';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
@@ -117,7 +115,7 @@ function App() {
                         <Route path="/patients/:id/clinical" element={
                           <ProtectedRoute>
                             <LayoutV3>
-                              <ClinicalWorkspaceV2 />
+                              <ClinicalWorkspaceV3 />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />
@@ -156,7 +154,7 @@ function App() {
                         <Route path="/clinical" element={
                           <ProtectedRoute>
                             <LayoutV3>
-                              <ClinicalWorkspaceMinimal />
+                              <Dashboard />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />

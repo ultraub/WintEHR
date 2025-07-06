@@ -30,21 +30,23 @@ import {
   InputLabel,
   CircularProgress,
   Alert,
+  useTheme,
+  alpha
+} from '@mui/material';
+import {
   Timeline,
   TimelineItem,
   TimelineSeparator,
   TimelineConnector,
   TimelineContent,
   TimelineDot,
-  TimelineOppositeContent,
-  useTheme,
-  alpha
-} from '@mui/material';
+  TimelineOppositeContent
+} from '@mui/lab';
 import {
   EventNote as EncounterIcon,
   LocalHospital as HospitalIcon,
   MedicalServices as ClinicIcon,
-  Emergency as EmergencyIcon,
+  LocalHospital as EmergencyIcon,
   Home as HomeIcon,
   Add as AddIcon,
   Search as SearchIcon,

@@ -28,7 +28,7 @@ import {
   Medication as MedicationIcon,
   Assignment as AssignmentIcon,
   AccountCircle as AccountIcon,
-  Emergency as EmergencyIcon,
+  LocalHospital as EmergencyIcon,
   Print as PrintIcon,
   MoreVert as MoreIcon,
   CalendarMonth as CalendarIcon,
@@ -36,7 +36,7 @@ import {
   HealthAndSafety as InsuranceIcon,
   Groups as TeamIcon
 } from '@mui/icons-material';
-import { format, differenceInYears } from 'date-fns';
+import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -71,7 +71,24 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
 
   const calculateAge = (birthDate) => {
     if (!birthDate) return 'Unknown';
-    return differenceInYears(new Date(), new Date(birthDate));
+    try {
+      const date = typeof birthDate === 'string' ? parseISO(birthDate) : new Date(birthDate);
+      if (!isValid(date)) return 'Unknown';
+      return differenceInYears(new Date(), date);
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const formatDate = (dateValue, formatString = 'MMM d, yyyy') => {
+    if (!dateValue) return 'Unknown';
+    try {
+      const date = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue);
+      if (!isValid(date)) return 'Unknown';
+      return format(date, formatString);
+    } catch {
+      return 'Unknown';
+    }
   };
 
   const formatMRN = (patient) => {
@@ -79,7 +96,13 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
       id.type?.coding?.[0]?.code === 'MR' || 
       id.type?.text === 'Medical Record Number'
     );
-    return mrn?.value || 'No MRN';
+    if (!mrn?.value) return 'No MRN';
+    
+    // If it's a UUID (more than 10 characters), show shortened version
+    if (mrn.value.length > 10) {
+      return mrn.value.substring(0, 8) + '...';
+    }
+    return mrn.value;
   };
 
   const getAddress = (patient) => {
@@ -114,62 +137,48 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
 
   return (
     <Paper
-      elevation={0}
+      elevation={1}
       sx={{
-        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-        color: 'white',
+        backgroundColor: theme.palette.background.paper,
         borderRadius: 0,
+        borderBottom: `1px solid ${theme.palette.divider}`,
         position: 'relative',
         overflow: 'hidden'
       }}
     >
-      {/* Background Pattern */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: '40%',
-          height: '100%',
-          opacity: 0.1,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          backgroundRepeat: 'repeat'
-        }}
-      />
-
-      <Box sx={{ position: 'relative', p: 3 }}>
-        <Grid container spacing={3}>
+      <Box sx={{ p: 2 }}>
+        <Grid container spacing={2}>
           {/* Patient Photo and Basic Info */}
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+          <Grid item xs={12} md={3}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
               <Avatar
                 sx={{
-                  width: 80,
-                  height: 80,
-                  bgcolor: alpha(theme.palette.common.white, 0.2),
-                  border: `3px solid ${alpha(theme.palette.common.white, 0.3)}`
+                  width: 64,
+                  height: 64,
+                  bgcolor: theme.palette.primary.main,
+                  color: 'white',
+                  fontSize: '1.25rem'
                 }}
               >
                 <PersonIcon sx={{ fontSize: 40 }} />
               </Avatar>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="h4" fontWeight="bold">
+                <Typography variant="h6" fontWeight="bold">
                   {currentPatient.name?.[0]?.given?.join(' ')} {currentPatient.name?.[0]?.family}
                 </Typography>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
-                  <Chip
-                    icon={<BadgeIcon />}
-                    label={formatMRN(currentPatient)}
-                    size="small"
-                    sx={{ bgcolor: alpha(theme.palette.common.white, 0.2), color: 'white' }}
-                  />
-                  <Typography variant="body2">
-                    {currentPatient.gender} • {calculateAge(currentPatient.birthDate)} years
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    MRN: {formatMRN(currentPatient)}
+                  </Typography>
+                  <Divider orientation="vertical" flexItem />
+                  <Typography variant="body2" color="text.secondary">
+                    {currentPatient.gender || 'Unknown'} • {calculateAge(currentPatient.birthDate)} years
+                  </Typography>
+                  <Divider orientation="vertical" flexItem />
+                  <Typography variant="body2" color="text.secondary">
+                    DOB: {formatDate(currentPatient.birthDate)}
                   </Typography>
                 </Stack>
-                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                  DOB: {currentPatient.birthDate ? format(new Date(currentPatient.birthDate), 'MMM d, yyyy') : 'Unknown'}
-                </Typography>
               </Box>
             </Box>
 
@@ -198,7 +207,6 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
                   icon={<MedicationIcon />}
                   label={`${activeMedications.length} Medications`}
                   size="small"
-                  sx={{ bgcolor: alpha(theme.palette.common.white, 0.2), color: 'white' }}
                   onClick={() => navigate(`/patients/${patientId}/medications`)}
                 />
               )}
@@ -206,35 +214,37 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
           </Grid>
 
           {/* Contact Information */}
-          <Grid item xs={12} md={4}>
-            <Typography variant="subtitle2" sx={{ opacity: 0.8, mb: 1 }}>
+          <Grid item xs={12} md={5}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
               Contact Information
             </Typography>
             <Stack spacing={1}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <HomeIcon fontSize="small" sx={{ opacity: 0.8 }} />
+                <HomeIcon fontSize="small" color="action" />
                 <Typography variant="body2">{getAddress(currentPatient)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PhoneIcon fontSize="small" sx={{ opacity: 0.8 }} />
+                <PhoneIcon fontSize="small" color="action" />
                 <Typography variant="body2">{getPhone(currentPatient)}</Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <EmailIcon fontSize="small" sx={{ opacity: 0.8 }} />
-                <Typography variant="body2">{getEmail(currentPatient)}</Typography>
-              </Box>
+              {getEmail(currentPatient) !== 'No email' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <EmailIcon fontSize="small" color="action" />
+                  <Typography variant="body2">{getEmail(currentPatient)}</Typography>
+                </Box>
+              )}
             </Stack>
 
-            <Divider sx={{ my: 2, borderColor: alpha(theme.palette.common.white, 0.2) }} />
+            <Divider sx={{ my: 1.5 }} />
 
             {/* Insurance & Care Team */}
             <Stack spacing={1}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <InsuranceIcon fontSize="small" sx={{ opacity: 0.8 }} />
+                <InsuranceIcon fontSize="small" color="action" />
                 <Typography variant="body2">Insurance: {getInsurance(currentPatient)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TeamIcon fontSize="small" sx={{ opacity: 0.8 }} />
+                <TeamIcon fontSize="small" color="action" />
                 <Typography variant="body2">PCP: {getPCP(currentPatient)}</Typography>
               </Box>
             </Stack>
@@ -244,15 +254,15 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ opacity: 0.8, mb: 1 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                   Recent Activity
                 </Typography>
                 {lastEncounter && (
                   <Box>
                     <Typography variant="body2">
-                      Last Visit: {format(new Date(lastEncounter.period?.start || lastEncounter.period?.end), 'MMM d, yyyy')}
+                      Last Visit: {formatDate(lastEncounter.period?.start || lastEncounter.period?.end)}
                     </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    <Typography variant="body2" color="text.secondary">
                       Type: {lastEncounter.type?.[0]?.text || 'Unknown'}
                     </Typography>
                   </Box>
@@ -265,12 +275,6 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
                     label="Full Code"
                     size="small"
                     color="success"
-                    sx={{ 
-                      bgcolor: alpha(theme.palette.success.main, 0.2), 
-                      color: 'white',
-                      borderColor: 'white'
-                    }}
-                    variant="outlined"
                   />
                 </Stack>
               </Box>
@@ -280,14 +284,13 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
                 <Tooltip title="Print Patient Summary">
                   <IconButton 
                     size="small" 
-                    sx={{ color: 'white' }}
                     onClick={onPrint}
                   >
                     <PrintIcon />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="More Options">
-                  <IconButton size="small" sx={{ color: 'white' }}>
+                  <IconButton size="small">
                     <MoreIcon />
                   </IconButton>
                 </Tooltip>

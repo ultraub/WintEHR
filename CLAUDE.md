@@ -1,7 +1,7 @@
 # CLAUDE.md - MedGenEMR Quick Reference
 
 **Status**: FHIR-Native EMR | React + FastAPI | PostgreSQL  
-**Updated**: 2025-01-05  
+**Updated**: 2025-01-06  
 
 ## 🚀 Quick Start
 
@@ -62,11 +62,12 @@ cd frontend && npm install  # Fix missing deps
 
 ## 📍 Current State
 
-- **Frontend**: 12 FHIR-native components in `/src/components/clinical/`
+- **Frontend**: 20+ FHIR-native components in `/src/components/clinical/`
 - **Backend**: FHIR R4 API at `/fhir/R4/`, data in `fhir` schema
 - **Resources**: 20,115 Synthea FHIR resources (10 patients) with full Medication support
 - **FHIR Support**: Added Medication and Provenance resources to SUPPORTED_RESOURCES
 - **Import System**: Unified Synthea import with validation modes for performance vs accuracy
+- **Clinical Workspace**: NEW tab-based EMR interface (ClinicalWorkspaceV3) with 8 comprehensive tabs
 
 ## 🔧 Common Tasks
 
@@ -83,10 +84,10 @@ const conditions = result.resources || [];  // NOT result.entry
 ```
 
 ### Add New Component
-1. Create in `/src/components/clinical/`
-2. Use hooks from `/src/hooks/useFHIRResources.js`
-3. Follow pattern from `PatientDashboardV3.js`
-4. Update `FRONTEND_REDESIGN_TRACKER.md`
+1. Create in `/src/components/clinical/workspace/tabs/` for workspace tabs
+2. Use hooks from `/src/hooks/useFHIRResources.js` 
+3. Follow pattern from existing tabs (SummaryTab, ChartReviewTab, etc.)
+4. Update `FRONTEND_REDESIGN_TRACKER.md` and `WORKSPACE_REDESIGN_PLAN.md`
 
 ### Handle Icon Imports
 ```javascript
@@ -115,8 +116,11 @@ import { Warning as WarningIcon } from '@mui/material';
 - **Hooks**: `/src/hooks/useFHIRResources.js`
 - **Context**: `/src/contexts/FHIRResourceContext.js`
 - **Components**: `/src/components/clinical/`
+- **Workspace V3**: `/src/components/clinical/ClinicalWorkspaceV3.js`
+- **Workspace Tabs**: `/src/components/clinical/workspace/tabs/`
 - **Error Patterns**: `PROJECT_INTEGRITY_GUIDE.md`
 - **API Reference**: `docs/API_ENDPOINTS.md`
+- **Workspace Plan**: `frontend/src/components/clinical/workspace/WORKSPACE_REDESIGN_PLAN.md`
 
 ## 🧪 Testing & Data Management
 
