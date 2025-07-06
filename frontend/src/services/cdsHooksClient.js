@@ -44,6 +44,13 @@ class CDSHooksClient {
   }
 
   /**
+   * Call a CDS service (alias for executeHook for compatibility)
+   */
+  async callService(serviceId, context) {
+    return this.executeHook(serviceId, context);
+  }
+
+  /**
    * Fire patient-view hook
    */
   async firePatientView(patientId, userId, encounterId = null) {

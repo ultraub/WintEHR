@@ -45,11 +45,15 @@ import {
   EventNote as EncounterIcon,
   CalendarToday as CalendarIcon,
   Star as StarIcon,
-  Launch as LaunchIcon
+  Launch as LaunchIcon,
+  Psychology as CDSIcon,
+  Info as InfoIcon,
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../services/fhirClient';
+import { cdsHooksClient } from '../../../services/cdsHooksClient';
 
 const PatientSummaryV4 = ({ patientId }) => {
   
@@ -59,6 +63,8 @@ const PatientSummaryV4 = ({ patientId }) => {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cdsAlerts, setCdsAlerts] = useState([]);
+  const [cdsLoading, setCdsLoading] = useState(false);
   const [patientData, setPatientData] = useState({
     patient: null,
     conditions: [],
@@ -116,6 +122,56 @@ const PatientSummaryV4 = ({ patientId }) => {
 
     loadPatientData();
   }, [patientId]);
+
+  // Load CDS alerts for patient-view hooks
+  const loadCDSAlerts = async () => {
+    if (!patientId) return;
+    
+    setCdsLoading(true);
+    try {
+      // Get available services for patient-view hook
+      const services = await cdsHooksClient.discoverServices();
+      const patientViewServices = services.filter(s => s.hook === 'patient-view');
+      
+      const allAlerts = [];
+      
+      for (const service of patientViewServices) {
+        try {
+          const response = await cdsHooksClient.callService(service.id, {
+            hook: 'patient-view',
+            hookInstance: `dashboard-${Date.now()}`,
+            context: {
+              patientId: patientId
+            }
+          });
+          
+          if (response.cards) {
+            allAlerts.push(...response.cards.map(card => ({
+              ...card,
+              serviceId: service.id,
+              serviceName: service.title || service.id,
+              timestamp: new Date()
+            })));
+          }
+        } catch (serviceError) {
+          console.error(`Error executing CDS service ${service.id}:`, serviceError);
+        }
+      }
+      
+      setCdsAlerts(allAlerts);
+    } catch (error) {
+      console.error('Error loading CDS alerts:', error);
+    } finally {
+      setCdsLoading(false);
+    }
+  };
+
+  // Load CDS alerts after patient data is loaded
+  useEffect(() => {
+    if (patientData.patient && !loading) {
+      loadCDSAlerts();
+    }
+  }, [patientData.patient, loading]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {
@@ -454,6 +510,59 @@ const PatientSummaryV4 = ({ patientId }) => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* CDS Alerts */}
+      {(cdsLoading || cdsAlerts.length > 0) && (
+        <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <CDSIcon color="warning" />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Clinical Decision Support
+            </Typography>
+            {cdsLoading && <CircularProgress size={20} />}
+            {cdsAlerts.length > 0 && (
+              <Chip 
+                label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
+                color="warning"
+                size="small"
+              />
+            )}
+          </Stack>
+          
+          {cdsLoading && (
+            <Alert severity="info">
+              Evaluating clinical decision support rules...
+            </Alert>
+          )}
+          
+          {cdsAlerts.map((alert, index) => (
+            <Alert 
+              key={index}
+              severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
+              sx={{ mb: index < cdsAlerts.length - 1 ? 1 : 0 }}
+              action={
+                <Button 
+                  size="small" 
+                  variant="outlined"
+                  onClick={() => window.open('/cds-hooks', '_blank')}
+                >
+                  View Details
+                </Button>
+              }
+            >
+              <Typography variant="subtitle2" gutterBottom>
+                {alert.summary}
+              </Typography>
+              <Typography variant="body2">
+                {alert.detail}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Source: {alert.serviceName}
+              </Typography>
+            </Alert>
+          ))}
+        </Paper>
+      )}
 
       {/* Quick Actions */}
       <Paper sx={{ p: 3, borderRadius: 2 }}>

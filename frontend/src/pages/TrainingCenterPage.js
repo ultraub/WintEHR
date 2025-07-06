@@ -29,7 +29,8 @@ import {
   MenuBook as GuideIcon,
   Quiz as QuizIcon,
   Assignment as ExerciseIcon,
-  CheckCircle as CompletedIcon
+  CheckCircle as CompletedIcon,
+  Psychology as CDSIcon
 } from '@mui/icons-material';
 
 function TabPanel({ children, value, index, ...other }) {
@@ -109,6 +110,22 @@ function TrainingCenterPage() {
         'Contained resources',
         'Provenance tracking'
       ]
+    },
+    {
+      title: 'CDS Hooks Development',
+      description: 'Build and test Clinical Decision Support hooks and cards',
+      icon: <CDSIcon />,
+      level: 'Advanced',
+      duration: '50 min',
+      completed: false,
+      features: [
+        'Hook service development',
+        'Card creation and formatting',
+        'Drug interaction checking',
+        'Real-time clinical alerts'
+      ],
+      isExternal: true,
+      externalUrl: '/cds-hooks'
     }
   ];
 
@@ -298,6 +315,14 @@ function TrainingCenterPage() {
                       variant={module.completed ? "outlined" : "contained"}
                       startIcon={module.completed ? <CompletedIcon /> : <StartIcon />}
                       fullWidth
+                      onClick={() => {
+                        if (module.isExternal && module.externalUrl) {
+                          window.open(module.externalUrl, '_blank');
+                        } else {
+                          // Handle regular training modules
+                          console.log('Starting module:', module.title);
+                        }
+                      }}
                     >
                       {module.completed ? 'Review' : 'Start Module'}
                     </Button>

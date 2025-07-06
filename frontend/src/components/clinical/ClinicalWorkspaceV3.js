@@ -34,6 +34,7 @@ import {
   Description as DocumentationIcon,
   Assignment as CarePlanIcon,
   Timeline as TimelineIcon,
+  Psychology as CDSIcon,
   ViewModule as LayoutIcon,
   Add as AddIcon,
   Print as PrintIcon,
@@ -61,7 +62,6 @@ import OrdersTab from './workspace/tabs/OrdersTab';
 import DocumentationTab from './workspace/tabs/DocumentationTab';
 import CarePlanTab from './workspace/tabs/CarePlanTab';
 import TimelineTab from './workspace/tabs/TimelineTab';
-
 // Tab Configuration
 const TAB_CONFIG = [
   { id: 'summary', label: 'Summary', icon: <DashboardIcon />, component: SummaryTab },

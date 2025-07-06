@@ -21,6 +21,7 @@ import NotFound from './pages/NotFound';
 import MedicationReconciliationPage from './pages/MedicationReconciliationPage';
 import VitalSignsPage from './pages/VitalSignsPage';
 import TrainingCenterPage from './pages/TrainingCenterPage';
+import CDSHooksPage from './pages/CDSHooksPage';
 import EncountersPage from './pages/EncountersPage';
 import LabResultsPage from './pages/LabResultsPage';
 import MedicationsPage from './pages/MedicationsPage';
@@ -215,7 +216,7 @@ function App() {
                         <Route path="/cds-hooks" element={
                           <ProtectedRoute>
                             <LayoutV3>
-                              <TrainingCenterPage />
+                              <CDSHooksPage />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />
