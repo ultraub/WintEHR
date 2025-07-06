@@ -106,3 +106,42 @@ docs/backup/
 # Dependencies that get downloaded
 node_modules/
 bower_components/
+
+# Virtual environments (large, should not be tracked)
+venv/
+backend/venv/
+.virtualenv/
+env/
+ENV/
+
+# Synthea duplicates (prevent duplicate directories)
+backend/synthea/
+
+# Build and cache artifacts
+.pytest_cache/
+backend/.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Import/analysis files
+import_log.txt
+synthea_import_report.py
+validate_synthea_import.py
+analyze_synthea_resources.py
+
+# Validation and check files
+validation_errors_report.json
+fhir_test_report.json
+synthea_comprehensive_check.md
+validation_report_*.json
+
+# Progress tracking files
+synthea_import_progress.json
+
+# Comprehensive backup patterns
+*backup*/
+*_backup_*/
+synthea_backup_*/
+backup_*/

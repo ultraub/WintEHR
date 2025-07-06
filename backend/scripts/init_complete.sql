@@ -7,30 +7,41 @@ CREATE SCHEMA IF NOT EXISTS fhir;
 -- Create CDS Hooks schema if not exists
 CREATE SCHEMA IF NOT EXISTS cds_hooks;
 
--- Add deleted column to resources if missing
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_schema = 'fhir' 
-        AND table_name = 'resources' 
-        AND column_name = 'deleted'
-    ) THEN
-        ALTER TABLE fhir.resources ADD COLUMN deleted BOOLEAN DEFAULT FALSE;
-    END IF;
-END$$;
+-- Create FHIR resources table
+CREATE TABLE IF NOT EXISTS fhir.resources (
+    id BIGSERIAL PRIMARY KEY,
+    resource_type VARCHAR(50) NOT NULL,
+    fhir_id VARCHAR(64) NOT NULL,
+    version_id INTEGER NOT NULL DEFAULT 1,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN DEFAULT FALSE,
+    resource JSONB NOT NULL,
+    UNIQUE(resource_type, fhir_id, version_id)
+);
+
+-- Create references table
+CREATE TABLE IF NOT EXISTS fhir.references (
+    id BIGSERIAL PRIMARY KEY,
+    source_id BIGINT NOT NULL,
+    source_type VARCHAR(50) NOT NULL,
+    target_type VARCHAR(50),
+    target_id VARCHAR(64),
+    reference_path VARCHAR(255) NOT NULL,
+    reference_value TEXT NOT NULL,
+    FOREIGN KEY (source_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
+);
 
 -- Create search_params table if not exists
 CREATE TABLE IF NOT EXISTS fhir.search_params (
-    id SERIAL PRIMARY KEY,
-    resource_id UUID NOT NULL,
+    id BIGSERIAL PRIMARY KEY,
+    resource_id BIGINT NOT NULL,
     resource_type VARCHAR(50) NOT NULL,
     param_name VARCHAR(100) NOT NULL,
     param_type VARCHAR(20) NOT NULL,
     value_string TEXT,
     value_token VARCHAR(500),
     value_reference VARCHAR(500),
-    value_date TIMESTAMP,
+    value_date TIMESTAMP WITH TIME ZONE,
     value_number NUMERIC,
     value_quantity_value NUMERIC,
     value_quantity_unit VARCHAR(100),
@@ -48,8 +59,8 @@ CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(param_
 
 -- Create resource_history table for tracking FHIR resource changes
 CREATE TABLE IF NOT EXISTS fhir.resource_history (
-    id SERIAL PRIMARY KEY,
-    resource_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY,
+    resource_id BIGINT NOT NULL,
     version_id INTEGER NOT NULL,
     operation VARCHAR(20) NOT NULL, -- 'create', 'update', 'delete'
     resource JSONB NOT NULL,
