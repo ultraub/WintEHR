@@ -29,7 +29,10 @@ async def generate_dicom_for_studies():
                 p.resource as patient_resource
             FROM fhir.resources r
             JOIN fhir.search_params sp ON r.id = sp.resource_id
-            JOIN fhir.resources p ON sp.value_reference = 'Patient/' || p.fhir_id
+            JOIN fhir.resources p ON (
+                sp.value_reference = 'Patient/' || p.fhir_id 
+                OR sp.value_reference = p.fhir_id
+            )
             WHERE r.resource_type = 'ImagingStudy'
             AND p.resource_type = 'Patient'
             AND r.deleted = false

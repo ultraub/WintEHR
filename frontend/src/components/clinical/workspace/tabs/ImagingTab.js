@@ -452,16 +452,41 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
       return studyObj.studyDirectory;
     }
     
-    if (studyObj.id) {
-      const studyTypes = ['CT_CHEST', 'CT_HEAD', 'XR_CHEST', 'US_ABDOMEN', 'MR_BRAIN'];
-      for (const type of studyTypes) {
-        if (studyObj.description?.toLowerCase().includes(type.toLowerCase().replace('_', ' '))) {
-          return `${type}_${studyObj.id.replace(/-/g, '')}`;
-        }
+    // Check for DICOM directory in extensions
+    if (studyObj.extension) {
+      const dicomDirExt = studyObj.extension.find(
+        ext => ext.url === 'http://example.org/fhir/StructureDefinition/dicom-directory'
+      );
+      if (dicomDirExt && dicomDirExt.valueString) {
+        return dicomDirExt.valueString;
       }
     }
     
-    return 'CT_CHEST_29704851426587647796832262840077538772';
+    // Try to derive from study ID
+    if (studyObj.id) {
+      // Determine study type from modality or description
+      let studyType = 'CT_CHEST'; // Default
+      
+      if (studyObj.modality && studyObj.modality.length > 0) {
+        const modalityCode = studyObj.modality[0].code;
+        if (modalityCode === 'CT') {
+          studyType = studyObj.description?.toLowerCase().includes('head') ? 'CT_HEAD' : 'CT_CHEST';
+        } else if (modalityCode === 'MR') {
+          studyType = 'MR_BRAIN';
+        } else if (modalityCode === 'US') {
+          studyType = 'US_ABDOMEN';
+        } else if (modalityCode === 'CR' || modalityCode === 'DX') {
+          studyType = 'XR_CHEST';
+        }
+      }
+      
+      // Generate directory name based on our convention
+      return `${studyType}_${studyObj.id.replace(/-/g, '')}`;
+    }
+    
+    // Should not reach here
+    console.error('Unable to determine study directory for:', studyObj);
+    return null;
   };
 
   if (loading) {
