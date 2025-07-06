@@ -72,6 +72,7 @@ import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceT
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
+import LabTrendsChart from '../../charts/LabTrendsChart';
 
 // Get result status icon and color
 const getResultStatus = (observation) => {
@@ -594,7 +595,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                   <ResultRow
                     key={result.id}
                     observation={result}
-                    onClick={() => navigate(`/patients/${patientId}/results/${result.id}`)}
+                    onClick={() => {}}
                     selected={selectedResult?.id === result.id}
                   />
                 ))
@@ -620,7 +621,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             <ImagingResult
               key={imaging.id}
               imagingStudy={imaging}
-              onClick={() => navigate(`/patients/${patientId}/imaging/${imaging.id}`)}
+              onClick={() => {}}
             />
           ))}
         </Box>
@@ -646,7 +647,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             <ResultCard
               key={result.id}
               observation={result}
-              onClick={() => navigate(`/patients/${patientId}/results/${result.id}`)}
+              onClick={() => {}}
             />
           ))}
         </Box>

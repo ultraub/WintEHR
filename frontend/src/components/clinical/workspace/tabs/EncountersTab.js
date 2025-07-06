@@ -286,7 +286,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => navigate(`/patients/${patientId}/encounters/new`)}
+          disabled
         >
           New Encounter
         </Button>
@@ -382,8 +382,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
             <EncounterCard
               key={encounter.id}
               encounter={encounter}
-              onViewDetails={() => navigate(`/patients/${patientId}/encounters/${encounter.id}`)}
-              onEdit={() => navigate(`/patients/${patientId}/encounters/${encounter.id}/edit`)}
+              onViewDetails={() => {}}
+              onEdit={() => {}}
             />
           ))}
         </Box>
@@ -415,7 +415,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
                     </Typography>
                     <Button 
                       size="small" 
-                      onClick={() => navigate(`/patients/${patientId}/encounters/${encounter.id}`)}
+                      onClick={() => {}}
                       sx={{ mt: 1 }}
                     >
                       View Details

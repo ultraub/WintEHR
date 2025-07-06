@@ -62,14 +62,17 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
+import AddProblemDialog from '../dialogs/AddProblemDialog';
 
 // Problem List Component
-const ProblemList = ({ conditions, patientId }) => {
+const ProblemList = ({ conditions, patientId, onAddProblem }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -128,7 +131,11 @@ const ProblemList = ({ conditions, patientId }) => {
           </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Add Problem">
-              <IconButton size="small" color="primary" onClick={() => navigate(`/patients/${patientId}/problems/new`)}>
+              <IconButton 
+                size="small" 
+                color="primary" 
+                onClick={() => setShowAddDialog(true)}
+              >
                 <AddIcon />
               </IconButton>
             </Tooltip>
@@ -219,6 +226,13 @@ const ProblemList = ({ conditions, patientId }) => {
           )}
         </List>
       </CardContent>
+      
+      <AddProblemDialog
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onAdd={onAddProblem}
+        patientId={patientId}
+      />
     </Card>
   );
 };
@@ -229,6 +243,9 @@ const MedicationList = ({ medications, patientId }) => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
+  
+  // Resolve medication references
+  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
 
   const filteredMedications = medications.filter(med => {
     return filter === 'all' || med.status === filter;
@@ -267,19 +284,35 @@ const MedicationList = ({ medications, patientId }) => {
           </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Prescribe Medication">
-              <IconButton size="small" color="primary" onClick={() => navigate(`/patients/${patientId}/medications/prescribe`)}>
+              <IconButton size="small" color="primary" disabled>
                 <AddIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Medication Reconciliation">
-              <IconButton size="small" onClick={() => navigate(`/patients/${patientId}/medication-reconciliation`)}>
+              <IconButton size="small" disabled>
                 <PharmacyIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
 
-        <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+        <List sx={{ maxHeight: 400, overflow: 'auto', position: 'relative' }}>
+          {resolvingMeds && (
+            <Box sx={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              zIndex: 1
+            }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
           {filteredMedications.length === 0 ? (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
               No medications found
@@ -302,9 +335,7 @@ const MedicationList = ({ medications, patientId }) => {
                   primary={
                     <Box>
                       <Typography variant="body1">
-                        {med.medicationCodeableConcept?.text || 
-                         med.medicationCodeableConcept?.coding?.[0]?.display ||
-                         'Unknown medication'}
+                        {getMedicationDisplay(med)}
                       </Typography>
                       {med.status !== 'active' && (
                         <Chip label={med.status} size="small" sx={{ ml: 1 }} />
@@ -365,7 +396,7 @@ const AllergyList = ({ allergies, patientId }) => {
             />
           </Box>
           <Tooltip title="Add Allergy">
-            <IconButton size="small" color="primary" onClick={() => navigate(`/patients/${patientId}/allergies/new`)}>
+            <IconButton size="small" color="primary" disabled>
               <AddIcon />
             </IconButton>
           </Tooltip>
@@ -482,6 +513,18 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setLoading(false);
   }, []);
 
+  const handleAddProblem = async (condition) => {
+    try {
+      console.log('Adding new problem:', condition);
+      // In a real implementation, this would POST to the FHIR server
+      // For now, we'll just show a success message
+      alert('Problem added successfully! (This is a demo - not actually saved to server)');
+    } catch (error) {
+      console.error('Error adding problem:', error);
+      throw error;
+    }
+  };
+
   // Get resources
   const conditions = getPatientResources(patientId, 'Condition') || [];
   const medications = getPatientResources(patientId, 'MedicationRequest') || [];
@@ -502,7 +545,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       <Grid container spacing={3}>
         {/* Problem List */}
         <Grid item xs={12} lg={6}>
-          <ProblemList conditions={conditions} patientId={patientId} />
+          <ProblemList conditions={conditions} patientId={patientId} onAddProblem={handleAddProblem} />
         </Grid>
 
         {/* Medications */}

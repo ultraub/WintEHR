@@ -592,7 +592,7 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const handleViewProgress = (goal) => {
-    navigate(`/patients/${patientId}/goals/${goal.id}/progress`);
+    console.log('Viewing goal progress:', goal);
   };
 
   const handleEditActivity = (activity) => {

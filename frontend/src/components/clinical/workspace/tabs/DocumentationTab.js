@@ -154,7 +154,8 @@ const NoteCard = ({ note, onEdit, onView }) => {
                 textOverflow: 'ellipsis',
                 display: '-webkit-box',
                 WebkitLineClamp: expanded ? 'unset' : 3,
-                WebkitBoxOrient: 'vertical'
+                WebkitBoxOrient: 'vertical',
+                whiteSpace: 'pre-wrap'
               }}
             >
               {note.text?.div || note.text || 'No content available'}
@@ -469,37 +470,54 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
   const compositions = getPatientResources(patientId, 'Composition') || [];
   const clinicalImpressions = getPatientResources(patientId, 'ClinicalImpression') || [];
-
-  // Mock notes for demonstration (in real app, these would come from FHIR resources)
-  const mockNotes = [
-    {
-      id: '1',
-      resourceType: 'DocumentReference',
-      type: { coding: [{ code: 'progress' }] },
-      status: 'final',
-      date: new Date().toISOString(),
-      author: [{ display: 'Dr. Smith' }],
-      text: 'Patient presents with improved symptoms. Continue current treatment plan.'
-    },
-    {
-      id: '2',
-      resourceType: 'DocumentReference',
-      type: { coding: [{ code: 'soap' }] },
-      status: 'draft',
-      date: new Date(Date.now() - 86400000).toISOString(),
-      author: [{ display: 'Dr. Johnson' }],
-      text: 'Follow-up visit for hypertension management.',
-      section: [
-        { title: 'Subjective', text: 'Patient reports compliance with medication.' },
-        { title: 'Objective', text: 'BP: 130/80, HR: 72' },
-        { title: 'Assessment', text: 'Hypertension - improving' },
-        { title: 'Plan', text: 'Continue current medications' }
-      ]
+  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
+  
+  // Helper function to decode base64 content
+  const decodeBase64Content = (content) => {
+    try {
+      if (content?.data) {
+        return atob(content.data);
+      }
+      return null;
+    } catch (error) {
+      console.warn('Failed to decode base64 content:', error);
+      return null;
     }
-  ];
+  };
+  
+  // Process DocumentReference resources to extract notes
+  const processedDocumentReferences = documentReferences.map(doc => {
+    const decodedContent = doc.content?.[0]?.attachment ? 
+      decodeBase64Content(doc.content[0].attachment) : null;
+    
+    return {
+      ...doc,
+      type: doc.type || { coding: [{ code: 'other' }] },
+      status: doc.status || 'final',
+      date: doc.date || doc.content?.[0]?.attachment?.creation,
+      author: doc.author || [{ display: 'Unknown' }],
+      text: decodedContent || doc.description || 'No content available'
+    };
+  });
+  
+  // Process DiagnosticReport resources to extract notes
+  const processedDiagnosticReports = diagnosticReports.map(report => {
+    const decodedContent = report.presentedForm?.[0] ? 
+      decodeBase64Content(report.presentedForm[0]) : null;
+    
+    return {
+      ...report,
+      resourceType: 'DocumentReference', // Treat as document for display
+      type: { coding: [{ code: 'assessment' }] },
+      status: report.status || 'final',
+      date: report.issued || report.effectiveDateTime,
+      author: report.performer || [{ display: 'System' }],
+      text: decodedContent || report.conclusion || 'No content available'
+    };
+  });
 
   // Combine all documentation
-  const allDocuments = [...documentReferences, ...compositions, ...clinicalImpressions, ...mockNotes];
+  const allDocuments = [...processedDocumentReferences, ...compositions, ...clinicalImpressions, ...processedDiagnosticReports];
 
   // Filter documents
   const filterDocuments = (docs) => {
@@ -585,7 +603,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   };
 
   const handleViewNote = (note) => {
-    navigate(`/patients/${patientId}/notes/${note.id}`);
+    // Show note details in a modal or expanded view
+    console.log('Viewing note:', note);
   };
   
   const handleSaveAddendum = (addendumText) => {

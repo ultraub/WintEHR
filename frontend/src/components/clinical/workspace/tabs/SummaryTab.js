@@ -41,6 +41,7 @@ import {
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -219,6 +220,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const observations = getPatientResources(patientId, 'Observation') || [];
   const encounters = getPatientResources(patientId, 'Encounter') || [];
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
+  
+  // Resolve medication references
+  const { getMedicationDisplay } = useMedicationResolver(medications);
 
   // Sort and limit items
   const recentConditions = conditions
@@ -280,7 +284,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             value={stats.activeProblems}
             icon={<ProblemIcon />}
             color="warning"
-            onClick={() => navigate(`/patients/${patientId}/problems`)}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -289,7 +292,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             value={stats.activeMedications}
             icon={<MedicationIcon />}
             color="primary"
-            onClick={() => navigate(`/patients/${patientId}/medications`)}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -299,7 +301,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             subValue="Last 7 days"
             icon={<LabIcon />}
             color="info"
-            onClick={() => navigate(`/patients/${patientId}/results`)}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -319,7 +320,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           severity="error" 
           sx={{ mb: 3 }}
           action={
-            <Button size="small" onClick={() => navigate(`/patients/${patientId}/allergies`)}>
+            <Button size="small" disabled>
               View All
             </Button>
           }
@@ -344,7 +345,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Problems"
               action={
-                <IconButton onClick={() => navigate(`/patients/${patientId}/problems`)}>
+                <IconButton disabled>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -362,7 +363,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       }
                       icon={<ProblemIcon color="warning" />}
                       status={condition.clinicalStatus?.coding?.[0]?.code}
-                      onClick={() => navigate(`/patients/${patientId}/problems/${condition.id}`)}
+                      onClick={() => {}}
                     />
                   ))
                 ) : (
@@ -381,7 +382,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Active Medications"
               action={
-                <IconButton onClick={() => navigate(`/patients/${patientId}/medications`)}>
+                <IconButton disabled>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -392,14 +393,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   recentMedications.map((med) => (
                     <RecentItem
                       key={med.id}
-                      primary={
-                        med.medicationCodeableConcept?.text || 
-                        med.medicationCodeableConcept?.coding?.[0]?.display ||
-                        'Unknown medication'
-                      }
+                      primary={getMedicationDisplay(med)}
                       secondary={med.dosageInstruction?.[0]?.text || 'No dosage information'}
                       icon={<MedicationIcon color="primary" />}
-                      onClick={() => navigate(`/patients/${patientId}/medications/${med.id}`)}
+                      onClick={() => {}}
                     />
                   ))
                 ) : (
@@ -418,7 +415,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Lab Results"
               action={
-                <IconButton onClick={() => navigate(`/patients/${patientId}/results`)}>
+                <IconButton disabled>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -446,7 +443,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       icon={<LabIcon color="info" />}
                       status={lab.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'High' : 
                               lab.interpretation?.[0]?.coding?.[0]?.code === 'L' ? 'Low' : null}
-                      onClick={() => navigate(`/patients/${patientId}/results/${lab.id}`)}
+                      onClick={() => {}}
                     />
                   ))
                 ) : (
@@ -465,7 +462,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Encounters"
               action={
-                <IconButton onClick={() => navigate(`/patients/${patientId}/encounters`)}>
+                <IconButton disabled>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -484,7 +481,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       }
                       icon={<EncounterIcon color="secondary" />}
                       status={encounter.status}
-                      onClick={() => navigate(`/patients/${patientId}/encounters/${encounter.id}`)}
+                      onClick={() => {}}
                     />
                   ))
                 ) : (

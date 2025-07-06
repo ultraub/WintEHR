@@ -526,10 +526,10 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const handleOrderAction = (order, action) => {
     switch (action) {
       case 'view':
-        navigate(`/patients/${patientId}/orders/${order.id}`);
+        console.log('Viewing order:', order);
         break;
       case 'edit':
-        navigate(`/patients/${patientId}/orders/${order.id}/edit`);
+        console.log('Editing order:', order);
         break;
       case 'cancel':
         // TODO: Implement cancel order
@@ -605,7 +605,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate(`/patients/${patientId}/orders/new`)}
+            disabled
           >
             New Order
           </Button>

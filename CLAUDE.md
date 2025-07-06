@@ -97,6 +97,15 @@ import { Warning as WarningIcon } from '@mui/icons-material';
 import { Warning as WarningIcon } from '@mui/material';
 ```
 
+### Medication Resolution
+```javascript
+// ✅ CORRECT - Use useMedicationResolver hook
+import { useMedicationResolver } from '../hooks/useMedicationResolver';
+const { getMedicationDisplay } = useMedicationResolver(medications);
+// Handles both reference-based and concept-based medications
+<Typography>{getMedicationDisplay(medicationRequest)}</Typography>
+```
+
 ## 🐛 Error Quick Fixes
 
 | Error | Fix |
@@ -105,6 +114,7 @@ import { Warning as WarningIcon } from '@mui/material';
 | `Objects are not valid as React child` | Extract text: `obj?.text \|\| obj?.coding?.[0]?.display` |
 | `conditions.filter is not a function` | Use `conditions.activeConditions` |
 | Missing clinical data | Check `fhir` schema, use `result.resources` |
+| Medications showing "Unknown medication" | Use `useMedicationResolver` hook, handles both reference and concept types |
 | `bad interpreter: /bin/bash^M` | Fix line endings: `sed -i '' 's/\r$//' script.sh` |
 | Pillow build fails on Python 3.13 | Use `pillow>=10.3.0` in requirements.txt |
 | asyncpg build fails on Python 3.13 | Use `asyncpg>=0.30.0` in requirements.txt |
@@ -113,7 +123,7 @@ import { Warning as WarningIcon } from '@mui/material';
 
 ## 📁 Key Files
 
-- **Hooks**: `/src/hooks/useFHIRResources.js`
+- **Hooks**: `/src/hooks/useFHIRResources.js`, `/src/hooks/useMedicationResolver.js`
 - **Context**: `/src/contexts/FHIRResourceContext.js`
 - **Components**: `/src/components/clinical/`
 - **Workspace V3**: `/src/components/clinical/ClinicalWorkspaceV3.js`
