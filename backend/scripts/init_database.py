@@ -72,6 +72,8 @@ async def fix_urn_references(session: AsyncSession):
         ('CarePlan', 'encounter', 'Encounter'),
         ('ExplanationOfBenefit', 'patient', 'Patient'),
         ('Claim', 'patient', 'Patient'),
+        ('ImagingStudy', 'subject', 'Patient'),
+        ('ImagingStudy', 'encounter', 'Encounter'),
     ]
     
     total_fixed = 0
