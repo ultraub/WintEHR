@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { fhirClient } from '../services/fhirClient';
+import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
 
 // Action Types
 const FHIR_ACTIONS = {
@@ -14,6 +15,7 @@ const FHIR_ACTIONS = {
   SET_LOADING: 'SET_LOADING',
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
+  SET_GLOBAL_LOADING: 'SET_GLOBAL_LOADING',
   
   // Patient Context
   SET_CURRENT_PATIENT: 'SET_CURRENT_PATIENT',
@@ -73,6 +75,9 @@ const initialState = {
   
   // Loading States - per resource type
   loading: {},
+  
+  // Global loading state
+  isLoading: false,
   
   // Errors - per resource type
   errors: {},
@@ -205,6 +210,13 @@ function fhirResourceReducer(state, action) {
       };
     }
     
+    case FHIR_ACTIONS.SET_GLOBAL_LOADING: {
+      return {
+        ...state,
+        isLoading: action.payload
+      };
+    }
+    
     case FHIR_ACTIONS.SET_CURRENT_PATIENT: {
       return {
         ...state,
@@ -321,8 +333,16 @@ const FHIRResourceContext = createContext();
 export function FHIRResourceProvider({ children }) {
   const [state, dispatch] = useReducer(fhirResourceReducer, initialState);
 
-  // Cache utilities
+  // Enhanced cache utilities using intelligent cache
   const getCachedData = useCallback((cacheType, key) => {
+    // First check intelligent cache
+    const intelligentCacheKey = `${cacheType}:${key}`;
+    const intelligentData = intelligentCache.get(intelligentCacheKey);
+    if (intelligentData) {
+      return intelligentData;
+    }
+    
+    // Fallback to state cache for backward compatibility
     const cached = state.cache[cacheType]?.[key];
     if (!cached) return null;
     
@@ -339,7 +359,16 @@ export function FHIRResourceProvider({ children }) {
     return cached.data;
   }, [state.cache]);
 
-  const setCachedData = useCallback((cacheType, key, data, ttl) => {
+  const setCachedData = useCallback((cacheType, key, data, ttl, resourceType = null) => {
+    // Store in intelligent cache
+    const intelligentCacheKey = `${cacheType}:${key}`;
+    intelligentCache.set(intelligentCacheKey, data, {
+      resourceType,
+      customTTL: ttl,
+      tags: [cacheType]
+    });
+    
+    // Also store in state cache for backward compatibility
     dispatch({
       type: FHIR_ACTIONS.SET_CACHE,
       payload: { cacheType, key, data, ttl }
@@ -434,7 +463,7 @@ export function FHIRResourceProvider({ children }) {
       const resource = await fhirClient.read(resourceType, resourceId);
       
       addResource(resourceType, resource);
-      setCachedData('resources', cacheKey, resource);
+      setCachedData('resources', cacheKey, resource, 600000, resourceType); // 10 minute default
       
       return resource;
     } catch (error) {
@@ -481,7 +510,7 @@ export function FHIRResourceProvider({ children }) {
         }
       }
       
-      setCachedData('searches', searchKey, result);
+      setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
       dispatch({ type: FHIR_ACTIONS.SET_SEARCH_RESULTS, payload: { searchKey, results: result } });
       
       return result;
@@ -493,23 +522,51 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [getCachedData, setCachedData, setResources]);
 
-  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false) => {
-    const cacheKey = `patient_bundle_${patientId}`;
+  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
+    const cacheKey = `patient_bundle_${patientId}_${priority}`;
     
     if (!forceRefresh) {
       const cached = getCachedData('bundles', cacheKey);
       if (cached) return cached;
     }
 
-    const resourceTypes = [
-      'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
-      'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
-      'CarePlan', 'CareTeam', 'Coverage', 'DocumentReference', 'ImagingStudy'
-    ];
+    // Define resource types by priority for progressive loading
+    const resourceTypesByPriority = {
+      critical: ['Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
+      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage'],
+      optional: ['Immunization', 'CarePlan', 'CareTeam', 'DocumentReference', 'ImagingStudy']
+    };
+    
+    let resourceTypes;
+    if (priority === 'critical') {
+      resourceTypes = resourceTypesByPriority.critical;
+    } else if (priority === 'important') {
+      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
+    } else {
+      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
+    }
 
     try {
       const promises = resourceTypes.map(resourceType => {
-        let params = { patient: patientId, _count: 1000 };
+        // Reduce initial count for better performance, increase for specific needs
+        const counts = {
+          critical: 100,
+          important: 200,
+          optional: 50
+        };
+        
+        let baseCount = priority === 'critical' ? counts.critical : 
+                       priority === 'important' ? counts.important : counts.optional;
+        
+        // Adjust count based on resource type
+        let resourceCount = baseCount;
+        if (resourceType === 'Observation' && priority !== 'critical') {
+          resourceCount = 500; // Observations are numerous but important
+        } else if (resourceType === 'Encounter') {
+          resourceCount = 50;  // Usually fewer encounters
+        }
+        
+        let params = { patient: patientId, _count: resourceCount };
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {
@@ -562,7 +619,11 @@ export function FHIRResourceProvider({ children }) {
         bundle[result.resourceType || 'unknown'] = result.resources || [];
       });
 
-      setCachedData('bundles', cacheKey, bundle, 600000); // 10 minute cache
+      // Cache with intelligent TTL based on priority
+      const cacheTTL = priority === 'critical' ? 900000 : // 15 minutes
+                      priority === 'important' ? 600000 : // 10 minutes  
+                      300000; // 5 minutes
+      setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
       return bundle;
     } catch (error) {
       console.error('Error fetching patient bundle:', error);
@@ -572,16 +633,36 @@ export function FHIRResourceProvider({ children }) {
 
   // Patient Context Management
   const setCurrentPatient = useCallback(async (patientId) => {
+    // Prevent duplicate calls for the same patient
+    if (state.currentPatient?.id === patientId) {
+      return state.currentPatient;
+    }
+    
+    dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
+    
     try {
       const patient = await fetchResource('Patient', patientId);
       dispatch({ type: FHIR_ACTIONS.SET_CURRENT_PATIENT, payload: patient });
       
-      // Preload common resources for this patient
-      await fetchPatientBundle(patientId);
+      // Progressive loading: Load critical resources first, then important ones in background
+      await fetchPatientBundle(patientId, false, 'critical');
+      
+      dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+      
+      // Load important resources in background
+      setTimeout(() => {
+        fetchPatientBundle(patientId, false, 'important');
+      }, 100);
+      
+      // Load optional resources after a delay
+      setTimeout(() => {
+        fetchPatientBundle(patientId, false, 'all');
+      }, 2000);
       
       return patient;
     } catch (error) {
       console.error('Error setting current patient:', error);
+      dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
       throw error;
     }
   }, [fetchResource, fetchPatientBundle]);
@@ -598,7 +679,7 @@ export function FHIRResourceProvider({ children }) {
   }, [fetchResource]);
 
   // Utility Functions
-  const isLoading = useCallback((resourceType) => {
+  const isResourceLoading = useCallback((resourceType) => {
     return state.loading[resourceType] || false;
   }, [state.loading]);
 
@@ -726,7 +807,7 @@ export function FHIRResourceProvider({ children }) {
     setCurrentEncounter,
     
     // Utilities
-    isLoading,
+    isResourceLoading,
     getError,
     clearCache,
     getCachedData,

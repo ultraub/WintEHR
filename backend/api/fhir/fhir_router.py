@@ -40,10 +40,152 @@ from .converters import (
     supply_delivery_to_fhir, provenance_to_fhir
 )
 from .query_builder import FHIRQueryBuilder
+from .optimized_queries import get_optimized_queries
 from api.services.audit_service import AuditService
 from emr_api.auth import get_current_user
 
 router = APIRouter(prefix="/R4", tags=["FHIR R4"])
+
+# Performance-optimized endpoints
+@router.get("/Patient/{patient_id}/$bundle-optimized")
+async def get_patient_bundle_optimized(
+    patient_id: str,
+    resource_types: Optional[str] = Query(None, description="Comma-separated list of resource types"),
+    limit: int = Query(100, description="Limit per resource type"),
+    priority: str = Query("all", description="Priority level: critical, important, all"),
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized patient bundle endpoint for better performance
+    Returns all resources for a patient with efficient querying
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        # Define resource types based on priority
+        if priority == "critical":
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance"]
+        elif priority == "important":
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance", 
+                           "Observation", "Procedure", "DiagnosticReport"]
+        else:
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance",
+                           "Observation", "Procedure", "DiagnosticReport", "DocumentReference",
+                           "ImagingStudy", "Immunization", "CarePlan", "CareTeam"]
+        
+        if resource_types:
+            requested_types = [t.strip() for t in resource_types.split(",")]
+        else:
+            requested_types = default_types
+        
+        bundle = queries.get_patient_bundle_optimized(
+            patient_id=patient_id,
+            resource_types=requested_types,
+            limit_per_type=limit,
+            include_counts=True
+        )
+        
+        # Format as FHIR Bundle
+        return {
+            "resourceType": "Bundle",
+            "id": f"patient-bundle-{patient_id}",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat(),
+            "total": sum(bundle.get("counts", {}).values()),
+            "link": [
+                {
+                    "relation": "self",
+                    "url": f"/fhir/R4/Patient/{patient_id}/$bundle-optimized"
+                }
+            ],
+            "entry": bundle["bundle"],
+            "meta": {
+                "counts": bundle.get("counts", {}),
+                "performance": "optimized"
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating patient bundle: {str(e)}")
+
+@router.get("/Patient/{patient_id}/$timeline")
+async def get_patient_timeline(
+    patient_id: str,
+    days: int = Query(365, description="Number of days to look back"),
+    limit: int = Query(100, description="Maximum number of events"),
+    resource_types: Optional[str] = Query(None, description="Comma-separated list of resource types"),
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized timeline endpoint for better performance
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        if resource_types:
+            requested_types = [t.strip() for t in resource_types.split(",")]
+        else:
+            requested_types = None
+        
+        events = queries.get_timeline_events(
+            patient_id=patient_id,
+            resource_types=requested_types,
+            days=days,
+            limit=limit
+        )
+        
+        return {
+            "resourceType": "Bundle",
+            "id": f"timeline-{patient_id}",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat(),
+            "total": len(events),
+            "entry": [{"resource": event} for event in events]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating timeline: {str(e)}")
+
+@router.get("/Patient/{patient_id}/$summary")
+async def get_patient_summary(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized patient summary with counts
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        counts = queries.get_patient_summary_counts(patient_id)
+        
+        return {
+            "resourceType": "Parameters",
+            "id": f"summary-{patient_id}",
+            "parameter": [
+                {
+                    "name": "counts",
+                    "part": [
+                        {
+                            "name": resource_type,
+                            "valueInteger": data["total"]
+                        } for resource_type, data in counts.items()
+                    ]
+                },
+                {
+                    "name": "activeCounts", 
+                    "part": [
+                        {
+                            "name": resource_type,
+                            "valueInteger": data["active"]
+                        } for resource_type, data in counts.items() if data["active"] > 0
+                    ]
+                }
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating summary: {str(e)}")
 
 # FHIR Resource Type Mappings
 RESOURCE_MAPPINGS = {

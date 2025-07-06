@@ -2,7 +2,7 @@
  * Timeline Tab Component
  * Chronological view of all patient events
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -70,6 +70,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, subMonths, subYears, startOfDay, endOfDay } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { useDebounce } from '../../../../hooks/useDebounce';
 
 // Event type configuration
 const eventTypes = {
@@ -303,15 +304,18 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [selectedTypes, setSelectedTypes] = useState(new Set(Object.keys(eventTypes)));
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20); // Start with 20 items
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
     setLoading(false);
   }, []);
 
-  // Collect all events from different resource types
-  const collectAllEvents = () => {
+  // Memoized collection of all events to prevent recalculation on every render
+  const allEvents = useMemo(() => {
     const events = [];
     const seenIds = new Set(); // Track unique IDs to prevent duplicates
     
@@ -328,57 +332,76 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     });
 
     return events;
-  };
+  }, [patientId, getPatientResources]); // Only recalculate when patientId changes or resources update
 
-  const allEvents = collectAllEvents();
+  // Optimized search function that doesn't use JSON.stringify
+  const isEventMatchingSearch = useCallback((event, term) => {
+    if (!term) return true;
+    const lowerTerm = term.toLowerCase();
+    
+    // Search in specific fields instead of entire JSON
+    const searchableFields = [
+      event.code?.text,
+      event.code?.coding?.[0]?.display,
+      event.type?.[0]?.text,
+      event.type?.[0]?.coding?.[0]?.display,
+      event.medicationCodeableConcept?.text,
+      event.medicationCodeableConcept?.coding?.[0]?.display,
+      event.vaccineCode?.text,
+      event.vaccineCode?.coding?.[0]?.display,
+      event.description,
+      event.resourceType
+    ];
+    
+    return searchableFields.some(field => 
+      field && field.toLowerCase().includes(lowerTerm)
+    );
+  }, []);
 
-  // Filter events
-  const filteredEvents = allEvents.filter(event => {
-    // Type filter
-    if (!selectedTypes.has(event.resourceType)) {
-      return false;
-    }
-
-    // Period filter
-    if (filterPeriod !== 'all') {
-      const eventDate = getEventDate(event);
-      if (eventDate) {
-        const date = parseISO(eventDate);
-        const periodMap = {
-          '7d': subDays(new Date(), 7),
-          '30d': subDays(new Date(), 30),
-          '90d': subDays(new Date(), 90),
-          '6m': subMonths(new Date(), 6),
-          '1y': subYears(new Date(), 1),
-          '5y': subYears(new Date(), 5)
-        };
-        if (!isWithinInterval(date, {
-          start: periodMap[filterPeriod],
-          end: new Date()
-        })) {
-          return false;
-        }
-      }
-    }
-
-    // Search filter
-    if (searchTerm) {
-      const searchableText = JSON.stringify(event).toLowerCase();
-      if (!searchableText.includes(searchTerm.toLowerCase())) {
+  // Memoized filtering and sorting to prevent recalculation
+  const filteredEvents = useMemo(() => {
+    return allEvents.filter(event => {
+      // Type filter
+      if (!selectedTypes.has(event.resourceType)) {
         return false;
       }
-    }
 
-    return true;
-  });
+      // Period filter
+      if (filterPeriod !== 'all') {
+        const eventDate = getEventDate(event);
+        if (eventDate) {
+          const date = parseISO(eventDate);
+          const periodMap = {
+            '7d': subDays(new Date(), 7),
+            '30d': subDays(new Date(), 30),
+            '90d': subDays(new Date(), 90),
+            '6m': subMonths(new Date(), 6),
+            '1y': subYears(new Date(), 1),
+            '5y': subYears(new Date(), 5)
+          };
+          if (!isWithinInterval(date, {
+            start: periodMap[filterPeriod],
+            end: new Date()
+          })) {
+            return false;
+          }
+        }
+      }
 
-  // Sort events by date
-  const sortedEvents = [...filteredEvents].sort((a, b) => {
-    const dateA = getEventDate(a);
-    const dateB = getEventDate(b);
-    if (!dateA || !dateB) return 0;
-    return new Date(dateB) - new Date(dateA);
-  });
+      // Optimized search filter with debounced search term
+      return isEventMatchingSearch(event, debouncedSearchTerm);
+    });
+  }, [allEvents, selectedTypes, filterPeriod, debouncedSearchTerm, isEventMatchingSearch]);
+
+  // Memoized sorting to prevent recalculation
+  const sortedEvents = useMemo(() => {
+    return [...filteredEvents].sort((a, b) => {
+      const dateA = getEventDate(a);
+      const dateB = getEventDate(b);
+      if (!dateA || !dateB) return 0;
+      return new Date(dateB) - new Date(dateA);
+    });
+  }, [filteredEvents]);
 
   const handleTypeToggle = (type) => {
     const newTypes = new Set(selectedTypes);
@@ -551,15 +574,36 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           }
         }}>
           <Timeline position="right">
-            {sortedEvents.map((event, index) => (
+            {sortedEvents.slice(0, visibleCount).map((event, index) => (
               <TimelineEvent 
                 key={`${event.resourceType}-${event.id}-${index}`} 
                 event={event}
                 isFirst={index === 0}
-                isLast={index === sortedEvents.length - 1}
+                isLast={index === Math.min(visibleCount, sortedEvents.length) - 1}
               />
             ))}
           </Timeline>
+          
+          {/* Load More Button */}
+          {visibleCount < sortedEvents.length && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Button 
+                variant="outlined" 
+                onClick={() => {
+                  setIsLoadingMore(true);
+                  // Simulate async loading with setTimeout to prevent UI blocking
+                  setTimeout(() => {
+                    setVisibleCount(prev => Math.min(prev + 20, sortedEvents.length));
+                    setIsLoadingMore(false);
+                  }, 100);
+                }}
+                disabled={isLoadingMore}
+                startIcon={isLoadingMore ? <CircularProgress size={16} /> : null}
+              >
+                {isLoadingMore ? 'Loading...' : `Load More (${sortedEvents.length - visibleCount} remaining)`}
+              </Button>
+            </Box>
+          )}
         </Box>
       ) : (
         // Compact view

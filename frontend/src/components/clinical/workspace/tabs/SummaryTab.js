@@ -2,7 +2,7 @@
  * Summary Tab Component
  * Patient overview dashboard with key clinical information
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -142,7 +142,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const { 
     getPatientResources, 
     searchResources, 
-    isLoading 
+    isResourceLoading,
+    currentPatient 
   } = useFHIRResource();
 
   const [loading, setLoading] = useState(true);
@@ -164,6 +165,17 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     loadCDSAlerts();
   }, [patientId]);
 
+  // Reload data when resources change
+  useEffect(() => {
+    // Get conditions to check if data has been loaded
+    const conditions = getPatientResources(patientId, 'Condition') || [];
+    
+    // If we previously had no conditions but now have some, reload
+    if (conditions.length > 0 && stats.activeProblems === 0) {
+      loadDashboardData();
+    }
+  }, [getPatientResources, patientId, stats.activeProblems]);
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -176,9 +188,13 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
 
       // Calculate stats
-      const activeConditions = conditions.filter(c => 
-        c.clinicalStatus?.coding?.[0]?.code === 'active'
-      );
+      const activeConditions = conditions.filter(c => {
+        // Check multiple possible locations for clinical status
+        const status = c.clinicalStatus?.coding?.[0]?.code || 
+                      c.clinicalStatus?.code ||
+                      c.clinicalStatus;
+        return status === 'active';
+      });
       const activeMeds = medications.filter(m => 
         m.status === 'active'
       );
@@ -220,8 +236,20 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  const loadCDSAlerts = async () => {
+  const loadCDSAlerts = useCallback(async () => {
     if (!patientId) return;
+    
+    // Check cache first
+    const cacheKey = `cds-alerts-${patientId}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const { alerts, timestamp } = JSON.parse(cached);
+      // Use cache if less than 10 minutes old
+      if (Date.now() - timestamp < 600000) {
+        setCdsAlerts(alerts);
+        return;
+      }
+    }
     
     setCdsLoading(true);
     try {
@@ -231,7 +259,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       
       const allAlerts = [];
       
-      for (const service of patientViewServices) {
+      // Process services in parallel instead of sequentially
+      const servicePromises = patientViewServices.map(async (service) => {
         try {
           const response = await cdsHooksClient.callService(service.id, {
             hook: 'patient-view',
@@ -242,25 +271,35 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           });
           
           if (response.cards) {
-            allAlerts.push(...response.cards.map(card => ({
+            return response.cards.map(card => ({
               ...card,
               serviceId: service.id,
               serviceName: service.title || service.id,
               timestamp: new Date()
-            })));
+            }));
           }
         } catch (serviceError) {
           console.error(`Error executing CDS service ${service.id}:`, serviceError);
         }
-      }
+        return [];
+      });
+      
+      const results = await Promise.all(servicePromises);
+      results.forEach(alerts => allAlerts.push(...alerts));
       
       setCdsAlerts(allAlerts);
+      
+      // Cache the results
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        alerts: allAlerts,
+        timestamp: Date.now()
+      }));
     } catch (error) {
       console.error('Error loading CDS alerts:', error);
     } finally {
       setCdsLoading(false);
     }
-  };
+  }, [patientId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -278,24 +317,30 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   // Resolve medication references
   const { getMedicationDisplay } = useMedicationResolver(medications);
 
-  // Sort and limit items
-  const recentConditions = conditions
-    .sort((a, b) => new Date(b.recordedDate || 0) - new Date(a.recordedDate || 0))
-    .slice(0, 5);
-
-  const recentMedications = medications
-    .filter(m => m.status === 'active')
-    .sort((a, b) => new Date(b.authoredOn || 0) - new Date(a.authoredOn || 0))
-    .slice(0, 5);
-
-  const recentLabs = observations
-    .filter(o => o.category?.[0]?.coding?.[0]?.code === 'laboratory')
-    .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
-    .slice(0, 5);
-
-  const recentEncounters = encounters
-    .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
-    .slice(0, 5);
+  // Memoized data processing to prevent recalculation on every render
+  const processedData = useMemo(() => {
+    return {
+      recentConditions: conditions
+        .sort((a, b) => new Date(b.recordedDate || 0) - new Date(a.recordedDate || 0))
+        .slice(0, 5),
+      
+      recentMedications: medications
+        .filter(m => m.status === 'active')
+        .sort((a, b) => new Date(b.authoredOn || 0) - new Date(a.authoredOn || 0))
+        .slice(0, 5),
+      
+      recentLabs: observations
+        .filter(o => o.category?.[0]?.coding?.[0]?.code === 'laboratory')
+        .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
+        .slice(0, 5),
+      
+      recentEncounters: encounters
+        .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
+        .slice(0, 5)
+    };
+  }, [conditions, medications, observations, encounters]);
+  
+  const { recentConditions, recentMedications, recentLabs, recentEncounters } = processedData;
 
   if (loading && !refreshing) {
     return (

@@ -52,6 +52,7 @@ import { decodeFhirId } from '../../utils/navigationUtils';
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';
 import WorkspaceContent from './workspace/WorkspaceContent';
 import LayoutBuilder from './workspace/LayoutBuilder';
+import CDSAlertsPanel from './cds/CDSAlertsPanel';
 
 // Tab Components
 import SummaryTab from './workspace/tabs/SummaryTab';
@@ -87,14 +88,14 @@ const ClinicalWorkspaceV3 = () => {
   
   // Contexts
   const { currentUser } = useAuth();
-  const { currentPatient, setCurrentPatient } = useFHIRResource();
+  const { currentPatient, setCurrentPatient, isLoading: isGlobalLoading } = useFHIRResource();
   
   // State
   const [activeTab, setActiveTab] = useState('summary');
   const [customLayout, setCustomLayout] = useState(null);
   const [isLayoutBuilderOpen, setIsLayoutBuilderOpen] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [tabNotifications, setTabNotifications] = useState({});
@@ -106,17 +107,16 @@ const ClinicalWorkspaceV3 = () => {
     const loadPatient = async () => {
       if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
         try {
-          setIsLoading(true);
           setLoadError(null);
           await setCurrentPatient(patientId);
         } catch (error) {
           console.error('Failed to load patient:', error);
           setLoadError(error.message || 'Failed to load patient');
         } finally {
-          setIsLoading(false);
+          setIsInitialLoad(false);
         }
       } else if (currentPatient && currentPatient.id === patientId) {
-        setIsLoading(false);
+        setIsInitialLoad(false);
       }
     };
     loadPatient();
@@ -214,7 +214,7 @@ const ClinicalWorkspaceV3 = () => {
   }
 
   // Loading state
-  if (isLoading) {
+  if (isInitialLoad) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -247,6 +247,21 @@ const ClinicalWorkspaceV3 = () => {
         onPrint={handlePrint}
         onNavigateToTab={handleTabChange}
       />
+
+      {/* CDS Alerts Panel */}
+      <Box sx={{ px: 2, pt: 1 }}>
+        <CDSAlertsPanel 
+          patientId={patientId}
+          hook="patient-view"
+          compact={false}
+          maxAlerts={3}
+          autoRefresh={false}
+          onAlertAction={(alert, action, suggestion) => {
+            console.log('CDS Alert Action:', { alert, action, suggestion });
+            // Handle CDS alert actions here
+          }}
+        />
+      </Box>
 
       {/* Tab Navigation or Custom Layout Toggle */}
       {!customLayout ? (

@@ -15,18 +15,32 @@ class CDSHooksClient {
         'Accept': 'application/json'
       }
     });
+    this.servicesCache = null;
+    this.servicesCacheTime = null;
+    this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+    this.requestCache = new Map();
+    this.requestCacheTimeout = 30 * 1000; // 30 seconds cache for individual requests
   }
 
   /**
    * Discover available CDS services
    */
   async discoverServices() {
+    // Check cache first
+    const now = Date.now();
+    if (this.servicesCache && this.servicesCacheTime && (now - this.servicesCacheTime < this.cacheTimeout)) {
+      return this.servicesCache;
+    }
+
     try {
       const response = await this.httpClient.get('/');
-      return response.data.services || [];
+      this.servicesCache = response.data.services || [];
+      this.servicesCacheTime = now;
+      return this.servicesCache;
     } catch (error) {
       console.error('Error discovering CDS services:', error);
-      return [];
+      // Return cached data if available, even if expired
+      return this.servicesCache || [];
     }
   }
 
@@ -34,8 +48,32 @@ class CDSHooksClient {
    * Execute a specific CDS Hook
    */
   async executeHook(hookId, context) {
+    // Create cache key from hookId and context
+    const cacheKey = `${hookId}-${JSON.stringify(context)}`;
+    const now = Date.now();
+    
+    // Check cache
+    const cached = this.requestCache.get(cacheKey);
+    if (cached && (now - cached.time < this.requestCacheTimeout)) {
+      return cached.data;
+    }
+
     try {
       const response = await this.httpClient.post(`/${hookId}`, context);
+      
+      // Cache the response
+      this.requestCache.set(cacheKey, {
+        data: response.data,
+        time: now
+      });
+      
+      // Clean old cache entries
+      for (const [key, value] of this.requestCache.entries()) {
+        if (now - value.time > this.requestCacheTimeout) {
+          this.requestCache.delete(key);
+        }
+      }
+      
       return response.data;
     } catch (error) {
       console.error(`Error executing CDS Hook ${hookId}:`, error);

@@ -406,6 +406,60 @@ class FHIRClient {
   }
 
   /**
+   * Performance-optimized endpoints
+   */
+  async getPatientBundleOptimized(patientId, options = {}) {
+    const {
+      resourceTypes = null,
+      limit = 100,
+      priority = 'all'
+    } = options;
+    
+    const params = {
+      limit,
+      priority
+    };
+    
+    if (resourceTypes && Array.isArray(resourceTypes)) {
+      params.resource_types = resourceTypes.join(',');
+    }
+    
+    const response = await this.httpClient.get(`/Patient/${patientId}/$bundle-optimized`, {
+      params
+    });
+    
+    return response.data;
+  }
+  
+  async getPatientTimelineOptimized(patientId, options = {}) {
+    const {
+      days = 365,
+      limit = 100,
+      resourceTypes = null
+    } = options;
+    
+    const params = {
+      days,
+      limit
+    };
+    
+    if (resourceTypes && Array.isArray(resourceTypes)) {
+      params.resource_types = resourceTypes.join(',');
+    }
+    
+    const response = await this.httpClient.get(`/Patient/${patientId}/$timeline`, {
+      params
+    });
+    
+    return response.data;
+  }
+  
+  async getPatientSummaryOptimized(patientId) {
+    const response = await this.httpClient.get(`/Patient/${patientId}/$summary`);
+    return response.data;
+  }
+
+  /**
    * Procedure-specific convenience methods
    */
   async getProcedures(patientId, count = 1000) {

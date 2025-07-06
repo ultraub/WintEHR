@@ -2,7 +2,7 @@
  * Results Tab Component
  * Display lab results, imaging, and diagnostic test results
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -371,19 +371,30 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const imagingStudies = getPatientResources(patientId, 'ImagingStudy') || [];
   const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
 
-  // Categorize observations
-  const labResults = observations.filter(o => 
-    o.category?.[0]?.coding?.[0]?.code === 'laboratory'
-  );
-  const vitalSigns = observations.filter(o => 
-    o.category?.[0]?.coding?.[0]?.code === 'vital-signs'
-  );
-  const otherResults = observations.filter(o => 
-    !['laboratory', 'vital-signs'].includes(o.category?.[0]?.coding?.[0]?.code)
-  );
+  // Memoized categorization to prevent recalculation on every render
+  const categorizedObservations = useMemo(() => {
+    const labResults = [];
+    const vitalSigns = [];
+    const otherResults = [];
+    
+    observations.forEach(o => {
+      const category = o.category?.[0]?.coding?.[0]?.code;
+      if (category === 'laboratory') {
+        labResults.push(o);
+      } else if (category === 'vital-signs') {
+        vitalSigns.push(o);
+      } else {
+        otherResults.push(o);
+      }
+    });
+    
+    return { labResults, vitalSigns, otherResults };
+  }, [observations]);
+  
+  const { labResults, vitalSigns, otherResults } = categorizedObservations;
 
-  // Filter results based on current filters
-  const filterResults = (results) => {
+  // Memoized filter function to prevent recalculation
+  const filterResults = useCallback((results) => {
     return results.filter(result => {
       // Period filter
       if (filterPeriod !== 'all') {
@@ -423,31 +434,47 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
 
       return true;
     });
-  };
+  }, [filterPeriod, filterStatus, searchTerm]);
 
-  // Get filtered results based on current tab
-  const getCurrentResults = () => {
+  // Memoized result filtering and sorting
+  const { filteredResults, sortedResults } = useMemo(() => {
+    let currentResults;
     switch (tabValue) {
-      case 0: return filterResults(labResults);
-      case 1: return imagingStudies;
-      case 2: return filterResults(vitalSigns);
-      case 3: return diagnosticReports;
-      default: return [];
+      case 0: 
+        currentResults = filterResults(labResults);
+        break;
+      case 1: 
+        currentResults = imagingStudies;
+        break;
+      case 2: 
+        currentResults = filterResults(vitalSigns);
+        break;
+      case 3: 
+        currentResults = diagnosticReports;
+        break;
+      default: 
+        currentResults = [];
     }
-  };
+    
+    const sorted = [...currentResults].sort((a, b) => {
+      const dateA = new Date(a.effectiveDateTime || a.issued || a.started || 0);
+      const dateB = new Date(b.effectiveDateTime || b.issued || b.started || 0);
+      return dateB - dateA;
+    });
+    
+    return { 
+      filteredResults: currentResults, 
+      sortedResults: sorted 
+    };
+  }, [tabValue, labResults, imagingStudies, vitalSigns, diagnosticReports, filterResults]);
 
-  const filteredResults = getCurrentResults();
-  const sortedResults = [...filteredResults].sort((a, b) => {
-    const dateA = new Date(a.effectiveDateTime || a.issued || a.started || 0);
-    const dateB = new Date(b.effectiveDateTime || b.issued || b.started || 0);
-    return dateB - dateA;
-  });
-
-  // Count abnormal results
-  const abnormalCount = labResults.filter(r => {
-    const status = getResultStatus(r);
-    return status.label && status.label !== 'Normal';
-  }).length;
+  // Memoized abnormal count calculation
+  const abnormalCount = useMemo(() => {
+    return labResults.filter(r => {
+      const status = getResultStatus(r);
+      return status.label && status.label !== 'Normal';
+    }).length;
+  }, [labResults]);
 
   if (loading) {
     return (

@@ -17,6 +17,11 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
+      // TODO: Implement notifications endpoint in backend
+      // For now, return 0 to prevent 404 errors
+      setCount(0);
+      return;
+      
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/fhir/R4/notifications/count`, {
         headers: {
