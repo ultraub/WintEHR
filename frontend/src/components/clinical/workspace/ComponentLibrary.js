@@ -33,7 +33,9 @@ import {
   TrendingUp as TrendsIcon,
   Group as TeamIcon,
   Search as SearchIcon,
-  Category as CategoryIcon
+  Category as CategoryIcon,
+  ShowChart as ChartLineIcon,
+  Biotech as LabIcon
 } from '@mui/icons-material';
 
 // Extended component library with more options
@@ -174,6 +176,30 @@ export const COMPONENT_LIBRARY = [
     minHeight: 3,
     defaultWidth: 6,
     defaultHeight: 4
+  },
+
+  // Data Visualization Components
+  {
+    id: 'vitalschart',
+    name: 'Vital Signs Chart',
+    description: 'Interactive vital signs trends',
+    icon: <ChartLineIcon />,
+    category: 'charts',
+    minWidth: 4,
+    minHeight: 4,
+    defaultWidth: 6,
+    defaultHeight: 5
+  },
+  {
+    id: 'labtrends',
+    name: 'Lab Trends',
+    description: 'Laboratory result trends',
+    icon: <LabIcon />,
+    category: 'charts',
+    minWidth: 4,
+    minHeight: 4,
+    defaultWidth: 6,
+    defaultHeight: 5
   }
 ];
 

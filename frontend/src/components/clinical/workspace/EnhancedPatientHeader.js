@@ -40,7 +40,7 @@ import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 
-const EnhancedPatientHeader = ({ patientId, onPrint }) => {
+const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { currentPatient, getPatientResources } = useFHIRResource();
@@ -137,7 +137,7 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
 
   return (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
         backgroundColor: theme.palette.background.paper,
         borderRadius: 0,
@@ -146,152 +146,142 @@ const EnhancedPatientHeader = ({ patientId, onPrint }) => {
         overflow: 'hidden'
       }}
     >
-      <Box sx={{ p: 2 }}>
-        <Grid container spacing={2}>
+      <Box sx={{ p: 1.5 }}>
+        <Grid container spacing={1.5} alignItems="center">
           {/* Patient Photo and Basic Info */}
-          <Grid item xs={12} md={3}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Grid item xs={12} md={5}>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
               <Avatar
                 sx={{
-                  width: 64,
-                  height: 64,
+                  width: 48,
+                  height: 48,
                   bgcolor: theme.palette.primary.main,
                   color: 'white',
-                  fontSize: '1.25rem'
+                  fontSize: '1rem'
                 }}
               >
-                <PersonIcon sx={{ fontSize: 40 }} />
+                <PersonIcon sx={{ fontSize: 28 }} />
               </Avatar>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="h6" fontWeight="bold">
-                  {currentPatient.name?.[0]?.given?.join(' ')} {currentPatient.name?.[0]?.family}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    MRN: {formatMRN(currentPatient)}
+                <Stack direction="row" spacing={2} alignItems="baseline">
+                  <Typography variant="subtitle1" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
+                    {currentPatient.name?.[0]?.given?.join(' ')} {currentPatient.name?.[0]?.family}
                   </Typography>
-                  <Divider orientation="vertical" flexItem />
-                  <Typography variant="body2" color="text.secondary">
-                    {currentPatient.gender || 'Unknown'} • {calculateAge(currentPatient.birthDate)} years
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {activeAllergies.length > 0 && (
+                      <Chip
+                        icon={<WarningIcon />}
+                        label={`${activeAllergies.length}`}
+                        color="error"
+                        size="small"
+                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
+                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
+                      />
+                    )}
+                    {activeConditions.length > 0 && (
+                      <Chip
+                        icon={<AssignmentIcon />}
+                        label={`${activeConditions.length}`}
+                        color="warning"
+                        size="small"
+                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
+                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
+                      />
+                    )}
+                    {activeMedications.length > 0 && (
+                      <Chip
+                        icon={<MedicationIcon />}
+                        label={`${activeMedications.length}`}
+                        size="small"
+                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
+                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
+                      />
+                    )}
+                  </Stack>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" color="text.secondary">
+                    {formatMRN(currentPatient)}
                   </Typography>
-                  <Divider orientation="vertical" flexItem />
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary">•</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {currentPatient.gender || 'Unknown'}, {calculateAge(currentPatient.birthDate)}y
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">•</Typography>
+                  <Typography variant="caption" color="text.secondary">
                     DOB: {formatDate(currentPatient.birthDate)}
                   </Typography>
                 </Stack>
               </Box>
             </Box>
-
-            {/* Clinical Alerts */}
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }} flexWrap="wrap">
-              {activeAllergies.length > 0 && (
-                <Chip
-                  icon={<WarningIcon />}
-                  label={`${activeAllergies.length} Allergies`}
-                  color="error"
-                  size="small"
-                  onClick={() => navigate(`/patients/${patientId}/allergies`)}
-                />
-              )}
-              {activeConditions.length > 0 && (
-                <Chip
-                  icon={<AssignmentIcon />}
-                  label={`${activeConditions.length} Active Problems`}
-                  color="warning"
-                  size="small"
-                  onClick={() => navigate(`/patients/${patientId}/problems`)}
-                />
-              )}
-              {activeMedications.length > 0 && (
-                <Chip
-                  icon={<MedicationIcon />}
-                  label={`${activeMedications.length} Medications`}
-                  size="small"
-                  onClick={() => navigate(`/patients/${patientId}/medications`)}
-                />
-              )}
-            </Stack>
           </Grid>
 
           {/* Contact Information */}
-          <Grid item xs={12} md={5}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Contact Information
-            </Typography>
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <HomeIcon fontSize="small" color="action" />
-                <Typography variant="body2">{getAddress(currentPatient)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PhoneIcon fontSize="small" color="action" />
-                <Typography variant="body2">{getPhone(currentPatient)}</Typography>
-              </Box>
-              {getEmail(currentPatient) !== 'No email' && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <EmailIcon fontSize="small" color="action" />
-                  <Typography variant="body2">{getEmail(currentPatient)}</Typography>
-                </Box>
-              )}
-            </Stack>
-
-            <Divider sx={{ my: 1.5 }} />
-
-            {/* Insurance & Care Team */}
-            <Stack spacing={1}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <InsuranceIcon fontSize="small" color="action" />
-                <Typography variant="body2">Insurance: {getInsurance(currentPatient)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TeamIcon fontSize="small" color="action" />
-                <Typography variant="body2">PCP: {getPCP(currentPatient)}</Typography>
-              </Box>
+          <Grid item xs={12} md={4}>
+            <Stack spacing={0.5}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <HomeIcon sx={{ fontSize: 16 }} color="action" />
+                  <Typography variant="caption">{getAddress(currentPatient)}</Typography>
+                </Stack>
+              </Stack>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <PhoneIcon sx={{ fontSize: 16 }} color="action" />
+                  <Typography variant="caption">{getPhone(currentPatient)}</Typography>
+                </Stack>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <InsuranceIcon sx={{ fontSize: 16 }} color="action" />
+                  <Typography variant="caption">{getInsurance(currentPatient)}</Typography>
+                </Stack>
+              </Stack>
             </Stack>
           </Grid>
 
           {/* Clinical Summary */}
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                  Recent Activity
-                </Typography>
+          <Grid item xs={12} md={3}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Stack direction="row" spacing={2} alignItems="center">
                 {lastEncounter && (
-                  <Box>
-                    <Typography variant="body2">
-                      Last Visit: {formatDate(lastEncounter.period?.start || lastEncounter.period?.end)}
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <CalendarIcon sx={{ fontSize: 16 }} color="action" />
+                    <Typography variant="caption" color="text.secondary">
+                      Last: {formatDate(lastEncounter.period?.start || lastEncounter.period?.end, 'MMM d')}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Type: {lastEncounter.type?.[0]?.text || 'Unknown'}
-                    </Typography>
-                  </Box>
+                  </Stack>
                 )}
-
-                {/* Code Status */}
-                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                  <Chip
-                    icon={<EmergencyIcon />}
-                    label="Full Code"
-                    size="small"
-                    color="success"
-                  />
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <TeamIcon sx={{ fontSize: 16 }} color="action" />
+                  <Typography variant="caption" color="text.secondary">
+                    {getPCP(currentPatient)}
+                  </Typography>
                 </Stack>
-              </Box>
+                <Chip
+                  icon={<EmergencyIcon />}
+                  label="Full Code"
+                  size="small"
+                  color="success"
+                  sx={{ height: 20 }}
+                />
+              </Stack>
 
               {/* Action Buttons */}
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={0.5}>
                 <Tooltip title="Print Patient Summary">
                   <IconButton 
                     size="small" 
                     onClick={onPrint}
+                    sx={{ padding: 0.5 }}
                   >
-                    <PrintIcon />
+                    <PrintIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="More Options">
-                  <IconButton size="small">
-                    <MoreIcon />
+                  <IconButton 
+                    size="small"
+                    sx={{ padding: 0.5 }}
+                  >
+                    <MoreIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Stack>

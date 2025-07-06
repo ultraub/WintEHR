@@ -98,6 +98,8 @@ const ClinicalWorkspaceV3 = () => {
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [tabNotifications, setTabNotifications] = useState({});
+  const [newNoteDialogOpen, setNewNoteDialogOpen] = useState(false);
+  const [newOrderDialogOpen, setNewOrderDialogOpen] = useState(false);
 
   // Load patient data
   useEffect(() => {
@@ -175,8 +177,14 @@ const ClinicalWorkspaceV3 = () => {
 
   // Speed dial actions
   const speedDialActions = [
-    { icon: <AddIcon />, name: 'New Note', onClick: () => navigate(`/patients/${patientId}/documentation/new`) },
-    { icon: <OrdersIcon />, name: 'New Order', onClick: () => navigate(`/patients/${patientId}/orders/new`) },
+    { icon: <AddIcon />, name: 'New Note', onClick: () => {
+      setActiveTab('documentation');
+      setNewNoteDialogOpen(true);
+    }},
+    { icon: <OrdersIcon />, name: 'New Order', onClick: () => {
+      setActiveTab('orders');
+      setNewOrderDialogOpen(true);
+    }},
     { icon: <LayoutIcon />, name: 'Customize Layout', onClick: () => setIsLayoutBuilderOpen(true) },
     { icon: <PrintIcon />, name: 'Print', onClick: handlePrint },
     { icon: <RefreshIcon />, name: 'Refresh', onClick: handleRefresh }
@@ -230,12 +238,14 @@ const ClinicalWorkspaceV3 = () => {
       height: '100vh', 
       display: 'flex', 
       flexDirection: 'column',
-      backgroundColor: 'background.default'
+      backgroundColor: 'background.default',
+      overflow: 'hidden'
     }}>
       {/* Enhanced Patient Header */}
       <EnhancedPatientHeader 
         patientId={patientId} 
         onPrint={handlePrint}
+        onNavigateToTab={handleTabChange}
       />
 
       {/* Tab Navigation or Custom Layout Toggle */}
@@ -245,20 +255,23 @@ const ClinicalWorkspaceV3 = () => {
           sx={{ 
             borderBottom: 1, 
             borderColor: 'divider',
-            position: 'sticky',
-            top: 0,
-            zIndex: theme.zIndex.appBar - 1,
             backgroundColor: 'background.paper'
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', px: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
               variant={isMobile ? 'scrollable' : isTablet ? 'scrollable' : 'standard'}
               scrollButtons={isTablet ? 'auto' : false}
               allowScrollButtonsMobile
-              sx={{ flex: 1 }}
+              sx={{ 
+                flex: 1,
+                '& .MuiTab-root': {
+                  minHeight: 48,
+                  py: 1
+                }
+              }}
             >
               {TAB_CONFIG.map((tab) => (
                 <Tab
@@ -270,13 +283,16 @@ const ClinicalWorkspaceV3 = () => {
                       color="error"
                       max={99}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {tab.icon}
-                        {!isMobile && tab.label}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {React.cloneElement(tab.icon, { fontSize: 'small' })}
+                        {!isMobile && (
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            {tab.label}
+                          </Typography>
+                        )}
                       </Box>
                     </Badge>
                   }
-                  sx={{ minHeight: 64 }}
                 />
               ))}
             </Tabs>
@@ -285,9 +301,10 @@ const ClinicalWorkspaceV3 = () => {
             <Tooltip title="Workspace Settings">
               <IconButton
                 onClick={(e) => setSettingsAnchor(e.currentTarget)}
-                sx={{ ml: 1 }}
+                size="small"
+                sx={{ ml: 0.5 }}
               >
-                <SettingsIcon />
+                <SettingsIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
@@ -336,6 +353,10 @@ const ClinicalWorkspaceV3 = () => {
                   <tab.component 
                     patientId={patientId}
                     onNotificationUpdate={(count) => updateTabNotification(tab.id, count)}
+                    newNoteDialogOpen={tab.id === 'documentation' ? newNoteDialogOpen : false}
+                    onNewNoteDialogClose={() => setNewNoteDialogOpen(false)}
+                    newOrderDialogOpen={tab.id === 'orders' ? newOrderDialogOpen : false}
+                    onNewOrderDialogClose={() => setNewOrderDialogOpen(false)}
                   />
                 )}
               </Box>

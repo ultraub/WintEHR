@@ -8,6 +8,7 @@ import { createMedicalTheme } from './themes/medicalTheme';
 
 import Layout from './components/Layout';
 import LayoutV3 from './components/LayoutV3';
+import ClinicalLayout from './components/ClinicalLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -114,9 +115,9 @@ function App() {
                         {/* Clinical Workspace */}
                         <Route path="/patients/:id/clinical" element={
                           <ProtectedRoute>
-                            <LayoutV3>
+                            <ClinicalLayout>
                               <ClinicalWorkspaceV3 />
-                            </LayoutV3>
+                            </ClinicalLayout>
                           </ProtectedRoute>
                         } />
                         

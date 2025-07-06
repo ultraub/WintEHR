@@ -42,6 +42,8 @@ import {
   Tab,
   Badge,
   LinearProgress,
+  ToggleButton,
+  ToggleButtonGroup,
   useTheme,
   alpha
 } from '@mui/material';
@@ -69,6 +71,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import VitalsOverview from '../../charts/VitalsOverview';
 
 // Get result status icon and color
 const getResultStatus = (observation) => {
@@ -423,18 +426,16 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
-          <Button
-            variant={viewMode === 'table' ? 'contained' : 'outlined'}
-            onClick={() => setViewMode('table')}
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(e, newMode) => newMode && setViewMode(newMode)}
+            size="small"
           >
-            Table View
-          </Button>
-          <Button
-            variant={viewMode === 'cards' ? 'contained' : 'outlined'}
-            onClick={() => setViewMode('cards')}
-          >
-            Card View
-          </Button>
+            <ToggleButton value="table">Table</ToggleButton>
+            <ToggleButton value="cards">Cards</ToggleButton>
+            <ToggleButton value="trends">Trends</ToggleButton>
+          </ToggleButtonGroup>
         </Stack>
       </Stack>
 
@@ -567,6 +568,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         <Alert severity="info">
           No results found matching your criteria
         </Alert>
+      ) : viewMode === 'trends' && tabValue === 0 ? (
+        // Lab Trends View
+        <LabTrendsChart 
+          patientId={patientId}
+          observations={labResults}
+          height={500}
+        />
       ) : viewMode === 'table' && tabValue !== 1 ? (
         <TableContainer component={Paper}>
           <Table>
@@ -615,6 +623,21 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
               onClick={() => navigate(`/patients/${patientId}/imaging/${imaging.id}`)}
             />
           ))}
+        </Box>
+      ) : tabValue === 2 ? (
+        // Vital Signs with Graphs
+        <Box>
+          {vitalSigns.length === 0 ? (
+            <Alert severity="info">
+              No vital signs recorded for this patient
+            </Alert>
+          ) : (
+            <VitalsOverview 
+              patientId={patientId} 
+              vitalsData={vitalSigns}
+              compact={false}
+            />
+          )}
         </Box>
       ) : (
         // Card View

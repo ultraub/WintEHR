@@ -284,6 +284,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
 
 const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const { getPatientResources, isLoading } = useFHIRResource();
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
@@ -554,22 +555,21 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           {sortedEvents.map((event) => {
             const eventType = eventTypes[event.resourceType];
             const eventDate = getEventDate(event);
-            const navigate = useNavigate();
             
+            const resourceTypeToPath = {
+              'Encounter': 'encounters',
+              'MedicationRequest': 'medications',
+              'Observation': 'results',
+              'Condition': 'problems',
+              'AllergyIntolerance': 'allergies',
+              'Immunization': 'immunizations',
+              'ImagingStudy': 'imaging',
+              'DocumentReference': 'notes',
+              'Goal': 'goals'
+            };
+            
+            const path = resourceTypeToPath[event.resourceType];
             const handleNavigate = () => {
-              const resourceTypeToPath = {
-                'Encounter': 'encounters',
-                'MedicationRequest': 'medications',
-                'Observation': 'results',
-                'Condition': 'problems',
-                'AllergyIntolerance': 'allergies',
-                'Immunization': 'immunizations',
-                'ImagingStudy': 'imaging',
-                'DocumentReference': 'notes',
-                'Goal': 'goals'
-              };
-              
-              const path = resourceTypeToPath[event.resourceType];
               if (path) {
                 navigate(`/patients/${event.subject?.reference?.split('/')[1]}/${path}/${event.id}`);
               }

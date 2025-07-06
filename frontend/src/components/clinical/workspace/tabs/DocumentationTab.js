@@ -208,6 +208,15 @@ const NoteCard = ({ note, onEdit, onView }) => {
             Sign Note
           </Button>
         )}
+        {isSigned && (
+          <Button 
+            size="small" 
+            startIcon={<AddIcon />}
+            onClick={() => onEdit && onEdit({ ...note, isAddendum: true })}
+          >
+            Addendum
+          </Button>
+        )}
         <Button size="small" startIcon={<ShareIcon />}>
           Share
         </Button>
@@ -374,7 +383,69 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
   );
 };
 
-const DocumentationTab = ({ patientId, onNotificationUpdate }) => {
+// Addendum Dialog Component
+const AddendumDialog = ({ open, onClose, note, onSave }) => {
+  const [addendumText, setAddendumText] = useState('');
+  
+  const handleSave = () => {
+    if (addendumText.trim()) {
+      onSave(addendumText);
+      setAddendumText('');
+    }
+  };
+  
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        Add Addendum to Note
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2}>
+          <Alert severity="info">
+            You are adding an addendum to a signed note. The original note cannot be modified.
+          </Alert>
+          
+          {note && (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Original Note:
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {note.text || 'No content'}
+              </Typography>
+              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                Signed by {note.author?.[0]?.display} on {note.date ? format(parseISO(note.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
+              </Typography>
+            </Paper>
+          )}
+          
+          <TextField
+            fullWidth
+            multiline
+            rows={6}
+            label="Addendum Text"
+            value={addendumText}
+            onChange={(e) => setAddendumText(e.target.value)}
+            placeholder="Enter your addendum..."
+            helperText="This addendum will be permanently attached to the original note."
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button 
+          variant="contained" 
+          onClick={handleSave}
+          disabled={!addendumText.trim()}
+        >
+          Save Addendum
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading } = useFHIRResource();
@@ -387,6 +458,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
+  const [selectedNoteForAddendum, setSelectedNoteForAddendum] = useState(null);
 
   useEffect(() => {
     setLoading(false);
@@ -500,13 +573,42 @@ const DocumentationTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const handleEditNote = (note) => {
-    setSelectedNote(note);
-    setEditorOpen(true);
+    if (note.isAddendum) {
+      // This is from the addendum button in NoteCard
+      setSelectedNoteForAddendum(note);
+      setAddendumDialogOpen(true);
+    } else {
+      // Regular edit
+      setSelectedNote(note);
+      setEditorOpen(true);
+    }
   };
 
   const handleViewNote = (note) => {
     navigate(`/patients/${patientId}/notes/${note.id}`);
   };
+  
+  const handleSaveAddendum = (addendumText) => {
+    // In a real app, this would create a new DocumentReference
+    // linked to the original note
+    console.log('Saving addendum for note:', selectedNoteForAddendum?.id);
+    console.log('Addendum text:', addendumText);
+    setAddendumDialogOpen(false);
+    setSelectedNoteForAddendum(null);
+    // Would typically refresh the documents list here
+  };
+  
+  useEffect(() => {
+    if (newNoteDialogOpen) {
+      handleNewNote();
+    }
+  }, [newNoteDialogOpen]);
+  
+  useEffect(() => {
+    if (!editorOpen && onNewNoteDialogClose) {
+      onNewNoteDialogClose();
+    }
+  }, [editorOpen, onNewNoteDialogClose]);
 
   if (loading) {
     return (
@@ -646,6 +748,17 @@ const DocumentationTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setEditorOpen(false)}
         note={selectedNote}
         patientId={patientId}
+      />
+      
+      {/* Addendum Dialog */}
+      <AddendumDialog
+        open={addendumDialogOpen}
+        onClose={() => {
+          setAddendumDialogOpen(false);
+          setSelectedNoteForAddendum(null);
+        }}
+        note={selectedNoteForAddendum}
+        onSave={handleSaveAddendum}
       />
     </Box>
   );
