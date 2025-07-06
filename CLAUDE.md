@@ -2,6 +2,7 @@
 
 **Status**: FHIR-Native EMR | React + FastAPI | PostgreSQL  
 **Updated**: 2025-01-06  
+**Architecture**: Comprehensive Clinical Workflow System with Real-Time Integration
 
 ## 🚀 Quick Start
 
@@ -12,6 +13,14 @@
 # Common issues
 docker-compose down -v  # Reset if errors
 cd frontend && npm install  # Fix missing deps
+
+# Authentication modes
+export JWT_ENABLED=false  # Simple training auth (default)
+export JWT_ENABLED=true   # JWT authentication (optional)
+
+# Check system status
+curl http://localhost:8000/api/auth/config  # Auth configuration
+curl http://localhost:8000/fhir/R4/Patient  # FHIR endpoints
 ```
 
 ## ⛔ Critical Rules
@@ -62,15 +71,38 @@ cd frontend && npm install  # Fix missing deps
 
 ## 📍 Current State
 
-- **Frontend**: 20+ FHIR-native components with **FULL CRUD OPERATIONS** 
-- **Backend**: Complete FHIR R4 API with CREATE/READ/UPDATE/DELETE endpoints
+### Core Infrastructure
+- **Frontend**: 30+ FHIR-native components with **FULL CRUD OPERATIONS**
+- **Backend**: Complete FHIR R4 API with CREATE/READ/UPDATE/DELETE endpoints  
 - **FHIR Service**: Real-time database operations via `fhirService.js`
 - **Search Integration**: Live search across conditions, medications, allergies, lab tests
 - **Clinical Workspace**: **FULLY FUNCTIONAL** EMR with real data persistence
-- **API Endpoints**: 
-  - FHIR CRUD: `/fhir/R4/{resourceType}/` 
-  - Search: `/api/emr/clinical/catalog/`
-- **Resources**: 20,115 Synthea FHIR resources (10 patients) with full support
+- **Cross-Module Integration**: Event-driven workflow orchestration via `ClinicalWorkflowContext`
+- **Authentication**: Dual-mode auth (simple training + optional JWT)
+
+### Clinical Modules (All Fully Implemented)
+- **Chart Review**: Complete problem list management with CRUD operations
+- **Results**: Lab trends with reference ranges, abnormal highlighting, multi-year data
+- **Medications**: Full prescription workflow with medication resolution  
+- **Orders**: Comprehensive ordering system with status tracking
+- **Encounters**: Summary views with expandable clinical details
+- **Pharmacy**: Complete dispensing workflow with queue management  
+- **Imaging**: DICOM viewer with real image loading and multi-slice support
+- **Care Planning**: Integration with problem-based order sets
+
+### API Endpoints
+- **FHIR CRUD**: `/fhir/R4/{resourceType}/` (All operations implemented)
+- **Clinical Search**: `/api/emr/clinical/catalog/`
+- **Pharmacy Workflows**: `/api/pharmacy/`
+- **DICOM Services**: `/api/dicom/`
+- **Authentication**: `/api/auth/` (dual-mode support)
+
+### Data & Integration
+- **Resources**: 20,115+ Synthea FHIR resources (10+ patients) with full support
+- **Imaging**: DICOM study generation with realistic multi-slice datasets
+- **Pharmacy**: MedicationDispense FHIR resource creation
+- **Real-Time**: WebSocket support for clinical notifications
+- **Search**: Advanced indexing with reference parameter resolution
 
 ## 🔧 Common Tasks
 
@@ -142,6 +174,57 @@ const { getMedicationDisplay } = useMedicationResolver(medications);
 <Typography>{getMedicationDisplay(medicationRequest)}</Typography>
 ```
 
+### Cross-Module Workflow Integration
+```javascript
+// ✅ CORRECT - Use ClinicalWorkflowContext for cross-tab communication
+import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
+
+const { publish, subscribe, CLINICAL_EVENTS } = useClinicalWorkflow();
+
+// Publish events to other tabs
+await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
+await publish(CLINICAL_EVENTS.RESULT_RECEIVED, resultData);
+
+// Subscribe to events from other tabs
+useEffect(() => {
+  const unsubscribe = subscribe(CLINICAL_EVENTS.MEDICATION_DISPENSED, (data) => {
+    // Handle pharmacy notification in chart review tab
+    updateMedicationStatus(data);
+  });
+  return unsubscribe;
+}, []);
+```
+
+### DICOM Imaging Integration
+```javascript
+// ✅ CORRECT - Use DICOMViewer component with real image loading
+import DICOMViewer from '../imaging/DICOMViewer';
+
+// Load DICOM studies with proper metadata
+const studies = await fhirService.getImagingStudies(patientId);
+<DICOMViewer 
+  study={selectedStudy} 
+  onSeriesChange={handleSeriesChange}
+  onImageNavigate={handleImageNavigate}
+/>
+```
+
+### Pharmacy Workflow Management
+```javascript
+// ✅ CORRECT - Complete pharmacy workflow with MedicationDispense creation
+import { pharmacyService } from '../services/pharmacyService';
+
+// Create medication dispense with proper FHIR resource
+const dispense = await pharmacyService.dispenseMedication({
+  medicationRequestId: request.id,
+  quantity: { value: 30, unit: 'tablets' },
+  daysSupply: 30,
+  status: 'completed'
+});
+
+// Automatically updates clinical context and notifies other tabs
+```
+
 ## 🐛 Error Quick Fixes
 
 | Error | Fix |
@@ -159,30 +242,69 @@ const { getMedicationDisplay } = useMedicationResolver(medications);
 
 ## 📁 Key Files
 
-### Frontend Core
+### Frontend Core Services
 - **FHIR Service**: `/src/services/fhirService.js` - Real FHIR CRUD operations
-- **Search Service**: `/src/services/searchService.js` - Clinical catalog search
-- **Context**: `/src/contexts/FHIRResourceContext.js` - Auto-refresh & caching
-- **Hooks**: `/src/hooks/useFHIRResources.js`, `/src/hooks/useMedicationResolver.js`
+- **Search Service**: `/src/services/searchService.js` - Clinical catalog search  
+- **Pharmacy Service**: `/src/services/pharmacyService.js` - Medication dispensing workflows
+- **DICOM Service**: `/src/services/dicomService.js` - Medical imaging operations
 
-### Clinical Components  
-- **Workspace V3**: `/src/components/clinical/ClinicalWorkspaceV3.js`
-- **Chart Review**: `/src/components/clinical/workspace/tabs/ChartReviewTab.js` 
-- **Dialogs**: `/src/components/clinical/workspace/dialogs/`
-  - `AddProblemDialog.js` - Create conditions with search
-  - `EditProblemDialog.js` - Edit/delete conditions  
+### Context Providers
+- **FHIR Resources**: `/src/contexts/FHIRResourceContext.js` - Auto-refresh & caching
+- **Clinical Workflow**: `/src/contexts/ClinicalWorkflowContext.js` - Cross-module communication
+- **Authentication**: `/src/contexts/AuthContext.js` - Dual-mode auth support
+- **WebSocket**: `/src/contexts/WebSocketContext.js` - Real-time notifications
+
+### Hooks & Utilities
+- **FHIR Resources**: `/src/hooks/useFHIRResources.js` - Resource management
+- **Medication Resolver**: `/src/hooks/useMedicationResolver.js` - Medication display resolution
+- **Clinical Workflow**: `/src/hooks/useClinicalWorkflow.js` - Workflow integration
+
+### Clinical Workspace Components
+- **Workspace V3**: `/src/components/clinical/ClinicalWorkspaceV3.js` - Main clinical interface
+- **Chart Review**: `/src/components/clinical/workspace/tabs/ChartReviewTab.js` - Problem management
+- **Results Tab**: `/src/components/clinical/workspace/tabs/ResultsTab.js` - Lab trends with ranges
+- **Orders Tab**: `/src/components/clinical/workspace/tabs/OrdersTab.js` - Order management
+- **Pharmacy Tab**: `/src/components/clinical/workspace/tabs/PharmacyTab.js` - Dispensing workflows
+- **Imaging Tab**: `/src/components/clinical/workspace/tabs/ImagingTab.js` - DICOM viewer integration
+- **Encounters Tab**: `/src/components/clinical/workspace/tabs/EncountersTab.js` - Encounter summaries
+
+### Clinical Dialogs & Forms
+- **Problem Management**: 
+  - `AddProblemDialog.js` - Create conditions with catalog search
+  - `EditProblemDialog.js` - Edit/delete conditions with full CRUD
+- **Medication Management**:
   - `PrescribeMedicationDialog.js` - Create medication requests
   - `AddAllergyDialog.js` - Create allergy intolerances
+- **Encounter Management**:
+  - `EncounterSummaryDialog.js` - Comprehensive encounter details
 
-### Backend API
-- **FHIR Router**: `/backend/api/fhir/fhir_router.py` - Full CRUD operations
-- **Clinical Search**: `/backend/api/clinical/catalog_search.py` - Search endpoints
-- **EMR Router**: `/backend/emr_api/clinical.py` - Extended clinical tools
+### Specialized Components
+- **Lab Charts**: `/src/components/clinical/charts/LabTrendsChart.js` - Multi-year trends
+- **DICOM Viewer**: `/src/components/clinical/imaging/DICOMViewer.js` - Real DICOM display
+- **Medication Components**: `/src/components/clinical/medications/` - Prescription workflows
 
-### Documentation
-- **Error Patterns**: `PROJECT_INTEGRITY_GUIDE.md`
-- **API Reference**: `docs/API_ENDPOINTS.md`
-- **Button Integration**: `docs/CLINICAL_WORKSPACE_BUTTON_INTEGRATION_PLAN.md`
+### Backend API Layer
+- **FHIR Router**: `/backend/api/fhir/fhir_router.py` - Complete FHIR R4 implementation
+- **FHIR Operations**: `/backend/core/fhir/operations.py` - All FHIR operations ($validate, $expand, etc.)
+- **FHIR Search**: `/backend/core/fhir/search.py` - Advanced search with reference resolution
+- **Clinical Search**: `/backend/api/clinical/catalog_search.py` - Clinical catalog endpoints
+- **Pharmacy APIs**: `/backend/api/clinical/pharmacy/` - Medication dispensing services
+- **DICOM Services**: `/backend/api/dicom/dicom_service.py` - Medical imaging APIs
+- **Enhanced Auth**: `/backend/api/auth_enhanced.py` - Dual-mode authentication
+
+### Database & Infrastructure
+- **FHIR Storage**: `/backend/core/fhir/storage.py` - PostgreSQL FHIR storage engine
+- **Search Indexing**: `/backend/core/fhir/search_indexer.py` - Search parameter indexing
+- **Data Scripts**: `/backend/scripts/synthea_master.py` - Complete data management
+- **Imaging Enhancement**: `/backend/scripts/enhance_imaging_import.py` - DICOM study creation
+
+### Documentation & Configuration
+- **System Architecture**: `docs/SYSTEM_ARCHITECTURE.md` - Complete architecture documentation
+- **Quick Reference**: `CLAUDE.md` - Developer quick reference guide
+- **Error Patterns**: `PROJECT_INTEGRITY_GUIDE.md` - Common issues & solutions
+- **API Reference**: `docs/API_ENDPOINTS.md` - Complete API documentation
+- **Workflow Integration**: `docs/CLINICAL_WORKSPACE_BUTTON_INTEGRATION_PLAN.md`
+- **Frontend Tracking**: `docs/FRONTEND_REDESIGN_TRACKER.md` - Component status
 
 ## 🧪 Testing & Data Management
 
@@ -211,20 +333,72 @@ python scripts/synthea_master.py full --count 50 --validation-mode strict --incl
 - Review medication references resolve correctly
 ```
 
+## 🔄 Clinical Workflow Patterns
+
+### Complete Order-to-Result Workflow
+1. **Order Placement**: Orders Tab → Create ServiceRequest → Auto-index → Pending status
+2. **Result Creation**: Lab system → Create Observation → Reference original order
+3. **Abnormal Detection**: ClinicalWorkflowContext → Check reference ranges → Create alert
+4. **Cross-tab Notification**: Publish RESULT_RECEIVED → Subscribe handlers → Update UI
+5. **Clinical Response**: Results Tab → Review abnormal → Suggest follow-up orders
+
+### Medication Prescription-to-Dispense Workflow  
+1. **Prescription**: Chart Review → PrescribeMedicationDialog → Create MedicationRequest
+2. **Pharmacy Queue**: PharmacyTab → Load pending requests → Verification workflow
+3. **Dispensing**: Pharmacy → Create MedicationDispense → Update request status
+4. **Clinical Update**: Publish MED_DISPENSED → Chart Review subscribes → Update status
+5. **Monitoring**: Auto-schedule monitoring labs based on medication type
+
+### Imaging Order-to-Report Workflow
+1. **Imaging Order**: Orders Tab → Create ServiceRequest (imaging) → DICOM study creation
+2. **Study Available**: ImagingTab → Load ImagingStudy resources → DICOM viewer
+3. **Image Review**: DICOMViewer → Multi-slice navigation → Windowing controls
+4. **Report Creation**: Document findings → Link to original study → Clinical correlation
+
+### Problem-Centered Care Planning
+1. **Problem Addition**: Chart Review → AddProblemDialog → Create Condition
+2. **Order Set Suggestion**: ClinicalWorkflowContext → Suggest relevant orders
+3. **Care Goal Creation**: Auto-suggest care plan goals → Create CarePlan resources  
+4. **Monitoring Setup**: Schedule appropriate monitoring → Create reminders
+5. **Outcome Tracking**: Track problem resolution → Update clinical status
+
+## 🏥 System Status & Health
+
+### Current Implementation Status
+- ✅ **Complete FHIR CRUD**: All resource types with full operations
+- ✅ **Advanced Search**: Reference resolution, token indexing, date ranges
+- ✅ **Clinical Workflows**: Order-result, prescription-dispense, imaging workflows
+- ✅ **Cross-Module Integration**: Real-time event-driven communication
+- ✅ **Authentication**: Dual-mode (simple training + optional JWT)
+- ✅ **DICOM Support**: Real image loading with multi-slice viewer
+- ✅ **Quality Features**: Reference ranges, abnormal highlighting, trend analysis
+- ✅ **Real-time Notifications**: WebSocket support with clinical alerts
+
+### Production Readiness
+- **Training Environment**: ✅ Fully functional with Synthea data
+- **FHIR Compliance**: ✅ Complete R4 implementation with validation
+- **Clinical Accuracy**: ✅ Real medical workflows with proper FHIR resources
+- **Integration Ready**: ✅ Standard APIs for external system integration
+- **Scalability**: ✅ PostgreSQL with efficient indexing and caching
+- **Security**: ✅ Role-based access with audit trails
+
 ## 📋 Session Checklist
 
 **Before Starting**:
 - [ ] Run TodoRead
-- [ ] Check PROJECT_INTEGRITY_GUIDE.md
+- [ ] Check PROJECT_INTEGRITY_GUIDE.md  
 - [ ] Verify system running: `./start.sh`
+- [ ] Check auth mode: `curl http://localhost:8000/api/auth/config`
 
 **During Work**:
 - [ ] Use Synthea data only
 - [ ] Test with multiple patients
 - [ ] Update TodoWrite on progress
+- [ ] Test cross-module workflows
 
 **After Changes**:
 - [ ] All features fully implemented
-- [ ] No console errors
+- [ ] No console errors or placeholders
+- [ ] Test clinical workflows end-to-end
 - [ ] Update relevant docs
 - [ ] Run build validation if 3+ files changed

@@ -8,26 +8,41 @@ env/
 venv/
 ENV/
 .venv
+*.pyc
 
-# Logs
+# Logs and reports
 *.log
 logs/
+validation_report_*.json
+validation_errors_report.json
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Synthea outputs
+# Synthea data and outputs
+synthea/
+backend/synthea/
 synthea/output/
 backend/synthea/output/
 backend/data/synthea_output/
 backend/synthea-with-dependencies.jar
-backend/synthea/
 *.jar
 
-# Exports
+# Generated data files  
+backend/data/generated_dicoms/
+backend/data/sample_dicoms/
+backend/data/generic_dicoms/
+backend/data/dicom_uploads/
+backend/data/synthea_backups/
+*.dcm
+
+# Exports and backups
 backend/exports/
+backup/
+archives/
+*.sql.gz
 
 # Build artifacts
 frontend/build/
@@ -37,43 +52,57 @@ backend/dist/
 
 # Lock files (can cause issues with large changes)
 frontend/package-lock.json
+package-lock.json
 
 # Environment files
 .env
 .env.local
 .env.production
+.env.development
+.env.test
 
-# IDE
+# IDE and editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.vscode/settings.json
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Test artifacts
+# Test artifacts and coverage
 .coverage
 htmlcov/
 .pytest_cache/
 test_results/
+.nyc_output/
+coverage/
 
-# Temporary files
+# Temporary and backup files
 *.tmp
 *.bak
 *.backup
+*~
+.temp
+temp/
 
-# Docker volumes
+# Docker volumes and data
 docker-volumes/
-backend/validation_errors_report.json
-backend/data/synthea_backups/synthea_backup_*/*.json
-backend/scripts/validation_report_20250705_024615.json
+postgres_data/
 
-frontend/package-lock.json
-backend/scripts/data/synthea_backups/synthea_backup_*.json
-backend/scripts/data/synthea_backups/synthea_backup_*/*.json
-backup/synthea_*/output/fhir/*.json
-backup/synthea_*/output/metadata/*.json
-*.dcm
+# Documentation artifacts (keep actual docs)
+docs/old/
+docs/archive/
+docs/backup/
+
+# Dependencies that get downloaded
+node_modules/
+bower_components/

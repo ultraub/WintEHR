@@ -736,7 +736,7 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run the cleaning script
             result = subprocess.run(
-                ["python", "scripts/clean_fhir_names.py"],
+                [sys.executable, str(self.script_dir / "clean_fhir_names.py")],
                 capture_output=True,
                 text=True,
                 check=False
@@ -769,7 +769,7 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run the lab enhancement script
             result = subprocess.run(
-                ["python", "scripts/enhance_lab_results.py"],
+                [sys.executable, str(self.script_dir / "enhance_lab_results.py")],
                 capture_output=True,
                 text=True,
                 check=False
