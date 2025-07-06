@@ -37,7 +37,7 @@ import WorkspaceLayoutManager from './workspace/WorkspaceLayoutManager';
 import WorkflowModeSelector, { WorkflowQuickAccess } from './workspace/WorkflowModeSelector';
 import CommandPalette from './workspace/CommandPalette';
 import PatientHeader from './PatientHeader';
-import CDSAlerts from '../CDSAlerts';
+// import CDSAlerts from '../CDSAlerts';
 
 // Panel Components (to be created)
 import ChartReviewMode from './workspace/modes/ChartReviewMode';
@@ -49,7 +49,8 @@ import PopulationHealthMode from './workspace/modes/PopulationHealthMode';
 
 // Utilities
 import { decodeFhirId } from '../../utils/navigationUtils';
-import { cdsHooksClient } from '../../services/cdsHooksClient';
+// TODO: Re-enable when CDS hooks endpoint is implemented
+// import { cdsHooksClient } from '../../services/cdsHooksClient';
 
 const ClinicalWorkspaceV2 = () => {
   const theme = useTheme();
@@ -58,14 +59,13 @@ const ClinicalWorkspaceV2 = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   // Route params
-  const { patientId: encodedPatientId } = useParams();
+  const { id: encodedPatientId } = useParams();
   const patientId = decodeFhirId(encodedPatientId);
   
   // Contexts
   const { currentUser } = useAuth();
-  const { currentPatient, fetchResource } = useFHIRResource();
+  const { currentPatient, setCurrentPatient } = useFHIRResource();
   const { 
-    loadPatient: loadPatientFromClinical, 
     loadEncounter: loadEncounterFromContext,
     currentEncounter,
     setCurrentEncounter
@@ -103,13 +103,14 @@ const ClinicalWorkspaceV2 = () => {
   // Load patient data
   useEffect(() => {
     const loadPatientData = async () => {
+      console.log('Loading patient data for:', patientId, 'Current patient:', currentPatient);
       if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
         try {
           setLoadError(null);
-          await Promise.all([
-            fetchResource('Patient', patientId),
-            loadPatientFromClinical(patientId)
-          ]);
+          console.log('Fetching patient resource:', patientId);
+          // Use setCurrentPatient to properly set the patient context
+          await setCurrentPatient(patientId);
+          console.log('Patient set as current');
         } catch (error) {
           console.error('Failed to load patient:', error);
           setLoadError(error.message || 'Failed to load patient');
@@ -117,31 +118,28 @@ const ClinicalWorkspaceV2 = () => {
       }
     };
     loadPatientData();
-  }, [patientId, currentPatient, fetchResource, loadPatientFromClinical]);
+  }, [patientId, setCurrentPatient]); // Remove currentPatient from deps to avoid infinite loop
 
-  // Initialize workspace and fire CDS hooks
+  // Initialize workspace
   useEffect(() => {
     const initializeWorkspace = async () => {
       if (!currentPatient) return;
 
+      console.log('Initializing workspace for patient:', currentPatient.id);
       setInitLoading(true);
       try {
-        // Fire patient-view CDS hook
-        const userId = currentUser?.id || 'demo-user';
-        await cdsHooksClient.firePatientView(
-          currentPatient.id,
-          userId,
-          null
-        );
+        // Workspace is ready, no CDS hooks for now
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure state updates
       } catch (error) {
         console.error('Error initializing workspace:', error);
       } finally {
         setInitLoading(false);
+        console.log('Workspace initialization complete');
       }
     };
 
     initializeWorkspace();
-  }, [currentPatient?.id, currentUser?.id]);
+  }, [currentPatient?.id]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -182,6 +180,7 @@ const ClinicalWorkspaceV2 = () => {
 
   // Render workflow mode content
   const renderWorkflowContent = () => {
+    console.log('Rendering workflow content, currentMode:', currentMode);
     if (!currentMode) {
       return (
         <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -255,6 +254,11 @@ const ClinicalWorkspaceV2 = () => {
 
   // Loading state
   if (initLoading) {
+    console.log('ClinicalWorkspaceV2: Still in initLoading state', {
+      currentPatient,
+      patientId,
+      initLoading
+    });
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -309,10 +313,10 @@ const ClinicalWorkspaceV2 = () => {
         </Tooltip>
       </Paper>
 
-      {/* CDS Alerts */}
-      <Box sx={{ px: 2, pt: 1 }}>
+      {/* CDS Alerts - TODO: Implement CDSAlerts component */}
+      {/* <Box sx={{ px: 2, pt: 1 }}>
         <CDSAlerts hook="patient-view" patientId={currentPatient?.id} />
-      </Box>
+      </Box> */}
 
       {/* Main Workspace Content */}
       <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>

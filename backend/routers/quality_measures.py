@@ -114,8 +114,12 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
     """
     
     result = await db.execute(text(patient_query))
-    eligible_patients = [f"Patient/{row[0]}" for row in result]
-    denominator = len(eligible_patients)
+    patient_ids = [row[0] for row in result]
+    # Create both Patient/ and urn:uuid: formats for comparison  
+    eligible_patients = []
+    for patient_id in patient_ids:
+        eligible_patients.extend([f"Patient/{patient_id}", f"urn:uuid:{patient_id}"])
+    denominator = len(patient_ids)  # Count unique patients, not references
     
     if denominator == 0:
         return QualityMeasure(

@@ -348,19 +348,22 @@ generate.demographics.default_state = Massachusetts
                     )
                 """))
                 
-                # Create indexes
-                await session.execute(text("""
-                    CREATE INDEX idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
-                    CREATE INDEX idx_resources_type ON fhir.resources(resource_type);
-                    CREATE INDEX idx_resources_updated ON fhir.resources(last_updated);
-                    CREATE INDEX idx_search_params_resource ON fhir.search_params(resource_id);
-                    CREATE INDEX idx_search_params_name_type ON fhir.search_params(param_name, param_type);
-                    CREATE INDEX idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
-                    CREATE INDEX idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
-                    CREATE INDEX idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
-                    CREATE INDEX idx_search_params_token ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
-                    CREATE INDEX idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
-                """))
+                # Create indexes (split into separate statements)
+                indexes = [
+                    "CREATE INDEX idx_resources_type_id ON fhir.resources(resource_type, fhir_id)",
+                    "CREATE INDEX idx_resources_type ON fhir.resources(resource_type)",
+                    "CREATE INDEX idx_resources_updated ON fhir.resources(last_updated)",
+                    "CREATE INDEX idx_search_params_resource ON fhir.search_params(resource_id)",
+                    "CREATE INDEX idx_search_params_name_type ON fhir.search_params(param_name, param_type)",
+                    "CREATE INDEX idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL",
+                    "CREATE INDEX idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL",
+                    "CREATE INDEX idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL",
+                    "CREATE INDEX idx_search_params_token ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL",
+                    "CREATE INDEX idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL"
+                ]
+                
+                for index_sql in indexes:
+                    await session.execute(text(index_sql))
                 
                 await session.commit()
             
@@ -578,12 +581,19 @@ generate.demographics.default_state = Massachusetts
                     value_string=resource_data['gender']
                 )
         
-        elif resource_type in ['Encounter', 'Observation', 'Condition']:
-            # Patient reference
+        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 'MedicationAdministration', 'Procedure', 'DiagnosticReport', 'Immunization', 'AllergyIntolerance']:
+            # Patient reference (handle both Patient/ and urn:uuid: formats)
             if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
                 ref = resource_data['subject'].get('reference', '')
+                patient_id = None
+                
                 if ref.startswith('Patient/'):
                     patient_id = ref.split('/')[-1]
+                elif ref.startswith('urn:uuid:'):
+                    # Extract UUID from urn:uuid: format
+                    patient_id = ref.replace('urn:uuid:', '')
+                
+                if patient_id:
                     await self._add_search_param(
                         session, resource_id, 'patient', 'reference',
                         value_reference=patient_id
@@ -653,7 +663,7 @@ generate.demographics.default_state = Massachusetts
                 result = await session.execute(text("""
                     SELECT COUNT(*) FROM fhir.resources 
                     WHERE resource_type = 'Patient' 
-                    AND NOT (resource->'name' ? 0)
+                    AND (resource->'name' IS NULL OR jsonb_array_length(resource->'name') = 0)
                 """))
                 unnamed_patients = result.scalar()
                 if unnamed_patients > 0:

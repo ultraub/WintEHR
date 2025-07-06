@@ -636,31 +636,20 @@ class SearchParameterHandler:
                 ref_id = value_dict.get('id')
                 if ref_id:
                     ref_key = f"ref_{counter}_{i}"
-                    urn_key = f"urn_{counter}_{i}"
-                    # Match both standard format and urn:uuid format
-                    conditions.append(f"({alias}.value_string = :{ref_key} OR {alias}.value_string = :{urn_key})")
-                    sql_params[ref_key] = f"{modifier}/{ref_id}"
-                    sql_params[urn_key] = f"urn:uuid:{ref_id}"
+                    # For reference parameters, we store just the ID in value_reference
+                    conditions.append(f"{alias}.value_reference = :{ref_key}")
+                    sql_params[ref_key] = ref_id
         else:
             # Standard reference handling
             for i, value_dict in enumerate(values):
                 ref_type = value_dict.get('type')
                 ref_id = value_dict.get('id')
                 
-                if ref_type and ref_id:
+                if ref_id:
                     ref_key = f"ref_{counter}_{i}"
-                    urn_key = f"urn_{counter}_{i}"
-                    # Match both standard format and urn:uuid format
-                    conditions.append(f"({alias}.value_string = :{ref_key} OR {alias}.value_string = :{urn_key})")
-                    sql_params[ref_key] = f"{ref_type}/{ref_id}"
-                    sql_params[urn_key] = f"urn:uuid:{ref_id}"
-                elif ref_id:
-                    # Match any reference ending with this ID or urn:uuid with this ID
-                    ref_key = f"ref_{counter}_{i}"
-                    urn_key = f"urn_{counter}_{i}"
-                    conditions.append(f"({alias}.value_string LIKE :{ref_key} OR {alias}.value_string = :{urn_key})")
-                    sql_params[ref_key] = f"%/{ref_id}"
-                    sql_params[urn_key] = f"urn:uuid:{ref_id}"
+                    # For reference parameters, we store just the ID in value_reference
+                    conditions.append(f"{alias}.value_reference = :{ref_key}")
+                    sql_params[ref_key] = ref_id
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name

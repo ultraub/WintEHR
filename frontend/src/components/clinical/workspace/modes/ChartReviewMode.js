@@ -390,14 +390,14 @@ const ChartReviewMode = () => {
   // Based on the layout config, it will render these components in the appropriate panels
   // For sidebar layout: sidebar = ProblemListPanel, main = FHIRResourceTimeline
   
-  return (
-    <>
-      <ProblemListPanel />
-      <Box sx={{ height: '100%', overflow: 'hidden' }}>
-        <FHIRResourceTimeline patientId={currentPatient?.id} />
-      </Box>
-    </>
-  );
+  // Return an array of components for the sidebar layout
+  // The WorkspaceLayoutManager expects [sidebar, main] for sidebar layout
+  return [
+    <ProblemListPanel key="sidebar" />,
+    <Box key="main" sx={{ height: '100%', overflow: 'hidden' }}>
+      <FHIRResourceTimeline patientId={currentPatient?.id} />
+    </Box>
+  ];
 };
 
 export default ChartReviewMode;

@@ -358,6 +358,7 @@ const PatientSummaryV4 = ({ patientId }) => {
                           // Try direct medication concept first
                           med.medicationCodeableConcept?.text ||
                           med.medicationCodeableConcept?.coding?.[0]?.display ||
+                          // Handle FHIR R5 structure (medication.concept)
                           med.medication?.concept?.text ||
                           med.medication?.concept?.coding?.[0]?.display ||
                           med.medication?.display ||
@@ -365,7 +366,7 @@ const PatientSummaryV4 = ({ patientId }) => {
                           med._resolvedMedication?.code?.text ||
                           med._resolvedMedication?.code?.coding?.[0]?.display ||
                           // Fallback for unresolved references
-                          (med.medication?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
+                          (med.medication?.reference?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
                         }
                         primaryTypographyProps={{ variant: 'body2', noWrap: true }}
                         secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}

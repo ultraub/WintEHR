@@ -44,10 +44,14 @@ async def get_patient_imaging_studies(
             FROM fhir.resources 
             WHERE resource_type = 'ImagingStudy' 
             AND deleted = false
-            AND resource->'subject'->>'reference' = :patient_ref
+            AND (resource->'subject'->>'reference' = :patient_ref_standard 
+                 OR resource->'subject'->>'reference' = :patient_ref_uuid)
         """
         
-        params = {"patient_ref": f"Patient/{patient_id}"}
+        params = {
+            "patient_ref_standard": f"Patient/{patient_id}",
+            "patient_ref_uuid": f"urn:uuid:{patient_id}"
+        }
         
         if modality:
             query += " AND resource->'modality'->0->'code' = :modality"

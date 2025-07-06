@@ -161,7 +161,7 @@ export const WorkflowProvider = ({ children }) => {
           }
 
           const result = await fhirClient.search(resourceType, searchParams);
-          newActiveResources[resourceType] = result.entry?.map(e => e.resource) || [];
+          newActiveResources[resourceType] = result.resources || [];
         } catch (error) {
           console.error(`Failed to load ${resourceType}:`, error);
           setResourceErrors(prev => ({
@@ -174,6 +174,7 @@ export const WorkflowProvider = ({ children }) => {
 
       setActiveResources(newActiveResources);
       setIsLoadingResources(false);
+      console.log('Workflow resources loaded:', newActiveResources);
     };
 
     loadWorkflowResources();

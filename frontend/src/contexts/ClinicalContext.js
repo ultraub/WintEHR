@@ -234,7 +234,7 @@ export const ClinicalProvider = ({ children }) => {
         };
       });
       
-      setCurrentPatient(patientId);
+      setCurrentPatient(patient);
       
       // Load most recent encounter
       const encountersResult = await fhirClient.getEncounters(patientId);

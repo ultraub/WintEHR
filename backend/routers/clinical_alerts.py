@@ -53,9 +53,9 @@ async def get_alerts(
     
     conditions = []
     if provider_id:
-        conditions.append(f"resource->'recipient'->0->>'reference' = 'Practitioner/{provider_id}'")
+        conditions.append(f"(resource->'recipient'->0->>'reference' = 'Practitioner/{provider_id}' OR resource->'recipient'->0->>'reference' = 'urn:uuid:{provider_id}')")
     if patient_id:
-        conditions.append(f"resource->'subject'->>'reference' = 'Patient/{patient_id}'")
+        conditions.append(f"(resource->'subject'->>'reference' = 'Patient/{patient_id}' OR resource->'subject'->>'reference' = 'urn:uuid:{patient_id}')")
     if severity:
         conditions.append(f"resource->'priority' = '{severity}'")
     
@@ -74,17 +74,24 @@ async def get_alerts(
             # Extract alert details from Communication resource
             is_acknowledged = comm.get("status") == "completed"
             
+            # Extract IDs from references (handle both Patient/ and urn:uuid: formats)
+            patient_ref = comm.get("subject", {}).get("reference", "")
+            patient_id_clean = patient_ref.replace("Patient/", "").replace("urn:uuid:", "")
+            
+            provider_ref = comm.get("recipient", [{}])[0].get("reference", "")
+            provider_id_clean = provider_ref.replace("Practitioner/", "").replace("urn:uuid:", "")
+            
             alert = AlertResponse(
                 id=comm.get("id"),
-                patient_id=comm.get("subject", {}).get("reference", "").replace("Patient/", ""),
-                provider_id=comm.get("recipient", [{}])[0].get("reference", "").replace("Practitioner/", ""),
+                patient_id=patient_id_clean,
+                provider_id=provider_id_clean,
                 message=comm.get("payload", [{}])[0].get("contentString", ""),
                 severity=comm.get("priority", "info"),
                 alert_type=comm.get("reasonCode", [{}])[0].get("coding", [{}])[0].get("code", "general"),
                 created_at=comm.get("sent", datetime.now(timezone.utc).isoformat()),
                 acknowledged=is_acknowledged,
                 acknowledged_at=comm.get("received") if is_acknowledged else None,
-                acknowledged_by=comm.get("sender", {}).get("reference", "").replace("Practitioner/", "") if is_acknowledged else None,
+                acknowledged_by=comm.get("sender", {}).get("reference", "").replace("Practitioner/", "").replace("urn:uuid:", "") if is_acknowledged else None,
                 source=comm.get("medium", [{}])[0].get("coding", [{}])[0].get("code", "system"),
                 reference_id=comm.get("about", [{}])[0].get("reference") if comm.get("about") else None
             )
