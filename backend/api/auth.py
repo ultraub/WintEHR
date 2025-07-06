@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import uuid
 import secrets
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.models import Patient
 from models.synthea_models import Provider  # Use existing Synthea provider model
 from models.session import UserSession, PatientProviderAssignment

@@ -1,0 +1,165 @@
+/* Patriotic Theme Styles - Color Changes Only */
+
+/* Background colors and patterns */
+body.patriotic-theme {
+  background-image: 
+    linear-gradient(0deg, transparent 24%, rgba(25, 118, 210, .01) 25%, rgba(25, 118, 210, .01) 26%, transparent 27%, transparent 74%, rgba(25, 118, 210, .01) 75%, rgba(25, 118, 210, .01) 76%, transparent 77%, transparent),
+    linear-gradient(90deg, transparent 24%, rgba(211, 47, 47, .01) 25%, rgba(211, 47, 47, .01) 26%, transparent 27%, transparent 74%, rgba(211, 47, 47, .01) 75%, rgba(211, 47, 47, .01) 76%, transparent 77%, transparent);
+  background-size: 50px 50px;
+}
+
+/* Header background */
+body.patriotic-theme .MuiAppBar-root {
+  background: linear-gradient(135deg, #1976D2 0%, #1565C0 50%, #D32F2F 100%) !important;
+}
+
+/* Drawer header background */
+body.patriotic-theme .MuiDrawer-paper .MuiToolbar-root {
+  background: linear-gradient(45deg, #D32F2F 0%, #B71C1C 100%) !important;
+}
+
+/* Menu icon colors */
+body.patriotic-theme .MuiListItemButton-root:nth-child(odd) .MuiListItemIcon-root {
+  color: #1976D2;
+}
+
+body.patriotic-theme .MuiListItemButton-root:nth-child(even) .MuiListItemIcon-root {
+  color: #D32F2F;
+}
+
+/* Card backgrounds - subtle gradient */
+body.patriotic-theme .MuiCard-root {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #FAFAFA 100%);
+}
+
+/* Button backgrounds */
+body.patriotic-theme .MuiButton-contained:not(.MuiButton-containedSecondary) {
+  background: linear-gradient(45deg, #1976D2 30%, #1565C0 90%);
+}
+
+body.patriotic-theme .MuiButton-containedSecondary {
+  background: linear-gradient(45deg, #D32F2F 30%, #C62828 90%);
+}
+
+/* Hover states - color only */
+body.patriotic-theme .MuiButton-contained:not(.MuiButton-containedSecondary):hover {
+  background: linear-gradient(45deg, #1565C0 30%, #0D47A1 90%);
+}
+
+body.patriotic-theme .MuiButton-containedSecondary:hover {
+  background: linear-gradient(45deg, #C62828 30%, #B71C1C 90%);
+}
+
+/* Tab indicator color */
+body.patriotic-theme .MuiTabs-indicator {
+  background-color: #D32F2F;
+}
+
+/* Tab text colors */
+body.patriotic-theme .MuiTab-root {
+  color: #1976D2;
+}
+
+body.patriotic-theme .MuiTab-root.Mui-selected {
+  color: #D32F2F;
+}
+
+/* Selected menu item background */
+body.patriotic-theme .MuiListItemButton-root.Mui-selected {
+  background-color: rgba(25, 118, 210, 0.12);
+}
+
+body.patriotic-theme .MuiListItemButton-root.Mui-selected:hover {
+  background-color: rgba(25, 118, 210, 0.16);
+}
+
+/* Table header background */
+body.patriotic-theme .MuiTableHead-root {
+  background-color: #1976D2;
+}
+
+body.patriotic-theme .MuiTableHead-root .MuiTableCell-root {
+  background-color: #1976D2;
+  color: #FFFFFF;
+}
+
+/* Table row backgrounds */
+body.patriotic-theme .MuiTableRow-root:nth-of-type(odd) {
+  background-color: rgba(25, 118, 210, 0.02);
+}
+
+body.patriotic-theme .MuiTableRow-root:nth-of-type(even) {
+  background-color: rgba(211, 47, 47, 0.01);
+}
+
+/* Floating action button backgrounds */
+body.patriotic-theme .MuiFab-primary {
+  background: linear-gradient(45deg, #1976D2 30%, #1565C0 90%);
+}
+
+body.patriotic-theme .MuiFab-secondary {
+  background: linear-gradient(45deg, #D32F2F 30%, #C62828 90%);
+}
+
+/* Chip backgrounds */
+body.patriotic-theme .MuiChip-colorPrimary {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+body.patriotic-theme .MuiChip-colorSecondary {
+  background-color: #FFEBEE;
+  color: #D32F2F;
+}
+
+/* Badge colors */
+body.patriotic-theme .MuiBadge-badge {
+  background-color: #D32F2F;
+}
+
+/* Progress bar colors */
+body.patriotic-theme .MuiLinearProgress-root {
+  background-color: #E3F2FD;
+}
+
+body.patriotic-theme .MuiLinearProgress-bar {
+  background: linear-gradient(90deg, #1976D2 0%, #FFFFFF 50%, #D32F2F 100%);
+}
+
+/* Tooltip backgrounds */
+body.patriotic-theme .MuiTooltip-tooltip {
+  background-color: #1976D2;
+}
+
+/* Success/Error/Info alert backgrounds */
+body.patriotic-theme .MuiAlert-standardSuccess {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+body.patriotic-theme .MuiAlert-standardError {
+  background-color: #FFEBEE;
+  color: #D32F2F;
+}
+
+/* Link colors */
+body.patriotic-theme a {
+  color: #1976D2;
+}
+
+body.patriotic-theme a:hover {
+  color: #D32F2F;
+}
+
+/* Scrollbar styling */
+body.patriotic-theme::-webkit-scrollbar-track {
+  background: #F5F5F5;
+}
+
+body.patriotic-theme::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1976D2 0%, #D32F2F 100%);
+}
+
+body.patriotic-theme::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #1565C0 0%, #C62828 100%);
+}

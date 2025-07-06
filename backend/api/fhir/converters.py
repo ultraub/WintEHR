@@ -5,58 +5,24 @@ Converts between database models and FHIR resources
 
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
+from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location, Device, DiagnosticReport, ImagingStudy
+from models.fhir_resource import FHIRResource, Condition, AllergyIntolerance as Allergy, Immunization, Procedure, CarePlan
+from models.clinical.orders import MedicationOrder as Medication
+from models.clinical.appointments import Appointment, AppointmentParticipant
+from .converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
+from .converter_modules.audit_event import audit_log_to_fhir, create_audit_event
+from .converter_modules.person import provider_to_person, create_person_from_user_data, add_authentication_extensions
+from .converter_modules.practitioner import provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
+from .converter_modules.extended_converters import (
+    document_reference_to_fhir, medication_to_fhir, medication_administration_to_fhir,
+    care_team_to_fhir, practitioner_role_to_fhir, coverage_to_fhir,
+    claim_to_fhir, explanation_of_benefit_to_fhir, supply_delivery_to_fhir,
+    provenance_to_fhir
+)
 
 
-# Helper functions for FHIR resource creation
-def create_reference(resource_type: str, resource_id: str, display: str = None) -> Dict[str, Any]:
-    """Create a properly formatted FHIR reference"""
-    reference = {
-        "reference": f"{resource_type}/{resource_id}"
-    }
-    if display:
-        reference["display"] = display
-    return reference
-
-
-def create_codeable_concept(
-    system: str = None, 
-    code: str = None, 
-    display: str = None, 
-    text: str = None,
-    additional_codings: List[Dict[str, str]] = None
-) -> Dict[str, Any]:
-    """Create a properly formatted FHIR CodeableConcept"""
-    concept = {"coding": []}
-    
-    if system and code:
-        coding = {"system": system, "code": code}
-        if display:
-            coding["display"] = display
-        concept["coding"].append(coding)
-    
-    if additional_codings:
-        concept["coding"].extend(additional_codings)
-    
-    if text:
-        concept["text"] = text
-    elif display and not text:
-        concept["text"] = display
-    
-    return concept
-
-
-def create_identifier(system: str, value: str, use: str = None, type_dict: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Create a properly formatted FHIR Identifier"""
-    identifier = {
-        "system": system,
-        "value": value
-    }
-    if use:
-        identifier["use"] = use
-    if type_dict:
-        identifier["type"] = type_dict
-    return identifier
+# Import helper functions
+from .converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
 
 
 def patient_to_fhir(patient: Patient) -> Dict[str, Any]:
@@ -500,72 +466,12 @@ def medication_request_to_fhir(medication: Medication) -> Dict[str, Any]:
     return resource
 
 
-def practitioner_to_fhir(provider: Provider) -> Dict[str, Any]:
-    """Convert Provider model to FHIR Practitioner resource"""
-    resource = {
-        "resourceType": "Practitioner",
-        "id": str(provider.id),
-        "meta": {
-            "versionId": "1",
-            "lastUpdated": datetime.utcnow().isoformat() + "Z"
-        },
-        "active": True,
-        "name": [
-            {
-                "use": "official",
-                "family": provider.last_name,
-                "given": [provider.first_name] if provider.first_name else [],
-                "prefix": [provider.prefix] if hasattr(provider, 'prefix') and provider.prefix else []
-            }
-        ]
-    }
+def practitioner_to_fhir(provider: Provider, include_person_link: bool = False, session = None) -> Dict[str, Any]:
+    """Convert Provider model to FHIR Practitioner resource
     
-    # Add identifiers
-    resource["identifier"] = []
-    if provider.npi:
-        resource["identifier"].append({
-            "system": "http://hl7.org/fhir/sid/us-npi",
-            "value": provider.npi
-        })
-    
-    # Add qualifications
-    if provider.specialty:
-        resource["qualification"] = [{
-            "code": {
-                "text": provider.specialty
-            }
-        }]
-    
-    # Add gender if available
-    if hasattr(provider, 'gender') and provider.gender:
-        resource["gender"] = "male" if provider.gender == "M" else "female" if provider.gender == "F" else "unknown"
-    
-    # Add telecom if available
-    resource["telecom"] = []
-    if hasattr(provider, 'phone') and provider.phone:
-        resource["telecom"].append({
-            "system": "phone",
-            "value": provider.phone,
-            "use": "work"
-        })
-    if hasattr(provider, 'email') and provider.email:
-        resource["telecom"].append({
-            "system": "email",
-            "value": provider.email,
-            "use": "work"
-        })
-    
-    # Add address if available
-    if hasattr(provider, 'address') and provider.address:
-        resource["address"] = [{
-            "use": "work",
-            "line": [provider.address],
-            "city": provider.city if hasattr(provider, 'city') else None,
-            "state": provider.state if hasattr(provider, 'state') else None,
-            "postalCode": provider.zip_code if hasattr(provider, 'zip_code') else None
-        }]
-    
-    return resource
+    This is a wrapper around the enhanced practitioner converter for backward compatibility.
+    """
+    return provider_to_practitioner(provider, include_person_link=include_person_link, session=session)
 
 
 def organization_to_fhir(organization: Organization) -> Dict[str, Any]:

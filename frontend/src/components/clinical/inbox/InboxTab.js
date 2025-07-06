@@ -36,27 +36,26 @@ import {
   Info as InfoIcon,
   Error as ErrorIcon
 } from '@mui/icons-material';
-import { useTask } from '../../../contexts/TaskContext';
-import api from '../../../services/api';
+import { useInbox } from '../../../contexts/InboxContext';
+import { useClinical } from '../../../contexts/ClinicalContext';
 
 const InboxTab = () => {
-  const { inboxItems, inboxStats, loadInboxItems, loadInboxStats } = useTask();
+  const { messages: inboxItems, stats: inboxStats, loadInboxItems, loadInboxStats, markInboxItemRead } = useInbox();
+  const { currentPatient } = useClinical();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
 
   useEffect(() => {
-    loadInboxItems();
-    loadInboxStats();
-  }, []);
+    if (currentPatient?.id) {
+      loadInboxItems({ patient_id: currentPatient.id });
+      loadInboxStats();
+    }
+  }, [currentPatient?.id, loadInboxItems, loadInboxStats]);
 
   const handleMarkAsRead = async (itemId) => {
     try {
-      await api.put(`/api/clinical/inbox/${itemId}`, {
-        status: 'read'
-      });
-      loadInboxItems();
-      loadInboxStats();
+      await markInboxItemRead(itemId);
     } catch (error) {
       console.error('Error marking item as read:', error);
     }
@@ -64,9 +63,8 @@ const InboxTab = () => {
 
   const handleDeleteItem = async (itemId) => {
     try {
-      await api.delete(`/api/clinical/inbox/${itemId}`);
-      loadInboxItems();
-      loadInboxStats();
+      // For now, just mark as completed since FHIR doesn't support delete
+      await markInboxItemRead(itemId);
     } catch (error) {
       console.error('Error deleting item:', error);
     }
@@ -156,10 +154,10 @@ const InboxTab = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" color="warning">
-                    {inboxStats?.urgent || 0}
+                    {(inboxStats?.priority?.urgent || 0) + (inboxStats?.priority?.stat || 0)}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Urgent
+                    Urgent/Stat
                   </Typography>
                 </CardContent>
               </Card>
@@ -168,10 +166,10 @@ const InboxTab = () => {
               <Card>
                 <CardContent sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" color="info">
-                    {inboxStats?.requires_action || 0}
+                    {inboxStats?.category?.alert || 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Action Required
+                    Alerts
                   </Typography>
                 </CardContent>
               </Card>
@@ -220,8 +218,8 @@ const InboxTab = () => {
                   <React.Fragment key={item.id || index}>
                     <ListItem
                       sx={{
-                        bgcolor: item.status === 'unread' ? 'action.hover' : 'transparent',
-                        borderLeft: item.priority === 'urgent' ? '4px solid red' : 'none'
+                        bgcolor: !item.isRead ? 'action.hover' : 'transparent',
+                        borderLeft: item.priority === 'urgent' || item.priority === 'stat' ? '4px solid red' : 'none'
                       }}
                     >
                       <ListItemIcon>
@@ -233,17 +231,17 @@ const InboxTab = () => {
                             <Typography 
                               variant="subtitle1" 
                               sx={{ 
-                                fontWeight: item.status === 'unread' ? 'bold' : 'normal' 
+                                fontWeight: !item.isRead ? 'bold' : 'normal' 
                               }}
                             >
-                              {item.subject || item.title}
+                              {item.topic || 'Clinical Message'}
                             </Typography>
                             <Chip 
                               label={item.priority} 
                               size="small" 
                               color={getPriorityColor(item.priority)}
                             />
-                            {item.requires_action && (
+                            {item.category === 'alert' && (
                               <Chip label="Action Required" size="small" color="error" />
                             )}
                           </Box>
@@ -251,10 +249,10 @@ const InboxTab = () => {
                         secondary={
                           <Box>
                             <Typography variant="body2" color="text.secondary">
-                              {item.message || item.description}
+                              {item.payload?.[0]?.content || item.note || 'No message content'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(item.created_at || Date.now()).toLocaleString()}
+                              {item.sent ? new Date(item.sent).toLocaleString() : 'Unknown time'}
                             </Typography>
                           </Box>
                         }

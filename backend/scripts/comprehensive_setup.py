@@ -17,8 +17,8 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
-from database.database import get_db, engine
-from models import models, synthea_models
+from database import engine
+from models import synthea_models
 from models.session import UserSession, PatientProviderAssignment
 from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
 from models.clinical.notes import ClinicalNote, NoteTemplate
@@ -30,22 +30,36 @@ def create_all_tables():
     """Create all database tables"""
     print("Creating database tables...")
     
-    # Import all models to ensure they're registered
-    models.Base.metadata.create_all(bind=engine)
-    synthea_models.Base.metadata.create_all(bind=engine)
+    # Create sync engine from async engine URL
+    import os
+    from sqlalchemy import create_engine
+    from dotenv import load_dotenv
     
-    # Import clinical models
-    from models.clinical import notes, orders, tasks, catalogs
-    notes.Base.metadata.create_all(bind=engine)
-    orders.Base.metadata.create_all(bind=engine)
-    tasks.Base.metadata.create_all(bind=engine)
-    catalogs.Base.metadata.create_all(bind=engine)
+    load_dotenv()
+    DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://emr_user:emr_password@localhost:5432/emr_db')
+    sync_url = DATABASE_URL.replace('+asyncpg', '')
+    sync_engine = create_engine(sync_url)
     
-    # Import DICOM models
-    from models import dicom_models
-    dicom_models.Base.metadata.create_all(bind=engine)
-    
-    print("✓ Database tables created successfully")
+    try:
+        # Import all models to ensure they're registered
+        from database import Base as DatabaseBase
+        DatabaseBase.metadata.create_all(bind=sync_engine)
+        synthea_models.Base.metadata.create_all(bind=sync_engine)
+        
+        # Import clinical models
+        from models.clinical import notes, orders, tasks, catalogs
+        notes.Base.metadata.create_all(bind=sync_engine)
+        orders.Base.metadata.create_all(bind=sync_engine)
+        tasks.Base.metadata.create_all(bind=sync_engine)
+        catalogs.Base.metadata.create_all(bind=sync_engine)
+        
+        # Import DICOM models
+        from models import dicom_models
+        dicom_models.Base.metadata.create_all(bind=sync_engine)
+        
+        print("✓ Database tables created successfully")
+    finally:
+        sync_engine.dispose()
 
 
 def run_script(script_path, description, args=None):

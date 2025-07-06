@@ -6,6 +6,7 @@
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.14.0",
+    "@mui/lab": "^5.0.0-alpha.155",
     "@mui/material": "^5.14.0",
     "@mui/x-data-grid": "^6.10.0",
     "@mui/x-date-pickers": "^6.0.0",
@@ -20,9 +21,11 @@
     "date-fns": "^2.30.0",
     "dicom-parser": "^1.8.0",
     "hammerjs": "^2.0.8",
+    "notistack": "^3.0.2",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
+    "react-grid-layout": "^1.5.2",
     "react-router-dom": "^6.11.2",
     "react-scripts": "5.0.1",
     "react-syntax-highlighter": "^15.6.1",
@@ -33,7 +36,16 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:ci": "CI=true react-scripts test --coverage --watchAll=false",
+    "eject": "react-scripts eject",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx --max-warnings 0",
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
+    "analyze": "npm run build && npx serve -s build",
+    "dev": "REACT_APP_ENVIRONMENT=development react-scripts start",
+    "dev:staging": "REACT_APP_ENVIRONMENT=staging react-scripts start",
+    "build:staging": "REACT_APP_ENVIRONMENT=staging react-scripts build",
+    "build:production": "REACT_APP_ENVIRONMENT=production react-scripts build"
   },
   "eslintConfig": {
     "extends": [

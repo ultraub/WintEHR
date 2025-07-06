@@ -27,12 +27,17 @@ export const AuthProvider = ({ children }) => {
   const checkSession = async () => {
     const token = localStorage.getItem('auth_token');
     if (token) {
-      try {
-        const response = await api.get('/api/auth/me');
-        setUser(response.data);
-      } catch (error) {
-        console.error('Session check failed:', error);
-        localStorage.removeItem('auth_token');
+      // For now, just use cached user data since auth endpoints are not implemented
+      // TODO: Implement proper FHIR auth endpoints
+      const cachedUser = localStorage.getItem('auth_user');
+      if (cachedUser) {
+        try {
+          setUser(JSON.parse(cachedUser));
+        } catch (e) {
+          console.error('Invalid cached user data:', e);
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        }
       }
     }
     setLoading(false);
@@ -47,8 +52,9 @@ export const AuthProvider = ({ children }) => {
       
       const { session_token, provider } = response.data;
       
-      // Store token
+      // Store token and user data
       localStorage.setItem('auth_token', session_token);
+      localStorage.setItem('auth_user', JSON.stringify(provider));
       
       // Set user data
       setUser(provider);
@@ -69,6 +75,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
       setUser(null);
     }
   };

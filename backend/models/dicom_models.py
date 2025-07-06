@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
-from database.database import Base
+from database import Base
 from datetime import datetime
 import uuid
 
@@ -41,7 +41,7 @@ class DICOMStudy(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    patient = relationship("Patient", back_populates="dicom_studies")
+    patient = relationship("Patient")
     imaging_study = relationship("ImagingStudy", back_populates="dicom_study", uselist=False)
     series = relationship("DICOMSeries", back_populates="study", cascade="all, delete-orphan")
     
@@ -171,9 +171,9 @@ class ImagingResult(Base):
     __tablename__ = "imaging_results"
 
     id = Column(Integer, primary_key=True, index=True)
-    imaging_study_id = Column(Integer, ForeignKey('imaging_studies.id'))
+    imaging_study_id = Column(String, ForeignKey('imaging_studies.id'))
     dicom_study_id = Column(Integer, ForeignKey('dicom_studies.id'), nullable=True)
-    diagnostic_report_id = Column(Integer, ForeignKey('diagnostic_reports.id'), nullable=True)
+    diagnostic_report_id = Column(String, ForeignKey('diagnostic_reports.id'), nullable=True)
     
     # Report content
     findings = Column(Text)
@@ -193,7 +193,7 @@ class ImagingResult(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    imaging_study = relationship("ImagingStudy", back_populates="result")
+    imaging_study = relationship("ImagingStudy")
     dicom_study = relationship("DICOMStudy")
     diagnostic_report = relationship("DiagnosticReport")
     

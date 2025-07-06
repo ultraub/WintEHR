@@ -7,6 +7,7 @@ Reference: HAPI FHIR Server specifications
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, func, text
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, date
@@ -17,8 +18,13 @@ import re
 import io
 from enum import Enum
 
-from database.database import get_db
-from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Condition, Medication, Provider, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
+from database import get_db_session as get_db
+from database import get_db_session
+from models.synthea_models import Patient, Encounter, Organization, Location, Observation, Provider, Device, DiagnosticReport, ImagingStudy, DocumentReference, Coverage
+from models.clinical.appointments import Appointment, AppointmentParticipant
+from models.clinical.orders import MedicationOrder as MedicationRequest
+from models.fhir_extended_models import Medication, MedicationAdministration, CareTeam, PractitionerRole, Claim, ExplanationOfBenefit, SupplyDelivery, Provenance
+from models.fhir_resource import FHIRResource, Condition, AllergyIntolerance, Immunization, Procedure, CarePlan
 from .schemas import *
 from .bulk_export import BulkExportRouter
 from .batch_transaction import BatchProcessor
@@ -27,13 +33,169 @@ from .converters import (
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
     organization_to_fhir, location_to_fhir, allergy_intolerance_to_fhir,
     immunization_to_fhir, procedure_to_fhir, care_plan_to_fhir,
-    device_to_fhir, diagnostic_report_to_fhir, imaging_study_to_fhir
+    device_to_fhir, diagnostic_report_to_fhir, imaging_study_to_fhir,
+    appointment_to_fhir, document_reference_to_fhir, medication_to_fhir,
+    medication_administration_to_fhir, care_team_to_fhir, practitioner_role_to_fhir,
+    coverage_to_fhir, claim_to_fhir, explanation_of_benefit_to_fhir,
+    supply_delivery_to_fhir, provenance_to_fhir
 )
+from .query_builder import FHIRQueryBuilder
+from .optimized_queries import get_optimized_queries
+from api.services.audit_service import AuditService
+from emr_api.auth import get_current_user
 
 router = APIRouter(prefix="/R4", tags=["FHIR R4"])
 
+# Performance-optimized endpoints
+@router.get("/Patient/{patient_id}/$bundle-optimized")
+async def get_patient_bundle_optimized(
+    patient_id: str,
+    resource_types: Optional[str] = Query(None, description="Comma-separated list of resource types"),
+    limit: int = Query(100, description="Limit per resource type"),
+    priority: str = Query("all", description="Priority level: critical, important, all"),
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized patient bundle endpoint for better performance
+    Returns all resources for a patient with efficient querying
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        # Define resource types based on priority
+        if priority == "critical":
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance"]
+        elif priority == "important":
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance", 
+                           "Observation", "Procedure", "DiagnosticReport"]
+        else:
+            default_types = ["Encounter", "Condition", "MedicationRequest", "AllergyIntolerance",
+                           "Observation", "Procedure", "DiagnosticReport", "DocumentReference",
+                           "ImagingStudy", "Immunization", "CarePlan", "CareTeam"]
+        
+        if resource_types:
+            requested_types = [t.strip() for t in resource_types.split(",")]
+        else:
+            requested_types = default_types
+        
+        bundle = queries.get_patient_bundle_optimized(
+            patient_id=patient_id,
+            resource_types=requested_types,
+            limit_per_type=limit,
+            include_counts=True
+        )
+        
+        # Format as FHIR Bundle
+        return {
+            "resourceType": "Bundle",
+            "id": f"patient-bundle-{patient_id}",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat(),
+            "total": sum(bundle.get("counts", {}).values()),
+            "link": [
+                {
+                    "relation": "self",
+                    "url": f"/fhir/R4/Patient/{patient_id}/$bundle-optimized"
+                }
+            ],
+            "entry": bundle["bundle"],
+            "meta": {
+                "counts": bundle.get("counts", {}),
+                "performance": "optimized"
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating patient bundle: {str(e)}")
+
+@router.get("/Patient/{patient_id}/$timeline")
+async def get_patient_timeline(
+    patient_id: str,
+    days: int = Query(365, description="Number of days to look back"),
+    limit: int = Query(100, description="Maximum number of events"),
+    resource_types: Optional[str] = Query(None, description="Comma-separated list of resource types"),
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized timeline endpoint for better performance
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        if resource_types:
+            requested_types = [t.strip() for t in resource_types.split(",")]
+        else:
+            requested_types = None
+        
+        events = queries.get_timeline_events(
+            patient_id=patient_id,
+            resource_types=requested_types,
+            days=days,
+            limit=limit
+        )
+        
+        return {
+            "resourceType": "Bundle",
+            "id": f"timeline-{patient_id}",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat(),
+            "total": len(events),
+            "entry": [{"resource": event} for event in events]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating timeline: {str(e)}")
+
+@router.get("/Patient/{patient_id}/$summary")
+async def get_patient_summary(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized patient summary with counts
+    """
+    try:
+        queries = get_optimized_queries(db)
+        
+        counts = queries.get_patient_summary_counts(patient_id)
+        
+        return {
+            "resourceType": "Parameters",
+            "id": f"summary-{patient_id}",
+            "parameter": [
+                {
+                    "name": "counts",
+                    "part": [
+                        {
+                            "name": resource_type,
+                            "valueInteger": data["total"]
+                        } for resource_type, data in counts.items()
+                    ]
+                },
+                {
+                    "name": "activeCounts", 
+                    "part": [
+                        {
+                            "name": resource_type,
+                            "valueInteger": data["active"]
+                        } for resource_type, data in counts.items() if data["active"] > 0
+                    ]
+                }
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating summary: {str(e)}")
+
 # FHIR Resource Type Mappings
 RESOURCE_MAPPINGS = {
+    "AuditEvent": {
+        "model": None,  # Special handling for AuditEvent
+        "search_params": [
+            "date", "agent", "entity", "type", "action", "outcome",
+            "patient", "entity-type", "entity-role", "_id", "_lastUpdated"
+        ]
+    },
     "Patient": {
         "model": Patient,
         "search_params": [
@@ -67,7 +229,7 @@ RESOURCE_MAPPINGS = {
         ]
     },
     "MedicationRequest": {
-        "model": Medication,
+        "model": MedicationRequest,
         "search_params": [
             "identifier", "status", "intent", "category", "medication", "code", 
             "subject", "patient", "encounter", "authored-on", "requester", "_id", "_lastUpdated"
@@ -95,7 +257,7 @@ RESOURCE_MAPPINGS = {
         ]
     },
     "AllergyIntolerance": {
-        "model": Allergy,
+        "model": AllergyIntolerance,
         "search_params": [
             "identifier", "clinical-status", "verification-status", "type", "category",
             "criticality", "code", "patient", "encounter", "onset", "date",
@@ -145,6 +307,90 @@ RESOURCE_MAPPINGS = {
         "search_params": [
             "identifier", "status", "subject", "patient", "started", "modality",
             "body-site", "instance", "series", "dicom-class", "_id", "_lastUpdated"
+        ]
+    },
+    "Appointment": {
+        "model": Appointment,
+        "search_params": [
+            "identifier", "status", "service-category", "service-type", "specialty",
+            "appointment-type", "reason-code", "reason-reference", "priority",
+            "date", "start", "end", "participant", "participant-status", "patient",
+            "practitioner", "location", "based-on", "_id", "_lastUpdated"
+        ]
+    },
+    "DocumentReference": {
+        "model": DocumentReference,
+        "search_params": [
+            "identifier", "status", "type", "category", "subject", "patient",
+            "encounter", "date", "author", "authenticator", "custodian",
+            "format", "description", "security-label", "_id", "_lastUpdated"
+        ]
+    },
+    "Medication": {
+        "model": Medication,
+        "search_params": [
+            "identifier", "code", "status", "manufacturer", "form",
+            "ingredient", "ingredient-code", "batch-number", "_id", "_lastUpdated"
+        ]
+    },
+    "MedicationAdministration": {
+        "model": MedicationAdministration,
+        "search_params": [
+            "identifier", "status", "patient", "subject", "context", "encounter",
+            "effective-time", "code", "medication", "performer", "request",
+            "device", "reason-given", "reason-not-given", "_id", "_lastUpdated"
+        ]
+    },
+    "CareTeam": {
+        "model": CareTeam,
+        "search_params": [
+            "identifier", "patient", "subject", "encounter", "status",
+            "category", "participant", "date", "_id", "_lastUpdated"
+        ]
+    },
+    "PractitionerRole": {
+        "model": PractitionerRole,
+        "search_params": [
+            "identifier", "practitioner", "organization", "role", "specialty",
+            "location", "service", "active", "date", "telecom", "_id", "_lastUpdated"
+        ]
+    },
+    "Coverage": {
+        "model": Coverage,
+        "search_params": [
+            "identifier", "status", "type", "policy-holder", "subscriber",
+            "beneficiary", "patient", "dependent", "relationship", "payor",
+            "class-type", "class-value", "network", "_id", "_lastUpdated"
+        ]
+    },
+    "Claim": {
+        "model": Claim,
+        "search_params": [
+            "identifier", "status", "use", "patient", "insurer", "provider",
+            "priority", "payee", "care-team", "encounter", "facility",
+            "item-encounter", "created", "_id", "_lastUpdated"
+        ]
+    },
+    "ExplanationOfBenefit": {
+        "model": ExplanationOfBenefit,
+        "search_params": [
+            "identifier", "status", "type", "patient", "claim", "provider",
+            "created", "encounter", "payee", "care-team", "coverage",
+            "insurer", "disposition", "_id", "_lastUpdated"
+        ]
+    },
+    "SupplyDelivery": {
+        "model": SupplyDelivery,
+        "search_params": [
+            "identifier", "patient", "receiver", "status", "supplier",
+            "type", "_id", "_lastUpdated"
+        ]
+    },
+    "Provenance": {
+        "model": Provenance,
+        "search_params": [
+            "target", "patient", "location", "agent", "agent-type", "agent-role",
+            "recorded", "activity", "signature", "_id", "_lastUpdated"
         ]
     }
 }
@@ -209,20 +455,37 @@ class FHIRSearchProcessor:
         # Validate parameters first
         self._validate_search_parameters(search_params)
         
-        query = self.db.query(self.model)
-        
-        # Handle include parameters for joins
-        if "_include" in search_params:
-            query = self._add_includes(query, search_params["_include"])
-        
-        # Process search parameters
-        for param, value in search_params.items():
-            if param.startswith("_"):
-                query = self._handle_control_parameter(query, param, value)
-            else:
-                query = self._handle_search_parameter(query, param, value)
-        
-        return query
+        # Check if this is a JSONB-stored resource
+        if issubclass(self.model, FHIRResource):
+            # Use JSONB query builder for resources stored as JSONB
+            query_builder = FHIRQueryBuilder(self.resource_type)
+            query = query_builder.base_query(self.db)
+            
+            # Process search parameters
+            for param, value in search_params.items():
+                if param.startswith("_"):
+                    query = self._handle_control_parameter(query, param, value)
+                else:
+                    # Use generic JSONB handling
+                    query = self._handle_jsonb_search_parameter(query, param, value)
+            
+            return query
+        else:
+            # Use regular model-based query
+            query = self.db.query(self.model)
+            
+            # Handle include parameters for joins
+            if "_include" in search_params:
+                query = self._add_includes(query, search_params["_include"])
+            
+            # Process search parameters
+            for param, value in search_params.items():
+                if param.startswith("_"):
+                    query = self._handle_control_parameter(query, param, value)
+                else:
+                    query = self._handle_search_parameter(query, param, value)
+            
+            return query
     
     def _add_includes(self, query, include_params):
         """Add JOIN clauses for _include parameters"""
@@ -272,10 +535,18 @@ class FHIRSearchProcessor:
         elif param == "_id":
             # Support comma-separated IDs
             ids = self._parse_search_value(value)
-            if len(ids) > 1:
-                query = query.filter(self.model.id.in_(ids))
+            if issubclass(self.model, FHIRResource):
+                # For JSONB resources, use fhir_id
+                if len(ids) > 1:
+                    query = query.filter(FHIRResource.fhir_id.in_(ids))
+                else:
+                    query = query.filter(FHIRResource.fhir_id == ids[0])
             else:
-                query = query.filter(self.model.id == ids[0])
+                # For regular models, use id
+                if len(ids) > 1:
+                    query = query.filter(self.model.id.in_(ids))
+                else:
+                    query = query.filter(self.model.id == ids[0])
         
         return query
     
@@ -324,6 +595,8 @@ class FHIRSearchProcessor:
             query = self._handle_diagnostic_report_params(query, base_param, value, modifier)
         elif self.resource_type == "ImagingStudy":
             query = self._handle_imaging_study_params(query, base_param, value, modifier)
+        elif self.resource_type == "Appointment":
+            query = self._handle_appointment_params(query, base_param, value, modifier)
         
         return query
     
@@ -1009,6 +1282,95 @@ class FHIRSearchProcessor:
         
         return query
     
+    def _handle_appointment_params(self, query, param, value, modifier):
+        """Handle Appointment-specific search parameters"""
+        if param == "patient":
+            # Search participants for patient references
+            query = query.join(AppointmentParticipant).filter(
+                and_(
+                    AppointmentParticipant.actor_type == "Patient",
+                    AppointmentParticipant.actor_id == value.replace("Patient/", "")
+                )
+            )
+        elif param == "practitioner":
+            # Search participants for practitioner references
+            query = query.join(AppointmentParticipant).filter(
+                and_(
+                    AppointmentParticipant.actor_type == "Practitioner",
+                    AppointmentParticipant.actor_id == value.replace("Practitioner/", "")
+                )
+            )
+        elif param == "location":
+            # Search participants for location references
+            query = query.join(AppointmentParticipant).filter(
+                and_(
+                    AppointmentParticipant.actor_type == "Location",
+                    AppointmentParticipant.actor_id == value.replace("Location/", "")
+                )
+            )
+        elif param == "status":
+            # Token search - exact match
+            try:
+                from models.clinical.appointments import AppointmentStatus
+                status_enum = AppointmentStatus(value)
+                query = query.filter(Appointment.status == status_enum)
+            except ValueError:
+                # Invalid status - return no results
+                query = query.filter(False)
+        elif param == "date" or param == "start":
+            query = self._apply_date_filter(query, Appointment.start, value, modifier)
+        elif param == "end":
+            query = self._apply_date_filter(query, Appointment.end, value, modifier)
+        elif param == "service-category":
+            # Search in service_category JSON field
+            query = query.filter(Appointment.service_category.ilike(f"%{value}%"))
+        elif param == "service-type":
+            # Search in service_type JSON field
+            query = query.filter(Appointment.service_type.ilike(f"%{value}%"))
+        elif param == "specialty":
+            # Search in specialty JSON field
+            query = query.filter(Appointment.specialty.ilike(f"%{value}%"))
+        elif param == "appointment-type":
+            # Search in appointment_type JSON field
+            query = query.filter(Appointment.appointment_type.ilike(f"%{value}%"))
+        elif param == "reason-code":
+            # Search in reason_code JSON field
+            query = query.filter(Appointment.reason_code.ilike(f"%{value}%"))
+        elif param == "reason-reference":
+            # Search in reason_reference JSON field
+            query = query.filter(Appointment.reason_reference.ilike(f"%{value}%"))
+        elif param == "priority":
+            # Numeric search
+            try:
+                priority_value = int(value)
+                query = query.filter(Appointment.priority == priority_value)
+            except ValueError:
+                # Invalid priority - return no results
+                query = query.filter(False)
+        elif param == "participant":
+            # General participant search
+            query = query.join(AppointmentParticipant).filter(
+                AppointmentParticipant.actor_id == value.split("/")[-1]
+            )
+        elif param == "participant-status":
+            # Search by participant status
+            try:
+                from models.clinical.appointments import ParticipantStatus
+                status_enum = ParticipantStatus(value)
+                query = query.join(AppointmentParticipant).filter(
+                    AppointmentParticipant.status == status_enum
+                )
+            except ValueError:
+                # Invalid status - return no results
+                query = query.filter(False)
+        elif param == "identifier":
+            query = query.filter(Appointment.id == value)
+        elif param == "based-on":
+            # Search in based_on JSON field
+            query = query.filter(Appointment.based_on.ilike(f"%{value}%"))
+        
+        return query
+    
     def _apply_date_filter(self, query, field, value, modifier):
         """Apply date filters with FHIR prefixes (ge, le, gt, lt, eq, ne) and modifiers"""
         if modifier in ["ge", "gt", "le", "lt", "eq", "ne", "above", "below", "missing"]:
@@ -1124,6 +1486,19 @@ class FHIRSearchProcessor:
         
         return query
     
+    def _apply_last_updated_filter(self, query, value):
+        """Apply _lastUpdated filter to query"""
+        if issubclass(self.model, FHIRResource):
+            # For JSONB resources, use last_updated column
+            return self._apply_date_filter(query, FHIRResource.last_updated, value, None)
+        else:
+            # For regular models, check if they have updated_at field
+            if hasattr(self.model, 'updated_at'):
+                return self._apply_date_filter(query, self.model.updated_at, value, None)
+            else:
+                # No last updated field available
+                return query
+    
     def _apply_sort(self, query, sort_value):
         """Apply sorting to query"""
         if isinstance(sort_value, str):
@@ -1171,6 +1546,93 @@ class FHIRSearchProcessor:
         else:
             # Default contains behavior
             query = query.filter(field.ilike(f"%{value}%"))
+        
+        return query
+    
+    def _handle_jsonb_search_parameter(self, query, param, value):
+        """Handle search parameters for JSONB-stored FHIR resources"""
+        # Create query builder instance
+        query_builder = FHIRQueryBuilder(self.resource_type)
+        
+        # Parse modifiers (e.g., name:exact, birthdate:ge)
+        param_parts = param.split(":")
+        base_param = param_parts[0]
+        modifier = param_parts[1] if len(param_parts) > 1 else None
+        
+        # Handle common search parameters
+        if base_param in ["patient", "subject"]:
+            # Extract patient ID from reference
+            patient_id = value.replace("Patient/", "") if value.startswith("Patient/") else value
+            query = query_builder.apply_patient_filter(query, patient_id)
+        
+        elif base_param == "encounter":
+            # Extract encounter ID from reference
+            encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
+            query = query_builder.apply_encounter_filter(query, encounter_id)
+        
+        elif base_param == "code":
+            # Handle code search with optional system
+            if '|' in value:
+                system, code = value.split('|', 1)
+                query = query_builder.apply_code_filter(query, code, system)
+            else:
+                query = query_builder.apply_code_filter(query, value)
+        
+        elif base_param == "status":
+            # Handle status search
+            query = query_builder.apply_status_filter(query, value)
+        
+        elif base_param == "clinical-status":
+            # Handle clinical status for conditions/allergies
+            query = query_builder.apply_status_filter(query, value, 'clinicalStatus.coding[0].code')
+        
+        elif base_param == "verification-status":
+            # Handle verification status
+            query = query_builder.apply_status_filter(query, value, 'verificationStatus.coding[0].code')
+        
+        elif base_param == "date" or base_param.endswith("-date"):
+            # Handle date searches
+            date_field = base_param.replace("-date", "Date") if base_param.endswith("-date") else "date"
+            if base_param == "onset-date":
+                date_field = "onsetDateTime"
+            elif base_param == "recorded-date":
+                date_field = "recordedDate"
+            elif base_param == "authored-on":
+                date_field = "authoredOn"
+            
+            query = query_builder.apply_date_filter(query, date_field, value, modifier)
+        
+        elif base_param == "identifier":
+            # Handle identifier search
+            if '|' in value:
+                system, identifier = value.split('|', 1)
+                query = query_builder.apply_identifier_filter(query, identifier, system)
+            else:
+                query = query_builder.apply_identifier_filter(query, value)
+        
+        elif base_param == "category":
+            # Handle category search
+            query = query_builder.apply_token_filter(query, "category", value, modifier)
+        
+        elif base_param == "type":
+            # Handle type search
+            query = query_builder.apply_token_filter(query, "type", value, modifier)
+        
+        # Resource-specific parameters
+        elif self.resource_type == "Condition":
+            if base_param == "severity":
+                query = query_builder.apply_string_filter(query, "severity", value, modifier)
+            elif base_param == "abatement-date":
+                query = query_builder.apply_date_filter(query, "abatementDateTime", value, modifier)
+        
+        elif self.resource_type == "AllergyIntolerance":
+            if base_param == "criticality":
+                query = query_builder.apply_string_filter(query, "criticality", value, modifier)
+        
+        elif self.resource_type == "Procedure":
+            if base_param == "performer":
+                performer_ref = f"Practitioner/{value}" if not value.startswith("Practitioner/") else value
+                query = query_builder.apply_reference_filter(query, "performer[0].actor", performer_ref)
         
         return query
 
@@ -1328,10 +1790,167 @@ async def cancel_export(export_id: str, db: Session = Depends(get_db)):
 
 # Batch and Transaction endpoint
 @router.post("/")
-async def batch_transaction(bundle: dict, db: Session = Depends(get_db)):
+async def batch_transaction(request: Request, db: Session = Depends(get_db)):
     """Handle FHIR batch and transaction bundles"""
+    try:
+        bundle = await request.json()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON in request body: {str(e)}"
+        )
+    
+    # Validate it's a Bundle
+    if not isinstance(bundle, dict) or bundle.get('resourceType') != 'Bundle':
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a FHIR Bundle resource"
+        )
+    
     processor = BatchProcessor(db)
     return processor.process_bundle(bundle)
+
+# AuditEvent endpoints
+@router.get("/AuditEvent")
+async def search_audit_events(
+    request: Request,
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    _count: int = Query(50, le=1000),
+    _offset: int = Query(0),
+    date: Optional[str] = Query(None),
+    agent: Optional[str] = Query(None),
+    entity: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    outcome: Optional[str] = Query(None),
+    patient: Optional[str] = Query(None)
+):
+    """Search for FHIR AuditEvent resources"""
+    
+    # Build filters for the audit service
+    filters = {}
+    
+    if date:
+        # Parse date parameter (supports gt, lt, ge, le, eq)
+        if date.startswith("gt"):
+            filters["date_from"] = datetime.fromisoformat(date[2:])
+        elif date.startswith("ge"):
+            filters["date_from"] = datetime.fromisoformat(date[2:])
+        elif date.startswith("lt"):
+            filters["date_to"] = datetime.fromisoformat(date[2:])
+        elif date.startswith("le"):
+            filters["date_to"] = datetime.fromisoformat(date[2:])
+        else:
+            # Exact date - search for same day
+            target_date = datetime.fromisoformat(date)
+            filters["date_from"] = target_date.replace(hour=0, minute=0, second=0)
+            filters["date_to"] = target_date.replace(hour=23, minute=59, second=59)
+    
+    if agent:
+        # Extract user ID from agent reference
+        if "/" in agent:
+            filters["user_id"] = agent.split("/")[-1]
+        else:
+            filters["user_id"] = agent
+    
+    if entity:
+        # Extract resource type and ID from entity reference
+        if "/" in entity:
+            parts = entity.split("/")
+            if len(parts) == 2:
+                filters["resource_type"] = parts[0]
+                filters["resource_id"] = parts[1]
+    
+    if action:
+        # Map FHIR action codes to our action names
+        action_map = {
+            "C": "create",
+            "R": "read", 
+            "U": "update",
+            "D": "delete",
+            "E": "execute"
+        }
+        filters["action"] = action_map.get(action.upper(), action.lower())
+    
+    # Get audit events from the service
+    audit_events = await AuditService.get_audit_events(
+        db=async_db,
+        filters=filters,
+        limit=_count,
+        offset=_offset
+    )
+    
+    # Create FHIR Bundle
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "searchset",
+        "total": len(audit_events),  # In production, get actual total count
+        "link": [
+            {
+                "relation": "self",
+                "url": str(request.url)
+            }
+        ],
+        "entry": []
+    }
+    
+    for audit_event in audit_events:
+        bundle["entry"].append({
+            "resource": audit_event,
+            "fullUrl": f"AuditEvent/{audit_event['id']}",
+            "search": {
+                "mode": "match"
+            }
+        })
+    
+    # Add pagination link if needed
+    if len(audit_events) == _count:
+        next_url = str(request.url.include_query_params(_offset=_offset + _count))
+        bundle["link"].append({
+            "relation": "next",
+            "url": next_url
+        })
+    
+    return bundle
+
+@router.get("/AuditEvent/{audit_id}")
+async def get_audit_event(
+    audit_id: str,
+    request: Request,
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+):
+    """Get a specific AuditEvent by ID"""
+    
+    # Get the audit event by ID directly
+    query = text("""
+        SELECT * FROM emr.audit_logs 
+        WHERE id = :audit_id
+        LIMIT 1
+    """)
+    
+    result = await async_db.execute(query, {"audit_id": uuid.UUID(audit_id)})
+    row = result.first()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="AuditEvent not found")
+    
+    # Convert to FHIR AuditEvent
+    from api.fhir.converters.audit_event import audit_log_to_fhir
+    audit_dict = {
+        "id": row.id,
+        "user_id": str(row.user_id) if row.user_id else None,
+        "action": row.action,
+        "resource_type": row.resource_type,
+        "resource_id": row.resource_id,
+        "details": json.loads(row.details) if row.details else None,
+        "ip_address": row.ip_address,
+        "user_agent": row.user_agent,
+        "created_at": row.created_at
+    }
+    
+    return audit_log_to_fhir(audit_dict)
 
 # Generic resource endpoints - must be after specific endpoints
 
@@ -1340,6 +1959,8 @@ async def search_resources(
     resource_type: str,
     request: Request,
     db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
     _count: int = Query(50, le=1000),
     _offset: int = Query(0),
     _total: str = Query("accurate"),
@@ -1359,6 +1980,24 @@ async def search_resources(
             search_params[key] = values[0]
         else:
             search_params[key] = values
+    
+    # Special handling for AuditEvent
+    if resource_type == "AuditEvent":
+        # Redirect to the specialized AuditEvent search endpoint
+        return await search_audit_events(
+            request=request,
+            async_db=async_db,
+            current_user=current_user,
+            _count=_count,
+            _offset=_offset,
+            date=search_params.get("date"),
+            agent=search_params.get("agent"),
+            entity=search_params.get("entity"),
+            type=search_params.get("type"),
+            action=search_params.get("action"),
+            outcome=search_params.get("outcome"),
+            patient=search_params.get("patient")
+        )
     
     # Build and execute query
     processor = FHIRSearchProcessor(resource_type, db)
@@ -1390,7 +2029,18 @@ async def search_resources(
         "CarePlan": care_plan_to_fhir,
         "Device": device_to_fhir,
         "DiagnosticReport": diagnostic_report_to_fhir,
-        "ImagingStudy": imaging_study_to_fhir
+        "ImagingStudy": imaging_study_to_fhir,
+        "Appointment": appointment_to_fhir,
+        "DocumentReference": document_reference_to_fhir,
+        "Medication": medication_to_fhir,
+        "MedicationAdministration": medication_administration_to_fhir,
+        "CareTeam": care_team_to_fhir,
+        "PractitionerRole": practitioner_role_to_fhir,
+        "Coverage": coverage_to_fhir,
+        "Claim": claim_to_fhir,
+        "ExplanationOfBenefit": explanation_of_benefit_to_fhir,
+        "SupplyDelivery": supply_delivery_to_fhir,
+        "Provenance": provenance_to_fhir
     }
     
     converter = converter_map.get(resource_type)
@@ -1412,9 +2062,20 @@ async def search_resources(
     }
     
     for resource in resources:
+        # Handle JSONB resources differently
+        if isinstance(resource, FHIRResource):
+            # For JSONB resources, use the generic converter
+            from .converter_modules.generic_converter import generic_resource_to_fhir
+            fhir_resource = generic_resource_to_fhir(resource)
+            resource_id = resource.fhir_id
+        else:
+            # For model-based resources, use specific converters
+            fhir_resource = converter(resource)
+            resource_id = resource.id
+        
         entry = {
-            "resource": converter(resource),
-            "fullUrl": f"{resource_type}/{resource.id}",
+            "resource": fhir_resource,
+            "fullUrl": f"{resource_type}/{resource_id}",
             "search": {
                 "mode": "match"
             }
@@ -1435,6 +2096,21 @@ async def search_resources(
     if _revinclude:
         bundle["entry"].extend(await _process_revincludes(resources, _revinclude, db, request.base_url))
     
+    # Create audit log for the search operation
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="search",
+        resource_type=resource_type,
+        user_id=current_user["id"] if current_user else None,
+        success=True,
+        details={
+            "search_params": search_params,
+            "result_count": len(resources),
+            "total_count": total_count
+        },
+        request=request
+    )
+    
     return bundle
 
 # Individual resource endpoints
@@ -1442,15 +2118,38 @@ async def search_resources(
 async def get_resource(
     resource_type: str,
     resource_id: str,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ):
     """Get a specific resource by ID"""
     
     if resource_type not in RESOURCE_MAPPINGS:
         raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
     
+    # Special handling for AuditEvent
+    if resource_type == "AuditEvent":
+        return await get_audit_event(
+            audit_id=resource_id,
+            request=request,
+            async_db=async_db,
+            current_user=current_user
+        )
+    
     model = RESOURCE_MAPPINGS[resource_type]["model"]
-    resource = db.query(model).filter(model.id == resource_id).first()
+    
+    # Check if this is a JSONB-stored resource
+    if issubclass(model, FHIRResource):
+        # Query by fhir_id for JSONB resources
+        resource = db.query(FHIRResource).filter(
+            FHIRResource.resource_type == resource_type,
+            FHIRResource.fhir_id == resource_id,
+            FHIRResource.deleted == False
+        ).first()
+    else:
+        # Query by id for regular models
+        resource = db.query(model).filter(model.id == resource_id).first()
     
     if not resource:
         raise HTTPException(status_code=404, detail=f"{resource_type} not found")
@@ -1471,21 +2170,54 @@ async def get_resource(
         "CarePlan": care_plan_to_fhir,
         "Device": device_to_fhir,
         "DiagnosticReport": diagnostic_report_to_fhir,
-        "ImagingStudy": imaging_study_to_fhir
+        "ImagingStudy": imaging_study_to_fhir,
+        "Appointment": appointment_to_fhir,
+        "DocumentReference": document_reference_to_fhir,
+        "Medication": medication_to_fhir,
+        "MedicationAdministration": medication_administration_to_fhir,
+        "CareTeam": care_team_to_fhir,
+        "PractitionerRole": practitioner_role_to_fhir,
+        "Coverage": coverage_to_fhir,
+        "Claim": claim_to_fhir,
+        "ExplanationOfBenefit": explanation_of_benefit_to_fhir,
+        "SupplyDelivery": supply_delivery_to_fhir,
+        "Provenance": provenance_to_fhir
     }
     
-    converter = converter_map.get(resource_type)
-    if not converter:
-        raise HTTPException(status_code=500, detail=f"No converter for {resource_type}")
+    # Handle JSONB resources differently
+    if isinstance(resource, FHIRResource):
+        # For JSONB resources, return the resource data directly
+        from .converter_modules.generic_converter import generic_resource_to_fhir
+        fhir_resource = generic_resource_to_fhir(resource)
+    else:
+        # For model-based resources, use specific converters
+        converter = converter_map.get(resource_type)
+        if not converter:
+            raise HTTPException(status_code=500, detail=f"No converter for {resource_type}")
+        fhir_resource = converter(resource)
     
-    return converter(resource)
+    # Create audit log for the read operation
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="read",
+        resource_type=resource_type,
+        resource_id=resource_id,
+        user_id=current_user["id"] if current_user else None,
+        success=True,
+        request=request
+    )
+    
+    return fhir_resource
 
 @router.put("/{resource_type}/{resource_id}")
 async def update_resource(
     resource_type: str,
     resource_id: str,
     resource_data: dict,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ):
     """Update or create a specific resource"""
     
@@ -1509,11 +2241,130 @@ async def update_resource(
     # Commit the transaction
     db.commit()
     
+    # Create audit log for the update operation
+    success = "resource" in result
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="update",
+        resource_type=resource_type,
+        resource_id=resource_id,
+        user_id=current_user["id"] if current_user else None,
+        success=success,
+        request=request
+    )
+    
     # Return the updated resource
-    if "resource" in result:
+    if success:
         return result["resource"]
     else:
         raise HTTPException(status_code=500, detail="Failed to update resource")
+
+@router.delete("/{resource_type}/{resource_id}")
+async def delete_resource(
+    resource_type: str,
+    resource_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+):
+    """Delete a specific resource"""
+    
+    if resource_type not in RESOURCE_MAPPINGS:
+        raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
+    
+    model = RESOURCE_MAPPINGS[resource_type]["model"]
+    resource = db.query(model).filter(model.id == resource_id).first()
+    
+    if not resource:
+        raise HTTPException(status_code=404, detail=f"{resource_type} not found")
+    
+    try:
+        # Perform soft delete by updating status field if it exists
+        if hasattr(resource, 'status'):
+            resource.status = 'inactive'
+        elif hasattr(resource, 'clinical_status'):
+            resource.clinical_status = 'inactive'
+        elif hasattr(resource, 'verification_status'):
+            resource.verification_status = 'entered-in-error'
+        else:
+            # Hard delete if no status field
+            db.delete(resource)
+        
+        db.commit()
+        success = True
+        
+    except Exception as e:
+        db.rollback()
+        success = False
+        raise HTTPException(status_code=500, detail=f"Failed to delete {resource_type}: {str(e)}")
+    
+    # Create audit log for the delete operation
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="delete",
+        resource_type=resource_type,
+        resource_id=resource_id,
+        user_id=current_user["id"] if current_user else None,
+        success=success,
+        request=request
+    )
+    
+    return Response(status_code=204)
+
+@router.post("/{resource_type}")
+async def create_resource(
+    resource_type: str,
+    resource_data: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+):
+    """Create a new resource"""
+    
+    if resource_type not in RESOURCE_MAPPINGS:
+        raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
+    
+    # Use batch processor to handle the creation
+    processor = BatchProcessor(db)
+    entry = {
+        "resource": resource_data,
+        "request": {
+            "method": "POST",
+            "url": resource_type
+        }
+    }
+    
+    from .batch_transaction import BatchEntry
+    batch_entry = BatchEntry(entry)
+    result = processor._handle_create(batch_entry)
+    
+    # Commit the transaction
+    db.commit()
+    
+    # Create audit log for the create operation
+    success = "resource" in result
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="create",
+        resource_type=resource_type,
+        resource_id=result.get("resource", {}).get("id") if success else None,
+        user_id=current_user["id"] if current_user else None,
+        success=success,
+        request=request
+    )
+    
+    # Return the created resource with 201 status
+    if success:
+        resource_id = result["resource"]["id"]
+        return Response(
+            status_code=201,
+            headers={"Location": f"/{resource_type}/{resource_id}"},
+            content=json.dumps(result["resource"])
+        )
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create resource")
 
 @router.get("/Patient/{patient_id}/$export")
 async def bulk_export_patient(
@@ -1667,3 +2518,7 @@ async def _process_revincludes(resources, revinclude_params, db, base_url):
     return revinclude_entries
 
 # The _process_bulk_export function is no longer needed as we're using BulkExportRouter
+
+# Import and include notifications router
+from .notifications import router as notifications_router
+router.include_router(notifications_router)

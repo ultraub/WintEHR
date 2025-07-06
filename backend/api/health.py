@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import psutil
 
-from database.database import get_db
+from database import get_db_session as get_db
 
 router = APIRouter()
 

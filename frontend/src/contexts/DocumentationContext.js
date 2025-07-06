@@ -1,10 +1,11 @@
 /**
  * Documentation Context Provider
- * Manages clinical documentation state and note editing
+ * Manages clinical documentation state using FHIR DocumentReference resources
  */
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
+import { useFHIRResource } from './FHIRResourceContext';
 
 const DocumentationContext = createContext(undefined);
 
@@ -18,11 +19,188 @@ export const useDocumentation = () => {
 
 export const DocumentationProvider = ({ children }) => {
   const { currentPatient, currentEncounter, setCurrentNote: setClinicalContextNote } = useClinical();
+  const { refreshPatientResources } = useFHIRResource();
   const [currentNote, setCurrentNote] = useState(null);
   const [noteTemplates, setNoteTemplates] = useState([]);
   const [recentNotes, setRecentNotes] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Transform FHIR DocumentReference to internal format
+  const transformFHIRDocument = (fhirDoc) => {
+    // Extract content from attachment
+    const content = fhirDoc.content?.[0]?.attachment?.data 
+      ? atob(fhirDoc.content[0].attachment.data) 
+      : '';
+    
+    // Parse content sections
+    const sections = {};
+    let isSOAPFormat = false;
+    
+    if (content) {
+      try {
+        const parsed = JSON.parse(content);
+        // Check if it has SOAP structure
+        if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan ||
+            parsed.chiefComplaint || parsed.historyPresentIllness || parsed.reviewOfSystems || parsed.physicalExam) {
+          isSOAPFormat = true;
+          sections.subjective = parsed.subjective || '';
+          sections.objective = parsed.objective || '';
+          sections.assessment = parsed.assessment || '';
+          sections.plan = parsed.plan || '';
+          sections.chiefComplaint = parsed.chiefComplaint || '';
+          sections.historyPresentIllness = parsed.historyPresentIllness || '';
+          sections.reviewOfSystems = parsed.reviewOfSystems || '';
+          sections.physicalExam = parsed.physicalExam || '';
+        } else {
+          // JSON but not SOAP structure
+          sections.content = JSON.stringify(parsed, null, 2);
+        }
+      } catch (e) {
+        // If not JSON, treat as plain text
+        sections.content = content;
+      }
+    }
+
+    // Extract note type from type coding and map LOINC code back to type
+    const loinc = fhirDoc.type?.coding?.[0]?.code;
+    const codeToType = {
+      '11506-3': 'progress',
+      '34117-2': 'history_physical',
+      '11488-4': 'consultation',
+      '18842-5': 'discharge',
+      '11504-8': 'operative',
+      '28570-0': 'procedure',
+      '51845-6': 'emergency',
+      '34133-9': 'summary'
+    };
+    const noteType = codeToType[loinc] || 'progress';
+
+    return {
+      id: fhirDoc.id,
+      patientId: fhirDoc.subject?.reference?.split('/')[1],
+      encounterId: fhirDoc.context?.encounter?.[0]?.reference?.split('/')[1],
+      noteType,
+      title: getNoteTypeDisplay(noteType),
+      templateId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/template-id')?.valueString,
+      status: fhirDoc.status,
+      authorId: fhirDoc.author?.[0]?.reference?.split('/')[1],
+      createdAt: fhirDoc.date,
+      signedAt: fhirDoc.status === 'current' ? fhirDoc.date : null,
+      requiresCosignature: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/requires-cosignature')?.valueBoolean,
+      cosignerId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/cosigner')?.valueReference?.reference?.split('/')[1],
+      isSOAPFormat,
+      ...sections
+    };
+  };
+
+  // Transform internal note to FHIR DocumentReference
+  const transformToFHIRDocument = (note) => {
+    const content = {
+      subjective: note.subjective || '',
+      objective: note.objective || '',
+      assessment: note.assessment || '',
+      plan: note.plan || '',
+      chiefComplaint: note.chiefComplaint || '',
+      historyPresentIllness: note.historyPresentIllness || '',
+      reviewOfSystems: note.reviewOfSystems || '',
+      physicalExam: note.physicalExam || ''
+    };
+
+    const fhirDoc = {
+      resourceType: 'DocumentReference',
+      status: note.status === 'signed' ? 'current' : 'preliminary',
+      type: {
+        coding: [{
+          system: 'http://loinc.org',
+          code: getNoteTypeCode(note.noteType),
+          display: getNoteTypeDisplay(note.noteType)
+        }]
+      },
+      subject: {
+        reference: `Patient/${note.patientId}`
+      },
+      date: note.createdAt || new Date().toISOString(),
+      content: [{
+        attachment: {
+          contentType: 'application/json',
+          data: btoa(JSON.stringify(content))
+        }
+      }],
+      extension: []
+    };
+
+    // Add optional fields
+    if (note.encounterId) {
+      fhirDoc.context = {
+        encounter: [{ reference: `Encounter/${note.encounterId}` }]
+      };
+    }
+
+    if (note.authorId) {
+      fhirDoc.author = [{ reference: `Practitioner/${note.authorId}` }];
+    }
+
+    if (note.templateId) {
+      fhirDoc.extension.push({
+        url: 'http://medgenemr.com/template-id',
+        valueString: note.templateId
+      });
+    }
+
+    if (note.requiresCosignature) {
+      fhirDoc.extension.push({
+        url: 'http://medgenemr.com/requires-cosignature',
+        valueBoolean: true
+      });
+    }
+
+    if (note.cosignerId) {
+      fhirDoc.extension.push({
+        url: 'http://medgenemr.com/cosigner',
+        valueReference: { reference: `Practitioner/${note.cosignerId}` }
+      });
+    }
+
+    if (note.id) {
+      fhirDoc.id = note.id;
+    }
+
+    return fhirDoc;
+  };
+
+  // Helper function to get LOINC codes for note types
+  const getNoteTypeCode = (noteType) => {
+    const codes = {
+      'progress': '11506-3',
+      'history_physical': '34117-2',
+      'consultation': '11488-4',
+      'discharge': '18842-5',
+      'operative': '11504-8',
+      'procedure': '28570-0',
+      'emergency': '51845-6',
+      'nursing': '34119-8',
+      'therapy': '11507-1',
+      'addendum': '81334-5'
+    };
+    return codes[noteType] || '11506-3';
+  };
+
+  const getNoteTypeDisplay = (noteType) => {
+    const displays = {
+      'progress': 'Progress note',
+      'history_physical': 'History and physical note',
+      'consultation': 'Consultation note',
+      'discharge': 'Discharge summary',
+      'operative': 'Operative note',
+      'procedure': 'Procedure note',
+      'emergency': 'Emergency department note',
+      'nursing': 'Nursing note',
+      'therapy': 'Therapy note',
+      'addendum': 'Addendum'
+    };
+    return displays[noteType] || 'Clinical note';
+  };
 
   // Create new note
   const createNewNote = useCallback((noteType, templateId) => {
@@ -54,30 +232,8 @@ export const DocumentationProvider = ({ children }) => {
   // Load existing note
   const loadNote = async (noteId) => {
     try {
-      const response = await api.get(`/api/clinical/notes/${noteId}`);
-      const noteData = response.data;
-      
-      const note = {
-        id: noteData.id,
-        patientId: noteData.patient_id,
-        encounterId: noteData.encounter_id,
-        noteType: noteData.note_type,
-        templateId: noteData.template_id,
-        subjective: noteData.subjective,
-        objective: noteData.objective,
-        assessment: noteData.assessment,
-        plan: noteData.plan,
-        chiefComplaint: noteData.chief_complaint,
-        historyPresentIllness: noteData.history_present_illness,
-        reviewOfSystems: noteData.review_of_systems,
-        physicalExam: noteData.physical_exam,
-        status: noteData.status,
-        authorId: noteData.author_id,
-        createdAt: noteData.created_at,
-        signedAt: noteData.signed_at,
-        requiresCosignature: noteData.requires_cosignature,
-        cosignerId: noteData.cosigner_id
-      };
+      const fhirDoc = await fhirClient.read('DocumentReference', noteId);
+      const note = transformFHIRDocument(fhirDoc);
       
       setCurrentNote(note);
       setClinicalContextNote(note);
@@ -91,33 +247,19 @@ export const DocumentationProvider = ({ children }) => {
   // Load recent notes
   const loadRecentNotes = async (patientId) => {
     try {
-      const response = await api.get('/api/clinical/notes/', {
-        params: {
-          patient_id: patientId,
-          limit: 10
-        }
+      const result = await fhirClient.search('DocumentReference', {
+        patient: patientId,
+        _sort: '-date',
+        _count: 10
       });
       
-      const notes = response.data.map((noteData) => ({
-        id: noteData.id,
-        patientId: noteData.patient_id,
-        encounterId: noteData.encounter_id,
-        noteType: noteData.note_type,
-        status: noteData.status,
-        authorId: noteData.author_id,
-        authorName: noteData.author_name || 'Provider',
-        createdAt: noteData.created_at,
-        signedAt: noteData.signed_at,
-        // Include content fields for easier access
-        subjective: noteData.subjective,
-        objective: noteData.objective,
-        assessment: noteData.assessment,
-        plan: noteData.plan,
-        chief_complaint: noteData.chief_complaint,
-        history_present_illness: noteData.history_present_illness,
-        review_of_systems: noteData.review_of_systems,
-        physical_exam: noteData.physical_exam
-      }));
+      // Ensure resources is an array
+      const notes = (result.resources || []).map(fhirDoc => {
+        const note = transformFHIRDocument(fhirDoc);
+        // Add author name if available
+        note.authorName = fhirDoc.author?.[0]?.display || 'Provider';
+        return note;
+      });
       
       setRecentNotes(notes);
     } catch (error) {
@@ -126,14 +268,38 @@ export const DocumentationProvider = ({ children }) => {
     }
   };
 
-  // Load note templates
+  // Load note templates (still using API endpoint as templates aren't FHIR resources)
   const loadNoteTemplates = async (specialty) => {
     try {
-      const response = await api.get('/api/clinical/notes/templates/', {
-        params: specialty ? { specialty } : {}
-      });
+      // For now, use hardcoded templates until we implement a proper template service
+      const templates = [
+        {
+          id: 'soap-basic',
+          name: 'Basic SOAP Note',
+          noteType: 'progress',
+          content: {
+            subjective: 'Chief Complaint: \nHistory of Present Illness: \nReview of Systems: ',
+            objective: 'Vital Signs: \nPhysical Exam: ',
+            assessment: 'Assessment: \n1. ',
+            plan: 'Plan: \n1. '
+          }
+        },
+        {
+          id: 'hp-standard',
+          name: 'History & Physical',
+          noteType: 'history_physical',
+          content: {
+            chiefComplaint: 'Chief Complaint: ',
+            historyPresentIllness: 'History of Present Illness: ',
+            reviewOfSystems: 'Review of Systems: \nConstitutional: \nHEENT: \nCardiovascular: \nRespiratory: ',
+            physicalExam: 'Physical Examination: \nVital Signs: \nGeneral: \nHEENT: \nCardiovascular: \nRespiratory: ',
+            assessment: 'Assessment: ',
+            plan: 'Plan: '
+          }
+        }
+      ];
       
-      setNoteTemplates(response.data);
+      setNoteTemplates(templates);
     } catch (error) {
       console.error('Error loading note templates:', error);
       throw error;
@@ -162,43 +328,31 @@ export const DocumentationProvider = ({ children }) => {
 
     setIsSaving(true);
     try {
-      const noteData = {
-        patient_id: currentNote.patientId,
-        encounter_id: currentNote.encounterId,
-        note_type: currentNote.noteType,
-        template_id: currentNote.templateId,
-        subjective: currentNote.subjective,
-        objective: currentNote.objective,
-        assessment: currentNote.assessment,
-        plan: currentNote.plan,
-        chief_complaint: currentNote.chiefComplaint,
-        history_present_illness: currentNote.historyPresentIllness,
-        review_of_systems: currentNote.reviewOfSystems,
-        physical_exam: currentNote.physicalExam,
-        requires_cosignature: currentNote.requiresCosignature,
-        cosigner_id: currentNote.cosignerId
-      };
+      const fhirDoc = transformToFHIRDocument(currentNote);
 
-      let response;
+      let result;
       if (currentNote.id) {
         // Update existing note
-        response = await api.put(`/api/clinical/notes/${currentNote.id}`, noteData);
+        result = await fhirClient.update('DocumentReference', currentNote.id, fhirDoc);
       } else {
         // Create new note
-        response = await api.post('/api/clinical/notes/', noteData);
+        result = await fhirClient.create('DocumentReference', fhirDoc);
       }
 
       const savedNote = {
         ...currentNote,
-        id: response.data.id,
-        status: response.data.status,
-        createdAt: response.data.created_at,
-        authorId: response.data.author_id
+        id: result.id || currentNote.id,
+        createdAt: new Date().toISOString()
       };
 
       setCurrentNote(savedNote);
       setClinicalContextNote(savedNote);
       setIsDirty(false);
+
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
 
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
@@ -217,7 +371,25 @@ export const DocumentationProvider = ({ children }) => {
     }
 
     try {
-      await api.put(`/api/clinical/notes/${currentNote.id}/sign`);
+      // Get current document
+      const fhirDoc = await fhirClient.read('DocumentReference', currentNote.id);
+      
+      // Update status to current (signed)
+      fhirDoc.status = 'current';
+      
+      // Add authenticator extension
+      if (!fhirDoc.extension) fhirDoc.extension = [];
+      fhirDoc.extension.push({
+        url: 'http://medgenemr.com/signed-at',
+        valueDateTime: new Date().toISOString()
+      });
+      
+      await fhirClient.update('DocumentReference', currentNote.id, fhirDoc);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       // Reload the note to get updated status
       await loadNote(currentNote.id);
@@ -232,11 +404,12 @@ export const DocumentationProvider = ({ children }) => {
     if (!currentPatient) return;
 
     try {
-      // Parse the content to extract sections if structured
-      let noteData = {
-        patient_id: currentPatient.id,
-        encounter_id: currentEncounter?.id,
-        note_type: 'addendum',
+      // Create a new note with type 'addendum'
+      const addendumNote = {
+        patientId: currentPatient.id,
+        encounterId: currentEncounter?.id,
+        noteType: 'addendum',
+        status: 'draft'
       };
 
       // If content contains sections, parse them
@@ -249,23 +422,39 @@ export const DocumentationProvider = ({ children }) => {
           plan: content.match(/Plan:\n(.*?)(?=\n\n|$)/s)?.[1]?.trim(),
         };
         
-        // Add non-empty sections to noteData
+        // Add non-empty sections to addendumNote
         Object.entries(sections).forEach(([key, value]) => {
           if (value) {
-            noteData[key === 'chiefComplaint' ? 'chief_complaint' : key] = value;
+            addendumNote[key] = value;
           }
         });
       } else {
         // If not structured, put all content in assessment
-        noteData.assessment = content;
+        addendumNote.assessment = content;
       }
 
-      const response = await api.post(`/api/clinical/notes/${parentNoteId}/addendum`, noteData);
+      // Create FHIR document
+      const fhirDoc = transformToFHIRDocument(addendumNote);
+      
+      // Add relationship to parent note
+      fhirDoc.relatesTo = [{
+        code: 'appends',
+        target: {
+          reference: `DocumentReference/${parentNoteId}`
+        }
+      }];
+
+      const result = await fhirClient.create('DocumentReference', fhirDoc);
+
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
 
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
       
-      return response.data;
+      return result;
     } catch (error) {
       console.error('Error creating addendum:', error);
       throw error;
@@ -275,7 +464,18 @@ export const DocumentationProvider = ({ children }) => {
   // Delete note (only drafts)
   const deleteNote = async (noteId) => {
     try {
-      await api.delete(`/api/clinical/notes/${noteId}`);
+      // Check if note is a draft
+      const fhirDoc = await fhirClient.read('DocumentReference', noteId);
+      if (fhirDoc.status !== 'preliminary') {
+        throw new Error('Only draft notes can be deleted');
+      }
+      
+      await fhirClient.delete('DocumentReference', noteId);
+      
+      // Refresh patient resources to update all contexts
+      if (currentPatient?.id) {
+        await refreshPatientResources(currentPatient.id);
+      }
       
       if (currentNote?.id === noteId) {
         clearCurrentNote();

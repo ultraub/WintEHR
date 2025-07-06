@@ -8,28 +8,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from api.fhir import fhir_router
-from api.cds_hooks import cds_hooks_router
-from api.app import app_router
-from api.quality import quality_router
-from api.cql_api import router as cql_router
-from api.clinical.documentation import notes_router
-from api.clinical.orders import orders_router
-from api.clinical.inbox import inbox_router
-from api.clinical.tasks import tasks_router
-from api.clinical.catalogs import catalog_router
-from api.app.routers import allergies
-from api.app import diagnosis_codes, clinical_data, actual_patient_data
-from api import auth
-from api.imaging import router as imaging_router
-from api.dicomweb import router as dicomweb_router
-from database.database import engine, Base
-# Import all models so they get registered with Base
-from models.session import UserSession, PatientProviderAssignment
-from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance, ImagingResult
+# Import new FHIR router
+from fhir_api.router import fhir_router
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Import new EMR router
+from emr_api.router import emr_router
+
+# Import Clinical Canvas router
+from clinical_canvas.router import router as clinical_canvas_router
+
+# Import WebSocket router
+from api.websocket.websocket_router import router as websocket_router
+
+# Import FHIR content negotiation middleware
+from fhir_api.content_negotiation import content_negotiation_middleware
+
+# Import legacy routers (to be migrated)
+# TODO: Migrate these to use FHIR APIs
+# Import auth router
+from api import auth
+
+# Import routers needed for CDS hooks
+# from api.app import actual_patient_data  # TODO: Create this module
+
+# Import CDS Hooks router
+from api.cds_hooks import cds_hooks_router
+# from api.app import app_router
+# from api.quality import quality_router
+# from api.cql_api import router as cql_router
+# from api.clinical.documentation import notes_router
+# from api.clinical.orders import orders_router
+# from api.clinical.inbox import inbox_router
+# from api.clinical.tasks import tasks_router
+# from api.clinical.catalogs import catalog_router
+# from api.app.routers import allergies
+# from api.app import diagnosis_codes, clinical_data
+# from api.imaging import router as imaging_router
+# from api.dicomweb import router as dicomweb_router
+
+# Import database components
+from database import init_db, close_db
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -49,28 +67,101 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-from api.health import router as health_router
-app.include_router(health_router, prefix="/api", tags=["Health Check"])
-app.include_router(fhir_router.router, prefix="/fhir", tags=["FHIR R4"])
-app.include_router(cds_hooks_router.router, prefix="/cds-hooks", tags=["CDS Hooks"])
-app.include_router(app_router.router, prefix="/api", tags=["Application API"])
-app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
-app.include_router(cql_router, tags=["CQL Engine"])
+# Add FHIR content negotiation middleware
+@app.middleware("http")
+async def add_content_negotiation(request, call_next):
+    return await content_negotiation_middleware(request, call_next)
 
-# Include clinical routers
-app.include_router(notes_router.router, prefix="/api", tags=["Clinical Notes"])
-app.include_router(orders_router.router, prefix="/api", tags=["Clinical Orders"])
-app.include_router(inbox_router.router, prefix="/api", tags=["Clinical Inbox"])
-app.include_router(tasks_router.router, prefix="/api", tags=["Clinical Tasks"])
-app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
-app.include_router(allergies.router, prefix="/api", tags=["Allergies"])
-app.include_router(diagnosis_codes.router, prefix="/api", tags=["Diagnosis Codes"])
-app.include_router(clinical_data.router, prefix="/api", tags=["Clinical Data"])
-app.include_router(actual_patient_data.router, prefix="/api", tags=["Actual Patient Data"])
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(imaging_router, prefix="/api/imaging", tags=["Medical Imaging"])
-app.include_router(dicomweb_router, prefix="/api/dicomweb", tags=["DICOMweb"])
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on startup."""
+    await init_db()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    await close_db()
+
+# Include routers
+# from api.health import router as health_router
+# app.include_router(health_router, prefix="/api", tags=["Health Check"])
+app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
+app.include_router(emr_router, tags=["EMR Extensions"])  # Already has /api/emr prefix
+app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])  # Already has /api/clinical-canvas prefix
+
+# Add compatibility routes for frontend
+from emr_api.auth import router as auth_router_compat
+app.include_router(auth_router_compat, prefix="/api/auth", tags=["Authentication"])
+
+# Add FHIR-based authentication
+from api.fhir_auth import router as fhir_auth_router
+app.include_router(fhir_auth_router, tags=["FHIR Authentication"])
+
+# Add authentication migration support
+from api.auth_migration import router as auth_migration_router
+app.include_router(auth_migration_router, tags=["Authentication Migration"])
+
+# Add WebSocket support
+app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
+
+# Add new API routers for missing functionality
+from routers.catalogs import router as catalogs_router
+from routers.clinical_tasks import router as clinical_tasks_router
+from routers.clinical_alerts import router as clinical_alerts_router
+from routers.quality_measures import router as quality_measures_router
+from routers.imaging_studies import router as imaging_studies_router
+
+app.include_router(catalogs_router, tags=["Clinical Catalogs"])
+app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
+app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
+app.include_router(quality_measures_router, tags=["Quality Measures"])
+app.include_router(imaging_studies_router, tags=["Imaging Studies"])
+
+# Legacy API compatibility layers removed - frontend now uses FHIR APIs directly
+# Legacy routers - commented out for FHIR-native implementation
+# Include CDS Hooks router
+from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
+app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+
+# Include Notifications router
+from api.notifications import router as notifications_router
+app.include_router(notifications_router, prefix="/fhir/R4", tags=["Notifications"])
+# app.include_router(app_router.router, prefix="/api", tags=["Application API"])
+# app.include_router(quality_router.router, prefix="/api", tags=["Quality Measures"])
+# app.include_router(cql_router, tags=["CQL Engine"])
+# 
+# # Include clinical routers
+# app.include_router(notes_router.router, prefix="/api", tags=["Clinical Notes"])
+# app.include_router(orders_router.router, prefix="/api", tags=["Clinical Orders"])
+# app.include_router(inbox_router.router, prefix="/api", tags=["Clinical Inbox"])
+# app.include_router(tasks_router.router, prefix="/api", tags=["Clinical Tasks"])
+# app.include_router(catalog_router.router, prefix="/api/catalogs", tags=["Clinical Catalogs"])
+# Include auth routers (both legacy and enhanced)
+app.include_router(auth.router, prefix="/api/auth/legacy", tags=["Legacy Authentication"])
+
+# Include enhanced auth with optional JWT
+from api.auth_enhanced import router as auth_enhanced_router
+app.include_router(auth_enhanced_router, tags=["Enhanced Authentication"])
+
+# Include patient data API for CDS Hooks
+from api.patient_data import router as patient_data_router
+app.include_router(patient_data_router, prefix="/api", tags=["Patient Data"])
+
+# Include pharmacy workflow API
+from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
+app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
+
+# Include DICOM service API
+from api.dicom.dicom_service import router as dicom_router
+app.include_router(dicom_router, tags=["DICOM Services"])
+
+# TODO: Migrate these to use FHIR APIs
+# app.include_router(allergies.router, prefix="/api", tags=["Allergies"])
+# app.include_router(diagnosis_codes.router, prefix="/api", tags=["Diagnosis Codes"])
+# app.include_router(clinical_data.router, prefix="/api", tags=["Clinical Data"])
+# app.include_router(imaging_router, prefix="/api/imaging", tags=["Medical Imaging"])
+# app.include_router(dicomweb_router, prefix="/api/dicomweb", tags=["DICOMweb"])
 
 # Root endpoint
 @app.get("/")
@@ -79,17 +170,21 @@ async def root():
         "message": "Teaching EMR System",
         "version": "1.0.0",
         "endpoints": {
-            "fhir": "/fhir",
+            "fhir": "/fhir/R4",
             "cds_hooks": "/cds-hooks",
             "api": "/api",
             "docs": "/docs"
         }
     }
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/api/health")
+async def api_health_check():
+    return {"status": "healthy", "service": "MedGenEMR FHIR API"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

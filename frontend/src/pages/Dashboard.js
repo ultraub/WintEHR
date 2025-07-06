@@ -17,32 +17,26 @@ import {
   Button,
   IconButton,
   Badge,
-  Divider,
 } from '@mui/material';
 import {
   People as PeopleIcon,
   EventNote as EventNoteIcon,
   LocalHospital as HospitalIcon,
   TrendingUp as TrendingUpIcon,
-  AccessTime as AccessTimeIcon,
   Person as PersonIcon,
   Assignment as TaskIcon,
   Science as LabIcon,
-  Warning as AlertIcon,
-  CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   ArrowForward as ArrowForwardIcon,
   Notifications as NotificationsIcon,
   Assessment as AssessmentIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { format, isToday, startOfDay, endOfDay } from 'date-fns';
-import api from '../services/api';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { fhirClient } from '../services/fhirClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-const COLORS = ['#E91E63', '#7C4DFF', '#FFBB28', '#FF8042', '#F48FB1'];
 
 function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -65,44 +59,423 @@ function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      // Use FHIR endpoints to gather dashboard data
       const promises = [
-        api.get('/api/dashboard/stats'),
-        api.get('/api/dashboard/recent-activity'),
-        api.get('/api/dashboard/encounter-trends'),
+        // Dashboard stats - count resources
+        Promise.all([
+          fhirClient.search('Patient', { _summary: 'count' }),
+          fhirClient.search('Encounter', { 
+            _summary: 'count' 
+          }),
+          fhirClient.search('Task', { 
+            status: 'requested,accepted,in-progress',
+            _summary: 'count' 
+          }),
+          fhirClient.search('Practitioner', { _summary: 'count' })
+        ]).then(([patients, encounters, tasks, practitioners]) => ({
+          data: {
+            total_patients: patients.total || 0,
+            today_encounters: encounters.total || 0,
+            total_encounters: encounters.total || 0,
+            pending_tasks: tasks.total || 0,
+            active_providers: practitioners.total || 0,
+            recent_encounters: 10
+          }
+        })),
+        
+        // Recent activity - get recent encounters
+        fhirClient.search('Encounter', {
+          _sort: '-date',
+          _count: 10,
+          _include: 'Encounter:patient'
+        }).then(result => ({
+          data: result.resources || []
+        })),
+        
+        // Encounter trends - fetch real data from last 30 days
+        (async () => {
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30);
+          
+          try {
+            // Fetch all encounters from the last 30 days
+            const result = await fhirClient.search('Encounter', {
+              date: `ge${startDate.toISOString()}`,
+              _count: 1000, // Get more encounters for trend
+              _sort: 'date'
+            });
+            
+            // Group encounters by date
+            const encountersByDate = {};
+            (result.resources || []).forEach(encounter => {
+              const date = encounter.period?.start || encounter.date;
+              if (date) {
+                const dateKey = format(new Date(date), 'yyyy-MM-dd');
+                encountersByDate[dateKey] = (encountersByDate[dateKey] || 0) + 1;
+              }
+            });
+            
+            // Create array for last 7 days with counts
+            const trendData = [];
+            for (let i = 6; i >= 0; i--) {
+              const date = new Date();
+              date.setDate(date.getDate() - i);
+              const dateKey = format(date, 'yyyy-MM-dd');
+              trendData.push({
+                date: date.toISOString(),
+                count: encountersByDate[dateKey] || 0
+              });
+            }
+            
+            return { data: trendData };
+          } catch (error) {
+            console.error('Error fetching encounter trends:', error);
+            // Return empty data on error
+            return {
+              data: Array.from({ length: 7 }, (_, i) => ({
+                date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString(),
+                count: 0
+              }))
+            };
+          }
+        })()
       ];
 
       // Add provider-specific data if logged in
       if (currentUser?.id) {
         promises.push(
-          api.get('/api/encounters', {
-            params: {
-              start_date: startOfDay(new Date()).toISOString(),
-              end_date: endOfDay(new Date()).toISOString(),
-              provider_id: currentUser.id
-            }
+          // Get today's encounters using FHIR
+          fhirClient.search('Encounter', {
+            date: [`ge${startOfDay(new Date()).toISOString()}`, `le${endOfDay(new Date()).toISOString()}`],
+            _sort: '-date'
+          }).then(result => {
+            // Transform FHIR encounters to expected format
+            const transformedEncounters = result.resources.map(enc => {
+              const type = enc.type?.[0];
+              const period = enc.period || {};
+              return {
+                id: enc.id,
+                patient_id: fhirClient.extractId(enc.subject),
+                encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+                encounter_date: period.start || enc.date,
+                status: enc.status,
+                provider: enc.participant?.find(p => 
+                  p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                )?.individual?.display || 'Unknown Provider'
+              };
+            });
+            return { data: transformedEncounters };
           }),
-          api.get('/api/tasks', {
-            params: {
-              assigned_to: currentUser.id,
-              status: 'pending',
-              limit: 5
-            }
+          // Get pending tasks using FHIR
+          fhirClient.search('Task', {
+            owner: `Practitioner/${currentUser.id}`,
+            status: 'requested,accepted,in-progress',
+            _sort: '-authored-on',
+            _count: 5
+          }).then(result => {
+            // Transform FHIR tasks to expected format
+            const transformedTasks = result.resources.map(task => ({
+              id: task.id,
+              title: task.description || task.code?.text || 'Task',
+              priority: task.priority || 'routine',
+              patient_id: fhirClient.extractId(task.for),
+              patient_name: task.for?.display || 'Unknown Patient',
+              due_date: task.restriction?.period?.end,
+              status: task.status,
+              type: task.code?.coding?.[0]?.code || 'review'
+            }));
+            return { data: transformedTasks };
           }),
-          api.get('/api/clinical/alerts', {
-            params: {
-              provider_id: currentUser.id,
-              severity: 'critical',
-              acknowledged: false
-            }
-          }),
-          api.get('/api/lab-results', {
-            params: {
+          // Get critical alerts based on FHIR data
+          (async () => {
+            const alerts = [];
+            
+            // Get recent lab results with critical values
+            const criticalLabs = await fhirClient.search('Observation', {
+              category: 'laboratory',
               status: 'final',
-              reviewed: false,
-              limit: 10
-            }
+              _sort: '-date',
+              _count: 20
+            });
+            
+            // Check for critical lab values
+            criticalLabs.resources.forEach(obs => {
+              const interpretation = obs.interpretation?.[0]?.coding?.[0]?.code;
+              if (interpretation && ['H', 'HH', 'L', 'LL', 'A', 'AA'].includes(interpretation)) {
+                const isCritical = ['HH', 'LL', 'AA'].includes(interpretation);
+                alerts.push({
+                  id: obs.id,
+                  type: isCritical ? 'critical' : 'warning',
+                  title: isCritical ? 'Critical Lab Result' : 'Abnormal Lab Result',
+                  message: `${obs.code?.text || obs.code?.coding?.[0]?.display}: ${
+                    obs.valueQuantity ? `${obs.valueQuantity.value} ${obs.valueQuantity.unit}` : obs.valueString
+                  }`,
+                  patient_id: fhirClient.extractId(obs.subject),
+                  patient_name: obs.subject?.display || 'Unknown Patient',
+                  created_at: obs.effectiveDateTime || new Date().toISOString(),
+                  resource_type: 'Observation',
+                  resource_id: obs.id
+                });
+              }
+            });
+            
+            // Get recent vital signs that are out of range
+            const vitalSigns = await fhirClient.search('Observation', {
+              category: 'vital-signs',
+              status: 'final',
+              date: `ge${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}`, // Last 24 hours
+              _count: 50
+            });
+            
+            // Check for critical vital signs
+            vitalSigns.resources.forEach(obs => {
+              const code = obs.code?.coding?.[0]?.code;
+              let value = null;
+              let isCritical = false;
+              let message = '';
+              
+              // Extract value
+              if (obs.valueQuantity) {
+                value = obs.valueQuantity.value;
+              } else if (obs.component) {
+                // Handle blood pressure
+                const systolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8480-6')?.valueQuantity?.value;
+                const diastolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8462-4')?.valueQuantity?.value;
+                if (systolic && diastolic) {
+                  // Check for hypertensive crisis
+                  if (systolic >= 180 || diastolic >= 120) {
+                    isCritical = true;
+                    message = `Blood Pressure: ${systolic}/${diastolic} mmHg - Hypertensive Crisis`;
+                  } else if (systolic >= 140 || diastolic >= 90) {
+                    message = `Blood Pressure: ${systolic}/${diastolic} mmHg - Stage 2 Hypertension`;
+                  }
+                }
+              }
+              
+              // Check other vital signs
+              if (value !== null && !message) {
+                switch (code) {
+                  case '8867-4': // Heart rate
+                    if (value < 40 || value > 130) {
+                      isCritical = value < 30 || value > 150;
+                      message = `Heart Rate: ${value} bpm - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  case '9279-1': // Respiratory rate
+                    if (value < 10 || value > 30) {
+                      isCritical = value < 8 || value > 35;
+                      message = `Respiratory Rate: ${value} /min - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  case '2708-6': // Oxygen saturation
+                    if (value < 92) {
+                      isCritical = value < 88;
+                      message = `Oxygen Saturation: ${value}% - ${isCritical ? 'Critical' : 'Low'}`;
+                    }
+                    break;
+                  case '8310-5': // Body temperature
+                    if (value < 35 || value > 38.5) {
+                      isCritical = value < 34 || value > 40;
+                      message = `Temperature: ${value}°C - ${isCritical ? 'Critical' : 'Abnormal'}`;
+                    }
+                    break;
+                  default:
+                    // Other vital signs not specifically handled
+                    break;
+                }
+              }
+              
+              if (message) {
+                alerts.push({
+                  id: `vital-${obs.id}`,
+                  type: isCritical ? 'critical' : 'warning',
+                  title: isCritical ? 'Critical Vital Sign' : 'Abnormal Vital Sign',
+                  message,
+                  patient_id: fhirClient.extractId(obs.subject),
+                  patient_name: obs.subject?.display || 'Unknown Patient',
+                  created_at: obs.effectiveDateTime || new Date().toISOString(),
+                  resource_type: 'Observation',
+                  resource_id: obs.id
+                });
+              }
+            });
+            
+            // Sort alerts by criticality and date
+            alerts.sort((a, b) => {
+              if (a.type === 'critical' && b.type !== 'critical') return -1;
+              if (a.type !== 'critical' && b.type === 'critical') return 1;
+              return new Date(b.created_at) - new Date(a.created_at);
+            });
+            
+            return { data: alerts.slice(0, 10) }; // Return top 10 alerts
+          })(),
+          // Get recent lab results using FHIR
+          fhirClient.search('Observation', {
+            category: 'laboratory',
+            status: 'final',
+            _sort: '-date',
+            _count: 10
+          }).then(result => {
+            // Transform FHIR observations to expected format
+            const transformedLabs = result.resources.map(obs => {
+              const abnormal = obs.interpretation?.[0]?.coding?.[0]?.code !== 'N';
+              return {
+                id: obs.id,
+                test_name: obs.code?.text || obs.code?.coding?.[0]?.display || 'Lab Test',
+                patient_id: fhirClient.extractId(obs.subject),
+                patient_name: obs.subject?.display || 'Unknown Patient',
+                collection_date: obs.effectiveDateTime || obs.effectivePeriod?.start,
+                abnormal_flag: abnormal,
+                value: obs.valueQuantity ? 
+                  `${obs.valueQuantity.value} ${obs.valueQuantity.unit}` : 
+                  obs.valueString || 'N/A',
+                reviewed: false // Would need extension to track this
+              };
+            });
+            return { data: transformedLabs };
           }),
-          api.get('/api/quality/measures/summary')
+          // Calculate quality measures based on FHIR data
+          (async () => {
+            const measures = [];
+            
+            // Get all patients for denominator calculations
+            const patientsResult = await fhirClient.search('Patient', { _count: 1000 });
+            const totalPatients = patientsResult.total || patientsResult.resources.length;
+            
+            // Measure 1: Diabetes A1C Control
+            const diabetesPatients = await fhirClient.search('Condition', {
+              code: '44054006', // SNOMED code for Type 2 diabetes
+              _count: 1000
+            });
+            
+            if (diabetesPatients.resources.length > 0) {
+              const patientIds = [...new Set(diabetesPatients.resources.map(c => fhirClient.extractId(c.subject)))];
+              let controlledCount = 0;
+              let testedCount = 0;
+              
+              // Check A1C values for each diabetic patient
+              for (const patientId of patientIds) {
+                const a1cResults = await fhirClient.search('Observation', {
+                  patient: patientId,
+                  code: '4548-4', // A1C LOINC code
+                  date: `ge${new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()}`, // Last 6 months
+                  _sort: '-date',
+                  _count: 1
+                });
+                
+                if (a1cResults.resources.length > 0) {
+                  testedCount++;
+                  const latestA1c = a1cResults.resources[0];
+                  if (latestA1c.valueQuantity && latestA1c.valueQuantity.value < 7) {
+                    controlledCount++;
+                  }
+                }
+              }
+              
+              measures.push({
+                id: 'diabetes-a1c-control',
+                name: 'Diabetes: A1C Control (<7%)',
+                description: 'Percentage of patients with diabetes who have A1C under control',
+                numerator: controlledCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((controlledCount / patientIds.length) * 100) : 0,
+                target: 70,
+                status: controlledCount / patientIds.length >= 0.7 ? 'met' : 'not-met'
+              });
+              
+              measures.push({
+                id: 'diabetes-a1c-testing',
+                name: 'Diabetes: A1C Testing',
+                description: 'Percentage of patients with diabetes who had A1C test in last 6 months',
+                numerator: testedCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((testedCount / patientIds.length) * 100) : 0,
+                target: 90,
+                status: testedCount / patientIds.length >= 0.9 ? 'met' : 'not-met'
+              });
+            }
+            
+            // Measure 2: Blood Pressure Control
+            const hyperTensionPatients = await fhirClient.search('Condition', {
+              code: '38341003', // SNOMED code for Hypertension
+              _count: 1000
+            });
+            
+            if (hyperTensionPatients.resources.length > 0) {
+              const patientIds = [...new Set(hyperTensionPatients.resources.map(c => fhirClient.extractId(c.subject)))];
+              let controlledCount = 0;
+              let measuredCount = 0;
+              
+              for (const patientId of patientIds) {
+                const bpResults = await fhirClient.search('Observation', {
+                  patient: patientId,
+                  code: '85354-9', // Blood pressure panel
+                  date: `ge${new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()}`, // Last 3 months
+                  _sort: '-date',
+                  _count: 1
+                });
+                
+                if (bpResults.resources.length > 0) {
+                  measuredCount++;
+                  const latestBP = bpResults.resources[0];
+                  const systolic = latestBP.component?.find(c => c.code?.coding?.[0]?.code === '8480-6')?.valueQuantity?.value;
+                  const diastolic = latestBP.component?.find(c => c.code?.coding?.[0]?.code === '8462-4')?.valueQuantity?.value;
+                  
+                  if (systolic && diastolic && systolic < 140 && diastolic < 90) {
+                    controlledCount++;
+                  }
+                }
+              }
+              
+              measures.push({
+                id: 'bp-control',
+                name: 'Blood Pressure Control',
+                description: 'Percentage of patients with hypertension who have BP <140/90',
+                numerator: controlledCount,
+                denominator: patientIds.length,
+                score: patientIds.length > 0 ? Math.round((controlledCount / patientIds.length) * 100) : 0,
+                target: 75,
+                status: controlledCount / patientIds.length >= 0.75 ? 'met' : 'not-met'
+              });
+            }
+            
+            // Measure 3: Preventive Care - Immunizations
+            const fluVaccinations = await fhirClient.search('Immunization', {
+              'vaccine-code': '88', // Influenza vaccine
+              date: `ge${new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()}`, // Last year
+              _count: 1000
+            });
+            
+            const uniqueVaccinatedPatients = [...new Set(fluVaccinations.resources.map(imm => fhirClient.extractId(imm.patient)))];
+            
+            measures.push({
+              id: 'flu-vaccination',
+              name: 'Influenza Vaccination',
+              description: 'Percentage of patients who received flu vaccine in the last year',
+              numerator: uniqueVaccinatedPatients.length,
+              denominator: totalPatients,
+              score: totalPatients > 0 ? Math.round((uniqueVaccinatedPatients.length / totalPatients) * 100) : 0,
+              target: 80,
+              status: uniqueVaccinatedPatients.length / totalPatients >= 0.8 ? 'met' : 'not-met'
+            });
+            
+            // Calculate overall score
+            const overallScore = measures.length > 0 
+              ? Math.round(measures.reduce((sum, m) => sum + m.score, 0) / measures.length)
+              : 0;
+            const measuresMet = measures.filter(m => m.status === 'met').length;
+            
+            return {
+              data: {
+                overall_score: overallScore,
+                measures_met: measuresMet,
+                total_measures: measures.length,
+                measures: measures,
+                top_measures: measures.sort((a, b) => b.score - a.score).slice(0, 5)
+              }
+            };
+          })()
         );
       }
 
@@ -118,6 +491,36 @@ function Dashboard() {
         setCriticalAlerts(results[5]?.data || []);
         setRecentLabResults(results[6]?.data || []);
         setQualityMetrics(results[7]?.data || null);
+        
+        // Also get patient name for today's encounters
+        if (results[3]?.data?.length > 0) {
+          const patientIds = results[3].data.map(enc => enc.patient_id).filter(Boolean);
+          const uniquePatientIds = [...new Set(patientIds)];
+          
+          // Fetch patient names
+          const patientPromises = uniquePatientIds.map(id => 
+            fhirClient.read('Patient', id).catch(() => null)
+          );
+          
+          const patients = await Promise.all(patientPromises);
+          const patientMap = {};
+          patients.forEach(patient => {
+            if (patient) {
+              const name = patient.name?.[0];
+              const displayName = name ? 
+                `${name.given?.join(' ') || ''} ${name.family || ''}`.trim() : 
+                'Unknown Patient';
+              patientMap[patient.id] = displayName;
+            }
+          });
+          
+          // Update encounters with patient names
+          const encountersWithNames = results[3].data.map(enc => ({
+            ...enc,
+            patient_name: patientMap[enc.patient_id] || 'Unknown Patient'
+          }));
+          setTodaysSchedule(encountersWithNames);
+        }
       }
       
       setError(null);
@@ -167,7 +570,7 @@ function Dashboard() {
       icon: <TaskIcon />,
       color: '#f57c00',
       subtitle: 'Requires action',
-      action: () => navigate('/clinical/workspace', { state: { tab: 'tasks' } }),
+      action: () => navigate('/tasks'),
     },
     {
       title: 'Unreviewed Labs',
@@ -324,7 +727,7 @@ function Dashboard() {
                       cursor: 'pointer',
                       '&:hover': { bgcolor: 'action.hover' }
                     }}
-                    onClick={() => navigate(`/encounters/${appointment.id}`)}
+                    onClick={() => navigate(`/patients/${appointment.patient_id}`)}
                   >
                     <ListItemAvatar>
                       <Avatar sx={{ bgcolor: appointment.status === 'completed' ? '#4caf50' : '#ff9800' }}>
@@ -377,7 +780,7 @@ function Dashboard() {
               <Button 
                 size="small" 
                 endIcon={<ArrowForwardIcon />}
-                onClick={() => navigate('/clinical/workspace', { state: { tab: 'tasks' } })}
+                onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks' } })}
               >
                 View All
               </Button>
@@ -436,7 +839,7 @@ function Dashboard() {
                 <Button 
                   size="small" 
                   endIcon={<ArrowForwardIcon />}
-                  onClick={() => navigate('/quality-measures')}
+                  onClick={() => navigate('/quality')}
                 >
                   View Details
                 </Button>
@@ -559,7 +962,7 @@ function Dashboard() {
                   variant="contained"
                   color="secondary"
                   startIcon={<EventNoteIcon />}
-                  onClick={() => navigate('/encounters/new')}
+                  onClick={() => navigate('/encounters/schedule')}
                 >
                   Schedule Appointment
                 </Button>
@@ -568,7 +971,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<LabIcon />}
-                  onClick={() => navigate('/lab-results/new')}
+                  onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'orders', orderType: 'laboratory' } })}
                 >
                   Enter Lab Results
                 </Button>
@@ -577,7 +980,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<TaskIcon />}
-                  onClick={() => navigate('/clinical/workspace', { state: { tab: 'tasks', action: 'new' } })}
+                  onClick={() => navigate('/clinical-workspace/placeholder', { state: { tab: 'tasks', action: 'new' } })}
                 >
                   Create Task
                 </Button>
@@ -586,7 +989,7 @@ function Dashboard() {
                 <Button
                   variant="outlined"
                   startIcon={<AssessmentIcon />}
-                  onClick={() => navigate('/quality-measures')}
+                  onClick={() => navigate('/quality')}
                 >
                   Quality Reports
                 </Button>

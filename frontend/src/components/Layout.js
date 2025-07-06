@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -15,7 +15,6 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
-  Badge,
   Menu,
   MenuItem,
   Chip,
@@ -32,11 +31,14 @@ import {
   Lightbulb as LightbulbIcon,
   Webhook as WebhookIcon,
   Assessment as AssessmentIcon,
-  Notifications as NotificationsIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { MedicalThemeContext } from '../App';
+import { Flag as FlagIcon } from '@mui/icons-material';
+import NotificationBell from './NotificationBell';
 // import BugReportButton from './BugReportButton';  // Temporarily disabled
 
 const drawerWidth = 240;
@@ -44,12 +46,18 @@ const drawerWidth = 240;
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, emoji: '🏠', path: '/dashboard' },
   { text: 'Patients', icon: <PeopleIcon />, emoji: '👥', path: '/patients' },
+  { text: 'Encounters', icon: <EventNoteIcon />, emoji: '📋', path: '/encounters' },
+  { text: 'Lab Results', icon: <ScienceIcon />, emoji: '🧪', path: '/lab-results' },
+  { text: 'Medications', icon: <PharmacyIcon />, emoji: '💊', path: '/medications' },
+  { divider: true },
   { text: 'Population Analytics', icon: <TrendingUpIcon />, emoji: '📊', path: '/analytics' },
+  { text: 'Quality Measures', icon: <AssessmentIcon />, emoji: '✅', path: '/quality' },
   { divider: true },
   { text: 'FHIR Explorer', icon: <ApiIcon />, emoji: '🔍', path: '/fhir' },
   { text: 'CDS Demo', icon: <LightbulbIcon />, emoji: '💡', path: '/cds-demo' },
   { text: 'CDS Hooks Builder', icon: <WebhookIcon />, emoji: '🎯', path: '/cds-hooks' },
-  { text: 'Quality Measures', icon: <AssessmentIcon />, emoji: '✅', path: '/quality' },
+  { divider: true },
+  { text: 'Audit Trail', icon: <SecurityIcon />, emoji: '🔐', path: '/audit-trail' },
 ];
 
 function Layout({ children }) {
@@ -60,6 +68,7 @@ function Layout({ children }) {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const medicalThemeContext = useContext(MedicalThemeContext);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -201,10 +210,22 @@ function Layout({ children }) {
             {menuItems.find(item => item.path === location.pathname)?.text || 'EMR'}
           </Typography>
           
+          {/* Theme Toggle */}
+          {medicalThemeContext && (
+            <IconButton
+              color="inherit"
+              onClick={() => medicalThemeContext.onModeChange(medicalThemeContext.currentMode === 'light' ? 'dark' : 'light')}
+              sx={{ mr: 2 }}
+              title={medicalThemeContext.currentMode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              <span style={{ fontSize: '1.5rem' }}>🌙</span>
+            </IconButton>
+          )}
+          
           {/* Provider Info */}
           {user && (
             <Chip
-              label={user.display_name}
+              label={user.display_name || user.name || user.username || 'Provider'}
               variant="outlined"
               sx={{ 
                 mr: 2, 
@@ -218,11 +239,7 @@ function Layout({ children }) {
             />
           )}
           
-          <IconButton color="inherit" sx={{ mx: 1 }}>
-            <Badge badgeContent={3} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+          <NotificationBell />
           <IconButton color="inherit" onClick={handleProfileMenuOpen}>
             <AccountCircleIcon />
           </IconButton>
@@ -235,6 +252,16 @@ function Layout({ children }) {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
+            <MenuItem onClick={() => {
+              navigate('/settings');
+              handleProfileMenuClose();
+            }}>
+              <ListItemIcon>
+                <AccountCircleIcon fontSize="small" />
+              </ListItemIcon>
+              Profile & Settings
+            </MenuItem>
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />

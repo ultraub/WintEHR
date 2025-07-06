@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useClinical } from '../contexts/ClinicalContext';
-import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Paper,
@@ -10,16 +8,16 @@ import {
   InputAdornment,
   IconButton,
   Chip,
-  CircularProgress,
   Alert,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   Tabs,
   Tab,
   Badge,
+  Stack,
+  Tooltip,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -27,16 +25,16 @@ import {
   Refresh as RefreshIcon,
   People as PeopleIcon,
   PersonSearch as PersonSearchIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
-import api from '../services/api';
+import { fhirClient } from '../services/fhirClient';
 import PatientForm from '../components/PatientForm';
+import { getPatientDetailUrl } from '../utils/navigationUtils';
 
 function PatientList() {
   const navigate = useNavigate();
-  const { loadPatient } = useClinical();
-  const { user } = useAuth();
   const [patients, setPatients] = useState([]);
   const [allPatients, setAllPatients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +43,7 @@ function PatientList() {
   const [openNewPatient, setOpenNewPatient] = useState(false);
   const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients - Default to All Patients
   const [myPatientsCount, setMyPatientsCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const columns = [
     {
@@ -103,7 +102,7 @@ function PatientList() {
           size="small"
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/patients/${params.row.id}`);
+            navigate(getPatientDetailUrl(params.row.id));
           }}
         >
           View
@@ -123,11 +122,70 @@ function PatientList() {
   const fetchMyPatients = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/auth/my-patients', {
-        params: { search: searchTerm },
-      });
-      setPatients(response.data);
-      setMyPatientsCount(response.data.length);
+      // For now, use the same as all patients but filter by provider
+      // In a real implementation, this would use FHIR search with practitioner parameter
+      const searchParams = {
+        _count: 100,
+        _sort: '-_lastUpdated'
+      };
+      
+      if (searchTerm) {
+        // FHIR search supports name parameter for patient names
+        searchParams.name = searchTerm;
+      }
+      
+      const result = await fhirClient.searchPatients(searchParams);
+      
+      // Transform FHIR patients to expected format
+      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
+        const name = fhirPatient.name?.[0] || {};
+        const telecom = fhirPatient.telecom || [];
+        const phone = telecom.find(t => t.system === 'phone')?.value;
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        // Fetch insurance/coverage information
+        let insuranceName = '';
+        try {
+          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
+          if (coverageResult.resources && coverageResult.resources.length > 0) {
+            const coverage = coverageResult.resources[0];
+            // Extract payer name from coverage
+            if (coverage.payor && coverage.payor.length > 0) {
+              const payorRef = coverage.payor[0].reference;
+              if (payorRef) {
+                const payorId = payorRef.split('/').pop();
+                try {
+                  const payorResult = await fhirClient.read('Organization', payorId);
+                  insuranceName = payorResult.name || '';
+                } catch (e) {
+                  // If organization fetch fails, try to get name from display
+                  insuranceName = coverage.payor[0].display || '';
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Coverage fetch failed, insurance will remain empty
+          console.debug('No coverage found for patient:', fhirPatient.id);
+        }
+        
+        return {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate,
+          gender: fhirPatient.gender,
+          phone: phone || '',
+          insurance_name: insuranceName
+        };
+      }));
+      
+      setPatients(transformedPatients);
+      setMyPatientsCount(transformedPatients.length);
       setError(null);
     } catch (err) {
       console.error('Error fetching my patients:', err);
@@ -140,10 +198,67 @@ function PatientList() {
   const fetchAllPatients = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/auth/all-patients', {
-        params: { search: searchTerm },
-      });
-      setAllPatients(response.data);
+      const searchParams = {
+        _count: 100,
+        _sort: '-_lastUpdated'
+      };
+      
+      if (searchTerm) {
+        // FHIR search supports name parameter for patient names
+        searchParams.name = searchTerm;
+      }
+      
+      const result = await fhirClient.searchPatients(searchParams);
+      
+      // Transform FHIR patients to expected format
+      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
+        const name = fhirPatient.name?.[0] || {};
+        const telecom = fhirPatient.telecom || [];
+        const phone = telecom.find(t => t.system === 'phone')?.value;
+        const mrn = fhirPatient.identifier?.find(id => 
+          id.type?.coding?.[0]?.code === 'MR' || 
+          id.system?.includes('mrn')
+        )?.value || fhirPatient.identifier?.[0]?.value || '';
+        
+        // Fetch insurance/coverage information
+        let insuranceName = '';
+        try {
+          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
+          if (coverageResult.resources && coverageResult.resources.length > 0) {
+            const coverage = coverageResult.resources[0];
+            // Extract payer name from coverage
+            if (coverage.payor && coverage.payor.length > 0) {
+              const payorRef = coverage.payor[0].reference;
+              if (payorRef) {
+                const payorId = payorRef.split('/').pop();
+                try {
+                  const payorResult = await fhirClient.read('Organization', payorId);
+                  insuranceName = payorResult.name || '';
+                } catch (e) {
+                  // If organization fetch fails, try to get name from display
+                  insuranceName = coverage.payor[0].display || '';
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Coverage fetch failed, insurance will remain empty
+          console.debug('No coverage found for patient:', fhirPatient.id);
+        }
+        
+        return {
+          id: fhirPatient.id,
+          mrn: mrn,
+          first_name: name.given?.join(' ') || '',
+          last_name: name.family || '',
+          date_of_birth: fhirPatient.birthDate,
+          gender: fhirPatient.gender,
+          phone: phone || '',
+          insurance_name: insuranceName
+        };
+      }));
+      
+      setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {
       console.error('Error fetching all patients:', err);
@@ -162,25 +277,79 @@ function PatientList() {
 
   const handleCreatePatient = async (patientData) => {
     try {
-      const response = await api.post('/api/patients', patientData);
+      // Transform to FHIR Patient resource
+      const fhirPatient = {
+        resourceType: 'Patient',
+        identifier: [
+          {
+            type: {
+              coding: [{
+                system: 'http://terminology.hl7.org/CodeSystem/v2-0203',
+                code: 'MR'
+              }]
+            },
+            value: patientData.mrn
+          }
+        ],
+        name: [{
+          use: 'official',
+          family: patientData.last_name,
+          given: patientData.first_name ? [patientData.first_name] : []
+        }],
+        birthDate: patientData.date_of_birth,
+        gender: patientData.gender?.toLowerCase(),
+        telecom: []
+      };
+      
+      if (patientData.phone) {
+        fhirPatient.telecom.push({
+          system: 'phone',
+          value: patientData.phone,
+          use: 'home'
+        });
+      }
+      
+      if (patientData.email) {
+        fhirPatient.telecom.push({
+          system: 'email',
+          value: patientData.email
+        });
+      }
+      
+      if (patientData.address || patientData.city || patientData.state || patientData.zip_code) {
+        fhirPatient.address = [{
+          use: 'home',
+          line: patientData.address ? [patientData.address] : [],
+          city: patientData.city,
+          state: patientData.state,
+          postalCode: patientData.zip_code
+        }];
+      }
+      
+      const result = await fhirClient.create('Patient', fhirPatient);
       setOpenNewPatient(false);
       if (activeTab === 0) {
         fetchMyPatients();
       } else {
         fetchAllPatients();
       }
-      navigate(`/patients/${response.data.id}`);
+      navigate(getPatientDetailUrl(result.id));
     } catch (err) {
       console.error('Error creating patient:', err);
       setError('Failed to create patient');
     }
   };
 
-  const handleRefresh = () => {
-    if (activeTab === 0) {
-      fetchMyPatients();
-    } else {
-      fetchAllPatients();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (activeTab === 0) {
+        await fetchMyPatients();
+      } else {
+        await fetchAllPatients();
+      }
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -189,9 +358,49 @@ function PatientList() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Patients</Typography>
         <Box>
-          <IconButton onClick={handleRefresh} sx={{ mr: 1 }}>
-            <RefreshIcon />
-          </IconButton>
+          <Tooltip title="Export patient list">
+            <IconButton 
+              onClick={() => {
+                const data = currentPatients.map(p => ({
+                  MRN: p.mrn,
+                  Name: `${p.last_name}, ${p.first_name}`,
+                  'Date of Birth': p.date_of_birth,
+                  Gender: p.gender,
+                  Phone: p.phone,
+                  Insurance: p.insurance_name
+                }));
+                const csv = [
+                  Object.keys(data[0]).join(','),
+                  ...data.map(row => Object.values(row).map(v => `"${v || ''}"`).join(','))
+                ].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `patient-list-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              sx={{ mr: 1 }}
+            >
+              <DownloadIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Refresh patient list">
+            <IconButton 
+              onClick={handleRefresh} 
+              sx={{ mr: 1 }}
+              disabled={isRefreshing}
+            >
+              <RefreshIcon sx={{ 
+                animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              }} />
+            </IconButton>
+          </Tooltip>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -265,7 +474,7 @@ function PatientList() {
           disableRowSelectionOnClick
           loading={loading}
           onRowClick={(params) => {
-            navigate(`/patients/${params.row.id}`);
+            navigate(getPatientDetailUrl(params.row.id));
           }}
           sx={{
             '& .MuiDataGrid-row:hover': {

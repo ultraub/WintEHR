@@ -1,0 +1,21 @@
+{
+  "name": "medgenemr",
+  "version": "1.0.0",
+  "description": "FHIR-native EMR system",
+  "main": "index.js",
+  "scripts": {
+    "start": "./start.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [
+    "fhir",
+    "emr",
+    "healthcare"
+  ],
+  "author": "",
+  "license": "ISC"
+}

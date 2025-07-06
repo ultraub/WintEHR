@@ -17,7 +17,9 @@ import ndjson
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location
+from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location
+from models.fhir_resource import FHIRResource, Condition
+from models.clinical.orders import MedicationOrder as Medication
 
 # Export status storage (in production, use Redis or database)
 EXPORT_JOBS = {}

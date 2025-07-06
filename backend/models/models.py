@@ -1,5 +1,5 @@
 """
-Unified models module - exports all models from synthea_models and session modules
+Unified models module - exports all models from synthea_models, session and dicom modules
 """
 
 # Import models from other modules

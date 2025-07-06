@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from database.database import get_db
+from database import get_db_session as get_db
 from models.clinical.notes import ClinicalNote, NoteTemplate
 from models.models import Provider
 

@@ -3,6 +3,7 @@
  * Displays summary information about the patient
  */
 import React, { useState, useEffect } from 'react';
+import { fhirClient } from '../../services/fhirClient';
 import {
   Box,
   Grid,
@@ -75,49 +76,106 @@ const PatientOverview = () => {
       if (!currentPatient?.id) return;
       
       try {
-        const response = await api.get('/api/observations', {
-          params: {
-            patient_id: currentPatient.id,
-            observation_type: 'vital-signs',
-            limit: 10
-          }
+        // Use FHIR API to get vital signs observations
+        const searchResult = await fhirClient.search('Observation', {
+          patient: currentPatient.id,
+          category: 'vital-signs',
+          _sort: '-date',
+          _count: 20
         });
         
-        // Process vitals data
-        const vitalsData = response.data;
+        // Process vitals data - searchResult contains { resources, total, bundle }
+        const vitalsData = searchResult.resources || [];
+        console.log('Loaded vitals:', vitalsData);
+        
         if (vitalsData.length > 0) {
           // Group by observation type and get most recent
           const vitalsMap = {};
-          vitalsData.forEach(vital => {
-            const displayName = vital.display || '';
-            // Normalize display names for consistent mapping
-            let type = displayName.toLowerCase();
+          
+          vitalsData.forEach(observation => {
+            const code = observation.code?.coding?.[0]?.code;
+            const display = observation.code?.text || observation.code?.coding?.[0]?.display || '';
+            const effectiveDate = observation.effectiveDateTime || observation.issued;
+            const value = observation.valueQuantity?.value;
+            const unit = observation.valueQuantity?.unit;
             
-            // Map common vital signs to standardized keys
-            if (displayName.includes('Blood pressure panel')) {
-              // Handle blood pressure separately as it contains multiple values
-              // We'll need to look for systolic and diastolic separately
-            } else if (displayName === 'Heart rate') {
-              type = 'heart rate';
-            } else if (displayName === 'Body Temperature' || displayName.includes('Temperature')) {
-              type = 'body temperature';
-            } else if (displayName.includes('Oxygen saturation')) {
-              type = 'oxygen saturation';
+            // Map LOINC codes or display names to vital types
+            let type = null;
+            let vitalValue = null;
+            
+            // Extract value based on observation type
+            if (observation.valueQuantity) {
+              vitalValue = observation.valueQuantity.value;
+            } else if (observation.component) {
+              // Handle blood pressure with components
+              if (code === '85354-9' || display.includes('Blood pressure')) {
+                const systolic = observation.component.find(c => 
+                  c.code?.coding?.[0]?.code === '8480-6'
+                )?.valueQuantity?.value;
+                const diastolic = observation.component.find(c => 
+                  c.code?.coding?.[0]?.code === '8462-4'
+                )?.valueQuantity?.value;
+                if (systolic && diastolic) {
+                  type = 'bloodPressure';
+                  vitalValue = `${systolic}/${diastolic}`;
+                }
+              }
             }
             
-            if (!vitalsMap[type] || new Date(vital.observation_date) > new Date(vitalsMap[type].observation_date)) {
-              vitalsMap[type] = vital;
+            // Map other vital signs
+            if (!type && vitalValue) {
+              // Try LOINC codes first
+              switch(code) {
+                case '8867-4': // Heart rate
+                  type = 'heartRate';
+                  break;
+                case '8310-5': // Body temperature
+                  type = 'temperature';
+                  break;
+                case '2708-6': // Oxygen saturation
+                case '59408-5': // Oxygen saturation in Arterial blood by Pulse oximetry
+                  type = 'oxygenSaturation';
+                  break;
+              }
+              
+              // Fall back to display name matching
+              if (!type) {
+                const lowerDisplay = display.toLowerCase();
+                if (lowerDisplay.includes('heart rate') || lowerDisplay.includes('pulse')) {
+                  type = 'heartRate';
+                } else if (lowerDisplay.includes('temperature')) {
+                  type = 'temperature';
+                } else if (lowerDisplay.includes('oxygen') || lowerDisplay.includes('spo2')) {
+                  type = 'oxygenSaturation';
+                } else if (lowerDisplay.includes('blood pressure')) {
+                  type = 'bloodPressure';
+                  vitalValue = value; // Use the raw value if not parsed as components
+                }
+              }
+            }
+            
+            // Store most recent value for each type
+            if (type && vitalValue && (!vitalsMap[type] || new Date(effectiveDate) > new Date(vitalsMap[type].date))) {
+              vitalsMap[type] = {
+                value: vitalValue,
+                date: effectiveDate,
+                unit: observation.valueQuantity?.unit
+              };
             }
           });
           
+          // Get the most recent date from all vitals
+          const mostRecentDate = Object.values(vitalsMap).reduce((latest, vital) => {
+            const vitalDate = new Date(vital.date);
+            return !latest || vitalDate > latest ? vitalDate : latest;
+          }, null);
+          
           setRecentVitals({
-            bloodPressure: vitalsMap['blood pressure']?.value || vitalsMap['systolic blood pressure']?.value_quantity && vitalsMap['diastolic blood pressure']?.value_quantity 
-              ? `${vitalsMap['systolic blood pressure']?.value_quantity}/${vitalsMap['diastolic blood pressure']?.value_quantity}`
-              : null,
-            heartRate: vitalsMap['heart rate']?.value_quantity,
-            temperature: vitalsMap['body temperature']?.value_quantity,
-            oxygenSaturation: vitalsMap['oxygen saturation']?.value_quantity,
-            recordedAt: vitalsData[0].observation_date
+            bloodPressure: vitalsMap.bloodPressure?.value,
+            heartRate: vitalsMap.heartRate?.value,
+            temperature: vitalsMap.temperature?.value,
+            oxygenSaturation: vitalsMap.oxygenSaturation?.value,
+            recordedAt: mostRecentDate?.toISOString()
           });
         }
       } catch (error) {
@@ -146,20 +204,36 @@ const PatientOverview = () => {
   const handleAddMedication = async () => {
     try {
       if (editingMedication) {
-        // Update existing medication
-        await api.put(`/api/medications/${editingMedication.id}`, {
-          medication_name: newMedication.medication_name,
-          dosage: newMedication.dosage,
-          frequency: newMedication.frequency,
-          status: newMedication.status
-        });
+        // Update existing medication using FHIR
+        const medicationResource = await fhirClient.read('MedicationRequest', editingMedication.id);
+        medicationResource.dosageInstruction = [{
+          text: newMedication.dosage
+        }];
+        medicationResource.status = newMedication.status;
+        await fhirClient.update('MedicationRequest', editingMedication.id, medicationResource);
       } else {
-        // Create new medication
-        await api.post('/api/medications', {
-          patient_id: currentPatient.id,
-          start_date: new Date().toISOString().split('T')[0],
-          ...newMedication
-        });
+        // Create new medication using FHIR
+        const medicationResource = {
+          resourceType: 'MedicationRequest',
+          status: newMedication.status || 'active',
+          intent: 'order',
+          medicationCodeableConcept: {
+            text: newMedication.medication_name
+          },
+          subject: fhirClient.reference('Patient', currentPatient.id),
+          dosageInstruction: [{
+            text: newMedication.dosage,
+            timing: {
+              repeat: {
+                frequency: 1,
+                period: 1,
+                periodUnit: 'd'
+              }
+            }
+          }],
+          authoredOn: new Date().toISOString()
+        };
+        await fhirClient.create('MedicationRequest', medicationResource);
       }
       setMedicationsDialog(false);
       setNewMedication({ medication_name: '', dosage: '', frequency: '', status: 'active' });
@@ -184,7 +258,10 @@ const PatientOverview = () => {
   
   const handleDeleteMedication = async (medication) => {
     try {
-      await api.delete(`/api/medications/${medication.id}`);
+      // Update medication status to stopped instead of deleting
+      const medicationResource = await fhirClient.read('MedicationRequest', medication.id);
+      medicationResource.status = 'stopped';
+      await fhirClient.update('MedicationRequest', medication.id, medicationResource);
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {
@@ -195,31 +272,73 @@ const PatientOverview = () => {
   const handleAddProblem = async () => {
     try {
       if (editingProblem) {
-        // Update existing problem
-        const updateData = {
-          description: newProblem.description,
-          clinical_status: newProblem.clinical_status
+        // Update existing condition using FHIR
+        const conditionResource = await fhirClient.read('Condition', editingProblem.id);
+        conditionResource.code.text = newProblem.description;
+        conditionResource.clinicalStatus = {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+            code: newProblem.clinical_status
+          }]
         };
         
-        // Only add optional fields if they have values
-        if (newProblem.snomed_code) updateData.snomed_code = newProblem.snomed_code;
-        if (newProblem.icd10_code) updateData.icd10_code = newProblem.icd10_code;
+        // Update codes if provided
+        if (newProblem.snomed_code || newProblem.icd10_code) {
+          conditionResource.code.coding = [];
+          if (newProblem.snomed_code) {
+            conditionResource.code.coding.push({
+              system: 'http://snomed.info/sct',
+              code: newProblem.snomed_code
+            });
+          }
+          if (newProblem.icd10_code) {
+            conditionResource.code.coding.push({
+              system: 'http://hl7.org/fhir/sid/icd-10',
+              code: newProblem.icd10_code
+            });
+          }
+        }
         
-        await api.put(`/api/conditions/${editingProblem.id}`, updateData);
+        await fhirClient.update('Condition', editingProblem.id, conditionResource);
       } else {
-        // Create new problem
-        const problemData = {
-          patient_id: currentPatient.id,
-          description: newProblem.description,
-          clinical_status: newProblem.clinical_status,
-          verification_status: "confirmed"
+        // Create new condition using FHIR
+        const conditionResource = {
+          resourceType: 'Condition',
+          subject: fhirClient.reference('Patient', currentPatient.id),
+          code: {
+            text: newProblem.description,
+            coding: []
+          },
+          clinicalStatus: {
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+              code: newProblem.clinical_status
+            }]
+          },
+          verificationStatus: {
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/condition-ver-status',
+              code: 'confirmed'
+            }]
+          },
+          onsetDateTime: new Date().toISOString()
         };
         
-        // Only add optional fields if they have values
-        if (newProblem.snomed_code) problemData.snomed_code = newProblem.snomed_code;
-        if (newProblem.icd10_code) problemData.icd10_code = newProblem.icd10_code;
+        // Add codes if provided
+        if (newProblem.snomed_code) {
+          conditionResource.code.coding.push({
+            system: 'http://snomed.info/sct',
+            code: newProblem.snomed_code
+          });
+        }
+        if (newProblem.icd10_code) {
+          conditionResource.code.coding.push({
+            system: 'http://hl7.org/fhir/sid/icd-10',
+            code: newProblem.icd10_code
+          });
+        }
         
-        await api.post('/api/conditions', problemData);
+        await fhirClient.create('Condition', conditionResource);
       }
       setProblemsDialog(false);
       setNewProblem({ description: '', clinical_status: 'active', snomed_code: '', icd10_code: '' });
@@ -245,7 +364,15 @@ const PatientOverview = () => {
   
   const handleDeleteProblem = async (problem) => {
     try {
-      await api.delete(`/api/conditions/${problem.id}`);
+      // Update condition status to resolved instead of deleting
+      const conditionResource = await fhirClient.read('Condition', problem.id);
+      conditionResource.clinicalStatus = {
+        coding: [{
+          system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+          code: 'resolved'
+        }]
+      };
+      await fhirClient.update('Condition', problem.id, conditionResource);
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {
@@ -502,7 +629,7 @@ const PatientOverview = () => {
                       <ListItemText
                         primary={
                           <>
-                            <span style={{ marginRight: '8px' }}>{problem.description}</span>
+                            <span style={{ marginRight: '8px' }}>{problem.description || problem.display || 'Unknown condition'}</span>
                             {problem.snomed_code && (
                               <Chip 
                                 label={`SNOMED: ${problem.snomed_code}`} 

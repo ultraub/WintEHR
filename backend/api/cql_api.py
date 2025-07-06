@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 import json
 
-from database.database import get_db
+from database import get_db_session as get_db
 from services.cql_engine import CQLTranslationEngine, SimplifiedCQLExecutor
 from api.auth import get_current_user
 
@@ -92,7 +92,7 @@ async def parse_cql(
     """Parse CQL content and return structured representation"""
     try:
         # Create a dummy session for parsing (no DB access needed)
-        from database.database import SessionLocal
+        from database import SessionLocal
         db = SessionLocal()
         engine = CQLTranslationEngine(db)
         parsed = engine.parse_cql(request.cql_content)
@@ -172,7 +172,7 @@ async def validate_cql(
         cql_content = content.decode('utf-8')
         
         # Create a dummy session for parsing
-        from database.database import SessionLocal
+        from database import SessionLocal
         db = SessionLocal()
         engine = CQLTranslationEngine(db)
         parsed = engine.parse_cql(cql_content)

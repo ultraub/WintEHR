@@ -31,7 +31,8 @@ import {
 import { format, differenceInYears } from 'date-fns';
 import { useClinical } from '../../contexts/ClinicalContext';
 import { useNavigate } from 'react-router-dom';
-import api from '../../services/api';
+import { fhirClient } from '../../services/fhirClient';
+import { providerService } from '../../services/providerService';
 
 
 const PatientHeader = ({ 
@@ -52,15 +53,34 @@ const PatientHeader = ({
   const loadEncounters = async () => {
     setLoadingEncounters(true);
     try {
-      const response = await api.get('/api/encounters', {
-        params: {
+      // Fetch encounters using FHIR
+      const result = await fhirClient.getEncounters(currentPatient.id);
+      
+      // Transform and sort encounters with proper provider resolution
+      const transformedEncounters = await Promise.all(result.resources.map(async (enc) => {
+        const type = enc.type?.[0];
+        const period = enc.period || {};
+        
+        // Resolve provider information
+        const provider = await providerService.resolveProviderFromEncounter(enc);
+        const providerName = providerService.getProviderDisplayName(provider);
+        
+        return {
+          id: enc.id,
           patient_id: currentPatient.id,
-          sort: 'start_date',
-          order: 'desc',
-          limit: 10
-        }
-      });
-      const encounterList = response.data || [];
+          encounter_type: type?.text || type?.coding?.[0]?.display || 'Unknown',
+          encounter_date: period.start || enc.date,
+          start_date: period.start || enc.date,
+          status: enc.status,
+          provider: providerName,
+          provider_id: provider?.id || null
+        };
+      }));
+      
+      // Sort by date descending and take top 10
+      const encounterList = transformedEncounters
+        .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+        .slice(0, 10);
       setEncounters(encounterList);
       
       // If no encounter is currently selected and we have encounters, select the most recent one
@@ -75,16 +95,21 @@ const PatientHeader = ({
   };
 
   const handleEncounterChange = async (encounterId) => {
-    if (encounterId === 'new') {
-      navigate(`/patients/${currentPatient.id}/encounters/new`);
-      return;
-    }
-    
-    const encounter = encounters.find(e => e.id === encounterId);
-    if (encounter) {
-      setCurrentEncounter(encounter);
-    } else if (!encounterId) {
-      setCurrentEncounter(null);
+    try {
+      if (encounterId === 'new') {
+        navigate(`/patients/${currentPatient.id}/encounters/new`);
+        return;
+      }
+      
+      const encounter = encounters.find(e => e.id === encounterId);
+      if (encounter) {
+        console.log('Selected encounter:', encounter);
+        setCurrentEncounter(encounter);
+      } else if (!encounterId) {
+        setCurrentEncounter(null);
+      }
+    } catch (error) {
+      console.error('Error changing encounter:', error);
     }
   };
 
