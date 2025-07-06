@@ -392,21 +392,12 @@ async def create_resource(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = SyntheaFHIRValidator()
     
     # Check for If-None-Exist header
     if_none_exist = request.headers.get("If-None-Exist")
     
     # Get resource data
     resource_data = await request.json()
-    
-    # Validate resource
-    validation_result = validator.validate_resource(resource_type, resource_data)
-    if any(issue.severity in ["error", "fatal"] for issue in validation_result.issue):
-        return JSONResponse(
-            status_code=400,
-            content=validation_result.dict()
-        )
     
     try:
         # Create resource
@@ -641,7 +632,6 @@ async def update_resource(
         )
     
     storage = FHIRStorageEngine(db)
-    validator = SyntheaFHIRValidator()
     
     # Check for If-Match header
     if_match = request.headers.get("If-Match")
@@ -657,14 +647,6 @@ async def update_resource(
         )
     
     resource_data["id"] = id
-    
-    # Validate resource
-    validation_result = validator.validate_resource(resource_type, resource_data)
-    if any(issue.severity in ["error", "fatal"] for issue in validation_result.issue):
-        return JSONResponse(
-            status_code=400,
-            content=validation_result.dict()
-        )
     
     try:
         # Update resource

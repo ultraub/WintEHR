@@ -193,6 +193,9 @@ class FHIRStorageEngine:
             if 'resourceType' not in resource_data:
                 resource_data['resourceType'] = resource_type
             
+            # Preprocess with SyntheaFHIRValidator before validation
+            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
+            
             fhir_resource = construct_fhir_element(resource_type, resource_data)
             resource_dict = fhir_resource.dict(exclude_none=True)
             
@@ -360,6 +363,9 @@ class FHIRStorageEngine:
             # Ensure resourceType is set
             if 'resourceType' not in resource_data:
                 resource_data['resourceType'] = resource_type
+            
+            # Preprocess with SyntheaFHIRValidator before validation
+            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
             fhir_resource = construct_fhir_element(resource_type, resource_data)
             resource_dict = fhir_resource.dict(exclude_none=True)

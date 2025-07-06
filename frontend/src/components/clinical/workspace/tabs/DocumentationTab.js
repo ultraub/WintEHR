@@ -244,9 +244,9 @@ const NoteCard = ({ note, onEdit, onView }) => {
 // Note Editor Component
 const NoteEditor = ({ open, onClose, note, patientId }) => {
   const [noteData, setNoteData] = useState({
-    type: note?.type?.coding?.[0]?.code || 'progress',
-    title: note?.title || '',
-    content: note?.text || '',
+    type: 'progress',
+    title: '',
+    content: '',
     sections: {
       subjective: '',
       objective: '',
@@ -255,6 +255,66 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
     }
   });
   const [formatting, setFormatting] = useState([]);
+
+  // Extract content from FHIR DocumentReference when editing existing note
+  useEffect(() => {
+    if (note && open) {
+      // Extract content from FHIR DocumentReference
+      let extractedContent = '';
+      let extractedSections = {
+        subjective: '',
+        objective: '',
+        assessment: '',
+        plan: ''
+      };
+
+      // Try to decode base64 content
+      if (note.content?.[0]?.attachment?.data) {
+        try {
+          const decodedContent = atob(note.content[0].attachment.data);
+          extractedContent = decodedContent;
+          
+          // Try to parse as JSON for SOAP sections
+          try {
+            const parsed = JSON.parse(decodedContent);
+            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+              extractedSections = {
+                subjective: parsed.subjective || '',
+                objective: parsed.objective || '',
+                assessment: parsed.assessment || '',
+                plan: parsed.plan || ''
+              };
+              extractedContent = ''; // Use sections instead of plain content
+            }
+          } catch (e) {
+            // Not JSON, use as plain content
+          }
+        } catch (e) {
+          console.warn('Failed to decode note content:', e);
+        }
+      }
+
+      setNoteData({
+        type: note.type?.coding?.[0]?.code || 'progress',
+        title: note.title || '',
+        content: extractedContent,
+        sections: extractedSections
+      });
+    } else if (!note && open) {
+      // Reset for new note
+      setNoteData({
+        type: 'progress',
+        title: '',
+        content: '',
+        sections: {
+          subjective: '',
+          objective: '',
+          assessment: '',
+          plan: ''
+        }
+      });
+    }
+  }, [note, open]);
 
   const handleSave = () => {
     // TODO: Implement save functionality
