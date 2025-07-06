@@ -1,8 +1,8 @@
 /**
- * Add Problem Dialog Component
- * Allows adding new problems/conditions to patient chart
+ * Edit Problem Dialog Component
+ * Allows editing existing problems/conditions in patient chart
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -26,10 +26,10 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { searchService } from '../../../../services/searchService';
 
-const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
+const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patientId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
@@ -45,6 +45,39 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     category: 'problem-list-item',
     notes: ''
   });
+
+  // Initialize form with existing condition data
+  useEffect(() => {
+    if (condition && open) {
+      const clinicalStatus = condition.clinicalStatus?.coding?.[0]?.code || 'active';
+      const verificationStatus = condition.verificationStatus?.coding?.[0]?.code || 'confirmed';
+      const onsetDate = condition.onsetDateTime ? parseISO(condition.onsetDateTime) : null;
+      const notes = condition.note?.[0]?.text || '';
+      
+      // Extract condition code and display
+      const code = condition.code?.coding?.[0];
+      const problemText = condition.code?.text || code?.display || '';
+      
+      // Create selected problem object if we have coded data
+      const selectedProblem = code ? {
+        code: code.code,
+        display: code.display || problemText,
+        system: code.system || 'http://snomed.info/sct',
+        source: 'existing'
+      } : null;
+
+      setFormData({
+        problemText,
+        selectedProblem,
+        clinicalStatus,
+        verificationStatus,
+        severity: '', // TODO: Extract from condition.severity if available
+        onsetDate,
+        category: 'problem-list-item',
+        notes
+      });
+    }
+  }, [condition, open]);
 
   // Search for conditions as user types
   const handleSearchConditions = async (query) => {
@@ -86,7 +119,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     onClose();
   };
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     try {
       setLoading(true);
       setError('');
@@ -97,10 +130,9 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         return;
       }
 
-      // Create FHIR Condition resource
-      const condition = {
-        resourceType: 'Condition',
-        id: `condition-${Date.now()}`,
+      // Create updated FHIR Condition resource
+      const updatedCondition = {
+        ...condition, // Preserve existing fields like id, meta, etc.
         clinicalStatus: {
           coding: [{
             system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
@@ -124,7 +156,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         }],
         code: formData.selectedProblem ? {
           coding: [{
-            system: 'http://hl7.org/fhir/sid/icd-10-cm',
+            system: formData.selectedProblem.system || 'http://snomed.info/sct',
             code: formData.selectedProblem.code,
             display: formData.selectedProblem.display
           }],
@@ -135,7 +167,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         subject: {
           reference: `Patient/${patientId}`
         },
-        recordedDate: new Date().toISOString(),
         ...(formData.onsetDate && {
           onsetDateTime: formData.onsetDate.toISOString()
         }),
@@ -158,15 +189,32 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         })
       };
 
-      // Call the onAdd callback with the new condition
-      await onAdd(condition);
+      // Call the onSave callback with the updated condition
+      await onSave(updatedCondition);
       handleClose();
     } catch (err) {
-      setError(err.message || 'Failed to add problem');
+      setError(err.message || 'Failed to update problem');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this problem? This action cannot be undone.')) {
+      try {
+        setLoading(true);
+        await onDelete(condition.id);
+        handleClose();
+      } catch (err) {
+        setError(err.message || 'Failed to delete problem');
+        setLoading(false);
+      }
+    }
+  };
+
+  if (!condition) {
+    return null;
+  }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -180,7 +228,10 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         }}
       >
         <DialogTitle>
-          <Typography variant="h6">Add New Problem</Typography>
+          <Typography variant="h6">Edit Problem</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Condition ID: {condition.id}
+          </Typography>
         </DialogTitle>
         
         <DialogContent>
@@ -361,7 +412,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
             {(formData.problemText || formData.selectedProblem) && (
               <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Preview:
+                  Updated Problem Preview:
                 </Typography>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography variant="body2">
@@ -390,22 +441,33 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
           </Stack>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={handleClose} disabled={loading}>
-            Cancel
-          </Button>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
           <Button 
-            onClick={handleSubmit} 
-            variant="contained" 
-            disabled={loading || (!formData.problemText && !formData.selectedProblem)}
-            startIcon={loading ? <CircularProgress size={20} /> : null}
+            onClick={handleDelete} 
+            color="error" 
+            disabled={loading}
+            variant="outlined"
           >
-            {loading ? 'Adding...' : 'Add Problem'}
+            Delete Problem
           </Button>
+          
+          <Stack direction="row" spacing={1}>
+            <Button onClick={handleClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave} 
+              variant="contained" 
+              disabled={loading || (!formData.problemText && !formData.selectedProblem)}
+              startIcon={loading ? <CircularProgress size={20} /> : null}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
     </LocalizationProvider>
   );
 };
 
-export default AddProblemDialog;
+export default EditProblemDialog;

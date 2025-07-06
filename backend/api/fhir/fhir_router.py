@@ -1860,6 +1860,113 @@ async def update_resource(
     else:
         raise HTTPException(status_code=500, detail="Failed to update resource")
 
+@router.delete("/{resource_type}/{resource_id}")
+async def delete_resource(
+    resource_type: str,
+    resource_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+):
+    """Delete a specific resource"""
+    
+    if resource_type not in RESOURCE_MAPPINGS:
+        raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
+    
+    model = RESOURCE_MAPPINGS[resource_type]["model"]
+    resource = db.query(model).filter(model.id == resource_id).first()
+    
+    if not resource:
+        raise HTTPException(status_code=404, detail=f"{resource_type} not found")
+    
+    try:
+        # Perform soft delete by updating status field if it exists
+        if hasattr(resource, 'status'):
+            resource.status = 'inactive'
+        elif hasattr(resource, 'clinical_status'):
+            resource.clinical_status = 'inactive'
+        elif hasattr(resource, 'verification_status'):
+            resource.verification_status = 'entered-in-error'
+        else:
+            # Hard delete if no status field
+            db.delete(resource)
+        
+        db.commit()
+        success = True
+        
+    except Exception as e:
+        db.rollback()
+        success = False
+        raise HTTPException(status_code=500, detail=f"Failed to delete {resource_type}: {str(e)}")
+    
+    # Create audit log for the delete operation
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="delete",
+        resource_type=resource_type,
+        resource_id=resource_id,
+        user_id=current_user["id"] if current_user else None,
+        success=success,
+        request=request
+    )
+    
+    return Response(status_code=204)
+
+@router.post("/{resource_type}")
+async def create_resource(
+    resource_type: str,
+    resource_data: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    async_db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+):
+    """Create a new resource"""
+    
+    if resource_type not in RESOURCE_MAPPINGS:
+        raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
+    
+    # Use batch processor to handle the creation
+    processor = BatchProcessor(db)
+    entry = {
+        "resource": resource_data,
+        "request": {
+            "method": "POST",
+            "url": resource_type
+        }
+    }
+    
+    from .batch_transaction import BatchEntry
+    batch_entry = BatchEntry(entry)
+    result = processor._handle_create(batch_entry)
+    
+    # Commit the transaction
+    db.commit()
+    
+    # Create audit log for the create operation
+    success = "resource" in result
+    await AuditService.audit_fhir_operation(
+        db=async_db,
+        operation="create",
+        resource_type=resource_type,
+        resource_id=result.get("resource", {}).get("id") if success else None,
+        user_id=current_user["id"] if current_user else None,
+        success=success,
+        request=request
+    )
+    
+    # Return the created resource with 201 status
+    if success:
+        resource_id = result["resource"]["id"]
+        return Response(
+            status_code=201,
+            headers={"Location": f"/{resource_type}/{resource_id}"},
+            content=json.dumps(result["resource"])
+        )
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create resource")
+
 @router.get("/Patient/{patient_id}/$export")
 async def bulk_export_patient(
     patient_id: str,

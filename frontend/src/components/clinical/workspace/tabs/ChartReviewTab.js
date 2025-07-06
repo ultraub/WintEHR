@@ -64,18 +64,54 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
+import EditProblemDialog from '../dialogs/EditProblemDialog';
+import PrescribeMedicationDialog from '../dialogs/PrescribeMedicationDialog';
+import AddAllergyDialog from '../dialogs/AddAllergyDialog';
+import fhirService from '../../../../services/fhirService';
 
 // Problem List Component
-const ProblemList = ({ conditions, patientId, onAddProblem }) => {
+const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedCondition, setSelectedCondition] = useState(null);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleEditProblem = (condition) => {
+    setSelectedCondition(condition);
+    setShowEditDialog(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setShowEditDialog(false);
+    setSelectedCondition(null);
+  };
+
+  const handleSaveProblem = async (updatedCondition) => {
+    try {
+      await onEditProblem(updatedCondition);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error updating problem:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteProblem = async (conditionId) => {
+    try {
+      await onDeleteProblem(conditionId);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error deleting problem:', error);
+      throw error;
+    }
   };
 
   const getSeverityColor = (severity) => {
@@ -213,13 +249,22 @@ const ProblemList = ({ conditions, patientId, onAddProblem }) => {
                   }
                 />
                 <ListItemSecondaryAction>
-                  <IconButton 
-                    edge="end" 
-                    size="small"
-                    onClick={() => toggleExpanded(condition.id)}
-                  >
-                    {expandedItems[condition.id] ? <ExpandMoreIcon /> : <ExpandMoreIcon sx={{ transform: 'rotate(-90deg)' }} />}
-                  </IconButton>
+                  <Stack direction="row" spacing={0.5}>
+                    <Tooltip title="Edit Problem">
+                      <IconButton 
+                        size="small"
+                        onClick={() => handleEditProblem(condition)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <IconButton 
+                      size="small"
+                      onClick={() => toggleExpanded(condition.id)}
+                    >
+                      {expandedItems[condition.id] ? <ExpandMoreIcon /> : <ExpandMoreIcon sx={{ transform: 'rotate(-90deg)' }} />}
+                    </IconButton>
+                  </Stack>
                 </ListItemSecondaryAction>
               </ListItem>
             ))
@@ -233,16 +278,26 @@ const ProblemList = ({ conditions, patientId, onAddProblem }) => {
         onAdd={onAddProblem}
         patientId={patientId}
       />
+      
+      <EditProblemDialog
+        open={showEditDialog}
+        onClose={handleCloseEditDialog}
+        onSave={handleSaveProblem}
+        onDelete={handleDeleteProblem}
+        condition={selectedCondition}
+        patientId={patientId}
+      />
     </Card>
   );
 };
 
 // Medication List Component
-const MedicationList = ({ medications, patientId }) => {
+const MedicationList = ({ medications, patientId, onPrescribeMedication }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
+  const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
   
   // Resolve medication references
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
@@ -284,7 +339,11 @@ const MedicationList = ({ medications, patientId }) => {
           </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Prescribe Medication">
-              <IconButton size="small" color="primary" disabled>
+              <IconButton 
+                size="small" 
+                color="primary" 
+                onClick={() => setShowPrescribeDialog(true)}
+              >
                 <AddIcon />
               </IconButton>
             </Tooltip>
@@ -363,14 +422,22 @@ const MedicationList = ({ medications, patientId }) => {
           )}
         </List>
       </CardContent>
+      
+      <PrescribeMedicationDialog
+        open={showPrescribeDialog}
+        onClose={() => setShowPrescribeDialog(false)}
+        onPrescribe={onPrescribeMedication}
+        patientId={patientId}
+      />
     </Card>
   );
 };
 
 // Allergy List Component
-const AllergyList = ({ allergies, patientId }) => {
+const AllergyList = ({ allergies, patientId, onAddAllergy }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
@@ -396,7 +463,11 @@ const AllergyList = ({ allergies, patientId }) => {
             />
           </Box>
           <Tooltip title="Add Allergy">
-            <IconButton size="small" color="primary" disabled>
+            <IconButton 
+              size="small" 
+              color="primary" 
+              onClick={() => setShowAddDialog(true)}
+            >
               <AddIcon />
             </IconButton>
           </Tooltip>
@@ -457,6 +528,13 @@ const AllergyList = ({ allergies, patientId }) => {
           )}
         </List>
       </CardContent>
+      
+      <AddAllergyDialog
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onAdd={onAddAllergy}
+        patientId={patientId}
+      />
     </Card>
   );
 };
@@ -516,11 +594,149 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const handleAddProblem = async (condition) => {
     try {
       console.log('Adding new problem:', condition);
-      // In a real implementation, this would POST to the FHIR server
-      // For now, we'll just show a success message
-      alert('Problem added successfully! (This is a demo - not actually saved to server)');
+      const createdCondition = await fhirService.createCondition(condition);
+      console.log('Problem created successfully:', createdCondition);
+      
+      // Refresh the patient resources to show the new condition
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Problem added successfully'
+        });
+      }
     } catch (error) {
       console.error('Error adding problem:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to add problem: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handlePrescribeMedication = async (medicationRequest) => {
+    try {
+      console.log('Prescribing new medication:', medicationRequest);
+      const createdMedication = await fhirService.createMedicationRequest(medicationRequest);
+      console.log('Medication prescribed successfully:', createdMedication);
+      
+      // Refresh the patient resources to show the new medication
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Medication prescribed successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error prescribing medication:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to prescribe medication: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleAddAllergy = async (allergyIntolerance) => {
+    try {
+      console.log('Adding new allergy:', allergyIntolerance);
+      const createdAllergy = await fhirService.createAllergyIntolerance(allergyIntolerance);
+      console.log('Allergy added successfully:', createdAllergy);
+      
+      // Refresh the patient resources to show the new allergy
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Allergy added successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error adding allergy:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to add allergy: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleEditProblem = async (updatedCondition) => {
+    try {
+      console.log('Updating problem:', updatedCondition);
+      const result = await fhirService.updateCondition(updatedCondition.id, updatedCondition);
+      console.log('Problem updated successfully:', result);
+      
+      // Refresh the patient resources to show the updated condition
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Problem updated successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating problem:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to update problem: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteProblem = async (conditionId) => {
+    try {
+      console.log('Deleting problem:', conditionId);
+      await fhirService.deleteCondition(conditionId);
+      console.log('Problem deleted successfully');
+      
+      // Refresh the patient resources to remove the deleted condition
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Problem deleted successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting problem:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to delete problem: ${error.message}`
+        });
+      }
       throw error;
     }
   };
@@ -545,17 +761,23 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       <Grid container spacing={3}>
         {/* Problem List */}
         <Grid item xs={12} lg={6}>
-          <ProblemList conditions={conditions} patientId={patientId} onAddProblem={handleAddProblem} />
+          <ProblemList 
+            conditions={conditions} 
+            patientId={patientId} 
+            onAddProblem={handleAddProblem}
+            onEditProblem={handleEditProblem}
+            onDeleteProblem={handleDeleteProblem}
+          />
         </Grid>
 
         {/* Medications */}
         <Grid item xs={12} lg={6}>
-          <MedicationList medications={medications} patientId={patientId} />
+          <MedicationList medications={medications} patientId={patientId} onPrescribeMedication={handlePrescribeMedication} />
         </Grid>
 
         {/* Allergies */}
         <Grid item xs={12} lg={6}>
-          <AllergyList allergies={allergies} patientId={patientId} />
+          <AllergyList allergies={allergies} patientId={patientId} onAddAllergy={handleAddAllergy} />
         </Grid>
 
         {/* Social History */}

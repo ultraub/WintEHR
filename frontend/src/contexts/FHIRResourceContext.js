@@ -578,6 +578,51 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [state.cache]);
 
+  const refreshPatientResources = useCallback(async (patientId) => {
+    try {
+      console.log(`Refreshing resources for patient ${patientId}`);
+      
+      // Clear the patient bundle cache
+      const cacheKey = `patient_bundle_${patientId}`;
+      dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'bundles', key: cacheKey } });
+      
+      // Clear related search caches
+      const resourceTypes = [
+        'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
+        'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
+        'CarePlan', 'CareTeam', 'Coverage'
+      ];
+      
+      resourceTypes.forEach(resourceType => {
+        const searchKey = `${resourceType}_${JSON.stringify({patient: patientId})}`;
+        dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'searches', key: searchKey } });
+      });
+      
+      // Force refresh the patient bundle
+      await fetchPatientBundle(patientId, true);
+      
+      console.log(`Patient ${patientId} resources refreshed successfully`);
+    } catch (error) {
+      console.error(`Error refreshing patient ${patientId} resources:`, error);
+      throw error;
+    }
+  }, [fetchPatientBundle]);
+
+  // Listen for refresh events from fhirService
+  useEffect(() => {
+    const handleResourcesUpdated = (event) => {
+      const { patientId } = event.detail;
+      if (patientId && state.currentPatient && state.currentPatient.id === patientId) {
+        refreshPatientResources(patientId);
+      }
+    };
+
+    window.addEventListener('fhir-resources-updated', handleResourcesUpdated);
+    return () => {
+      window.removeEventListener('fhir-resources-updated', handleResourcesUpdated);
+    };
+  }, [refreshPatientResources, state.currentPatient]);
+
   // Context Value
   const contextValue = {
     // State
@@ -596,6 +641,7 @@ export function FHIRResourceProvider({ children }) {
     fetchResource,
     searchResources,
     fetchPatientBundle,
+    refreshPatientResources,
     
     // Patient Context
     setCurrentPatient,

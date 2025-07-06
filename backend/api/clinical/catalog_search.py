@@ -50,7 +50,11 @@ async def search_medications(
         
         medications = []
         for row in result:
-            resource = json.loads(row.resource)
+            # Handle both JSON string and dict formats
+            if isinstance(row.resource, str):
+                resource = json.loads(row.resource)
+            else:
+                resource = row.resource
             
             # Extract medication information
             med_info = {
@@ -83,6 +87,44 @@ async def search_medications(
                     med_info["form"] = form_data["coding"][0].get("display")
             
             medications.append(med_info)
+        
+        # Add common medications catalog if we don't have many results
+        seen_codes = set(med["code"] for med in medications if med["code"])
+        if len(medications) < limit:
+            common_medications = [
+                {"code": "197361", "name": "Lisinopril 10mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "198013", "name": "Metformin 500mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "259255", "name": "Atorvastatin 20mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "433800", "name": "Amlodipine 5mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "577156", "name": "Hydrochlorothiazide 25mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "206765", "name": "Omeprazole 20mg capsule", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "capsule"},
+                {"code": "152923", "name": "Acetaminophen 325mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "849574", "name": "Ibuprofen 200mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "308136", "name": "Aspirin 81mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "312961", "name": "Gabapentin 300mg capsule", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "capsule"},
+                {"code": "104894", "name": "Sertraline 50mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "1292737", "name": "Rosuvastatin 10mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "139825", "name": "Escitalopram 10mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "892255", "name": "Trazodone 50mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"},
+                {"code": "150690", "name": "Furosemide 20mg tablet", "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "form": "tablet"}
+            ]
+            
+            # Add matching common medications
+            for med in common_medications:
+                if (query.lower() in med["name"].lower() or 
+                    query.lower() in med["code"].lower()) and \
+                   med["code"] not in seen_codes and \
+                   len(medications) < limit:
+                    medications.append({
+                        "id": f"catalog-{med['code']}",
+                        "resourceType": "Medication",
+                        "name": med["name"],
+                        "code": med["code"],
+                        "system": med["system"],
+                        "form": med["form"],
+                        "status": "active",
+                        "source": "catalog"
+                    })
         
         return {
             "total": len(medications),
@@ -243,6 +285,103 @@ async def search_imaging_procedures(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error searching imaging procedures: {str(e)}")
 
+@router.get("/conditions/search")
+async def search_conditions(
+    query: str = Query(..., min_length=2, description="Search query"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search for conditions/problems using both live FHIR Condition resources
+    and standard condition catalogs (ICD-10, SNOMED).
+    Returns conditions matching the search query.
+    """
+    try:
+        # Search in live FHIR Condition resources first
+        sql = text("""
+            SELECT DISTINCT 
+                resource->'code'->'coding'->0->>'code' as code,
+                resource->'code'->'coding'->0->>'display' as display,
+                resource->'code'->'coding'->0->>'system' as system,
+                resource->'code'->>'text' as text,
+                resource->>'clinicalStatus' as clinical_status
+            FROM fhir.resources
+            WHERE resource_type = 'Condition'
+            AND (
+                resource->'code'->'coding'->0->>'display' ILIKE :query
+                OR resource->'code'->>'text' ILIKE :query
+                OR resource->'code'->'coding'->0->>'code' ILIKE :query
+            )
+            LIMIT :limit
+        """)
+        
+        result = await db.execute(sql, {
+            "query": f"%{query}%",
+            "limit": limit
+        })
+        
+        conditions = []
+        seen_codes = set()
+        
+        for row in result:
+            if row.code and row.code not in seen_codes:
+                seen_codes.add(row.code)
+                conditions.append({
+                    "code": row.code,
+                    "display": row.display or row.text or "Unknown condition",
+                    "system": row.system or "http://snomed.info/sct",
+                    "type": "condition",
+                    "source": "patient_data"
+                })
+        
+        # Common conditions catalog with ICD-10 and SNOMED codes
+        common_conditions = [
+            {"code": "E11.9", "display": "Type 2 diabetes mellitus without complications", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "I10", "display": "Essential hypertension", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "E78.5", "display": "Hyperlipidemia", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "J44.1", "display": "Chronic obstructive pulmonary disease with acute exacerbation", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "M25.50", "display": "Pain in unspecified joint", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "R06.02", "display": "Shortness of breath", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "R50.9", "display": "Fever", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "K59.00", "display": "Constipation", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "R51", "display": "Headache", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "M79.3", "display": "Panniculitis", "system": "http://hl7.org/fhir/sid/icd-10-cm"},
+            {"code": "73211009", "display": "Diabetes mellitus", "system": "http://snomed.info/sct"},
+            {"code": "38341003", "display": "Hypertensive disorder", "system": "http://snomed.info/sct"},
+            {"code": "55822004", "display": "Hyperlipidemia", "system": "http://snomed.info/sct"},
+            {"code": "13645005", "display": "Chronic obstructive lung disease", "system": "http://snomed.info/sct"},
+            {"code": "22253000", "display": "Pain", "system": "http://snomed.info/sct"},
+            {"code": "267036007", "display": "Dyspnea", "system": "http://snomed.info/sct"},
+            {"code": "386661006", "display": "Fever", "system": "http://snomed.info/sct"},
+            {"code": "14760008", "display": "Constipation", "system": "http://snomed.info/sct"},
+            {"code": "25064002", "display": "Headache", "system": "http://snomed.info/sct"},
+            {"code": "271737000", "display": "Anemia", "system": "http://snomed.info/sct"},
+            {"code": "44054006", "display": "Type 2 diabetes mellitus", "system": "http://snomed.info/sct"},
+            {"code": "59621000", "display": "Essential hypertension", "system": "http://snomed.info/sct"},
+            {"code": "84757009", "display": "Epilepsy", "system": "http://snomed.info/sct"},
+            {"code": "195967001", "display": "Asthma", "system": "http://snomed.info/sct"},
+            {"code": "35489007", "display": "Depressive disorder", "system": "http://snomed.info/sct"}
+        ]
+        
+        # Add common conditions that match the search query
+        for condition in common_conditions:
+            if (query.lower() in condition["display"].lower() or 
+                query.lower() in condition["code"].lower()) and \
+               condition["code"] not in seen_codes:
+                conditions.append({
+                    **condition, 
+                    "type": "condition",
+                    "source": "catalog"
+                })
+        
+        return {
+            "total": len(conditions),
+            "conditions": conditions[:limit]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error searching conditions: {str(e)}")
+
 @router.get("/all/search")
 async def search_all_catalogs(
     query: str = Query(..., min_length=2, description="Search query"),
@@ -250,13 +389,14 @@ async def search_all_catalogs(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Search across all clinical catalogs (medications, lab tests, imaging).
+    Search across all clinical catalogs (medications, lab tests, imaging, conditions).
     Returns results from all categories.
     """
     results = {
         "medications": [],
         "labTests": [],
-        "imagingProcedures": []
+        "imagingProcedures": [],
+        "conditions": []
     }
     
     # Search medications
@@ -280,8 +420,15 @@ async def search_all_catalogs(
     except:
         pass
     
+    # Search conditions
+    try:
+        condition_result = await search_conditions(query, limit, db)
+        results["conditions"] = condition_result["conditions"]
+    except:
+        pass
+    
     return {
         "query": query,
         "results": results,
-        "total": len(results["medications"]) + len(results["labTests"]) + len(results["imagingProcedures"])
+        "total": len(results["medications"]) + len(results["labTests"]) + len(results["imagingProcedures"]) + len(results["conditions"])
     }
