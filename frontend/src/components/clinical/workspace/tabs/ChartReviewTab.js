@@ -66,7 +66,10 @@ import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
 import EditProblemDialog from '../dialogs/EditProblemDialog';
 import PrescribeMedicationDialog from '../dialogs/PrescribeMedicationDialog';
+import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
+import EditAllergyDialog from '../dialogs/EditAllergyDialog';
+import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import fhirService from '../../../../services/fhirService';
 
 // Problem List Component
@@ -292,15 +295,116 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
 };
 
 // Medication List Component
-const MedicationList = ({ medications, patientId, onPrescribeMedication }) => {
+const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
+  const [selectedMedication, setSelectedMedication] = useState(null);
   
   // Resolve medication references
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
+
+  const handleEditMedication = (medication) => {
+    setSelectedMedication(medication);
+    setShowEditDialog(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setShowEditDialog(false);
+    setSelectedMedication(null);
+  };
+
+  const handleSaveMedication = async (updatedMedication) => {
+    try {
+      await onEditMedication(updatedMedication);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error updating medication:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteMedication = async (medicationId) => {
+    try {
+      await onDeleteMedication(medicationId);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error deleting medication:', error);
+      throw error;
+    }
+  };
+
+  const handleReconciliation = async (reconciliationChanges) => {
+    try {
+      console.log('Applying medication reconciliation changes:', reconciliationChanges);
+      
+      // Apply each reconciliation change
+      for (const change of reconciliationChanges) {
+        if (change.type === 'add') {
+          // Create new medication request from external source
+          const newMedRequest = {
+            resourceType: 'MedicationRequest',
+            status: 'active',
+            intent: 'order',
+            priority: 'routine',
+            medicationCodeableConcept: {
+              text: change.medication.name
+            },
+            subject: {
+              reference: `Patient/${patientId}`
+            },
+            authoredOn: new Date().toISOString(),
+            dosageInstruction: [{
+              text: change.medication.dosage
+            }],
+            note: [{
+              text: `Added via medication reconciliation from ${change.source}`
+            }]
+          };
+          await onPrescribeMedication(newMedRequest);
+        } else if (change.type === 'discontinue') {
+          // Mark medication as stopped
+          const updatedMed = {
+            ...change.medication,
+            status: 'stopped',
+            note: [
+              ...(change.medication.note || []),
+              {
+                text: `Discontinued via medication reconciliation from ${change.source}`,
+                time: new Date().toISOString()
+              }
+            ]
+          };
+          await onEditMedication(updatedMed);
+        } else if (change.type === 'modify') {
+          // Update dosage
+          const updatedMed = {
+            ...change.medication,
+            dosageInstruction: [{
+              text: change.newDosage
+            }],
+            note: [
+              ...(change.medication.note || []),
+              {
+                text: `Dosage updated via medication reconciliation from ${change.source}`,
+                time: new Date().toISOString()
+              }
+            ]
+          };
+          await onEditMedication(updatedMed);
+        }
+      }
+      
+      console.log('Medication reconciliation completed successfully');
+    } catch (error) {
+      console.error('Error during medication reconciliation:', error);
+      throw error;
+    }
+  };
 
   const filteredMedications = medications.filter(med => {
     return filter === 'all' || med.status === filter;
@@ -348,7 +452,10 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication }) => {
               </IconButton>
             </Tooltip>
             <Tooltip title="Medication Reconciliation">
-              <IconButton size="small" disabled>
+              <IconButton 
+                size="small" 
+                onClick={() => setShowReconciliationDialog(true)}
+              >
                 <PharmacyIcon />
               </IconButton>
             </Tooltip>
@@ -413,9 +520,15 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication }) => {
                   }
                 />
                 <ListItemSecondaryAction>
-                  <IconButton edge="end" size="small">
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Edit Medication">
+                    <IconButton 
+                      edge="end" 
+                      size="small"
+                      onClick={() => handleEditMedication(med)}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </ListItemSecondaryAction>
               </ListItem>
             ))
@@ -429,21 +542,70 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication }) => {
         onPrescribe={onPrescribeMedication}
         patientId={patientId}
       />
+      
+      <EditMedicationDialog
+        open={showEditDialog}
+        onClose={handleCloseEditDialog}
+        onSave={handleSaveMedication}
+        onDelete={handleDeleteMedication}
+        medicationRequest={selectedMedication}
+        patientId={patientId}
+      />
+      
+      <MedicationReconciliationDialog
+        open={showReconciliationDialog}
+        onClose={() => setShowReconciliationDialog(false)}
+        patientId={patientId}
+        currentMedications={medications}
+        onReconcile={handleReconciliation}
+      />
     </Card>
   );
 };
 
 // Allergy List Component
-const AllergyList = ({ allergies, patientId, onAddAllergy }) => {
+const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedAllergy, setSelectedAllergy] = useState(null);
 
   const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
       case 'high': return 'error';
       case 'low': return 'warning';
       default: return 'info';
+    }
+  };
+
+  const handleEditAllergy = (allergy) => {
+    setSelectedAllergy(allergy);
+    setShowEditDialog(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setShowEditDialog(false);
+    setSelectedAllergy(null);
+  };
+
+  const handleSaveAllergy = async (updatedAllergy) => {
+    try {
+      await onEditAllergy(updatedAllergy);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error updating allergy:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteAllergy = async (allergyId) => {
+    try {
+      await onDeleteAllergy(allergyId);
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Error deleting allergy:', error);
+      throw error;
     }
   };
 
@@ -523,6 +685,17 @@ const AllergyList = ({ allergies, patientId, onAddAllergy }) => {
                     </Box>
                   }
                 />
+                <ListItemSecondaryAction>
+                  <Tooltip title="Edit Allergy">
+                    <IconButton 
+                      edge="end" 
+                      size="small"
+                      onClick={() => handleEditAllergy(allergy)}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </ListItemSecondaryAction>
               </ListItem>
             ))
           )}
@@ -533,6 +706,15 @@ const AllergyList = ({ allergies, patientId, onAddAllergy }) => {
         open={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         onAdd={onAddAllergy}
+        patientId={patientId}
+      />
+      
+      <EditAllergyDialog
+        open={showEditDialog}
+        onClose={handleCloseEditDialog}
+        onSave={handleSaveAllergy}
+        onDelete={handleDeleteAllergy}
+        allergyIntolerance={selectedAllergy}
         patientId={patientId}
       />
     </Card>
@@ -741,6 +923,126 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  const handleEditMedication = async (updatedMedicationRequest) => {
+    try {
+      console.log('Updating medication:', updatedMedicationRequest);
+      const result = await fhirService.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
+      console.log('Medication updated successfully:', result);
+      
+      // Refresh the patient resources to show the updated medication
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Medication updated successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating medication:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to update medication: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteMedication = async (medicationId) => {
+    try {
+      console.log('Deleting medication:', medicationId);
+      await fhirService.deleteMedicationRequest(medicationId);
+      console.log('Medication deleted successfully');
+      
+      // Refresh the patient resources to remove the deleted medication
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Medication deleted successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting medication:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to delete medication: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleEditAllergy = async (updatedAllergyIntolerance) => {
+    try {
+      console.log('Updating allergy:', updatedAllergyIntolerance);
+      const result = await fhirService.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
+      console.log('Allergy updated successfully:', result);
+      
+      // Refresh the patient resources to show the updated allergy
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Allergy updated successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating allergy:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to update allergy: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteAllergy = async (allergyId) => {
+    try {
+      console.log('Deleting allergy:', allergyId);
+      await fhirService.deleteAllergyIntolerance(allergyId);
+      console.log('Allergy deleted successfully');
+      
+      // Refresh the patient resources to remove the deleted allergy
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Optionally show a success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Allergy deleted successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting allergy:', error);
+      
+      // Show error message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: `Failed to delete allergy: ${error.message}`
+        });
+      }
+      throw error;
+    }
+  };
+
   // Get resources
   const conditions = getPatientResources(patientId, 'Condition') || [];
   const medications = getPatientResources(patientId, 'MedicationRequest') || [];
@@ -772,12 +1074,24 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Medications */}
         <Grid item xs={12} lg={6}>
-          <MedicationList medications={medications} patientId={patientId} onPrescribeMedication={handlePrescribeMedication} />
+          <MedicationList 
+            medications={medications} 
+            patientId={patientId} 
+            onPrescribeMedication={handlePrescribeMedication}
+            onEditMedication={handleEditMedication}
+            onDeleteMedication={handleDeleteMedication}
+          />
         </Grid>
 
         {/* Allergies */}
         <Grid item xs={12} lg={6}>
-          <AllergyList allergies={allergies} patientId={patientId} onAddAllergy={handleAddAllergy} />
+          <AllergyList 
+            allergies={allergies} 
+            patientId={patientId} 
+            onAddAllergy={handleAddAllergy}
+            onEditAllergy={handleEditAllergy}
+            onDeleteAllergy={handleDeleteAllergy}
+          />
         </Grid>
 
         {/* Social History */}

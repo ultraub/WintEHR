@@ -62,12 +62,15 @@ cd frontend && npm install  # Fix missing deps
 
 ## 📍 Current State
 
-- **Frontend**: 20+ FHIR-native components in `/src/components/clinical/`
-- **Backend**: FHIR R4 API at `/fhir/R4/`, data in `fhir` schema
-- **Resources**: 20,115 Synthea FHIR resources (10 patients) with full Medication support
-- **FHIR Support**: Added Medication and Provenance resources to SUPPORTED_RESOURCES
-- **Import System**: Unified Synthea import with validation modes for performance vs accuracy
-- **Clinical Workspace**: NEW tab-based EMR interface (ClinicalWorkspaceV3) with 8 comprehensive tabs
+- **Frontend**: 20+ FHIR-native components with **FULL CRUD OPERATIONS** 
+- **Backend**: Complete FHIR R4 API with CREATE/READ/UPDATE/DELETE endpoints
+- **FHIR Service**: Real-time database operations via `fhirService.js`
+- **Search Integration**: Live search across conditions, medications, allergies, lab tests
+- **Clinical Workspace**: **FULLY FUNCTIONAL** EMR with real data persistence
+- **API Endpoints**: 
+  - FHIR CRUD: `/fhir/R4/{resourceType}/` 
+  - Search: `/api/emr/clinical/catalog/`
+- **Resources**: 20,115 Synthea FHIR resources (10 patients) with full support
 
 ## 🔧 Common Tasks
 
@@ -97,6 +100,39 @@ import { Warning as WarningIcon } from '@mui/icons-material';
 import { Warning as WarningIcon } from '@mui/material';
 ```
 
+### Real FHIR Operations
+```javascript
+// ✅ CORRECT - Use fhirService for all operations
+import fhirService from '../services/fhirService';
+
+// Create new condition
+const condition = await fhirService.createCondition(conditionData);
+
+// Update existing condition  
+const updated = await fhirService.updateCondition(id, updatedData);
+
+// Delete condition (soft delete)
+await fhirService.deleteCondition(id);
+
+// Automatically refreshes UI via context
+await fhirService.refreshPatientResources(patientId);
+```
+
+### Search Integration
+```javascript
+// ✅ CORRECT - Use searchService for catalog searches
+import { searchService } from '../services/searchService';
+
+// Search conditions with live results
+const conditions = await searchService.searchConditions('diabetes', 20);
+
+// Search medications with catalog fallback
+const medications = await searchService.searchMedications('lisinopril', 10);
+
+// Universal search across all catalogs
+const results = await searchService.searchAll('heart', 5);
+```
+
 ### Medication Resolution
 ```javascript
 // ✅ CORRECT - Use useMedicationResolver hook
@@ -123,14 +159,30 @@ const { getMedicationDisplay } = useMedicationResolver(medications);
 
 ## 📁 Key Files
 
+### Frontend Core
+- **FHIR Service**: `/src/services/fhirService.js` - Real FHIR CRUD operations
+- **Search Service**: `/src/services/searchService.js` - Clinical catalog search
+- **Context**: `/src/contexts/FHIRResourceContext.js` - Auto-refresh & caching
 - **Hooks**: `/src/hooks/useFHIRResources.js`, `/src/hooks/useMedicationResolver.js`
-- **Context**: `/src/contexts/FHIRResourceContext.js`
-- **Components**: `/src/components/clinical/`
+
+### Clinical Components  
 - **Workspace V3**: `/src/components/clinical/ClinicalWorkspaceV3.js`
-- **Workspace Tabs**: `/src/components/clinical/workspace/tabs/`
+- **Chart Review**: `/src/components/clinical/workspace/tabs/ChartReviewTab.js` 
+- **Dialogs**: `/src/components/clinical/workspace/dialogs/`
+  - `AddProblemDialog.js` - Create conditions with search
+  - `EditProblemDialog.js` - Edit/delete conditions  
+  - `PrescribeMedicationDialog.js` - Create medication requests
+  - `AddAllergyDialog.js` - Create allergy intolerances
+
+### Backend API
+- **FHIR Router**: `/backend/api/fhir/fhir_router.py` - Full CRUD operations
+- **Clinical Search**: `/backend/api/clinical/catalog_search.py` - Search endpoints
+- **EMR Router**: `/backend/emr_api/clinical.py` - Extended clinical tools
+
+### Documentation
 - **Error Patterns**: `PROJECT_INTEGRITY_GUIDE.md`
 - **API Reference**: `docs/API_ENDPOINTS.md`
-- **Workspace Plan**: `frontend/src/components/clinical/workspace/WORKSPACE_REDESIGN_PLAN.md`
+- **Button Integration**: `docs/CLINICAL_WORKSPACE_BUTTON_INTEGRATION_PLAN.md`
 
 ## 🧪 Testing & Data Management
 
@@ -154,8 +206,9 @@ python scripts/synthea_master.py full --count 50 --validation-mode strict --incl
 # Debug data issues
 - Check FHIR resource endpoints: http://localhost:8000/fhir/R4/Patient
 - Verify resource counts: http://localhost:8000/fhir/R4/Medication
+- Test search endpoints: http://localhost:8000/api/emr/clinical/catalog/conditions/search?query=diabetes
+- Test CRUD operations: POST/PUT/DELETE /fhir/R4/Condition/{id}
 - Review medication references resolve correctly
-- Add console.log to see actual data structure
 ```
 
 ## 📋 Session Checklist
