@@ -12,7 +12,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import exc
 
-from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location
+from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location
+from models.fhir_resource import FHIRResource, Condition
+from models.clinical.orders import MedicationOrder as Medication
 from .converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir, 
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,

@@ -451,6 +451,12 @@ generate.demographics.default_state = Massachusetts
             self.stats['import_stats'] = stats
             self.stats['total_resources'] = stats['resources_imported']
             
+            # Remind about database initialization
+            if stats['resources_imported'] > 0:
+                self.log("\n⚠️  IMPORTANT: Run database initialization to fix references and search parameters:", "WARN")
+                self.log("  docker exec emr-backend python scripts/init_database.py", "INFO")
+                self.log("  or: cd backend && python scripts/init_database.py", "INFO")
+            
             return stats['resources_imported'] > 0
             
         except Exception as e:

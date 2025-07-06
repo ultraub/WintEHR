@@ -46,7 +46,9 @@ services:
         echo 'Waiting for database...' &&
         sleep 5 &&
         cd /app &&
-        echo 'Starting server without migrations' &&
+        echo 'Running database initialization...' &&
+        python scripts/init_database.py || echo 'Database init failed, continuing...' &&
+        echo 'Starting server...' &&
         uvicorn main:app --host 0.0.0.0 --port 8000 --reload
       "
 

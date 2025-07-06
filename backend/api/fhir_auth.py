@@ -18,8 +18,8 @@ import json
 from database import get_db_session as get_db
 from models.synthea_models import Provider, Organization
 from models.session import UserSession, PatientProviderAssignment
-from .fhir.converters.person import provider_to_person, add_authentication_extensions
-from .fhir.converters.practitioner import provider_to_practitioner, create_practitioner_role
+from .fhir.converter_modules.person import provider_to_person, add_authentication_extensions
+from .fhir.converter_modules.practitioner import provider_to_practitioner, create_practitioner_role
 from .fhir_jwt import (
     create_fhir_access_token, 
     create_fhir_refresh_token, 

@@ -5,63 +5,24 @@ Converts between database models and FHIR resources
 
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from models.synthea_models import Patient, Encounter, Observation, Condition, Medication, Provider, Organization, Location, Allergy, Immunization, Procedure, CarePlan, Device, DiagnosticReport, ImagingStudy
+from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location, Device, DiagnosticReport, ImagingStudy
+from models.fhir_resource import FHIRResource, Condition, AllergyIntolerance as Allergy, Immunization, Procedure, CarePlan
+from models.clinical.orders import MedicationOrder as Medication
 from models.clinical.appointments import Appointment, AppointmentParticipant
-from .converters.appointment import appointment_to_fhir, fhir_to_appointment
-from .converters.audit_event import audit_log_to_fhir, create_audit_event
-from .converters.person import provider_to_person, create_person_from_user_data, add_authentication_extensions
-from .converters.practitioner import provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
+from .converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
+from .converter_modules.audit_event import audit_log_to_fhir, create_audit_event
+from .converter_modules.person import provider_to_person, create_person_from_user_data, add_authentication_extensions
+from .converter_modules.practitioner import provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
+from .converter_modules.extended_converters import (
+    document_reference_to_fhir, medication_to_fhir, medication_administration_to_fhir,
+    care_team_to_fhir, practitioner_role_to_fhir, coverage_to_fhir,
+    claim_to_fhir, explanation_of_benefit_to_fhir, supply_delivery_to_fhir,
+    provenance_to_fhir
+)
 
 
-# Helper functions for FHIR resource creation
-def create_reference(resource_type: str, resource_id: str, display: str = None) -> Dict[str, Any]:
-    """Create a properly formatted FHIR reference"""
-    reference = {
-        "reference": f"{resource_type}/{resource_id}"
-    }
-    if display:
-        reference["display"] = display
-    return reference
-
-
-def create_codeable_concept(
-    system: str = None, 
-    code: str = None, 
-    display: str = None, 
-    text: str = None,
-    additional_codings: List[Dict[str, str]] = None
-) -> Dict[str, Any]:
-    """Create a properly formatted FHIR CodeableConcept"""
-    concept = {"coding": []}
-    
-    if system and code:
-        coding = {"system": system, "code": code}
-        if display:
-            coding["display"] = display
-        concept["coding"].append(coding)
-    
-    if additional_codings:
-        concept["coding"].extend(additional_codings)
-    
-    if text:
-        concept["text"] = text
-    elif display and not text:
-        concept["text"] = display
-    
-    return concept
-
-
-def create_identifier(system: str, value: str, use: str = None, type_dict: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Create a properly formatted FHIR Identifier"""
-    identifier = {
-        "system": system,
-        "value": value
-    }
-    if use:
-        identifier["use"] = use
-    if type_dict:
-        identifier["type"] = type_dict
-    return identifier
+# Import helper functions
+from .converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
 
 
 def patient_to_fhir(patient: Patient) -> Dict[str, Any]:

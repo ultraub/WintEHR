@@ -61,6 +61,10 @@ for i in {1..30}; do
     fi
 done
 
+# Run database initialization
+echo -e "${BLUE}🔧 Running database initialization...${NC}"
+python scripts/init_database.py >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
+
 cd ..
 
 # Start frontend

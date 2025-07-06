@@ -13,8 +13,8 @@ from models.synthea_models import Provider
 from models.session import UserSession
 from .auth import get_current_provider, ProviderResponse, SessionResponse
 from .fhir_auth import get_current_fhir_provider, FHIRSessionResponse
-from .fhir.converters.person import provider_to_person, add_authentication_extensions
-from .fhir.converters.practitioner import provider_to_practitioner
+from .fhir.converter_modules.person import provider_to_person, add_authentication_extensions
+from .fhir.converter_modules.practitioner import provider_to_practitioner
 
 router = APIRouter(prefix="/api/auth-migration", tags=["auth-migration"])
 
