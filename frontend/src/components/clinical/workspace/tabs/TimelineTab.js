@@ -61,7 +61,11 @@ import {
   Timeline as TimelineIcon,
   Today as TodayIcon,
   DateRange as DateRangeIcon,
-  Event as EventIcon
+  Event as EventIcon,
+  MedicalServices as ProcedureIcon,
+  Description as PlanIcon,
+  Group as TeamIcon,
+  CreditCard as InsuranceIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, subYears, startOfDay, endOfDay } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -71,12 +75,18 @@ import { useNavigate } from 'react-router-dom';
 const eventTypes = {
   'Encounter': { icon: <EncounterIcon />, color: 'primary', label: 'Visit' },
   'MedicationRequest': { icon: <MedicationIcon />, color: 'secondary', label: 'Medication' },
+  'MedicationStatement': { icon: <MedicationIcon />, color: 'secondary', label: 'Medication' },
   'Observation': { icon: <LabIcon />, color: 'info', label: 'Lab Result' },
   'Condition': { icon: <ConditionIcon />, color: 'warning', label: 'Diagnosis' },
   'AllergyIntolerance': { icon: <AllergyIcon />, color: 'error', label: 'Allergy' },
   'Immunization': { icon: <ImmunizationIcon />, color: 'success', label: 'Immunization' },
+  'Procedure': { icon: <ProcedureIcon />, color: 'info', label: 'Procedure' },
+  'DiagnosticReport': { icon: <LabIcon />, color: 'info', label: 'Report' },
   'ImagingStudy': { icon: <ImagingIcon />, color: 'secondary', label: 'Imaging' },
-  'DocumentReference': { icon: <NoteIcon />, color: 'default', label: 'Note' },
+  'DocumentReference': { icon: <NoteIcon />, color: 'inherit', label: 'Note' },
+  'CarePlan': { icon: <PlanIcon />, color: 'primary', label: 'Care Plan' },
+  'CareTeam': { icon: <TeamIcon />, color: 'primary', label: 'Care Team' },
+  'Coverage': { icon: <InsuranceIcon />, color: 'inherit', label: 'Insurance' },
   'Goal': { icon: <GoalIcon />, color: 'primary', label: 'Goal' }
 };
 
@@ -87,6 +97,8 @@ const getEventDate = (event) => {
          event.authoredOn || 
          event.dateTime ||
          event.occurrenceDateTime ||
+         event.performedDateTime ||      // For procedures
+         event.performedPeriod?.start || // For procedures with period
          event.date ||
          event.period?.start ||
          event.recordedDate ||
@@ -102,7 +114,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
   
   const eventType = eventTypes[event.resourceType] || { 
     icon: <EventIcon />, 
-    color: 'default', 
+    color: 'inherit', 
     label: event.resourceType 
   };
   
@@ -208,12 +220,12 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         <TimelineConnector 
           sx={{ 
             visibility: isFirst ? 'hidden' : 'visible',
-            bgcolor: alpha(theme.palette.divider, 0.5)
+            bgcolor: theme.palette.divider ? alpha(theme.palette.divider, 0.5) : 'rgba(0,0,0,0.12)'
           }} 
         />
         <Tooltip title={`View ${eventType.label} details`} placement="left">
           <TimelineDot 
-            color={eventType.color} 
+            color={eventType.color === 'inherit' ? 'grey' : eventType.color} 
             sx={{ 
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -230,7 +242,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         <TimelineConnector 
           sx={{ 
             visibility: isLast ? 'hidden' : 'visible',
-            bgcolor: alpha(theme.palette.divider, 0.5)
+            bgcolor: theme.palette.divider ? alpha(theme.palette.divider, 0.5) : 'rgba(0,0,0,0.12)'
           }} 
         />
       </TimelineSeparator>
@@ -266,7 +278,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
               <Chip 
                 label={eventType.label} 
                 size="small" 
-                color={eventType.color}
+                color={eventType.color === 'inherit' ? 'default' : eventType.color}
                 sx={{ height: 20 }}
               />
               {subtitle && (
@@ -301,19 +313,19 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   // Collect all events from different resource types
   const collectAllEvents = () => {
     const events = [];
+    const seenIds = new Set(); // Track unique IDs to prevent duplicates
     
     // Add all resource types
     Object.keys(eventTypes).forEach(resourceType => {
       const resources = getPatientResources(patientId, resourceType) || [];
-      events.push(...resources);
+      resources.forEach(resource => {
+        const uniqueKey = `${resource.resourceType}-${resource.id}`;
+        if (!seenIds.has(uniqueKey)) {
+          seenIds.add(uniqueKey);
+          events.push(resource);
+        }
+      });
     });
-
-    // Also add vital signs as separate events
-    const observations = getPatientResources(patientId, 'Observation') || [];
-    const vitalSigns = observations.filter(o => 
-      o.category?.[0]?.coding?.[0]?.code === 'vital-signs'
-    );
-    events.push(...vitalSigns);
 
     return events;
   };
@@ -502,7 +514,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
                       <Checkbox
                         checked={selectedTypes.has(type)}
                         onChange={() => handleTypeToggle(type)}
-                        color={config.color}
+                        color={config.color === 'inherit' ? 'default' : config.color}
                       />
                     }
                     label={
@@ -534,14 +546,14 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             top: 0,
             bottom: 0,
             width: '2px',
-            bgcolor: alpha(theme.palette.divider, 0.3),
+            bgcolor: theme.palette.divider ? alpha(theme.palette.divider, 0.3) : 'rgba(0,0,0,0.08)',
             zIndex: 0
           }
         }}>
           <Timeline position="right">
             {sortedEvents.map((event, index) => (
               <TimelineEvent 
-                key={`${event.resourceType}-${event.id}`} 
+                key={`${event.resourceType}-${event.id}-${index}`} 
                 event={event}
                 isFirst={index === 0}
                 isLast={index === sortedEvents.length - 1}
@@ -552,7 +564,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       ) : (
         // Compact view
         <Stack spacing={1}>
-          {sortedEvents.map((event) => {
+          {sortedEvents.map((event, index) => {
             const eventType = eventTypes[event.resourceType];
             const eventDate = getEventDate(event);
             
@@ -603,14 +615,14 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             
             return (
               <Paper 
-                key={`${event.resourceType}-${event.id}`} 
+                key={`${event.resourceType}-${event.id}-${index}`} 
                 sx={{ 
                   p: 1.5,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   '&:hover': {
                     boxShadow: theme.shadows[2],
-                    bgcolor: alpha(theme.palette.primary.main, 0.02)
+                    bgcolor: theme.palette.primary?.main ? alpha(theme.palette.primary.main, 0.02) : 'rgba(25,118,210,0.02)'
                   }
                 }}
                 onClick={handleNavigate}
@@ -621,11 +633,15 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
                       width: 40,
                       height: 40,
                       borderRadius: '50%',
-                      bgcolor: alpha(theme.palette[eventType?.color || 'default'].main, 0.1),
+                      bgcolor: eventType?.color && eventType.color !== 'inherit' && theme.palette[eventType.color] && theme.palette[eventType.color].main
+                        ? alpha(theme.palette[eventType.color].main, 0.1)
+                        : alpha(theme.palette.grey[300], 0.1),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: theme.palette[eventType?.color || 'default'].main
+                      color: eventType?.color && eventType.color !== 'inherit' && theme.palette[eventType.color] && theme.palette[eventType.color].main
+                        ? theme.palette[eventType.color].main
+                        : theme.palette.grey[700]
                     }}
                   >
                     {eventType?.icon}

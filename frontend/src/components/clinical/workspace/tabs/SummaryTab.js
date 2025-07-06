@@ -74,8 +74,12 @@ const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, on
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: alpha(theme.palette[color].main, 0.1),
-              color: theme.palette[color].main
+              backgroundColor: color && theme.palette[color]?.main 
+                ? alpha(theme.palette[color].main, 0.1)
+                : alpha(theme.palette.primary.main, 0.1),
+              color: color && theme.palette[color]?.main 
+                ? theme.palette[color].main 
+                : theme.palette.primary.main
             }}
           >
             {icon}

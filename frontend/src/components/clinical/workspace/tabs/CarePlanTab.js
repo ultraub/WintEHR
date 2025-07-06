@@ -139,8 +139,12 @@ const GoalCard = ({ goal, onEdit, onViewProgress }) => {
             <Stack direction="row" spacing={2} alignItems="center" mb={2}>
               <Avatar 
                 sx={{ 
-                  bgcolor: alpha(theme.palette[categoryConfig.color].main, 0.1),
-                  color: theme.palette[categoryConfig.color].main 
+                  bgcolor: categoryConfig?.color && theme.palette[categoryConfig.color]?.main
+                    ? alpha(theme.palette[categoryConfig.color].main, 0.1)
+                    : alpha(theme.palette.primary.main, 0.1),
+                  color: categoryConfig?.color && theme.palette[categoryConfig.color]?.main
+                    ? theme.palette[categoryConfig.color].main
+                    : theme.palette.primary.main 
                 }}
               >
                 {categoryConfig.icon}

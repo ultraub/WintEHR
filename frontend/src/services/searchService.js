@@ -147,7 +147,11 @@ class SearchService {
         medications: [],
         labTests: [],
         imagingProcedures: [],
-        conditions: []
+        conditions: [],
+        procedures: [],
+        documentTypes: [],
+        practitioners: [],
+        vaccines: []
       };
     }
 
@@ -166,7 +170,11 @@ class SearchService {
         medications: [],
         labTests: [],
         imagingProcedures: [],
-        conditions: []
+        conditions: [],
+        procedures: [],
+        documentTypes: [],
+        practitioners: [],
+        vaccines: []
       };
       
       this.setCache(cacheKey, results);
@@ -177,8 +185,167 @@ class SearchService {
         medications: [],
         labTests: [],
         imagingProcedures: [],
-        conditions: []
+        conditions: [],
+        procedures: [],
+        documentTypes: [],
+        practitioners: [],
+        vaccines: []
       };
+    }
+  }
+
+  /**
+   * Search for procedures
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of procedure objects
+   */
+  async searchProcedures(query, limit = 20) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const cacheKey = `procedures:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await fhirClient.get(`${this.baseUrl}/procedures/search`, {
+        params: { query, limit }
+      });
+      
+      const procedures = response.data?.procedures || [];
+      this.setCache(cacheKey, procedures);
+      return procedures;
+    } catch (error) {
+      console.error('Error searching procedures:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for document types
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of document type objects
+   */
+  async searchDocumentTypes(query, limit = 20) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const cacheKey = `documentTypes:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await fhirClient.get(`${this.baseUrl}/document-types/search`, {
+        params: { query, limit }
+      });
+      
+      const documentTypes = response.data?.documentTypes || [];
+      this.setCache(cacheKey, documentTypes);
+      return documentTypes;
+    } catch (error) {
+      console.error('Error searching document types:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for practitioners/providers
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of practitioner objects
+   */
+  async searchPractitioners(query, limit = 20) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const cacheKey = `practitioners:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await fhirClient.get(`${this.baseUrl}/practitioners/search`, {
+        params: { query, limit }
+      });
+      
+      const practitioners = response.data?.practitioners || [];
+      this.setCache(cacheKey, practitioners);
+      return practitioners;
+    } catch (error) {
+      console.error('Error searching practitioners:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for organizations/facilities
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of organization objects
+   */
+  async searchOrganizations(query, limit = 20) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const cacheKey = `organizations:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await fhirClient.get(`${this.baseUrl}/organizations/search`, {
+        params: { query, limit }
+      });
+      
+      const organizations = response.data?.organizations || [];
+      this.setCache(cacheKey, organizations);
+      return organizations;
+    } catch (error) {
+      console.error('Error searching organizations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search for vaccine codes
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of vaccine objects
+   */
+  async searchVaccines(query, limit = 20) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    const cacheKey = `vaccines:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await fhirClient.get(`${this.baseUrl}/vaccines/search`, {
+        params: { query, limit }
+      });
+      
+      const vaccines = response.data?.vaccines || [];
+      this.setCache(cacheKey, vaccines);
+      return vaccines;
+    } catch (error) {
+      console.error('Error searching vaccines:', error);
+      return [];
     }
   }
 
@@ -322,6 +489,64 @@ class SearchService {
       display: labTest.display || 'Unknown test',
       system: labTest.system || 'http://loinc.org',
       type: 'laboratory'
+    };
+  }
+
+  /**
+   * Format procedure for display
+   * @param {Object} procedure - Procedure object from API
+   * @returns {Object} Formatted procedure
+   */
+  formatProcedure(procedure) {
+    return {
+      code: procedure.code,
+      display: procedure.display || 'Unknown procedure',
+      system: procedure.system || 'http://snomed.info/sct',
+      category: procedure.category || 'procedure'
+    };
+  }
+
+  /**
+   * Format document type for display
+   * @param {Object} documentType - Document type object from API
+   * @returns {Object} Formatted document type
+   */
+  formatDocumentType(documentType) {
+    return {
+      code: documentType.code,
+      display: documentType.display || 'Unknown document type',
+      system: documentType.system || 'http://loinc.org',
+      category: 'clinical-document'
+    };
+  }
+
+  /**
+   * Format practitioner for display
+   * @param {Object} practitioner - Practitioner object from API
+   * @returns {Object} Formatted practitioner
+   */
+  formatPractitioner(practitioner) {
+    return {
+      id: practitioner.id,
+      display: practitioner.name || practitioner.display || 'Unknown practitioner',
+      specialty: practitioner.specialty,
+      organization: practitioner.organization,
+      active: practitioner.active !== false
+    };
+  }
+
+  /**
+   * Format vaccine for display
+   * @param {Object} vaccine - Vaccine object from API
+   * @returns {Object} Formatted vaccine
+   */
+  formatVaccine(vaccine) {
+    return {
+      code: vaccine.code,
+      display: vaccine.display || 'Unknown vaccine',
+      system: vaccine.system || 'http://hl7.org/fhir/sid/cvx',
+      manufacturer: vaccine.manufacturer,
+      type: 'vaccine'
     };
   }
 }

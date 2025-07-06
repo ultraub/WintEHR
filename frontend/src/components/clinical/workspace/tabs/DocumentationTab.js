@@ -81,11 +81,16 @@ import { useNavigate } from 'react-router-dom';
 
 // Note type configuration
 const noteTypes = {
+  // LOINC codes from actual data
+  '34117-2': { icon: <AssessmentIcon />, label: 'History & Physical', color: 'primary' },
+  '51847-2': { icon: <ProgressIcon />, label: 'Evaluation & Plan', color: 'info' },
+  // Common note types
   'progress': { icon: <ProgressIcon />, label: 'Progress Note', color: 'primary' },
   'soap': { icon: <SOAPIcon />, label: 'SOAP Note', color: 'info' },
   'consult': { icon: <ConsultIcon />, label: 'Consultation', color: 'secondary' },
   'discharge': { icon: <DischargeIcon />, label: 'Discharge Summary', color: 'warning' },
   'assessment': { icon: <AssessmentIcon />, label: 'Assessment', color: 'success' },
+  'clinical-note': { icon: <NoteIcon />, label: 'Clinical Note', color: 'primary' },
   'other': { icon: <NoteIcon />, label: 'Other', color: 'default' }
 };
 
@@ -99,6 +104,12 @@ const NoteCard = ({ note, onEdit, onView }) => {
   const author = note.author?.[0]?.display || 'Unknown';
   const date = note.date || note.meta?.lastUpdated;
   const isSigned = note.status === 'final';
+  
+  // Ensure typeConfig has required properties
+  if (!typeConfig || !typeConfig.color) {
+    console.error('Invalid typeConfig:', typeConfig, 'for noteType:', noteType);
+    return null;
+  }
 
   return (
     <Card sx={{ mb: 2 }}>
@@ -106,7 +117,11 @@ const NoteCard = ({ note, onEdit, onView }) => {
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box sx={{ flex: 1 }}>
             <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-              <Box sx={{ color: typeConfig.color === 'default' ? theme.palette.text.secondary : theme.palette[typeConfig.color].main }}>
+              <Box sx={{ 
+                color: typeConfig.color === 'default' 
+                  ? theme.palette.text.secondary 
+                  : theme.palette[typeConfig.color]?.main || theme.palette.text.primary 
+              }}>
                 {typeConfig.icon}
               </Box>
               <Typography variant="h6">

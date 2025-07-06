@@ -404,6 +404,29 @@ class FHIRClient {
   async getDocumentReference(documentId) {
     return this.read('DocumentReference', documentId);
   }
+
+  /**
+   * Procedure-specific convenience methods
+   */
+  async getProcedures(patientId, count = 1000) {
+    return this.search('Procedure', {
+      patient: patientId,
+      _sort: '-performed-date',
+      _count: count  // Default to 1000 to ensure we get all procedures
+    });
+  }
+
+  async getProcedure(procedureId) {
+    return this.read('Procedure', procedureId);
+  }
+
+  async createProcedure(procedure) {
+    return this.create('Procedure', procedure);
+  }
+
+  async updateProcedure(id, procedure) {
+    return this.update('Procedure', id, procedure);
+  }
 }
 
 // Export singleton instance for common use

@@ -80,6 +80,7 @@ const getResultStatus = (observation) => {
   
   switch (observation.status) {
     case 'final':
+      // First check for explicit interpretation
       const interpretation = observation.interpretation?.[0]?.coding?.[0]?.code;
       if (interpretation === 'H' || interpretation === 'HH') {
         return { icon: <HighIcon />, color: 'error', label: 'High' };
@@ -87,8 +88,26 @@ const getResultStatus = (observation) => {
         return { icon: <LowIcon />, color: 'error', label: 'Low' };
       } else if (interpretation === 'A' || interpretation === 'AA') {
         return { icon: <AbnormalIcon />, color: 'warning', label: 'Abnormal' };
+      } else if (interpretation === 'N') {
+        return { icon: <NormalIcon />, color: 'success', label: 'Normal' };
       }
-      return { icon: <NormalIcon />, color: 'success', label: 'Normal' };
+      
+      // If no interpretation, calculate based on reference range
+      if (observation.valueQuantity?.value && observation.referenceRange?.[0]) {
+        const value = observation.valueQuantity.value;
+        const range = observation.referenceRange[0];
+        
+        if (range.low?.value && value < range.low.value) {
+          return { icon: <LowIcon />, color: 'error', label: 'Low' };
+        } else if (range.high?.value && value > range.high.value) {
+          return { icon: <HighIcon />, color: 'error', label: 'High' };
+        } else if (range.low?.value && range.high?.value) {
+          return { icon: <NormalIcon />, color: 'success', label: 'Normal' };
+        }
+      }
+      
+      // Only show "Normal" if we can't determine the status
+      return { icon: <NormalRangeIcon />, color: 'default', label: '' };
     case 'preliminary':
       return { icon: <PendingIcon />, color: 'warning', label: 'Preliminary' };
     case 'entered-in-error':
@@ -105,6 +124,25 @@ const ResultRow = ({ observation, onClick, selected }) => {
   const date = observation.effectiveDateTime || observation.issued;
   
   const getValue = () => {
+    // Handle blood pressure with components
+    if (observation.component && observation.component.length > 0) {
+      const systolic = observation.component.find(c => 
+        c.code?.coding?.some(coding => 
+          coding.code === '8480-6' || coding.display?.toLowerCase().includes('systolic')
+        )
+      );
+      const diastolic = observation.component.find(c => 
+        c.code?.coding?.some(coding => 
+          coding.code === '8462-4' || coding.display?.toLowerCase().includes('diastolic')
+        )
+      );
+      
+      if (systolic?.valueQuantity?.value && diastolic?.valueQuantity?.value) {
+        return `${systolic.valueQuantity.value}/${diastolic.valueQuantity.value} ${systolic.valueQuantity.unit || 'mmHg'}`;
+      }
+    }
+    
+    // Handle regular values
     if (observation.valueQuantity) {
       return `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`;
     } else if (observation.valueString) {
@@ -626,22 +664,123 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           ))}
         </Box>
       ) : tabValue === 2 ? (
-        // Vital Signs with Graphs
+        // Vital Signs
         <Box>
           {vitalSigns.length === 0 ? (
             <Alert severity="info">
               No vital signs recorded for this patient
             </Alert>
-          ) : (
+          ) : viewMode === 'trends' ? (
             <VitalsOverview 
               patientId={patientId} 
               vitalsData={vitalSigns}
               compact={false}
             />
+          ) : viewMode === 'table' ? (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Vital Sign</TableCell>
+                    <TableCell>Value</TableCell>
+                    <TableCell>Reference Range</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Date</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sortedResults
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((result) => (
+                      <ResultRow
+                        key={result.id}
+                        observation={result}
+                        onClick={() => {}}
+                        selected={selectedResult?.id === result.id}
+                      />
+                    ))
+                  }
+                </TableBody>
+              </Table>
+              <TablePagination
+                component="div"
+                count={sortedResults.length}
+                page={page}
+                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+              />
+            </TableContainer>
+          ) : (
+            // Card View for vital signs
+            <Box>
+              {sortedResults.map((result) => (
+                <ResultCard
+                  key={result.id}
+                  observation={result}
+                  onClick={() => {}}
+                />
+              ))}
+            </Box>
           )}
         </Box>
+      ) : tabValue === 3 ? (
+        // Diagnostic Reports
+        viewMode === 'table' ? (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Report Type</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Performer</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedResults.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell>
+                      <Typography variant="subtitle2">
+                        {report.code?.text || report.code?.coding?.[0]?.display || 'Diagnostic Report'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={report.status || 'final'} 
+                        size="small"
+                        color={report.status === 'final' ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {report.performer?.[0]?.display || 'Unknown'}
+                    </TableCell>
+                    <TableCell>
+                      {report.effectiveDateTime || report.issued ? 
+                        format(parseISO(report.effectiveDateTime || report.issued), 'MMM d, yyyy') : 
+                        'No date'}
+                    </TableCell>
+                    <TableCell>
+                      <Button size="small" startIcon={<ViewIcon />}>
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Alert severity="info">
+            Trends view is not available for diagnostic reports. Please use table or cards view.
+          </Alert>
+        )
       ) : (
-        // Card View
+        // Default Card View (should not reach here)
         <Box>
           {sortedResults.map((result) => (
             <ResultCard

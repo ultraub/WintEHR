@@ -508,10 +508,49 @@ export function FHIRResourceProvider({ children }) {
     ];
 
     try {
-      const promises = resourceTypes.map(resourceType =>
-        searchResources(resourceType, { patient: patientId, _count: 1000 }, forceRefresh)
-          .catch(err => ({ resourceType, error: err.message, resources: [] }))
-      );
+      const promises = resourceTypes.map(resourceType => {
+        let params = { patient: patientId, _count: 1000 };
+        
+        // Add appropriate sort parameters for each resource type
+        switch (resourceType) {
+          case 'Procedure':
+            params._sort = '-performed-date';
+            break;
+          case 'Observation':
+            params._sort = '-date';
+            break;
+          case 'Encounter':
+            params._sort = '-date';
+            break;
+          case 'MedicationRequest':
+            params._sort = '-authored';
+            break;
+          case 'Condition':
+            params._sort = '-recorded-date';
+            break;
+          case 'DiagnosticReport':
+            params._sort = '-date';
+            break;
+          case 'DocumentReference':
+            params._sort = '-date';
+            break;
+          case 'ImagingStudy':
+            params._sort = '-started';
+            break;
+          case 'AllergyIntolerance':
+            params._sort = '-date';
+            break;
+          case 'Immunization':
+            params._sort = '-date';
+            break;
+          default:
+            // Most resources use -date as default
+            params._sort = '-date';
+        }
+        
+        return searchResources(resourceType, params, forceRefresh)
+          .catch(err => ({ resourceType, error: err.message, resources: [] }));
+      });
 
       const results = await Promise.all(promises);
       const bundle = {};
@@ -594,7 +633,46 @@ export function FHIRResourceProvider({ children }) {
       ];
       
       resourceTypes.forEach(resourceType => {
-        const searchKey = `${resourceType}_${JSON.stringify({patient: patientId})}`;
+        let params = { patient: patientId, _count: 1000 };
+        
+        // Add appropriate sort parameters for each resource type
+        switch (resourceType) {
+          case 'Procedure':
+            params._sort = '-performed-date';
+            break;
+          case 'Observation':
+            params._sort = '-date';
+            break;
+          case 'Encounter':
+            params._sort = '-date';
+            break;
+          case 'MedicationRequest':
+            params._sort = '-authored';
+            break;
+          case 'Condition':
+            params._sort = '-recorded-date';
+            break;
+          case 'DiagnosticReport':
+            params._sort = '-date';
+            break;
+          case 'DocumentReference':
+            params._sort = '-date';
+            break;
+          case 'ImagingStudy':
+            params._sort = '-started';
+            break;
+          case 'AllergyIntolerance':
+            params._sort = '-date';
+            break;
+          case 'Immunization':
+            params._sort = '-date';
+            break;
+          default:
+            // Most resources use -date as default
+            params._sort = '-date';
+        }
+        
+        const searchKey = `${resourceType}_${JSON.stringify(params)}`;
         dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'searches', key: searchKey } });
       });
       

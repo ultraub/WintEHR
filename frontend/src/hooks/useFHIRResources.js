@@ -290,6 +290,336 @@ export function useObservations(patientId, category = null, autoLoad = true) {
 }
 
 /**
+ * Hook for managing document references with document-specific logic
+ */
+export function useDocumentReferences(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'DocumentReference', autoLoad);
+  
+  const documents = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.date || a.created || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.date || b.created || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const documentsByType = useMemo(() => {
+    const grouped = {};
+    documents.forEach(doc => {
+      const type = doc.type?.text || doc.type?.coding?.[0]?.display || 'Unknown';
+      if (!grouped[type]) grouped[type] = [];
+      grouped[type].push(doc);
+    });
+    return grouped;
+  }, [documents]);
+
+  const recentDocuments = useMemo(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return documents.filter(doc => {
+      const docDate = new Date(doc.date || doc.created || doc.meta?.lastUpdated || '1970-01-01');
+      return docDate >= thirtyDaysAgo;
+    });
+  }, [documents]);
+
+  return {
+    ...baseHook,
+    documents,
+    documentsByType,
+    recentDocuments
+  };
+}
+
+/**
+ * Hook for managing care teams with team-specific logic
+ */
+export function useCareTeams(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'CareTeam', autoLoad);
+  
+  const careTeams = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.period?.start || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.period?.start || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const activeCareTeams = useMemo(() => {
+    return careTeams.filter(team => 
+      team.status === 'active' && 
+      (!team.period?.end || new Date(team.period.end) > new Date())
+    );
+  }, [careTeams]);
+
+  const allParticipants = useMemo(() => {
+    const participants = [];
+    activeCareTeams.forEach(team => {
+      if (team.participant) {
+        team.participant.forEach(p => {
+          participants.push({
+            ...p,
+            teamId: team.id,
+            teamName: team.name
+          });
+        });
+      }
+    });
+    return participants;
+  }, [activeCareTeams]);
+
+  return {
+    ...baseHook,
+    careTeams,
+    activeCareTeams,
+    allParticipants
+  };
+}
+
+/**
+ * Hook for managing imaging studies with imaging-specific logic
+ */
+export function useImagingStudies(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'ImagingStudy', autoLoad);
+  
+  const imagingStudies = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.started || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.started || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const studiesByModality = useMemo(() => {
+    const grouped = {};
+    imagingStudies.forEach(study => {
+      const modality = study.modality?.[0]?.display || study.modality?.[0]?.code || 'Unknown';
+      if (!grouped[modality]) grouped[modality] = [];
+      grouped[modality].push(study);
+    });
+    return grouped;
+  }, [imagingStudies]);
+
+  const availableStudies = useMemo(() => {
+    return imagingStudies.filter(study => study.status === 'available');
+  }, [imagingStudies]);
+
+  const recentStudies = useMemo(() => {
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    return imagingStudies.filter(study => {
+      const studyDate = new Date(study.started || study.meta?.lastUpdated || '1970-01-01');
+      return studyDate >= ninetyDaysAgo;
+    });
+  }, [imagingStudies]);
+
+  return {
+    ...baseHook,
+    imagingStudies,
+    studiesByModality,
+    availableStudies,
+    recentStudies
+  };
+}
+
+/**
+ * Hook for managing coverage/insurance with financial logic
+ */
+export function useCoverage(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'Coverage', autoLoad);
+  
+  const coverage = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.period?.start || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.period?.start || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const activeCoverage = useMemo(() => {
+    const now = new Date();
+    return coverage.filter(cov => {
+      if (cov.status !== 'active') return false;
+      
+      // Check if within coverage period
+      if (cov.period) {
+        const start = cov.period.start ? new Date(cov.period.start) : null;
+        const end = cov.period.end ? new Date(cov.period.end) : null;
+        
+        if (start && now < start) return false;
+        if (end && now > end) return false;
+      }
+      
+      return true;
+    });
+  }, [coverage]);
+
+  const primaryCoverage = useMemo(() => {
+    return activeCoverage.find(cov => cov.order === 1) || activeCoverage[0];
+  }, [activeCoverage]);
+
+  const coverageByPayer = useMemo(() => {
+    const grouped = {};
+    coverage.forEach(cov => {
+      const payer = cov.payor?.[0]?.display || 'Unknown Payer';
+      if (!grouped[payer]) grouped[payer] = [];
+      grouped[payer].push(cov);
+    });
+    return grouped;
+  }, [coverage]);
+
+  return {
+    ...baseHook,
+    coverage,
+    activeCoverage,
+    primaryCoverage,
+    coverageByPayer
+  };
+}
+
+/**
+ * Hook for managing procedures with procedure-specific logic
+ */
+export function useProcedures(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'Procedure', autoLoad);
+  
+  const procedures = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.performedDateTime || a.performedPeriod?.start || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.performedDateTime || b.performedPeriod?.start || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const completedProcedures = useMemo(() => {
+    return procedures.filter(proc => proc.status === 'completed');
+  }, [procedures]);
+
+  const proceduresByCategory = useMemo(() => {
+    const grouped = {};
+    procedures.forEach(proc => {
+      const category = proc.category?.text || proc.category?.coding?.[0]?.display || 'Uncategorized';
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(proc);
+    });
+    return grouped;
+  }, [procedures]);
+
+  const recentProcedures = useMemo(() => {
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    return procedures.filter(proc => {
+      const procDate = new Date(proc.performedDateTime || proc.performedPeriod?.start || proc.meta?.lastUpdated || '1970-01-01');
+      return procDate >= ninetyDaysAgo;
+    });
+  }, [procedures]);
+
+  return {
+    ...baseHook,
+    procedures,
+    completedProcedures,
+    proceduresByCategory,
+    recentProcedures
+  };
+}
+
+/**
+ * Hook for managing diagnostic reports with report-specific logic
+ */
+export function useDiagnosticReports(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'DiagnosticReport', autoLoad);
+  
+  const reports = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.effectiveDateTime || a.issued || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.effectiveDateTime || b.issued || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const finalReports = useMemo(() => {
+    return reports.filter(report => report.status === 'final');
+  }, [reports]);
+
+  const reportsByCategory = useMemo(() => {
+    const grouped = {};
+    reports.forEach(report => {
+      const category = report.category?.[0]?.text || report.category?.[0]?.coding?.[0]?.display || 'Uncategorized';
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(report);
+    });
+    return grouped;
+  }, [reports]);
+
+  const recentReports = useMemo(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return reports.filter(report => {
+      const reportDate = new Date(report.effectiveDateTime || report.issued || report.meta?.lastUpdated || '1970-01-01');
+      return reportDate >= thirtyDaysAgo;
+    });
+  }, [reports]);
+
+  return {
+    ...baseHook,
+    reports,
+    finalReports,
+    reportsByCategory,
+    recentReports
+  };
+}
+
+/**
+ * Hook for managing immunizations with vaccination-specific logic
+ */
+export function useImmunizations(patientId, autoLoad = true) {
+  const baseHook = usePatientResourceType(patientId, 'Immunization', autoLoad);
+  
+  const immunizations = useMemo(() => {
+    return baseHook.resources.sort((a, b) => {
+      const dateA = new Date(a.occurrenceDateTime || a.recorded || a.meta?.lastUpdated || '1970-01-01');
+      const dateB = new Date(b.occurrenceDateTime || b.recorded || b.meta?.lastUpdated || '1970-01-01');
+      return dateB - dateA;
+    });
+  }, [baseHook.resources]);
+
+  const completedImmunizations = useMemo(() => {
+    return immunizations.filter(imm => imm.status === 'completed');
+  }, [immunizations]);
+
+  const immunizationsByVaccine = useMemo(() => {
+    const grouped = {};
+    immunizations.forEach(imm => {
+      const vaccine = imm.vaccineCode?.text || imm.vaccineCode?.coding?.[0]?.display || 'Unknown Vaccine';
+      if (!grouped[vaccine]) grouped[vaccine] = [];
+      grouped[vaccine].push(imm);
+    });
+    return grouped;
+  }, [immunizations]);
+
+  const recentImmunizations = useMemo(() => {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    return immunizations.filter(imm => {
+      const immDate = new Date(imm.occurrenceDateTime || imm.recorded || imm.meta?.lastUpdated || '1970-01-01');
+      return immDate >= oneYearAgo;
+    });
+  }, [immunizations]);
+
+  return {
+    ...baseHook,
+    immunizations,
+    completedImmunizations,
+    immunizationsByVaccine,
+    recentImmunizations
+  };
+}
+
+/**
  * Hook for comprehensive patient summary data
  */
 export function usePatientSummary(patientId) {
@@ -299,10 +629,18 @@ export function usePatientSummary(patientId) {
   const medications = useMedications(patientId);
   const observations = useObservations(patientId);
   const allergies = usePatientResourceType(patientId, 'AllergyIntolerance');
-  const procedures = usePatientResourceType(patientId, 'Procedure');
+  const procedures = useProcedures(patientId);
+  const documents = useDocumentReferences(patientId);
+  const careTeams = useCareTeams(patientId);
+  const imaging = useImagingStudies(patientId);
+  const coverage = useCoverage(patientId);
+  const diagnosticReports = useDiagnosticReports(patientId);
+  const immunizations = useImmunizations(patientId);
 
   const loading = encounters.loading || conditions.loading || medications.loading || 
-                 observations.loading || allergies.loading || procedures.loading;
+                 observations.loading || allergies.loading || procedures.loading ||
+                 documents.loading || careTeams.loading || imaging.loading || coverage.loading ||
+                 diagnosticReports.loading || immunizations.loading;
 
   const summary = useMemo(() => {
     if (!patientId || loading) return null;
@@ -334,7 +672,40 @@ export function usePatientSummary(patientId) {
         labs: observations.labResults.length
       },
       allergies: allergies.resources.length,
-      procedures: procedures.resources.length
+      procedures: {
+        total: procedures.procedures.length,
+        completed: procedures.completedProcedures.length,
+        recent: procedures.recentProcedures.length
+      },
+      documents: {
+        total: documents.documents.length,
+        recent: documents.recentDocuments.length
+      },
+      careTeams: {
+        total: careTeams.careTeams.length,
+        active: careTeams.activeCareTeams.length,
+        participants: careTeams.allParticipants.length
+      },
+      imaging: {
+        total: imaging.imagingStudies.length,
+        available: imaging.availableStudies.length,
+        recent: imaging.recentStudies.length
+      },
+      coverage: {
+        total: coverage.coverage.length,
+        active: coverage.activeCoverage.length,
+        primary: coverage.primaryCoverage ? 1 : 0
+      },
+      diagnosticReports: {
+        total: diagnosticReports.reports.length,
+        final: diagnosticReports.finalReports.length,
+        recent: diagnosticReports.recentReports.length
+      },
+      immunizations: {
+        total: immunizations.immunizations.length,
+        completed: immunizations.completedImmunizations.length,
+        recent: immunizations.recentImmunizations.length
+      }
     };
   }, [patientId, loading, currentPatient, encounters, conditions, medications, observations, allergies, procedures]);
 
@@ -348,7 +719,13 @@ export function usePatientSummary(patientId) {
         medications.refresh(),
         observations.refresh(),
         allergies.refresh(),
-        procedures.refresh()
+        procedures.refresh(),
+        documents.refresh(),
+        careTeams.refresh(),
+        imaging.refresh(),
+        coverage.refresh(),
+        diagnosticReports.refresh(),
+        immunizations.refresh()
       ]);
     }
   };
