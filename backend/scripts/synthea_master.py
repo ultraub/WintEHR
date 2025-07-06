@@ -588,7 +588,7 @@ generate.demographics.default_state = Massachusetts
                     value_string=resource_data['gender']
                 )
         
-        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 'MedicationAdministration', 'Procedure', 'DiagnosticReport', 'Immunization', 'AllergyIntolerance']:
+        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 'MedicationAdministration', 'Procedure', 'DiagnosticReport', 'Immunization', 'AllergyIntolerance', 'ImagingStudy']:
             # Patient reference (handle both Patient/ and urn:uuid: formats)
             if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
                 ref = resource_data['subject'].get('reference', '')

@@ -57,6 +57,15 @@ python scripts/init_database.py || echo "⚠️  FHIR table initialization skipp
 echo "Initializing search tables..."
 python scripts/init_search_tables.py || echo "⚠️  Search table initialization skipped"
 
+# Generate DICOM files for existing imaging studies if not already present
+echo "Checking DICOM files for imaging studies..."
+if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "✅ DICOM files already exist"
+else
+    echo "Generating DICOM files for imaging studies..."
+    python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
+fi
+
 # Create necessary directories
 echo "Creating directories..."
 mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs

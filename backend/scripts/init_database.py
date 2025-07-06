@@ -167,7 +167,8 @@ async def ensure_search_parameters(session: AsyncSession):
         ('DiagnosticReport', 'subject'),
         ('DocumentReference', 'subject'),
         ('CarePlan', 'subject'),
-        ('Coverage', 'beneficiary')
+        ('Coverage', 'beneficiary'),
+        ('ImagingStudy', 'subject')
     ]
     
     for resource_type, patient_field in patient_params:
