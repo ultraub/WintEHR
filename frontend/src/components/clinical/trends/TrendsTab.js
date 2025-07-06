@@ -57,7 +57,7 @@ const TrendsTab = () => {
   const fetchVitalsData = async () => {
     setLoading(true);
     try {
-      // Fetch vital signs using FHIR
+      // Fetch ALL vital signs using FHIR (now defaults to 1000 count)
       const result = await fhirClient.getVitalSigns(currentPatient.id);
       
       // Transform FHIR observations to expected format

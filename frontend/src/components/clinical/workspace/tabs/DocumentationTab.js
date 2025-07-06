@@ -106,7 +106,7 @@ const NoteCard = ({ note, onEdit, onView }) => {
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box sx={{ flex: 1 }}>
             <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-              <Box sx={{ color: theme.palette[typeConfig.color].main }}>
+              <Box sx={{ color: typeConfig.color === 'default' ? theme.palette.text.secondary : theme.palette[typeConfig.color].main }}>
                 {typeConfig.icon}
               </Box>
               <Typography variant="h6">

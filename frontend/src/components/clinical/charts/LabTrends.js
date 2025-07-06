@@ -59,7 +59,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
     setError(null);
     
     try {
-      // Fetch lab observations using FHIR
+      // Fetch ALL lab observations using FHIR (now defaults to 1000 count)
       const result = await fhirClient.getLabResults(patientId);
       
       // Transform FHIR observations to expected format

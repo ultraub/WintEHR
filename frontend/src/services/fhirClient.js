@@ -269,25 +269,33 @@ class FHIRClient {
   /**
    * Observation-specific convenience methods
    */
-  async getObservations(patientId, category = null) {
-    const params = { patient: patientId };
+  async getObservations(patientId, category = null, count = 1000) {
+    const params = { 
+      patient: patientId,
+      _count: count,  // Default to 1000 to ensure we get all observations
+      _sort: '-date'  // Sort by date descending
+    };
     if (category) params.category = category;
     return this.search('Observation', params);
   }
 
-  async getVitalSigns(patientId) {
-    return this.getObservations(patientId, 'vital-signs');
+  async getVitalSigns(patientId, count = 1000) {
+    return this.getObservations(patientId, 'vital-signs', count);
   }
 
-  async getLabResults(patientId) {
-    return this.getObservations(patientId, 'laboratory');
+  async getLabResults(patientId, count = 1000) {
+    return this.getObservations(patientId, 'laboratory', count);
   }
 
   /**
    * Medication-specific convenience methods
    */
-  async getMedications(patientId, status = null) {
-    const params = { patient: patientId };
+  async getMedications(patientId, status = null, count = 1000) {
+    const params = { 
+      patient: patientId,
+      _count: count,  // Default to 1000 to ensure we get all medications
+      _sort: '-authoredon'  // Sort by authored date descending
+    };
     if (status) {
       params.status = status;
     }
@@ -297,18 +305,24 @@ class FHIRClient {
   /**
    * Condition-specific convenience methods
    */
-  async getConditions(patientId, clinicalStatus = 'active') {
+  async getConditions(patientId, clinicalStatus = 'active', count = 1000) {
     return this.search('Condition', {
       patient: patientId,
-      'clinical-status': clinicalStatus
+      'clinical-status': clinicalStatus,
+      _count: count,  // Default to 1000 to ensure we get all conditions
+      _sort: '-recorded-date'  // Sort by recorded date descending
     });
   }
 
   /**
    * Encounter-specific convenience methods
    */
-  async getEncounters(patientId, status = null) {
-    const params = { patient: patientId };
+  async getEncounters(patientId, status = null, count = 1000) {
+    const params = { 
+      patient: patientId,
+      _count: count,  // Default to 1000 to ensure we get all encounters
+      _sort: '-date'  // Sort by date descending
+    };
     if (status) params.status = status;
     return this.search('Encounter', params);
   }
@@ -316,9 +330,11 @@ class FHIRClient {
   /**
    * AllergyIntolerance-specific convenience methods
    */
-  async getAllergies(patientId) {
+  async getAllergies(patientId, count = 1000) {
     return this.search('AllergyIntolerance', {
-      patient: patientId
+      patient: patientId,
+      _count: count,  // Default to 1000 to ensure we get all allergies
+      _sort: '-date'  // Sort by date descending
     });
   }
 
@@ -362,15 +378,31 @@ class FHIRClient {
   /**
    * ImagingStudy-specific convenience methods
    */
-  async getImagingStudies(patientId) {
+  async getImagingStudies(patientId, count = 1000) {
     return this.search('ImagingStudy', {
       patient: patientId,
-      _sort: '-started'
+      _sort: '-started',
+      _count: count  // Default to 1000 to ensure we get all imaging studies
     });
   }
 
   async getImagingStudy(studyId) {
     return this.read('ImagingStudy', studyId);
+  }
+
+  /**
+   * DocumentReference-specific convenience methods
+   */
+  async getDocumentReferences(patientId, count = 1000) {
+    return this.search('DocumentReference', {
+      patient: patientId,
+      _sort: '-date',
+      _count: count  // Default to 1000 to ensure we get all documents
+    });
+  }
+
+  async getDocumentReference(documentId) {
+    return this.read('DocumentReference', documentId);
   }
 }
 

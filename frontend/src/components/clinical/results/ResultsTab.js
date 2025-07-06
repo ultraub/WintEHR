@@ -107,7 +107,7 @@ const ResultsTab = () => {
         _include: 'DiagnosticReport:result'
       });
       
-      // Also load individual lab observations
+      // Also load individual lab observations (now defaults to 1000 count)
       const labResult = await fhirClient.getLabResults(currentPatient.id);
       
       // Transform FHIR observations to expected format

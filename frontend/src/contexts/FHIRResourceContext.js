@@ -504,12 +504,12 @@ export function FHIRResourceProvider({ children }) {
     const resourceTypes = [
       'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
       'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
-      'CarePlan', 'CareTeam', 'Coverage'
+      'CarePlan', 'CareTeam', 'Coverage', 'DocumentReference', 'ImagingStudy'
     ];
 
     try {
       const promises = resourceTypes.map(resourceType =>
-        searchResources(resourceType, { patient: patientId }, forceRefresh)
+        searchResources(resourceType, { patient: patientId, _count: 1000 }, forceRefresh)
           .catch(err => ({ resourceType, error: err.message, resources: [] }))
       );
 
@@ -590,7 +590,7 @@ export function FHIRResourceProvider({ children }) {
       const resourceTypes = [
         'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
         'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
-        'CarePlan', 'CareTeam', 'Coverage'
+        'CarePlan', 'CareTeam', 'Coverage', 'DocumentReference', 'ImagingStudy'
       ];
       
       resourceTypes.forEach(resourceType => {
