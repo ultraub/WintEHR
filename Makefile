@@ -1,274 +1,130 @@
-# MedGenEMR Development Makefile
-# Provides unified commands for development, testing, and deployment
+# MedGenEMR Makefile
+# Comprehensive build and deployment automation
 
-.PHONY: help setup start stop restart status clean test lint build deploy
+.PHONY: help build up down restart logs shell test clean fresh init-data
 
 # Default target
 help:
-	@echo "MedGenEMR Development Commands"
-	@echo "=============================="
+	@echo "MedGenEMR Management Commands"
+	@echo "============================="
+	@echo "make build       - Build all Docker images"
+	@echo "make up          - Start all services"
+	@echo "make down        - Stop all services"
+	@echo "make restart     - Restart all services"
+	@echo "make logs        - View logs (use LOGS_TAIL=100 for specific lines)"
+	@echo "make shell       - Open shell in backend container"
+	@echo "make test        - Run tests"
+	@echo "make clean       - Clean up containers and volumes"
+	@echo "make fresh       - Fresh start with data generation"
+	@echo "make init-data   - Initialize with sample data"
 	@echo ""
-	@echo "Setup Commands:"
-	@echo "  setup          - Initial project setup"
-	@echo "  setup-dev      - Setup development environment"
-	@echo "  setup-prod     - Setup production environment"
-	@echo ""
-	@echo "Service Commands:"
-	@echo "  start          - Start all services"
-	@echo "  start-quick    - Start services without test data"
-	@echo "  stop           - Stop all services"
-	@echo "  restart        - Restart all services"
-	@echo "  status         - Show service status"
-	@echo ""
-	@echo "Development Commands:"
-	@echo "  test           - Run all tests"
-	@echo "  test-backend   - Run backend tests only"
-	@echo "  test-frontend  - Run frontend tests only"
-	@echo "  lint           - Run all linting"
-	@echo "  lint-fix       - Fix linting issues"
-	@echo "  format         - Format code"
-	@echo ""
-	@echo "Build Commands:"
-	@echo "  build          - Build all components"
-	@echo "  build-frontend - Build frontend only"
-	@echo "  build-backend  - Build backend only"
-	@echo ""
-	@echo "Data Commands:"
-	@echo "  data-generate  - Generate test data with Synthea"
-	@echo "  data-reset     - Reset database and regenerate data"
-	@echo "  data-validate  - Validate FHIR data"
-	@echo ""
-	@echo "Utility Commands:"
-	@echo "  clean          - Clean build artifacts"
-	@echo "  logs           - Show service logs"
-	@echo "  shell-backend  - Open backend shell"
-	@echo "  shell-db       - Open database shell"
+	@echo "Environment variables:"
+	@echo "  PATIENT_COUNT=20  - Number of patients to generate"
+	@echo "  JWT_ENABLED=false - Enable/disable JWT authentication"
 
-# Setup commands
-setup:
-	@echo "Setting up MedGenEMR..."
-	./start-all.sh setup
+# Build all images
+build:
+	docker-compose build --no-cache
 
-setup-dev:
-	@echo "Setting up development environment..."
-	export ENVIRONMENT=development && ./start-all.sh setup
-
-setup-prod:
-	@echo "Setting up production environment..."
-	export ENVIRONMENT=production && ./start-all.sh setup
-
-# Service commands
-start:
-	@echo "Starting all services..."
-	./start-all.sh start
-
-start-quick:
-	@echo "Starting services without test data..."
-	./start-all.sh start --skip-data
-
-stop:
-	@echo "Stopping all services..."
-	./start-all.sh stop
-
-restart:
-	@echo "Restarting all services..."
-	./start-all.sh restart
-
-status:
-	@echo "Checking service status..."
-	./start-all.sh status
-
-# Development commands
-test: test-backend test-frontend
-
-test-backend:
-	@echo "Running backend tests..."
-	cd backend && \
-	source venv/bin/activate && \
-	pytest tests/ -v --cov=. --cov-report=html --cov-report=term
-
-test-frontend:
-	@echo "Running frontend tests..."
-	cd frontend && npm run test:ci
-
-test-coverage:
-	@echo "Running tests with coverage..."
-	cd backend && source venv/bin/activate && pytest tests/ --cov=. --cov-report=html
-	cd frontend && npm run test:coverage
-
-lint: lint-backend lint-frontend
-
-lint-backend:
-	@echo "Linting backend code..."
-	cd backend && \
-	source venv/bin/activate && \
-	flake8 . --exclude=venv,migrations --max-line-length=120 && \
-	black --check . --exclude=venv && \
-	isort --check-only .
-
-lint-frontend:
-	@echo "Linting frontend code..."
-	cd frontend && npm run lint
-
-lint-fix:
-	@echo "Fixing linting issues..."
-	cd backend && \
-	source venv/bin/activate && \
-	black . --exclude=venv && \
-	isort .
-	cd frontend && npm run lint:fix
-
-format: lint-fix
-
-# Build commands
-build: build-backend build-frontend
-
-build-backend:
-	@echo "Building backend..."
-	cd backend && \
-	source venv/bin/activate && \
-	pip install -r requirements.txt && \
-	python -m compileall .
-
-build-frontend:
-	@echo "Building frontend..."
-	cd frontend && \
-	npm ci && \
-	npm run build
-
-build-prod:
-	@echo "Building for production..."
-	cd frontend && npm run build:production
-
-# Data commands
-data-generate:
-	@echo "Generating test data..."
-	./start-all.sh data
-
-data-reset:
-	@echo "Resetting database and regenerating data..."
-	cd backend && \
-	source venv/bin/activate && \
-	python scripts/reset_and_init_database.py && \
-	python scripts/synthea_workflow.py full --count 10
-
-data-validate:
-	@echo "Validating FHIR data..."
-	cd backend && \
-	source venv/bin/activate && \
-	python scripts/synthea_import_with_validation.py
-
-# Utility commands
-clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf frontend/build
-	rm -rf frontend/node_modules/.cache
-	rm -rf backend/__pycache__
-	rm -rf backend/**/__pycache__
-	rm -rf backend/venv
-	rm -rf logs/*
-	find . -name "*.pyc" -delete
-	find . -name "*.pyo" -delete
-
-logs:
-	@echo "Service logs:"
-	@echo "============="
-	@echo "Backend logs:"
-	@tail -f logs/backend.log &
-	@echo "Frontend logs:"
-	@tail -f logs/frontend.log
-
-shell-backend:
-	@echo "Opening backend Python shell..."
-	cd backend && source venv/bin/activate && python
-
-shell-db:
-	@echo "Opening database shell..."
-	psql -h localhost -p 5432 -U emr_user -d emr_db
-
-# Docker commands (for future use)
-docker-build:
-	@echo "Building Docker images..."
-	docker-compose build
-
-docker-up:
-	@echo "Starting Docker containers..."
+# Start services
+up:
 	docker-compose up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo "Services running at:"
+	@echo "  Frontend: http://localhost:3000"
+	@echo "  Backend: http://localhost:8000"
+	@echo "  API Docs: http://localhost:8000/docs"
 
-docker-down:
-	@echo "Stopping Docker containers..."
+# Stop services
+down:
 	docker-compose down
 
-docker-logs:
-	@echo "Showing Docker logs..."
-	docker-compose logs -f
+# Restart services
+restart: down up
 
-# CI/CD helpers
-ci-test:
-	@echo "Running CI tests..."
-	make test-backend
-	make test-frontend
-	make lint
+# View logs
+LOGS_TAIL ?= 50
+logs:
+	docker-compose logs -f --tail=$(LOGS_TAIL)
 
-ci-build:
-	@echo "Running CI build..."
-	make build
+# Shell access
+shell:
+	docker-compose exec backend bash
 
-ci-deploy:
-	@echo "Running CI deployment..."
-	make build-prod
-	# Add deployment commands here
+# Run tests
+test:
+	docker-compose exec backend pytest tests/ -v
+
+# Clean everything
+clean:
+	docker-compose down -v
+	rm -rf backend/data/generated_dicoms/*
+	rm -rf backend/data/dicom_uploads/*
+	rm -rf synthea/output/fhir/*.json
+
+# Fresh start with data
+PATIENT_COUNT ?= 20
+fresh: clean build up
+	@echo "Waiting for database initialization..."
+	@sleep 15
+	@echo "Generating $(PATIENT_COUNT) patients..."
+	docker-compose exec backend python scripts/synthea_master.py full \
+		--count $(PATIENT_COUNT) \
+		--include-dicom \
+		--clean-names \
+		--validation-mode transform_only
+	@echo "Fresh start complete!"
+
+# Initialize data only
+init-data:
+	docker-compose exec backend python scripts/synthea_master.py full \
+		--count $(PATIENT_COUNT) \
+		--include-dicom \
+		--clean-names \
+		--validation-mode transform_only
+
+# Database operations
+db-backup:
+	docker-compose exec postgres pg_dump -U emr_user emr_db | gzip > backup_$$(date +%Y%m%d_%H%M%S).sql.gz
+	@echo "Database backed up to backup_$$(date +%Y%m%d_%H%M%S).sql.gz"
+
+db-restore:
+	@echo "Usage: make db-restore FILE=backup_20240101_120000.sql.gz"
+	@test -n "$(FILE)" || (echo "ERROR: Please specify FILE=backup_file.sql.gz" && exit 1)
+	gunzip -c $(FILE) | docker-compose exec -T postgres psql -U emr_user emr_db
 
 # Development helpers
-dev-reset:
-	@echo "Resetting development environment..."
-	make stop
-	make clean
-	make setup-dev
-	make start
+dev-backend:
+	cd backend && python main.py
 
-dev-update:
-	@echo "Updating development environment..."
-	git pull
-	cd backend && source venv/bin/activate && pip install -r requirements.txt
-	cd frontend && npm install
-	make restart
+dev-frontend:
+	cd frontend && npm start
 
-# Database management
-db-migrate:
-	@echo "Running database migrations..."
-	cd backend && source venv/bin/activate && alembic upgrade head
+# Health checks
+health:
+	@echo "Checking service health..."
+	@curl -s http://localhost:8000/health || echo "Backend not ready"
+	@curl -s http://localhost:3000 || echo "Frontend not ready"
+	@curl -s http://localhost:8000/fhir/R4/metadata || echo "FHIR API not ready"
 
-db-reset:
-	@echo "Resetting database..."
-	cd backend && source venv/bin/activate && python scripts/reset_and_init_database.py
+# Docker stats
+stats:
+	docker stats --no-stream
 
-db-backup:
-	@echo "Backing up database..."
-	pg_dump -h localhost -p 5432 -U emr_user emr_db > backup_$(shell date +%Y%m%d_%H%M%S).sql
+# Update dependencies
+update-deps:
+	cd backend && pip install --upgrade -r requirements.txt
+	cd frontend && npm update
 
-# Synthea specific
-synthea-build:
-	@echo "Building Synthea..."
-	cd synthea && ./gradlew build -x test
+# Security scan
+security-scan:
+	cd backend && pip install safety && safety check
+	cd frontend && npm audit
 
-synthea-generate:
-	@echo "Generating Synthea data..."
-	cd backend && \
-	source venv/bin/activate && \
-	python scripts/synthea_workflow.py generate --count 5
+# Production build
+prod-build:
+	docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
 
-synthea-import:
-	@echo "Importing Synthea data..."
-	cd backend && \
-	source venv/bin/activate && \
-	python scripts/synthea_workflow.py import
-
-# Documentation
-docs-build:
-	@echo "Building documentation..."
-	# Add documentation build commands
-
-docs-serve:
-	@echo "Serving documentation..."
-	# Add documentation serve commands
+prod-up:
+	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d

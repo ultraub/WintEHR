@@ -23,6 +23,7 @@ class HookPersistenceManager:
     
     async def create_table_if_not_exists(self):
         """Create the CDS hooks table if it doesn't exist"""
+        # Create table SQL without schema creation
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
             id VARCHAR(255) PRIMARY KEY,
@@ -40,13 +41,7 @@ class HookPersistenceManager:
             updated_by VARCHAR(255),
             version INTEGER DEFAULT 1,
             tags JSONB DEFAULT '[]'::jsonb
-        );
-
-        CREATE SCHEMA IF NOT EXISTS cds_hooks;
-        
-        CREATE INDEX IF NOT EXISTS idx_hook_type ON cds_hooks.hook_configurations(hook_type);
-        CREATE INDEX IF NOT EXISTS idx_enabled ON cds_hooks.hook_configurations(enabled);
-        CREATE INDEX IF NOT EXISTS idx_tags ON cds_hooks.hook_configurations USING GIN(tags);
+        )
         """
         
         try:
@@ -57,6 +52,13 @@ class HookPersistenceManager:
             # Then create table
             await self.db.execute(text(create_table_sql))
             await self.db.commit()
+            
+            # Then create indexes - one at a time to avoid multi-statement error
+            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_hook_type ON cds_hooks.hook_configurations(hook_type)"))
+            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_enabled ON cds_hooks.hook_configurations(enabled)"))
+            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_tags ON cds_hooks.hook_configurations USING GIN(tags)"))
+            await self.db.commit()
+            
             logger.debug("CDS hooks table created or verified")
         except Exception as e:
             logger.error(f"Error creating CDS hooks table: {e}")

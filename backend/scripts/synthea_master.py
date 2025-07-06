@@ -729,9 +729,75 @@ generate.demographics.default_state = Massachusetts
             self.log(f"DICOM generation failed: {e}", "ERROR")
             return False
     
+    async def clean_names(self) -> bool:
+        """Clean numeric suffixes from patient and provider names."""
+        self.log("🏷️  Cleaning patient and provider names...")
+        
+        try:
+            # Run the cleaning script
+            result = subprocess.run(
+                ["python", "scripts/clean_fhir_names.py"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode != 0:
+                self.log(f"Name cleaning failed: {result.stderr}", "ERROR")
+                return False
+            
+            # Parse output for statistics
+            output_lines = result.stdout.strip().split('\n')
+            for line in output_lines:
+                if "Patients updated:" in line:
+                    patients_updated = line.split(':')[1].strip()
+                    self.log(f"✓ Updated {patients_updated} patient names")
+                elif "Practitioners updated:" in line:
+                    practitioners_updated = line.split(':')[1].strip()
+                    self.log(f"✓ Updated {practitioners_updated} practitioner names")
+            
+            return True
+            
+        except Exception as e:
+            self.log(f"Name cleaning failed: {e}", "ERROR")
+            return False
+    
+    async def enhance_lab_results(self) -> bool:
+        """Enhance lab results with reference ranges and interpretations."""
+        self.log("🧪 Enhancing lab results with reference ranges...")
+        
+        try:
+            # Run the lab enhancement script
+            result = subprocess.run(
+                ["python", "scripts/enhance_lab_results.py"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode != 0:
+                self.log(f"Lab enhancement failed: {result.stderr}", "ERROR")
+                return False
+            
+            # Parse output for statistics
+            output_lines = result.stdout.strip().split('\n')
+            for line in output_lines:
+                if "Observations updated:" in line:
+                    obs_updated = line.split(':')[1].strip()
+                    self.log(f"✓ Enhanced {obs_updated} lab observations")
+                elif "Already had reference range:" in line:
+                    already_had = line.split(':')[1].strip()
+                    self.log(f"ℹ️  {already_had} observations already had reference ranges")
+            
+            return True
+            
+        except Exception as e:
+            self.log(f"Lab enhancement failed: {e}", "ERROR")
+            return False
+    
     async def full_workflow(self, count: int = 10, validation_mode: str = "transform_only",
-                          include_dicom: bool = False, state: str = "Massachusetts",
-                          city: Optional[str] = None) -> bool:
+                          include_dicom: bool = False, clean_names: bool = False,
+                          state: str = "Massachusetts", city: Optional[str] = None) -> bool:
         """Run the complete Synthea workflow."""
         self.log("🚀 Starting full Synthea workflow")
         self.log("=" * 80)
@@ -759,9 +825,18 @@ generate.demographics.default_state = Massachusetts
         if not await self.validate_data():
             success = False  # Continue anyway
         
-        # Step 6: DICOM (optional)
+        # Step 6: Enhance lab results
+        if not await self.enhance_lab_results():
+            success = False  # Continue anyway
+        
+        # Step 7: DICOM (optional)
         if include_dicom:
             if not await self.generate_dicom():
+                success = False  # Continue anyway
+        
+        # Step 8: Clean names (optional but recommended)
+        if clean_names:
+            if not await self.clean_names():
                 success = False  # Continue anyway
         
         workflow_duration = time.time() - workflow_start
@@ -866,6 +941,10 @@ Examples:
         "--include-dicom", action="store_true",
         help="Include DICOM generation in full workflow"
     )
+    parser.add_argument(
+        "--clean-names", action="store_true",
+        help="Remove numeric suffixes from patient and provider names after import"
+    )
     
     # General options
     parser.add_argument(
@@ -912,6 +991,7 @@ Examples:
                 count=args.count,
                 validation_mode=args.validation_mode,
                 include_dicom=args.include_dicom,
+                clean_names=args.clean_names,
                 state=args.state,
                 city=args.city
             )

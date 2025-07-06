@@ -7,14 +7,16 @@ services:
       POSTGRES_USER: emr_user
       POSTGRES_PASSWORD: emr_password
       POSTGRES_DB: emr_db
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init_complete.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     networks:
       - emr-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U emr_user"]
+      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,27 +45,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: >
-      sh -c "
-        echo 'Waiting for database...' &&
-        sleep 10 &&
-        cd /app &&
-        echo 'Creating database schema...' &&
-        python -c \"
-import asyncio
-import asyncpg
-async def init():
-    conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
-    await conn.execute('CREATE SCHEMA IF NOT EXISTS fhir')
-    await conn.close()
-asyncio.run(init())
-        \" &&
-        echo 'Running database initialization...' &&
-        python scripts/init_search_tables.py || echo 'Search tables init skipped' &&
-        python scripts/init_database.py || echo 'Database init skipped' &&
-        echo 'Starting server...' &&
-        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-      "
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   # Frontend
   frontend:
