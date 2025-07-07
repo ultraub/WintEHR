@@ -71,7 +71,8 @@ import {
   FitnessCenter as ExerciseIcon,
   MedicalServices as MedicalIcon,
   Print as PrintIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -1270,6 +1271,7 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   
   const [filterStatus, setFilterStatus] = useState('active');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [goalEditorOpen, setGoalEditorOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
@@ -1305,6 +1307,19 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
     if (filterCategory !== 'all') {
       const category = goal.category?.[0]?.coding?.[0]?.code;
       if (category !== filterCategory) return false;
+    }
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const goalText = (goal.description?.text || '').toLowerCase();
+      const targetMeasure = (goal.target?.[0]?.measure?.text || goal.target?.[0]?.measure?.coding?.[0]?.display || '').toLowerCase();
+      const notes = (goal.note?.[0]?.text || '').toLowerCase();
+      
+      if (!goalText.includes(searchLower) && 
+          !targetMeasure.includes(searchLower) && 
+          !notes.includes(searchLower)) {
+        return false;
+      }
     }
     return true;
   });
@@ -1493,6 +1508,21 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <TextField
+            placeholder="Search goals..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            sx={{ flex: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              )
+            }}
+          />
+          
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <InputLabel>Status</InputLabel>
             <Select

@@ -69,6 +69,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import { printDocument, formatEncountersForPrint } from '../../../../utils/printUtils';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { GetApp as ExportIcon } from '@mui/icons-material';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounterClass) => {
@@ -220,6 +222,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [newEncounterData, setNewEncounterData] = useState({
     type: 'AMB',
     reasonForVisit: '',
@@ -264,6 +267,39 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       title: 'Patient Encounters',
       patient: patientInfo,
       content
+    });
+  };
+
+  const handleExportEncounters = (format) => {
+    exportClinicalData({
+      patient: currentPatient,
+      data: filteredEncounters,
+      columns: EXPORT_COLUMNS.encounters,
+      format,
+      title: 'Encounter_History',
+      formatForPrint: (data) => {
+        let html = '<h2>Encounter History</h2>';
+        data.forEach(encounter => {
+          const startDate = encounter.period?.start ? format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
+          const endDate = encounter.period?.end ? format(parseISO(encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
+          
+          html += `
+            <div class="section">
+              <h3>${getEncounterTypeLabel(encounter)}</h3>
+              <p><strong>Status:</strong> ${encounter.status}</p>
+              <p><strong>Start:</strong> ${startDate}</p>
+              <p><strong>End:</strong> ${endDate}</p>
+              ${encounter.participant?.[0]?.individual?.display ? 
+                `<p><strong>Provider:</strong> ${encounter.participant[0].individual.display}</p>` : ''}
+              ${encounter.location?.[0]?.location?.display ? 
+                `<p><strong>Location:</strong> ${encounter.location[0].location.display}</p>` : ''}
+              ${encounter.reasonCode?.[0]?.text ? 
+                `<p><strong>Reason:</strong> ${encounter.reasonCode[0].text}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
     });
   };
   
@@ -485,6 +521,13 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           >
             Print
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ExportIcon />}
+            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+          >
+            Export
+          </Button>
         </Stack>
       </Paper>
 
@@ -562,6 +605,23 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       )}
 
       {/* Encounter Summary Dialog */}
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { handleExportEncounters('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportEncounters('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportEncounters('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
+
       <EncounterSummaryDialog
         open={summaryDialogOpen}
         onClose={handleCloseSummaryDialog}

@@ -62,6 +62,8 @@ import CDSHookBuilder from '../cds/CDSHookBuilder';
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
+import fhirService from '../../../../services/fhirService';
+import { useNavigate } from 'react-router-dom';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -79,6 +81,7 @@ function TabPanel({ children, value, index, ...other }) {
 
 const CDSHooksTab = ({ patientId }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [services, setServices] = useState([]);
   const [hooks, setHooks] = useState([]);
@@ -293,11 +296,108 @@ const CDSHooksTab = ({ patientId }) => {
     }
   };
 
-  const handleSuggestionAction = (suggestion) => {
-    // Handle CDS suggestion action
-    // In a real implementation, this would execute the suggested action
-    alert(`Action selected: ${suggestion.label}`);
-    // TODO: Implement actual action execution based on suggestion type
+  const handleSuggestionAction = async (suggestion, card) => {
+    try {
+      // Handle different types of CDS suggestions
+      if (suggestion.actions && suggestion.actions.length > 0) {
+        for (const action of suggestion.actions) {
+          switch (action.type) {
+            case 'create':
+              // Create a new FHIR resource
+              if (action.resource) {
+                const resourceType = action.resource.resourceType;
+                await fhirService.createResource(resourceType, action.resource);
+                setError(`Created new ${resourceType}`);
+              }
+              break;
+              
+            case 'update':
+              // Update an existing FHIR resource
+              if (action.resource && action.resource.id) {
+                const resourceType = action.resource.resourceType;
+                await fhirService.updateResource(resourceType, action.resource.id, action.resource);
+                setError(`Updated ${resourceType}`);
+              }
+              break;
+              
+            case 'delete':
+              // Delete a FHIR resource
+              if (action.resource && action.resource.id) {
+                const resourceType = action.resource.resourceType;
+                await fhirService.deleteResource(resourceType, action.resource.id);
+                setError(`Deleted ${resourceType}`);
+              }
+              break;
+              
+            default:
+              console.warn('Unknown action type:', action.type);
+          }
+        }
+      }
+      
+      // Handle navigation suggestions (links)
+      if (suggestion.links && suggestion.links.length > 0) {
+        const link = suggestion.links[0];
+        if (link.type === 'absolute') {
+          window.open(link.url, '_blank');
+        } else if (link.type === 'smart') {
+          // Handle SMART app links
+          navigate(link.url);
+        }
+      }
+      
+      // Handle resource creation/update/delete arrays
+      if (suggestion.create && suggestion.create.length > 0) {
+        for (const resource of suggestion.create) {
+          await fhirService.createResource(resource.resourceType, resource);
+        }
+        setError(`Created ${suggestion.create.length} resource(s)`);
+      }
+      
+      if (suggestion.update && suggestion.update.length > 0) {
+        for (const resource of suggestion.update) {
+          await fhirService.updateResource(resource.resourceType, resource.id, resource);
+        }
+        setError(`Updated ${suggestion.update.length} resource(s)`);
+      }
+      
+      if (suggestion.delete && suggestion.delete.length > 0) {
+        for (const resourceRef of suggestion.delete) {
+          const [resourceType, resourceId] = resourceRef.split('/');
+          await fhirService.deleteResource(resourceType, resourceId);
+        }
+        setError(`Deleted ${suggestion.delete.length} resource(s)`);
+      }
+      
+      // Refresh patient data after actions
+      if (patientId) {
+        await fhirService.refreshPatientResources(patientId);
+      }
+      
+      // Send feedback to CDS service
+      if (card.serviceId && suggestion.uuid) {
+        try {
+          await cdsHooksClient.sendFeedback(card.serviceId, {
+            card: card.uuid || card.summary,
+            outcome: 'accepted',
+            acceptedSuggestions: [{ id: suggestion.uuid }]
+          });
+        } catch (feedbackError) {
+          console.error('Failed to send CDS feedback:', feedbackError);
+        }
+      }
+      
+      // Show success message
+      setError(null);
+      // Refresh hooks to see updated results
+      if (tabValue === 0) {
+        await executePatientViewHooks();
+      }
+      
+    } catch (error) {
+      console.error('Error executing CDS suggestion:', error);
+      setError(`Failed to execute action: ${error.message}`);
+    }
   };
 
   const handleDeleteHook = async (hookId) => {
@@ -453,9 +553,7 @@ const CDSHooksTab = ({ patientId }) => {
                                     variant="outlined"
                                     size="small"
                                     onClick={() => {
-                                      // Handle suggestion action
-                                      // Handle suggestion selection
-                                      handleSuggestionAction(suggestion);
+                                      handleSuggestionAction(suggestion, card);
                                     }}
                                   >
                                     {suggestion.label}

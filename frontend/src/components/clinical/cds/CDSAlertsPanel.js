@@ -62,8 +62,14 @@ const CDSAlertsPanel = ({
   const [expanded, setExpanded] = useState(!compact);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
-    // Only persist dismissed alerts for the current browser session, not across sessions
-    return new Set();
+    // Persist dismissed alerts in sessionStorage for the current browser session
+    const sessionKey = `cds-dismissed-alerts-${patientId}`;
+    try {
+      const stored = sessionStorage.getItem(sessionKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
   });
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(() => {
     // Only persist acknowledged alerts for the current browser session, not across sessions
@@ -153,7 +159,14 @@ const CDSAlertsPanel = ({
       if (lastPatientIdRef.current !== patientId) {
         cdsLogger.info(`Patient changed from ${lastPatientIdRef.current} to ${patientId}, resetting CDS state`);
         setAlerts([]);
-        setDismissedAlerts(new Set());
+        // Load dismissed alerts from sessionStorage for the new patient
+        const sessionKey = `cds-dismissed-alerts-${patientId}`;
+        try {
+          const stored = sessionStorage.getItem(sessionKey);
+          setDismissedAlerts(stored ? new Set(JSON.parse(stored)) : new Set());
+        } catch (e) {
+          setDismissedAlerts(new Set());
+        }
         setAcknowledgedAlerts(new Set());
         lastPatientIdRef.current = patientId;
       }
@@ -227,7 +240,17 @@ const CDSAlertsPanel = ({
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     
     if (action === 'dismiss') {
-      setDismissedAlerts(prev => new Set([...prev, alertKey]));
+      setDismissedAlerts(prev => {
+        const newSet = new Set([...prev, alertKey]);
+        // Save to sessionStorage
+        const sessionKey = `cds-dismissed-alerts-${patientId}`;
+        try {
+          sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
+        } catch (e) {
+          console.warn('Failed to save dismissed alerts to session storage:', e);
+        }
+        return newSet;
+      });
       setAlerts(prev => prev.filter(a => 
         `${a.serviceId}-${a.summary}` !== alertKey
       ));

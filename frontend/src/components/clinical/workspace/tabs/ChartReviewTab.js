@@ -27,6 +27,7 @@ import {
   CardActions,
   TextField,
   InputAdornment,
+  Menu,
   MenuItem,
   Select,
   FormControl,
@@ -74,9 +75,12 @@ import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import fhirService from '../../../../services/fhirService';
 import { intelligentCache } from '../../../../utils/intelligentCache';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { GetApp as ExportIcon } from '@mui/icons-material';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Problem List Component
-const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem }) => {
+const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
@@ -85,6 +89,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState(null);
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -184,6 +189,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
             <Tooltip title="View History">
               <IconButton size="small">
                 <HistoryIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export">
+              <IconButton 
+                size="small"
+                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+              >
+                <ExportIcon />
               </IconButton>
             </Tooltip>
           </Stack>
@@ -293,12 +306,28 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         condition={selectedCondition}
         patientId={patientId}
       />
+      
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { onExport('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
     </Card>
   );
 };
 
 // Medication List Component
-const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication }) => {
+const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
@@ -307,6 +336,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
   // Resolve medication references
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
@@ -460,6 +490,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 <PharmacyIcon />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Export">
+              <IconButton 
+                size="small"
+                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+              >
+                <ExportIcon />
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Stack>
 
@@ -560,17 +598,34 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         currentMedications={medications}
         onReconcile={handleReconciliation}
       />
+      
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { onExport('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
     </Card>
   );
 };
 
 // Allergy List Component
-const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy }) => {
+const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
   const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
@@ -625,15 +680,25 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               color={activeAllergies.length > 0 ? 'error' : 'default'}
             />
           </Box>
-          <Tooltip title="Add Allergy">
-            <IconButton 
-              size="small" 
-              color="primary" 
-              onClick={() => setShowAddDialog(true)}
-            >
-              <AddIcon />
-            </IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Add Allergy">
+              <IconButton 
+                size="small" 
+                color="primary" 
+                onClick={() => setShowAddDialog(true)}
+              >
+                <AddIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export">
+              <IconButton 
+                size="small"
+                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+              >
+                <ExportIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
 
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
@@ -718,6 +783,22 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
         allergyIntolerance={selectedAllergy}
         patientId={patientId}
       />
+      
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { onExport('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { onExport('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
     </Card>
   );
 };
@@ -765,8 +846,10 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     getPatientResources, 
     searchResources, 
     isLoading,
-    refreshPatientResources 
+    refreshPatientResources,
+    currentPatient 
   } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
@@ -797,6 +880,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     try {
       const createdMedication = await fhirService.createMedicationRequest(medicationRequest);
       
+      // Publish workflow event
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'created',
+        data: {
+          ...createdMedication,
+          medicationName: createdMedication.medicationCodeableConcept?.text ||
+                         createdMedication.medicationCodeableConcept?.coding?.[0]?.display ||
+                         'Unknown medication',
+          patientId
+        }
+      });
+      
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
       
@@ -810,6 +906,20 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
       const createdAllergy = await fhirService.createAllergyIntolerance(allergyIntolerance);
+      
+      // Publish workflow event for new allergy
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'allergy-notification',
+        step: 'created',
+        data: {
+          ...createdAllergy,
+          allergenName: createdAllergy.code?.text || 
+                       createdAllergy.code?.coding?.[0]?.display || 
+                       'Unknown allergen',
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
@@ -941,6 +1051,83 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Export handlers
+  const handleExportProblems = (format) => {
+    exportClinicalData({
+      patient: currentPatient,
+      data: conditions,
+      columns: EXPORT_COLUMNS.conditions,
+      format,
+      title: 'Problem_List',
+      formatForPrint: (data) => {
+        let html = '<h2>Problem List</h2>';
+        data.forEach(condition => {
+          html += `
+            <div class="section">
+              <h3>${condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown'}</h3>
+              <p><strong>Status:</strong> ${condition.clinicalStatus?.coding?.[0]?.code || 'Unknown'}</p>
+              ${condition.severity ? `<p><strong>Severity:</strong> ${condition.severity.text}</p>` : ''}
+              <p><strong>Onset:</strong> ${condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'Unknown'}</p>
+              ${condition.note?.[0]?.text ? `<p><strong>Notes:</strong> ${condition.note[0].text}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
+  };
+
+  const handleExportMedications = (format) => {
+    exportClinicalData({
+      patient: currentPatient,
+      data: medications,
+      columns: EXPORT_COLUMNS.medications,
+      format,
+      title: 'Medication_List',
+      formatForPrint: (data) => {
+        let html = '<h2>Medication List</h2>';
+        data.forEach(med => {
+          html += `
+            <div class="section">
+              <h3>${med.medicationCodeableConcept?.text || med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown'}</h3>
+              <p><strong>Status:</strong> ${med.status}</p>
+              ${med.dosageInstruction?.[0]?.text ? `<p><strong>Dosage:</strong> ${med.dosageInstruction[0].text}</p>` : ''}
+              <p><strong>Prescribed:</strong> ${med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}</p>
+              ${med.requester?.display ? `<p><strong>Prescriber:</strong> ${med.requester.display}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
+  };
+
+  const handleExportAllergies = (format) => {
+    exportClinicalData({
+      patient: currentPatient,
+      data: allergies,
+      columns: EXPORT_COLUMNS.allergies,
+      format,
+      title: 'Allergy_List',
+      formatForPrint: (data) => {
+        let html = '<h2>Allergy List</h2>';
+        data.forEach(allergy => {
+          html += `
+            <div class="section">
+              <h3>${allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'}</h3>
+              <p><strong>Type:</strong> ${allergy.type || 'Unknown'}</p>
+              <p><strong>Criticality:</strong> ${allergy.criticality || 'Unknown'}</p>
+              ${allergy.reaction?.[0]?.manifestation?.[0]?.text ? 
+                `<p><strong>Reaction:</strong> ${allergy.reaction[0].manifestation[0].text}</p>` : ''}
+              <p><strong>Recorded:</strong> ${allergy.recordedDate ? format(parseISO(allergy.recordedDate), 'MMM d, yyyy') : 'Unknown'}</p>
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
+  };
+
   // Get resources - with refreshKey to force updates
   const [conditions, setConditions] = useState([]);
   const [medications, setMedications] = useState([]);
@@ -1058,6 +1245,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onAddProblem={handleAddProblem}
             onEditProblem={handleEditProblem}
             onDeleteProblem={handleDeleteProblem}
+            onExport={handleExportProblems}
           />
         </Grid>
 
@@ -1069,6 +1257,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onPrescribeMedication={handlePrescribeMedication}
             onEditMedication={handleEditMedication}
             onDeleteMedication={handleDeleteMedication}
+            onExport={handleExportMedications}
           />
         </Grid>
 
@@ -1080,6 +1269,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onAddAllergy={handleAddAllergy}
             onEditAllergy={handleEditAllergy}
             onDeleteAllergy={handleDeleteAllergy}
+            onExport={handleExportAllergies}
           />
         </Grid>
 

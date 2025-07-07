@@ -112,30 +112,65 @@ const LAB_PROFILES = {
 
 const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-available', height = 400 }) => {
   const theme = useTheme();
-  const [profile, setProfile] = useState(selectedProfile);
-  const [selectedTest, setSelectedTest] = useState(null);
-  const [timeRange, setTimeRange] = useState(90); // days
+  const [selectedTest, setSelectedTest] = useState('');
+  const [timeRange, setTimeRange] = useState(365); // days - default to 1 year for better trend visibility
   
-  const currentProfile = LAB_PROFILES[profile];
+  // Dynamically extract available tests from observations
+  const availableTests = useMemo(() => {
+    const testMap = new Map();
+    
+    observations.forEach(obs => {
+      const code = obs.code?.coding?.[0]?.code;
+      const name = obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown';
+      const unit = obs.valueQuantity?.unit || '';
+      
+      if (code && !testMap.has(code)) {
+        // Try to find reference range from existing configs or the observation itself
+        let normalRange = [null, null];
+        const configTest = Object.values(LAB_PROFILES).flatMap(p => p.tests).find(t => t.code === code);
+        
+        if (configTest) {
+          normalRange = configTest.normalRange;
+        } else if (obs.referenceRange?.[0]) {
+          normalRange = [
+            obs.referenceRange[0].low?.value || null,
+            obs.referenceRange[0].high?.value || null
+          ];
+        }
+        
+        testMap.set(code, {
+          code,
+          name,
+          unit,
+          normalRange,
+          color: configTest?.color || `#${Math.floor(Math.random()*16777215).toString(16)}` // Random color if not predefined
+        });
+      }
+    });
+    
+    return Array.from(testMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [observations]);
   
-  // Process observations for the selected profile
+  // Process observations for the selected test or all tests
   const processedData = useMemo(() => {
     const cutoffDate = subDays(new Date(), timeRange);
     
-    // Filter observations for tests in current profile
+    // Filter observations
     const relevantObs = observations.filter(obs => {
-      const obsCode = obs.code?.coding?.[0]?.code;
       const obsDate = obs.effectiveDateTime || obs.issued;
-      
       if (!obsDate) return false;
       
-      const inProfile = currentProfile.tests.some(test => test.code === obsCode);
       const inTimeRange = isWithinInterval(parseISO(obsDate), {
         start: cutoffDate,
         end: new Date()
       });
       
-      return inProfile && inTimeRange;
+      if (selectedTest) {
+        const obsCode = obs.code?.coding?.[0]?.code;
+        return obsCode === selectedTest && inTimeRange;
+      }
+      
+      return inTimeRange;
     });
     
     // Group by date
@@ -143,23 +178,23 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
     relevantObs.forEach(obs => {
       const date = format(parseISO(obs.effectiveDateTime || obs.issued), 'yyyy-MM-dd');
       if (!dataByDate[date]) {
-        dataByDate[date] = { date };
+        dataByDate[date] = { date, dateObj: parseISO(obs.effectiveDateTime || obs.issued) };
       }
       
-      const testConfig = currentProfile.tests.find(t => t.code === obs.code?.coding?.[0]?.code);
-      if (testConfig && obs.valueQuantity?.value !== undefined) {
-        dataByDate[date][testConfig.name] = obs.valueQuantity.value;
+      const testName = obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown';
+      if (obs.valueQuantity?.value !== undefined) {
+        dataByDate[date][testName] = obs.valueQuantity.value;
       }
     });
     
     // Convert to array and sort by date
     return Object.values(dataByDate).sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [observations, profile, currentProfile, timeRange]);
+  }, [observations, selectedTest, timeRange]);
   
   // Calculate trends for each test
   const testTrends = useMemo(() => {
     const trends = {};
-    currentProfile.tests.forEach(test => {
+    availableTests.forEach(test => {
       const values = processedData
         .map(d => d[test.name])
         .filter(v => v !== undefined);
@@ -173,12 +208,13 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
           current: recent,
           change: change,
           trend: change > 0 ? 'up' : 'down',
-          abnormal: recent < test.normalRange[0] || recent > test.normalRange[1]
+          abnormal: test.normalRange[0] !== null && test.normalRange[1] !== null && 
+                   (recent < test.normalRange[0] || recent > test.normalRange[1])
         };
       }
     });
     return trends;
-  }, [processedData, currentProfile]);
+  }, [processedData, availableTests]);
   
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -188,8 +224,9 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
             {format(new Date(label), 'MMM d, yyyy')}
           </Typography>
           {payload.map((entry, index) => {
-            const test = currentProfile.tests.find(t => t.name === entry.name);
-            const isAbnormal = test && (entry.value < test.normalRange[0] || entry.value > test.normalRange[1]);
+            const test = availableTests.find(t => t.name === entry.name);
+            const isAbnormal = test && test.normalRange[0] !== null && test.normalRange[1] !== null &&
+                             (entry.value < test.normalRange[0] || entry.value > test.normalRange[1]);
             
             return (
               <Typography 
@@ -212,24 +249,53 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
   };
   
   const testsToShow = selectedTest 
-    ? currentProfile.tests.filter(t => t.name === selectedTest)
-    : currentProfile.tests;
+    ? availableTests.filter(t => t.code === selectedTest)
+    : availableTests.slice(0, 5); // Show top 5 tests if none selected to avoid clutter
+  
+  // Check if we have any lab data at all
+  if (availableTests.length === 0) {
+    return (
+      <Paper sx={{ p: 3 }}>
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            justifyContent: 'center',
+            minHeight: 300,
+            gap: 2
+          }}
+        >
+          <LabIcon sx={{ fontSize: 64, color: 'text.disabled' }} />
+          <Typography variant="h6" color="text.secondary">
+            No Lab Results Available
+          </Typography>
+          <Typography variant="body2" color="text.secondary" textAlign="center">
+            Lab test results will appear here once they are recorded in the system.
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }
   
   return (
     <Box>
       {/* Controls */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <FormControl size="small" sx={{ minWidth: 200 }}>
+          <FormControl size="small" sx={{ minWidth: 250 }}>
             <Select
-              value={profile}
-              onChange={(e) => {
-                setProfile(e.target.value);
-                setSelectedTest(null);
-              }}
+              value={selectedTest}
+              onChange={(e) => setSelectedTest(e.target.value)}
+              displayEmpty
             >
-              {Object.entries(LAB_PROFILES).map(([key, config]) => (
-                <MenuItem key={key} value={key}>{config.name}</MenuItem>
+              <MenuItem value="">
+                <em>All Tests (Top 5)</em>
+              </MenuItem>
+              {availableTests.map((test) => (
+                <MenuItem key={test.code} value={test.code}>
+                  {test.name} {test.unit && `(${test.unit})`}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -240,70 +306,72 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
             onChange={(e, newRange) => newRange && setTimeRange(newRange)}
             size="small"
           >
-            <ToggleButton value={30}>30d</ToggleButton>
-            <ToggleButton value={90}>90d</ToggleButton>
+            <ToggleButton value={90}>3mo</ToggleButton>
             <ToggleButton value={180}>6mo</ToggleButton>
             <ToggleButton value={365}>1yr</ToggleButton>
+            <ToggleButton value={730}>2yr</ToggleButton>
+            <ToggleButton value={1825}>5yr</ToggleButton>
           </ToggleButtonGroup>
         </Stack>
       </Paper>
       
-      {/* Test Summary Cards */}
+      {/* Test Summary Cards - Show selected test or top tests with data */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        {currentProfile.tests.map((test) => {
-          const trend = testTrends[test.name];
-          const hasData = processedData.some(d => d[test.name] !== undefined);
-          
-          return (
-            <Grid item xs={12} sm={6} md={4} key={test.code}>
-              <Card 
-                sx={{ 
-                  cursor: hasData ? 'pointer' : 'default',
-                  opacity: hasData ? 1 : 0.5,
-                  border: selectedTest === test.name ? 2 : 0,
-                  borderColor: 'primary.main'
-                }}
-              >
-                <CardActionArea 
-                  onClick={() => hasData && setSelectedTest(selectedTest === test.name ? null : test.name)}
-                  disabled={!hasData}
+        {(selectedTest ? availableTests.filter(t => t.code === selectedTest) : availableTests.slice(0, 6))
+          .filter(test => processedData.some(d => d[test.name] !== undefined))
+          .map((test) => {
+            const trend = testTrends[test.name];
+            const hasData = processedData.some(d => d[test.name] !== undefined);
+            
+            return (
+              <Grid item xs={12} sm={6} md={4} key={test.code}>
+                <Card 
+                  sx={{ 
+                    cursor: 'pointer',
+                    border: selectedTest === test.code ? 2 : 0,
+                    borderColor: 'primary.main',
+                    '&:hover': { boxShadow: 3 }
+                  }}
                 >
-                  <CardContent>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Box>
-                        <Typography variant="subtitle2" color="text.secondary">
-                          {test.name}
-                        </Typography>
-                        {trend ? (
-                          <>
-                            <Typography variant="h6">
-                              {trend.current} {test.unit}
-                            </Typography>
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              {trend.trend === 'up' ? (
-                                <TrendingUpIcon fontSize="small" color={trend.abnormal ? 'error' : 'success'} />
-                              ) : (
-                                <TrendingDownIcon fontSize="small" color={trend.abnormal ? 'error' : 'info'} />
-                              )}
-                              <Typography variant="caption" color={trend.abnormal ? 'error' : 'text.secondary'}>
-                                {Math.abs(trend.change).toFixed(1)}%
-                              </Typography>
-                            </Stack>
-                          </>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            {hasData ? 'Single value' : 'No data'}
+                  <CardActionArea 
+                    onClick={() => setSelectedTest(selectedTest === test.code ? '' : test.code)}
+                  >
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                        <Box>
+                          <Typography variant="subtitle2" color="text.secondary">
+                            {test.name}
                           </Typography>
-                        )}
-                      </Box>
-                      {trend?.abnormal && <WarningIcon color="error" />}
-                    </Stack>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            </Grid>
-          );
-        })}
+                          {trend ? (
+                            <>
+                              <Typography variant="h6">
+                                {trend.current} {test.unit}
+                              </Typography>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                {trend.trend === 'up' ? (
+                                  <TrendingUpIcon fontSize="small" color={trend.abnormal ? 'error' : 'success'} />
+                                ) : (
+                                  <TrendingDownIcon fontSize="small" color={trend.abnormal ? 'error' : 'info'} />
+                                )}
+                                <Typography variant="caption" color={trend.abnormal ? 'error' : 'text.secondary'}>
+                                  {Math.abs(trend.change).toFixed(1)}%
+                                </Typography>
+                              </Stack>
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              Single value
+                            </Typography>
+                          )}
+                        </Box>
+                        {trend?.abnormal && <WarningIcon color="error" />}
+                      </Stack>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            );
+          })}
       </Grid>
       
       {/* Chart */}
@@ -324,6 +392,9 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
               <Typography variant="body1" color="text.secondary">
                 No lab results in the selected time range
               </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Try selecting a longer time range or different test
+              </Typography>
             </Stack>
           </Box>
         ) : (
@@ -332,9 +403,17 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
               <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
               <XAxis 
                 dataKey="date" 
-                tickFormatter={(date) => format(new Date(date), 'MMM d, yyyy')}
+                tickFormatter={(date) => {
+                  const d = new Date(date);
+                  // Show year for better long-term trends
+                  if (timeRange >= 365) {
+                    return format(d, 'MMM yyyy');
+                  }
+                  return format(d, 'MMM d');
+                }}
                 tick={{ fontSize: 12 }}
                 stroke={theme.palette.text.secondary}
+                interval={timeRange >= 730 ? 'preserveStartEnd' : 'preserveEnd'}
               />
               <YAxis 
                 tick={{ fontSize: 12 }}
@@ -345,17 +424,23 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
               
               {testsToShow.map((test) => (
                 <React.Fragment key={test.code}>
-                  {/* Normal range area */}
-                  <ReferenceLine 
-                    y={test.normalRange[0]} 
-                    stroke={alpha(test.color, 0.3)} 
-                    strokeDasharray="5 5" 
-                  />
-                  <ReferenceLine 
-                    y={test.normalRange[1]} 
-                    stroke={alpha(test.color, 0.3)} 
-                    strokeDasharray="5 5" 
-                  />
+                  {/* Normal range area - only show if we have valid ranges */}
+                  {test.normalRange[0] !== null && (
+                    <ReferenceLine 
+                      y={test.normalRange[0]} 
+                      stroke={alpha(test.color, 0.3)} 
+                      strokeDasharray="5 5" 
+                      label={{ value: `Lower: ${test.normalRange[0]}`, position: 'left', fontSize: 10 }}
+                    />
+                  )}
+                  {test.normalRange[1] !== null && (
+                    <ReferenceLine 
+                      y={test.normalRange[1]} 
+                      stroke={alpha(test.color, 0.3)} 
+                      strokeDasharray="5 5" 
+                      label={{ value: `Upper: ${test.normalRange[1]}`, position: 'left', fontSize: 10 }}
+                    />
+                  )}
                   
                   {/* Test value line */}
                   <Line 

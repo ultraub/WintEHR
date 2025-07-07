@@ -290,6 +290,7 @@ const CDSHookManager = ({
         maxAlerts={config.maxAlerts}
         onAlertAction={handleAlertAction}
         allowInteraction={true}
+        patientId={patientId}
       />
     ));
   };

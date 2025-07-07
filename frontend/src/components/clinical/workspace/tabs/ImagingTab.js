@@ -66,7 +66,7 @@ import {
   Warning as WarningIcon,
   CheckCircle as CompleteIcon
 } from '@mui/icons-material';
-import { format, parseISO, formatDistanceToNow } from 'date-fns';
+import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
 import DICOMViewer from '../../imaging/DICOMViewer';
@@ -356,6 +356,27 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     // Status filter
     if (filterStatus !== 'all' && study.status !== filterStatus) {
       return false;
+    }
+
+    // Period filter
+    if (filterPeriod !== 'all') {
+      const studyDate = study.started || study.performedDateTime;
+      if (studyDate) {
+        const date = parseISO(studyDate);
+        const periodMap = {
+          '7d': subDays(new Date(), 7),
+          '30d': subDays(new Date(), 30),
+          '3m': subMonths(new Date(), 3),
+          '6m': subMonths(new Date(), 6),
+          '1y': subMonths(new Date(), 12)
+        };
+        if (!isWithinInterval(date, {
+          start: periodMap[filterPeriod],
+          end: new Date()
+        })) {
+          return false;
+        }
+      }
     }
 
     // Search filter
@@ -684,6 +705,22 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
               <MenuItem value="available">Available</MenuItem>
               <MenuItem value="pending">Pending</MenuItem>
               <MenuItem value="cancelled">Cancelled</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Period</InputLabel>
+            <Select
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value)}
+              label="Period"
+            >
+              <MenuItem value="all">All Time</MenuItem>
+              <MenuItem value="7d">Last 7 Days</MenuItem>
+              <MenuItem value="30d">Last 30 Days</MenuItem>
+              <MenuItem value="3m">Last 3 Months</MenuItem>
+              <MenuItem value="6m">Last 6 Months</MenuItem>
+              <MenuItem value="1y">Last Year</MenuItem>
             </Select>
           </FormControl>
         </Stack>

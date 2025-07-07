@@ -77,6 +77,9 @@ import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { GetApp as ExportIcon } from '@mui/icons-material';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -294,7 +297,7 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
 };
 
 // Quick Order Dialog
-const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationUpdate }) => {
+const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationUpdate, onOrderCreated }) => {
   const [orderData, setOrderData] = useState({
     medication: '',
     dosage: '',
@@ -336,6 +339,10 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationU
           window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
             detail: { patientId } 
           }));
+          // Notify parent component about the created order
+          if (onOrderCreated) {
+            onOrderCreated(response.data, 'medication');
+          }
         }
       } else {
         const serviceRequest = {
@@ -363,6 +370,10 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationU
           window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
             detail: { patientId } 
           }));
+          // Notify parent component about the created order
+          if (onOrderCreated) {
+            onOrderCreated(response.data, orderType);
+          }
         }
       }
       
@@ -469,7 +480,8 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationU
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('active');
@@ -482,6 +494,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
   const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
   const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
   useEffect(() => {
     setLoading(false);
@@ -614,6 +627,20 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         updated_by: 'Current User' // This would come from auth context
       });
 
+      // Publish workflow event for pharmacy notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'sent-to-pharmacy',
+        data: {
+          ...order,
+          medicationName: order.medicationCodeableConcept?.text || 
+                         order.medicationCodeableConcept?.coding?.[0]?.display || 
+                         'Unknown medication',
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
       setSnackbar({
         open: true,
         message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`,
@@ -691,6 +718,18 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       );
 
       await Promise.all(promises);
+
+      // Publish workflow event for batch pharmacy notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'batch-sent-to-pharmacy',
+        data: {
+          orderCount: medicationOrders.length,
+          orderIds: medicationOrders.map(o => o.id),
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
 
       setSnackbar({
         open: true,
@@ -841,6 +880,115 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Handle order creation from QuickOrderDialog
+  const handleOrderCreated = async (order, orderType) => {
+    try {
+      // Publish ORDER_PLACED event
+      await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+        ...order,
+        orderType,
+        patientId,
+        timestamp: new Date().toISOString()
+      });
+
+      // For lab orders, notify the results tab
+      if (orderType === 'lab') {
+        await publish(CLINICAL_EVENTS.TAB_UPDATE, {
+          targetTabs: ['results'],
+          updateType: 'pending_lab_order',
+          data: order
+        });
+      }
+
+      // For imaging orders, notify the imaging tab
+      if (orderType === 'imaging') {
+        await publish(CLINICAL_EVENTS.TAB_UPDATE, {
+          targetTabs: ['imaging'],
+          updateType: 'pending_imaging_order',
+          data: order
+        });
+      }
+    } catch (error) {
+      console.error('Failed to publish order created event:', error);
+    }
+  };
+
+  // Export handler
+  const handleExportOrders = (format) => {
+    // Get the currently displayed orders based on tab
+    let ordersToExport = [];
+    let exportTitle = '';
+    
+    switch (tabValue) {
+      case 0: // All Orders
+        ordersToExport = sortedOrders;
+        exportTitle = 'All_Orders';
+        break;
+      case 1: // Medications
+        ordersToExport = sortedOrders.filter(o => o.resourceType === 'MedicationRequest');
+        exportTitle = 'Medication_Orders';
+        break;
+      case 2: // Labs
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && o.category?.[0]?.coding?.[0]?.code === 'laboratory'
+        );
+        exportTitle = 'Lab_Orders';
+        break;
+      case 3: // Imaging
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && o.category?.[0]?.coding?.[0]?.code === 'imaging'
+        );
+        exportTitle = 'Imaging_Orders';
+        break;
+      case 4: // Other
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && 
+          !['laboratory', 'imaging'].includes(o.category?.[0]?.coding?.[0]?.code)
+        );
+        exportTitle = 'Other_Orders';
+        break;
+    }
+    
+    // Transform orders to include display values
+    const transformedOrders = ordersToExport.map(order => ({
+      ...order,
+      code: {
+        text: order.resourceType === 'MedicationRequest' 
+          ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display)
+          : (order.code?.text || order.code?.coding?.[0]?.display)
+      }
+    }));
+    
+    exportClinicalData({
+      patient: currentPatient,
+      data: transformedOrders,
+      columns: EXPORT_COLUMNS.orders,
+      format,
+      title: exportTitle,
+      formatForPrint: (data) => {
+        let html = '<h2>Orders & Prescriptions</h2>';
+        data.forEach(order => {
+          const orderName = order.resourceType === 'MedicationRequest' 
+            ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown')
+            : (order.code?.text || order.code?.coding?.[0]?.display || 'Unknown');
+          
+          html += `
+            <div class="section">
+              <h3>${orderName}</h3>
+              <p><strong>Type:</strong> ${order.resourceType === 'MedicationRequest' ? 'Medication' : 'Service Request'}</p>
+              <p><strong>Status:</strong> ${order.status}</p>
+              <p><strong>Priority:</strong> ${order.priority || 'Routine'}</p>
+              <p><strong>Ordered:</strong> ${order.authoredOn ? format(parseISO(order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}</p>
+              ${order.requester?.display ? `<p><strong>Ordered By:</strong> ${order.requester.display}</p>` : ''}
+              ${order.note?.[0]?.text ? `<p><strong>Instructions:</strong> ${order.note[0].text}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
+  };
+
   const speedDialActions = [
     { 
       icon: <MedicationIcon />, 
@@ -900,6 +1048,13 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             onClick={() => setQuickOrderDialog({ open: true, type: 'medication' })}
           >
             New Order
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ExportIcon />}
+            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+          >
+            Export
           </Button>
         </Stack>
       </Stack>
@@ -1062,6 +1217,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           message: notification.message,
           severity: notification.type === 'error' ? 'error' : 'success'
         })}
+        onOrderCreated={handleOrderCreated}
       />
 
       {/* View Order Dialog */}
@@ -1150,6 +1306,23 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { handleExportOrders('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportOrders('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportOrders('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

@@ -72,6 +72,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { printDocument } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Event type configuration
 const eventTypes = {
@@ -89,7 +90,8 @@ const eventTypes = {
   'CarePlan': { icon: <PlanIcon />, color: 'primary', label: 'Care Plan' },
   'CareTeam': { icon: <TeamIcon />, color: 'primary', label: 'Care Team' },
   'Coverage': { icon: <InsuranceIcon />, color: 'inherit', label: 'Insurance' },
-  'Goal': { icon: <GoalIcon />, color: 'primary', label: 'Goal' }
+  'Goal': { icon: <GoalIcon />, color: 'primary', label: 'Goal' },
+  'WorkflowEvent': { icon: <EventIcon />, color: 'info', label: 'Workflow Event' }
 };
 
 // Get event date
@@ -174,6 +176,9 @@ const getEventDate = (event) => {
              event.statusDate ||
              null;
              
+    case 'WorkflowEvent':
+      return event.date || event.data?.timestamp || null;
+             
     default:
       // Generic fallback for other resource types
       return event.effectiveDateTime || 
@@ -222,6 +227,26 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         return event.type?.text || event.type?.coding?.[0]?.display || 'Document';
       case 'Goal':
         return event.description?.text || 'Goal';
+      case 'WorkflowEvent':
+        // Return a descriptive title based on event type
+        switch (event.eventType) {
+          case CLINICAL_EVENTS.ORDER_PLACED:
+            return 'Order Placed';
+          case CLINICAL_EVENTS.RESULT_RECEIVED:
+            return 'Result Received';
+          case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+            return 'Medication Dispensed';
+          case CLINICAL_EVENTS.DOCUMENTATION_CREATED:
+            return event.data?.isUpdate ? 'Note Updated' : 'Note Created';
+          case CLINICAL_EVENTS.PROBLEM_ADDED:
+            return 'Problem Added';
+          case CLINICAL_EVENTS.CRITICAL_ALERT:
+            return 'Critical Alert';
+          case CLINICAL_EVENTS.WORKFLOW_NOTIFICATION:
+            return 'Workflow Update';
+          default:
+            return event.eventType;
+        }
       default:
         return event.resourceType;
     }
@@ -246,6 +271,23 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         return event.criticality || 'Documented';
       case 'Immunization':
         return event.status || 'Completed';
+      case 'WorkflowEvent':
+        // Return event-specific subtitle
+        if (event.data?.message) {
+          return event.data.message;
+        }
+        switch (event.eventType) {
+          case CLINICAL_EVENTS.ORDER_PLACED:
+            return event.data?.orderType || 'Order';
+          case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+            return event.data?.medicationName || 'Medication';
+          case CLINICAL_EVENTS.DOCUMENTATION_CREATED:
+            return event.data?.noteType || 'Document';
+          case CLINICAL_EVENTS.WORKFLOW_NOTIFICATION:
+            return `${event.data?.workflowType}: ${event.data?.step}`;
+          default:
+            return event.data?.description || '';
+        }
       default:
         return '';
     }
@@ -386,6 +428,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { subscribe, notifications } = useClinicalWorkflow();
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -396,10 +439,43 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20); // Start with 20 items
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [workflowEvents, setWorkflowEvents] = useState([]);
 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Subscribe to all clinical workflow events
+  useEffect(() => {
+    const unsubscribers = [];
+    
+    // Subscribe to all event types
+    Object.values(CLINICAL_EVENTS).forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (eventData) => {
+        // Add the event to our workflow events
+        const workflowEvent = {
+          id: `workflow-${Date.now()}-${Math.random()}`,
+          resourceType: 'WorkflowEvent',
+          eventType: eventType,
+          date: eventData.timestamp || new Date().toISOString(),
+          data: eventData,
+          patientId: eventData.patientId
+        };
+        
+        // Only add events for the current patient
+        if (eventData.patientId === patientId) {
+          setWorkflowEvents(prev => [...prev, workflowEvent]);
+        }
+      });
+      
+      unsubscribers.push(unsubscribe);
+    });
+    
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe, patientId]);
 
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {
@@ -408,18 +484,30 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     
     // Add all resource types
     Object.keys(eventTypes).forEach(resourceType => {
-      const resources = getPatientResources(patientId, resourceType) || [];
-      resources.forEach(resource => {
-        const uniqueKey = `${resource.resourceType}-${resource.id}`;
-        if (!seenIds.has(uniqueKey)) {
-          seenIds.add(uniqueKey);
-          events.push(resource);
-        }
-      });
+      if (resourceType === 'WorkflowEvent') {
+        // Add workflow events from state
+        workflowEvents.forEach(event => {
+          const uniqueKey = `${event.resourceType}-${event.id}`;
+          if (!seenIds.has(uniqueKey)) {
+            seenIds.add(uniqueKey);
+            events.push(event);
+          }
+        });
+      } else {
+        // Add FHIR resources
+        const resources = getPatientResources(patientId, resourceType) || [];
+        resources.forEach(resource => {
+          const uniqueKey = `${resource.resourceType}-${resource.id}`;
+          if (!seenIds.has(uniqueKey)) {
+            seenIds.add(uniqueKey);
+            events.push(resource);
+          }
+        });
+      }
     });
 
     return events;
-  }, [patientId, getPatientResources]); // Only recalculate when patientId changes or resources update
+  }, [patientId, getPatientResources, workflowEvents]); // Recalculate when patientId, resources, or workflow events update
 
   // Optimized search function that doesn't use JSON.stringify
   const isEventMatchingSearch = useCallback((event, term) => {
@@ -437,7 +525,13 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       event.vaccineCode?.text,
       event.vaccineCode?.coding?.[0]?.display,
       event.description,
-      event.resourceType
+      event.resourceType,
+      // WorkflowEvent fields
+      event.eventType,
+      event.data?.message,
+      event.data?.noteType,
+      event.data?.medicationName,
+      event.data?.workflowType
     ];
     
     return searchableFields.some(field => 

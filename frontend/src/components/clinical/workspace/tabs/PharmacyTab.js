@@ -70,6 +70,8 @@ import {
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
+import fhirService from '../../../../services/fhirService';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Medication status definitions
 const MEDICATION_STATUSES = {
@@ -413,6 +415,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
 const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -530,32 +533,90 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   // Handle dispensing
   const handleDispense = useCallback(async (dispenseData) => {
     try {
-      // TODO: Create MedicationDispense FHIR resource
-      // const dispenseResource = {
-      //   resourceType: 'MedicationDispense',
-      //   status: 'completed',
-      //   medicationCodeableConcept: dispenseData.medication,
-      //   subject: { reference: `Patient/${patientId}` },
-      //   authorizingPrescription: [{ reference: `MedicationRequest/${dispenseData.medicationRequestId}` }],
-      //   quantity: { value: dispenseData.quantity, unit: dispenseData.unit },
-      //   whenHandedOver: dispenseData.dispensedAt,
-      //   note: [{ text: dispenseData.pharmacistNotes }]
-      // };
-      // await fhirService.createMedicationDispense(dispenseResource);
+      // Create MedicationDispense FHIR resource
+      const dispenseResource = {
+        resourceType: 'MedicationDispense',
+        status: 'completed',
+        medicationCodeableConcept: dispenseData.medication,
+        subject: { reference: `Patient/${patientId}` },
+        authorizingPrescription: [{ reference: `MedicationRequest/${dispenseData.medicationRequestId}` }],
+        quantity: { value: dispenseData.quantity, unit: dispenseData.unit },
+        whenHandedOver: dispenseData.dispensedAt || new Date().toISOString(),
+        daysSupply: dispenseData.daysSupply ? {
+          value: dispenseData.daysSupply,
+          unit: 'days'
+        } : undefined,
+        performer: [{
+          actor: {
+            display: 'Pharmacy Staff' // In production, this would be the current user
+          }
+        }],
+        note: dispenseData.pharmacistNotes ? [{ text: dispenseData.pharmacistNotes }] : undefined
+      };
+      
+      // Create the MedicationDispense resource
+      const createdDispense = await fhirService.createResource('MedicationDispense', dispenseResource);
+      
+      // Get the current medication request to update it
+      const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);
+      if (currentRequest) {
+        // Update the medication request status to 'completed'
+        const updatedRequest = {
+          ...currentRequest,
+          status: 'completed',
+          dispenseRequest: {
+            ...currentRequest.dispenseRequest,
+            numberOfRepeatsAllowed: (currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0) - 1
+          }
+        };
+        await fhirService.updateMedicationRequest(dispenseData.medicationRequestId, updatedRequest);
+      }
+      
+      // Refresh patient resources to update the UI
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Publish MEDICATION_DISPENSED event
+      await publish(CLINICAL_EVENTS.MEDICATION_DISPENSED, {
+        ...createdDispense,
+        medicationName: dispenseData.medication?.text || 
+                       dispenseData.medication?.coding?.[0]?.display || 
+                       'Unknown medication',
+        patientId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Publish workflow notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'completed',
+        data: {
+          medicationName: dispenseData.medication?.text || 
+                         dispenseData.medication?.coding?.[0]?.display || 
+                         'Unknown medication',
+          quantity: dispenseData.quantity,
+          unit: dispenseData.unit,
+          daysSupply: dispenseData.daysSupply,
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       setSnackbar({
         open: true,
         message: 'Medication dispensed successfully',
         severity: 'success'
       });
+      setSelectedRequest(null);
+      setDispenseDialogOpen(false);
     } catch (error) {
+      console.error('Error dispensing medication:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to dispense medication',
+        message: error.message || 'Failed to dispense medication',
         severity: 'error'
       });
     }
-  }, [onNotificationUpdate, patientId]);
+  }, [onNotificationUpdate, patientId, medicationRequests, publish]);
 
   // Handle opening dispense dialog
   const handleOpenDispenseDialog = useCallback((medicationRequest) => {

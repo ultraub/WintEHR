@@ -13,6 +13,7 @@ export const CLINICAL_EVENTS = {
   ORDER_PLACED: 'order.placed',
   ORDER_COMPLETED: 'order.completed',
   RESULT_RECEIVED: 'result.received',
+  RESULT_ACKNOWLEDGED: 'result.acknowledged',
   MEDICATION_DISPENSED: 'medication.dispensed',
   MEDICATION_ADMINISTERED: 'medication.administered',
   ENCOUNTER_CREATED: 'encounter.created',

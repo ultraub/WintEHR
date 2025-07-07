@@ -49,7 +49,10 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
-  alpha
+  alpha,
+  Checkbox,
+  FormControlLabel,
+  Snackbar
 } from '@mui/material';
 import {
   Science as LabIcon,  Assessment as DiagnosticIcon,
@@ -69,7 +72,8 @@ import {
   ArrowDownward as LowIcon,
   Remove as NormalRangeIcon,
   Assessment as AssessmentIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  CheckCircle
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -77,6 +81,7 @@ import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -158,7 +163,7 @@ const getResultStatus = (observation) => {
 };
 
 // Result Row Component for Table View
-const ResultRow = ({ observation, onClick, selected }) => {
+const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected }) => {
   const theme = useTheme();
   const status = getResultStatus(observation);
   const date = observation.effectiveDateTime || observation.issued;
@@ -213,6 +218,15 @@ const ResultRow = ({ observation, onClick, selected }) => {
       selected={selected}
       sx={{ cursor: 'pointer' }}
     >
+      <TableCell padding="checkbox">
+        <Checkbox
+          checked={isSelected || false}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectResult(observation.id);
+          }}
+        />
+      </TableCell>
       <TableCell>
         <Stack direction="row" spacing={1} alignItems="center">
           {status.icon}
@@ -331,6 +345,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish, createCriticalAlert } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
@@ -343,14 +358,189 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [alertedResults, setAlertedResults] = useState(new Set());
+  const [selectedResultIds, setSelectedResultIds] = useState(new Set());
+  const [acknowledgingResults, setAcknowledgingResults] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Get observations and diagnostic reports early for monitoring
+  const observations = getPatientResources(patientId, 'Observation') || [];
+  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
 
   useEffect(() => {
     setLoading(false);
   }, []);
 
+  // Monitor for new abnormal results
+  useEffect(() => {
+    if (observations && observations.length > 0) {
+      // Check for recent abnormal results (within last 24 hours)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      const recentAbnormalResults = observations.filter(obs => {
+        // Skip if already alerted
+        if (alertedResults.has(obs.id)) return false;
+        
+        // Check if observation is recent
+        const obsDate = obs.effectiveDateTime ? new Date(obs.effectiveDateTime) : null;
+        if (!obsDate || obsDate < oneDayAgo) return false;
+        
+        // Check if observation is abnormal
+        const status = getResultStatus(obs);
+        return status.color === 'error' || status.color === 'warning';
+      });
+      
+      // Publish critical alerts for abnormal results
+      if (recentAbnormalResults.length > 0) {
+        const newAlertedResults = new Set(alertedResults);
+        
+        recentAbnormalResults.forEach(async (result) => {
+          const status = getResultStatus(result);
+          const testName = result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test';
+          const value = result.valueQuantity ? 
+            `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 
+            'N/A';
+          
+          await createCriticalAlert({
+            type: 'abnormal_result',
+            severity: status.color === 'error' ? 'high' : 'medium',
+            message: `Abnormal ${testName}: ${value} (${status.label})`,
+            data: result,
+            actions: [
+              { label: 'Review Result', action: 'view', target: result.id },
+              { label: 'Add to Note', action: 'document', target: 'documentation' }
+            ]
+          });
+          
+          // Also publish RESULT_RECEIVED event
+          await publish(CLINICAL_EVENTS.RESULT_RECEIVED, {
+            ...result,
+            isAbnormal: true,
+            status: status.label,
+            patientId,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Mark as alerted
+          newAlertedResults.add(result.id);
+        });
+        
+        // Update alerted results state
+        setAlertedResults(newAlertedResults);
+      }
+    }
+  }, [observations, patientId, createCriticalAlert, publish, alertedResults]);
+
   const handleViewDetails = (result) => {
     setSelectedResult(result);
     setDetailsDialogOpen(true);
+  };
+
+  const handleBatchAcknowledge = async () => {
+    setAcknowledgingResults(true);
+    try {
+      // Create acknowledgment notes for each selected result
+      const promises = Array.from(selectedResultIds).map(async (resultId) => {
+        const result = observations.find(o => o.id === resultId) || 
+                      diagnosticReports.find(d => d.id === resultId);
+        
+        if (result) {
+          // Create a note indicating the result has been reviewed
+          const note = {
+            resourceType: 'DocumentReference',
+            status: 'current',
+            type: {
+              coding: [{
+                system: 'http://loinc.org',
+                code: '11506-3',
+                display: 'Progress note'
+              }],
+              text: 'Result Acknowledgment'
+            },
+            subject: {
+              reference: `Patient/${patientId}`
+            },
+            date: new Date().toISOString(),
+            author: [{
+              display: 'Current User' // In real app, would use auth context
+            }],
+            content: [{
+              attachment: {
+                contentType: 'text/plain',
+                data: btoa(`Result acknowledged: ${result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test'} - ${result.valueQuantity ? `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 'See report'}`)
+              }
+            }],
+            context: {
+              related: [{
+                reference: `${result.resourceType}/${result.id}`
+              }]
+            }
+          };
+          
+          const response = await fetch('/fhir/R4/DocumentReference', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(note)
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to acknowledge result ${result.id}`);
+          }
+          
+          // Publish acknowledgment event
+          await publish(CLINICAL_EVENTS.RESULT_ACKNOWLEDGED, {
+            resultId: result.id,
+            testName: result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test',
+            acknowledgedBy: 'Current User',
+            timestamp: new Date().toISOString(),
+            patientId
+          });
+        }
+      });
+      
+      await Promise.all(promises);
+      
+      setSnackbar({
+        open: true,
+        message: `Successfully acknowledged ${selectedResultIds.size} result(s)`,
+        severity: 'success'
+      });
+      
+      // Clear selection
+      setSelectedResultIds(new Set());
+      
+    } catch (error) {
+      console.error('Error acknowledging results:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to acknowledge some results',
+        severity: 'error'
+      });
+    } finally {
+      setAcknowledgingResults(false);
+    }
+  };
+
+  const handleSelectResult = (resultId) => {
+    const newSelected = new Set(selectedResultIds);
+    if (newSelected.has(resultId)) {
+      newSelected.delete(resultId);
+    } else {
+      newSelected.add(resultId);
+    }
+    setSelectedResultIds(newSelected);
+  };
+
+  const handleSelectAll = (event) => {
+    if (event.target.checked) {
+      const newSelected = new Set(sortedResults.map(r => r.id));
+      setSelectedResultIds(newSelected);
+    } else {
+      setSelectedResultIds(new Set());
+    }
   };
 
   const handlePrintResults = () => {
@@ -393,8 +583,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
-  // Get observations and imaging studies
-  const observations = getPatientResources(patientId, 'Observation') || [];  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
 
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {
@@ -516,6 +704,16 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
+          {selectedResultIds.size > 0 && (
+            <Button
+              variant="contained"
+              onClick={handleBatchAcknowledge}
+              disabled={acknowledgingResults}
+              startIcon={<CheckCircle />}
+            >
+              Acknowledge ({selectedResultIds.size})
+            </Button>
+          )}
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -662,6 +860,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={selectedResultIds.size > 0 && selectedResultIds.size < sortedResults.length}
+                    checked={sortedResults.length > 0 && selectedResultIds.size === sortedResults.length}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell>Test Name</TableCell>
                 <TableCell>Result</TableCell>
                 <TableCell>Reference Range</TableCell>
@@ -678,6 +883,8 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                     observation={result}
                     onClick={() => handleViewDetails(result)}
                     selected={selectedResult?.id === result.id}
+                    onSelectResult={handleSelectResult}
+                    isSelected={selectedResultIds.has(result.id)}
                   />
                 ))
               }
@@ -1031,6 +1238,22 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -81,6 +81,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import fhirService from '../../../../services/fhirService';
 import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Note type configuration
 const noteTypes = {
@@ -243,6 +244,7 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
 
 // Note Editor Component
 const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) => {
+  const { publish } = useClinicalWorkflow();
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
@@ -387,6 +389,31 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
       }
 
       if (response.ok) {
+        const savedNote = await response.json();
+        
+        // Publish DOCUMENTATION_CREATED event
+        await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+          ...savedNote,
+          noteType: noteTypes[noteData.type]?.label || 'Clinical Note',
+          isUpdate: !!(note && note.id),
+          isSigned: signNote,
+          patientId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Publish workflow notification
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'clinical-documentation',
+          step: note && note.id ? 'updated' : 'created',
+          data: {
+            noteType: noteTypes[noteData.type]?.label || 'Clinical Note',
+            title: noteData.title || 'Clinical Note',
+            isSigned: signNote,
+            patientId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
         // Refresh patient resources to show new/updated note
         window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
           detail: { patientId } 
@@ -609,6 +636,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterType, setFilterType] = useState('all');
@@ -786,6 +814,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       });
       
       if (response.ok) {
+        // Publish DOCUMENTATION_CREATED event (for signed note)
+        await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+          ...updatedNote,
+          noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
+          isUpdate: true,
+          isSigned: true,
+          patientId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Publish workflow notification
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'clinical-documentation',
+          step: 'signed',
+          data: {
+            noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
+            title: note.description || 'Clinical Note',
+            isSigned: true,
+            patientId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
         // Refresh patient resources to show updated status
         window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
           detail: { patientId } 
@@ -865,7 +916,31 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       };
 
       // Save the addendum
-      await fhirService.createDocumentReference(addendumResource);
+      const createdAddendum = await fhirService.createDocumentReference(addendumResource);
+      
+      // Publish DOCUMENTATION_CREATED event
+      await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+        ...createdAddendum,
+        noteType: 'Addendum',
+        isUpdate: false,
+        isSigned: true,
+        isAddendum: true,
+        originalNoteId: selectedNoteForAddendum.id,
+        patientId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Publish workflow notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'clinical-documentation',
+        step: 'addendum-created',
+        data: {
+          noteType: 'Addendum',
+          originalNoteTitle: selectedNoteForAddendum.description || 'Clinical Note',
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       // Refresh the documents list
       await fhirService.refreshPatientResources(patientId);
