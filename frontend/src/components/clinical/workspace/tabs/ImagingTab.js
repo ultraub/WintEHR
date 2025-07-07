@@ -69,6 +69,7 @@ import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
 import DICOMViewer from '../../imaging/DICOMViewer';
+import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 
 // Get modality icon
 const getModalityIcon = (modality) => {
@@ -263,41 +264,24 @@ const ImagingStudyCard = ({ study, onView, onAction }) => {
 
 // DICOM Viewer Dialog with functional viewer
 const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
+  // Prevent body scroll when dialog is open
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [open]);
+
+  if (!open || !study) return null;
+  
+  // Render directly without Dialog wrapper for better full-screen experience
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="xl" 
-      fullWidth
-      PaperProps={{
-        sx: { height: '90vh' }
-      }}
-    >
-      <DialogTitle>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6">
-            DICOM Viewer - {study?.description || 'Imaging Study'}
-          </Typography>
-        </Stack>
-      </DialogTitle>
-      
-      <DialogContent sx={{ p: 1 }}>
-        <Box sx={{ height: '100%' }}>
-          <DICOMViewer study={study} onClose={onClose} />
-        </Box>
-      </DialogContent>
-      
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        <Button 
-          variant="contained" 
-          startIcon={<DownloadIcon />}
-          onClick={() => onDownload(study)}
-        >
-          Download Study
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <DICOMViewer study={study} onClose={onClose} />
   );
 };
 
@@ -312,6 +296,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewerDialog, setViewerDialog] = useState({ open: false, study: null });
+  const [reportDialog, setReportDialog] = useState({ open: false, study: null });
   const [studies, setStudies] = useState([]);
 
   // Load imaging studies
@@ -396,8 +381,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
         handleViewStudy(study);
         break;
       case 'report':
-        console.log('View report for study:', study.id);
-        // TODO: Implement report viewing
+        setReportDialog({ open: true, study });
         break;
       case 'download':
         console.log('Download study:', study.id);
@@ -622,6 +606,14 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setViewerDialog({ open: false, study: null })}
         study={viewerDialog.study}
         onDownload={handleStudyDownload}
+      />
+
+      {/* Imaging Report Dialog */}
+      <ImagingReportDialog
+        open={reportDialog.open}
+        onClose={() => setReportDialog({ open: false, study: null })}
+        study={reportDialog.study}
+        patientId={patientId}
       />
     </Box>
   );

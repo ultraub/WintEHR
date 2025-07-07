@@ -1,6 +1,6 @@
 /**
  * Results Tab Component
- * Display lab results, imaging, and diagnostic test results
+ * Display lab results and diagnostic test results
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -48,9 +48,7 @@ import {
   alpha
 } from '@mui/material';
 import {
-  Science as LabIcon,
-  Image as ImagingIcon,
-  Assessment as DiagnosticIcon,
+  Science as LabIcon,  Assessment as DiagnosticIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   Warning as AbnormalIcon,
@@ -324,64 +322,6 @@ const ResultCard = ({ observation, onClick }) => {
   );
 };
 
-// Imaging Result Component
-const ImagingResult = ({ imagingStudy, onClick }) => {
-  const theme = useTheme();
-  
-  return (
-    <Card sx={{ mb: 2 }}>
-      <CardContent>
-        <Stack direction="row" spacing={2} alignItems="center" mb={2}>
-          <ImagingIcon color="primary" />
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6">
-              {imagingStudy.description || 'Imaging Study'}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {imagingStudy.started ? format(parseISO(imagingStudy.started), 'MMM d, yyyy h:mm a') : 'Date unknown'}
-            </Typography>
-          </Box>
-          <Chip 
-            label={imagingStudy.status} 
-            size="small" 
-            color={imagingStudy.status === 'available' ? 'success' : 'default'}
-          />
-        </Stack>
-        
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">Modality</Typography>
-            <Typography variant="body2">
-              {imagingStudy.modality?.[0]?.display || 'Unknown'}
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">Body Site</Typography>
-            <Typography variant="body2">
-              {imagingStudy.bodySite?.[0]?.display || 'Not specified'}
-            </Typography>
-          </Grid>
-          <Grid item xs={12}>
-            <Typography variant="caption" color="text.secondary">Series</Typography>
-            <Typography variant="body2">
-              {imagingStudy.numberOfSeries || 0} series, {imagingStudy.numberOfInstances || 0} images
-            </Typography>
-          </Grid>
-        </Grid>
-      </CardContent>
-      
-      <CardActions>
-        <Button size="small" startIcon={<ViewIcon />} onClick={onClick}>
-          View Images
-        </Button>
-        <Button size="small" startIcon={<DownloadIcon />}>
-          Download Report
-        </Button>
-      </CardActions>
-    </Card>
-  );
-};
-
 const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -403,9 +343,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   }, []);
 
   // Get observations and imaging studies
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const imagingStudies = getPatientResources(patientId, 'ImagingStudy') || [];
-  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
+  const observations = getPatientResources(patientId, 'Observation') || [];  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
 
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {
@@ -480,9 +418,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       case 0: 
         currentResults = filterResults(labResults);
         break;
-      case 1: 
-        currentResults = imagingStudies;
-        break;
+      case 1:
       case 2: 
         currentResults = filterResults(vitalSigns);
         break;
@@ -503,7 +439,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       filteredResults: currentResults, 
       sortedResults: sorted 
     };
-  }, [tabValue, labResults, imagingStudies, vitalSigns, diagnosticReports, filterResults]);
+  }, [tabValue, labResults, vitalSigns, diagnosticReports, filterResults]);
 
   // Memoized abnormal count calculation
   const abnormalCount = useMemo(() => {
@@ -716,18 +652,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             }}
           />
         </TableContainer>
-      ) : tabValue === 1 ? (
-        // Imaging Results
-        <Box>
-          {sortedResults.map((imaging) => (
-            <ImagingResult
-              key={imaging.id}
-              imagingStudy={imaging}
-              onClick={() => {}}
-            />
-          ))}
-        </Box>
-      ) : tabValue === 2 ? (
+      ) : tabValue === 1 ? () : tabValue === 1 ? (
         // Vital Signs
         <Box>
           {vitalSigns.length === 0 ? (
@@ -791,7 +716,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             </Box>
           )}
         </Box>
-      ) : tabValue === 3 ? (
+      ) : tabValue === 2 ? (
         // Diagnostic Reports
         viewMode === 'table' ? (
           <TableContainer component={Paper}>

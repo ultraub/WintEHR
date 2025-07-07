@@ -34,7 +34,8 @@ import {
   Fullscreen as FullscreenIcon,
   GetApp as DownloadIcon,
   Settings as SettingsIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -390,9 +391,39 @@ const DICOMViewer = ({ study, onClose }) => {
   const currentInstance = instances[currentInstanceIndex];
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1300,
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      overflow: 'hidden'
+    }}>
+      {/* Close button */}
+      <IconButton 
+        onClick={onClose}
+        sx={{ 
+          position: 'absolute', 
+          top: 8, 
+          right: 8, 
+          color: 'white',
+          zIndex: 1301,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          '&:hover': {
+            backgroundColor: 'rgba(0, 0, 0, 0.7)'
+          }
+        }}
+      >
+        <CloseIcon />
+      </IconButton>
+      
       {/* Controls */}
-      <Paper sx={{ p: 1, mb: 1 }}>
+      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
         <Grid container spacing={2} alignItems="center">
           {/* Navigation Controls */}
           <Grid item>
@@ -506,14 +537,23 @@ const DICOMViewer = ({ study, onClose }) => {
       </Paper>
 
       {/* DICOM Canvas */}
-      <Box sx={{ flex: 1, position: 'relative', backgroundColor: '#000' }}>
+      <Box sx={{ 
+        flex: 1, 
+        position: 'relative', 
+        backgroundColor: '#000',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden'
+      }}>
         <canvas
           ref={canvasRef}
-          width={800}
-          height={600}
+          width={512}
+          height={512}
           style={{
-            width: '100%',
-            height: '100%',
+            maxWidth: '90%',
+            maxHeight: '90%',
+            objectFit: 'contain',
             cursor: isDragging.current ? 'grabbing' : 'grab'
           }}
           onMouseDown={handleMouseDown}
