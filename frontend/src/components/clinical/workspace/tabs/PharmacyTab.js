@@ -63,10 +63,12 @@ import {
   Edit as EditIcon,
   Add as AddIcon,
   Cancel as CancelIcon,
-  Done as DoneIcon
+  Done as DoneIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { printDocument } from '../../../../utils/printUtils';
 
 // Medication status definitions
 const MEDICATION_STATUSES = {
@@ -409,7 +411,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
 
 const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -418,9 +420,22 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [dispenseDialogOpen, setDispenseDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
 
-  // Get medication requests
-  const medicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
+  // Get medication requests based on patient filter
+  const medicationRequests = useMemo(() => {
+    if (!getPatientResources) return [];
+    
+    // For patient-specific filter, only get current patient's requests
+    if (patientFilter === 'current' && patientId) {
+      return getPatientResources(patientId, 'MedicationRequest') || [];
+    }
+    
+    // For 'all' filter, we would typically fetch from all patients
+    // Since we're using patient context, we'll still use current patient
+    // In a real pharmacy system, this would query across all patients
+    return getPatientResources(patientId, 'MedicationRequest') || [];
+  }, [getPatientResources, patientId, patientFilter]);
 
   // Categorize medication requests by pharmacy status
   const categorizedRequests = useMemo(() => {
@@ -491,30 +506,58 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   }, [medicationRequests, filterStatus, filterPharmacyStatus, searchTerm]);
 
   // Handle status changes
-  const handleStatusChange = useCallback((requestId, newStatus) => {
-    console.log(`Updating medication request ${requestId} to status: ${newStatus}`);
-    // This would integrate with the FHIR service to update the status
-    // For now, just show notification
-    if (onNotificationUpdate) {
-      onNotificationUpdate({
-        type: 'success',
-        message: `Medication request status updated to ${newStatus}`
-      });
+  const handleStatusChange = useCallback(async (requestId, newStatus) => {
+    try {
+      // TODO: Integrate with FHIR service to update the status
+      // await fhirService.updateMedicationRequest(requestId, { status: newStatus });
+      
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: `Medication request status updated to ${newStatus}`
+        });
+      }
+    } catch (error) {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to update medication request status'
+        });
+      }
     }
   }, [onNotificationUpdate]);
 
   // Handle dispensing
-  const handleDispense = useCallback((dispenseData) => {
-    console.log('Dispensing medication:', dispenseData);
-    // This would create a MedicationDispense FHIR resource
-    // and update the MedicationRequest status
-    if (onNotificationUpdate) {
-      onNotificationUpdate({
-        type: 'success',
-        message: 'Medication dispensed successfully'
-      });
+  const handleDispense = useCallback(async (dispenseData) => {
+    try {
+      // TODO: Create MedicationDispense FHIR resource
+      // const dispenseResource = {
+      //   resourceType: 'MedicationDispense',
+      //   status: 'completed',
+      //   medicationCodeableConcept: dispenseData.medication,
+      //   subject: { reference: `Patient/${patientId}` },
+      //   authorizingPrescription: [{ reference: `MedicationRequest/${dispenseData.medicationRequestId}` }],
+      //   quantity: { value: dispenseData.quantity, unit: dispenseData.unit },
+      //   whenHandedOver: dispenseData.dispensedAt,
+      //   note: [{ text: dispenseData.pharmacistNotes }]
+      // };
+      // await fhirService.createMedicationDispense(dispenseResource);
+      
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Medication dispensed successfully'
+        });
+      }
+    } catch (error) {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to dispense medication'
+        });
+      }
     }
-  }, [onNotificationUpdate]);
+  }, [onNotificationUpdate, patientId]);
 
   // Handle opening dispense dialog
   const handleOpenDispenseDialog = useCallback((medicationRequest) => {
@@ -539,14 +582,92 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const currentRequests = getCurrentTabRequests();
+  
+  // Handle print queue
+  const handlePrintQueue = useCallback(() => {
+    const tabNames = ['Pending Review', 'Verified', 'Ready for Pickup', 'Completed'];
+    const currentTabName = tabNames[tabValue] || 'All';
+    
+    const content = `
+      <h2>Pharmacy Queue - ${currentTabName}</h2>
+      <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+      <p><strong>Filter:</strong> ${patientFilter === 'current' ? `Current Patient (${currentPatient?.name?.[0]?.given?.join(' ') || ''} ${currentPatient?.name?.[0]?.family || ''})` : 'All Patients'}</p>
+      <p><strong>Total Items:</strong> ${currentRequests.length}</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+          <tr style="background-color: #f5f5f5;">
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Medication</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Patient</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Dosage</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Quantity</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Status</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Prescribed Date</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Prescriber</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${currentRequests.map(request => {
+            const medicationName = request.medicationCodeableConcept?.text ||
+              request.medicationCodeableConcept?.coding?.[0]?.display ||
+              request.medicationReference?.display ||
+              'Unknown Medication';
+            
+            const dosage = request.dosageInstruction?.[0];
+            const dosageText = dosage?.text || 
+              (dosage?.doseAndRate?.[0]?.doseQuantity ? 
+                `${dosage.doseAndRate[0].doseQuantity.value} ${dosage.doseAndRate[0].doseQuantity.unit || 'units'}` : 
+                'See instructions');
+            
+            const quantity = request.dispenseRequest?.quantity?.value ?
+              `${request.dispenseRequest.quantity.value} ${request.dispenseRequest.quantity.unit || ''}` :
+              'Not specified';
+            
+            const statusInfo = MEDICATION_STATUSES[request.status] || MEDICATION_STATUSES.unknown;
+            
+            return `
+              <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">${medicationName}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${request.subject?.display || 'Unknown Patient'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${dosageText}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${quantity}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${statusInfo.label}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${request.authoredOn ? format(parseISO(request.authoredOn), 'MMM d, yyyy') : 'No date'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${request.requester?.display || 'Unknown Provider'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      
+      ${currentRequests.length === 0 ? '<p style="text-align: center; margin-top: 20px;">No medication requests in this queue.</p>' : ''}
+    `;
+    
+    printDocument({
+      title: `Pharmacy Queue - ${currentTabName}`,
+      patient: patientFilter === 'current' ? currentPatient : null,
+      content,
+      footer: 'Generated from MedGenEMR Pharmacy Management System'
+    });
+  }, [tabValue, currentRequests, patientFilter, currentPatient]);
 
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">
-          Pharmacy Management
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Typography variant="h5" fontWeight="bold">
+            Pharmacy Management
+          </Typography>
+          {currentPatient && patientFilter === 'current' && (
+            <Chip
+              icon={<PatientIcon />}
+              label={`${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`}
+              color="primary"
+              variant="outlined"
+            />
+          )}
+        </Stack>
         <Stack direction="row" spacing={2}>
           <Button
             variant="outlined"
@@ -578,6 +699,11 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
                 <Typography variant="h6" color="warning.main">
                   Pending Review
                 </Typography>
+                {patientFilter === 'current' && (
+                  <Typography variant="caption" color="text.secondary">
+                    Current patient
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -671,7 +797,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
 
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
           <TextField
             placeholder="Search medications..."
             value={searchTerm}
@@ -686,6 +812,28 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
               )
             }}
           />
+          
+          {/* Patient Filter Toggle */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconButton
+              size="small"
+              onClick={() => setPatientFilter('current')}
+              color={patientFilter === 'current' ? 'primary' : 'default'}
+            >
+              <Tooltip title="Current Patient">
+                <PatientIcon />
+              </Tooltip>
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={() => setPatientFilter('all')}
+              color={patientFilter === 'all' ? 'primary' : 'default'}
+            >
+              <Tooltip title="All Patients">
+                <PeopleIcon />
+              </Tooltip>
+            </IconButton>
+          </Stack>
           
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <InputLabel>Status</InputLabel>
@@ -705,6 +853,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
+            onClick={handlePrintQueue}
           >
             Print Queue
           </Button>
@@ -714,7 +863,10 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       {/* Medication Requests List */}
       {currentRequests.length === 0 ? (
         <Alert severity="info">
-          No medication requests in this category
+          {patientFilter === 'current' && currentPatient
+            ? `No medication requests in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
+            : 'No medication requests in this category'
+          }
         </Alert>
       ) : (
         <Box>

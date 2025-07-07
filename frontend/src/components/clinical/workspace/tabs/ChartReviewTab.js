@@ -105,7 +105,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
       await onEditProblem(updatedCondition);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error updating problem:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -115,7 +115,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
       await onDeleteProblem(conditionId);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error deleting problem:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -326,7 +326,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       await onEditMedication(updatedMedication);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error updating medication:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -336,15 +336,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       await onDeleteMedication(medicationId);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error deleting medication:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
 
   const handleReconciliation = async (reconciliationChanges) => {
     try {
-      console.log('Applying medication reconciliation changes:', reconciliationChanges);
-      
       // Apply each reconciliation change
       for (const change of reconciliationChanges) {
         if (change.type === 'add') {
@@ -402,9 +400,9 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         }
       }
       
-      console.log('Medication reconciliation completed successfully');
+      // Medication reconciliation completed successfully
     } catch (error) {
-      console.error('Error during medication reconciliation:', error);
+      // Error during medication reconciliation
       throw error;
     }
   };
@@ -597,7 +595,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
       await onEditAllergy(updatedAllergy);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error updating allergy:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -607,7 +605,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
       await onDeleteAllergy(allergyId);
       handleCloseEditDialog();
     } catch (error) {
-      console.error('Error deleting allergy:', error);
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -783,66 +781,42 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddProblem = async (condition) => {
     try {
-      console.log('Adding new problem:', condition);
       const createdCondition = await fhirService.createCondition(condition);
-      console.log('Problem created successfully:', createdCondition);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error adding problem:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Error is thrown to be handled by the UI
       throw error;
     }
   };
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
-      console.log('Prescribing new medication:', medicationRequest);
       const createdMedication = await fhirService.createMedicationRequest(medicationRequest);
-      console.log('Medication prescribed successfully:', createdMedication);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error prescribing medication:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Error is thrown to be handled by the UI
       throw error;
     }
   };
 
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
-      console.log('Adding new allergy:', allergyIntolerance);
       const createdAllergy = await fhirService.createAllergyIntolerance(allergyIntolerance);
-      console.log('Allergy added successfully:', createdAllergy);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error adding allergy:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Error is thrown to be handled by the UI
       throw error;
     }
   };
@@ -867,7 +841,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       
       return result;
     } catch (error) {
-      console.error('Error updating problem:', error);
       setSaveError(error.message || 'Failed to update problem');
       throw error;
     } finally {
@@ -877,22 +850,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteProblem = async (conditionId) => {
     try {
-      console.log('Deleting problem:', conditionId);
       await fhirService.deleteCondition(conditionId);
-      console.log('Problem deleted successfully');
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error deleting problem:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
       throw error;
     }
   };
@@ -903,9 +867,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      console.log('Updating medication:', updatedMedicationRequest);
       const result = await fhirService.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
-      console.log('Medication updated successfully:', result);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -919,7 +881,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       
       return result;
     } catch (error) {
-      console.error('Error updating medication:', error);
       setSaveError(error.message || 'Failed to update medication');
       throw error;
     } finally {
@@ -929,22 +890,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteMedication = async (medicationId) => {
     try {
-      console.log('Deleting medication:', medicationId);
       await fhirService.deleteMedicationRequest(medicationId);
-      console.log('Medication deleted successfully');
       
       // Refresh the patient resources to remove the deleted medication
       await refreshPatientResources(patientId);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error deleting medication:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
       throw error;
     }
   };
@@ -955,9 +907,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      console.log('Updating allergy:', updatedAllergyIntolerance);
       const result = await fhirService.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
-      console.log('Allergy updated successfully:', result);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -971,7 +921,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       
       return result;
     } catch (error) {
-      console.error('Error updating allergy:', error);
       setSaveError(error.message || 'Failed to update allergy');
       throw error;
     } finally {
@@ -981,22 +930,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteAllergy = async (allergyId) => {
     try {
-      console.log('Deleting allergy:', allergyId);
       await fhirService.deleteAllergyIntolerance(allergyId);
-      console.log('Allergy deleted successfully');
       
       // Refresh the patient resources to remove the deleted allergy
       await refreshPatientResources(patientId);
       
-      // Optionally show a success message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
+      // Refresh completed successfully
     } catch (error) {
-      console.error('Error deleting allergy:', error);
-      
-      // Show error message
-      // Note: onNotificationUpdate expects a count, not an object
-      // TODO: Implement proper notification system for success/error messages
       throw error;
     }
   };
@@ -1037,11 +977,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           _count: 1000, 
           _sort: '-recorded-date' 
         }, forceRefresh);
-        console.log('Loaded conditions:', conditionsResult.resources?.length, conditionsResult.resources?.map(c => ({ 
-          id: c.id, 
-          text: c.code?.text,
-          clinicalStatus: c.clinicalStatus?.coding?.[0]?.code 
-        })));
+        // Set conditions from result
         setConditions(conditionsResult.resources || []);
         
         // Load medications
@@ -1060,7 +996,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         }, forceRefresh);
         setAllergies(allergiesResult.resources || []);
       } catch (error) {
-        console.error('Error loading resources:', error);
+        // Error loading resources - UI will show appropriate message
       }
     };
     

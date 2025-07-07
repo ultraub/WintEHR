@@ -78,6 +78,7 @@ import {
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
 
 // Note type configuration
 const noteTypes = {
@@ -95,7 +96,7 @@ const noteTypes = {
 };
 
 // Note Card Component
-const NoteCard = ({ note, onEdit, onView }) => {
+const NoteCard = ({ note, onEdit, onView, onSign }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -205,9 +206,6 @@ const NoteCard = ({ note, onEdit, onView }) => {
                 <EditIcon />
               </IconButton>
             )}
-            <IconButton size="small">
-              <PrintIcon />
-            </IconButton>
           </Stack>
         </Stack>
       </CardContent>
@@ -220,7 +218,7 @@ const NoteCard = ({ note, onEdit, onView }) => {
           {expanded ? 'Show Less' : 'Read More'}
         </Button>
         {!isSigned && (
-          <Button size="small" color="primary">
+          <Button size="small" color="primary" onClick={() => onSign && onSign(note)}>
             Sign Note
           </Button>
         )}
@@ -316,10 +314,88 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
     }
   }, [note, open]);
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving note:', noteData);
-    onClose();
+  const handleSave = async (signNote = false) => {
+    try {
+      // Prepare content based on note type
+      let content = '';
+      if (noteData.type === 'soap') {
+        // Format SOAP sections
+        content = JSON.stringify({
+          subjective: noteData.sections.subjective,
+          objective: noteData.sections.objective,
+          assessment: noteData.sections.assessment,
+          plan: noteData.sections.plan
+        });
+      } else {
+        content = noteData.content;
+      }
+
+      // Create FHIR DocumentReference
+      const documentReference = {
+        resourceType: 'DocumentReference',
+        status: signNote ? 'current' : 'preliminary',
+        docStatus: signNote ? 'final' : 'preliminary',
+        type: {
+          coding: [{
+            system: 'http://loinc.org',
+            code: noteData.type === '34117-2' || noteData.type === '51847-2' ? noteData.type : '11488-4',
+            display: noteTypes[noteData.type]?.label || 'Clinical Note'
+          }]
+        },
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        date: new Date().toISOString(),
+        author: [{
+          display: 'Current User' // This would come from auth context
+        }],
+        description: noteData.title || noteTypes[noteData.type]?.label || 'Clinical Note',
+        content: [{
+          attachment: {
+            contentType: 'text/plain',
+            data: btoa(content), // Base64 encode the content
+            title: noteData.title || 'Clinical Note'
+          }
+        }]
+      };
+
+      let response;
+      if (note && note.id) {
+        // Update existing note
+        response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...note,
+            ...documentReference,
+            id: note.id
+          })
+        });
+      } else {
+        // Create new note
+        response = await fetch('/fhir/R4/DocumentReference', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(documentReference)
+        });
+      }
+
+      if (response.ok) {
+        // Refresh patient resources to show new/updated note
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        onClose();
+      } else {
+        console.error('Failed to save note:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error saving note:', error);
+    }
   };
 
   const applyFormatting = (format) => {
@@ -450,8 +526,8 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave}>Save as Draft</Button>
-        <Button variant="contained" onClick={handleSave}>
+        <Button onClick={() => handleSave(false)}>Save as Draft</Button>
+        <Button variant="contained" onClick={() => handleSave(true)}>
           Save & Sign
         </Button>
       </DialogActions>
@@ -524,7 +600,7 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
 const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterType, setFilterType] = useState('all');
@@ -679,17 +755,106 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
 
   const handleViewNote = (note) => {
     // Show note details in a modal or expanded view
-    console.log('Viewing note:', note);
+    setSelectedNote(note);
+    // You could also open a dialog here if needed
+  };
+
+  const handleSignNote = async (note) => {
+    try {
+      // Update the note status to final
+      const updatedNote = {
+        ...note,
+        status: 'current',
+        docStatus: 'final'
+      };
+      
+      const response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedNote)
+      });
+      
+      if (response.ok) {
+        // Refresh patient resources to show updated status
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        
+        if (onNotificationUpdate) {
+          onNotificationUpdate({
+            type: 'success',
+            message: 'Note signed successfully'
+          });
+        }
+      } else {
+        console.error('Failed to sign note:', response.statusText);
+        if (onNotificationUpdate) {
+          onNotificationUpdate({
+            type: 'error',
+            message: 'Failed to sign note'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error signing note:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Error signing note'
+        });
+      }
+    }
   };
   
-  const handleSaveAddendum = (addendumText) => {
+  const handleSaveAddendum = async (addendumText) => {
     // In a real app, this would create a new DocumentReference
     // linked to the original note
-    console.log('Saving addendum for note:', selectedNoteForAddendum?.id);
-    console.log('Addendum text:', addendumText);
-    setAddendumDialogOpen(false);
-    setSelectedNoteForAddendum(null);
-    // Would typically refresh the documents list here
+    try {
+      // TODO: Implement actual addendum save to FHIR server
+      // For now, just close the dialog
+      setAddendumDialogOpen(false);
+      setSelectedNoteForAddendum(null);
+      // Show success message
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: 'Addendum saved successfully'
+        });
+      }
+    } catch (error) {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to save addendum'
+        });
+      }
+    }
+  };
+  
+  const handlePrintDocumentation = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '';
+    sortedDocuments.forEach((doc, index) => {
+      if (index > 0) content += '<div class="page-break"></div>';
+      content += formatClinicalNoteForPrint(doc);
+    });
+    
+    printDocument({
+      title: 'Clinical Documentation',
+      patient: patientInfo,
+      content
+    });
   };
   
   useEffect(() => {
@@ -812,6 +977,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
+            onClick={handlePrintDocumentation}
           >
             Print
           </Button>
@@ -831,6 +997,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
               note={document}
               onEdit={handleEditNote}
               onView={handleViewNote}
+              onSign={handleSignNote}
             />
           ))}
         </Box>

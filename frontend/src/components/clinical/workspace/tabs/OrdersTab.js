@@ -304,10 +304,70 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
     notes: ''
   });
 
-  const handleSubmit = () => {
-    // TODO: Implement order submission
-    console.log('Submitting order:', orderData);
-    onClose();
+  const handleSubmit = async () => {
+    try {
+      // Create FHIR ServiceRequest or MedicationRequest based on order type
+      if (orderType === 'medication') {
+        const medicationRequest = {
+          resourceType: 'MedicationRequest',
+          status: 'active',
+          intent: 'order',
+          priority: orderData.priority,
+          subject: { reference: `Patient/${patientId}` },
+          authoredOn: new Date().toISOString(),
+          medicationCodeableConcept: {
+            text: orderData.medication
+          },
+          dosageInstruction: [{
+            text: `${orderData.dosage} ${orderData.frequency} for ${orderData.duration}`
+          }],
+          dispenseRequest: {
+            quantity: { value: parseFloat(orderData.quantity) || 30 },
+            numberOfRepeatsAllowed: parseInt(orderData.refills) || 0
+          },
+          note: orderData.notes ? [{ text: orderData.notes }] : []
+        };
+        
+        const response = await axios.post('/fhir/R4/MedicationRequest', medicationRequest);
+        if (response.data) {
+          // Refresh patient resources to show new order
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+        }
+      } else {
+        const serviceRequest = {
+          resourceType: 'ServiceRequest',
+          status: 'active',
+          intent: 'order',
+          priority: orderData.priority,
+          subject: { reference: `Patient/${patientId}` },
+          authoredOn: new Date().toISOString(),
+          category: [{
+            coding: [{
+              system: 'http://snomed.info/sct',
+              code: orderType === 'lab' ? '108252007' : '363679005',
+              display: orderType === 'lab' ? 'Laboratory procedure' : 'Imaging'
+            }]
+          }],
+          code: {
+            text: orderData.medication // Using medication field for test/study name
+          },
+          note: orderData.notes ? [{ text: orderData.notes }] : []
+        };
+        
+        const response = await axios.post('/fhir/R4/ServiceRequest', serviceRequest);
+        if (response.data) {
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+        }
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error creating order:', error);
+    }
   };
 
   return (
@@ -411,6 +471,8 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
+  const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
+  const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
 
   useEffect(() => {
     setLoading(false);
@@ -561,6 +623,44 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Cancel order
+  const handleCancelOrder = async (order) => {
+    try {
+      const updatedOrder = {
+        ...order,
+        status: 'cancelled'
+      };
+      
+      const endpoint = order.resourceType === 'MedicationRequest' 
+        ? '/fhir/R4/MedicationRequest' 
+        : '/fhir/R4/ServiceRequest';
+      
+      const response = await axios.put(`${endpoint}/${order.id}`, updatedOrder);
+      
+      if (response.data) {
+        // Refresh patient resources to show updated status
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        
+        if (onNotificationUpdate) {
+          onNotificationUpdate({
+            type: 'success',
+            message: 'Order cancelled successfully'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to cancel order'
+        });
+      }
+    }
+  };
+
   // Batch send selected orders to pharmacy
   const handleBatchSendToPharmacy = async () => {
     const medicationOrders = sortedOrders.filter(order => 
@@ -609,21 +709,131 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Reorder - create a new order with same details
+  const handleReorder = async (order) => {
+    try {
+      let newOrder;
+      
+      if (order.resourceType === 'MedicationRequest') {
+        newOrder = {
+          ...order,
+          id: undefined,
+          meta: undefined,
+          status: 'active',
+          authoredOn: new Date().toISOString()
+        };
+        
+        const response = await axios.post('/fhir/R4/MedicationRequest', newOrder);
+        if (response.data) {
+          if (onNotificationUpdate) {
+            onNotificationUpdate({
+              type: 'success',
+              message: 'Medication reordered successfully'
+            });
+          }
+        }
+      } else if (order.resourceType === 'ServiceRequest') {
+        newOrder = {
+          ...order,
+          id: undefined,
+          meta: undefined,
+          status: 'active',
+          authoredOn: new Date().toISOString()
+        };
+        
+        const response = await axios.post('/fhir/R4/ServiceRequest', newOrder);
+        if (response.data) {
+          if (onNotificationUpdate) {
+            onNotificationUpdate({
+              type: 'success',
+              message: 'Service reordered successfully'
+            });
+          }
+        }
+      }
+      
+      // Refresh patient resources
+      window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+        detail: { patientId } 
+      }));
+    } catch (error) {
+      console.error('Failed to reorder:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to reorder'
+        });
+      }
+    }
+  };
+
+  // Batch cancel selected orders
+  const handleBatchCancelOrders = async () => {
+    const ordersToCancel = sortedOrders.filter(order => 
+      selectedOrders.has(order.id) && order.status === 'active'
+    );
+
+    if (ordersToCancel.length === 0) {
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'warning',
+          message: 'No active orders selected to cancel'
+        });
+      }
+      return;
+    }
+
+    try {
+      const promises = ordersToCancel.map(order => {
+        const updatedOrder = { ...order, status: 'cancelled' };
+        const endpoint = order.resourceType === 'MedicationRequest' 
+          ? '/fhir/R4/MedicationRequest' 
+          : '/fhir/R4/ServiceRequest';
+        return axios.put(`${endpoint}/${order.id}`, updatedOrder);
+      });
+
+      await Promise.all(promises);
+
+      // Refresh patient resources
+      window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+        detail: { patientId } 
+      }));
+
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'success',
+          message: `${ordersToCancel.length} orders cancelled successfully`
+        });
+      }
+
+      // Clear selections
+      setSelectedOrders(new Set());
+    } catch (error) {
+      console.error('Failed to batch cancel orders:', error);
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to cancel selected orders'
+        });
+      }
+    }
+  };
+
   const handleOrderAction = (order, action) => {
     switch (action) {
       case 'view':
-        console.log('Viewing order:', order);
+        setViewOrderDialog({ open: true, order });
         break;
       case 'edit':
-        console.log('Editing order:', order);
+        setEditOrderDialog({ open: true, order });
         break;
       case 'cancel':
-        // TODO: Implement cancel order
-        console.log('Cancel order:', order.id);
+        // Cancel order by updating status
+        handleCancelOrder(order);
         break;
       case 'reorder':
-        // TODO: Implement reorder
-        console.log('Reorder:', order.id);
+        // Reorder by creating a new order with same details
+        handleReorder(order);
         break;
       case 'send':
         handleSendToPharmacy(order);
@@ -683,6 +893,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
                 variant="outlined"
                 color="error"
                 startIcon={<DeleteIcon />}
+                onClick={handleBatchCancelOrders}
               >
                 Cancel Selected
               </Button>
@@ -691,7 +902,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            disabled
+            onClick={() => setQuickOrderDialog({ open: true, type: 'medication' })}
           >
             New Order
           </Button>
@@ -852,6 +1063,77 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         patientId={patientId}
         orderType={quickOrderDialog.type}
       />
+
+      {/* View Order Dialog */}
+      <Dialog open={viewOrderDialog.open} onClose={() => setViewOrderDialog({ open: false, order: null })} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Order Details
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setViewOrderDialog({ open: false, order: null })}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {viewOrderDialog.order && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                {viewOrderDialog.order.resourceType === 'MedicationRequest' 
+                  ? (viewOrderDialog.order.medicationCodeableConcept?.text || viewOrderDialog.order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown Medication')
+                  : (viewOrderDialog.order.code?.text || viewOrderDialog.order.code?.coding?.[0]?.display || 'Unknown Order')}
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Order Type</Typography>
+                  <Typography variant="body1">
+                    {viewOrderDialog.order.resourceType === 'MedicationRequest' ? 'Medication' : 'Service Request'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Chip
+                    label={viewOrderDialog.order.status}
+                    size="small"
+                    color={viewOrderDialog.order.status === 'active' ? 'success' : 'default'}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Priority</Typography>
+                  <Typography variant="body1">{viewOrderDialog.order.priority || 'Routine'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Ordered Date</Typography>
+                  <Typography variant="body1">
+                    {viewOrderDialog.order.authoredOn ? format(parseISO(viewOrderDialog.order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Ordered By</Typography>
+                  <Typography variant="body1">{viewOrderDialog.order.requester?.display || 'Unknown Provider'}</Typography>
+                </Grid>
+                {viewOrderDialog.order.note?.[0]?.text && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                    <Typography variant="body1">{viewOrderDialog.order.note[0].text}</Typography>
+                  </Grid>
+                )}
+                {viewOrderDialog.order.resourceType === 'MedicationRequest' && viewOrderDialog.order.dosageInstruction?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
+                    <Typography variant="body1">{viewOrderDialog.order.dosageInstruction[0].text || 'See prescription'}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewOrderDialog({ open: false, order: null })}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

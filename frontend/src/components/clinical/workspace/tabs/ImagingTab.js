@@ -70,6 +70,9 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
 import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
+import DownloadDialog from '../../imaging/DownloadDialog';
+import ShareDialog from '../../imaging/ShareDialog';
+import { printDocument } from '../../../../utils/printUtils';
 
 // Get modality icon
 const getModalityIcon = (modality) => {
@@ -287,7 +290,7 @@ const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
 
 const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterModality, setFilterModality] = useState('all');
@@ -297,6 +300,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [viewerDialog, setViewerDialog] = useState({ open: false, study: null });
   const [reportDialog, setReportDialog] = useState({ open: false, study: null });
+  const [downloadDialog, setDownloadDialog] = useState({ open: false, study: null });
+  const [shareDialog, setShareDialog] = useState({ open: false, study: null });
   const [studies, setStudies] = useState([]);
 
   // Load imaging studies
@@ -375,6 +380,104 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     setViewerDialog({ open: true, study });
   };
 
+  const handlePrintStudy = (study) => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '<h2>Imaging Study Report</h2>';
+    
+    // Study details
+    content += '<div class="section">';
+    content += `<h3>${study.description || 'Imaging Study'}</h3>`;
+    content += '<table>';
+    content += `<tr><td><strong>Study Date:</strong></td><td>${study.started ? format(parseISO(study.started), 'MMMM d, yyyy HH:mm') : 'Unknown'}</td></tr>`;
+    content += `<tr><td><strong>Modality:</strong></td><td>${study.modality?.[0]?.code || 'Unknown'}</td></tr>`;
+    content += `<tr><td><strong>Body Part:</strong></td><td>${study.bodySite?.[0]?.display || 'Not specified'}</td></tr>`;
+    content += `<tr><td><strong>Accession Number:</strong></td><td>${study.identifier?.[0]?.value || 'Not available'}</td></tr>`;
+    content += `<tr><td><strong>Number of Series:</strong></td><td>${study.numberOfSeries || 0}</td></tr>`;
+    content += `<tr><td><strong>Number of Images:</strong></td><td>${study.numberOfInstances || 0}</td></tr>`;
+    content += '</table>';
+    content += '</div>';
+    
+    // Series information
+    if (study.series && study.series.length > 0) {
+      content += '<h3>Series Information</h3>';
+      content += '<table>';
+      content += '<thead><tr><th>Series</th><th>Description</th><th>Images</th><th>Body Part</th></tr></thead>';
+      content += '<tbody>';
+      study.series.forEach((series, index) => {
+        content += '<tr>';
+        content += `<td>${index + 1}</td>`;
+        content += `<td>${series.description || 'No description'}</td>`;
+        content += `<td>${series.numberOfInstances || 0}</td>`;
+        content += `<td>${series.bodySite?.display || '-'}</td>`;
+        content += '</tr>';
+      });
+      content += '</tbody></table>';
+    }
+    
+    // Notes section
+    content += '<div class="section" style="margin-top: 30px;">';
+    content += '<h3>Clinical Notes</h3>';
+    content += '<div style="border: 1px solid #ddd; padding: 20px; min-height: 200px;">';
+    content += '<p style="color: #666;">Space for clinical interpretation and notes</p>';
+    content += '</div>';
+    content += '</div>';
+    
+    printDocument({
+      title: 'Imaging Study Report',
+      patient: patientInfo,
+      content
+    });
+  };
+
+  const handlePrintAll = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '<h2>Imaging Studies Summary</h2>';
+    
+    // Group by modality
+    Object.entries(studiesByModality).forEach(([modality, modalityStudies]) => {
+      content += `<h3>${modality} Studies (${modalityStudies.length})</h3>`;
+      content += '<table class="avoid-break">';
+      content += '<thead><tr><th>Date</th><th>Description</th><th>Body Part</th><th>Series</th><th>Images</th></tr></thead>';
+      content += '<tbody>';
+      
+      modalityStudies.forEach(study => {
+        content += '<tr>';
+        content += `<td>${study.started ? format(parseISO(study.started), 'MMM d, yyyy') : 'Unknown'}</td>`;
+        content += `<td>${study.description || 'No description'}</td>`;
+        content += `<td>${study.bodySite?.[0]?.display || '-'}</td>`;
+        content += `<td>${study.numberOfSeries || 0}</td>`;
+        content += `<td>${study.numberOfInstances || 0}</td>`;
+        content += '</tr>';
+      });
+      
+      content += '</tbody></table>';
+    });
+    
+    printDocument({
+      title: 'Imaging Studies Summary',
+      patient: patientInfo,
+      content
+    });
+  };
+
   const handleStudyAction = (study, action) => {
     switch (action) {
       case 'view':
@@ -384,15 +487,13 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
         setReportDialog({ open: true, study });
         break;
       case 'download':
-        console.log('Download study:', study.id);
-        // TODO: Implement DICOM download
+        setDownloadDialog({ open: true, study });
         break;
       case 'share':
-        console.log('Share study:', study.id);
-        // TODO: Implement study sharing
+        setShareDialog({ open: true, study });
         break;
       case 'print':
-        window.print();
+        handlePrintStudy(study);
         break;
       default:
         break;
@@ -489,6 +590,13 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
           Medical Imaging
         </Typography>
         <Stack direction="row" spacing={2}>
+          <Button
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={handlePrintAll}
+          >
+            Print
+          </Button>
           <Button
             variant="outlined"
             startIcon={<ImagingIcon />}
@@ -614,6 +722,20 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setReportDialog({ open: false, study: null })}
         study={reportDialog.study}
         patientId={patientId}
+      />
+
+      {/* Download Dialog */}
+      <DownloadDialog
+        open={downloadDialog.open}
+        onClose={() => setDownloadDialog({ open: false, study: null })}
+        study={downloadDialog.study}
+      />
+
+      {/* Share Dialog */}
+      <ShareDialog
+        open={shareDialog.open}
+        onClose={() => setShareDialog({ open: false, study: null })}
+        study={shareDialog.study}
       />
     </Box>
   );

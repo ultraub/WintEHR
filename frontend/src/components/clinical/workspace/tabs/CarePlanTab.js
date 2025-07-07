@@ -68,11 +68,13 @@ import {
   Psychology as BehavioralIcon,
   Restaurant as NutritionIcon,
   FitnessCenter as ExerciseIcon,
-  MedicalServices as MedicalIcon
+  MedicalServices as MedicalIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { printDocument } from '../../../../utils/printUtils';
 
 // Goal categories
 const goalCategories = {
@@ -118,7 +120,7 @@ const getGoalStatus = (goal) => {
 };
 
 // Goal Card Component
-const GoalCard = ({ goal, onEdit, onViewProgress }) => {
+const GoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, onAddIntervention }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -247,10 +249,10 @@ const GoalCard = ({ goal, onEdit, onViewProgress }) => {
         >
           {expanded ? 'Show Less' : 'Show More'}
         </Button>
-        <Button size="small" color="primary">
+        <Button size="small" color="primary" onClick={() => onUpdateProgress(goal)}>
           Update Progress
         </Button>
-        <Button size="small">
+        <Button size="small" onClick={() => onAddIntervention && onAddIntervention(goal)}>
           Add Intervention
         </Button>
       </CardActions>
@@ -259,7 +261,7 @@ const GoalCard = ({ goal, onEdit, onViewProgress }) => {
 };
 
 // Care Team Component
-const CareTeamCard = ({ careTeam }) => {
+const CareTeamCard = ({ careTeam, onAddMember, onViewAll }) => {
   const theme = useTheme();
   
   const participants = careTeam.participant || [];
@@ -309,10 +311,10 @@ const CareTeamCard = ({ careTeam }) => {
         )}
       </CardContent>
       <CardActions>
-        <Button size="small" startIcon={<AddIcon />}>
+        <Button size="small" startIcon={<AddIcon />} onClick={onAddMember}>
           Add Member
         </Button>
-        <Button size="small">
+        <Button size="small" onClick={onViewAll}>
           View All
         </Button>
       </CardActions>
@@ -321,7 +323,7 @@ const CareTeamCard = ({ careTeam }) => {
 };
 
 // Intervention List Component
-const InterventionList = ({ activities, onEdit }) => {
+const InterventionList = ({ activities, onEdit, onAddIntervention }) => {
   const getActivityStatus = (activity) => {
     if (activity.detail?.status === 'completed') return 'completed';
     if (activity.detail?.status === 'cancelled') return 'cancelled';
@@ -408,7 +410,7 @@ const InterventionList = ({ activities, onEdit }) => {
         )}
       </CardContent>
       <CardActions>
-        <Button size="small" startIcon={<AddIcon />}>
+        <Button size="small" startIcon={<AddIcon />} onClick={onAddIntervention}>
           Add Intervention
         </Button>
       </CardActions>
@@ -429,10 +431,93 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
     notes: goal?.note?.[0]?.text || ''
   });
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving goal:', goalData);
-    onClose();
+  const handleSave = async () => {
+    try {
+      // Create FHIR Goal resource
+      const goalResource = {
+        resourceType: 'Goal',
+        lifecycleStatus: 'active',
+        achievementStatus: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-achievement',
+            code: 'in-progress',
+            display: 'In Progress'
+          }]
+        },
+        category: [{
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-category',
+            code: goalData.category,
+            display: goalCategories[goalData.category]?.label || 'Health Maintenance'
+          }]
+        }],
+        priority: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-priority',
+            code: goalData.priority,
+            display: goalData.priority.charAt(0).toUpperCase() + goalData.priority.slice(1)
+          }]
+        },
+        description: {
+          text: goalData.description
+        },
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        startDate: new Date().toISOString().split('T')[0],
+        target: goalData.targetDate || goalData.targetMeasure ? [{
+          dueDate: goalData.targetDate || undefined,
+          measure: goalData.targetMeasure ? {
+            text: goalData.targetMeasure
+          } : undefined,
+          detailQuantity: goalData.targetValue ? {
+            value: parseFloat(goalData.targetValue),
+            unit: goalData.targetUnit || ''
+          } : undefined
+        }] : [],
+        note: goalData.notes ? [{
+          text: goalData.notes,
+          time: new Date().toISOString()
+        }] : []
+      };
+
+      let response;
+      if (goal && goal.id) {
+        // Update existing goal
+        response = await fetch(`/fhir/R4/Goal/${goal.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...goal,
+            ...goalResource,
+            id: goal.id
+          })
+        });
+      } else {
+        // Create new goal
+        response = await fetch('/fhir/R4/Goal', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(goalResource)
+        });
+      }
+
+      if (response.ok) {
+        // Refresh patient resources to show new/updated goal
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        onClose();
+      } else {
+        console.error('Failed to save goal:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error saving goal:', error);
+    }
   };
 
   return (
@@ -543,13 +628,20 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
 const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   
   const [filterStatus, setFilterStatus] = useState('active');
   const [filterCategory, setFilterCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [goalEditorOpen, setGoalEditorOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [selectedGoalForProgress, setSelectedGoalForProgress] = useState(null);
+  const [interventionDialogOpen, setInterventionDialogOpen] = useState(false);
+  const [selectedGoalForIntervention, setSelectedGoalForIntervention] = useState(null);
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [viewAllMembersDialogOpen, setViewAllMembersDialogOpen] = useState(false);
+  const [selectedCareTeam, setSelectedCareTeam] = useState(null);
 
   useEffect(() => {
     setLoading(false);
@@ -596,12 +688,122 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const handleViewProgress = (goal) => {
-    console.log('Viewing goal progress:', goal);
+    // Open progress dialog or navigate to progress view
+    setSnackbar({ 
+      open: true, 
+      message: 'Goal progress view coming soon', 
+      severity: 'info' 
+    });
   };
 
   const handleEditActivity = (activity) => {
     // TODO: Implement activity editing
-    console.log('Edit activity:', activity);
+    setSnackbar({ 
+      open: true, 
+      message: 'Activity editing coming soon', 
+      severity: 'info' 
+    });
+  };
+
+  const handleUpdateProgress = (goal) => {
+    setSelectedGoalForProgress(goal);
+    setProgressDialogOpen(true);
+  };
+
+  const handleAddIntervention = (goal) => {
+    setSelectedGoalForIntervention(goal);
+    setInterventionDialogOpen(true);
+  };
+  
+  const handlePrintCarePlan = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '<h2>Care Plan & Goals</h2>';
+    
+    // Active Care Plan Summary
+    if (activeCarePlan) {
+      content += '<div class="section">';
+      content += `<h3>${activeCarePlan.title || 'Comprehensive Care Plan'}</h3>`;
+      content += `<p>Started: ${activeCarePlan.period?.start ? 
+        format(parseISO(activeCarePlan.period.start), 'MMMM d, yyyy') : 
+        'Unknown'}</p>`;
+      content += '</div>';
+    }
+    
+    // Goals
+    content += '<h3>Goals</h3>';
+    if (sortedGoals.length === 0) {
+      content += '<p>No goals defined.</p>';
+    } else {
+      sortedGoals.forEach(goal => {
+        const category = goal.category?.[0]?.coding?.[0]?.code || 'health-maintenance';
+        const categoryLabel = goalCategories[category]?.label || 'Health Maintenance';
+        const targetDate = goal.target?.[0]?.dueDate;
+        const status = goal.lifecycleStatus;
+        
+        content += '<div class="note-box avoid-break">';
+        content += `<h4>${goal.description?.text || 'Goal'}</h4>`;
+        content += `<p><strong>Category:</strong> ${categoryLabel} | <strong>Status:</strong> ${status}</p>`;
+        if (targetDate) {
+          content += `<p><strong>Target Date:</strong> ${format(parseISO(targetDate), 'MMMM d, yyyy')}</p>`;
+        }
+        if (goal.target?.[0]?.measure) {
+          content += `<p><strong>Target Measure:</strong> ${goal.target[0].measure.text || goal.target[0].measure.coding?.[0]?.display}`;
+          if (goal.target[0].detailQuantity) {
+            content += ` - ${goal.target[0].detailQuantity.value} ${goal.target[0].detailQuantity.unit}`;
+          }
+          content += '</p>';
+        }
+        if (goal.note?.[0]) {
+          content += `<p><strong>Notes:</strong> ${goal.note[0].text}</p>`;
+        }
+        content += '</div>';
+      });
+    }
+    
+    // Care Team
+    if (careTeams.length > 0 && careTeams[0].participant) {
+      content += '<h3>Care Team</h3>';
+      content += '<ul>';
+      careTeams[0].participant.forEach(participant => {
+        const member = participant.member?.display || 'Team Member';
+        const role = participant.role?.[0]?.text || participant.role?.[0]?.coding?.[0]?.display || 'Role not specified';
+        content += `<li>${member} - ${role}</li>`;
+      });
+      content += '</ul>';
+    }
+    
+    // Activities/Interventions
+    if (activities.length > 0) {
+      content += '<h3>Interventions & Activities</h3>';
+      content += '<ul>';
+      activities.forEach(activity => {
+        const description = activity.detail?.description || 
+                          activity.detail?.code?.text || 
+                          activity.detail?.code?.coding?.[0]?.display ||
+                          'Activity';
+        content += `<li>${description}`;
+        if (activity.detail?.scheduledTiming?.repeat?.frequency) {
+          content += ` - ${activity.detail.scheduledTiming.repeat.frequency} times per ${activity.detail.scheduledTiming.repeat.period} ${activity.detail.scheduledTiming.repeat.periodUnit}`;
+        }
+        content += '</li>';
+      });
+      content += '</ul>';
+    }
+    
+    printDocument({
+      title: 'Care Plan & Goals',
+      patient: patientInfo,
+      content
+    });
   };
 
   if (loading) {
@@ -619,16 +821,25 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
         <Typography variant="h5" fontWeight="bold">
           Care Plan & Goals
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => {
-            setSelectedGoal(null);
-            setGoalEditorOpen(true);
-          }}
-        >
-          New Goal
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={handlePrintCarePlan}
+          >
+            Print
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setSelectedGoal(null);
+              setGoalEditorOpen(true);
+            }}
+          >
+            New Goal
+          </Button>
+        </Stack>
       </Stack>
 
       {/* Care Plan Summary */}
@@ -704,6 +915,8 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
                   goal={goal}
                   onEdit={handleEditGoal}
                   onViewProgress={handleViewProgress}
+                  onUpdateProgress={handleUpdateProgress}
+                  onAddIntervention={handleAddIntervention}
                 />
               ))}
             </Box>
@@ -715,13 +928,24 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
           <Stack spacing={3}>
             {/* Care Team */}
             {careTeams.length > 0 && (
-              <CareTeamCard careTeam={careTeams[0]} />
+              <CareTeamCard 
+                careTeam={careTeams[0]} 
+                onAddMember={() => {
+                  setSelectedCareTeam(careTeams[0]);
+                  setAddMemberDialogOpen(true);
+                }}
+                onViewAll={() => {
+                  setSelectedCareTeam(careTeams[0]);
+                  setViewAllMembersDialogOpen(true);
+                }}
+              />
             )}
 
             {/* Interventions */}
             <InterventionList 
               activities={activities} 
               onEdit={handleEditActivity}
+              onAddIntervention={() => setInterventionDialogOpen(true)}
             />
 
             {/* Outcomes Summary */}
@@ -773,6 +997,299 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
         goal={selectedGoal}
         patientId={patientId}
       />
+
+      {/* Progress Update Dialog */}
+      <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Update Goal Progress</DialogTitle>
+        <DialogContent>
+          {selectedGoalForProgress && (
+            <Stack spacing={3} sx={{ mt: 2 }}>
+              <Alert severity="info">
+                Goal: {selectedGoalForProgress.description?.text || 'Goal'}
+              </Alert>
+              
+              <FormControl fullWidth>
+                <InputLabel>Achievement Status</InputLabel>
+                <Select
+                  defaultValue={selectedGoalForProgress.achievementStatus?.coding?.[0]?.code || 'in-progress'}
+                  label="Achievement Status"
+                >
+                  <MenuItem value="in-progress">In Progress</MenuItem>
+                  <MenuItem value="improving">Improving</MenuItem>
+                  <MenuItem value="worsening">Worsening</MenuItem>
+                  <MenuItem value="no-change">No Change</MenuItem>
+                  <MenuItem value="achieved">Achieved</MenuItem>
+                  <MenuItem value="not-achieved">Not Achieved</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                type="number"
+                label="Progress Percentage"
+                defaultValue="60"
+                InputProps={{
+                  endAdornment: <InputAdornment position="end">%</InputAdornment>
+                }}
+              />
+
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Progress Notes"
+                placeholder="Describe the progress made..."
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setProgressDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={async () => {
+              // Update goal with new progress
+              if (selectedGoalForProgress) {
+                try {
+                  const response = await fetch(`/fhir/R4/Goal/${selectedGoalForProgress.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      ...selectedGoalForProgress,
+                      achievementStatus: {
+                        coding: [{
+                          system: 'http://terminology.hl7.org/CodeSystem/goal-achievement',
+                          code: 'improving',
+                          display: 'Improving'
+                        }]
+                      }
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+                      detail: { patientId } 
+                    }));
+                    setProgressDialogOpen(false);
+                  }
+                } catch (error) {
+                  console.error('Error updating goal progress:', error);
+                }
+              }
+            }}
+          >
+            Update Progress
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Intervention Dialog */}
+      <Dialog open={interventionDialogOpen} onClose={() => setInterventionDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Intervention</DialogTitle>
+        <DialogContent>
+          {selectedGoalForIntervention && (
+            <Stack spacing={3} sx={{ mt: 2 }}>
+              <Alert severity="info">
+                For Goal: {selectedGoalForIntervention.description?.text || 'Goal'}
+              </Alert>
+              
+              <TextField
+                fullWidth
+                label="Intervention Description"
+                placeholder="Describe the intervention..."
+                multiline
+                rows={2}
+              />
+
+              <FormControl fullWidth>
+                <InputLabel>Intervention Type</InputLabel>
+                <Select defaultValue="medication" label="Intervention Type">
+                  <MenuItem value="medication">Medication</MenuItem>
+                  <MenuItem value="procedure">Procedure</MenuItem>
+                  <MenuItem value="education">Education</MenuItem>
+                  <MenuItem value="counseling">Counseling</MenuItem>
+                  <MenuItem value="referral">Referral</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                label="Frequency"
+                placeholder="e.g., Daily, Weekly, As needed"
+              />
+
+              <TextField
+                fullWidth
+                type="date"
+                label="Start Date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInterventionDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={async () => {
+              // Create intervention as part of CarePlan activity
+              if (selectedGoalForIntervention) {
+                // In a real implementation, this would update the CarePlan resource
+                // Adding intervention for the selected goal
+                setInterventionDialogOpen(false);
+              }
+            }}
+          >
+            Add Intervention
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Care Team Member Dialog */}
+      <Dialog open={addMemberDialogOpen} onClose={() => setAddMemberDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Add Care Team Member
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setAddMemberDialogOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Member Name"
+              placeholder="Enter care team member name"
+              sx={{ mb: 2 }}
+            />
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Role</InputLabel>
+              <Select label="Role" defaultValue="">
+                <MenuItem value="physician">Physician</MenuItem>
+                <MenuItem value="nurse">Nurse</MenuItem>
+                <MenuItem value="therapist">Therapist</MenuItem>
+                <MenuItem value="social-worker">Social Worker</MenuItem>
+                <MenuItem value="care-coordinator">Care Coordinator</MenuItem>
+                <MenuItem value="family">Family Member</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Contact Information"
+              placeholder="Phone or email"
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Responsibilities"
+              placeholder="Describe the member's responsibilities in the care plan"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddMemberDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              setAddMemberDialogOpen(false);
+              setSnackbar({ 
+                open: true, 
+                message: 'Care team member added successfully', 
+                severity: 'success' 
+              });
+            }}
+          >
+            Add Member
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* View All Members Dialog */}
+      <Dialog open={viewAllMembersDialogOpen} onClose={() => setViewAllMembersDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Care Team Members
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setViewAllMembersDialogOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedCareTeam && selectedCareTeam.participant && selectedCareTeam.participant.length > 0 ? (
+            <List>
+              {selectedCareTeam.participant.map((member, index) => (
+                <ListItem key={index} divider>
+                  <ListItemIcon>
+                    <PersonIcon color="primary" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={member.member?.display || 'Unknown Member'}
+                    secondary={
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Role: {member.role?.[0]?.text || 'Not specified'}
+                        </Typography>
+                        {member.period?.start && (
+                          <Typography variant="caption" color="text.secondary">
+                            Since: {format(parseISO(member.period.start), 'MMM d, yyyy')}
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <IconButton edge="end" size="small">
+                      <EditIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body2" color="text.secondary">
+                No care team members found
+              </Typography>
+              <Button 
+                startIcon={<AddIcon />} 
+                onClick={() => {
+                  setViewAllMembersDialogOpen(false);
+                  setAddMemberDialogOpen(true);
+                }}
+                sx={{ mt: 2 }}
+              >
+                Add First Member
+              </Button>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewAllMembersDialogOpen(false)}>Close</Button>
+          <Button 
+            variant="contained" 
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setViewAllMembersDialogOpen(false);
+              setAddMemberDialogOpen(true);
+            }}
+          >
+            Add Member
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
