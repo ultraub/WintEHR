@@ -61,6 +61,7 @@ import { format } from 'date-fns';
 import CDSHookBuilder from '../cds/CDSHookBuilder';
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
+import { cdsHooksService } from '../../../../services/cdsHooksService';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -88,10 +89,12 @@ const CDSHooksTab = ({ patientId }) => {
   const [showBuilder, setShowBuilder] = useState(false);
   const [executionHistory, setExecutionHistory] = useState([]);
   const [serviceSettings, setServiceSettings] = useState({});
+  const [customHooks, setCustomHooks] = useState([]);
 
   useEffect(() => {
     loadCDSServices();
     loadExecutionHistory();
+    loadCustomHooks();
   }, []);
 
   useEffect(() => {
@@ -127,6 +130,7 @@ const CDSHooksTab = ({ patientId }) => {
     if (!patientId) return;
     
     setLoading(true);
+    const startTime = Date.now();
     try {
       const patientViewServices = services.filter(s => s.hook === 'patient-view' && serviceSettings[s.id]?.enabled);
       const allCards = [];
@@ -150,26 +154,30 @@ const CDSHooksTab = ({ patientId }) => {
             })));
           }
         } catch (serviceError) {
-          console.error(`Error executing service ${service.id}:`, serviceError);
+          // Error executing service - add to results with error status
         }
       }
       
       setCards(allCards);
       
       // Add to execution history
-      setExecutionHistory(prev => [{
+      const newExecution = {
         id: Date.now(),
         timestamp: new Date(),
         hook: 'patient-view',
         patientId,
         servicesExecuted: patientViewServices.length,
         cardsGenerated: allCards.length,
-        success: true
-      }, ...prev.slice(0, 49)]); // Keep last 50 executions
+        success: true,
+        responseTime: Date.now() - startTime
+      };
+      const updatedHistory = [newExecution, ...executionHistory].slice(0, 50);
+      setExecutionHistory(updatedHistory);
+      saveExecutionHistory(updatedHistory);
       
     } catch (err) {
       setError(`Failed to execute patient-view hooks: ${err.message}`);
-      setExecutionHistory(prev => [{
+      const failedExecution = {
         id: Date.now(),
         timestamp: new Date(),
         hook: 'patient-view',
@@ -177,36 +185,66 @@ const CDSHooksTab = ({ patientId }) => {
         servicesExecuted: 0,
         cardsGenerated: 0,
         success: false,
-        error: err.message
-      }, ...prev.slice(0, 49)]);
+        error: err.message,
+        responseTime: Date.now() - startTime
+      };
+      const updatedHistory = [failedExecution, ...executionHistory].slice(0, 50);
+      setExecutionHistory(updatedHistory);
+      saveExecutionHistory(updatedHistory);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadExecutionHistory = () => {
-    // In a real implementation, this would load from local storage or backend
-    const mockHistory = [
-      {
-        id: 1,
-        timestamp: new Date(Date.now() - 3600000),
-        hook: 'patient-view',
-        patientId: 'patient-123',
-        servicesExecuted: 5,
-        cardsGenerated: 3,
-        success: true
-      },
-      {
-        id: 2,
-        timestamp: new Date(Date.now() - 7200000),
-        hook: 'medication-prescribe',
-        patientId: 'patient-456',
-        servicesExecuted: 2,
-        cardsGenerated: 1,
-        success: true
+  const loadExecutionHistory = async () => {
+    try {
+      // Load from localStorage for persistence
+      const storedHistory = localStorage.getItem('cds-execution-history');
+      if (storedHistory) {
+        const parsed = JSON.parse(storedHistory);
+        // Convert string timestamps back to Date objects
+        const history = parsed.map(entry => ({
+          ...entry,
+          timestamp: new Date(entry.timestamp)
+        }));
+        setExecutionHistory(history);
+      } else {
+        // Initialize with empty history
+        setExecutionHistory([]);
       }
-    ];
-    setExecutionHistory(mockHistory);
+    } catch (error) {
+      // Failed to load history - start fresh
+      setExecutionHistory([]);
+    }
+  };
+
+  const loadCustomHooks = async () => {
+    try {
+      const result = await cdsHooksService.listCustomHooks();
+      if (result.success) {
+        setCustomHooks(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load custom hooks:', error);
+      setCustomHooks([]);
+    }
+  };
+
+  // Save execution history to localStorage
+  const saveExecutionHistory = (history) => {
+    try {
+      localStorage.setItem('cds-execution-history', JSON.stringify(history));
+    } catch (error) {
+      // Failed to save - ignore error
+    }
+  };
+
+  // Calculate average response time from execution history
+  const calculateAverageResponseTime = () => {
+    const recentExecutions = executionHistory.filter(h => h.responseTime).slice(0, 20);
+    if (recentExecutions.length === 0) return 0;
+    const sum = recentExecutions.reduce((acc, h) => acc + h.responseTime, 0);
+    return Math.round(sum / recentExecutions.length);
   };
 
   const handleServiceToggle = (serviceId) => {
@@ -252,6 +290,31 @@ const CDSHooksTab = ({ patientId }) => {
       case 'warning': return <WarningIcon color="warning" />;
       case 'critical': return <ErrorIcon color="error" />;
       default: return <InfoIcon color="info" />;
+    }
+  };
+
+  const handleSuggestionAction = (suggestion) => {
+    // Handle CDS suggestion action
+    // In a real implementation, this would execute the suggested action
+    alert(`Action selected: ${suggestion.label}`);
+    // TODO: Implement actual action execution based on suggestion type
+  };
+
+  const handleDeleteHook = async (hookId) => {
+    if (window.confirm('Are you sure you want to delete this hook? This action cannot be undone.')) {
+      try {
+        await cdsHooksService.deleteHook(hookId);
+        
+        // Refresh the custom hooks list
+        await loadCustomHooks();
+        
+        // Refresh services list to remove deleted hook
+        await loadCDSServices();
+        
+      } catch (error) {
+        console.error('Error deleting hook:', error);
+        alert(`Failed to delete hook: ${error.message}`);
+      }
     }
   };
 
@@ -391,7 +454,8 @@ const CDSHooksTab = ({ patientId }) => {
                                     size="small"
                                     onClick={() => {
                                       // Handle suggestion action
-                                      console.log('Suggestion selected:', suggestion);
+                                      // Handle suggestion selection
+                                      handleSuggestionAction(suggestion);
                                     }}
                                   >
                                     {suggestion.label}
@@ -495,15 +559,21 @@ const CDSHooksTab = ({ patientId }) => {
           <CDSHookBuilder
             onSave={async (hookData) => {
               try {
-                // In a real implementation, this would save to the backend
-                console.log('Saving hook:', hookData);
-                alert('Hook saved successfully!');
+                // The actual saving is handled by CDSHookBuilder using cdsHooksService
+                // This callback is just for cleanup and refresh
                 setShowBuilder(false);
-                // Refresh services list
-                loadCDSServices();
+                
+                // Refresh both services and custom hooks lists
+                await Promise.all([
+                  loadCDSServices(),
+                  loadCustomHooks()
+                ]);
+                
+                // Show success message
+                setError(null);
               } catch (error) {
-                console.error('Error saving hook:', error);
-                throw error;
+                // Handle error - the actual error will be shown by CDSHookBuilder
+                console.error('Error in onSave callback:', error);
               }
             }}
             onCancel={() => setShowBuilder(false)}
@@ -589,11 +659,61 @@ const CDSHooksTab = ({ patientId }) => {
                   </Grid>
                   
                   <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                    Existing Custom Hooks
+                    Existing Custom Hooks ({customHooks.length})
                   </Typography>
-                  <Alert severity="info">
-                    Custom hooks you create will appear here for editing and management.
-                  </Alert>
+                  {customHooks.length === 0 ? (
+                    <Alert severity="info">
+                      No custom hooks created yet. Create your first hook using the templates above or the "New Hook" button.
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={2}>
+                      {customHooks.map((hook) => (
+                        <Grid item xs={12} sm={6} md={4} key={hook.id}>
+                          <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <CardContent sx={{ flexGrow: 1 }}>
+                              <Stack spacing={1}>
+                                <Typography variant="subtitle1" fontWeight="bold">
+                                  {hook.title}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {hook.description || 'No description'}
+                                </Typography>
+                                <Stack direction="row" spacing={1}>
+                                  <Chip label={hook.hook} size="small" color="primary" />
+                                  <Chip 
+                                    label={hook.enabled ? 'Enabled' : 'Disabled'} 
+                                    size="small" 
+                                    color={hook.enabled ? 'success' : 'default'} 
+                                  />
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary">
+                                  {hook.conditions.length} conditions, {hook.cards.length} cards
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                            <CardActions>
+                              <Button 
+                                size="small"
+                                onClick={() => {
+                                  setSelectedHook(hook);
+                                  setShowBuilder(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                              <Button 
+                                size="small"
+                                color="error"
+                                onClick={() => handleDeleteHook(hook.id)}
+                              >
+                                Delete
+                              </Button>
+                            </CardActions>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -846,7 +966,7 @@ const CDSHooksTab = ({ patientId }) => {
                       <Stack direction="row" justifyContent="space-between">
                         <Typography variant="body2">Average Response Time:</Typography>
                         <Typography variant="body2" fontWeight="medium">
-                          {Math.floor(Math.random() * 200 + 50)}ms
+                          {calculateAverageResponseTime()}ms
                         </Typography>
                       </Stack>
                       <Stack direction="row" justifyContent="space-between">

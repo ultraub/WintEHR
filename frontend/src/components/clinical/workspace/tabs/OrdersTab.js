@@ -44,7 +44,8 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
@@ -69,6 +70,7 @@ import {
   Person as ProviderIcon,
   Flag as PriorityIcon,
   MoreVert as MoreIcon,
+  Close as CloseIcon,
   Assignment
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
@@ -292,7 +294,7 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
 };
 
 // Quick Order Dialog
-const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
+const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationUpdate }) => {
   const [orderData, setOrderData] = useState({
     medication: '',
     dosage: '',
@@ -366,7 +368,13 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
       
       onClose();
     } catch (error) {
-      console.error('Error creating order:', error);
+      // Handle error
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to create order: ' + error.message
+        });
+      }
     }
   };
 
@@ -469,6 +477,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
   const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
@@ -589,12 +598,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   // Send medication to pharmacy workflow
   const handleSendToPharmacy = async (order) => {
     if (order.resourceType !== 'MedicationRequest') {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Only medication orders can be sent to pharmacy'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Only medication orders can be sent to pharmacy',
+        severity: 'error'
+      });
       return;
     }
 
@@ -606,20 +614,18 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         updated_by: 'Current User' // This would come from auth context
       });
 
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`,
+        severity: 'success'
+      });
     } catch (error) {
-      console.error('Failed to send to pharmacy:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to send medication to pharmacy'
-        });
-      }
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to send to pharmacy: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -643,21 +649,19 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           detail: { patientId } 
         }));
         
-        if (onNotificationUpdate) {
-          onNotificationUpdate({
-            type: 'success',
-            message: 'Order cancelled successfully'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to cancel order:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to cancel order'
+        setSnackbar({
+          open: true,
+          message: 'Order cancelled successfully',
+          severity: 'success'
         });
       }
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to cancel order: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -668,12 +672,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     );
 
     if (medicationOrders.length === 0) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'warning',
-          message: 'No medication orders selected'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'No medication orders selected',
+        severity: 'warning'
+      });
       return;
     }
 
@@ -689,23 +692,21 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
 
       await Promise.all(promises);
 
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `${medicationOrders.length} medication orders sent to pharmacy`
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: `${medicationOrders.length} medication orders sent to pharmacy`,
+        severity: 'success'
+      });
 
       // Clear selections
       setSelectedOrders(new Set());
     } catch (error) {
-      console.error('Failed to batch send to pharmacy:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to send selected orders to pharmacy'
-        });
-      }
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to send selected orders to pharmacy',
+        severity: 'error'
+      });
     }
   };
 
@@ -725,12 +726,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         
         const response = await axios.post('/fhir/R4/MedicationRequest', newOrder);
         if (response.data) {
-          if (onNotificationUpdate) {
-            onNotificationUpdate({
-              type: 'success',
-              message: 'Medication reordered successfully'
-            });
-          }
+          setSnackbar({
+            open: true,
+            message: 'Medication reordered successfully',
+            severity: 'success'
+          });
         }
       } else if (order.resourceType === 'ServiceRequest') {
         newOrder = {
@@ -743,12 +743,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         
         const response = await axios.post('/fhir/R4/ServiceRequest', newOrder);
         if (response.data) {
-          if (onNotificationUpdate) {
-            onNotificationUpdate({
-              type: 'success',
-              message: 'Service reordered successfully'
-            });
-          }
+          setSnackbar({
+            open: true,
+            message: 'Service reordered successfully',
+            severity: 'success'
+          });
         }
       }
       
@@ -757,13 +756,12 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         detail: { patientId } 
       }));
     } catch (error) {
-      console.error('Failed to reorder:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to reorder'
-        });
-      }
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to reorder: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -774,12 +772,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     );
 
     if (ordersToCancel.length === 0) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'warning',
-          message: 'No active orders selected to cancel'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'No active orders selected to cancel',
+        severity: 'warning'
+      });
       return;
     }
 
@@ -799,23 +796,21 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         detail: { patientId } 
       }));
 
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `${ordersToCancel.length} orders cancelled successfully`
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: `${ordersToCancel.length} orders cancelled successfully`,
+        severity: 'success'
+      });
 
       // Clear selections
       setSelectedOrders(new Set());
     } catch (error) {
-      console.error('Failed to batch cancel orders:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to cancel selected orders'
-        });
-      }
+      // Handle error  
+      setSnackbar({
+        open: true,
+        message: 'Failed to cancel selected orders',
+        severity: 'error'
+      });
     }
   };
 
@@ -1062,6 +1057,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setQuickOrderDialog({ open: false, type: null })}
         patientId={patientId}
         orderType={quickOrderDialog.type}
+        onNotificationUpdate={(notification) => setSnackbar({
+          open: true,
+          message: notification.message,
+          severity: notification.type === 'error' ? 'error' : 'success'
+        })}
       />
 
       {/* View Order Dialog */}
@@ -1134,6 +1134,22 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button onClick={() => setViewOrderDialog({ open: false, order: null })}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

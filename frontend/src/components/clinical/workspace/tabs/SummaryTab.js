@@ -254,7 +254,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
       setLastRefresh(new Date());
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      // Error loading data - in production would use proper error logging
     } finally {
       setLoading(false);
       setRefreshing(false);

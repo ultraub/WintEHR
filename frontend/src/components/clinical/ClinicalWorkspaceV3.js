@@ -499,9 +499,16 @@ const ClinicalWorkspaceV3 = () => {
         open={snackbar.open}
         autoHideDuration={3000}
         onClose={() => setSnackbar({ open: false, message: '' })}
-        message={snackbar.message}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      >
+        <Alert 
+          onClose={() => setSnackbar({ open: false, message: '' })} 
+          severity="success"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

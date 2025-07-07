@@ -53,7 +53,7 @@ export const downloadDICOMStudy = async (study, onProgress) => {
     
     if (onProgress) onProgress(100);
   } catch (error) {
-    console.error('Failed to download DICOM study:', error);
+    // Propagate error to caller
     throw new Error(error.response?.data?.message || 'Failed to download study');
   }
 };
@@ -88,7 +88,7 @@ export const downloadDICOMSeries = async (studyId, seriesId, onProgress) => {
     link.remove();
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Failed to download DICOM series:', error);
+    // Propagate error to caller
     throw new Error('Failed to download series');
   }
 };
@@ -122,7 +122,7 @@ export const generateShareLink = async (study, options = {}) => {
       expiresAt: response.data.expiresAt
     };
   } catch (error) {
-    console.error('Failed to generate share link:', error);
+    // Propagate error to caller
     throw new Error(error.response?.data?.message || 'Failed to generate share link');
   }
 };
@@ -158,7 +158,7 @@ export const exportDICOMImages = async (studyId, format = 'jpeg', onProgress) =>
     link.remove();
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Failed to export DICOM images:', error);
+    // Propagate error to caller
     throw new Error('Failed to export images');
   }
 };
@@ -188,7 +188,7 @@ export const copyShareLink = async (shareUrl) => {
       return successful;
     }
   } catch (error) {
-    console.error('Failed to copy to clipboard:', error);
+    // Propagate error to caller
     return false;
   }
 };

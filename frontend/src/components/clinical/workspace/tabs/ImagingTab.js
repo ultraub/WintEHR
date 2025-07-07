@@ -37,6 +37,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
   useTheme,
   alpha
 } from '@mui/material';
@@ -303,6 +304,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const [downloadDialog, setDownloadDialog] = useState({ open: false, study: null });
   const [shareDialog, setShareDialog] = useState({ open: false, study: null });
   const [studies, setStudies] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Load imaging studies
   useEffect(() => {
@@ -322,14 +324,19 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
           const apiStudies = response.data?.data || [];
           setStudies(apiStudies);
         } catch (error) {
-          console.warn('Failed to load from API, using FHIR data:', error);
+          // Failed to load from API - fall back to FHIR data
           setStudies(fhirStudies);
         }
       } else {
         setStudies(fhirStudies);
       }
     } catch (error) {
-      console.error('Failed to load imaging studies:', error);
+      // Handle error - imaging studies failed to load
+      setSnackbar({
+        open: true,
+        message: 'Failed to load imaging studies',
+        severity: 'error'
+      });
       setStudies([]);
     } finally {
       setLoading(false);
@@ -507,7 +514,12 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
       // Extract study directory
       const studyDir = extractStudyDirectory(study);
       if (!studyDir) {
-        console.error('Unable to determine study directory for download');
+        // Unable to determine study directory
+        setSnackbar({
+          open: true,
+          message: 'Unable to download study - missing directory information',
+          severity: 'error'
+        });
         return;
       }
 
@@ -527,7 +539,12 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
       window.URL.revokeObjectURL(url);
 
     } catch (error) {
-      console.error('Failed to download study:', error);
+      // Handle download error
+      setSnackbar({
+        open: true,
+        message: 'Failed to download study: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -570,7 +587,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     }
     
     // Should not reach here
-    console.error('Unable to determine study directory for:', studyObj);
+    // Unable to determine study directory - return null
     return null;
   };
 
@@ -737,6 +754,22 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setShareDialog({ open: false, study: null })}
         study={shareDialog.study}
       />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

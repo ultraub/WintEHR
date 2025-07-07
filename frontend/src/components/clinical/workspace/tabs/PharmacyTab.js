@@ -41,7 +41,8 @@ import {
   useTheme,
   alpha,
   Tabs,
-  Tab
+  Tab,
+  Snackbar
 } from '@mui/material';
 import {
   Medication as PharmacyIcon,
@@ -421,6 +422,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const [dispenseDialogOpen, setDispenseDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Get medication requests based on patient filter
   const medicationRequests = useMemo(() => {
@@ -511,19 +513,17 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       // TODO: Integrate with FHIR service to update the status
       // await fhirService.updateMedicationRequest(requestId, { status: newStatus });
       
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `Medication request status updated to ${newStatus}`
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: `Medication request status updated to ${newStatus}`,
+        severity: 'success'
+      });
     } catch (error) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to update medication request status'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Failed to update medication request status',
+        severity: 'error'
+      });
     }
   }, [onNotificationUpdate]);
 
@@ -543,19 +543,17 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       // };
       // await fhirService.createMedicationDispense(dispenseResource);
       
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: 'Medication dispensed successfully'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Medication dispensed successfully',
+        severity: 'success'
+      });
     } catch (error) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to dispense medication'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Failed to dispense medication',
+        severity: 'error'
+      });
     }
   }, [onNotificationUpdate, patientId]);
 
@@ -889,6 +887,22 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         medicationRequest={selectedRequest}
         onDispense={handleDispense}
       />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

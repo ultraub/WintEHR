@@ -31,7 +31,8 @@ import {
   CircularProgress,
   Alert,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Timeline,
@@ -216,6 +217,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
   const [newEncounterData, setNewEncounterData] = useState({
@@ -327,29 +329,26 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
         });
 
-        if (onNotificationUpdate) {
-          onNotificationUpdate({
-            type: 'success',
-            message: 'New encounter created successfully'
-          });
-        }
+        setSnackbar({
+          open: true,
+          message: 'New encounter created successfully',
+          severity: 'success'
+        });
       } else {
-        console.error('Failed to create encounter:', response.statusText);
-        if (onNotificationUpdate) {
-          onNotificationUpdate({
-            type: 'error',
-            message: 'Failed to create encounter'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error creating encounter:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Error creating encounter'
+        throw new Error(`Failed to create encounter: ${response.statusText}`);
+        setSnackbar({
+          open: true,
+          message: 'Failed to create encounter',
+          severity: 'error'
         });
       }
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to create encounter: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -637,6 +636,22 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

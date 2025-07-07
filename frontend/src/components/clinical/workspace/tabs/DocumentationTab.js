@@ -44,7 +44,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Description as NoteIcon,
@@ -77,6 +78,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import fhirService from '../../../../services/fhirService';
 import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
 
@@ -108,7 +110,7 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
   
   // Ensure typeConfig has required properties
   if (!typeConfig || !typeConfig.color) {
-    console.error('Invalid typeConfig:', typeConfig, 'for noteType:', noteType);
+    // Invalid type config - return default formatting
     return null;
   }
 
@@ -240,7 +242,7 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
 };
 
 // Note Editor Component
-const NoteEditor = ({ open, onClose, note, patientId }) => {
+const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) => {
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
@@ -288,7 +290,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
             // Not JSON, use as plain content
           }
         } catch (e) {
-          console.warn('Failed to decode note content:', e);
+          // Failed to decode - will return original base64 string
         }
       }
 
@@ -391,10 +393,16 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
         }));
         onClose();
       } else {
-        console.error('Failed to save note:', response.statusText);
+        throw new Error(`Failed to save note: ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Error saving note:', error);
+      // Handle error appropriately
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to save note. Please try again.'
+        });
+      }
     }
   };
 
@@ -608,6 +616,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
@@ -631,7 +640,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       }
       return null;
     } catch (error) {
-      console.warn('Failed to decode base64 content:', error);
+      // Failed to decode - return original content
       return null;
     }
   };
@@ -782,54 +791,102 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           detail: { patientId } 
         }));
         
-        if (onNotificationUpdate) {
-          onNotificationUpdate({
-            type: 'success',
-            message: 'Note signed successfully'
-          });
-        }
+        setSnackbar({
+          open: true,
+          message: 'Note signed successfully',
+          severity: 'success'
+        });
       } else {
-        console.error('Failed to sign note:', response.statusText);
-        if (onNotificationUpdate) {
-          onNotificationUpdate({
-            type: 'error',
-            message: 'Failed to sign note'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error signing note:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Error signing note'
+        throw new Error(`Failed to sign note: ${response.statusText}`);
+        setSnackbar({
+          open: true,
+          message: 'Failed to sign note',
+          severity: 'error'
         });
       }
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to sign note: ' + error.message,
+        severity: 'error'
+      });
     }
   };
   
   const handleSaveAddendum = async (addendumText) => {
-    // In a real app, this would create a new DocumentReference
-    // linked to the original note
+    // Create a new DocumentReference linked to the original note
     try {
-      // TODO: Implement actual addendum save to FHIR server
-      // For now, just close the dialog
+      if (!selectedNoteForAddendum || !addendumText.trim()) {
+        throw new Error('Invalid addendum data');
+      }
+
+      // Create the addendum DocumentReference
+      const addendumResource = {
+        resourceType: 'DocumentReference',
+        status: 'current',
+        docStatus: 'final',
+        type: {
+          coding: [{
+            system: 'http://loinc.org',
+            code: '11506-3',
+            display: 'Progress note'
+          }],
+          text: 'Addendum'
+        },
+        category: [{
+          coding: [{
+            system: 'http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category',
+            code: 'clinical-note',
+            display: 'Clinical Note'
+          }]
+        }],
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        date: new Date().toISOString(),
+        author: [{
+          display: 'Current User' // This would come from auth context
+        }],
+        relatesTo: [{
+          code: 'appends',
+          target: {
+            reference: `DocumentReference/${selectedNoteForAddendum.id}`
+          }
+        }],
+        description: `Addendum to ${selectedNoteForAddendum.type?.text || 'note'} from ${format(parseISO(selectedNoteForAddendum.date), 'MMM d, yyyy')}`,
+        content: [{
+          attachment: {
+            contentType: 'text/plain',
+            data: btoa(addendumText), // Base64 encode the text
+            creation: new Date().toISOString()
+          }
+        }]
+      };
+
+      // Save the addendum
+      await fhirService.createDocumentReference(addendumResource);
+      
+      // Refresh the documents list
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Close dialog and clear state
       setAddendumDialogOpen(false);
       setSelectedNoteForAddendum(null);
+      
       // Show success message
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: 'Addendum saved successfully'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Addendum saved successfully',
+        severity: 'success'
+      });
     } catch (error) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to save addendum'
-        });
-      }
+      // Log error for debugging (would use proper logging in production)
+      setSnackbar({
+        open: true,
+        message: 'Failed to save addendum: ' + error.message,
+        severity: 'error'
+      });
     }
   };
   
@@ -1009,6 +1066,11 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         onClose={() => setEditorOpen(false)}
         note={selectedNote}
         patientId={patientId}
+        onNotificationUpdate={(notification) => setSnackbar({
+          open: true,
+          message: notification.message,
+          severity: notification.type === 'error' ? 'error' : 'success'
+        })}
       />
       
       {/* Addendum Dialog */}
@@ -1021,6 +1083,22 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         note={selectedNoteForAddendum}
         onSave={handleSaveAddendum}
       />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
