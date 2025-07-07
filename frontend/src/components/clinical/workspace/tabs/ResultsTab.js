@@ -515,15 +515,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             iconPosition="start"
           />
           <Tab 
-            label="Imaging" 
-            icon={
-              <Badge badgeContent={imagingStudies.length} color="primary">
-                <ImagingIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
             label="Vital Signs" 
             icon={
               <Badge badgeContent={vitalSigns.length} color="primary">
@@ -652,7 +643,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             }}
           />
         </TableContainer>
-      ) : tabValue === 1 ? () : tabValue === 1 ? (
+      ) : tabValue === 1 ? (
         // Vital Signs
         <Box>
           {vitalSigns.length === 0 ? (

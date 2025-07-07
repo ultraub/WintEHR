@@ -423,7 +423,7 @@ const DICOMViewer = ({ study, onClose }) => {
       </IconButton>
       
       {/* Controls */}
-      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
         <Grid container spacing={2} alignItems="center">
           {/* Navigation Controls */}
           <Grid item>
