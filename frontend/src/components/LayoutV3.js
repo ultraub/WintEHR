@@ -89,10 +89,10 @@ const navigationConfig = {
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Clinical Workspace', icon: <AssignmentIcon />, path: '/clinical', description: 'Chart review & documentation', badge: 'New' },
       { text: 'Encounters', icon: <EventNoteIcon />, path: '/encounters', description: 'Visit management' },
       { text: 'Orders & Results', icon: <ScienceIcon />, path: '/lab-results', description: 'Lab & imaging' },
-      { text: 'Medications', icon: <PharmacyIcon />, path: '/medications', description: 'Medication management' }
+      { text: 'Medications', icon: <PharmacyIcon />, path: '/medications', description: 'Medication management' },
+      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', badge: 'New' }
     ]
   },
   analytics: {
