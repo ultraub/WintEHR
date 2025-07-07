@@ -63,7 +63,19 @@ if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 
     echo "✅ DICOM files already exist"
 else
     echo "Generating DICOM files for imaging studies..."
-    python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
+    # Use the realistic DICOM generator if available, otherwise fall back to basic one
+    if [ -f "scripts/generate_realistic_dicoms.py" ]; then
+        echo "Using realistic DICOM generator..."
+        python scripts/generate_realistic_dicoms.py || python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
+    else
+        python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
+    fi
+fi
+
+# Generate imaging reports for studies if not already present
+echo "Checking imaging reports..."
+if [ -f "scripts/generate_imaging_reports.py" ]; then
+    python scripts/generate_imaging_reports.py || echo "⚠️  Imaging report generation skipped"
 fi
 
 # Create necessary directories

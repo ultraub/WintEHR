@@ -46,6 +46,7 @@ GitPython==3.1.40
 pydicom==2.4.4
 pillow>=10.3.0
 numpy>=1.26.0
+scipy>=1.11.0  # For realistic DICOM generation
 # For DICOM image processing (basic support)
 pylibjpeg==2.0.0
 pylibjpeg-libjpeg==2.0.0
