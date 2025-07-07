@@ -62,69 +62,10 @@ for i in {1..30}; do
 done
 
 # Run database initialization and table creation
-echo -e "${BLUE}🔧 Initializing database and search tables...${NC}"
+echo -e "${BLUE}🔧 Initializing database with definitive schema...${NC}"
 
-# Ensure all schemas and tables exist
-PGPASSWORD=emr_password psql -h localhost -p 5432 -U emr_user -d emr_db <<SQL >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Some database initialization skipped${NC}"
--- Create schemas
-CREATE SCHEMA IF NOT EXISTS fhir;
-CREATE SCHEMA IF NOT EXISTS cds_hooks;
-
--- Add deleted column if missing
-DO \$\$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_schema = 'fhir' 
-        AND table_name = 'resources' 
-        AND column_name = 'deleted'
-    ) THEN
-        ALTER TABLE fhir.resources ADD COLUMN deleted BOOLEAN DEFAULT FALSE;
-    END IF;
-END\$\$;
-
--- Create search_params table if not exists
-CREATE TABLE IF NOT EXISTS fhir.search_params (
-    id SERIAL PRIMARY KEY,
-    resource_id UUID NOT NULL,
-    resource_type VARCHAR(50) NOT NULL,
-    param_name VARCHAR(100) NOT NULL,
-    param_type VARCHAR(20) NOT NULL,
-    value_string TEXT,
-    value_token VARCHAR(500),
-    value_reference VARCHAR(500),
-    value_date TIMESTAMP,
-    value_number NUMERIC,
-    value_quantity_value NUMERIC,
-    value_quantity_unit VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
-);
-
--- Create resource_history table if not exists
-CREATE TABLE IF NOT EXISTS fhir.resource_history (
-    id SERIAL PRIMARY KEY,
-    resource_id INTEGER NOT NULL,
-    version_id INTEGER NOT NULL,
-    operation VARCHAR(20) NOT NULL,
-    resource JSONB NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_resource_history_resource FOREIGN KEY (resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE,
-    CONSTRAINT idx_resource_history_unique UNIQUE (resource_id, version_id)
-);
-
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_search_params_resource ON fhir.search_params(resource_id, resource_type);
-CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(param_name, value_token) WHERE value_token IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_resource_history_resource_id ON fhir.resource_history(resource_id);
-SQL
-
-# Initialize search tables if needed
-python scripts/init_search_tables.py >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Search tables initialization skipped${NC}"
-
-# Run main database initialization
-python scripts/init_database.py >/dev/null 2>&1 || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
+# Run definitive database initialization (creates everything correctly)
+python scripts/init_database_definitive.py || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
 
 cd ..
 

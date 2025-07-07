@@ -1518,11 +1518,11 @@ class FHIRStorageEngine:
             print(f"DEBUG: Param {i+1}: {param}")
             query = text("""
                 INSERT INTO fhir.search_params (
-                    resource_id, param_name, param_type,
+                    resource_id, resource_type, param_name, param_type,
                     value_string, value_number, value_date,
                     value_token_system, value_token_code
                 ) VALUES (
-                    :resource_id, :param_name, :param_type,
+                    :resource_id, :resource_type, :param_name, :param_type,
                     :value_string, :value_number, :value_date,
                     :value_token_system, :value_token_code
                 )
@@ -1538,6 +1538,7 @@ class FHIRStorageEngine:
             
             await self.session.execute(query, {
                 'resource_id': resource_id,
+                'resource_type': resource_type,
                 'param_name': param['param_name'],
                 'param_type': param['param_type'],
                 'value_string': param.get('value_string'),

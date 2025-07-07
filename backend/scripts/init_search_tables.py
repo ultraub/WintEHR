@@ -51,7 +51,7 @@ async def init_search_tables():
             await conn.execute("""
                 CREATE TABLE fhir.search_params (
                     id SERIAL PRIMARY KEY,
-                    resource_id UUID NOT NULL,
+                    resource_id INTEGER NOT NULL,
                     resource_type VARCHAR(50) NOT NULL,
                     param_name VARCHAR(100) NOT NULL,
                     param_type VARCHAR(20) NOT NULL,
