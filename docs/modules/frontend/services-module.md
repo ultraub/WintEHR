@@ -11,6 +11,11 @@ Services Module
 ├── pharmacyService.js (Medication workflows)
 ├── dicomService.js (Medical imaging)
 ├── authService.js (Authentication)
+├── cdsHooksClient.js (CDS Hooks integration)
+├── cdsHooksService.js (Custom hook management)
+├── websocket.js (Real-time updates)
+├── providerService.js (Provider management)
+├── vitalSignsService.js (Vital signs operations)
 └── api.js (Base HTTP client)
 ```
 
@@ -160,6 +165,65 @@ checkRole(requiredRole)
 - Session persistence
 - Role-based access control
 
+### cdsHooksClient.js
+**Purpose**: Integration with CDS Hooks services for clinical decision support
+
+**Key Methods**:
+```javascript
+// Hook discovery
+getAvailableHooks()
+getHookDefinition(hookId)
+
+// Hook execution
+triggerHook(hookType, context)
+executeBulkHooks(contexts)
+
+// Card interactions
+dismissCard(cardId, reason)
+acceptSuggestion(cardId, suggestionId)
+overrideRecommendation(cardId, reason)
+
+// Analytics
+trackCardInteraction(interaction)
+getHookAnalytics(hookId)
+```
+
+**Features**:
+- Automatic context preparation
+- Prefetch optimization
+- Card caching
+- Error recovery
+- Analytics integration
+
+### cdsHooksService.js
+**Purpose**: CRUD operations for custom CDS hooks
+
+**Key Methods**:
+```javascript
+// Hook management
+getHooks()
+getHook(hookId)
+createHook(hookData)
+updateHook(hookId, updates)
+deleteHook(hookId)
+
+// Testing & validation
+validateHook(hookData)
+testHook(hook, patientContext)
+simulateHook(hook, mockData)
+
+// Analytics
+getHookMetrics(hookId)
+getHookExecutionHistory(hookId)
+```
+
+**Features**:
+- Visual hook builder support
+- Real-time validation
+- Test patient integration
+- Version control
+- Performance metrics
+
 ## Shared Patterns
 
 ### API Client Configuration
@@ -236,6 +300,8 @@ const getCached = async (key, fetcher, ttl = 300000) => {
 - Pharmacy workflows: `/api/pharmacy/*`
 - DICOM services: `/api/dicom/*`
 - Authentication: `/api/auth/*`
+- CDS Hooks: `/cds-hooks/*` and `/api/cds-hooks/*`
+- WebSocket: `/api/ws/`
 
 ### Frontend Integration
 - Used by all React components
@@ -312,7 +378,7 @@ const getCached = async (key, fetcher, ttl = 300000) => {
 - API versioning
 
 ### Healthcare Features
-- CDS Hooks integration
+- ~~CDS Hooks integration~~ ✅ Implemented
 - SMART on FHIR apps
 - Bulk FHIR operations
 - Terminology server integration

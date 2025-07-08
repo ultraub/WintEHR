@@ -76,6 +76,14 @@ while [ $COUNTER -lt $MAX_TRIES ]; do
     sleep 2
 done
 
+# Run comprehensive validation
+echo -e "${YELLOW}🔍 Running comprehensive deployment validation...${NC}"
+docker-compose exec -T backend python /app/scripts/validate_deployment.py --docker --verbose || {
+    echo -e "${RED}❌ Deployment validation failed${NC}"
+    docker-compose logs backend
+    exit 1
+}
+
 # Generate test data
 PATIENT_COUNT=${PATIENT_COUNT:-10}
 echo -e "${BLUE}👥 Generating ${PATIENT_COUNT} test patients with complete data...${NC}"

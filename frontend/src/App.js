@@ -14,7 +14,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PatientList from './pages/PatientList';
 import Analytics from './pages/Analytics';
-import FHIRExplorerEnhanced from './pages/FHIRExplorerEnhanced';
+import FHIRExplorerRedesigned from './pages/FHIRExplorerRedesigned';
 import Settings from './pages/Settings';
 import Schedule from './pages/Schedule';
 import NotFound from './pages/NotFound';
@@ -22,6 +22,7 @@ import MedicationReconciliationPage from './pages/MedicationReconciliationPage';
 import VitalSignsPage from './pages/VitalSignsPage';
 import TrainingCenterPage from './pages/TrainingCenterPage';
 import CDSHooksPage from './pages/CDSHooksPage';
+import CDSHooksStudio from './pages/CDSHooksStudio';
 import EncountersPage from './pages/EncountersPage';
 import LabResultsPage from './pages/LabResultsPage';
 import MedicationsPage from './pages/MedicationsPage';
@@ -211,10 +212,10 @@ function App() {
                         } />
 
                         {/* Developer Tools */}
-                        <Route path="/fhir" element={
+                        <Route path="/fhir-explorer" element={
                           <ProtectedRoute>
                             <LayoutV3>
-                              <FHIRExplorerEnhanced />
+                              <FHIRExplorerRedesigned />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />
@@ -222,6 +223,13 @@ function App() {
                           <ProtectedRoute>
                             <LayoutV3>
                               <CDSHooksPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/cds-studio" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <CDSHooksStudio />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />
@@ -256,13 +264,6 @@ function App() {
                           <ProtectedRoute>
                             <LayoutV3>
                               <TrainingCenterPage />
-                            </LayoutV3>
-                          </ProtectedRoute>
-                        } />
-                        <Route path="/fhir-explorer" element={
-                          <ProtectedRoute>
-                            <LayoutV3>
-                              <FHIRExplorerEnhanced />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />

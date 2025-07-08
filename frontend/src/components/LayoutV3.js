@@ -78,6 +78,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
 import NotificationBell from './NotificationBell';
 import ThemeSwitcher from './theme/ThemeSwitcher';
+import SearchBar from './SearchBar';
 
 const drawerWidth = 280;
 
@@ -108,8 +109,9 @@ const navigationConfig = {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir', description: 'Browse FHIR resources' },
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Browse FHIR resources', badge: 'Enhanced' },
       { text: 'CDS Hooks', icon: <WebhookIcon />, path: '/cds-hooks', description: 'Clinical decision support' },
+      { text: 'CDS Studio', icon: <LightbulbIcon />, path: '/cds-studio', description: 'Visual CDS builder', badge: 'New' },
       { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }
     ]
   },
@@ -130,40 +132,6 @@ const quickActions = [
   { name: 'Refresh Data', icon: <RefreshIcon />, action: 'refreshData' }
 ];
 
-const SearchBar = ({ onSearch }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  return (
-    <Paper
-      component="form"
-      sx={{
-        p: '2px 4px',
-        display: 'flex',
-        alignItems: 'center',
-        width: 300,
-        borderRadius: 2,
-        bgcolor: alpha('#fff', 0.15),
-        '&:hover': {
-          bgcolor: alpha('#fff', 0.25),
-        }
-      }}
-      elevation={0}
-    >
-      <IconButton sx={{ p: '10px', color: 'inherit' }} aria-label="search">
-        <SearchIcon />
-      </IconButton>
-      <InputBase
-        sx={{ ml: 1, flex: 1, color: 'inherit' }}
-        placeholder="Search patients, conditions..."
-        value={searchTerm}
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          onSearch?.(e.target.value);
-        }}
-      />
-    </Paper>
-  );
-};
 
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
   return (

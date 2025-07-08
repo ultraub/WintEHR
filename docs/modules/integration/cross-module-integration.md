@@ -29,6 +29,11 @@ Backend Modules
 │   ├── depends on → FHIR API Module
 │   ├── depends on → Authentication Module
 │   └── integrates with → External Systems
+├── CDS Hooks Module
+│   ├── depends on → FHIR API Module
+│   ├── depends on → Clinical Services Module
+│   ├── evaluates → Clinical Rules
+│   └── integrates with → Clinical Workflows
 ├── Data Management Module
 │   ├── uses → FHIR API Module
 │   └── manages → Database Operations
@@ -184,6 +189,78 @@ async def create_order(order_data: dict, db: AsyncSession):
 8. Update order status
 ```
 
+### 5. CDS Hooks Integration Flow
+**Scenario**: Clinical decision support triggers during workflow
+
+```
+1. Clinical Action (e.g., open patient, prescribe medication)
+   ↓ (hook trigger)
+2. CDS Hooks Client prepares context
+   ↓ (patient, user, encounter data)
+3. CDS Service evaluates rules
+   ↓ (checks conditions)
+4. Hook matches conditions
+   ↓ (generates cards)
+5. Response sent to UI
+   ↓ (cards displayed)
+6. User interacts with cards
+   ↓ (dismiss/accept/override)
+7. Action logged for analytics
+   ↓ (audit trail)
+8. Workflow continues with CDS input
+```
+
+**Integration Code**:
+```javascript
+// Frontend: CDS Hook trigger
+const triggerCDSHooks = async (hookType, context) => {
+  try {
+    // Get CDS recommendations
+    const cards = await cdsHooksClient.triggerHook(hookType, {
+      patientId: patient.id,
+      userId: user.id,
+      ...context
+    });
+    
+    // Display cards in UI
+    if (cards.length > 0) {
+      setCdsAlerts(cards);
+      
+      // Track card presentation
+      cards.forEach(card => {
+        analytics.track('cds_card_presented', {
+          hookType,
+          cardId: card.uuid,
+          indicator: card.indicator
+        });
+      });
+    }
+  } catch (error) {
+    console.error('CDS Hook error:', error);
+  }
+};
+
+// Backend: CDS evaluation
+async def evaluate_cds_hook(hook_type: str, context: dict):
+    # Get applicable hooks
+    hooks = await get_active_hooks(hook_type)
+    
+    # Prefetch required data
+    prefetch_data = await prefetch_resources(hooks, context)
+    
+    # Evaluate each hook
+    cards = []
+    for hook in hooks:
+        if await evaluate_conditions(hook, context, prefetch_data):
+            hook_cards = generate_cards(hook, context)
+            cards.extend(hook_cards)
+    
+    # Log execution
+    await log_cds_execution(hook_type, context, cards)
+    
+    return {"cards": cards}
+```
+
 ## Event-Driven Architecture
 
 ### Frontend Event Bus (ClinicalWorkflowContext)
@@ -203,7 +280,15 @@ const CLINICAL_EVENTS = {
   // Medication events
   PRESCRIPTION_CREATED: 'prescription.created',
   MEDICATION_DISPENSED: 'medication.dispensed',
-  MEDICATION_DISCONTINUED: 'medication.discontinued'
+  MEDICATION_DISCONTINUED: 'medication.discontinued',
+  
+  // CDS events
+  CDS_HOOK_TRIGGERED: 'cds.hook.triggered',
+  CDS_CARD_PRESENTED: 'cds.card.presented',
+  CDS_CARD_ACCEPTED: 'cds.card.accepted',
+  CDS_CARD_DISMISSED: 'cds.card.dismissed',
+  CDS_HOOK_CREATED: 'cds.hook.created',
+  CDS_HOOK_UPDATED: 'cds.hook.updated'
 };
 
 // Publishing events

@@ -21,8 +21,14 @@ A **complete, production-ready EMR** with:
 ## 🚀 Quick Start Commands
 
 ```bash
-# Start entire system
+# Start entire system with validation
 ./start.sh
+
+# Fresh deployment with comprehensive checks
+./fresh-deploy.sh
+
+# Validate deployment after startup
+python scripts/validate_deployment.py --verbose
 
 # Common troubleshooting
 docker-compose down -v          # Full reset if errors
@@ -456,11 +462,51 @@ optional: ['CarePlan', 'CareTeam', 'DocumentReference']
 
 ## 🤖 Automatic Documentation Protocol
 
-FOR EVERY TASK:
-1. When I mention a module/feature, automatically determine its directory
-2. Read ALL .md files in that directory before starting
-3. After implementation, update those same .md files
-4. No exceptions - this is automatic
+### MANDATORY DOCUMENTATION WORKFLOW
+
+**BEFORE ANY CODE CHANGE:**
+1. Use TodoWrite to create task list including "Update documentation for [module]"
+2. Search for ALL related documentation files:
+   - Module-specific docs in `docs/modules/`
+   - Component-level .md files near the code
+   - API documentation if endpoints are affected
+   - Integration guides if cross-module changes
+3. Read identified documentation files
+4. Note current state and planned changes
+
+**DURING IMPLEMENTATION:**
+1. Keep documentation task in "pending" status
+2. Track all changes that affect:
+   - Public APIs or interfaces
+   - User-facing features
+   - Integration points
+   - Configuration options
+   - Performance characteristics
+
+**AFTER CODE CHANGES:**
+1. Mark documentation task as "in_progress"
+2. Update ALL affected documentation:
+   - Feature descriptions
+   - Code examples
+   - Integration points
+   - Configuration changes
+   - Breaking changes
+   - New capabilities
+3. Add "Recent Updates" section with date
+4. Update cross-references in related docs
+5. Mark documentation task as "completed"
+
+**DOCUMENTATION SEARCH PATTERN:**
+```bash
+# When working on a component:
+Glob: **/*ComponentName*.md
+Glob: **/ComponentDirectory/*.md
+Grep: "ComponentName" in docs/
+
+# When working on a feature:
+Glob: docs/modules/**/*feature*.md
+Grep: "feature" in docs/
+```
 
 Documentation Locations:
 
@@ -483,6 +529,9 @@ Documentation Locations:
   - Authentication → `authentication-module.md`
   - Data Management → `data-management-module.md`
   - Core Infrastructure → `core-infrastructure-module.md`
+- **Standalone Modules** → `docs/modules/standalone/`
+  - CDS Hooks → `cds-hooks-module.md`
+  - FHIR Explorer → `fhir-explorer-module.md`
 - **Integration Guide** → `docs/modules/integration/cross-module-integration.md`
 
 ### API Documentation
@@ -501,8 +550,373 @@ Documentation Locations:
 
 
 ## Session Management
-- Start: Review this file and run system checks
-- During: Follow patterns, update docs
-- End: Update relevant documentation
 
-- When starting a new session, always run: .claude/hooks/session-start.md
+### Session Start Checklist
+1. Review this CLAUDE.md file
+2. Run system checks: `docker-compose ps`
+3. Check for uncommitted documentation: `git status docs/`
+4. Create session todo list with documentation tasks
+
+### During Session
+1. Follow established patterns
+2. Update docs in real-time (not at end)
+3. Use TodoWrite to track documentation tasks
+4. Cross-reference related documentation
+
+### Session End Checklist
+1. Verify all documentation tasks completed
+2. Check for consistency across docs
+3. Update CLAUDE.md if new patterns established
+4. Commit documentation changes
+
+## 🤖 Claude Code Agent System
+
+**MedGenEMR includes a comprehensive agent system for reliable feature development**
+
+### 🚀 Master Feature Workflow
+
+**Primary Command**: `python .claude/agents/feature-workflow.py 'feature request'`
+
+The master workflow orchestrates all agents for complete feature development:
+1. ✅ **Analysis** - Feature analyzer creates comprehensive todo lists
+2. ✅ **Scaffolding** - Generate boilerplate following MedGenEMR patterns  
+3. ✅ **Validation** - FHIR compliance and integration checks
+4. ✅ **Quality** - Code cleanup and error detection
+5. ✅ **Documentation** - Automatic doc updates and cross-referencing
+
+```bash
+# Complete feature development workflow
+python .claude/agents/feature-workflow.py "Add medication allergy checking"
+
+# Quick analysis and scaffolding only
+python .claude/agents/feature-workflow.py "New lab result viewer" --check-only
+
+# Run with all agents for comprehensive validation
+python .claude/agents/feature-workflow.py "Patient timeline view" --auto
+```
+
+### 🛠️ Individual Agents
+
+#### Feature Scaffold Agent
+**File**: `.claude/agents/feature-scaffold.py`  
+**Purpose**: Generate boilerplate code following MedGenEMR patterns
+
+```bash
+# Generate complete feature scaffolding
+python .claude/agents/feature-scaffold.py "Patient medication history tab"
+
+# Output includes:
+# - Clinical tab component with Context integration
+# - Service layer with FHIR operations
+# - Dialog components with validation
+# - Event integration code
+# - API endpoint templates (if needed)
+```
+
+**Generated Components**:
+- ✅ Clinical tabs with proper Context usage
+- ✅ FHIR service integration
+- ✅ Dialog components with form validation
+- ✅ Event-driven workflow integration
+- ✅ Error handling and loading states
+
+#### FHIR Integration Checker
+**File**: `.claude/agents/fhir-integration-checker.py`  
+**Purpose**: Validate FHIR resource usage and compliance
+
+```bash
+# Check entire codebase for FHIR compliance
+python .claude/agents/fhir-integration-checker.py
+
+# Check specific file
+python .claude/agents/fhir-integration-checker.py src/components/clinical/NewComponent.js
+
+# Generate compliance report
+python .claude/agents/fhir-integration-checker.py --report
+```
+
+**Validation Rules**:
+- ❌ No hardcoded resource IDs
+- ❌ No mock data (John Doe, etc.)
+- ✅ Proper fhirService usage
+- ✅ Correct reference handling
+- ✅ Resource validation
+
+#### Integration Validator
+**File**: `.claude/agents/integration-validator.py`  
+**Purpose**: Validate cross-module integration patterns
+
+```bash
+# Validate integration patterns
+python .claude/agents/integration-validator.py
+
+# Get integration suggestions for new component
+python .claude/agents/integration-validator.py --suggest PatientTimelineTab
+
+# Generate integration report
+python .claude/agents/integration-validator.py --report
+```
+
+**Integration Checks**:
+- ✅ Context usage (FHIRResourceContext, ClinicalWorkflowContext)
+- ✅ Event subscription patterns
+- ✅ Progressive loading implementation
+- ✅ WebSocket integration
+- ✅ Cross-tab communication
+
+#### Quality Assurance Agent
+**File**: `.claude/agents/qa-agent.py`  
+**Purpose**: Code quality and cleanup
+
+```bash
+# Run QA checks with auto-fix
+python .claude/agents/qa-agent.py --fix
+
+# Generate quality report
+python .claude/agents/qa-agent.py --report
+
+# Check specific severity level
+python .claude/agents/qa-agent.py --severity error
+```
+
+**Quality Checks**:
+- ❌ Remove console.log statements (auto-fixable)
+- ✅ Error handling validation
+- ✅ Loading state implementation
+- ✅ React best practices
+- ✅ TypeScript compliance
+
+#### Feature Analyzer
+**File**: `.claude/agents/feature-analyzer.py`  
+**Purpose**: Analyze feature requests and generate todo lists
+
+```bash
+# Analyze feature and generate todo list
+python .claude/agents/feature-analyzer.py "Add drug interaction checking" --output todo
+
+# Generate analysis report
+python .claude/agents/feature-analyzer.py "Patient search enhancement" --output report
+
+# Export as JSON for integration
+python .claude/agents/feature-analyzer.py "Allergy management" --output json
+```
+
+**Analysis Output**:
+- ✅ Comprehensive todo list with priorities
+- ✅ Integration point identification
+- ✅ Component suggestions
+- ✅ FHIR resource requirements
+- ✅ Testing recommendations
+
+### 🔧 Agent Integration in .claude/settings.json
+
+**Full configuration with automated hooks:**
+
+```json
+{
+  "hooks": {
+    "pre-task": [
+      "python .claude/agents/fhir-integration-checker.py --quiet",
+      "python .claude/hooks/documentation-tracker.py"
+    ],
+    "post-task": [
+      "python .claude/agents/qa-agent.py --severity error",
+      "python .claude/agents/integration-validator.py --quick"
+    ],
+    "feature-request": [
+      "python .claude/agents/feature-analyzer.py \"$1\" --output todo"
+    ]
+  },
+  "workflows": {
+    "new-feature": [
+      "python .claude/agents/feature-workflow.py '{feature_request}'",
+      "Review generated todo list and scaffolding",
+      "Implement feature following MedGenEMR patterns",
+      "Run post-implementation validation"
+    ]
+  }
+}
+```
+
+### 🎯 Quality Gates & Enforcement
+
+**Mandatory Before Completion**:
+- ❌ No console.log statements (qa-agent auto-fixes)
+- ✅ FHIR compliance validated (fhir-integration-checker)
+- ✅ Cross-module integration verified (integration-validator)
+- ✅ Error handling implemented
+- ✅ Loading states present
+- ✅ Event integration working
+- ✅ Documentation updated
+
+**Agent Workflow Integration**:
+```bash
+# 1. Feature Analysis (creates TodoWrite list)
+python .claude/agents/feature-analyzer.py "Feature request"
+
+# 2. Generate Scaffolding
+python .claude/agents/feature-scaffold.py "Feature request"
+
+# 3. Development (manual implementation)
+
+# 4. Continuous Validation
+python .claude/agents/fhir-integration-checker.py [file]
+python .claude/agents/integration-validator.py --suggest ComponentName
+
+# 5. Final Quality Check
+python .claude/agents/qa-agent.py --fix
+```
+
+### 📋 Common Agent Workflows
+
+#### New Clinical Feature
+```bash
+# Complete workflow with all agents
+python .claude/agents/feature-workflow.py "Add patient vital signs monitoring"
+```
+
+#### Quick Component Addition
+```bash
+# Analysis + Scaffolding
+python .claude/agents/feature-analyzer.py "New dialog component" --output todo
+python .claude/agents/feature-scaffold.py "New dialog component"
+```
+
+#### Code Quality Check
+```bash
+# Comprehensive quality validation
+python .claude/agents/qa-agent.py --fix
+python .claude/agents/fhir-integration-checker.py --report
+python .claude/agents/integration-validator.py --report
+```
+
+#### Debug Integration Issues
+```bash
+# Integration troubleshooting
+python .claude/agents/integration-validator.py --suggest ExistingComponent
+python .claude/agents/fhir-integration-checker.py src/problematic/file.js
+```
+
+### 🚨 Agent Triggers in Claude Code
+
+**Agents are automatically triggered by:**
+- **Pre-task hooks** - FHIR compliance and documentation checks
+- **Post-task hooks** - Quality assurance and integration validation  
+- **Feature requests** - Automatic analysis and todo generation
+- **Error conditions** - Diagnostic agent execution
+- **Code changes** - Quality gates enforcement
+
+**Manual Agent Usage**:
+- Use individual agents during development for targeted validation
+- Run master workflow for complete feature development
+- Integrate agents into CI/CD for automated quality gates
+
+## 📚 Enhanced Documentation System
+
+### Automatic Documentation Tracking
+
+**Claude Code now includes:**
+1. **Pre/Post Implementation Hooks** in `.claude/hooks/`
+2. **Documentation Tracker** - Python script that analyzes changes
+3. **Documentation Rules** in `.claude/DOCUMENTATION_RULES.md`
+4. **Settings Configuration** in `.claude/settings.json`
+
+### How It Works
+
+**1. Before Any Task:**
+```bash
+# Claude automatically runs:
+python .claude/hooks/documentation-tracker.py
+# This identifies which docs need updating
+```
+
+**2. Task Creation:**
+```javascript
+// TodoWrite automatically includes doc tasks:
+[
+  { content: "Implement feature X", status: "pending" },
+  { content: "Update module documentation", status: "pending" },
+  { content: "Update API documentation", status: "pending" }
+]
+```
+
+**3. Documentation Search:**
+```bash
+# For component work:
+Glob: **/*ComponentName*.md
+Glob: docs/modules/**/*feature*.md
+
+# For API work:
+Grep: "endpoint" docs/API_ENDPOINTS.md
+```
+
+**4. After Implementation:**
+- Check `.claude/documentation-checklist.md`
+- Update all identified documentation
+- Add "Recent Updates" sections
+- Verify code examples work
+
+### Documentation Standards
+
+**Every documentation update MUST include:**
+1. **Recent Updates section** with date
+2. **Working code examples**
+3. **Integration points** if cross-module
+4. **Migration notes** for breaking changes
+
+### Quick Commands
+
+```bash
+# Check what docs need updating
+python .claude/hooks/documentation-tracker.py
+
+# Find all module docs
+find docs/modules -name "*.md" | grep -i "module-name"
+
+# Check for uncommitted docs
+git status docs/ --porcelain
+```
+
+### Enforcement
+
+**Documentation is enforced through:**
+1. TodoWrite tasks (mandatory doc tasks)
+2. Git hooks (warn on missing docs)
+3. Session reminders in Claude Code
+4. Documentation checklist generation
+
+### Recent Updates - 2025-01-08
+
+**🤖 Agent System Implementation**
+- ✅ Created comprehensive agent system for feature development
+- ✅ Implemented master feature workflow orchestrator
+- ✅ Added 5 specialized agents: feature-scaffold, fhir-checker, integration-validator, qa-agent, feature-analyzer
+- ✅ Enhanced .claude/settings.json with automated hooks and workflows
+- ✅ Integrated TodoWrite for task management throughout agent workflows
+- ✅ Added quality gates and enforcement mechanisms
+- ✅ Created agent trigger system for automatic validation
+
+**Key Agent Features**:
+- **feature-workflow.py**: Master orchestrator for complete feature development lifecycle
+- **feature-scaffold.py**: Generates boilerplate code following MedGenEMR patterns
+- **fhir-integration-checker.py**: Validates FHIR compliance and prevents mock data usage
+- **integration-validator.py**: Ensures proper cross-module integration patterns
+- **qa-agent.py**: Code quality assurance with auto-fix capabilities
+- **feature-analyzer.py**: Analyzes feature requests and creates comprehensive todo lists
+
+**Workflow Integration**:
+- Pre-task hooks run FHIR compliance and documentation checks
+- Post-task hooks ensure quality assurance and integration validation
+- Feature-request hooks automatically analyze requirements and generate todos
+- Error conditions trigger diagnostic agent execution
+
+**Quality Gates Established**:
+- Mandatory FHIR compliance validation
+- Automatic console.log removal
+- Cross-module event integration verification
+- Documentation update enforcement
+- Error handling and loading state validation
+
+This agent system ensures reliable, consistent feature development following MedGenEMR patterns and maintains code quality standards automatically.
+
+**Remember: No code is complete without documentation!**

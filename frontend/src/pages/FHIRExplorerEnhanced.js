@@ -356,10 +356,10 @@ const QUERY_TEMPLATES = {
       },
       {
         label: 'Abnormal vital signs',
-        params: { resource: 'Observation', parameters: { category: 'vital-signs', value-quantity: 'gt120', code: '8480-6' } },
+        params: { resource: 'Observation', parameters: { category: 'vital-signs', 'value-quantity': 'gt120', code: '8480-6' } },
         help: 'Find vital signs outside normal ranges',
         tips: ['Adjust thresholds as needed', 'Use component-value for BP'],
-        examples: { 'value-quantity': 'gt140', code: '8480-6' }
+        examples: { 'value-quantity': 'gt140', 'code': '8480-6' }
       },
     ]
   },

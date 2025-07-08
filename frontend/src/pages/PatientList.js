@@ -16,8 +16,8 @@ import {
   Tabs,
   Tab,
   Badge,
-  Stack,
   Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -111,12 +111,17 @@ function PatientList() {
     },
   ];
 
+  // Debounced search effect
   useEffect(() => {
-    if (activeTab === 0) {
-      fetchMyPatients();
-    } else {
-      fetchAllPatients();
-    }
+    const timeoutId = setTimeout(() => {
+      if (activeTab === 0) {
+        fetchMyPatients();
+      } else {
+        fetchAllPatients();
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [searchTerm, activeTab]);
 
   const fetchMyPatients = async () => {
@@ -129,9 +134,16 @@ function PatientList() {
         _sort: '-_lastUpdated'
       };
       
-      if (searchTerm) {
+      if (searchTerm && searchTerm.length >= 2) {
         // FHIR search supports name parameter for patient names
-        searchParams.name = searchTerm;
+        // Also search by identifier (MRN) if the search term looks like it could be an MRN
+        if (/^\d+$/.test(searchTerm)) {
+          // Numeric search term - search by identifier
+          searchParams.identifier = searchTerm;
+        } else {
+          // Text search term - search by name
+          searchParams.name = searchTerm;
+        }
       }
       
       const result = await fhirClient.searchPatients(searchParams);
@@ -169,7 +181,6 @@ function PatientList() {
           }
         } catch (e) {
           // Coverage fetch failed, insurance will remain empty
-          console.debug('No coverage found for patient:', fhirPatient.id);
         }
         
         return {
@@ -188,7 +199,6 @@ function PatientList() {
       setMyPatientsCount(transformedPatients.length);
       setError(null);
     } catch (err) {
-      console.error('Error fetching my patients:', err);
       setError('Failed to load your patients');
     } finally {
       setLoading(false);
@@ -203,9 +213,16 @@ function PatientList() {
         _sort: '-_lastUpdated'
       };
       
-      if (searchTerm) {
+      if (searchTerm && searchTerm.length >= 2) {
         // FHIR search supports name parameter for patient names
-        searchParams.name = searchTerm;
+        // Also search by identifier (MRN) if the search term looks like it could be an MRN
+        if (/^\d+$/.test(searchTerm)) {
+          // Numeric search term - search by identifier
+          searchParams.identifier = searchTerm;
+        } else {
+          // Text search term - search by name
+          searchParams.name = searchTerm;
+        }
       }
       
       const result = await fhirClient.searchPatients(searchParams);
@@ -243,7 +260,6 @@ function PatientList() {
           }
         } catch (e) {
           // Coverage fetch failed, insurance will remain empty
-          console.debug('No coverage found for patient:', fhirPatient.id);
         }
         
         return {
@@ -261,7 +277,6 @@ function PatientList() {
       setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {
-      console.error('Error fetching all patients:', err);
       setError('Failed to load patient directory');
     } finally {
       setLoading(false);
@@ -335,7 +350,6 @@ function PatientList() {
       }
       navigate(getPatientDetailUrl(result.id));
     } catch (err) {
-      console.error('Error creating patient:', err);
       setError('Failed to create patient');
     }
   };
@@ -450,7 +464,17 @@ function PatientList() {
                   <SearchIcon />
                 </InputAdornment>
               ),
+              endAdornment: loading && searchTerm && (
+                <InputAdornment position="end">
+                  <CircularProgress size={20} />
+                </InputAdornment>
+              ),
             }}
+            helperText={
+              searchTerm && searchTerm.length === 1 
+                ? "Type at least 2 characters to search" 
+                : ""
+            }
           />
         </Box>
       </Paper>
