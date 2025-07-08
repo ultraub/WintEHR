@@ -28,6 +28,7 @@ import MedicationsPage from './pages/MedicationsPage';
 import QualityMeasuresPage from './pages/QualityMeasuresPage';
 import CareGapsPage from './pages/CareGapsPage';
 import AuditTrailPage from './pages/AuditTrailPage';
+import PharmacyPage from './pages/PharmacyPage';
 import TestPage from './pages/TestPage';
 
 // Clinical Components
@@ -155,13 +156,8 @@ function App() {
                             </LayoutV3>
                           </ProtectedRoute>
                         } />
-                        <Route path="/clinical" element={
-                          <ProtectedRoute>
-                            <LayoutV3>
-                              <Dashboard />
-                            </LayoutV3>
-                          </ProtectedRoute>
-                        } />
+                        {/* Redirect old clinical route to dashboard */}
+                        <Route path="/clinical" element={<Navigate to="/dashboard" replace />} />
                         <Route path="/encounters" element={
                           <ProtectedRoute>
                             <LayoutV3>
@@ -180,6 +176,13 @@ function App() {
                           <ProtectedRoute>
                             <LayoutV3>
                               <MedicationsPage />
+                            </LayoutV3>
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/pharmacy" element={
+                          <ProtectedRoute>
+                            <LayoutV3>
+                              <PharmacyPage />
                             </LayoutV3>
                           </ProtectedRoute>
                         } />

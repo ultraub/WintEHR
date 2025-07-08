@@ -36,12 +36,14 @@ import {
   TrendingDown as TrendingDownIcon,
   ArrowForward as ArrowIcon,
   Refresh as RefreshIcon,
-  CalendarMonth as CalendarIcon
+  CalendarMonth as CalendarIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
+import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -206,13 +208,43 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         return false;
       });
 
+      // Count upcoming appointments (encounters with future dates)
+      const upcomingAppointments = encounters.filter(enc => {
+        const startDate = enc.period?.start;
+        return startDate && new Date(startDate) > new Date() && enc.status === 'planned';
+      }).length;
+
+      // Calculate overdue items (medications needing refill, overdue lab orders, etc.)
+      let overdueCount = 0;
+      
+      // Check for medications that might need refills
+      medications.forEach(med => {
+        if (med.status === 'active' && med.dispenseRequest?.validityPeriod?.end) {
+          const endDate = new Date(med.dispenseRequest.validityPeriod.end);
+          if (endDate < new Date()) {
+            overdueCount++;
+          }
+        }
+      });
+
+      // Check for overdue lab orders
+      const labOrders = getPatientResources(patientId, 'ServiceRequest') || [];
+      labOrders.forEach(order => {
+        if (order.status === 'active' && order.occurrenceDateTime) {
+          const dueDate = new Date(order.occurrenceDateTime);
+          if (dueDate < new Date()) {
+            overdueCount++;
+          }
+        }
+      });
+
       // Update stats
       setStats({
         activeProblems: activeConditions.length,
         activeMedications: activeMeds.length,
         recentLabs: recentLabs.length,
-        upcomingAppointments: 0, // TODO: Implement appointment counting
-        overdueItems: 3 // TODO: Calculate actual overdue items
+        upcomingAppointments: upcomingAppointments,
+        overdueItems: overdueCount
       });
 
       // Update notifications
@@ -222,7 +254,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
       setLastRefresh(new Date());
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      // Error loading data - in production would use proper error logging
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -233,6 +265,58 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const handleRefresh = () => {
     setRefreshing(true);
     loadDashboardData();
+  };
+
+  const handlePrintSummary = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    // Create comprehensive summary content
+    let content = '<h2>Clinical Summary</h2>';
+    
+    // Active Problems
+    content += '<h3>Active Problems</h3>';
+    const activeConditions = conditions.filter(c => {
+      const status = c.clinicalStatus?.coding?.[0]?.code || 
+                    c.clinicalStatus?.code ||
+                    c.clinicalStatus;
+      return status === 'active';
+    });
+    content += formatConditionsForPrint(activeConditions);
+    
+    // Active Medications
+    content += '<h3>Active Medications</h3>';
+    const activeMeds = medications.filter(m => m.status === 'active');
+    content += formatMedicationsForPrint(activeMeds);
+    
+    // Recent Lab Results
+    content += '<h3>Recent Lab Results (Last 7 Days)</h3>';
+    content += formatLabResultsForPrint(recentLabs);
+    
+    // Allergies
+    if (allergies.length > 0) {
+      content += '<h3>Allergies</h3>';
+      content += '<ul>';
+      allergies.forEach(allergy => {
+        const allergyText = allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown';
+        const criticality = allergy.criticality ? ` (${allergy.criticality})` : '';
+        content += `<li>${allergyText}${criticality}</li>`;
+      });
+      content += '</ul>';
+    }
+    
+    printDocument({
+      title: 'Clinical Summary',
+      patient: patientInfo,
+      content
+    });
   };
 
   // Get recent items
@@ -297,6 +381,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           <Typography variant="caption" color="text.secondary">
             Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
           </Typography>
+          <IconButton onClick={handlePrintSummary} title="Print Summary">
+            <PrintIcon />
+          </IconButton>
           <IconButton onClick={handleRefresh} disabled={refreshing}>
             <RefreshIcon />
           </IconButton>
@@ -348,7 +435,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           severity="error" 
           sx={{ mb: 3 }}
           action={
-            <Button size="small" disabled>
+            <Button size="small" onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
               View All
             </Button>
           }
@@ -373,7 +460,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Problems"
               action={
-                <IconButton disabled>
+                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -391,7 +478,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       }
                       icon={<ProblemIcon color="warning" />}
                       status={condition.clinicalStatus?.coding?.[0]?.code}
-                      onClick={() => {}}
+                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
                 ) : (
@@ -410,7 +497,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Active Medications"
               action={
-                <IconButton disabled>
+                <IconButton onClick={() => navigate(`/medications`)}>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -424,7 +511,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       primary={getMedicationDisplay(med)}
                       secondary={med.dosageInstruction?.[0]?.text || 'No dosage information'}
                       icon={<MedicationIcon color="primary" />}
-                      onClick={() => {}}
+                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
                 ) : (
@@ -443,7 +530,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Lab Results"
               action={
-                <IconButton disabled>
+                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=results`)}>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -471,7 +558,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       icon={<LabIcon color="info" />}
                       status={lab.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'High' : 
                               lab.interpretation?.[0]?.coding?.[0]?.code === 'L' ? 'Low' : null}
-                      onClick={() => {}}
+                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
                 ) : (
@@ -490,7 +577,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             <CardHeader
               title="Recent Encounters"
               action={
-                <IconButton disabled>
+                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}>
                   <ArrowIcon />
                 </IconButton>
               }
@@ -509,7 +596,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       }
                       icon={<EncounterIcon color="secondary" />}
                       status={encounter.status}
-                      onClick={() => {}}
+                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
                 ) : (

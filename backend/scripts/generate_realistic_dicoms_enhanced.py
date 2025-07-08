@@ -100,7 +100,7 @@ async def generate_dicom_for_studies():
             for series in series_list:
                 series_uid = series.get('uid', generate_uid())
                 series_number = series.get('number', 1)
-                num_instances = series.get('numberOfInstances', get_instance_count(study_type))
+                num_instances = get_instance_count(study_type)
                 
                 print(f"Generating {num_instances} DICOM files for study {study_id}, series {series_number}")
                 
@@ -287,50 +287,101 @@ def create_dicom_dataset(patient_id, patient_name, study_uid, study_date,
 
 
 def generate_test_pattern(size, modality, slice_num, study_type):
-    """Generate a test pattern image appropriate for the modality."""
+    """Generate anatomically varying test patterns that change realistically between slices."""
     # Create base image
     image = np.zeros((size, size), dtype=np.float32)
+    center_x, center_y = size // 2, size // 2
     
-    # Add modality-specific patterns
-    if modality == 'CT':
-        # Create circular phantom with different density regions
-        center_x, center_y = size // 2, size // 2
-        
-        # Outer circle (soft tissue)
-        for i in range(size):
-            for j in range(size):
-                dist = np.sqrt((i - center_x)**2 + (j - center_y)**2)
-                if dist < size * 0.4:
-                    image[i, j] = 1000 + 100 * np.sin(dist / 10)
-        
-        # Inner structures
-        if 'CHEST' in study_type:
-            # Simulate lungs (low density)
-            image[center_x-80:center_x+80, center_y-120:center_y-20] = 500
-            image[center_x-80:center_x+80, center_y+20:center_y+120] = 500
-            # Simulate spine (high density)
-            image[center_x-20:center_x+20, center_y-10:center_y+10] = 2000
-        elif 'HEAD' in study_type:
-            # Simulate skull (high density ring)
+    # Calculate slice position (0 to 1, where 0.5 is middle)  
+    total_slices = {"CT_CHEST": 64, "CT_HEAD": 32, "MR_BRAIN": 176, "MR_SPINE": 120, "XR_CHEST": 2, "US_ABDOMEN": 30}.get(study_type, 30)
+    slice_position = slice_num / total_slices
+    
+    if modality == "CT":
+        if "CHEST" in study_type:
+            # Body outline - varies with slice position
+            body_radius = size * (0.35 + 0.05 * np.sin(slice_position * np.pi))
             for i in range(size):
                 for j in range(size):
                     dist = np.sqrt((i - center_x)**2 + (j - center_y)**2)
-                    if size * 0.35 < dist < size * 0.4:
-                        image[i, j] = 2500
-                    elif dist < size * 0.35:
-                        image[i, j] = 1000 + 50 * np.sin(slice_num / 5)
+                    if dist < body_radius:
+                        image[i, j] = 1000  # Soft tissue baseline
+            
+            # Lungs - size and shape varies through chest  
+            lung_factor = 0.7 + 0.3 * np.sin(slice_position * np.pi)  # Larger in middle slices
+            
+            # Left lung
+            left_lung_center_x = center_x - int(60 * lung_factor)
+            left_lung_center_y = center_y - int(30 * lung_factor)
+            left_lung_width = int(80 * lung_factor)
+            left_lung_height = int(100 * lung_factor)
+            
+            # Right lung  
+            right_lung_center_x = center_x - int(60 * lung_factor)
+            right_lung_center_y = center_y + int(30 * lung_factor)
+            right_lung_width = int(80 * lung_factor)
+            right_lung_height = int(100 * lung_factor)
+            
+            # Create lung regions
+            for i in range(size):
+                for j in range(size):
+                    # Left lung (elliptical)
+                    left_dist = ((i - left_lung_center_x) / left_lung_width)**2 + ((j - left_lung_center_y) / left_lung_height)**2
+                    if left_dist < 0.25:
+                        image[i, j] = -800  # Air density
+                    
+                    # Right lung (elliptical)
+                    right_dist = ((i - right_lung_center_x) / right_lung_width)**2 + ((j - right_lung_center_y) / right_lung_height)**2
+                    if right_dist < 0.25:
+                        image[i, j] = -800  # Air density
+            
+            # Heart - appears more prominently in lower chest slices
+            if slice_position > 0.3:  # Heart visible in lower 70% of chest
+                heart_size = int(40 * (1.5 - slice_position))  # Larger in lower slices
+                heart_x = center_x + int(20 * (1 - slice_position))  # Shifts position
+                heart_y = center_y - int(10 * (1 - slice_position))
+                
+                for i in range(heart_x - heart_size, heart_x + heart_size):
+                    for j in range(heart_y - heart_size, heart_y + heart_size):
+                        if 0 <= i < size and 0 <= j < size:
+                            dist = np.sqrt((i - heart_x)**2 + (j - heart_y)**2)
+                            if dist < heart_size:
+                                image[i, j] = 1200  # Heart muscle density
+            
+            # Spine - always present but varies in size
+            spine_width = int(20 + 10 * np.sin(slice_position * np.pi))
+            spine_height = int(25 + 5 * np.cos(slice_position * np.pi))
+            spine_x = center_x + int(120 * (0.8 + 0.2 * slice_position))  # Posterior
+            
+            for i in range(spine_x - spine_width, spine_x + spine_width):
+                for j in range(center_y - spine_height, center_y + spine_height):
+                    if 0 <= i < size and 0 <= j < size:
+                        image[i, j] = 2000  # Bone density
+                        
+        elif "HEAD" in study_type:
+            # Skull - outer ring
+            skull_thickness = 15
+            skull_radius = size * 0.4
+            for i in range(size):
+                for j in range(size):
+                    dist = np.sqrt((i - center_x)**2 + (j - center_y)**2)
+                    if skull_radius - skull_thickness < dist < skull_radius:
+                        image[i, j] = 2500  # Bone density
+                    elif dist < skull_radius - skull_thickness:
+                        image[i, j] = 1000 + 50 * np.sin(slice_num / 5)  # Brain tissue with variation
     
-    elif modality == 'MR':
+    elif modality == "MR":
         # Create gradient pattern with tissue contrast
         for i in range(size):
             for j in range(size):
                 dist = np.sqrt((i - center_x)**2 + (j - center_y)**2)
                 if dist < size * 0.4:
-                    # Vary intensity based on "tissue type"
+                    # Vary intensity based on "tissue type" and slice
                     angle = np.arctan2(j - center_y, i - center_x)
-                    image[i, j] = 2000 + 1000 * np.sin(angle * 3 + slice_num / 10)
+                    tissue_variation = 1000 * np.sin(angle * 3)
+                    slice_variation = 500 * np.sin(slice_num / 10)
+                    image[i, j] = 2000 + tissue_variation + slice_variation
     
-    elif modality in ['CR', 'DX']:
+    elif modality in ["CR", "DX"]:
         # Simple chest X-ray pattern
         image[:, :] = 500  # Background
         # Simulate ribcage
@@ -341,22 +392,22 @@ def generate_test_pattern(size, modality, slice_num, study_type):
         image[int(size*0.3):int(size*0.7), int(size*0.2):int(size*0.4)] = 100
         image[int(size*0.3):int(size*0.7), int(size*0.6):int(size*0.8)] = 100
     
-    elif modality == 'US':
-        # Ultrasound speckle pattern
-        speckle = np.random.randn(size, size) * 100 + 1000
-        # Add cone shape for ultrasound sector
+    elif modality == "US":
+        # Ultrasound speckle pattern with slice variation
         for i in range(size):
             for j in range(size):
                 if j < size * 0.1 or abs(i - size/2) > j * 0.4:
                     image[i, j] = 0
                 else:
-                    image[i, j] = speckle[i, j] * (1 - j / size)
+                    speckle = np.random.randn() * 100
+                    depth_factor = 1 - j / size
+                    slice_factor = 1 + 0.3 * np.sin(slice_num / 10)
+                    image[i, j] = (1000 + speckle) * depth_factor * slice_factor
     
-    # Add slice number text - skip for now to avoid conversion issues
-    # Will add text overlay in post-processing if needed
+    # Add noise for realism
+    noise = np.random.randn(size, size) * 10
+    image += noise
     
     return image
-
-
 if __name__ == '__main__':
     asyncio.run(generate_dicom_for_studies())

@@ -57,11 +57,22 @@ const CDSPresentation = ({
   autoHide = false,
   hideDelay = 5000,
   maxAlerts = 5,
-  allowInteraction = true
+  allowInteraction = true,
+  patientId = null
 }) => {
   const [open, setOpen] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
-  const [dismissedAlerts, setDismissedAlerts] = useState(new Set());
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    // Persist dismissed alerts in sessionStorage for the current browser session
+    if (!patientId) return new Set();
+    const sessionKey = `cds-dismissed-alerts-${patientId}`;
+    try {
+      const stored = sessionStorage.getItem(sessionKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  });
 
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
@@ -85,7 +96,19 @@ const CDSPresentation = ({
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     
     if (action === 'dismiss') {
-      setDismissedAlerts(prev => new Set([...prev, alertKey]));
+      setDismissedAlerts(prev => {
+        const newSet = new Set([...prev, alertKey]);
+        // Save to sessionStorage if patientId is provided
+        if (patientId) {
+          const sessionKey = `cds-dismissed-alerts-${patientId}`;
+          try {
+            sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
+          } catch (e) {
+            console.warn('Failed to save dismissed alerts to session storage:', e);
+          }
+        }
+        return newSet;
+      });
     }
     
     if (onAlertAction) {

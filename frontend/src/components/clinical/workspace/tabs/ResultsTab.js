@@ -44,8 +44,15 @@ import {
   LinearProgress,
   ToggleButton,
   ToggleButtonGroup,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   useTheme,
-  alpha
+  alpha,
+  Checkbox,
+  FormControlLabel,
+  Snackbar
 } from '@mui/material';
 import {
   Science as LabIcon,  Assessment as DiagnosticIcon,
@@ -64,13 +71,17 @@ import {
   ArrowUpward as HighIcon,
   ArrowDownward as LowIcon,
   Remove as NormalRangeIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  Close as CloseIcon,
+  CheckCircle
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
+import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -152,7 +163,7 @@ const getResultStatus = (observation) => {
 };
 
 // Result Row Component for Table View
-const ResultRow = ({ observation, onClick, selected }) => {
+const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected }) => {
   const theme = useTheme();
   const status = getResultStatus(observation);
   const date = observation.effectiveDateTime || observation.issued;
@@ -207,6 +218,15 @@ const ResultRow = ({ observation, onClick, selected }) => {
       selected={selected}
       sx={{ cursor: 'pointer' }}
     >
+      <TableCell padding="checkbox">
+        <Checkbox
+          checked={isSelected || false}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectResult(observation.id);
+          }}
+        />
+      </TableCell>
       <TableCell>
         <Stack direction="row" spacing={1} alignItems="center">
           {status.icon}
@@ -315,8 +335,7 @@ const ResultCard = ({ observation, onClick }) => {
       </CardContent>
       
       <CardActions>
-        <Button size="small" startIcon={<ViewIcon />}>View Details</Button>
-        <Button size="small" startIcon={<PrintIcon />}>Print</Button>
+        <Button size="small" startIcon={<ViewIcon />} onClick={(e) => { e.stopPropagation(); onClick(); }}>View Details</Button>
       </CardActions>
     </Card>
   );
@@ -325,7 +344,8 @@ const ResultCard = ({ observation, onClick }) => {
 const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish, createCriticalAlert } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
@@ -337,13 +357,232 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [alertedResults, setAlertedResults] = useState(new Set());
+  const [selectedResultIds, setSelectedResultIds] = useState(new Set());
+  const [acknowledgingResults, setAcknowledgingResults] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Get observations and diagnostic reports early for monitoring
+  const observations = getPatientResources(patientId, 'Observation') || [];
+  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
 
   useEffect(() => {
     setLoading(false);
   }, []);
 
-  // Get observations and imaging studies
-  const observations = getPatientResources(patientId, 'Observation') || [];  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
+  // Monitor for new abnormal results
+  useEffect(() => {
+    if (observations && observations.length > 0) {
+      // Check for recent abnormal results (within last 24 hours)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      const recentAbnormalResults = observations.filter(obs => {
+        // Skip if already alerted
+        if (alertedResults.has(obs.id)) return false;
+        
+        // Check if observation is recent
+        const obsDate = obs.effectiveDateTime ? new Date(obs.effectiveDateTime) : null;
+        if (!obsDate || obsDate < oneDayAgo) return false;
+        
+        // Check if observation is abnormal
+        const status = getResultStatus(obs);
+        return status.color === 'error' || status.color === 'warning';
+      });
+      
+      // Publish critical alerts for abnormal results
+      if (recentAbnormalResults.length > 0) {
+        const newAlertedResults = new Set(alertedResults);
+        
+        recentAbnormalResults.forEach(async (result) => {
+          const status = getResultStatus(result);
+          const testName = result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test';
+          const value = result.valueQuantity ? 
+            `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 
+            'N/A';
+          
+          await createCriticalAlert({
+            type: 'abnormal_result',
+            severity: status.color === 'error' ? 'high' : 'medium',
+            message: `Abnormal ${testName}: ${value} (${status.label})`,
+            data: result,
+            actions: [
+              { label: 'Review Result', action: 'view', target: result.id },
+              { label: 'Add to Note', action: 'document', target: 'documentation' }
+            ]
+          });
+          
+          // Also publish RESULT_RECEIVED event
+          await publish(CLINICAL_EVENTS.RESULT_RECEIVED, {
+            ...result,
+            isAbnormal: true,
+            status: status.label,
+            patientId,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Mark as alerted
+          newAlertedResults.add(result.id);
+        });
+        
+        // Update alerted results state
+        setAlertedResults(newAlertedResults);
+      }
+    }
+  }, [observations, patientId, createCriticalAlert, publish, alertedResults]);
+
+  const handleViewDetails = (result) => {
+    setSelectedResult(result);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleBatchAcknowledge = async () => {
+    setAcknowledgingResults(true);
+    try {
+      // Create acknowledgment notes for each selected result
+      const promises = Array.from(selectedResultIds).map(async (resultId) => {
+        const result = observations.find(o => o.id === resultId) || 
+                      diagnosticReports.find(d => d.id === resultId);
+        
+        if (result) {
+          // Create a note indicating the result has been reviewed
+          const note = {
+            resourceType: 'DocumentReference',
+            status: 'current',
+            type: {
+              coding: [{
+                system: 'http://loinc.org',
+                code: '11506-3',
+                display: 'Progress note'
+              }],
+              text: 'Result Acknowledgment'
+            },
+            subject: {
+              reference: `Patient/${patientId}`
+            },
+            date: new Date().toISOString(),
+            author: [{
+              display: 'Current User' // In real app, would use auth context
+            }],
+            content: [{
+              attachment: {
+                contentType: 'text/plain',
+                data: btoa(`Result acknowledged: ${result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test'} - ${result.valueQuantity ? `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 'See report'}`)
+              }
+            }],
+            context: {
+              related: [{
+                reference: `${result.resourceType}/${result.id}`
+              }]
+            }
+          };
+          
+          const response = await fetch('/fhir/R4/DocumentReference', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(note)
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to acknowledge result ${result.id}`);
+          }
+          
+          // Publish acknowledgment event
+          await publish(CLINICAL_EVENTS.RESULT_ACKNOWLEDGED, {
+            resultId: result.id,
+            testName: result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test',
+            acknowledgedBy: 'Current User',
+            timestamp: new Date().toISOString(),
+            patientId
+          });
+        }
+      });
+      
+      await Promise.all(promises);
+      
+      setSnackbar({
+        open: true,
+        message: `Successfully acknowledged ${selectedResultIds.size} result(s)`,
+        severity: 'success'
+      });
+      
+      // Clear selection
+      setSelectedResultIds(new Set());
+      
+    } catch (error) {
+      console.error('Error acknowledging results:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to acknowledge some results',
+        severity: 'error'
+      });
+    } finally {
+      setAcknowledgingResults(false);
+    }
+  };
+
+  const handleSelectResult = (resultId) => {
+    const newSelected = new Set(selectedResultIds);
+    if (newSelected.has(resultId)) {
+      newSelected.delete(resultId);
+    } else {
+      newSelected.add(resultId);
+    }
+    setSelectedResultIds(newSelected);
+  };
+
+  const handleSelectAll = (event) => {
+    if (event.target.checked) {
+      const newSelected = new Set(sortedResults.map(r => r.id));
+      setSelectedResultIds(newSelected);
+    } else {
+      setSelectedResultIds(new Set());
+    }
+  };
+
+  const handlePrintResults = () => {
+    let resultsToprint = [];
+    let title = '';
+    
+    switch (tabValue) {
+      case 0: // Lab Results
+        resultsToprint = sortedResults;
+        title = 'Laboratory Results';
+        break;
+      case 1: // Vital Signs
+        resultsToprint = sortedResults;
+        title = 'Vital Signs';
+        break;
+      case 2: // Diagnostic Reports
+        resultsToprint = sortedResults;
+        title = 'Diagnostic Reports';
+        break;
+      default:
+        resultsToprint = [];
+    }
+    
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    const content = formatLabResultsForPrint(resultsToprint);
+    
+    printDocument({
+      title,
+      patient: patientInfo,
+      content
+    });
+  };
+
 
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {
@@ -465,6 +704,16 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
+          {selectedResultIds.size > 0 && (
+            <Button
+              variant="contained"
+              onClick={handleBatchAcknowledge}
+              disabled={acknowledgingResults}
+              startIcon={<CheckCircle />}
+            >
+              Acknowledge ({selectedResultIds.size})
+            </Button>
+          )}
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -510,15 +759,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             icon={
               <Badge badgeContent={labResults.length} color="primary">
                 <LabIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Imaging" 
-            icon={
-              <Badge badgeContent={imagingStudies.length} color="primary">
-                <ImagingIcon />
               </Badge>
             }
             iconPosition="start"
@@ -596,6 +836,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
+            onClick={handlePrintResults}
           >
             Print Results
           </Button>
@@ -619,6 +860,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={selectedResultIds.size > 0 && selectedResultIds.size < sortedResults.length}
+                    checked={sortedResults.length > 0 && selectedResultIds.size === sortedResults.length}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell>Test Name</TableCell>
                 <TableCell>Result</TableCell>
                 <TableCell>Reference Range</TableCell>
@@ -633,8 +881,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                   <ResultRow
                     key={result.id}
                     observation={result}
-                    onClick={() => {}}
+                    onClick={() => handleViewDetails(result)}
                     selected={selectedResult?.id === result.id}
+                    onSelectResult={handleSelectResult}
+                    isSelected={selectedResultIds.has(result.id)}
                   />
                 ))
               }
@@ -652,7 +902,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             }}
           />
         </TableContainer>
-      ) : tabValue === 1 ? () : tabValue === 1 ? (
+      ) : tabValue === 1 ? (
         // Vital Signs
         <Box>
           {vitalSigns.length === 0 ? (
@@ -684,7 +934,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                       <ResultRow
                         key={result.id}
                         observation={result}
-                        onClick={() => {}}
+                        onClick={() => handleViewDetails(result)}
                         selected={selectedResult?.id === result.id}
                       />
                     ))
@@ -754,7 +1004,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                         'No date'}
                     </TableCell>
                     <TableCell>
-                      <Button size="small" startIcon={<ViewIcon />}>
+                      <Button size="small" startIcon={<ViewIcon />} onClick={() => handleViewDetails(report)}>
                         View
                       </Button>
                     </TableCell>
@@ -780,6 +1030,230 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           ))}
         </Box>
       )}
+      {/* Result Details Dialog */}
+      <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Result Details</Typography>
+            <IconButton onClick={() => setDetailsDialogOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedResult && (
+            <Stack spacing={3}>
+              {/* Test Information */}
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>Test Name</Typography>
+                <Typography variant="h6">
+                  {selectedResult.code?.text || selectedResult.code?.coding?.[0]?.display || 'Unknown test'}
+                </Typography>
+                {selectedResult.code?.coding?.[0]?.code && (
+                  <Typography variant="caption" color="text.secondary">
+                    LOINC: {selectedResult.code.coding[0].code}
+                  </Typography>
+                )}
+              </Box>
+
+              {/* Result Value and Status */}
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Result</Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {getResultStatus(selectedResult).icon}
+                    <Typography variant="h5" fontWeight="bold">
+                      {selectedResult.valueQuantity ? 
+                        `${selectedResult.valueQuantity.value} ${selectedResult.valueQuantity.unit || ''}` :
+                        selectedResult.valueString || 
+                        selectedResult.valueCodeableConcept?.text ||
+                        selectedResult.valueCodeableConcept?.coding?.[0]?.display ||
+                        'No value recorded'
+                      }
+                    </Typography>
+                  </Stack>
+                  {getResultStatus(selectedResult).label && (
+                    <Chip 
+                      label={getResultStatus(selectedResult).label} 
+                      color={getResultStatus(selectedResult).color} 
+                      size="small" 
+                      sx={{ mt: 1 }}
+                    />
+                  )}
+                </Grid>
+
+                {selectedResult.referenceRange?.[0] && (
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Reference Range</Typography>
+                    <Typography variant="body1">
+                      {selectedResult.referenceRange[0].text || 
+                       `${selectedResult.referenceRange[0].low?.value || ''} - ${selectedResult.referenceRange[0].high?.value || ''} ${selectedResult.referenceRange[0].low?.unit || ''}`}
+                    </Typography>
+                  </Grid>
+                )}
+
+                <Grid item xs={12} md={4}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Status</Typography>
+                  <Typography variant="body1">
+                    {selectedResult.status || 'Unknown'}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              {/* Date and Performer */}
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Date Performed</Typography>
+                  <Typography variant="body1">
+                    {selectedResult.effectiveDateTime || selectedResult.issued ? 
+                      format(parseISO(selectedResult.effectiveDateTime || selectedResult.issued), 'MMMM d, yyyy h:mm a') : 
+                      'No date recorded'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Performer</Typography>
+                  <Typography variant="body1">
+                    {selectedResult.performer?.[0]?.display || 'Not specified'}
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              {/* Components (for panel results) */}
+              {selectedResult.component && selectedResult.component.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Components</Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Component</TableCell>
+                          <TableCell>Value</TableCell>
+                          <TableCell>Reference Range</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedResult.component.map((comp, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              {comp.code?.text || comp.code?.coding?.[0]?.display || 'Component'}
+                            </TableCell>
+                            <TableCell>
+                              {comp.valueQuantity ? 
+                                `${comp.valueQuantity.value} ${comp.valueQuantity.unit || ''}` :
+                                comp.valueString || 'N/A'
+                              }
+                            </TableCell>
+                            <TableCell>
+                              {comp.referenceRange?.[0] ? 
+                                `${comp.referenceRange[0].low?.value || ''} - ${comp.referenceRange[0].high?.value || ''} ${comp.referenceRange[0].low?.unit || ''}` :
+                                '-'
+                              }
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+
+              {/* Notes */}
+              {selectedResult.note && selectedResult.note.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Notes</Typography>
+                  {selectedResult.note.map((note, index) => (
+                    <Alert key={index} severity="info" sx={{ mt: 1 }}>
+                      <Typography variant="body2">{note.text}</Typography>
+                      {note.time && (
+                        <Typography variant="caption" color="text.secondary">
+                          {format(parseISO(note.time), 'MMM d, yyyy h:mm a')}
+                        </Typography>
+                      )}
+                    </Alert>
+                  ))}
+                </Box>
+              )}
+
+              {/* Interpretation */}
+              {selectedResult.interpretation && selectedResult.interpretation.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Interpretation</Typography>
+                  {selectedResult.interpretation.map((interp, index) => (
+                    <Typography key={index} variant="body2">
+                      {interp.text || interp.coding?.[0]?.display || 'See result status'}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+
+              {/* Method */}
+              {selectedResult.method && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Method</Typography>
+                  <Typography variant="body2">
+                    {selectedResult.method.text || selectedResult.method.coding?.[0]?.display}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Specimen */}
+              {selectedResult.specimen && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>Specimen</Typography>
+                  <Typography variant="body2">
+                    {selectedResult.specimen.display || 'Specimen information not available'}
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              if (selectedResult) {
+                const patientInfo = {
+                  name: currentPatient ? 
+                    `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+                    'Unknown Patient',
+                  mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+                  birthDate: currentPatient?.birthDate,
+                  gender: currentPatient?.gender,
+                  phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+                };
+                
+                printDocument({
+                  title: 'Lab Result Details',
+                  patient: patientInfo,
+                  content: formatLabResultsForPrint([selectedResult])
+                });
+              }
+            }} 
+            startIcon={<PrintIcon />}
+          >
+            Print
+          </Button>
+          <Button onClick={() => setDetailsDialogOpen(false)} variant="contained">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

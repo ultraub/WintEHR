@@ -60,6 +60,7 @@ import {
   PlayArrow as TestIcon
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
+import { cdsHooksService } from '../../../../services/cdsHooksService';
 
 const HOOK_TYPES = [
   { value: 'patient-view', label: 'Patient View', description: 'Fired when user is viewing a patient' },
@@ -197,29 +198,28 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const testHook = async () => {
     setTesting(true);
     try {
-      // Simulate testing the hook with sample data
-      const testContext = {
-        hook: hookData.hook,
-        hookInstance: `test-${Date.now()}`,
-        context: {
-          patientId: 'test-patient-123'
-        }
-      };
-
-      // For demo purposes, simulate a successful test
-      const mockResult = {
-        cards: hookData.cards.map(card => ({
-          ...card,
-          uuid: `test-${card.id}`,
-          source: { label: hookData.title }
-        }))
-      };
-
-      setTestResults({
-        success: true,
-        cards: mockResult.cards,
-        executionTime: Math.floor(Math.random() * 500) + 100
+      // Use the cdsHooksService to test the hook
+      const startTime = Date.now();
+      const result = await cdsHooksService.testHook(hookData, {
+        patientId: 'test-patient-123',
+        userId: 'test-user'
       });
+
+      const executionTime = Date.now() - startTime;
+
+      if (result.success) {
+        setTestResults({
+          success: true,
+          cards: result.data.cards || [],
+          executionTime: executionTime
+        });
+      } else {
+        setTestResults({
+          success: false,
+          error: result.error || 'Test failed',
+          executionTime: executionTime
+        });
+      }
     } catch (error) {
       setTestResults({
         success: false,
@@ -233,16 +233,16 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
   const saveHook = async () => {
     try {
-      // Validate hook data
-      if (!hookData.title || !hookData.hook) {
-        throw new Error('Title and hook type are required');
+      // Use the cdsHooksService to save the hook
+      if (editingHook) {
+        // Update existing hook
+        await cdsHooksService.updateHook(hookData.id, hookData);
+      } else {
+        // Create new hook
+        await cdsHooksService.createHook(hookData);
       }
 
-      if (hookData.cards.length === 0) {
-        throw new Error('At least one card must be defined');
-      }
-
-      // Save the hook
+      // Call the parent onSave callback to close the builder and refresh
       await onSave(hookData);
     } catch (error) {
       console.error('Error saving hook:', error);

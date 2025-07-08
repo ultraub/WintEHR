@@ -44,7 +44,8 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
@@ -69,12 +70,16 @@ import {
   Person as ProviderIcon,
   Flag as PriorityIcon,
   MoreVert as MoreIcon,
+  Close as CloseIcon,
   Assignment
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { GetApp as ExportIcon } from '@mui/icons-material';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -292,7 +297,7 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
 };
 
 // Quick Order Dialog
-const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
+const QuickOrderDialog = ({ open, onClose, patientId, orderType, onNotificationUpdate, onOrderCreated }) => {
   const [orderData, setOrderData] = useState({
     medication: '',
     dosage: '',
@@ -304,10 +309,84 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
     notes: ''
   });
 
-  const handleSubmit = () => {
-    // TODO: Implement order submission
-    console.log('Submitting order:', orderData);
-    onClose();
+  const handleSubmit = async () => {
+    try {
+      // Create FHIR ServiceRequest or MedicationRequest based on order type
+      if (orderType === 'medication') {
+        const medicationRequest = {
+          resourceType: 'MedicationRequest',
+          status: 'active',
+          intent: 'order',
+          priority: orderData.priority,
+          subject: { reference: `Patient/${patientId}` },
+          authoredOn: new Date().toISOString(),
+          medicationCodeableConcept: {
+            text: orderData.medication
+          },
+          dosageInstruction: [{
+            text: `${orderData.dosage} ${orderData.frequency} for ${orderData.duration}`
+          }],
+          dispenseRequest: {
+            quantity: { value: parseFloat(orderData.quantity) || 30 },
+            numberOfRepeatsAllowed: parseInt(orderData.refills) || 0
+          },
+          note: orderData.notes ? [{ text: orderData.notes }] : []
+        };
+        
+        const response = await axios.post('/fhir/R4/MedicationRequest', medicationRequest);
+        if (response.data) {
+          // Refresh patient resources to show new order
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+          // Notify parent component about the created order
+          if (onOrderCreated) {
+            onOrderCreated(response.data, 'medication');
+          }
+        }
+      } else {
+        const serviceRequest = {
+          resourceType: 'ServiceRequest',
+          status: 'active',
+          intent: 'order',
+          priority: orderData.priority,
+          subject: { reference: `Patient/${patientId}` },
+          authoredOn: new Date().toISOString(),
+          category: [{
+            coding: [{
+              system: 'http://snomed.info/sct',
+              code: orderType === 'lab' ? '108252007' : '363679005',
+              display: orderType === 'lab' ? 'Laboratory procedure' : 'Imaging'
+            }]
+          }],
+          code: {
+            text: orderData.medication // Using medication field for test/study name
+          },
+          note: orderData.notes ? [{ text: orderData.notes }] : []
+        };
+        
+        const response = await axios.post('/fhir/R4/ServiceRequest', serviceRequest);
+        if (response.data) {
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+          // Notify parent component about the created order
+          if (onOrderCreated) {
+            onOrderCreated(response.data, orderType);
+          }
+        }
+      }
+      
+      onClose();
+    } catch (error) {
+      // Handle error
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to create order: ' + error.message
+        });
+      }
+    }
   };
 
   return (
@@ -401,7 +480,8 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType }) => {
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('active');
@@ -409,8 +489,12 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
+  const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
+  const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
 
   useEffect(() => {
     setLoading(false);
@@ -527,12 +611,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   // Send medication to pharmacy workflow
   const handleSendToPharmacy = async (order) => {
     if (order.resourceType !== 'MedicationRequest') {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Only medication orders can be sent to pharmacy'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Only medication orders can be sent to pharmacy',
+        severity: 'error'
+      });
       return;
     }
 
@@ -544,20 +627,68 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         updated_by: 'Current User' // This would come from auth context
       });
 
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`
+      // Publish workflow event for pharmacy notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'sent-to-pharmacy',
+        data: {
+          ...order,
+          medicationName: order.medicationCodeableConcept?.text || 
+                         order.medicationCodeableConcept?.coding?.[0]?.display || 
+                         'Unknown medication',
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      setSnackbar({
+        open: true,
+        message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`,
+        severity: 'success'
+      });
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to send to pharmacy: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Cancel order
+  const handleCancelOrder = async (order) => {
+    try {
+      const updatedOrder = {
+        ...order,
+        status: 'cancelled'
+      };
+      
+      const endpoint = order.resourceType === 'MedicationRequest' 
+        ? '/fhir/R4/MedicationRequest' 
+        : '/fhir/R4/ServiceRequest';
+      
+      const response = await axios.put(`${endpoint}/${order.id}`, updatedOrder);
+      
+      if (response.data) {
+        // Refresh patient resources to show updated status
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        
+        setSnackbar({
+          open: true,
+          message: 'Order cancelled successfully',
+          severity: 'success'
         });
       }
     } catch (error) {
-      console.error('Failed to send to pharmacy:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to send medication to pharmacy'
-        });
-      }
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to cancel order: ' + error.message,
+        severity: 'error'
+      });
     }
   };
 
@@ -568,12 +699,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     );
 
     if (medicationOrders.length === 0) {
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'warning',
-          message: 'No medication orders selected'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'No medication orders selected',
+        severity: 'warning'
+      });
       return;
     }
 
@@ -589,41 +719,155 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
 
       await Promise.all(promises);
 
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'success',
-          message: `${medicationOrders.length} medication orders sent to pharmacy`
-        });
-      }
+      // Publish workflow event for batch pharmacy notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'prescription-dispense',
+        step: 'batch-sent-to-pharmacy',
+        data: {
+          orderCount: medicationOrders.length,
+          orderIds: medicationOrders.map(o => o.id),
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      setSnackbar({
+        open: true,
+        message: `${medicationOrders.length} medication orders sent to pharmacy`,
+        severity: 'success'
+      });
 
       // Clear selections
       setSelectedOrders(new Set());
     } catch (error) {
-      console.error('Failed to batch send to pharmacy:', error);
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to send selected orders to pharmacy'
-        });
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to send selected orders to pharmacy',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Reorder - create a new order with same details
+  const handleReorder = async (order) => {
+    try {
+      let newOrder;
+      
+      if (order.resourceType === 'MedicationRequest') {
+        newOrder = {
+          ...order,
+          id: undefined,
+          meta: undefined,
+          status: 'active',
+          authoredOn: new Date().toISOString()
+        };
+        
+        const response = await axios.post('/fhir/R4/MedicationRequest', newOrder);
+        if (response.data) {
+          setSnackbar({
+            open: true,
+            message: 'Medication reordered successfully',
+            severity: 'success'
+          });
+        }
+      } else if (order.resourceType === 'ServiceRequest') {
+        newOrder = {
+          ...order,
+          id: undefined,
+          meta: undefined,
+          status: 'active',
+          authoredOn: new Date().toISOString()
+        };
+        
+        const response = await axios.post('/fhir/R4/ServiceRequest', newOrder);
+        if (response.data) {
+          setSnackbar({
+            open: true,
+            message: 'Service reordered successfully',
+            severity: 'success'
+          });
+        }
       }
+      
+      // Refresh patient resources
+      window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+        detail: { patientId } 
+      }));
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to reorder: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Batch cancel selected orders
+  const handleBatchCancelOrders = async () => {
+    const ordersToCancel = sortedOrders.filter(order => 
+      selectedOrders.has(order.id) && order.status === 'active'
+    );
+
+    if (ordersToCancel.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'No active orders selected to cancel',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    try {
+      const promises = ordersToCancel.map(order => {
+        const updatedOrder = { ...order, status: 'cancelled' };
+        const endpoint = order.resourceType === 'MedicationRequest' 
+          ? '/fhir/R4/MedicationRequest' 
+          : '/fhir/R4/ServiceRequest';
+        return axios.put(`${endpoint}/${order.id}`, updatedOrder);
+      });
+
+      await Promise.all(promises);
+
+      // Refresh patient resources
+      window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+        detail: { patientId } 
+      }));
+
+      setSnackbar({
+        open: true,
+        message: `${ordersToCancel.length} orders cancelled successfully`,
+        severity: 'success'
+      });
+
+      // Clear selections
+      setSelectedOrders(new Set());
+    } catch (error) {
+      // Handle error  
+      setSnackbar({
+        open: true,
+        message: 'Failed to cancel selected orders',
+        severity: 'error'
+      });
     }
   };
 
   const handleOrderAction = (order, action) => {
     switch (action) {
       case 'view':
-        console.log('Viewing order:', order);
+        setViewOrderDialog({ open: true, order });
         break;
       case 'edit':
-        console.log('Editing order:', order);
+        setEditOrderDialog({ open: true, order });
         break;
       case 'cancel':
-        // TODO: Implement cancel order
-        console.log('Cancel order:', order.id);
+        // Cancel order by updating status
+        handleCancelOrder(order);
         break;
       case 'reorder':
-        // TODO: Implement reorder
-        console.log('Reorder:', order.id);
+        // Reorder by creating a new order with same details
+        handleReorder(order);
         break;
       case 'send':
         handleSendToPharmacy(order);
@@ -634,6 +878,115 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       default:
         break;
     }
+  };
+
+  // Handle order creation from QuickOrderDialog
+  const handleOrderCreated = async (order, orderType) => {
+    try {
+      // Publish ORDER_PLACED event
+      await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+        ...order,
+        orderType,
+        patientId,
+        timestamp: new Date().toISOString()
+      });
+
+      // For lab orders, notify the results tab
+      if (orderType === 'lab') {
+        await publish(CLINICAL_EVENTS.TAB_UPDATE, {
+          targetTabs: ['results'],
+          updateType: 'pending_lab_order',
+          data: order
+        });
+      }
+
+      // For imaging orders, notify the imaging tab
+      if (orderType === 'imaging') {
+        await publish(CLINICAL_EVENTS.TAB_UPDATE, {
+          targetTabs: ['imaging'],
+          updateType: 'pending_imaging_order',
+          data: order
+        });
+      }
+    } catch (error) {
+      console.error('Failed to publish order created event:', error);
+    }
+  };
+
+  // Export handler
+  const handleExportOrders = (format) => {
+    // Get the currently displayed orders based on tab
+    let ordersToExport = [];
+    let exportTitle = '';
+    
+    switch (tabValue) {
+      case 0: // All Orders
+        ordersToExport = sortedOrders;
+        exportTitle = 'All_Orders';
+        break;
+      case 1: // Medications
+        ordersToExport = sortedOrders.filter(o => o.resourceType === 'MedicationRequest');
+        exportTitle = 'Medication_Orders';
+        break;
+      case 2: // Labs
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && o.category?.[0]?.coding?.[0]?.code === 'laboratory'
+        );
+        exportTitle = 'Lab_Orders';
+        break;
+      case 3: // Imaging
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && o.category?.[0]?.coding?.[0]?.code === 'imaging'
+        );
+        exportTitle = 'Imaging_Orders';
+        break;
+      case 4: // Other
+        ordersToExport = sortedOrders.filter(o => 
+          o.resourceType === 'ServiceRequest' && 
+          !['laboratory', 'imaging'].includes(o.category?.[0]?.coding?.[0]?.code)
+        );
+        exportTitle = 'Other_Orders';
+        break;
+    }
+    
+    // Transform orders to include display values
+    const transformedOrders = ordersToExport.map(order => ({
+      ...order,
+      code: {
+        text: order.resourceType === 'MedicationRequest' 
+          ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display)
+          : (order.code?.text || order.code?.coding?.[0]?.display)
+      }
+    }));
+    
+    exportClinicalData({
+      patient: currentPatient,
+      data: transformedOrders,
+      columns: EXPORT_COLUMNS.orders,
+      format,
+      title: exportTitle,
+      formatForPrint: (data) => {
+        let html = '<h2>Orders & Prescriptions</h2>';
+        data.forEach(order => {
+          const orderName = order.resourceType === 'MedicationRequest' 
+            ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown')
+            : (order.code?.text || order.code?.coding?.[0]?.display || 'Unknown');
+          
+          html += `
+            <div class="section">
+              <h3>${orderName}</h3>
+              <p><strong>Type:</strong> ${order.resourceType === 'MedicationRequest' ? 'Medication' : 'Service Request'}</p>
+              <p><strong>Status:</strong> ${order.status}</p>
+              <p><strong>Priority:</strong> ${order.priority || 'Routine'}</p>
+              <p><strong>Ordered:</strong> ${order.authoredOn ? format(parseISO(order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}</p>
+              ${order.requester?.display ? `<p><strong>Ordered By:</strong> ${order.requester.display}</p>` : ''}
+              ${order.note?.[0]?.text ? `<p><strong>Instructions:</strong> ${order.note[0].text}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
   };
 
   const speedDialActions = [
@@ -683,6 +1036,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
                 variant="outlined"
                 color="error"
                 startIcon={<DeleteIcon />}
+                onClick={handleBatchCancelOrders}
               >
                 Cancel Selected
               </Button>
@@ -691,9 +1045,16 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            disabled
+            onClick={() => setQuickOrderDialog({ open: true, type: 'medication' })}
           >
             New Order
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ExportIcon />}
+            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+          >
+            Export
           </Button>
         </Stack>
       </Stack>
@@ -851,7 +1212,117 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setQuickOrderDialog({ open: false, type: null })}
         patientId={patientId}
         orderType={quickOrderDialog.type}
+        onNotificationUpdate={(notification) => setSnackbar({
+          open: true,
+          message: notification.message,
+          severity: notification.type === 'error' ? 'error' : 'success'
+        })}
+        onOrderCreated={handleOrderCreated}
       />
+
+      {/* View Order Dialog */}
+      <Dialog open={viewOrderDialog.open} onClose={() => setViewOrderDialog({ open: false, order: null })} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Order Details
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setViewOrderDialog({ open: false, order: null })}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {viewOrderDialog.order && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                {viewOrderDialog.order.resourceType === 'MedicationRequest' 
+                  ? (viewOrderDialog.order.medicationCodeableConcept?.text || viewOrderDialog.order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown Medication')
+                  : (viewOrderDialog.order.code?.text || viewOrderDialog.order.code?.coding?.[0]?.display || 'Unknown Order')}
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Order Type</Typography>
+                  <Typography variant="body1">
+                    {viewOrderDialog.order.resourceType === 'MedicationRequest' ? 'Medication' : 'Service Request'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Chip
+                    label={viewOrderDialog.order.status}
+                    size="small"
+                    color={viewOrderDialog.order.status === 'active' ? 'success' : 'default'}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Priority</Typography>
+                  <Typography variant="body1">{viewOrderDialog.order.priority || 'Routine'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Ordered Date</Typography>
+                  <Typography variant="body1">
+                    {viewOrderDialog.order.authoredOn ? format(parseISO(viewOrderDialog.order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Ordered By</Typography>
+                  <Typography variant="body1">{viewOrderDialog.order.requester?.display || 'Unknown Provider'}</Typography>
+                </Grid>
+                {viewOrderDialog.order.note?.[0]?.text && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Instructions</Typography>
+                    <Typography variant="body1">{viewOrderDialog.order.note[0].text}</Typography>
+                  </Grid>
+                )}
+                {viewOrderDialog.order.resourceType === 'MedicationRequest' && viewOrderDialog.order.dosageInstruction?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
+                    <Typography variant="body1">{viewOrderDialog.order.dosageInstruction[0].text || 'See prescription'}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewOrderDialog({ open: false, order: null })}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { handleExportOrders('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportOrders('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportOrders('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

@@ -44,7 +44,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Description as NoteIcon,
@@ -77,7 +78,10 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import fhirService from '../../../../services/fhirService';
 import { useNavigate } from 'react-router-dom';
+import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Note type configuration
 const noteTypes = {
@@ -95,7 +99,7 @@ const noteTypes = {
 };
 
 // Note Card Component
-const NoteCard = ({ note, onEdit, onView }) => {
+const NoteCard = ({ note, onEdit, onView, onSign }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -107,7 +111,7 @@ const NoteCard = ({ note, onEdit, onView }) => {
   
   // Ensure typeConfig has required properties
   if (!typeConfig || !typeConfig.color) {
-    console.error('Invalid typeConfig:', typeConfig, 'for noteType:', noteType);
+    // Invalid type config - return default formatting
     return null;
   }
 
@@ -205,9 +209,6 @@ const NoteCard = ({ note, onEdit, onView }) => {
                 <EditIcon />
               </IconButton>
             )}
-            <IconButton size="small">
-              <PrintIcon />
-            </IconButton>
           </Stack>
         </Stack>
       </CardContent>
@@ -220,7 +221,7 @@ const NoteCard = ({ note, onEdit, onView }) => {
           {expanded ? 'Show Less' : 'Read More'}
         </Button>
         {!isSigned && (
-          <Button size="small" color="primary">
+          <Button size="small" color="primary" onClick={() => onSign && onSign(note)}>
             Sign Note
           </Button>
         )}
@@ -242,7 +243,8 @@ const NoteCard = ({ note, onEdit, onView }) => {
 };
 
 // Note Editor Component
-const NoteEditor = ({ open, onClose, note, patientId }) => {
+const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) => {
+  const { publish } = useClinicalWorkflow();
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
@@ -290,7 +292,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
             // Not JSON, use as plain content
           }
         } catch (e) {
-          console.warn('Failed to decode note content:', e);
+          // Failed to decode - will return original base64 string
         }
       }
 
@@ -316,10 +318,119 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
     }
   }, [note, open]);
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving note:', noteData);
-    onClose();
+  const handleSave = async (signNote = false) => {
+    try {
+      // Prepare content based on note type
+      let content = '';
+      if (noteData.type === 'soap') {
+        // Format SOAP sections
+        content = JSON.stringify({
+          subjective: noteData.sections.subjective,
+          objective: noteData.sections.objective,
+          assessment: noteData.sections.assessment,
+          plan: noteData.sections.plan
+        });
+      } else {
+        content = noteData.content;
+      }
+
+      // Create FHIR DocumentReference
+      const documentReference = {
+        resourceType: 'DocumentReference',
+        status: signNote ? 'current' : 'preliminary',
+        docStatus: signNote ? 'final' : 'preliminary',
+        type: {
+          coding: [{
+            system: 'http://loinc.org',
+            code: noteData.type === '34117-2' || noteData.type === '51847-2' ? noteData.type : '11488-4',
+            display: noteTypes[noteData.type]?.label || 'Clinical Note'
+          }]
+        },
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        date: new Date().toISOString(),
+        author: [{
+          display: 'Current User' // This would come from auth context
+        }],
+        description: noteData.title || noteTypes[noteData.type]?.label || 'Clinical Note',
+        content: [{
+          attachment: {
+            contentType: 'text/plain',
+            data: btoa(content), // Base64 encode the content
+            title: noteData.title || 'Clinical Note'
+          }
+        }]
+      };
+
+      let response;
+      if (note && note.id) {
+        // Update existing note
+        response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...note,
+            ...documentReference,
+            id: note.id
+          })
+        });
+      } else {
+        // Create new note
+        response = await fetch('/fhir/R4/DocumentReference', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(documentReference)
+        });
+      }
+
+      if (response.ok) {
+        const savedNote = await response.json();
+        
+        // Publish DOCUMENTATION_CREATED event
+        await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+          ...savedNote,
+          noteType: noteTypes[noteData.type]?.label || 'Clinical Note',
+          isUpdate: !!(note && note.id),
+          isSigned: signNote,
+          patientId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Publish workflow notification
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'clinical-documentation',
+          step: note && note.id ? 'updated' : 'created',
+          data: {
+            noteType: noteTypes[noteData.type]?.label || 'Clinical Note',
+            title: noteData.title || 'Clinical Note',
+            isSigned: signNote,
+            patientId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        // Refresh patient resources to show new/updated note
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        onClose();
+      } else {
+        throw new Error(`Failed to save note: ${response.statusText}`);
+      }
+    } catch (error) {
+      // Handle error appropriately
+      if (onNotificationUpdate) {
+        onNotificationUpdate({
+          type: 'error',
+          message: 'Failed to save note. Please try again.'
+        });
+      }
+    }
   };
 
   const applyFormatting = (format) => {
@@ -450,8 +561,8 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSave}>Save as Draft</Button>
-        <Button variant="contained" onClick={handleSave}>
+        <Button onClick={() => handleSave(false)}>Save as Draft</Button>
+        <Button variant="contained" onClick={() => handleSave(true)}>
           Save & Sign
         </Button>
       </DialogActions>
@@ -524,7 +635,8 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
 const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterType, setFilterType] = useState('all');
@@ -532,6 +644,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
@@ -555,7 +668,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       }
       return null;
     } catch (error) {
-      console.warn('Failed to decode base64 content:', error);
+      // Failed to decode - return original content
       return null;
     }
   };
@@ -679,17 +792,201 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
 
   const handleViewNote = (note) => {
     // Show note details in a modal or expanded view
-    console.log('Viewing note:', note);
+    setSelectedNote(note);
+    // You could also open a dialog here if needed
+  };
+
+  const handleSignNote = async (note) => {
+    try {
+      // Update the note status to final
+      const updatedNote = {
+        ...note,
+        status: 'current',
+        docStatus: 'final'
+      };
+      
+      const response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedNote)
+      });
+      
+      if (response.ok) {
+        // Publish DOCUMENTATION_CREATED event (for signed note)
+        await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+          ...updatedNote,
+          noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
+          isUpdate: true,
+          isSigned: true,
+          patientId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Publish workflow notification
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'clinical-documentation',
+          step: 'signed',
+          data: {
+            noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
+            title: note.description || 'Clinical Note',
+            isSigned: true,
+            patientId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        // Refresh patient resources to show updated status
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        
+        setSnackbar({
+          open: true,
+          message: 'Note signed successfully',
+          severity: 'success'
+        });
+      } else {
+        throw new Error(`Failed to sign note: ${response.statusText}`);
+        setSnackbar({
+          open: true,
+          message: 'Failed to sign note',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to sign note: ' + error.message,
+        severity: 'error'
+      });
+    }
   };
   
-  const handleSaveAddendum = (addendumText) => {
-    // In a real app, this would create a new DocumentReference
-    // linked to the original note
-    console.log('Saving addendum for note:', selectedNoteForAddendum?.id);
-    console.log('Addendum text:', addendumText);
-    setAddendumDialogOpen(false);
-    setSelectedNoteForAddendum(null);
-    // Would typically refresh the documents list here
+  const handleSaveAddendum = async (addendumText) => {
+    // Create a new DocumentReference linked to the original note
+    try {
+      if (!selectedNoteForAddendum || !addendumText.trim()) {
+        throw new Error('Invalid addendum data');
+      }
+
+      // Create the addendum DocumentReference
+      const addendumResource = {
+        resourceType: 'DocumentReference',
+        status: 'current',
+        docStatus: 'final',
+        type: {
+          coding: [{
+            system: 'http://loinc.org',
+            code: '11506-3',
+            display: 'Progress note'
+          }],
+          text: 'Addendum'
+        },
+        category: [{
+          coding: [{
+            system: 'http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category',
+            code: 'clinical-note',
+            display: 'Clinical Note'
+          }]
+        }],
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        date: new Date().toISOString(),
+        author: [{
+          display: 'Current User' // This would come from auth context
+        }],
+        relatesTo: [{
+          code: 'appends',
+          target: {
+            reference: `DocumentReference/${selectedNoteForAddendum.id}`
+          }
+        }],
+        description: `Addendum to ${selectedNoteForAddendum.type?.text || 'note'} from ${format(parseISO(selectedNoteForAddendum.date), 'MMM d, yyyy')}`,
+        content: [{
+          attachment: {
+            contentType: 'text/plain',
+            data: btoa(addendumText), // Base64 encode the text
+            creation: new Date().toISOString()
+          }
+        }]
+      };
+
+      // Save the addendum
+      const createdAddendum = await fhirService.createDocumentReference(addendumResource);
+      
+      // Publish DOCUMENTATION_CREATED event
+      await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+        ...createdAddendum,
+        noteType: 'Addendum',
+        isUpdate: false,
+        isSigned: true,
+        isAddendum: true,
+        originalNoteId: selectedNoteForAddendum.id,
+        patientId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Publish workflow notification
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'clinical-documentation',
+        step: 'addendum-created',
+        data: {
+          noteType: 'Addendum',
+          originalNoteTitle: selectedNoteForAddendum.description || 'Clinical Note',
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Refresh the documents list
+      await fhirService.refreshPatientResources(patientId);
+      
+      // Close dialog and clear state
+      setAddendumDialogOpen(false);
+      setSelectedNoteForAddendum(null);
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'Addendum saved successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      // Log error for debugging (would use proper logging in production)
+      setSnackbar({
+        open: true,
+        message: 'Failed to save addendum: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+  
+  const handlePrintDocumentation = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '';
+    sortedDocuments.forEach((doc, index) => {
+      if (index > 0) content += '<div class="page-break"></div>';
+      content += formatClinicalNoteForPrint(doc);
+    });
+    
+    printDocument({
+      title: 'Clinical Documentation',
+      patient: patientInfo,
+      content
+    });
   };
   
   useEffect(() => {
@@ -812,6 +1109,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
+            onClick={handlePrintDocumentation}
           >
             Print
           </Button>
@@ -831,6 +1129,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
               note={document}
               onEdit={handleEditNote}
               onView={handleViewNote}
+              onSign={handleSignNote}
             />
           ))}
         </Box>
@@ -842,6 +1141,11 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         onClose={() => setEditorOpen(false)}
         note={selectedNote}
         patientId={patientId}
+        onNotificationUpdate={(notification) => setSnackbar({
+          open: true,
+          message: notification.message,
+          severity: notification.type === 'error' ? 'error' : 'success'
+        })}
       />
       
       {/* Addendum Dialog */}
@@ -854,6 +1158,22 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         note={selectedNoteForAddendum}
         onSave={handleSaveAddendum}
       />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

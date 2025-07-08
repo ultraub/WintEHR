@@ -37,7 +37,7 @@ import {
   Info as InfoIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../../services/api';
 
 const DICOMViewer = ({ study, onClose }) => {
   const canvasRef = useRef(null);
@@ -117,7 +117,7 @@ const DICOMViewer = ({ study, onClose }) => {
       }
 
       // Load study metadata
-      const metadataResponse = await axios.get(`/api/dicom/studies/${studyDir}/metadata`);
+      const metadataResponse = await api.get(`/api/dicom/studies/${studyDir}/metadata`);
       const instancesData = metadataResponse.data.instances;
       
       if (!instancesData || instancesData.length === 0) {
@@ -127,7 +127,7 @@ const DICOMViewer = ({ study, onClose }) => {
       setInstances(instancesData);
       
       // Load viewer config
-      const configResponse = await axios.get(`/api/dicom/studies/${studyDir}/viewer-config`);
+      const configResponse = await api.get(`/api/dicom/studies/${studyDir}/viewer-config`);
       setViewerConfig(configResponse.data);
       
       // Set initial window/level from first instance
@@ -193,7 +193,7 @@ const DICOMViewer = ({ study, onClose }) => {
       const studyDir = extractStudyDirectory(study);
       const url = `/api/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
       
-      const response = await axios.get(url, { responseType: 'blob' });
+      const response = await api.get(url, { responseType: 'blob' });
       const imageBlob = response.data;
       const imageUrl = URL.createObjectURL(imageBlob);
       
@@ -423,7 +423,7 @@ const DICOMViewer = ({ study, onClose }) => {
       </IconButton>
       
       {/* Controls */}
-      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
         <Grid container spacing={2} alignItems="center">
           {/* Navigation Controls */}
           <Grid item>

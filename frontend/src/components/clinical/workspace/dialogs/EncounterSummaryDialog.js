@@ -2,7 +2,7 @@
  * Encounter Summary Dialog Component
  * Shows comprehensive encounter information including related resources
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -16,27 +16,19 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
   Chip,
-  Divider,
   Stack,
   Card,
   CardContent,
   CardHeader,
   IconButton,
   Collapse,
-  Alert,
-  CircularProgress,
-  useTheme
+  useTheme,
+  Zoom
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  EventNote as EncounterIcon,
-  Person as PatientIcon,
   LocalHospital as ProviderIcon,
-  AccessTime as TimeIcon,
-  CalendarMonth as DateIcon,
-  Description as NotesIcon,
   Science as LabIcon,
   MedicalServices as ProcedureIcon,
   Medication as MedicationIcon,
@@ -48,6 +40,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { printDocument } from '../../../../utils/printUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {
@@ -68,9 +61,8 @@ const getEncounterIcon = (encounterClass) => {
 const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
   const theme = useTheme();
   const { getPatientResources } = useFHIRResource();
-  const [loading, setLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
-    observations: true,
+    observations: false,
     procedures: false,
     medications: false,
     diagnoses: false
@@ -99,12 +91,28 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       medications: medications.filter(med => 
         med.encounter?.reference === encounterRef
       ),
-      conditions: conditions.filter(cond => 
-        cond.encounter?.some(enc => enc.reference === encounterRef)
-      ),
-      documents: documentReferences.filter(doc => 
-        doc.context?.encounter?.some(enc => enc.reference === encounterRef)
-      )
+      conditions: conditions.filter(cond => {
+        // Check if encounter is an array
+        if (Array.isArray(cond.encounter)) {
+          return cond.encounter.some(enc => enc.reference === encounterRef);
+        }
+        // Check if encounter is a single reference object
+        if (cond.encounter?.reference) {
+          return cond.encounter.reference === encounterRef;
+        }
+        return false;
+      }),
+      documents: documentReferences.filter(doc => {
+        // Check if context.encounter is an array
+        if (Array.isArray(doc.context?.encounter)) {
+          return doc.context.encounter.some(enc => enc.reference === encounterRef);
+        }
+        // Check if context.encounter is a single reference object
+        if (doc.context?.encounter?.reference) {
+          return doc.context.encounter.reference === encounterRef;
+        }
+        return false;
+      })
     };
   }, [encounter, patientId, getPatientResources]);
 
@@ -131,6 +139,99 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
     }
   };
 
+  const handlePrint = () => {
+    const printContent = {
+      title: 'Encounter Summary',
+      sections: [
+        {
+          title: 'Encounter Information',
+          items: [
+            ['Status', encounter.status?.toUpperCase()],
+            ['Class', encounter.class?.display || encounter.class?.code || 'Unknown'],
+            ['Type', encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Not specified'],
+            ['Start Date', startDate ? format(startDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
+            ['End Date', endDate ? format(endDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
+            ['Provider', encounter.participant?.find(p => 
+              p.type?.[0]?.coding?.[0]?.code === 'ATND'
+            )?.individual?.display || 'No provider recorded']
+          ]
+        }
+      ]
+    };
+
+    if (encounter.reasonCode && encounter.reasonCode.length > 0) {
+      printContent.sections.push({
+        title: 'Reason for Visit',
+        content: encounter.reasonCode.map(r => r.text || r.coding?.[0]?.display).join(', ')
+      });
+    }
+
+    if (relatedResources.observations?.length > 0) {
+      printContent.sections.push({
+        title: 'Lab Results & Observations',
+        items: relatedResources.observations.map(obs => [
+          obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown test',
+          `${obs.valueQuantity ? 
+            `${obs.valueQuantity.value} ${obs.valueQuantity.unit || ''}` :
+            obs.valueString || 'Result pending'} - ${obs.effectiveDateTime ? 
+            format(parseISO(obs.effectiveDateTime), 'MMM d, h:mm a') : 'No date'}`
+        ])
+      });
+    }
+
+    if (relatedResources.procedures?.length > 0) {
+      printContent.sections.push({
+        title: 'Procedures',
+        items: relatedResources.procedures.map(proc => [
+          proc.code?.text || proc.code?.coding?.[0]?.display || 'Unknown procedure',
+          `Status: ${proc.status} - ${proc.performedDateTime ? 
+            format(parseISO(proc.performedDateTime), 'MMM d, h:mm a') : 'No date'}`
+        ])
+      });
+    }
+
+    if (relatedResources.medications?.length > 0) {
+      printContent.sections.push({
+        title: 'Medications',
+        items: relatedResources.medications.map(med => [
+          med.medicationCodeableConcept?.text || 
+          med.medicationCodeableConcept?.coding?.[0]?.display || 
+          'Unknown medication',
+          `Status: ${med.status} - ${med.authoredOn ? 
+            format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}`
+        ])
+      });
+    }
+
+    if (relatedResources.conditions?.length > 0) {
+      printContent.sections.push({
+        title: 'Diagnoses & Conditions',
+        items: relatedResources.conditions.map(condition => [
+          condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition',
+          `Status: ${condition.clinicalStatus?.coding?.[0]?.code || 'unknown'} - ${condition.onsetDateTime ? 
+            format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'No onset date'}`
+        ])
+      });
+    }
+
+    printDocument({
+      title: 'Encounter Summary',
+      patient: {
+        name: `Patient ${patientId}`,
+        mrn: patientId
+      },
+      content: printContent.sections.map(section => {
+        if (section.items) {
+          return `<h3>${section.title}</h3>` + 
+            section.items.map(([label, value]) => `<p><strong>${label}:</strong> ${value}</p>`).join('');
+        } else if (section.content) {
+          return `<h3>${section.title}</h3><p>${section.content}</p>`;
+        }
+        return '';
+      }).join('\n')
+    });
+  };
+
   return (
     <Dialog 
       open={open} 
@@ -141,20 +242,33 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
         sx: { height: '80vh' }
       }}
     >
-      <DialogTitle>
+      <DialogTitle sx={{ 
+        background: theme.palette.mode === 'dark' 
+          ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.background.paper} 100%)`
+          : `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.background.paper} 100%)`,
+        borderBottom: `1px solid ${theme.palette.divider}`
+      }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" spacing={2} alignItems="center">
-            {iconInfo.icon}
+            <Box sx={{ 
+              p: 1.5, 
+              borderRadius: 2, 
+              bgcolor: theme.palette.background.paper,
+              color: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main,
+              boxShadow: theme.shadows[1]
+            }}>
+              {iconInfo.icon}
+            </Box>
             <Box>
-              <Typography variant="h6">
+              <Typography variant="h5" fontWeight="bold">
                 Encounter Summary
               </Typography>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="subtitle1" color="text.secondary">
                 {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || encounter.class?.display || 'Encounter'}
               </Typography>
             </Box>
           </Stack>
-          <IconButton onClick={onClose} edge="end">
+          <IconButton onClick={onClose} edge="end" sx={{ color: theme.palette.text.primary }}>
             <CloseIcon />
           </IconButton>
         </Stack>
@@ -163,39 +277,59 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       <DialogContent sx={{ p: 0 }}>
         <Box sx={{ p: 3 }}>
           {/* Encounter Details */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Encounter Information
-            </Typography>
-            <Grid container spacing={2}>
+          <Paper sx={{ 
+            p: 3, 
+            mb: 3,
+            borderRadius: 2,
+            background: theme.palette.mode === 'dark' 
+              ? theme.palette.background.paper 
+              : theme.palette.grey[50],
+            boxShadow: theme.shadows[1]
+          }}>
+            <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Box sx={{ 
+                width: 6, 
+                height: 40, 
+                borderRadius: 1,
+                bgcolor: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main 
+              }} />
+              <Typography variant="h6" fontWeight="600">
+                Encounter Information
+              </Typography>
+            </Stack>
+            <Grid container spacing={3}>
               <Grid item xs={12} sm={6}>
-                <Stack spacing={1}>
+                <Stack spacing={2}>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                       Status
                     </Typography>
-                    <br />
-                    <Chip 
-                      label={encounter.status} 
-                      size="small" 
-                      color={getStatusColor(encounter.status)}
-                    />
+                    <Box sx={{ mt: 0.5 }}>
+                      <Zoom in={true} style={{ transitionDelay: '100ms' }}>
+                        <Chip 
+                          label={encounter.status?.toUpperCase()} 
+                          size="medium" 
+                          color={getStatusColor(encounter.status)}
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      </Zoom>
+                    </Box>
                   </Box>
                   
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                       Class
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body1" fontWeight="500">
                       {encounter.class?.display || encounter.class?.code || 'Unknown'}
                     </Typography>
                   </Box>
 
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                       Type
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body1" fontWeight="500">
                       {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Not specified'}
                     </Typography>
                   </Box>
@@ -203,13 +337,13 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </Grid>
               
               <Grid item xs={12} sm={6}>
-                <Stack spacing={1}>
+                <Stack spacing={2}>
                   {startDate && (
                     <Box>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                         Start Date & Time
                       </Typography>
-                      <Typography variant="body2">
+                      <Typography variant="body1" fontWeight="500">
                         {format(startDate, 'MMM d, yyyy h:mm a')}
                       </Typography>
                     </Box>
@@ -217,20 +351,31 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   
                   {endDate && (
                     <Box>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                         End Date & Time
                       </Typography>
-                      <Typography variant="body2">
+                      <Typography variant="body1" fontWeight="500">
                         {format(endDate, 'MMM d, yyyy h:mm a')}
                       </Typography>
                     </Box>
                   )}
 
+                  {!endDate && startDate && (
+                    <Box>
+                      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                        Duration
+                      </Typography>
+                      <Typography variant="body1" fontWeight="500">
+                        {encounter.status === 'in-progress' ? 'Ongoing' : 'Not specified'}
+                      </Typography>
+                    </Box>
+                  )}
+
                   <Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                       Provider
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body1" fontWeight="500">
                       {encounter.participant?.find(p => 
                         p.type?.[0]?.coding?.[0]?.code === 'ATND'
                       )?.individual?.display || 'No provider recorded'}
@@ -241,17 +386,25 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             </Grid>
 
             {encounter.reasonCode && encounter.reasonCode.length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary">
+              <Box sx={{ 
+                mt: 3, 
+                pt: 3,
+                borderTop: `1px solid ${theme.palette.divider}`
+              }}>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
                   Reason for Visit
                 </Typography>
-                <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
                   {encounter.reasonCode.map((reason, idx) => (
                     <Chip 
                       key={idx}
                       label={reason.text || reason.coding?.[0]?.display} 
-                      size="small"
-                      variant="outlined"
+                      variant="filled"
+                      sx={{ 
+                        bgcolor: theme.palette.primary.main + '15',
+                        color: theme.palette.primary.main,
+                        fontWeight: 500
+                      }}
                     />
                   ))}
                 </Stack>
@@ -260,186 +413,599 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           </Paper>
 
           {/* Related Resources */}
-          <Typography variant="h6" gutterBottom>
-            Related Clinical Information
-          </Typography>
+          <Box sx={{ 
+            mb: 3,
+            p: 3,
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`
+              : `linear-gradient(135deg, ${theme.palette.grey[50]} 0%, ${theme.palette.background.paper} 100%)`,
+            borderRadius: 2
+          }}>
+            <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+              <Box sx={{ 
+                width: 6, 
+                height: 40, 
+                borderRadius: 1,
+                bgcolor: theme.palette.secondary.main 
+              }} />
+              <Typography variant="h6" fontWeight="600">
+                Related Clinical Information
+              </Typography>
+            </Stack>
 
-          {/* Observations */}
-          <Card sx={{ mb: 2 }}>
-            <CardHeader
-              title={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <LabIcon color="primary" />
-                  <Typography variant="subtitle1">
-                    Lab Results & Observations ({relatedResources.observations?.length || 0})
-                  </Typography>
-                </Stack>
-              }
-              action={
-                <IconButton onClick={() => toggleSection('observations')}>
-                  {expandedSections.observations ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
-              }
-            />
+            {/* Observations */}
+            <Card sx={{ 
+              mb: 2,
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: theme.shadows[2],
+              '&:hover': {
+                boxShadow: theme.shadows[4]
+              },
+              transition: 'box-shadow 0.3s ease'
+            }}>
+              <CardHeader
+                sx={{
+                  background: theme.palette.mode === 'dark'
+                    ? theme.palette.background.paper
+                    : theme.palette.grey[100],
+                  borderBottom: `1px solid ${theme.palette.divider}`
+                }}
+                title={
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Box sx={{ 
+                      p: 1, 
+                      borderRadius: 1.5,
+                      bgcolor: theme.palette.primary.main + '20',
+                      color: theme.palette.primary.main,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <LabIcon />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="600">
+                        Lab Results & Observations
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          label={`${relatedResources.observations?.length || 0} items`} 
+                          size="small" 
+                          color={relatedResources.observations?.length > 0 ? 'primary' : 'default'}
+                          sx={{ fontWeight: 'medium' }}
+                        />
+                        {relatedResources.observations?.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            Click to {expandedSections.observations ? 'collapse' : 'expand'}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                }
+                action={
+                  relatedResources.observations?.length > 0 && (
+                    <IconButton 
+                      onClick={() => toggleSection('observations')}
+                      sx={{
+                        bgcolor: theme.palette.action.hover,
+                        '&:hover': {
+                          bgcolor: theme.palette.action.selected
+                        }
+                      }}
+                    >
+                      {expandedSections.observations ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  )
+                }
+              />
             <Collapse in={expandedSections.observations}>
               <CardContent>
                 {relatedResources.observations?.length > 0 ? (
-                  <List dense>
-                    {relatedResources.observations.map((obs) => (
-                      <ListItem key={obs.id}>
+                  <List sx={{ py: 0 }}>
+                    {relatedResources.observations.map((obs, index) => (
+                      <ListItem 
+                        key={obs.id}
+                        sx={{
+                          borderBottom: index < relatedResources.observations.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                          '&:hover': {
+                            bgcolor: theme.palette.action.hover
+                          }
+                        }}
+                      >
                         <ListItemText
-                          primary={obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown test'}
-                          secondary={`${obs.valueQuantity ? 
-                            `${obs.valueQuantity.value} ${obs.valueQuantity.unit || ''}` :
-                            obs.valueString || 'Result pending'} - ${obs.effectiveDateTime ? 
-                            format(parseISO(obs.effectiveDateTime), 'MMM d, h:mm a') : 'No date'}`}
+                          primary={
+                            <Typography variant="body1" fontWeight="500">
+                              {obs.code?.text || obs.code?.coding?.[0]?.display || 'Unknown test'}
+                            </Typography>
+                          }
+                          secondary={
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={obs.valueQuantity ? 
+                                  `${obs.valueQuantity.value} ${obs.valueQuantity.unit || ''}` :
+                                  obs.valueString || 'Result pending'}
+                                size="small"
+                                color={obs.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'error' : 
+                                       obs.interpretation?.[0]?.coding?.[0]?.code === 'L' ? 'warning' : 'default'}
+                                variant="outlined"
+                                sx={{ fontWeight: 'medium' }}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {obs.effectiveDateTime ? 
+                                  format(parseISO(obs.effectiveDateTime), 'MMM d, h:mm a') : 'No date'}
+                              </Typography>
+                            </Stack>
+                          }
                         />
                       </ListItem>
                     ))}
                   </List>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No lab results or observations recorded for this encounter
-                  </Typography>
+                  <Box sx={{ 
+                    p: 4, 
+                    textAlign: 'center',
+                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                    borderRadius: 1
+                  }}>
+                    <LabIcon sx={{ fontSize: 48, color: theme.palette.text.disabled, mb: 2 }} />
+                    <Typography variant="body1" color="text.secondary">
+                      No lab results or observations recorded
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Lab results from this encounter will appear here
+                    </Typography>
+                  </Box>
                 )}
               </CardContent>
             </Collapse>
           </Card>
 
-          {/* Procedures */}
-          <Card sx={{ mb: 2 }}>
-            <CardHeader
-              title={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <ProcedureIcon color="primary" />
-                  <Typography variant="subtitle1">
-                    Procedures ({relatedResources.procedures?.length || 0})
-                  </Typography>
-                </Stack>
-              }
-              action={
-                <IconButton onClick={() => toggleSection('procedures')}>
-                  {expandedSections.procedures ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
-              }
-            />
+            {/* Procedures */}
+            <Card sx={{ 
+              mb: 2,
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: theme.shadows[2],
+              '&:hover': {
+                boxShadow: theme.shadows[4]
+              },
+              transition: 'box-shadow 0.3s ease'
+            }}>
+              <CardHeader
+                sx={{
+                  background: theme.palette.mode === 'dark'
+                    ? theme.palette.background.paper
+                    : theme.palette.grey[100],
+                  borderBottom: `1px solid ${theme.palette.divider}`
+                }}
+                title={
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Box sx={{ 
+                      p: 1, 
+                      borderRadius: 1.5,
+                      bgcolor: theme.palette.secondary.main + '20',
+                      color: theme.palette.secondary.main,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <ProcedureIcon />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="600">
+                        Procedures
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          label={`${relatedResources.procedures?.length || 0} items`} 
+                          size="small" 
+                          color={relatedResources.procedures?.length > 0 ? 'secondary' : 'default'}
+                          sx={{ fontWeight: 'medium' }}
+                        />
+                        {relatedResources.procedures?.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            Click to {expandedSections.procedures ? 'collapse' : 'expand'}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                }
+                action={
+                  relatedResources.procedures?.length > 0 && (
+                    <IconButton 
+                      onClick={() => toggleSection('procedures')}
+                      sx={{
+                        bgcolor: theme.palette.action.hover,
+                        '&:hover': {
+                          bgcolor: theme.palette.action.selected
+                        }
+                      }}
+                    >
+                      {expandedSections.procedures ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  )
+                }
+              />
             <Collapse in={expandedSections.procedures}>
               <CardContent>
                 {relatedResources.procedures?.length > 0 ? (
-                  <List dense>
-                    {relatedResources.procedures.map((proc) => (
-                      <ListItem key={proc.id}>
+                  <List sx={{ py: 0 }}>
+                    {relatedResources.procedures.map((proc, index) => (
+                      <ListItem 
+                        key={proc.id}
+                        sx={{
+                          borderBottom: index < relatedResources.procedures.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                          '&:hover': {
+                            bgcolor: theme.palette.action.hover
+                          }
+                        }}
+                      >
                         <ListItemText
-                          primary={proc.code?.text || proc.code?.coding?.[0]?.display || 'Unknown procedure'}
-                          secondary={`Status: ${proc.status} - ${proc.performedDateTime ? 
-                            format(parseISO(proc.performedDateTime), 'MMM d, h:mm a') : 'No date'}`}
+                          primary={
+                            <Typography variant="body1" fontWeight="500">
+                              {proc.code?.text || proc.code?.coding?.[0]?.display || 'Unknown procedure'}
+                            </Typography>
+                          }
+                          secondary={
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={proc.status}
+                                size="small"
+                                color={proc.status === 'completed' ? 'success' : 
+                                       proc.status === 'in-progress' ? 'warning' : 'default'}
+                                variant="outlined"
+                                sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {proc.performedDateTime ? 
+                                  format(parseISO(proc.performedDateTime), 'MMM d, h:mm a') : 'No date'}
+                              </Typography>
+                            </Stack>
+                          }
                         />
                       </ListItem>
                     ))}
                   </List>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No procedures recorded for this encounter
-                  </Typography>
+                  <Box sx={{ 
+                    p: 4, 
+                    textAlign: 'center',
+                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                    borderRadius: 1
+                  }}>
+                    <ProcedureIcon sx={{ fontSize: 48, color: theme.palette.text.disabled, mb: 2 }} />
+                    <Typography variant="body1" color="text.secondary">
+                      No procedures recorded
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Procedures performed during this encounter will appear here
+                    </Typography>
+                  </Box>
                 )}
               </CardContent>
             </Collapse>
           </Card>
 
-          {/* Medications */}
-          <Card sx={{ mb: 2 }}>
-            <CardHeader
-              title={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <MedicationIcon color="primary" />
-                  <Typography variant="subtitle1">
-                    Medications ({relatedResources.medications?.length || 0})
-                  </Typography>
-                </Stack>
-              }
-              action={
-                <IconButton onClick={() => toggleSection('medications')}>
-                  {expandedSections.medications ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
-              }
-            />
+            {/* Medications */}
+            <Card sx={{ 
+              mb: 2,
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: theme.shadows[2],
+              '&:hover': {
+                boxShadow: theme.shadows[4]
+              },
+              transition: 'box-shadow 0.3s ease'
+            }}>
+              <CardHeader
+                sx={{
+                  background: theme.palette.mode === 'dark'
+                    ? theme.palette.background.paper
+                    : theme.palette.grey[100],
+                  borderBottom: `1px solid ${theme.palette.divider}`
+                }}
+                title={
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Box sx={{ 
+                      p: 1, 
+                      borderRadius: 1.5,
+                      bgcolor: theme.palette.success.main + '20',
+                      color: theme.palette.success.main,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <MedicationIcon />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="600">
+                        Medications
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          label={`${relatedResources.medications?.length || 0} items`} 
+                          size="small" 
+                          color={relatedResources.medications?.length > 0 ? 'success' : 'default'}
+                          sx={{ fontWeight: 'medium' }}
+                        />
+                        {relatedResources.medications?.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            Click to {expandedSections.medications ? 'collapse' : 'expand'}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                }
+                action={
+                  relatedResources.medications?.length > 0 && (
+                    <IconButton 
+                      onClick={() => toggleSection('medications')}
+                      sx={{
+                        bgcolor: theme.palette.action.hover,
+                        '&:hover': {
+                          bgcolor: theme.palette.action.selected
+                        }
+                      }}
+                    >
+                      {expandedSections.medications ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  )
+                }
+              />
             <Collapse in={expandedSections.medications}>
               <CardContent>
                 {relatedResources.medications?.length > 0 ? (
-                  <List dense>
-                    {relatedResources.medications.map((med) => (
-                      <ListItem key={med.id}>
+                  <List sx={{ py: 0 }}>
+                    {relatedResources.medications.map((med, index) => (
+                      <ListItem 
+                        key={med.id}
+                        sx={{
+                          borderBottom: index < relatedResources.medications.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                          '&:hover': {
+                            bgcolor: theme.palette.action.hover
+                          }
+                        }}
+                      >
                         <ListItemText
-                          primary={med.medicationCodeableConcept?.text || 
-                                  med.medicationCodeableConcept?.coding?.[0]?.display || 
-                                  'Unknown medication'}
-                          secondary={`Status: ${med.status} - ${med.authoredOn ? 
-                            format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}`}
+                          primary={
+                            <Typography variant="body1" fontWeight="500">
+                              {med.medicationCodeableConcept?.text || 
+                               med.medicationCodeableConcept?.coding?.[0]?.display || 
+                               'Unknown medication'}
+                            </Typography>
+                          }
+                          secondary={
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={med.status}
+                                size="small"
+                                color={med.status === 'active' ? 'success' : 
+                                       med.status === 'on-hold' ? 'warning' : 
+                                       med.status === 'stopped' ? 'error' : 'default'}
+                                variant="outlined"
+                                sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
+                              />
+                              {med.dosageInstruction?.[0]?.text && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {med.dosageInstruction[0].text}
+                                </Typography>
+                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                {med.authoredOn ? 
+                                  format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}
+                              </Typography>
+                            </Stack>
+                          }
                         />
                       </ListItem>
                     ))}
                   </List>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No medications prescribed during this encounter
-                  </Typography>
+                  <Box sx={{ 
+                    p: 4, 
+                    textAlign: 'center',
+                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                    borderRadius: 1
+                  }}>
+                    <MedicationIcon sx={{ fontSize: 48, color: theme.palette.text.disabled, mb: 2 }} />
+                    <Typography variant="body1" color="text.secondary">
+                      No medications prescribed
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Medications prescribed during this encounter will appear here
+                    </Typography>
+                  </Box>
                 )}
               </CardContent>
             </Collapse>
           </Card>
 
-          {/* Diagnoses */}
-          <Card sx={{ mb: 2 }}>
-            <CardHeader
-              title={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <DiagnosisIcon color="primary" />
-                  <Typography variant="subtitle1">
-                    Diagnoses & Conditions ({relatedResources.conditions?.length || 0})
-                  </Typography>
-                </Stack>
-              }
-              action={
-                <IconButton onClick={() => toggleSection('diagnoses')}>
-                  {expandedSections.diagnoses ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
-              }
-            />
+            {/* Diagnoses */}
+            <Card sx={{ 
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: theme.shadows[2],
+              '&:hover': {
+                boxShadow: theme.shadows[4]
+              },
+              transition: 'box-shadow 0.3s ease'
+            }}>
+              <CardHeader
+                sx={{
+                  background: theme.palette.mode === 'dark'
+                    ? theme.palette.background.paper
+                    : theme.palette.grey[100],
+                  borderBottom: `1px solid ${theme.palette.divider}`
+                }}
+                title={
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Box sx={{ 
+                      p: 1, 
+                      borderRadius: 1.5,
+                      bgcolor: theme.palette.warning.main + '20',
+                      color: theme.palette.warning.main,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <DiagnosisIcon />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="600">
+                        Diagnoses & Conditions
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                          label={`${relatedResources.conditions?.length || 0} items`} 
+                          size="small" 
+                          color={relatedResources.conditions?.length > 0 ? 'warning' : 'default'}
+                          sx={{ fontWeight: 'medium' }}
+                        />
+                        {relatedResources.conditions?.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            Click to {expandedSections.diagnoses ? 'collapse' : 'expand'}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                }
+                action={
+                  relatedResources.conditions?.length > 0 && (
+                    <IconButton 
+                      onClick={() => toggleSection('diagnoses')}
+                      sx={{
+                        bgcolor: theme.palette.action.hover,
+                        '&:hover': {
+                          bgcolor: theme.palette.action.selected
+                        }
+                      }}
+                    >
+                      {expandedSections.diagnoses ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  )
+                }
+              />
             <Collapse in={expandedSections.diagnoses}>
               <CardContent>
                 {relatedResources.conditions?.length > 0 ? (
-                  <List dense>
-                    {relatedResources.conditions.map((condition) => (
-                      <ListItem key={condition.id}>
+                  <List sx={{ py: 0 }}>
+                    {relatedResources.conditions.map((condition, index) => (
+                      <ListItem 
+                        key={condition.id}
+                        sx={{
+                          borderBottom: index < relatedResources.conditions.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                          '&:hover': {
+                            bgcolor: theme.palette.action.hover
+                          }
+                        }}
+                      >
                         <ListItemText
-                          primary={condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
-                          secondary={`Status: ${condition.clinicalStatus?.coding?.[0]?.code || 'unknown'} - ${condition.onsetDateTime ? 
-                            format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'No onset date'}`}
+                          primary={
+                            <Typography variant="body1" fontWeight="500">
+                              {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
+                            </Typography>
+                          }
+                          secondary={
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+                              <Chip
+                                label={condition.clinicalStatus?.coding?.[0]?.code || 'unknown'}
+                                size="small"
+                                color={condition.clinicalStatus?.coding?.[0]?.code === 'active' ? 'error' : 
+                                       condition.clinicalStatus?.coding?.[0]?.code === 'resolved' ? 'success' : 'default'}
+                                variant="outlined"
+                                sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
+                              />
+                              {condition.severity?.coding?.[0]?.display && (
+                                <Chip
+                                  label={condition.severity.coding[0].display}
+                                  size="small"
+                                  variant="outlined"
+                                  color="secondary"
+                                />
+                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                {condition.onsetDateTime ? 
+                                  `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 'No onset date'}
+                              </Typography>
+                            </Stack>
+                          }
                         />
                       </ListItem>
                     ))}
                   </List>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No diagnoses or conditions recorded for this encounter
-                  </Typography>
+                  <Box sx={{ 
+                    p: 4, 
+                    textAlign: 'center',
+                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                    borderRadius: 1
+                  }}>
+                    <DiagnosisIcon sx={{ fontSize: 48, color: theme.palette.text.disabled, mb: 2 }} />
+                    <Typography variant="body1" color="text.secondary">
+                      No diagnoses or conditions recorded
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Diagnoses made during this encounter will appear here
+                    </Typography>
+                  </Box>
                 )}
               </CardContent>
             </Collapse>
           </Card>
+          </Box>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button startIcon={<PrintIcon />} variant="outlined">
-          Print Summary
-        </Button>
-        <Button startIcon={<ExportIcon />} variant="outlined">
-          Export
-        </Button>
-        <Button onClick={onClose} variant="contained">
-          Close
-        </Button>
+      <DialogActions sx={{ 
+        p: 2,
+        borderTop: `1px solid ${theme.palette.divider}`,
+        bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50]
+      }}>
+        <Stack direction="row" spacing={2} sx={{ width: '100%' }} justifyContent="space-between">
+          <Stack direction="row" spacing={1}>
+            <Button 
+              startIcon={<PrintIcon />} 
+              variant="outlined"
+              onClick={handlePrint}
+              sx={{
+                borderColor: theme.palette.divider,
+                '&:hover': {
+                  bgcolor: theme.palette.action.hover,
+                  borderColor: theme.palette.primary.main
+                }
+              }}
+            >
+              Print Summary
+            </Button>
+            <Button 
+              startIcon={<ExportIcon />} 
+              variant="outlined"
+              sx={{
+                borderColor: theme.palette.divider,
+                '&:hover': {
+                  bgcolor: theme.palette.action.hover,
+                  borderColor: theme.palette.primary.main
+                }
+              }}
+            >
+              Export
+            </Button>
+          </Stack>
+          <Button 
+            onClick={onClose} 
+            variant="contained"
+            sx={{
+              px: 4,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
+          >
+            Close
+          </Button>
+        </Stack>
       </DialogActions>
     </Dialog>
   );

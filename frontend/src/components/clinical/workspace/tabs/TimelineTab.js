@@ -71,6 +71,8 @@ import { format, parseISO, isWithinInterval, subDays, subMonths, subYears, start
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
+import { printDocument } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Event type configuration
 const eventTypes = {
@@ -88,7 +90,8 @@ const eventTypes = {
   'CarePlan': { icon: <PlanIcon />, color: 'primary', label: 'Care Plan' },
   'CareTeam': { icon: <TeamIcon />, color: 'primary', label: 'Care Team' },
   'Coverage': { icon: <InsuranceIcon />, color: 'inherit', label: 'Insurance' },
-  'Goal': { icon: <GoalIcon />, color: 'primary', label: 'Goal' }
+  'Goal': { icon: <GoalIcon />, color: 'primary', label: 'Goal' },
+  'WorkflowEvent': { icon: <EventIcon />, color: 'info', label: 'Workflow Event' }
 };
 
 // Get event date
@@ -173,6 +176,9 @@ const getEventDate = (event) => {
              event.statusDate ||
              null;
              
+    case 'WorkflowEvent':
+      return event.date || event.data?.timestamp || null;
+             
     default:
       // Generic fallback for other resource types
       return event.effectiveDateTime || 
@@ -221,6 +227,26 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         return event.type?.text || event.type?.coding?.[0]?.display || 'Document';
       case 'Goal':
         return event.description?.text || 'Goal';
+      case 'WorkflowEvent':
+        // Return a descriptive title based on event type
+        switch (event.eventType) {
+          case CLINICAL_EVENTS.ORDER_PLACED:
+            return 'Order Placed';
+          case CLINICAL_EVENTS.RESULT_RECEIVED:
+            return 'Result Received';
+          case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+            return 'Medication Dispensed';
+          case CLINICAL_EVENTS.DOCUMENTATION_CREATED:
+            return event.data?.isUpdate ? 'Note Updated' : 'Note Created';
+          case CLINICAL_EVENTS.PROBLEM_ADDED:
+            return 'Problem Added';
+          case CLINICAL_EVENTS.CRITICAL_ALERT:
+            return 'Critical Alert';
+          case CLINICAL_EVENTS.WORKFLOW_NOTIFICATION:
+            return 'Workflow Update';
+          default:
+            return event.eventType;
+        }
       default:
         return event.resourceType;
     }
@@ -245,28 +271,53 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         return event.criticality || 'Documented';
       case 'Immunization':
         return event.status || 'Completed';
+      case 'WorkflowEvent':
+        // Return event-specific subtitle
+        if (event.data?.message) {
+          return event.data.message;
+        }
+        switch (event.eventType) {
+          case CLINICAL_EVENTS.ORDER_PLACED:
+            return event.data?.orderType || 'Order';
+          case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+            return event.data?.medicationName || 'Medication';
+          case CLINICAL_EVENTS.DOCUMENTATION_CREATED:
+            return event.data?.noteType || 'Document';
+          case CLINICAL_EVENTS.WORKFLOW_NOTIFICATION:
+            return `${event.data?.workflowType}: ${event.data?.step}`;
+          default:
+            return event.data?.description || '';
+        }
       default:
         return '';
     }
   };
 
   const handleClick = () => {
-    // Navigate to appropriate detail view based on resource type
-    const resourceTypeToPath = {
+    // Navigate to appropriate tab in clinical workspace based on resource type
+    const resourceTypeToTab = {
       'Encounter': 'encounters',
-      'MedicationRequest': 'medications',
+      'MedicationRequest': 'chart',  // Medications are in Chart Review tab
+      'MedicationStatement': 'chart',
       'Observation': 'results',
-      'Condition': 'problems',
-      'AllergyIntolerance': 'allergies',
-      'Immunization': 'immunizations',
+      'Condition': 'chart',  // Conditions are in Chart Review tab
+      'AllergyIntolerance': 'chart',  // Allergies are in Chart Review tab
+      'Immunization': 'chart',  // Immunizations could be in Chart Review
       'ImagingStudy': 'imaging',
-      'DocumentReference': 'notes',
-      'Goal': 'goals'
+      'DocumentReference': 'documentation',
+      'Goal': 'careplan',
+      'CarePlan': 'careplan',
+      'CareTeam': 'careplan',
+      'Procedure': 'chart',
+      'DiagnosticReport': 'results'
     };
     
-    const path = resourceTypeToPath[event.resourceType];
-    if (path) {
-      navigate(`/patients/${event.subject?.reference?.split('/')[1]}/${path}/${event.id}`);
+    const tab = resourceTypeToTab[event.resourceType];
+    const patientId = event.subject?.reference?.split('/')[1];
+    
+    if (tab && patientId) {
+      // Navigate to clinical workspace with the specific tab selected
+      navigate(`/clinical/${patientId}?tab=${tab}&resourceId=${event.id}&resourceType=${event.resourceType}`);
     }
   };
 
@@ -376,7 +427,8 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
 const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { subscribe, notifications } = useClinicalWorkflow();
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -387,10 +439,43 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20); // Start with 20 items
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [workflowEvents, setWorkflowEvents] = useState([]);
 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Subscribe to all clinical workflow events
+  useEffect(() => {
+    const unsubscribers = [];
+    
+    // Subscribe to all event types
+    Object.values(CLINICAL_EVENTS).forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (eventData) => {
+        // Add the event to our workflow events
+        const workflowEvent = {
+          id: `workflow-${Date.now()}-${Math.random()}`,
+          resourceType: 'WorkflowEvent',
+          eventType: eventType,
+          date: eventData.timestamp || new Date().toISOString(),
+          data: eventData,
+          patientId: eventData.patientId
+        };
+        
+        // Only add events for the current patient
+        if (eventData.patientId === patientId) {
+          setWorkflowEvents(prev => [...prev, workflowEvent]);
+        }
+      });
+      
+      unsubscribers.push(unsubscribe);
+    });
+    
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe, patientId]);
 
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {
@@ -399,18 +484,30 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     
     // Add all resource types
     Object.keys(eventTypes).forEach(resourceType => {
-      const resources = getPatientResources(patientId, resourceType) || [];
-      resources.forEach(resource => {
-        const uniqueKey = `${resource.resourceType}-${resource.id}`;
-        if (!seenIds.has(uniqueKey)) {
-          seenIds.add(uniqueKey);
-          events.push(resource);
-        }
-      });
+      if (resourceType === 'WorkflowEvent') {
+        // Add workflow events from state
+        workflowEvents.forEach(event => {
+          const uniqueKey = `${event.resourceType}-${event.id}`;
+          if (!seenIds.has(uniqueKey)) {
+            seenIds.add(uniqueKey);
+            events.push(event);
+          }
+        });
+      } else {
+        // Add FHIR resources
+        const resources = getPatientResources(patientId, resourceType) || [];
+        resources.forEach(resource => {
+          const uniqueKey = `${resource.resourceType}-${resource.id}`;
+          if (!seenIds.has(uniqueKey)) {
+            seenIds.add(uniqueKey);
+            events.push(resource);
+          }
+        });
+      }
     });
 
     return events;
-  }, [patientId, getPatientResources]); // Only recalculate when patientId changes or resources update
+  }, [patientId, getPatientResources, workflowEvents]); // Recalculate when patientId, resources, or workflow events update
 
   // Optimized search function that doesn't use JSON.stringify
   const isEventMatchingSearch = useCallback((event, term) => {
@@ -428,7 +525,13 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       event.vaccineCode?.text,
       event.vaccineCode?.coding?.[0]?.display,
       event.description,
-      event.resourceType
+      event.resourceType,
+      // WorkflowEvent fields
+      event.eventType,
+      event.data?.message,
+      event.data?.noteType,
+      event.data?.medicationName,
+      event.data?.workflowType
     ];
     
     return searchableFields.some(field => 
@@ -507,6 +610,92 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     setSelectedTypes(new Set());
   };
 
+  const handlePrintTimeline = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    let content = '<h2>Clinical Timeline</h2>';
+    content += `<p>Showing ${sortedEvents.length} events${filterPeriod !== 'all' ? ` from the last ${filterPeriod}` : ''}</p>`;
+    
+    // Group events by date
+    const eventsByDate = {};
+    sortedEvents.forEach(event => {
+      const eventDate = getEventDate(event);
+      const dateKey = eventDate ? format(parseISO(eventDate), 'MMMM d, yyyy') : 'Unknown Date';
+      if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
+      eventsByDate[dateKey].push(event);
+    });
+    
+    // Generate content for each date
+    Object.entries(eventsByDate).forEach(([date, events]) => {
+      content += `<h3>${date}</h3>`;
+      content += '<table class="avoid-break">';
+      content += '<thead><tr><th>Time</th><th>Type</th><th>Event</th><th>Details</th></tr></thead>';
+      content += '<tbody>';
+      
+      events.forEach(event => {
+        const eventType = eventTypes[event.resourceType] || { label: event.resourceType };
+        const eventDate = getEventDate(event);
+        const time = eventDate ? format(parseISO(eventDate), 'h:mm a') : '';
+        
+        let title = '';
+        let details = '';
+        
+        switch (event.resourceType) {
+          case 'Encounter':
+            title = event.type?.[0]?.text || event.type?.[0]?.coding?.[0]?.display || 'Encounter';
+            details = event.participant?.find(p => p.type?.[0]?.coding?.[0]?.code === 'ATND')?.individual?.display || '';
+            break;
+          case 'MedicationRequest':
+            title = event.medicationCodeableConcept?.text || event.medicationCodeableConcept?.coding?.[0]?.display || 'Medication';
+            details = event.dosageInstruction?.[0]?.text || '';
+            break;
+          case 'Observation':
+            title = event.code?.text || event.code?.coding?.[0]?.display || 'Observation';
+            details = event.valueQuantity ? `${event.valueQuantity.value} ${event.valueQuantity.unit}` : event.valueString || '';
+            break;
+          case 'Condition':
+            title = event.code?.text || event.code?.coding?.[0]?.display || 'Condition';
+            details = event.clinicalStatus?.coding?.[0]?.code || '';
+            break;
+          case 'AllergyIntolerance':
+            title = event.code?.text || event.code?.coding?.[0]?.display || 'Allergy';
+            details = event.criticality || '';
+            break;
+          case 'Goal':
+            title = event.description?.text || 'Goal';
+            details = event.lifecycleStatus || '';
+            break;
+          default:
+            title = event.resourceType;
+            details = '';
+        }
+        
+        content += '<tr>';
+        content += `<td>${time}</td>`;
+        content += `<td>${eventType.label}</td>`;
+        content += `<td>${title}</td>`;
+        content += `<td>${details}</td>`;
+        content += '</tr>';
+      });
+      
+      content += '</tbody></table>';
+    });
+    
+    printDocument({
+      title: 'Clinical Timeline',
+      patient: patientInfo,
+      content
+    });
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -539,6 +728,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
+            onClick={handlePrintTimeline}
           >
             Print
           </Button>
@@ -698,22 +888,28 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             const eventType = eventTypes[event.resourceType];
             const eventDate = getEventDate(event);
             
-            const resourceTypeToPath = {
+            const resourceTypeToTab = {
               'Encounter': 'encounters',
-              'MedicationRequest': 'medications',
+              'MedicationRequest': 'chart',
+              'MedicationStatement': 'chart',
               'Observation': 'results',
-              'Condition': 'problems',
-              'AllergyIntolerance': 'allergies',
-              'Immunization': 'immunizations',
+              'Condition': 'chart',
+              'AllergyIntolerance': 'chart',
+              'Immunization': 'chart',
               'ImagingStudy': 'imaging',
-              'DocumentReference': 'notes',
-              'Goal': 'goals'
+              'DocumentReference': 'documentation',
+              'Goal': 'careplan',
+              'CarePlan': 'careplan',
+              'CareTeam': 'careplan',
+              'Procedure': 'chart',
+              'DiagnosticReport': 'results'
             };
             
-            const path = resourceTypeToPath[event.resourceType];
+            const tab = resourceTypeToTab[event.resourceType];
+            const patientId = event.subject?.reference?.split('/')[1];
             const handleNavigate = () => {
-              if (path) {
-                navigate(`/patients/${event.subject?.reference?.split('/')[1]}/${path}/${event.id}`);
+              if (tab && patientId) {
+                navigate(`/clinical/${patientId}?tab=${tab}&resourceId=${event.id}&resourceType=${event.resourceType}`);
               }
             };
             

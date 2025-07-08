@@ -31,7 +31,8 @@ import {
   CircularProgress,
   Alert,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Timeline,
@@ -63,6 +64,13 @@ import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import { printDocument, formatEncountersForPrint } from '../../../../utils/printUtils';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { GetApp as ExportIcon } from '@mui/icons-material';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounterClass) => {
@@ -196,18 +204,6 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
         </Button>
       </CardActions>
 
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={() => { handleMenuClose(); window.print(); }}>
-          <ListItemIcon>
-            <PrintIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Print Summary</ListItemText>
-        </MenuItem>
-      </Menu>
     </Card>
   );
 };
@@ -215,7 +211,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
 const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'timeline'
   const [filterType, setFilterType] = useState('all');
@@ -223,7 +219,17 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [newEncounterData, setNewEncounterData] = useState({
+    type: 'AMB',
+    reasonForVisit: '',
+    provider: '',
+    startDate: new Date().toISOString().split('T')[0],
+    startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
+  });
 
   useEffect(() => {
     setLoading(false);
@@ -238,6 +244,148 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const handleCloseSummaryDialog = () => {
     setSummaryDialogOpen(false);
     setSelectedEncounter(null);
+  };
+
+  const handleNewEncounter = () => {
+    setNewEncounterDialogOpen(true);
+  };
+
+  const handlePrintEncounters = () => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+    
+    const content = formatEncountersForPrint(sortedEncounters);
+    
+    printDocument({
+      title: 'Patient Encounters',
+      patient: patientInfo,
+      content
+    });
+  };
+
+  const handleExportEncounters = (format) => {
+    exportClinicalData({
+      patient: currentPatient,
+      data: filteredEncounters,
+      columns: EXPORT_COLUMNS.encounters,
+      format,
+      title: 'Encounter_History',
+      formatForPrint: (data) => {
+        let html = '<h2>Encounter History</h2>';
+        data.forEach(encounter => {
+          const startDate = encounter.period?.start ? format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
+          const endDate = encounter.period?.end ? format(parseISO(encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
+          
+          html += `
+            <div class="section">
+              <h3>${getEncounterTypeLabel(encounter)}</h3>
+              <p><strong>Status:</strong> ${encounter.status}</p>
+              <p><strong>Start:</strong> ${startDate}</p>
+              <p><strong>End:</strong> ${endDate}</p>
+              ${encounter.participant?.[0]?.individual?.display ? 
+                `<p><strong>Provider:</strong> ${encounter.participant[0].individual.display}</p>` : ''}
+              ${encounter.location?.[0]?.location?.display ? 
+                `<p><strong>Location:</strong> ${encounter.location[0].location.display}</p>` : ''}
+              ${encounter.reasonCode?.[0]?.text ? 
+                `<p><strong>Reason:</strong> ${encounter.reasonCode[0].text}</p>` : ''}
+            </div>
+          `;
+        });
+        return html;
+      }
+    });
+  };
+  
+  const handleCreateEncounter = async () => {
+    try {
+      // Create FHIR Encounter resource
+      const encounter = {
+        resourceType: 'Encounter',
+        status: 'in-progress',
+        class: {
+          system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+          code: newEncounterData.type,
+          display: newEncounterData.type === 'AMB' ? 'ambulatory' : 
+                  newEncounterData.type === 'IMP' ? 'inpatient' : 
+                  newEncounterData.type === 'EMER' ? 'emergency' : 'ambulatory'
+        },
+        type: [{
+          text: 'Office Visit'
+        }],
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        period: {
+          start: `${newEncounterData.startDate}T${newEncounterData.startTime}:00`
+        },
+        reasonCode: newEncounterData.reasonForVisit ? [{
+          text: newEncounterData.reasonForVisit
+        }] : [],
+        participant: newEncounterData.provider ? [{
+          type: [{
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/v3-ParticipationType',
+              code: 'ATND',
+              display: 'attender'
+            }]
+          }],
+          individual: {
+            display: newEncounterData.provider
+          }
+        }] : []
+      };
+
+      const response = await fetch('/fhir/R4/Encounter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(encounter)
+      });
+
+      if (response.ok) {
+        // Refresh patient resources to show new encounter
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+          detail: { patientId } 
+        }));
+        
+        setNewEncounterDialogOpen(false);
+        setNewEncounterData({
+          type: 'AMB',
+          reasonForVisit: '',
+          provider: '',
+          startDate: new Date().toISOString().split('T')[0],
+          startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
+        });
+
+        setSnackbar({
+          open: true,
+          message: 'New encounter created successfully',
+          severity: 'success'
+        });
+      } else {
+        throw new Error(`Failed to create encounter: ${response.statusText}`);
+        setSnackbar({
+          open: true,
+          message: 'Failed to create encounter',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      // Handle error
+      setSnackbar({
+        open: true,
+        message: 'Failed to create encounter: ' + error.message,
+        severity: 'error'
+      });
+    }
   };
 
   // Get encounters
@@ -300,7 +448,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          disabled
+          onClick={handleNewEncounter}
         >
           New Encounter
         </Button>
@@ -365,6 +513,20 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
             onClick={() => setViewMode('timeline')}
           >
             Timeline
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={handlePrintEncounters}
+          >
+            Print
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ExportIcon />}
+            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+          >
+            Export
           </Button>
         </Stack>
       </Paper>
@@ -443,12 +605,113 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       )}
 
       {/* Encounter Summary Dialog */}
+      {/* Export Menu */}
+      <Menu
+        anchorEl={exportAnchorEl}
+        open={Boolean(exportAnchorEl)}
+        onClose={() => setExportAnchorEl(null)}
+      >
+        <MenuItem onClick={() => { handleExportEncounters('csv'); setExportAnchorEl(null); }}>
+          Export as CSV
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportEncounters('json'); setExportAnchorEl(null); }}>
+          Export as JSON
+        </MenuItem>
+        <MenuItem onClick={() => { handleExportEncounters('pdf'); setExportAnchorEl(null); }}>
+          Export as PDF
+        </MenuItem>
+      </Menu>
+
       <EncounterSummaryDialog
         open={summaryDialogOpen}
         onClose={handleCloseSummaryDialog}
         encounter={selectedEncounter}
         patientId={patientId}
       />
+
+      {/* New Encounter Dialog */}
+      <Dialog open={newEncounterDialogOpen} onClose={() => setNewEncounterDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>New Encounter</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel>Encounter Type</InputLabel>
+              <Select
+                value={newEncounterData.type}
+                onChange={(e) => setNewEncounterData({ ...newEncounterData, type: e.target.value })}
+                label="Encounter Type"
+              >
+                <MenuItem value="AMB">Ambulatory (Office Visit)</MenuItem>
+                <MenuItem value="IMP">Inpatient</MenuItem>
+                <MenuItem value="EMER">Emergency</MenuItem>
+                <MenuItem value="HH">Home Health</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField
+              fullWidth
+              label="Reason for Visit"
+              value={newEncounterData.reasonForVisit}
+              onChange={(e) => setNewEncounterData({ ...newEncounterData, reasonForVisit: e.target.value })}
+              multiline
+              rows={2}
+            />
+
+            <TextField
+              fullWidth
+              label="Provider"
+              value={newEncounterData.provider}
+              onChange={(e) => setNewEncounterData({ ...newEncounterData, provider: e.target.value })}
+              placeholder="Enter provider name"
+            />
+
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Date"
+                type="date"
+                value={newEncounterData.startDate}
+                onChange={(e) => setNewEncounterData({ ...newEncounterData, startDate: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                label="Time"
+                type="time"
+                value={newEncounterData.startTime}
+                onChange={(e) => setNewEncounterData({ ...newEncounterData, startTime: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewEncounterDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleCreateEncounter}
+            disabled={!newEncounterData.reasonForVisit.trim()}
+          >
+            Create Encounter
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

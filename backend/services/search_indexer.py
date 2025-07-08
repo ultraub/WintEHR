@@ -155,7 +155,7 @@ class SearchParameterIndexer:
             # Store each value
             for value in values:
                 await self._store_search_param(
-                    resource_id, param_name, param_type, value
+                    resource_id, resource_type, param_name, param_type, value
                 )
     
     def _extract_values(
@@ -239,6 +239,7 @@ class SearchParameterIndexer:
     async def _store_search_param(
         self,
         resource_id: uuid.UUID,
+        resource_type: str,
         param_name: str,
         param_type: str,
         value: Any
@@ -247,6 +248,7 @@ class SearchParameterIndexer:
         # Prepare values based on type
         values = {
             "resource_id": resource_id,
+            "resource_type": resource_type,
             "param_name": param_name,
             "param_type": param_type,
             "value_string": None,
@@ -274,7 +276,7 @@ class SearchParameterIndexer:
                 if "coding" in value and isinstance(value["coding"], list):
                     for coding in value["coding"]:
                         await self._store_search_param(
-                            resource_id, param_name, param_type, coding
+                            resource_id, resource_type, param_name, param_type, coding
                         )
                     return
                 else:
@@ -321,11 +323,11 @@ class SearchParameterIndexer:
         if has_value:
             query = text("""
                 INSERT INTO fhir.search_params (
-                    resource_id, param_name, param_type,
+                    resource_id, resource_type, param_name, param_type,
                     value_string, value_number, value_date,
                     value_token_system, value_token_code
                 ) VALUES (
-                    :resource_id, :param_name, :param_type,
+                    :resource_id, :resource_type, :param_name, :param_type,
                     :value_string, :value_number, :value_date,
                     :value_token_system, :value_token_code
                 )
