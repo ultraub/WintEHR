@@ -115,7 +115,7 @@ const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }
         setTotalCount(0);
       }
     } catch (err) {
-      console.error('Error fetching audit events:', err);
+      
       setError('Failed to load audit trail');
     } finally {
       setLoading(false);
@@ -361,7 +361,7 @@ const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }
                     <IconButton
                       size="small"
                       onClick={() => {
-                        console.log('Audit Event Details:', event);
+                        
                         // TODO: Implement detail view modal
                       }}
                     >

@@ -14,6 +14,8 @@ from anthropic import AsyncAnthropic
 
 from core.fhir.storage import FHIRStorageEngine
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
 
 
 class ClinicalCanvasService:
@@ -295,7 +297,7 @@ class ClinicalCanvasService:
                         fhir_data[resource_name] = None
                         
                 except Exception as e:
-                    print(f"Error fetching {resource_name}: {e}")
+                    logging.error(f"Error fetching {resource_name}: {e}")
                     fhir_data[resource_name] = None
         
         return fhir_data

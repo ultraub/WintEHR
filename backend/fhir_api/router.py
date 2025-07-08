@@ -27,6 +27,7 @@ from fhir.resources.capabilitystatement import (
     CapabilityStatementRestResourceInteraction,
     CapabilityStatementRestResourceSearchParam
 )
+import logging
 
 
 # Create main FHIR router
@@ -168,15 +169,15 @@ async def process_bundle(
     
     try:
         response_bundle = await storage.process_bundle(bundle)
-        print(f"DEBUG: Response bundle type: {type(response_bundle)}")
+        logging.debug(f"DEBUG: Response bundle type: {type(response_bundle)}")
         if response_bundle is None:
-            print("ERROR: Response bundle is None!")
+            logging.error("ERROR: Response bundle is None!")
             raise HTTPException(status_code=500, detail="Bundle processing returned None")
         return response_bundle.dict()
     except Exception as e:
         import traceback
-        print(f"ERROR in process_bundle: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"ERROR in process_bundle: {e}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -433,22 +434,22 @@ async def create_resource(
     except TypeError as e:
         # This is likely the "an integer is required (got type str)" error
         import traceback
-        print(f"TypeError in create_resource: {e}")
-        print(f"Resource type: {resource_type}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"TypeError in create_resource: {e}")
+        logging.info(f"Resource type: {resource_type}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         # Try to identify which field is causing the issue
         if resource_type == "Observation" and "component" in resource_data:
-            print("DEBUG: Checking component structure...")
+            logging.debug("DEBUG: Checking component structure...")
             for i, comp in enumerate(resource_data.get("component", [])):
                 if "valueQuantity" in comp:
                     vq = comp["valueQuantity"]
-                    print(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
+                    logging.info(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         import traceback
-        print(f"Error in create_resource: {e}")
-        print(f"Resource type: {resource_type}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"Error in create_resource: {e}")
+        logging.info(f"Resource type: {resource_type}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -642,13 +643,12 @@ async def patient_everything(
                     count += 1
                 
                 if count > 0:
-                    print(f"Found {count} {resource_type} resources for patient {patient_id}")
-                                    
+                    logging.info(f"Found {count} {resource_type} resources for patient {patient_id}")
             except Exception as e:
                 # Log the exception but continue
                 import traceback
-                print(f"Error searching {resource_type}: {e}")
-                print(traceback.format_exc())
+                logging.error(f"Error searching {resource_type}: {e}")
+                logging.info(traceback.format_exc())
                 pass
         
         # Create the bundle

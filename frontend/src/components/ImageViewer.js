@@ -80,7 +80,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
         try {
           cornerstone.disable(viewerRef.current);
         } catch (err) {
-          console.warn('Error disabling cornerstone:', err);
+          
         }
       }
     };
@@ -95,7 +95,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
       // Enable the viewer element
       const element = viewerRef.current;
       if (!element) {
-        console.error('Viewer element not ready');
+        
         setError('Viewer is initializing, please try again');
         setLoading(false);
         return;
@@ -104,7 +104,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
       // Check element dimensions
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
-        console.error('Viewer element has no dimensions', rect);
+        
         setError('Viewer container not properly sized');
         setLoading(false);
         return;
@@ -116,7 +116,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
       try {
         cornerstone.enable(element);
       } catch (err) {
-        console.warn('Cornerstone already enabled:', err);
+        
       }
 
       // Create a simple canvas with demo image
@@ -202,7 +202,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
       cornerstoneTools.setToolActive('Pan', { mouseButtonMask: 1 });
       
     } catch (err) {
-      console.error('Error initializing viewer:', err);
+      
       setError(err.message || 'Failed to initialize image viewer');
       setLoading(false);
     }
@@ -235,7 +235,7 @@ const ImageViewer = ({ studyId, seriesId, onClose }) => {
         sliceThickness: image.sliceThickness ? `${image.sliceThickness.toFixed(2)} mm` : 'N/A'
       });
     } catch (err) {
-      console.error('Error loading image:', err);
+      
       setError('Failed to load image');
     }
   };

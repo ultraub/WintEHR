@@ -47,7 +47,7 @@ cornerstoneWADOImageLoader.configure({
     }
   },
   errorInterceptor: function(error) {
-    console.error('WADO Image Loader Error:', error);
+    
   }
 });
 
@@ -84,7 +84,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
         try {
           cornerstone.disable(viewerRef.current);
         } catch (err) {
-          console.warn('Error disabling cornerstone:', err);
+          
         }
       }
     };
@@ -192,8 +192,8 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
         }
         
       } catch (err) {
-        console.error('ImageViewerV2: Error loading DICOM data:', err);
-        console.error('ImageViewerV2: Error details:', err.message, err.stack);
+        
+        
         // Set error info for display later
         setImageInfo({
           studyUID: studyId,
@@ -208,7 +208,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
       setLoading(false);
       
     } catch (err) {
-      console.error('Error fetching image data:', err);
+      
       setError(err.message || 'Failed to load image data');
       setLoading(false);
     }
@@ -218,7 +218,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
     try {
       const element = viewerRef.current;
       if (!element) {
-        console.error('initializeCornerstoneViewer: No element found');
+        
         return;
       }
 
@@ -226,7 +226,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
       try {
         cornerstone.enable(element);
       } catch (err) {
-        console.warn('Cornerstone already enabled:', err);
+        
       }
 
       // Add and configure tools
@@ -244,7 +244,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
         cornerstone.displayImage(element, demoImage);
       }
     } catch (err) {
-      console.error('Error initializing cornerstone viewer:', err);
+      
       setError('Failed to initialize image viewer');
     }
   };
@@ -295,7 +295,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
     try {
       const element = viewerRef.current;
       if (!element) {
-        console.error('loadAndDisplayImage: No viewer element');
+        
         return;
       }
 
@@ -331,7 +331,7 @@ const ImageViewerV2 = ({ studyId, seriesId, fhirStudy, onClose }) => {
         }));
       }
     } catch (err) {
-      console.error('Error loading image:', err);
+      
       // Try to display a fallback
       const demoImage = createDemoImage();
       cornerstone.displayImage(viewerRef.current, demoImage);

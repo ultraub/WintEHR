@@ -614,7 +614,7 @@ export function FHIRResourceProvider({ children }) {
       
       results.forEach(result => {
         if (result.error) {
-          console.warn(`Error fetching ${result.resourceType}:`, result.error);
+          
         }
         bundle[result.resourceType || 'unknown'] = result.resources || [];
       });
@@ -626,7 +626,7 @@ export function FHIRResourceProvider({ children }) {
       setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
       return bundle;
     } catch (error) {
-      console.error('Error fetching patient bundle:', error);
+      
       throw error;
     }
   }, [searchResources, getCachedData, setCachedData]);
@@ -661,7 +661,7 @@ export function FHIRResourceProvider({ children }) {
       
       return patient;
     } catch (error) {
-      console.error('Error setting current patient:', error);
+      
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
       throw error;
     }
@@ -673,7 +673,7 @@ export function FHIRResourceProvider({ children }) {
       dispatch({ type: FHIR_ACTIONS.SET_CURRENT_ENCOUNTER, payload: encounter });
       return encounter;
     } catch (error) {
-      console.error('Error setting current encounter:', error);
+      
       throw error;
     }
   }, [fetchResource]);
@@ -700,7 +700,6 @@ export function FHIRResourceProvider({ children }) {
 
   const refreshPatientResources = useCallback(async (patientId) => {
     try {
-      console.log(`Refreshing resources for patient ${patientId}`);
       
       // Clear the patient bundle cache
       const cacheKey = `patient_bundle_${patientId}`;
@@ -760,9 +759,8 @@ export function FHIRResourceProvider({ children }) {
       // Force refresh the patient bundle
       await fetchPatientBundle(patientId, true);
       
-      console.log(`Patient ${patientId} resources refreshed successfully`);
     } catch (error) {
-      console.error(`Error refreshing patient ${patientId} resources:`, error);
+      
       throw error;
     }
   }, [fetchPatientBundle]);

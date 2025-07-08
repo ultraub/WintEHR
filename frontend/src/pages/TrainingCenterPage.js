@@ -320,7 +320,7 @@ function TrainingCenterPage() {
                           window.open(module.externalUrl, '_blank');
                         } else {
                           // Handle regular training modules
-                          console.log('Starting module:', module.title);
+                          // Handle regular training modules
                         }
                       }}
                     >

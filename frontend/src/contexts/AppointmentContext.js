@@ -230,7 +230,7 @@ export function AppointmentProvider({ children }) {
       
       return { appointments, total };
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      
       dispatch({
         type: APPOINTMENT_ACTIONS.FETCH_APPOINTMENTS_ERROR,
         payload: error.response?.data?.message || 'Failed to fetch appointments'
@@ -271,7 +271,7 @@ export function AppointmentProvider({ children }) {
       
       return response.resource || fhirAppointment;
     } catch (error) {
-      console.error('Error creating appointment:', error);
+      
       dispatch({
         type: APPOINTMENT_ACTIONS.CREATE_APPOINTMENT_ERROR,
         payload: error.response?.data?.message || 'Failed to create appointment'
@@ -302,7 +302,7 @@ export function AppointmentProvider({ children }) {
       
       return updateData;
     } catch (error) {
-      console.error('Error updating appointment:', error);
+      
       dispatch({
         type: APPOINTMENT_ACTIONS.UPDATE_APPOINTMENT_ERROR,
         payload: error.response?.data?.message || 'Failed to update appointment'
@@ -323,7 +323,7 @@ export function AppointmentProvider({ children }) {
       
       return await updateAppointment(appointmentId, updateData);
     } catch (error) {
-      console.error('Error cancelling appointment:', error);
+      
       throw error;
     }
   }, [updateAppointment]);
@@ -339,7 +339,7 @@ export function AppointmentProvider({ children }) {
       
       return await updateAppointment(appointmentId, updateData);
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
+      
       throw error;
     }
   }, [updateAppointment]);
@@ -367,7 +367,7 @@ export function AppointmentProvider({ children }) {
         payload: appointmentId
       });
     } catch (error) {
-      console.error('Error deleting appointment:', error);
+      
       dispatch({
         type: APPOINTMENT_ACTIONS.DELETE_APPOINTMENT_ERROR,
         payload: error.response?.data?.message || 'Failed to delete appointment'
@@ -382,7 +382,7 @@ export function AppointmentProvider({ children }) {
       const appointment = await fhirClient.read('Appointment', appointmentId);
       return appointment;
     } catch (error) {
-      console.error('Error fetching appointment:', error);
+      
       throw error;
     }
   }, []);

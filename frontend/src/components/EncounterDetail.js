@@ -151,7 +151,7 @@ const EncounterDetail = ({
         provider: providerResponse.data
       });
     } catch (error) {
-      console.error('Error fetching encounter data:', error);
+      
     } finally {
       setLoading(false);
     }

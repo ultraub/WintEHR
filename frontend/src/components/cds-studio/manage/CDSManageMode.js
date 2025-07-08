@@ -59,7 +59,7 @@ const CDSManageMode = () => {
       const customHooks = await cdsHooksService.getHooks();
       setHooks(customHooks);
     } catch (error) {
-      console.error('Failed to load hooks:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -76,7 +76,7 @@ const CDSManageMode = () => {
         await cdsHooksService.deleteHook(hookId);
         await loadHooks();
       } catch (error) {
-        console.error('Failed to delete hook:', error);
+        
       }
     }
   };
@@ -97,7 +97,7 @@ const CDSManageMode = () => {
       await cdsHooksService.createHook(duplicate);
       await loadHooks();
     } catch (error) {
-      console.error('Failed to duplicate hook:', error);
+      
     }
   };
 

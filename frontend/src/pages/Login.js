@@ -56,7 +56,7 @@ const Login = () => {
       }));
       setProviders(formattedProviders);
     } catch (error) {
-      console.error('Error loading providers:', error);
+      
       setError('Failed to load provider list. Please refresh and try again.');
     }
   };
@@ -74,7 +74,7 @@ const Login = () => {
       await login(selectedProvider);
       navigate('/patients');
     } catch (error) {
-      console.error('Login error:', error);
+      
       setError(error.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

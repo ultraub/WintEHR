@@ -245,7 +245,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
       // Call the parent onSave callback to close the builder and refresh
       await onSave(hookData);
     } catch (error) {
-      console.error('Error saving hook:', error);
+      
       alert(`Error saving hook: ${error.message}`);
     }
   };

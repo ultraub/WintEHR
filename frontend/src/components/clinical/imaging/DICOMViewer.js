@@ -138,7 +138,7 @@ const DICOMViewer = ({ study, onClose }) => {
       setCurrentInstanceIndex(0);
       
     } catch (err) {
-      console.error('Failed to load DICOM study:', err);
+      
       setError(err.message || 'Failed to load DICOM study');
     } finally {
       setLoading(false);
@@ -184,7 +184,7 @@ const DICOMViewer = ({ study, onClose }) => {
     }
     
     // Should not reach here
-    console.error('Unable to determine study directory for:', studyObj);
+    
     return null;
   };
 
@@ -214,7 +214,7 @@ const DICOMViewer = ({ study, onClose }) => {
       img.src = imageUrl;
       
     } catch (err) {
-      console.error('Failed to load instance image:', err);
+      
       setError('Failed to load DICOM image');
     }
   };

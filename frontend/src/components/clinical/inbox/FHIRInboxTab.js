@@ -119,7 +119,7 @@ const FHIRInboxTab = () => {
 
       setMessages(filtered);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ const FHIRInboxTab = () => {
       await fhirClient.update('Communication', message.id, comm);
       await loadMessages();
     } catch (error) {
-      console.error('Error marking message as read:', error);
+      
     }
   };
 
@@ -171,7 +171,7 @@ const FHIRInboxTab = () => {
       await fhirClient.update('Communication', message.id, comm);
       await loadMessages();
     } catch (error) {
-      console.error('Error toggling star:', error);
+      
     }
   };
 
@@ -210,7 +210,7 @@ const FHIRInboxTab = () => {
       resetNewMessage();
       setReplyTo(null);
     } catch (error) {
-      console.error('Error sending message:', error);
+      
       alert('Failed to send message: ' + error.message);
     }
   };
@@ -225,7 +225,7 @@ const FHIRInboxTab = () => {
       await loadMessages();
       setSelectedMessage(null);
     } catch (error) {
-      console.error('Error deleting message:', error);
+      
       alert('Failed to delete message: ' + error.message);
     }
   };

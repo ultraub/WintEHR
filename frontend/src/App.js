@@ -8,6 +8,7 @@ import { createMedicalTheme } from './themes/medicalTheme';
 
 import Layout from './components/Layout';
 import LayoutV3 from './components/LayoutV3';
+import ErrorBoundary from './components/ErrorBoundary';
 import ClinicalLayout from './components/ClinicalLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -35,17 +36,7 @@ import TestPage from './pages/TestPage';
 // Clinical Components
 import ClinicalWorkspaceV3 from './components/clinical/ClinicalWorkspaceV3';
 import PatientDashboardV2Page from './pages/PatientDashboardV2Page';
-import { AuthProvider } from './contexts/AuthContext';
-import { WebSocketProvider } from './contexts/WebSocketContext';
-import { ClinicalProvider } from './contexts/ClinicalContext';
-import { DocumentationProvider } from './contexts/DocumentationContext';
-import { OrderProvider } from './contexts/OrderContext';
-import { TaskProvider } from './contexts/TaskContext';
-import { InboxProvider } from './contexts/InboxContext';
-import { AppointmentProvider } from './contexts/AppointmentContext';
-import { FHIRResourceProvider } from './contexts/FHIRResourceContext';
-import { WorkflowProvider } from './contexts/WorkflowContext';
-import { ClinicalWorkflowProvider } from './contexts/ClinicalWorkflowContext';
+import { AppProviders } from './providers/AppProviders';
 
 // Create a context for medical theme toggling
 export const MedicalThemeContext = React.createContext();
@@ -80,21 +71,12 @@ function App() {
       onThemeChange: handleThemeChange, 
       onModeChange: handleModeChange 
     }}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <AuthProvider>
-            <WebSocketProvider>
-              <FHIRResourceProvider>
-                <WorkflowProvider>
-                  <ClinicalProvider>
-                    <DocumentationProvider>
-                      <OrderProvider>
-                        <TaskProvider>
-                          <InboxProvider>
-                            <AppointmentProvider>
-                              <ClinicalWorkflowProvider>
-                          <Router>
+      <ErrorBoundary>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <AppProviders>
+              <Router>
                       <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/" element={<Navigate to="/patients" replace />} />
@@ -275,20 +257,11 @@ function App() {
                           </ProtectedRoute>
                         } />
                       </Routes>
-                    </Router>
-                              </ClinicalWorkflowProvider>
-                            </AppointmentProvider>
-                          </InboxProvider>
-                        </TaskProvider>
-                      </OrderProvider>
-                    </DocumentationProvider>
-                  </ClinicalProvider>
-                </WorkflowProvider>
-              </FHIRResourceProvider>
-            </WebSocketProvider>
-          </AuthProvider>
+              </Router>
+            </AppProviders>
         </LocalizationProvider>
       </ThemeProvider>
+      </ErrorBoundary>
     </MedicalThemeContext.Provider>
   );
 }

@@ -171,7 +171,7 @@ const ResultsTab = () => {
           // Ignore legacy API errors
         }
       } catch (imagingError) {
-        console.error('Error loading imaging studies:', imagingError);
+        
         setImagingResults([]);
       }
       
@@ -231,19 +231,19 @@ const ResultsTab = () => {
         
         setImagingResults(studies);
       } catch (imagingError) {
-        console.error('Error loading imaging studies:', imagingError);
+        
         // Try fallback to legacy API
         try {
           const imagingResponse = await api.get(`/api/imaging/studies/${currentPatient.id}`);
           const studies = imagingResponse.data?.data || [];
           setImagingResults(studies);
         } catch (fallbackError) {
-          console.error('Fallback imaging API also failed:', fallbackError);
+          
           setImagingResults([]);
         }
       }
     } catch (error) {
-      console.error('Error loading results:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -363,7 +363,7 @@ const ResultsTab = () => {
         }, 500);
       }
     } catch (error) {
-      console.error('Error uploading DICOM files:', error);
+      
       alert('Error uploading DICOM files: ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);

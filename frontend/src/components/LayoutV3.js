@@ -318,7 +318,6 @@ function LayoutV3({ children }) {
   };
 
   const handleQuickAction = (action) => {
-    console.log('Quick action:', action);
     // Implement quick actions
   };
 

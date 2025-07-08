@@ -15,6 +15,8 @@ from sqlalchemy.orm import sessionmaker
 from main import app
 from database.database import Base, get_db
 from models.synthea_models import Patient, Encounter, Observation, Condition, Medication
+import logging
+
 
 # Test database setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_fhir_advanced.db"
@@ -332,8 +334,7 @@ class TestFHIRBatchTransaction:
         
         # Debug the second entry if it fails
         if "201 Created" not in data["entry"][1]["response"]["status"]:
-            print(f"Second entry failed: {data['entry'][1]}")
-        
+            logging.info(f"Second entry failed: {data['entry'][1]}")
         assert "201 Created" in data["entry"][1]["response"]["status"]
     
     def test_transaction_success(self):

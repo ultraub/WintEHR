@@ -90,7 +90,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
       const results = await searchService.searchMedications(query, 20);
       setMedicationOptions(results.map(searchService.formatMedication));
     } catch (error) {
-      console.error('Error searching medications:', error);
+      
       setMedicationOptions([]);
     } finally {
       setSearchLoading(false);
@@ -140,13 +140,13 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
             })));
           }
         } catch (serviceError) {
-          console.error(`Error executing CDS service ${service.id}:`, serviceError);
+          
         }
       }
       
       setCdsAlerts(allAlerts);
     } catch (error) {
-      console.error('Error checking CDS hooks:', error);
+      
     } finally {
       setCdsLoading(false);
     }

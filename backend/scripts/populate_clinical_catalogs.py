@@ -9,6 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy.orm import Session
 from database.database import get_db, engine
 from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
+import logging
+
 
 
 def populate_medication_catalog(db: Session):
@@ -128,9 +130,7 @@ def populate_medication_catalog(db: Session):
         medication = MedicationCatalog(**med_data)
         db.add(medication)
     
-    print(f"Added {len(medications)} medications to catalog")
-
-
+    logging.info(f"Added {len(medications)} medications to catalog")
 def populate_lab_test_catalog(db: Session):
     """Populate lab test catalog with common tests"""
     lab_tests = [
@@ -256,9 +256,7 @@ def populate_lab_test_catalog(db: Session):
         test = LabTestCatalog(**test_data)
         db.add(test)
     
-    print(f"Added {len(lab_tests)} lab tests to catalog")
-
-
+    logging.info(f"Added {len(lab_tests)} lab tests to catalog")
 def populate_imaging_catalog(db: Session):
     """Populate imaging study catalog"""
     imaging_studies = [
@@ -344,9 +342,7 @@ def populate_imaging_catalog(db: Session):
         study = ImagingStudyCatalog(**study_data)
         db.add(study)
     
-    print(f"Added {len(imaging_studies)} imaging studies to catalog")
-
-
+    logging.info(f"Added {len(imaging_studies)} imaging studies to catalog")
 def populate_order_sets(db: Session):
     """Populate order sets for common clinical scenarios"""
     order_sets = [
@@ -402,13 +398,10 @@ def populate_order_sets(db: Session):
         order_set = ClinicalOrderSet(**order_set_data)
         db.add(order_set)
     
-    print(f"Added {len(order_sets)} order sets")
-
-
+    logging.info(f"Added {len(order_sets)} order sets")
 def main():
     """Main function to populate all catalogs"""
-    print("Populating clinical catalogs...")
-    
+    logging.info("Populating clinical catalogs...")
     # Create tables
     from models.clinical.catalogs import Base
     Base.metadata.create_all(bind=engine)
@@ -431,10 +424,9 @@ def main():
         
         # Commit changes
         db.commit()
-        print("✓ Successfully populated all clinical catalogs")
-        
+        logging.info("✓ Successfully populated all clinical catalogs")
     except Exception as e:
-        print(f"✗ Error populating catalogs: {e}")
+        logging.error(f"✗ Error populating catalogs: {e}")
         db.rollback()
         raise
     finally:

@@ -58,7 +58,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
       const results = await searchService.searchConditions(query, 20);
       setConditionOptions(results.map(searchService.formatCondition));
     } catch (error) {
-      console.error('Error searching conditions:', error);
+      
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);

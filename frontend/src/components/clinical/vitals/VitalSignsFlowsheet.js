@@ -195,7 +195,7 @@ const VitalSignsFlowsheet = ({ patientId, height = '600px' }) => {
 
       setObservations(result.resources || []);
     } catch (err) {
-      console.error('Error fetching vital signs:', err);
+      
       setError(err.message);
     } finally {
       setLoading(false);

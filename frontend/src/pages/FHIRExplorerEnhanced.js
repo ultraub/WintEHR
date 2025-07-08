@@ -1173,7 +1173,7 @@ function FHIRExplorerEnhanced() {
         })) || [];
         setAvailablePatients(patients);
       } catch (err) {
-        console.error('Error fetching patients:', err);
+        
       }
     };
     fetchPatients();
@@ -1187,7 +1187,7 @@ function FHIRExplorerEnhanced() {
         const response = await api.get('/fhir/R4/metadata');
         setMetadata(response.data);
       } catch (err) {
-        console.error('Error fetching metadata:', err);
+        
       } finally {
         setMetadataLoading(false);
       }
@@ -1317,7 +1317,7 @@ function FHIRExplorerEnhanced() {
         severity: 'success'
       });
     } catch (err) {
-      console.error('Error executing FHIR query:', err);
+      
       setError(err.response?.data?.detail || 'Failed to execute query');
       setSnackbar({
         open: true,

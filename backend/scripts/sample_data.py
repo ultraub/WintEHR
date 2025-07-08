@@ -26,6 +26,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+import logging
+
 
 # Load environment
 load_dotenv()
@@ -40,8 +42,7 @@ class SampleDataGenerator:
         
     def create_sample_patients(self, count=5):
         """Create sample patients without using Synthea."""
-        print(f"Creating {count} sample patients...")
-        
+        logging.info(f"Creating {count} sample patients...")
         # Sample data
         first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Lisa"]
         last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
@@ -77,12 +78,10 @@ class SampleDataGenerator:
             except:
                 pass
                 
-        print(f"✅ Created {created} sample patients")
-        
+        logging.info(f"✅ Created {created} sample patients")
     def create_sample_providers(self, count=10):
         """Create sample healthcare providers."""
-        print(f"Creating {count} sample providers...")
-        
+        logging.info(f"Creating {count} sample providers...")
         specialties = [
             "Internal Medicine", "Cardiology", "Pediatrics", "Emergency Medicine",
             "Family Medicine", "Psychiatry", "Surgery", "Obstetrics and Gynecology",
@@ -131,12 +130,10 @@ class SampleDataGenerator:
             except:
                 pass
                 
-        print(f"✅ Created {created} sample providers")
-        
+        logging.info(f"✅ Created {created} sample providers")
     def create_sample_communications(self, count=5):
         """Create sample communications for testing inbox functionality."""
-        print(f"Creating {count} sample communications...")
-        
+        logging.info(f"Creating {count} sample communications...")
         topics = [
             "Lab results available",
             "Prescription refill request",
@@ -182,9 +179,7 @@ class SampleDataGenerator:
             except:
                 pass
                 
-        print(f"✅ Created {created} sample communications")
-
-
+        logging.info(f"✅ Created {created} sample communications")
 def main():
     parser = argparse.ArgumentParser(description="Generate sample data for MedGenEMR")
     parser.add_argument('--patients', type=int, default=0, help='Number of sample patients to create')
@@ -209,8 +204,6 @@ def main():
             generator.create_sample_communications(args.communications)
             
     if not any([args.all, args.patients, args.providers, args.communications]):
-        print("No data type specified. Use --help for options.")
-
-
+        logging.info("No data type specified. Use --help for options.")
 if __name__ == "__main__":
     main()

@@ -14,6 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.database import SessionLocal
 from models.clinical.notes import ClinicalNote
 from models.synthea_models import Patient, Provider, Encounter
+import logging
+
 
 # Sample note templates
 PROGRESS_NOTE_TEMPLATES = [
@@ -205,13 +207,13 @@ def create_clinical_notes():
         # Get all patients
         patients = db.query(Patient).all()
         if not patients:
-            print("No patients found. Please run patient generation first.")
+            logging.info("No patients found. Please run patient generation first.")
             return
         
         # Get all providers
         providers = db.query(Provider).all()
         if not providers:
-            print("No providers found. Please run provider generation first.")
+            logging.info("No providers found. Please run provider generation first.")
             return
         
         notes_created = 0
@@ -224,7 +226,7 @@ def create_clinical_notes():
             ).order_by(Encounter.encounter_date.desc()).limit(5).all()
             
             if not encounters:
-                print(f"No encounters found for patient {patient.first_name} {patient.last_name}")
+                logging.info(f"No encounters found for patient {patient.first_name} {patient.last_name}")
                 continue
             
             # Create 2-3 progress notes for recent encounters
@@ -297,28 +299,25 @@ def create_clinical_notes():
             # Commit every 10 notes
             if notes_created % 10 == 0:
                 db.commit()
-                print(f"Created {notes_created} clinical notes...")
-        
+                logging.info(f"Created {notes_created} clinical notes...")
         # Final commit
         db.commit()
-        print(f"\nSuccessfully created {notes_created} clinical notes!")
-        
+        logging.info(f"\nSuccessfully created {notes_created} clinical notes!")
         # Show summary
         note_counts = db.query(
             ClinicalNote.note_type,
             db.query(ClinicalNote).filter(ClinicalNote.note_type == ClinicalNote.note_type).count()
         ).group_by(ClinicalNote.note_type).all()
         
-        print("\nNote summary by type:")
+        logging.info("\nNote summary by type:")
         for note_type, count in note_counts:
-            print(f"  {note_type}: {count}")
-        
+            logging.info(f"  {note_type}: {count}")
     except Exception as e:
-        print(f"Error creating clinical notes: {e}")
+        logging.error(f"Error creating clinical notes: {e}")
         db.rollback()
     finally:
         db.close()
 
 if __name__ == "__main__":
-    print("Adding clinical notes to existing patients...")
+    logging.info("Adding clinical notes to existing patients...")
     create_clinical_notes()

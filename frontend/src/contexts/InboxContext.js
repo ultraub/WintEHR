@@ -110,7 +110,7 @@ export const InboxProvider = ({ children }) => {
         calculateStats(transformedMessages);
       }
     } catch (err) {
-      console.error('Error loading inbox items:', err);
+      
       setError(err.message || 'Failed to load messages');
     } finally {
       setLoading(false);
@@ -182,7 +182,7 @@ export const InboxProvider = ({ children }) => {
       }));
       setUnreadCount(unreadResult.total || 0);
     } catch (err) {
-      console.error('Error loading inbox stats:', err);
+      
     }
   }, [user]);
 
@@ -211,7 +211,7 @@ export const InboxProvider = ({ children }) => {
         unread: Math.max(0, prev.unread - 1)
       }));
     } catch (err) {
-      console.error('Error marking message as read:', err);
+      
       throw err;
     }
   }, []);
@@ -230,7 +230,7 @@ export const InboxProvider = ({ children }) => {
       // Reload messages
       await loadInboxItems();
     } catch (err) {
-      console.error('Error acknowledging messages:', err);
+      
       throw err;
     }
   }, [loadInboxItems]);
@@ -274,7 +274,7 @@ export const InboxProvider = ({ children }) => {
       // Reload messages
       await loadInboxItems();
     } catch (err) {
-      console.error('Error forwarding messages:', err);
+      
       throw err;
     }
   }, [user, loadInboxItems]);
@@ -326,7 +326,7 @@ export const InboxProvider = ({ children }) => {
       
       return result;
     } catch (err) {
-      console.error('Error creating message:', err);
+      
       throw err;
     }
   }, [user, loadInboxItems]);

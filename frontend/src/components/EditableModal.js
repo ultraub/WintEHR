@@ -50,7 +50,7 @@ const EditableModal = ({
       const response = await api.get('/api/providers');
       setProviders(response.data);
     } catch (err) {
-      console.error('Error fetching providers:', err);
+      
     }
   };
 
@@ -138,7 +138,7 @@ const EditableModal = ({
       onSave(response.data);
       onClose();
     } catch (err) {
-      console.error(`Error ${isEditing ? 'updating' : 'creating'} ${type}:`, err);
+      
       setError(err.response?.data?.detail || `Failed to ${isEditing ? 'update' : 'create'} ${type}`);
     } finally {
       setLoading(false);

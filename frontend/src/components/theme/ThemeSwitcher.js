@@ -384,7 +384,7 @@ const ThemeSwitcher = ({
               {showCustomization && (
                 <ThemeCustomizationPanel 
                   theme={selectedTheme}
-                  onCustomize={(options) => console.log('Customize:', options)}
+                  onCustomize={(options) => {}}
                 />
               )}
             </Box>

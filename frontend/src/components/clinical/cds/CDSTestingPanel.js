@@ -69,7 +69,7 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
         const response = await cdsHooksClient.httpClient.get('/hooks');
         setHookConfigs(response.data);
       } catch (err) {
-        console.error('Error loading CDS services:', err);
+        
         setError('Failed to load CDS services');
       }
     };
@@ -102,7 +102,7 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
       const response = await cdsHooksClient.httpClient.post(`/hooks/test/${selectedHook}`, context);
       setTestResults(response.data);
     } catch (err) {
-      console.error('Error testing hook:', err);
+      
       setError(`Test failed: ${err.response?.data?.detail || err.message}`);
     } finally {
       setLoading(false);
@@ -132,7 +132,7 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
           alerts = await cdsHooksClient.fireOrderSign(patientId, 'test-user', []);
           break;
         default:
-          if (debugMode) console.log(`Triggering ${trigger} -> ${hookType}`);
+          if (debugMode) 
       }
       
       setTestResults({
@@ -390,7 +390,7 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
                     alerts={testResults.cards}
                     mode={selectedPresentation}
                     onAlertAction={(alert, action, suggestion) => {
-                      console.log('Test Alert Action:', { alert, action, suggestion });
+                      
                     }}
                   />
                   
@@ -428,10 +428,10 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
               currentHook="patient-view"
               debugMode={debugMode}
               onHookFired={(hookType, alerts) => {
-                if (debugMode) console.log(`🔥 Hook fired: ${hookType}`, alerts);
+                if (debugMode) 
               }}
               onAlertAction={(alert, action, suggestion) => {
-                if (debugMode) console.log('🎯 Live Alert Action:', { alert, action, suggestion });
+                if (debugMode) 
               }}
             />
           </AccordionDetails>

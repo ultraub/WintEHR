@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
         try {
           setUser(JSON.parse(cachedUser));
         } catch (e) {
-          console.error('Invalid cached user data:', e);
+          
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
         }
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
       
       return provider;
     } catch (error) {
-      console.error('Login failed:', error);
+      
       throw error;
     } finally {
       setLoading(false);
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/api/auth/logout');
     } catch (error) {
-      console.error('Logout error:', error);
+      
     } finally {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');

@@ -78,7 +78,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import fhirService from '../../../../services/fhirService';
+import fhirClient from ../../../../services/fhirClient\';
 import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -916,7 +916,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       };
 
       // Save the addendum
-      const createdAddendum = await fhirService.createDocumentReference(addendumResource);
+      const createdAddendum = await fhirClient.createDocumentReference(addendumResource);
       
       // Publish DOCUMENTATION_CREATED event
       await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
@@ -943,7 +943,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       });
       
       // Refresh the documents list
-      await fhirService.refreshPatientResources(patientId);
+      await fhirClient.refreshPatientResources(patientId);
       
       // Close dialog and clear state
       setAddendumDialogOpen(false);

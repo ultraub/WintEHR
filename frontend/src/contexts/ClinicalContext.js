@@ -254,11 +254,11 @@ export const ClinicalProvider = ({ children }) => {
       localStorage.setItem('selectedPatientId', patientId);
       
     } catch (error) {
-      console.error('Error loading patient:', error);
+      
       // Add more detailed error handling
       if (error.response?.status === 404) {
         const errorMessage = 'Patient not found';
-        console.error(errorMessage);
+        
         localStorage.removeItem('selectedPatientId');
         throw new Error(errorMessage);
       }
@@ -283,7 +283,7 @@ export const ClinicalProvider = ({ children }) => {
         await loadPatient(patientId);
       }
     } catch (error) {
-      console.error('Error loading encounter:', error);
+      
       throw error;
     } finally {
       setIsLoading(false);
@@ -343,7 +343,7 @@ export const ClinicalProvider = ({ children }) => {
       setCurrentEncounter(newEncounter);
       return newEncounter;
     } catch (error) {
-      console.error('Error creating encounter:', error);
+      
       throw error;
     }
   };
@@ -376,7 +376,7 @@ export const ClinicalProvider = ({ children }) => {
     const selectedPatientId = localStorage.getItem('selectedPatientId');
     if (selectedPatientId && !currentPatient && user) {
       loadPatient(selectedPatientId).catch(error => {
-        console.error('Failed to load patient from localStorage:', error);
+        
         localStorage.removeItem('selectedPatientId');
       });
     }
@@ -390,10 +390,10 @@ export const ClinicalProvider = ({ children }) => {
       // Refresh specific data based on update type
       if (lastUpdate.resourceType === 'Observation' && currentPatient) {
         // Could trigger a refresh of observations here
-        console.log('New observation received:', lastUpdate);
+        // New observation received
       } else if (lastUpdate.resourceType === 'DiagnosticReport' && currentPatient) {
         // Could trigger a refresh of lab results here
-        console.log('New diagnostic report received:', lastUpdate);
+        // New diagnostic report received
       }
     }
   }, [lastUpdate, currentPatient]);

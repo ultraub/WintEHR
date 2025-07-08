@@ -214,7 +214,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
       const results = await searchService.searchMedications(query, 20);
       setMedicationOptions(results.map(searchService.formatMedication));
     } catch (error) {
-      console.error('Error searching medications:', error);
+      
       setMedicationOptions([]);
     } finally {
       setSearchLoading(false);
@@ -364,7 +364,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
       // Close dialog on success
       handleClose();
     } catch (err) {
-      console.error('Error saving medication:', err);
+      
       // Ensure we always set a string error message
       const errorMessage = typeof err === 'string' ? err : 
                           err?.message || 
@@ -384,7 +384,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
         await onDelete(medicationRequest.id);
         handleClose();
       } catch (err) {
-        console.error('Error deleting medication:', err);
+        
         // Ensure we always set a string error message
         const errorMessage = typeof err === 'string' ? err : 
                             err?.message || 

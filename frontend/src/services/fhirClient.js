@@ -41,14 +41,9 @@ class FHIRClient {
     try {
       const response = await this.httpClient.get('/metadata');
       this.capabilities = response.data;
-      console.log('FHIR Server Capabilities discovered:', {
-        fhirVersion: this.capabilities.fhirVersion,
-        resourceTypes: this.capabilities.rest?.[0]?.resource?.map(r => r.type),
-        supportsTransaction: this.capabilities.rest?.[0]?.interaction?.some(i => i.code === 'transaction')
-      });
       return this.capabilities;
     } catch (error) {
-      console.error('Failed to discover FHIR capabilities:', error);
+      
       // Continue without capabilities - assume basic FHIR compliance
       return null;
     }

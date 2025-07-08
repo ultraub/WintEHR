@@ -17,6 +17,8 @@ from models.synthea_models import Patient, ImagingStudy
 from pydantic import BaseModel
 from typing import Any, Optional, Dict
 from api.fhir.imaging_converter import dicom_study_to_fhir_imaging_study, create_wado_endpoint
+import logging
+
 
 router = APIRouter()
 
@@ -525,7 +527,7 @@ async def get_study_series(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in get_study_series: {e}")
+        logging.error(f"Error in get_study_series: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving series: {str(e)}")
 
 

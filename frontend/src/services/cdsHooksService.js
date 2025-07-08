@@ -205,7 +205,7 @@ class CDSHooksService {
         message: 'Hook created successfully'
       };
     } catch (error) {
-      console.error('Error creating hook:', error);
+      
       
       if (error.response?.status === 409) {
         throw new Error('Hook ID already exists. Please choose a different ID.');
@@ -243,7 +243,7 @@ class CDSHooksService {
         message: 'Hook updated successfully'
       };
     } catch (error) {
-      console.error('Error updating hook:', error);
+      
       
       if (error.response?.status === 404) {
         throw new Error('Hook not found');
@@ -267,7 +267,7 @@ class CDSHooksService {
         message: 'Hook deleted successfully'
       };
     } catch (error) {
-      console.error('Error deleting hook:', error);
+      
       
       if (error.response?.status === 404) {
         throw new Error('Hook not found');
@@ -292,7 +292,7 @@ class CDSHooksService {
         data: frontendHook
       };
     } catch (error) {
-      console.error('Error getting hook:', error);
+      
       
       if (error.response?.status === 404) {
         throw new Error('Hook not found');
@@ -317,7 +317,7 @@ class CDSHooksService {
         data: frontendHooks
       };
     } catch (error) {
-      console.error('Error listing hooks:', error);
+      
       throw new Error(`Failed to list hooks: ${error.message}`);
     }
   }
@@ -351,7 +351,7 @@ class CDSHooksService {
         message: 'Hook tested successfully'
       };
     } catch (error) {
-      console.error('Error testing hook:', error);
+      
       return {
         success: false,
         error: error.message,

@@ -80,7 +80,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       try {
         await listener(data);
       } catch (error) {
-        console.error(`Error in event listener for ${eventType}:`, error);
+        
       }
     }
     
@@ -379,44 +379,37 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       });
       
     } catch (error) {
-      console.error('Failed to load clinical context:', error);
+      
     }
   };
 
   // Helper functions for automated workflows
   const createPendingResultPlaceholder = async (orderData) => {
     // This would create a placeholder result that gets updated when actual results arrive
-    console.log('Creating pending result placeholder for:', orderData);
   };
 
   const scheduleMonitoringForMedication = async (dispenseData) => {
     // This would schedule monitoring labs based on medication type
-    console.log('Scheduling monitoring for medication:', dispenseData);
   };
 
   const createDocumentationTemplate = async (encounterData) => {
     // This would create a SOAP note template for the encounter
-    console.log('Creating documentation template for encounter:', encounterData);
   };
 
   const applyOrderSets = async (encounterData) => {
     // This would suggest order sets based on encounter type and patient problems
-    console.log('Applying order sets for encounter:', encounterData);
   };
 
   const suggestCareGoals = async (problemData) => {
     // This would suggest care plan goals based on the problem
-    console.log('Suggesting care goals for problem:', problemData);
   };
 
   const suggestOrderSets = async (problemData) => {
     // This would suggest relevant order sets for the problem
-    console.log('Suggesting order sets for problem:', problemData);
   };
 
   const suggestFollowUpOrders = async (abnormalResults) => {
     // This would suggest follow-up orders for abnormal results
-    console.log('Suggesting follow-up orders for abnormal results:', abnormalResults);
   };
 
   // Clear notifications

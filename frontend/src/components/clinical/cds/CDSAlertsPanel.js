@@ -247,7 +247,7 @@ const CDSAlertsPanel = ({
         try {
           sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
         } catch (e) {
-          console.warn('Failed to save dismissed alerts to session storage:', e);
+          
         }
         return newSet;
       });
@@ -282,7 +282,7 @@ const CDSAlertsPanel = ({
       
       // Send feedback asynchronously (don't block UI)
       cdsHooksClient.httpClient.post(`/cds-services/${alert.serviceId}/feedback`, feedback)
-        .catch(err => console.warn('Failed to send CDS feedback:', err));
+        .catch(err => );
     }
     
     if (onAlertAction) {

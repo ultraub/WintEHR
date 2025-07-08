@@ -7,6 +7,8 @@ Creates the fhir.search_params table if it doesn't exist
 import asyncio
 import asyncpg
 import os
+import logging
+
 
 async def init_search_tables():
     """Initialize search parameter tables in the database."""
@@ -20,12 +22,12 @@ async def init_search_tables():
         'password': os.getenv('DB_PASSWORD', 'emr_password')
     }
     
-    print("Connecting to database...")
+    logging.info("Connecting to database...")
     conn = await asyncpg.connect(**db_config)
     
     try:
         # Create fhir schema if it doesn't exist
-        print("Creating fhir schema if needed...")
+        logging.info("Creating fhir schema if needed...")
         await conn.execute("CREATE SCHEMA IF NOT EXISTS fhir")
         
         # Check if search_params table exists
@@ -38,15 +40,12 @@ async def init_search_tables():
         """)
         
         if table_exists:
-            print("✅ fhir.search_params table already exists")
-            
+            logging.info("✅ fhir.search_params table already exists")
             # Check record count
             count = await conn.fetchval("SELECT COUNT(*) FROM fhir.search_params")
-            print(f"   Current search parameter records: {count}")
-            
+            logging.info(f"   Current search parameter records: {count}")
         else:
-            print("❌ fhir.search_params table does not exist - creating it...")
-            
+            logging.info("❌ fhir.search_params table does not exist - creating it...")
             # Create search_params table
             await conn.execute("""
                 CREATE TABLE fhir.search_params (
@@ -67,11 +66,9 @@ async def init_search_tables():
                 )
             """)
             
-            print("✅ Created fhir.search_params table")
-            
+            logging.info("✅ Created fhir.search_params table")
             # Create indexes for better search performance
-            print("Creating indexes...")
-            
+            logging.info("Creating indexes...")
             indexes = [
                 ("idx_search_params_resource_id", "resource_id"),
                 ("idx_search_params_param_name", "param_name"),
@@ -86,23 +83,20 @@ async def init_search_tables():
                     CREATE INDEX IF NOT EXISTS {index_name} 
                     ON fhir.search_params ({columns})
                 """)
-                print(f"   ✅ Created index: {index_name}")
-            
+                logging.info(f"   ✅ Created index: {index_name}")
             # Create composite indexes for common search patterns
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_search_params_patient_lookup 
                 ON fhir.search_params (param_name, value_string) 
                 WHERE param_name IN ('patient', 'subject')
             """)
-            print("   ✅ Created patient lookup index")
-            
+            logging.info("   ✅ Created patient lookup index")
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_search_params_token_lookup 
                 ON fhir.search_params (param_name, value_token_system, value_token_code) 
                 WHERE param_type = 'token'
             """)
-            print("   ✅ Created token lookup index")
-        
+            logging.info("   ✅ Created token lookup index")
         # Check if resources table exists (should exist)
         resources_exists = await conn.fetchval("""
             SELECT EXISTS (
@@ -113,8 +107,7 @@ async def init_search_tables():
         """)
         
         if resources_exists:
-            print("✅ fhir.resources table exists")
-            
+            logging.info("✅ fhir.resources table exists")
             # Check if deleted column exists
             deleted_exists = await conn.fetchval("""
                 SELECT EXISTS (
@@ -126,26 +119,25 @@ async def init_search_tables():
             """)
             
             if not deleted_exists:
-                print("Adding deleted column to resources table...")
+                logging.info("Adding deleted column to resources table...")
                 await conn.execute("""
                     ALTER TABLE fhir.resources 
                     ADD COLUMN deleted BOOLEAN DEFAULT FALSE
                 """)
-                print("✅ Added deleted column")
+                logging.info("✅ Added deleted column")
             else:
-                print("✅ Deleted column already exists")
-            
+                logging.info("✅ Deleted column already exists")
             resource_count = await conn.fetchval("SELECT COUNT(*) FROM fhir.resources WHERE deleted = FALSE OR deleted IS NULL")
-            print(f"   Total active resources: {resource_count}")
+            logging.info(f"   Total active resources: {resource_count}")
         else:
-            print("❌ fhir.resources table does not exist!")
+            logging.info("❌ fhir.resources table does not exist!")
             return False
         
-        print("\n🎯 Database initialization complete!")
+        logging.info("\n🎯 Database initialization complete!")
         return True
         
     except Exception as e:
-        print(f"❌ Error initializing database: {e}")
+        logging.error(f"❌ Error initializing database: {e}")
         return False
         
     finally:
@@ -153,19 +145,17 @@ async def init_search_tables():
 
 async def main():
     """Main entry point."""
-    print("=== FHIR Search Tables Initialization ===\n")
-    
+    logging.info("=== FHIR Search Tables Initialization ===\n")
     success = await init_search_tables()
     
     if success:
-        print("\n✅ All search tables are ready!")
-        print("\nNext steps:")
-        print("1. Restart the backend server")
-        print("2. Test search functionality")
-        print("3. Run: python test_search_params_table.py")
+        logging.info("\n✅ All search tables are ready!")
+        logging.info("\nNext steps:")
+        logging.info("1. Restart the backend server")
+        logging.info("2. Test search functionality")
+        logging.info("3. Run: python test_search_params_table.py")
     else:
-        print("\n❌ Database initialization failed!")
-        print("Please check database connection and permissions.")
-
+        logging.info("\n❌ Database initialization failed!")
+        logging.info("Please check database connection and permissions.")
 if __name__ == '__main__':
     asyncio.run(main())

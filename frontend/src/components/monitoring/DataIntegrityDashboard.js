@@ -378,7 +378,7 @@ const DataIntegrityDashboard = () => {
       setIntegrityResults(results);
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('Failed to run integrity checks:', error);
+      
     } finally {
       setLoading(false);
     }

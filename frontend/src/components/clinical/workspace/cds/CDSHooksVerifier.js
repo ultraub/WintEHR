@@ -88,7 +88,7 @@ const CDSHooksVerifier = () => {
       const discoveredServices = await cdsHooksClient.discoverServices();
       setServices(discoveredServices);
     } catch (error) {
-      console.error('Error loading services:', error);
+      
     }
   };
 
@@ -97,7 +97,7 @@ const CDSHooksVerifier = () => {
       const result = await searchResources('Patient', { _count: 50 });
       setPatients(result.resources || []);
     } catch (error) {
-      console.error('Error loading patients:', error);
+      
     }
   };
 
@@ -139,8 +139,6 @@ const CDSHooksVerifier = () => {
         };
       }
 
-      console.log('Executing hook with context:', context);
-
       // Execute the hook
       const response = await cdsHooksClient.callService(selectedService, context);
       const endTime = Date.now();
@@ -164,10 +162,9 @@ const CDSHooksVerifier = () => {
 
       setTestResults(prev => [testResult, ...prev.slice(0, 9)]);
       
-      console.log('Hook execution result:', response);
       
     } catch (error) {
-      console.error('Hook execution failed:', error);
+      
       
       const testResult = {
         id: Date.now(),
@@ -241,7 +238,7 @@ const CDSHooksVerifier = () => {
         }
       }
     } catch (error) {
-      console.error('Batch testing failed:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -250,7 +247,6 @@ const CDSHooksVerifier = () => {
   const runComprehensiveTest = async () => {
     setLoading(true);
     try {
-      console.log('🚀 Running comprehensive CDS hooks test...');
       const results = await cdsHooksTester.runTestSuite();
       
       if (results) {
@@ -259,7 +255,7 @@ const CDSHooksVerifier = () => {
         alert('Test suite failed. Check browser console for details.');
       }
     } catch (error) {
-      console.error('Comprehensive test failed:', error);
+      
       alert(`Test failed: ${error.message}`);
     } finally {
       setLoading(false);

@@ -23,7 +23,7 @@ export const usePatientSearch = () => {
       
       return patientList;
     } catch (err) {
-      console.error('Patient search error:', err);
+      
       setError(err.message);
       setPatients([]);
       return [];

@@ -513,7 +513,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       setSelectedResultIds(new Set());
       
     } catch (error) {
-      console.error('Error acknowledging results:', error);
+      
       setSnackbar({
         open: true,
         message: 'Failed to acknowledge some results',
@@ -582,7 +582,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       content
     });
   };
-
 
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {

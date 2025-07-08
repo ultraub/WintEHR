@@ -15,6 +15,8 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import DATABASE_URL
+import logging
+
 
 async def create_resource_history_table():
     """Create the fhir.resource_history table"""
@@ -25,8 +27,7 @@ async def create_resource_history_table():
     
     try:
         async with async_session() as session:
-            print("Creating fhir.resource_history table...")
-            
+            logging.info("Creating fhir.resource_history table...")
             # Execute each SQL statement separately
             
             # 1. Create the table
@@ -48,27 +49,23 @@ async def create_resource_history_table():
                         UNIQUE (resource_id, version_id)
                 )
             """))
-            print("✓ Created table")
-            
+            logging.info("✓ Created table")
             # 2. Create indexes
             await session.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_resource_history_resource_id 
                     ON fhir.resource_history(resource_id)
             """))
-            print("✓ Created resource_id index")
-            
+            logging.info("✓ Created resource_id index")
             await session.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_resource_history_created_at 
                     ON fhir.resource_history(created_at)
             """))
-            print("✓ Created created_at index")
-            
+            logging.info("✓ Created created_at index")
             await session.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_resource_history_operation 
                     ON fhir.resource_history(operation)
             """))
-            print("✓ Created operation index")
-            
+            logging.info("✓ Created operation index")
             # 3. Add comments
             await session.execute(text("""
                 COMMENT ON TABLE fhir.resource_history IS 
@@ -99,12 +96,10 @@ async def create_resource_history_table():
                 COMMENT ON COLUMN fhir.resource_history.created_at IS 
                     'Timestamp when this version was created'
             """))
-            print("✓ Added table and column comments")
-            
+            logging.info("✓ Added table and column comments")
             await session.commit()
             
-            print("✓ Successfully created fhir.resource_history table")
-            
+            logging.info("✓ Successfully created fhir.resource_history table")
             # Verify the table was created
             result = await session.execute(text("""
                 SELECT EXISTS (
@@ -116,8 +111,7 @@ async def create_resource_history_table():
             exists = result.scalar()
             
             if exists:
-                print("✓ Table verification successful")
-                
+                logging.info("✓ Table verification successful")
                 # Get table structure
                 result = await session.execute(text("""
                     SELECT column_name, data_type, is_nullable, column_default
@@ -127,25 +121,24 @@ async def create_resource_history_table():
                     ORDER BY ordinal_position;
                 """))
                 
-                print("\nTable structure:")
-                print("-" * 80)
+                logging.info("\nTable structure:")
+                logging.info("-" * 80)
                 for row in result:
                     print(f"  {row.column_name:<20} {row.data_type:<20} "
                           f"{'NULL' if row.is_nullable == 'YES' else 'NOT NULL':<10} "
                           f"{row.column_default or ''}")
             else:
-                print("✗ Table creation failed - table does not exist")
-                
+                logging.info("✗ Table creation failed - table does not exist")
     except Exception as e:
-        print(f"\n✗ Error creating table: {e}")
-        print(f"\nError type: {type(e).__name__}")
+        logging.error(f"\n✗ Error creating table: {e}")
+        logging.error(f"\nError type: {type(e).__name__}")
         if hasattr(e, 'orig'):
-            print(f"Original error: {e.orig}")
+            logging.error(f"Original error: {e.orig}")
         raise
     finally:
         await engine.dispose()
 
 if __name__ == "__main__":
-    print("FHIR Resource History Table Creator")
-    print("=" * 80)
+    logging.info("FHIR Resource History Table Creator")
+    logging.info("=" * 80)
     asyncio.run(create_resource_history_table())

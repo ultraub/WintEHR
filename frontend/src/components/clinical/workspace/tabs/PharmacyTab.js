@@ -70,7 +70,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
-import fhirService from '../../../../services/fhirService';
+import fhirClient from ../../../../services/fhirClient\';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Medication status definitions
@@ -514,7 +514,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const handleStatusChange = useCallback(async (requestId, newStatus) => {
     try {
       // TODO: Integrate with FHIR service to update the status
-      // await fhirService.updateMedicationRequest(requestId, { status: newStatus });
+      // await fhirClient.updateMedicationRequest(requestId, { status: newStatus });
       
       setSnackbar({
         open: true,
@@ -555,7 +555,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       };
       
       // Create the MedicationDispense resource
-      const createdDispense = await fhirService.createResource('MedicationDispense', dispenseResource);
+      const createdDispense = await fhirClient.createResource('MedicationDispense', dispenseResource);
       
       // Get the current medication request to update it
       const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);
@@ -569,11 +569,11 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             numberOfRepeatsAllowed: (currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0) - 1
           }
         };
-        await fhirService.updateMedicationRequest(dispenseData.medicationRequestId, updatedRequest);
+        await fhirClient.updateMedicationRequest(dispenseData.medicationRequestId, updatedRequest);
       }
       
       // Refresh patient resources to update the UI
-      await fhirService.refreshPatientResources(patientId);
+      await fhirClient.refreshPatientResources(patientId);
       
       // Publish MEDICATION_DISPENSED event
       await publish(CLINICAL_EVENTS.MEDICATION_DISPENSED, {
@@ -609,7 +609,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       setSelectedRequest(null);
       setDispenseDialogOpen(false);
     } catch (error) {
-      console.error('Error dispensing medication:', error);
+      
       setSnackbar({
         open: true,
         message: error.message || 'Failed to dispense medication',

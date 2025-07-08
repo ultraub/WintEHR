@@ -4,12 +4,13 @@ import asyncio
 import asyncpg
 from collections import defaultdict
 from pathlib import Path
+import logging
+
 
 async def comprehensive_synthea_validation():
     """Perform comprehensive validation of Synthea data import"""
     
-    print("=== COMPREHENSIVE SYNTHEA DATA IMPORT CHECK ===\n")
-    
+    logging.info("=== COMPREHENSIVE SYNTHEA DATA IMPORT CHECK ===\n")
     # Connect to database
     conn = await asyncpg.connect(
         host='localhost',
@@ -20,9 +21,8 @@ async def comprehensive_synthea_validation():
     )
     
     # 1. Get current database counts by resource type
-    print("1. Current Database Resource Counts:")
-    print("-" * 50)
-    
+    logging.info("1. Current Database Resource Counts:")
+    logging.info("-" * 50)
     query = """
         SELECT resource_type, COUNT(*) as count
         FROM fhir.resources
@@ -37,14 +37,11 @@ async def comprehensive_synthea_validation():
     for row in rows:
         db_counts[row['resource_type']] = row['count']
         total_db += row['count']
-        print(f"{row['resource_type']:30} {row['count']:8}")
-    
-    print(f"\nTotal resources in database: {total_db}")
-    
+        logging.info(f"{row['resource_type']:30} {row['count']:8}")
+    logging.info(f"\nTotal resources in database: {total_db}")
     # 2. Check for orphaned references
-    print("\n\n2. Checking for Orphaned References:")
-    print("-" * 50)
-    
+    logging.info("\n\n2. Checking for Orphaned References:")
+    logging.info("-" * 50)
     # Check if references point to existing resources
     orphan_query = """
         WITH all_references AS (
@@ -120,16 +117,14 @@ async def comprehensive_synthea_validation():
         orphan_rows = await conn.fetch(orphan_query)
         if orphan_rows:
             for row in orphan_rows:
-                print(f"{row['resource_type']:20} {row['orphaned_refs']:8} orphaned out of {row['total_refs']:8} total")
+                logging.info(f"{row['resource_type']:20} {row['orphaned_refs']:8} orphaned out of {row['total_refs']:8} total")
         else:
-            print("✓ No orphaned references found!")
+            logging.info("✓ No orphaned references found!")
     except Exception as e:
-        print(f"Error checking orphaned references: {e}")
-    
+        logging.error(f"Error checking orphaned references: {e}")
     # 3. Check for required resource types
-    print("\n\n3. Synthea Standard Resource Type Coverage:")
-    print("-" * 50)
-    
+    logging.info("\n\n3. Synthea Standard Resource Type Coverage:")
+    logging.info("-" * 50)
     synthea_standard_types = {
         # Core patient data
         'Patient': 'Core patient demographics',
@@ -176,12 +171,10 @@ async def comprehensive_synthea_validation():
     for resource_type, description in synthea_standard_types.items():
         count = db_counts.get(resource_type, 0)
         status = "✓" if count > 0 else "✗ MISSING"
-        print(f"{resource_type:25} {status:10} {count:8}  {description}")
-    
+        logging.info(f"{resource_type:25} {status:10} {count:8}  {description}")
     # 4. Check medication references
-    print("\n\n4. Medication Reference Analysis:")
-    print("-" * 50)
-    
+    logging.info("\n\n4. Medication Reference Analysis:")
+    logging.info("-" * 50)
     med_query = """
         SELECT 
             COUNT(*) FILTER (WHERE data->'medicationReference' IS NOT NULL) as with_reference,
@@ -195,14 +188,12 @@ async def comprehensive_synthea_validation():
     med_row = await conn.fetch(med_query)
     if med_row:
         row = med_row[0]
-        print(f"MedicationRequests with reference: {row['with_reference']}")
-        print(f"MedicationRequests with concept: {row['with_concept']}")
-        print(f"Total MedicationRequests: {row['total']}")
-    
+        logging.info(f"MedicationRequests with reference: {row['with_reference']}")
+        logging.info(f"MedicationRequests with concept: {row['with_concept']}")
+        logging.info(f"Total MedicationRequests: {row['total']}")
     # 5. Check for duplicate patients
-    print("\n\n5. Duplicate Patient Check:")
-    print("-" * 50)
-    
+    logging.info("\n\n5. Duplicate Patient Check:")
+    logging.info("-" * 50)
     dup_query = """
         WITH patient_names AS (
             SELECT 
@@ -227,40 +218,35 @@ async def comprehensive_synthea_validation():
     
     dup_rows = await conn.fetch(dup_query)
     if dup_rows:
-        print("Found potential duplicate patients:")
+        logging.info("Found potential duplicate patients:")
         for row in dup_rows:
-            print(f"  {row['given']} {row['family']} (DOB: {row['birth_date']}): {row['count']} records")
+            logging.info(f"  {row['given']} {row['family']} (DOB: {row['birth_date']}): {row['count']} records")
     else:
-        print("✓ No duplicate patients found!")
-    
+        logging.info("✓ No duplicate patients found!")
     # 6. Compare with source files
-    print("\n\n6. Source File Analysis:")
-    print("-" * 50)
-    
+    logging.info("\n\n6. Source File Analysis:")
+    logging.info("-" * 50)
     # Count resources in current synthea output
     synthea_output = Path('synthea/output/fhir')
     patient_files = list(synthea_output.glob('*.json'))
     patient_files = [f for f in patient_files if 'hospitalInformation' not in f.name and 'practitionerInformation' not in f.name]
     
-    print(f"Current synthea output directory: {synthea_output}")
-    print(f"Patient files: {len(patient_files)}")
-    
+    logging.info(f"Current synthea output directory: {synthea_output}")
+    logging.info(f"Patient files: {len(patient_files)}")
     # Check backup directories
     backup_dir = Path('data/synthea_backups')
     if backup_dir.exists():
         backups = sorted(backup_dir.glob('synthea_backup_*'))
-        print(f"\nBackup directories found: {len(backups)}")
+        logging.info(f"\nBackup directories found: {len(backups)}")
         if backups:
             latest = backups[-1]
             latest_files = list(latest.glob('*.json'))
             latest_patient_files = [f for f in latest_files if 'hospitalInformation' not in f.name and 'practitionerInformation' not in f.name]
-            print(f"Latest backup: {latest.name}")
-            print(f"Latest backup patient files: {len(latest_patient_files)}")
-    
+            logging.info(f"Latest backup: {latest.name}")
+            logging.info(f"Latest backup patient files: {len(latest_patient_files)}")
     # 7. Resource creation timeline
-    print("\n\n7. Resource Import Timeline:")
-    print("-" * 50)
-    
+    logging.info("\n\n7. Resource Import Timeline:")
+    logging.info("-" * 50)
     timeline_query = """
         SELECT 
             DATE(created) as import_date,
@@ -278,19 +264,16 @@ async def comprehensive_synthea_validation():
     for row in timeline_rows:
         if row['import_date'] != current_date:
             current_date = row['import_date']
-            print(f"\n{current_date}:")
-        print(f"  {row['resource_type']:20} {row['count']:8}")
-    
+            logging.info(f"\n{current_date}:")
+        logging.info(f"  {row['resource_type']:20} {row['count']:8}")
     await conn.close()
     
     # 8. Summary and Recommendations
-    print("\n\n=== SUMMARY ===")
-    print("-" * 50)
-    
-    print(f"Total resources in database: {total_db}")
-    print(f"Resource types in database: {len(db_counts)}")
-    print(f"Current synthea output files: {len(patient_files)} patients")
-    
+    logging.info("\n\n=== SUMMARY ===")
+    logging.info("-" * 50)
+    logging.info(f"Total resources in database: {total_db}")
+    logging.info(f"Resource types in database: {len(db_counts)}")
+    logging.info(f"Current synthea output files: {len(patient_files)} patients")
     # Check for missing critical types
     missing_critical = []
     for rt in ['Patient', 'Practitioner', 'Organization', 'Location']:
@@ -298,20 +281,17 @@ async def comprehensive_synthea_validation():
             missing_critical.append(rt)
     
     if missing_critical:
-        print(f"\n⚠️  Missing critical resource types: {', '.join(missing_critical)}")
-        print("   These are typically in separate files (hospitalInformation, practitionerInformation)")
-    
+        logging.info(f"\n⚠️  Missing critical resource types: {', '.join(missing_critical)}")
+        logging.info("   These are typically in separate files (hospitalInformation, practitionerInformation)")
     # Check if counts make sense
     if db_counts.get('Patient', 0) > 0:
         avg_resources_per_patient = total_db / db_counts['Patient']
-        print(f"\nAverage resources per patient: {avg_resources_per_patient:.0f}")
-        
+        logging.info(f"\nAverage resources per patient: {avg_resources_per_patient:.0f}")
         if avg_resources_per_patient < 100:
-            print("⚠️  Low resource count per patient - may indicate incomplete import")
+            logging.info("⚠️  Low resource count per patient - may indicate incomplete import")
         elif avg_resources_per_patient > 2000:
-            print("⚠️  Very high resource count per patient - may indicate duplicate imports")
+            logging.info("⚠️  Very high resource count per patient - may indicate duplicate imports")
         else:
-            print("✓ Resource count per patient appears normal")
-
+            logging.info("✓ Resource count per patient appears normal")
 if __name__ == "__main__":
     asyncio.run(comprehensive_synthea_validation())

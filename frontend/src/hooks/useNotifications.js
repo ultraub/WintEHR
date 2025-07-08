@@ -39,7 +39,7 @@ export const useNotifications = () => {
       }
     } catch (error) {
       // Silently handle error since notifications are not critical
-      console.debug('Notifications not available:', error);
+      
       setCount(0);
     } finally {
       setLoading(false);
@@ -70,7 +70,7 @@ export const useNotifications = () => {
         return data;
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      
     }
   }, [user]);
 
@@ -108,7 +108,7 @@ export const useNotifications = () => {
         return true;
       }
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      
       return false;
     }
   }, [user]);
@@ -145,7 +145,7 @@ export const useNotifications = () => {
         return true;
       }
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      
       return false;
     }
   }, [user]);

@@ -100,7 +100,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
           // Disable cornerstone
           cornerstone.disable(element);
         } catch (err) {
-          console.warn('Error during cleanup:', err);
+          
         }
       }
     };
@@ -172,7 +172,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       setLoading(false);
       
     } catch (err) {
-      console.error('Error loading data:', err);
+      
       setError(err.message);
       setLoading(false);
     }
@@ -191,7 +191,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
         await loadAndDisplayImage(imageIds[0]);
       }
     } catch (err) {
-      console.error('Error initializing viewer:', err);
+      
       setError('Failed to initialize viewer');
     }
   };
@@ -257,7 +257,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
             cornerstone.setViewport(element, viewport);
           }
         } catch (err) {
-          console.warn('Error handling mouse move:', err);
+          
         }
         
         lastX = e.pageX;
@@ -320,7 +320,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       element.addEventListener('cornerstonenewimage', onNewImage);
 
     } catch (error) {
-      console.warn('Error setting up mouse tools:', error);
+      
     }
   };
 
@@ -358,7 +358,7 @@ const ImageViewerV2Simple = ({ studyId, seriesId, onClose }) => {
       setWindowCenter(viewport.voi.windowCenter);
       setZoom(viewport.scale);
     } catch (err) {
-      console.error('Error loading image:', err);
+      
     }
   };
 

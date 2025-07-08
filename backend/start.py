@@ -8,12 +8,14 @@ import sys
 import os
 import subprocess
 from pathlib import Path
+import logging
+
 
 def check_python_version():
     """Ensure Python version is 3.8+"""
     if sys.version_info < (3, 8):
-        print(f"Error: Python 3.8+ is required. You have Python {sys.version}")
-        print("Python 3.7 will not work due to FastAPI and Pydantic dependencies")
+        logging.error(f"Error: Python 3.8+ is required. You have Python {sys.version}")
+        logging.info("Python 3.7 will not work due to FastAPI and Pydantic dependencies")
         sys.exit(1)
 
 def check_dependencies():
@@ -24,13 +26,13 @@ def check_dependencies():
         import sqlalchemy
         import pydantic
     except ImportError as e:
-        print(f"Error: Missing dependency - {e}")
-        print("\nPlease install dependencies:")
-        print("  pip install -r requirements.txt")
-        print("\nOr use a virtual environment:")
-        print("  python -m venv venv")
-        print("  source venv/bin/activate  # On Windows: venv\\Scripts\\activate")
-        print("  pip install -r requirements.txt")
+        logging.error(f"Error: Missing dependency - {e}")
+        logging.info("\nPlease install dependencies:")
+        logging.info("  pip install -r requirements.txt")
+        logging.info("\nOr use a virtual environment:")
+        logging.info("  python -m venv venv")
+        logging.info("  source venv/bin/activate  # On Windows: venv\\Scripts\\activate")
+        logging.info("  pip install -r requirements.txt")
         sys.exit(1)
 
 def ensure_directories():
@@ -38,21 +40,18 @@ def ensure_directories():
     dirs = ['data', 'logs', 'data/synthea_output']
     for dir_name in dirs:
         Path(dir_name).mkdir(parents=True, exist_ok=True)
-    print("✓ Directories ready")
-
+    logging.info("✓ Directories ready")
 def check_database():
     """Check if database exists and is accessible"""
     db_path = Path('data/emr.db')
     if not db_path.exists():
-        print("Note: Database will be created on first run")
+        logging.info("Note: Database will be created on first run")
     else:
-        print(f"✓ Database found: {db_path}")
-
+        logging.info(f"✓ Database found: {db_path}")
 def start_backend():
     """Start the backend server"""
-    print("\n🏥 Starting EMR Backend...")
-    print("=" * 50)
-    
+    logging.info("\n🏥 Starting EMR Backend...")
+    logging.info("=" * 50)
     # Set environment variables
     os.environ['PYTHONUNBUFFERED'] = '1'
     
@@ -70,24 +69,21 @@ def start_backend():
             log_level="info"
         )
     except Exception as e:
-        print(f"\nError starting backend: {e}")
-        print("\nCommon solutions:")
-        print("1. Check if port 8000 is already in use")
-        print("2. Ensure all dependencies are installed")
-        print("3. Check the logs directory for error details")
+        logging.error(f"\nError starting backend: {e}")
+        logging.info("\nCommon solutions:")
+        logging.info("1. Check if port 8000 is already in use")
+        logging.info("2. Ensure all dependencies are installed")
+        logging.error("3. Check the logs directory for error details")
         sys.exit(1)
 
 def main():
     """Main startup function"""
-    print("EMR Backend Startup Check")
-    print("=" * 50)
-    
+    logging.info("EMR Backend Startup Check")
+    logging.info("=" * 50)
     check_python_version()
-    print("✓ Python version OK")
-    
+    logging.info("✓ Python version OK")
     check_dependencies()
-    print("✓ Dependencies installed")
-    
+    logging.info("✓ Dependencies installed")
     ensure_directories()
     check_database()
     

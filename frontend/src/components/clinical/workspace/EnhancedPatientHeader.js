@@ -342,12 +342,10 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
               title: `Patient: ${currentPatient.name?.[0]?.given?.join(' ')} ${currentPatient.name?.[0]?.family}`,
               text: 'Patient medical record',
               url: shareUrl
-            }).catch(err => console.log('Error sharing:', err));
+            }).catch(err => {});
           } else {
             // Fallback: copy to clipboard
-            navigator.clipboard.writeText(shareUrl).then(() => {
-              console.log('Share link copied to clipboard');
-            });
+            navigator.clipboard.writeText(shareUrl);
           }
         }}>
           <ListItemIcon>

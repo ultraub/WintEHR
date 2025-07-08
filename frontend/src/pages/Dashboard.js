@@ -130,7 +130,7 @@ function Dashboard() {
             
             return { data: trendData };
           } catch (error) {
-            console.error('Error fetching encounter trends:', error);
+            
             // Return empty data on error
             return {
               data: Array.from({ length: 7 }, (_, i) => ({
@@ -525,7 +525,7 @@ function Dashboard() {
       
       setError(null);
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
+      
       setError('Failed to load dashboard data');
     } finally {
       setLoading(false);

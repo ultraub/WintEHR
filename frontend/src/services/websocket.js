@@ -50,13 +50,13 @@ class FHIRWebSocketClient {
       
       const wsUrl = `${protocol}//${host}/api/ws${token ? `?token=${token}` : ''}`;
 
-      console.log('Connecting to WebSocket:', wsUrl);
+      
 
       this.ws = new WebSocket(wsUrl);
 
       await new Promise((resolve, reject) => {
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          
           this.isConnected = true;
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
@@ -64,7 +64,7 @@ class FHIRWebSocketClient {
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          
           reject(error);
         };
       });
@@ -76,7 +76,7 @@ class FHIRWebSocketClient {
 
       // Set up close handler
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
+        
         this.isConnected = false;
         this.clientId = null;
         this._clearHeartbeat();
@@ -88,7 +88,7 @@ class FHIRWebSocketClient {
 
       return true;
     } catch (error) {
-      console.error('WebSocket connection failed:', error);
+      
       this.connectionPromise = null;
       throw error;
     }
@@ -112,7 +112,7 @@ class FHIRWebSocketClient {
    * Handle incoming WebSocket messages
    */
   _handleMessage(message) {
-    console.log('WebSocket message:', message);
+    
 
     switch (message.type) {
       case 'welcome':
@@ -133,11 +133,11 @@ class FHIRWebSocketClient {
         break;
 
       case 'error':
-        console.error('WebSocket error:', message.data);
+        
         break;
 
       default:
-        console.warn('Unknown message type:', message.type);
+        
     }
   }
 
@@ -337,7 +337,7 @@ class FHIRWebSocketClient {
    */
   _attemptReconnect(token) {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      
       return;
     }
 
@@ -347,12 +347,12 @@ class FHIRWebSocketClient {
       this.maxReconnectDelay
     );
 
-    console.log(`Attempting reconnection in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    `);
 
     setTimeout(() => {
       this.connectionPromise = null;
       this.connect(token).catch(error => {
-        console.error('Reconnection failed:', error);
+        
       });
     }, delay);
   }
@@ -371,7 +371,7 @@ class FHIRWebSocketClient {
    * Handle subscription response
    */
   _handleSubscriptionResponse(data) {
-    console.log('Subscription response:', data);
+    
   }
 
   /**

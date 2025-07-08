@@ -13,13 +13,14 @@ import asyncio
 import asyncpg
 import sys
 from pathlib import Path
+import logging
+
 
 async def init_database():
     """Initialize the complete database schema."""
     
-    print("🚀 Initializing MedGenEMR Database Schema")
-    print("=" * 50)
-    
+    logging.info("🚀 Initializing MedGenEMR Database Schema")
+    logging.info("=" * 50)
     try:
         # Connect to database
         conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
@@ -131,17 +132,16 @@ async def init_database():
                 (SELECT COUNT(*) FROM fhir.resource_history) as history_count
         """)
         
-        print(f"✅ Database schema initialized successfully")
-        print(f"📊 Current counts:")
-        print(f"   - Resources: {result['resource_count']:,}")
-        print(f"   - Search params: {result['search_param_count']:,}")
-        print(f"   - History records: {result['history_count']:,}")
-        
+        logging.info(f"✅ Database schema initialized successfully")
+        logging.info(f"📊 Current counts:")
+        logging.info(f"   - Resources: {result['resource_count']:,}")
+        logging.info(f"   - Search params: {result['search_param_count']:,}")
+        logging.info(f"   - History records: {result['history_count']:,}")
         await conn.close()
         return True
         
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
+        logging.info(f"❌ Database initialization failed: {e}")
         return False
 
 if __name__ == '__main__':

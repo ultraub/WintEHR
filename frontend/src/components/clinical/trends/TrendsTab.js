@@ -107,7 +107,7 @@ const TrendsTab = () => {
       
       setVitalsData(transformedVitals);
     } catch (error) {
-      console.error('Error fetching vitals data:', error);
+      
       setVitalsData([]);
     } finally {
       setLoading(false);

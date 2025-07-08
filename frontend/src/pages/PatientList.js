@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -18,6 +18,9 @@ import {
   Badge,
   Tooltip,
   CircularProgress,
+  TablePagination,
+  LinearProgress,
+  Stack
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -32,6 +35,7 @@ import { format } from 'date-fns';
 import { fhirClient } from '../services/fhirClient';
 import PatientForm from '../components/PatientForm';
 import { getPatientDetailUrl } from '../utils/navigationUtils';
+import { debounce } from 'lodash';
 
 function PatientList() {
   const navigate = useNavigate();
@@ -44,6 +48,13 @@ function PatientList() {
   const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients - Default to All Patients
   const [myPatientsCount, setMyPatientsCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const pageSizeOptions = [10, 25, 50, 100];
 
   const columns = [
     {
@@ -111,18 +122,21 @@ function PatientList() {
     },
   ];
 
-  // Debounced search effect
+  // Initial load effect
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (activeTab === 0) {
-        fetchMyPatients();
-      } else {
-        fetchAllPatients();
-      }
-    }, 300); // 300ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, activeTab]);
+    if (activeTab === 0) {
+      fetchMyPatients();
+    } else {
+      fetchAllPatients(0, pageSize, '');
+    }
+  }, [activeTab]);
+  
+  // Separate effect for handling page/pageSize changes
+  useEffect(() => {
+    if (activeTab === 1) {
+      fetchAllPatients(page, pageSize, searchTerm);
+    }
+  }, [page, pageSize]);
 
   const fetchMyPatients = async () => {
     try {
@@ -205,27 +219,35 @@ function PatientList() {
     }
   };
 
-  const fetchAllPatients = async () => {
+  const fetchAllPatients = async (currentPage = page, currentPageSize = pageSize, searchQuery = searchTerm) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const searchParams = {
-        _count: 100,
-        _sort: '-_lastUpdated'
+        _count: currentPageSize,
+        _offset: currentPage * currentPageSize,
+        _sort: '-_lastUpdated',
+        _total: 'accurate' // Request total count
       };
       
-      if (searchTerm && searchTerm.length >= 2) {
+      if (searchQuery && searchQuery.length >= 2) {
         // FHIR search supports name parameter for patient names
         // Also search by identifier (MRN) if the search term looks like it could be an MRN
-        if (/^\d+$/.test(searchTerm)) {
+        if (/^\d+$/.test(searchQuery)) {
           // Numeric search term - search by identifier
-          searchParams.identifier = searchTerm;
+          searchParams.identifier = searchQuery;
         } else {
           // Text search term - search by name
-          searchParams.name = searchTerm;
+          searchParams.name = searchQuery;
         }
       }
       
       const result = await fhirClient.searchPatients(searchParams);
+      
+      // Extract total count from bundle
+      const total = result.total || 0;
+      setTotalCount(total);
       
       // Transform FHIR patients to expected format
       const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
@@ -280,12 +302,43 @@ function PatientList() {
       setError('Failed to load patient directory');
     } finally {
       setLoading(false);
+      setSearchLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((term) => {
+      setPage(0); // Reset to first page on new search
+      fetchAllPatients(0, pageSize, term);
+    }, 500),
+    [pageSize]
+  );
+
+  const handleSearchChange = (event) => {
+    const value = event.target.value;
+    setSearchTerm(value);
+    setSearchLoading(true);
+    debouncedSearch(value);
+  };
+
+  const handlePageChange = (event, newPage) => {
+    setPage(newPage);
+    fetchAllPatients(newPage, pageSize);
+  };
+
+  const handlePageSizeChange = (event) => {
+    const newPageSize = parseInt(event.target.value, 10);
+    setPageSize(newPageSize);
+    setPage(0);
+    fetchAllPatients(0, newPageSize);
   };
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
     setSearchTerm(''); // Clear search when switching tabs
+    setPage(0); // Reset pagination
   };
 
   const currentPatients = activeTab === 0 ? patients : allPatients;
@@ -457,16 +510,22 @@ function PatientList() {
                 : "Search all patients by name or MRN..."
             }
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon />
+                  {searchLoading ? <CircularProgress size={20} /> : <SearchIcon />}
                 </InputAdornment>
               ),
-              endAdornment: loading && searchTerm && (
+              endAdornment: searchTerm && (
                 <InputAdornment position="end">
-                  <CircularProgress size={20} />
+                  <IconButton size="small" onClick={() => { 
+                    setSearchTerm(''); 
+                    setPage(0);
+                    fetchAllPatients(0, pageSize, ''); 
+                  }}>
+                    ×
+                  </IconButton>
                 </InputAdornment>
               ),
             }}
@@ -485,28 +544,45 @@ function PatientList() {
         </Alert>
       )}
 
-      <Paper sx={{ height: 600, width: '100%' }}>
-        <DataGrid
-          rows={currentPatients}
-          columns={columns}
-          initialState={{
-            pagination: {
-              paginationModel: { pageSize: 10 },
-            },
-          }}
-          pageSizeOptions={[10, 25, 50]}
-          disableRowSelectionOnClick
-          loading={loading}
-          onRowClick={(params) => {
-            navigate(getPatientDetailUrl(params.row.id));
-          }}
-          sx={{
-            '& .MuiDataGrid-row:hover': {
-              cursor: 'pointer',
-              backgroundColor: 'rgba(233, 30, 99, 0.04)',
-            },
-          }}
-        />
+      <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        {loading && <LinearProgress />}
+        
+        <Box sx={{ flexGrow: 1, height: 500 }}>
+          <DataGrid
+            rows={currentPatients}
+            columns={columns}
+            pageSize={pageSize}
+            rowsPerPageOptions={[]}
+            checkboxSelection={false}
+            disableSelectionOnClick
+            disableColumnMenu
+            hideFooter
+            loading={loading}
+            onRowClick={(params) => {
+              navigate(getPatientDetailUrl(params.row.id));
+            }}
+            sx={{
+              '& .MuiDataGrid-row:hover': {
+                cursor: 'pointer',
+                backgroundColor: 'rgba(233, 30, 99, 0.04)',
+              },
+            }}
+          />
+        </Box>
+
+        {activeTab === 1 && (
+          <TablePagination
+            component="div"
+            count={totalCount}
+            page={page}
+            onPageChange={handlePageChange}
+            rowsPerPage={pageSize}
+            onRowsPerPageChange={handlePageSizeChange}
+            rowsPerPageOptions={pageSizeOptions}
+            showFirstButton
+            showLastButton
+          />
+        )}
       </Paper>
 
       <Dialog

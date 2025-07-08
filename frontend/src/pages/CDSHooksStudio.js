@@ -141,7 +141,7 @@ export const CDSStudioProvider = ({ children }) => {
       setTestResults(result);
       return { success: true, result };
     } catch (error) {
-      console.error('Test failed:', error);
+      
       return { success: false, error: error.message };
     }
   }, [currentHook, validateHook]);
@@ -173,7 +173,7 @@ export const CDSStudioProvider = ({ children }) => {
       });
       return true;
     } catch (error) {
-      console.error('Save failed:', error);
+      
       setSaveStatus({
         open: true,
         message: `Save failed: ${error.message}`,

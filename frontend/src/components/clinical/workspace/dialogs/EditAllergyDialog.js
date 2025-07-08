@@ -147,7 +147,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       const results = await searchService.searchAllergens(query, category);
       setAllergenOptions(results);
     } catch (error) {
-      console.error('Error searching allergens:', error);
+      
       setAllergenOptions([]);
     } finally {
       setSearchLoading(false);
@@ -267,7 +267,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       await onSave(updatedAllergyIntolerance);
       handleClose();
     } catch (err) {
-      console.error('Error saving allergy:', err);
+      
       // Ensure we always set a string error message
       const errorMessage = typeof err === 'string' ? err : 
                           err?.message || 
@@ -287,7 +287,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         await onDelete(allergyIntolerance.id);
         handleClose();
       } catch (err) {
-        console.error('Error deleting allergy:', err);
+        
         // Ensure we always set a string error message
         const errorMessage = typeof err === 'string' ? err : 
                             err?.message || 

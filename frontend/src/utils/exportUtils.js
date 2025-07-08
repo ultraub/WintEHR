@@ -145,7 +145,7 @@ export const exportClinicalData = ({
       break;
       
     default:
-      console.error('Unsupported export format:', format);
+      
   }
 };
 

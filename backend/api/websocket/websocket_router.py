@@ -34,20 +34,43 @@ async def get_current_user_ws(
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: Optional[str] = Query(None)
+    token: Optional[str] = Query(None)  # Keep for backward compatibility
 ):
     """Main WebSocket endpoint for real-time FHIR updates."""
     # Generate a unique client ID
     client_id = str(uuid.uuid4())
     
-    # Optional: Verify authentication
-    user = await get_current_user_ws(websocket, token)
-    if token and not user:
-        await websocket.close(code=4001, reason="Unauthorized")
-        return
+    # Accept connection first
+    await websocket.accept()
+    
+    # If no token in query, wait for authentication message
+    user = None
+    if token:
+        user = await get_current_user_ws(websocket, token)
+        if not user:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+    else:
+        # Wait for authentication message
+        try:
+            auth_msg = await websocket.receive_json()
+            if auth_msg.get('type') == 'authenticate' and auth_msg.get('token'):
+                payload = AuthService.decode_token(auth_msg['token'])
+                user = payload
+                # Send auth success message
+                await websocket.send_json({
+                    'type': 'auth_success',
+                    'message': 'Authentication successful'
+                })
+            else:
+                await websocket.close(code=4001, reason="Authentication required")
+                return
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            await websocket.close(code=4001, reason="Authentication failed")
+            return
         
     try:
-        # Accept connection
         await manager.connect(client_id, websocket)
         
         # Send welcome message with client ID

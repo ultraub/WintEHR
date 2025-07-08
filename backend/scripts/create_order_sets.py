@@ -9,6 +9,8 @@ import asyncio
 import json
 import httpx
 from datetime import datetime
+import logging
+
 
 FHIR_BASE_URL = "http://localhost:8000/fhir/R4"
 
@@ -360,24 +362,22 @@ async def create_order_set(order_set_data):
             )
         
         if response.status_code in [200, 201]:
-            print(f"✅ Created Order Set: {order_set_data['title']}")
+            logging.info(f"✅ Created Order Set: {order_set_data['title']}")
             return True
         else:
-            print(f"❌ Failed to create Order Set: {response.status_code}")
-            print(response.text)
+            logging.info(f"❌ Failed to create Order Set: {response.status_code}")
+            logging.info(response.text)
             return False
 
 async def main():
     """Create all order sets."""
-    print("🏥 Creating Order Sets as FHIR Questionnaires")
-    print("=" * 60)
-    
+    logging.info("🏥 Creating Order Sets as FHIR Questionnaires")
+    logging.info("=" * 60)
     created_count = 0
     for order_set in ORDER_SETS:
         if await create_order_set(order_set):
             created_count += 1
     
-    print(f"\n✅ Created {created_count}/{len(ORDER_SETS)} Order Sets")
-
+    logging.info(f"\n✅ Created {created_count}/{len(ORDER_SETS)} Order Sets")
 if __name__ == "__main__":
     asyncio.run(main())

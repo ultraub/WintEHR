@@ -274,17 +274,16 @@ class FHIRStorageEngine:
         # Extract search parameters
         try:
             await self._extract_search_parameters(resource_id, resource_type, resource_dict)
-            print(f"DEBUG: Successfully extracted search parameters for {resource_type} {fhir_id}")
+            logging.debug(f"DEBUG: Successfully extracted search parameters for {resource_type} {fhir_id}")
         except Exception as e:
-            print(f"ERROR: Failed to extract search parameters for {resource_type} {fhir_id}: {e}")
+            logging.error(f"ERROR: Failed to extract search parameters for {resource_type} {fhir_id}: {e}")
             # Don't fail the whole operation, but log the error
         
         # Extract references
         try:
             await self._extract_references(resource_id, resource_dict, "", resource_type)
         except Exception as e:
-            print(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
-        
+            logging.error(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
         await self.session.commit()
         
         # Send WebSocket notification
@@ -458,17 +457,15 @@ class FHIRStorageEngine:
         await self._delete_search_parameters(resource_id)
         try:
             await self._extract_search_parameters(resource_id, resource_type, resource_dict)
-            print(f"DEBUG: Successfully updated search parameters for {resource_type} {fhir_id}")
+            logging.debug(f"DEBUG: Successfully updated search parameters for {resource_type} {fhir_id}")
         except Exception as e:
-            print(f"ERROR: Failed to update search parameters for {resource_type} {fhir_id}: {e}")
-        
+            logging.error(f"ERROR: Failed to update search parameters for {resource_type} {fhir_id}: {e}")
         # Update references
         await self._delete_references(resource_id)
         try:
             await self._extract_references(resource_id, resource_dict, "", resource_type)
         except Exception as e:
-            print(f"ERROR: Failed to update references for {resource_type} {fhir_id}: {e}")
-        
+            logging.error(f"ERROR: Failed to update references for {resource_type} {fhir_id}: {e}")
         await self.session.commit()
         
         # Send WebSocket notification
@@ -744,19 +741,17 @@ class FHIRStorageEngine:
         request = entry.request
         resource = entry.resource
         
-        print(f"DEBUG: Processing bundle entry")
-        print(f"DEBUG: Entry type: {type(entry)}")
-        print(f"DEBUG: Has request: {request is not None}")
-        print(f"DEBUG: Has resource: {resource is not None}")
-        
+        logging.debug(f"DEBUG: Processing bundle entry")
+        logging.debug(f"DEBUG: Entry type: {type(entry)}")
+        logging.debug(f"DEBUG: Has request: {request is not None}")
+        logging.debug(f"DEBUG: Has resource: {resource is not None}")
         if not request:
             raise ValueError("Bundle entry missing request")
         
         method = request.method
         url = request.url
         
-        print(f"DEBUG: Method: {method}, URL: {url}")
-        
+        logging.debug(f"DEBUG: Method: {method}, URL: {url}")
         # Parse URL to get resource type and ID
         url_parts = url.split('/')
         resource_type = url_parts[0]
@@ -772,7 +767,7 @@ class FHIRStorageEngine:
                     resource.dict(exclude_none=True),
                     getattr(request, 'ifNoneExist', None)
                 )
-                print(f"DEBUG: Created resource - ID: {fhir_id}, Version: {version_id}")
+                logging.debug(f"DEBUG: Created resource - ID: {fhir_id}, Version: {version_id}")
                 response_entry.response = BundleEntryResponse(
                     status="201",
                     location=f"{resource_type}/{fhir_id}/_history/{version_id}",
@@ -855,7 +850,7 @@ class FHIRStorageEngine:
                     response_entry.response = BundleEntryResponse(status="200")
                     
                 except Exception as e:
-                    print(f"ERROR in batch search: {e}")
+                    logging.error(f"ERROR in batch search: {e}")
                     response_entry.response = BundleEntryResponse(
                         status="500",
                         outcome={
@@ -923,7 +918,7 @@ class FHIRStorageEngine:
         resource_data: Dict[str, Any]
     ):
         """Extract and store search parameters from a resource."""
-        print(f"DEBUG: Extracting search parameters for {resource_type} resource {resource_id}")
+        logging.debug(f"DEBUG: Extracting search parameters for {resource_type} resource {resource_id}")
         params_to_extract = []
         
         # Extract common parameters
@@ -1047,7 +1042,7 @@ class FHIRStorageEngine:
                         'value_date': effective_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
+                    logging.warning(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
             elif 'effectivePeriod' in resource_data and 'start' in resource_data['effectivePeriod']:
                 try:
                     effective_date = datetime.fromisoformat(
@@ -1059,8 +1054,7 @@ class FHIRStorageEngine:
                         'value_date': effective_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse effectivePeriod.start: {resource_data.get('effectivePeriod', {}).get('start')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse effectivePeriod.start: {resource_data.get('effectivePeriod', {}).get('start')} - {e}")
         elif resource_type == 'Condition':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -1164,8 +1158,7 @@ class FHIRStorageEngine:
                         'value_date': authored_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
         elif resource_type == 'Encounter':
             # Status
             if 'status' in resource_data:
@@ -1227,8 +1220,7 @@ class FHIRStorageEngine:
                             'value_date': period_start
                         })
                     except (ValueError, TypeError) as e:
-                        print(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
-        
+                        logging.warning(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
         elif resource_type == 'Procedure':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -1278,7 +1270,7 @@ class FHIRStorageEngine:
                         'value_date': performed_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse performedDateTime: {resource_data.get('performedDateTime')} - {e}")
+                    logging.warning(f"WARNING: Could not parse performedDateTime: {resource_data.get('performedDateTime')} - {e}")
             elif 'performedPeriod' in resource_data and 'start' in resource_data['performedPeriod']:
                 try:
                     performed_date = datetime.fromisoformat(
@@ -1290,8 +1282,7 @@ class FHIRStorageEngine:
                         'value_date': performed_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse performedPeriod.start: {resource_data.get('performedPeriod', {}).get('start')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse performedPeriod.start: {resource_data.get('performedPeriod', {}).get('start')} - {e}")
         elif resource_type == 'Immunization':
             # Vaccine code
             if 'vaccineCode' in resource_data and 'coding' in resource_data['vaccineCode']:
@@ -1333,8 +1324,7 @@ class FHIRStorageEngine:
                         'value_date': occurrence_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse occurrenceDateTime: {resource_data.get('occurrenceDateTime')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse occurrenceDateTime: {resource_data.get('occurrenceDateTime')} - {e}")
         elif resource_type == 'AllergyIntolerance':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -1416,8 +1406,7 @@ class FHIRStorageEngine:
                         'value_date': effective_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
         elif resource_type == 'CarePlan':
             # Status
             if 'status' in resource_data:
@@ -1456,8 +1445,7 @@ class FHIRStorageEngine:
                         'value_date': period_start
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
         elif resource_type == 'Claim':
             # Status
             if 'status' in resource_data:
@@ -1488,8 +1476,7 @@ class FHIRStorageEngine:
                         'value_date': created_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
         elif resource_type == 'ExplanationOfBenefit':
             # Status
             if 'status' in resource_data:
@@ -1520,12 +1507,11 @@ class FHIRStorageEngine:
                         'value_date': created_date
                     })
                 except (ValueError, TypeError) as e:
-                    print(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
-        
+                    logging.warning(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
         # Insert all search parameters
-        print(f"DEBUG: Found {len(params_to_extract)} search parameters to store")
+        logging.debug(f"DEBUG: Found {len(params_to_extract)} search parameters to store")
         for i, param in enumerate(params_to_extract):
-            print(f"DEBUG: Param {i+1}: {param}")
+            logging.debug(f"DEBUG: Param {i+1}: {param}")
             query = text("""
                 INSERT INTO fhir.search_params (
                     resource_id, resource_type, param_name, param_type,

@@ -909,7 +909,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to publish order created event:', error);
+      
     }
   };
 

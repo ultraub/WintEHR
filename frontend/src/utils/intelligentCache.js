@@ -295,7 +295,6 @@ class IntelligentCache {
     this.cleanupInterval = setInterval(() => {
       const cleaned = this.cleanup();
       if (cleaned > 0) {
-        console.log(`Cache cleanup: removed ${cleaned} expired entries`);
       }
     }, 5 * 60 * 1000);
   }
@@ -323,7 +322,7 @@ class IntelligentCache {
   prefetch(patientId, priority = 'important') {
     // Implementation would depend on specific prefetch strategy
     // This is a placeholder for prefetch logic
-    console.log(`Prefetching ${priority} data for patient ${patientId}`);
+    // Prefetching logic placeholder
   }
 }
 

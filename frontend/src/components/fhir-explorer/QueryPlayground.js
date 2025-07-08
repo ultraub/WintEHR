@@ -430,7 +430,6 @@ export const QueryPlayground = () => {
 
   const saveQuery = () => {
     // Implementation for saving queries
-    console.log('Save query:', query);
   };
 
   return (

@@ -101,7 +101,7 @@ const FHIRTasksTab = () => {
       const transformedTasks = uniqueTasks.map(transformFHIRTask);
       setTasks(transformedTasks);
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -213,7 +213,7 @@ const FHIRTasksTab = () => {
       setShowNewTaskDialog(false);
       resetNewTask();
     } catch (error) {
-      console.error('Error creating task:', error);
+      
       alert('Failed to create task: ' + error.message);
     }
   };
@@ -234,7 +234,7 @@ const FHIRTasksTab = () => {
       await fhirClient.update('Task', task.id, fhirTask);
       await loadTasks();
     } catch (error) {
-      console.error('Error updating task:', error);
+      
       alert('Failed to update task: ' + error.message);
     }
   };
@@ -248,7 +248,7 @@ const FHIRTasksTab = () => {
       await fhirClient.delete('Task', task.id);
       await loadTasks();
     } catch (error) {
-      console.error('Error deleting task:', error);
+      
       alert('Failed to delete task: ' + error.message);
     }
   };

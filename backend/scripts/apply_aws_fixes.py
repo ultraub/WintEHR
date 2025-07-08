@@ -18,6 +18,8 @@ from sqlalchemy.orm import sessionmaker
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 from database import DATABASE_URL
+import logging
+
 
 class AWSFixes:
     def __init__(self, check_only=False):
@@ -36,8 +38,7 @@ class AWSFixes:
     
     async def check_database_schema(self, session):
         """Check and fix database schema issues."""
-        print("🔍 Checking database schema...")
-        
+        logging.info("🔍 Checking database schema...")
         # Check if all required tables exist
         required_tables = {
             'fhir.resources': True,
@@ -64,8 +65,7 @@ class AWSFixes:
                     if not self.check_only:
                         await self.create_missing_table(session, schema, table_name)
                 else:
-                    print(f"  ⚠️  Optional table missing: {table}")
-        
+                    logging.info(f"  ⚠️  Optional table missing: {table}")
         # Check column types
         await self.check_column_types(session)
     
@@ -157,8 +157,7 @@ class AWSFixes:
     
     async def fix_meta_version_sync(self, session):
         """Sync meta.versionId with database version_id."""
-        print("🔧 Checking meta version sync...")
-        
+        logging.info("🔧 Checking meta version sync...")
         # Check if any resources have mismatched versions
         result = await session.execute(text("""
             SELECT COUNT(*) 
@@ -188,11 +187,11 @@ class AWSFixes:
     
     async def check_storage_file(self):
         """Check and fix storage.py issues."""
-        print("📄 Checking storage.py...")
+        logging.info("📄 Checking storage.py...")
         storage_path = Path('/app/core/fhir/storage.py')
         
         if not storage_path.exists():
-            print("  ⚠️  storage.py not found at expected location")
+            logging.info("  ⚠️  storage.py not found at expected location")
             return
         
         content = storage_path.read_text()
@@ -242,20 +241,18 @@ class AWSFixes:
     
     async def check_nginx_config(self):
         """Check nginx configuration."""
-        print("🌐 Checking nginx configuration...")
+        logging.info("🌐 Checking nginx configuration...")
         nginx_path = Path('/etc/nginx/conf.d/default.conf')
         
         # This would need to be run inside the frontend container
-        print("  ℹ️  Note: nginx checks should be run in the frontend container")
-        
+        logging.info("  ℹ️  Note: nginx checks should be run in the frontend container")
         # Check if CDS Hooks location exists
         # Would need: docker exec emr-frontend grep '/cds-hooks' /etc/nginx/conf.d/default.conf
     
     async def run(self):
         """Run all checks and fixes."""
-        print("🚀 AWS Deployment Fixes")
-        print("=" * 60)
-        
+        logging.info("🚀 AWS Deployment Fixes")
+        logging.info("=" * 60)
         async_session = await self.connect()
         
         try:
@@ -272,24 +269,20 @@ class AWSFixes:
             await self.check_nginx_config()
             
             # Summary
-            print("\n📊 Summary")
-            print("=" * 60)
-            
+            logging.info("\n📊 Summary")
+            logging.info("=" * 60)
             if self.issues_found:
-                print(f"\n❌ Issues found ({len(self.issues_found)}):")
+                logging.info(f"\n❌ Issues found ({len(self.issues_found)}):")
                 for issue in self.issues_found:
-                    print(f"  - {issue}")
+                    logging.info(f"  - {issue}")
             else:
-                print("\n✅ No issues found!")
-            
+                logging.info("\n✅ No issues found!")
             if self.fixes_applied:
-                print(f"\n✅ Fixes applied ({len(self.fixes_applied)}):")
+                logging.info(f"\n✅ Fixes applied ({len(self.fixes_applied)}):")
                 for fix in self.fixes_applied:
-                    print(f"  - {fix}")
-            
+                    logging.info(f"  - {fix}")
             if self.check_only and self.issues_found:
-                print("\n💡 Run without --check-only to apply fixes")
-        
+                logging.info("\n💡 Run without --check-only to apply fixes")
         finally:
             if self.engine:
                 await self.engine.dispose()
@@ -302,6 +295,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("Note: This script should be run on the AWS server")
-    print("Example: docker exec emr-backend python scripts/apply_aws_fixes.py")
+    logging.info("Note: This script should be run on the AWS server")
+    logging.info("Example: docker exec emr-backend python scripts/apply_aws_fixes.py")
     asyncio.run(main())

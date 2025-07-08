@@ -20,6 +20,8 @@ from services.search_indexer import SearchParameterIndexer
 from database import DATABASE_URL
 from fhir.resources.bundle import Bundle
 from fhir.resources import construct_fhir_element
+import logging
+
 
 
 class SyntheaFHIRImporter:
@@ -69,8 +71,7 @@ class SyntheaFHIRImporter:
         
         # Find all JSON files
         bundle_files = list(path.glob("*.json"))
-        print(f"Found {len(bundle_files)} JSON files to process")
-        
+        logging.info(f"Found {len(bundle_files)} JSON files to process")
         # Process each bundle
         for bundle_file in bundle_files:
             try:
@@ -80,8 +81,7 @@ class SyntheaFHIRImporter:
                     "file": str(bundle_file),
                     "error": str(e)
                 })
-                print(f"Error processing {bundle_file}: {e}")
-        
+                logging.error(f"Error processing {bundle_file}: {e}")
         return self.stats
     
     async def import_bundle_file(self, file_path: str) -> None:
@@ -91,8 +91,7 @@ class SyntheaFHIRImporter:
         Args:
             file_path: Path to FHIR bundle JSON file
         """
-        print(f"Processing bundle: {file_path}")
-        
+        logging.info(f"Processing bundle: {file_path}")
         # Read and parse bundle
         with open(file_path, 'r') as f:
             bundle_data = json.load(f)
@@ -103,22 +102,21 @@ class SyntheaFHIRImporter:
         
         # Transform bundle using profile-aware transformer
         try:
-            print("Transforming bundle for profile compatibility...")
+            logging.info("Transforming bundle for profile compatibility...")
             transformed_bundle = self.transformer.transform_bundle(bundle_data)
             
             # Try parsing the transformed bundle
             bundle = Bundle.parse_obj(transformed_bundle)
-            print("Bundle validated successfully after transformation")
+            logging.info("Bundle validated successfully after transformation")
         except Exception as e:
             # If transformation fails, try direct parsing
             error_msg = str(e).split('\n')[0][:200]
-            print(f"Bundle transformation failed: {error_msg}...")
-            
+            logging.error(f"Bundle transformation failed: {error_msg}...")
             try:
                 bundle = Bundle.parse_obj(bundle_data)
-                print("Original bundle validated successfully")
+                logging.info("Original bundle validated successfully")
             except Exception as e2:
-                print(f"Bundle validation failed, using raw data. Error: {str(e2)[:200]}...")
+                logging.error(f"Bundle validation failed, using raw data. Error: {str(e2)[:200]}...")
                 bundle = bundle_data  # Use raw dict as fallback
                 self.stats["transformation_errors"] += 1
         
@@ -157,7 +155,7 @@ class SyntheaFHIRImporter:
         """Process a transaction bundle."""
         # If bundle is a dict, process it as a collection instead
         if isinstance(bundle, dict):
-            print("Transaction bundle is raw dict, processing as collection")
+            logging.info("Transaction bundle is raw dict, processing as collection")
             await self._process_collection_bundle(
                 bundle, storage, validator, indexer, session
             )
@@ -175,8 +173,7 @@ class SyntheaFHIRImporter:
                         self.stats["resource_counts"].get(resource_type, 0) + 1
                     self.stats["resources_imported"] += 1
             
-            print(f"Successfully imported bundle with {len(bundle.entry or [])} entries")
-            
+            logging.info(f"Successfully imported bundle with {len(bundle.entry or [])} entries")
         except Exception as e:
             await session.rollback()
             raise Exception(f"Failed to process bundle: {e}")
@@ -234,15 +231,12 @@ class SyntheaFHIRImporter:
                 
                 # Transform resource for strict validation
                 try:
-                    print(f"About to transform {resource_type} with ID {resource_data.get('id', 'unknown')}")
-                    
+                    logging.info(f"About to transform {resource_type} with ID {resource_data.get('id', 'unknown')}")
                     # Debug: check if transformer detects the resource properly
                     handler = self.transformer.detect_profile(resource_data)
-                    print(f"  Detected handler: {type(handler).__name__ if handler else 'None'}")
-                    
+                    logging.info(f"  Detected handler: {type(handler).__name__ if handler else 'None'}")
                     transformed_resource = self.transformer.transform_resource(resource_data)
-                    print(f"  ✅ Transformed {resource_type}")
-                    
+                    logging.info(f"  ✅ Transformed {resource_type}")
                     # Debug: check if key transformations happened
                     if resource_type == 'Encounter':
                         original_class = resource_data.get('class')
@@ -250,25 +244,22 @@ class SyntheaFHIRImporter:
                         new_actual_period = transformed_resource.get('actualPeriod')
                         new_reason = transformed_resource.get('reason')
                         
-                        print(f"    Original class: {original_class}")
-                        print(f"    Transformed class: {new_class}")
-                        print(f"    Transformed actualPeriod: {bool(new_actual_period)}")
-                        print(f"    Transformed reason: {bool(new_reason)}")
-                        
+                        logging.info(f"    Original class: {original_class}")
+                        logging.info(f"    Transformed class: {new_class}")
+                        logging.info(f"    Transformed actualPeriod: {bool(new_actual_period)}")
+                        logging.info(f"    Transformed reason: {bool(new_reason)}")
                         original_participant = resource_data.get('participant', [{}])[0].get('individual') if resource_data.get('participant') else None
                         new_participant = transformed_resource.get('participant', [{}])[0].get('actor') if transformed_resource.get('participant') else None  
-                        print(f"    participant: individual={bool(original_participant)} -> actor={bool(new_participant)}")
-                        
+                        logging.info(f"    participant: individual={bool(original_participant)} -> actor={bool(new_participant)}")
                         # Check if transformations are actually happening
                         if original_class == new_class:
-                            print(f"    ⚠️  WARNING: class field was NOT transformed!")
+                            logging.warning(f"    ⚠️  WARNING: class field was NOT transformed!")
                         if 'period' in transformed_resource:
-                            print(f"    ⚠️  WARNING: period field still exists (should be actualPeriod)!")
+                            logging.warning(f"    ⚠️  WARNING: period field still exists (should be actualPeriod)!")
                         if 'reasonCode' in transformed_resource:
-                            print(f"    ⚠️  WARNING: reasonCode field still exists (should be reason)!")
-                    
+                            logging.warning(f"    ⚠️  WARNING: reasonCode field still exists (should be reason)!")
                 except Exception as transform_error:
-                    print(f"  ❌ Transformation error for {resource_type}: {transform_error}")
+                    logging.error(f"  ❌ Transformation error for {resource_type}: {transform_error}")
                     import traceback
                     traceback.print_exc()
                     transformed_resource = resource_data
@@ -287,16 +278,15 @@ class SyntheaFHIRImporter:
                     )
                     
                     if has_error:
-                        print(f"Validation error for {resource_type}: {[i.diagnostics for i in validation_result.issue if i.severity in ['error', 'fatal']]}")
+                        logging.error(f"Validation error for {resource_type}: {[i.diagnostics for i in validation_result.issue if i.severity in ['error', 'fatal']]}")
                         self.stats["validation_errors"] += 1
                         # Continue with transformed resource - DON'T fall back to original
-                        print(f"  ⚠️  Continuing with transformed resource despite validation errors")
+                        logging.error(f"  ⚠️  Continuing with transformed resource despite validation errors")
                 except Exception as validation_error:
-                    print(f"Validation exception for {resource_type}: {validation_error}")
+                    logging.error(f"Validation exception for {resource_type}: {validation_error}")
                     self.stats["validation_errors"] += 1
                     # Use transformed resource even if validation fails
-                    print(f"  ⚠️  Continuing with transformed resource despite validation exception")
-                
+                    logging.error(f"  ⚠️  Continuing with transformed resource despite validation exception")
                 # Create resource (use transformed version)
                 fhir_id, version_id, last_updated = await storage.create_resource(
                     resource_type,
@@ -313,12 +303,10 @@ class SyntheaFHIRImporter:
                     "resource": f"{resource_type}/{resource_data.get('id')}",
                     "error": str(e)
                 })
-                print(f"Error importing {resource_type}: {e}")
-        
+                logging.error(f"Error importing {resource_type}: {e}")
         # Commit all resources
         await session.commit()
-        print(f"Imported {len(resources_to_import)} resources from collection bundle")
-    
+        logging.info(f"Imported {len(resources_to_import)} resources from collection bundle")
     def _update_references(
         self,
         resource_data: Dict[str, Any],
@@ -441,44 +429,38 @@ async def main():
     synthea_output_dir = sys.argv[1] if len(sys.argv) > 1 else "./synthea_output/fhir"
     
     if os.path.exists(synthea_output_dir):
-        print(f"Importing FHIR bundles from {synthea_output_dir}")
+        logging.info(f"Importing FHIR bundles from {synthea_output_dir}")
         stats = await importer.import_directory(synthea_output_dir)
         
-        print("\nImport Statistics:")
-        print(f"Bundles processed: {stats['bundles_processed']}")
-        print(f"Resources imported: {stats['resources_imported']}")
-        print("\nResource counts by type:")
+        logging.info("\nImport Statistics:")
+        logging.info(f"Bundles processed: {stats['bundles_processed']}")
+        logging.info(f"Resources imported: {stats['resources_imported']}")
+        logging.info("\nResource counts by type:")
         for resource_type, count in sorted(stats['resource_counts'].items()):
-            print(f"  {resource_type}: {count}")
-        
+            logging.info(f"  {resource_type}: {count}")
         if stats['errors']:
-            print(f"\nErrors encountered: {len(stats['errors'])}")
+            logging.error(f"\nErrors encountered: {len(stats['errors'])}")
             for error in stats['errors'][:5]:  # Show first 5 errors
-                print(f"  - {error}")
-        
+                logging.error(f"  - {error}")
         # Validate import
-        print("\nValidating import...")
+        logging.info("\nValidating import...")
         validation = await importer.validate_import()
         
-        print("\nValidation Results:")
-        print("Resource counts in database:")
+        logging.info("\nValidation Results:")
+        logging.info("Resource counts in database:")
         for resource_type, count in sorted(validation['resource_counts'].items()):
-            print(f"  {resource_type}: {count}")
-        
+            logging.info(f"  {resource_type}: {count}")
         if validation['broken_references']:
-            print(f"\nBroken references found: {len(validation['broken_references'])}")
+            logging.info(f"\nBroken references found: {len(validation['broken_references'])}")
         else:
-            print("\nNo broken references found!")
-        
-        print("\nSearch index coverage:")
+            logging.info("\nNo broken references found!")
+        logging.info("\nSearch index coverage:")
         for resource_type, coverage in sorted(validation['search_index_coverage'].items()):
-            print(f"  {resource_type}: {coverage['indexed']}/{coverage['total']} ({coverage['coverage']})")
+            logging.info(f"  {resource_type}: {coverage['indexed']}/{coverage['total']} ({coverage['coverage']})")
     else:
-        print(f"Directory not found: {synthea_output_dir}")
-        print("Please run Synthea to generate test data first:")
-        print("  cd synthea")
-        print("  ./run_synthea -p 10")
-
-
+        logging.info(f"Directory not found: {synthea_output_dir}")
+        logging.info("Please run Synthea to generate test data first:")
+        logging.info("  cd synthea")
+        logging.info("  ./run_synthea -p 10")
 if __name__ == "__main__":
     asyncio.run(main())

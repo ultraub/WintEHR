@@ -11,15 +11,11 @@ const CDSDismissalTest = () => {
   const checkSessionStorage = () => {
     const sessionKey = `cds-dismissed-alerts-${testPatientId}`;
     const stored = sessionStorage.getItem(sessionKey);
-    console.log('Session Storage Key:', sessionKey);
-    console.log('Stored Dismissed Alerts:', stored);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        console.log('Parsed Dismissed Alerts:', parsed);
         alert(`Dismissed alerts for patient ${testPatientId}:\n${parsed.join('\n')}`);
       } catch (e) {
-        console.error('Failed to parse:', e);
       }
     } else {
       alert('No dismissed alerts found in session storage');

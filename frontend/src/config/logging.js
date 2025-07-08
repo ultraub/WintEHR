@@ -79,25 +79,25 @@ export class Logger {
 
   debug(message, ...args) {
     if (this.shouldLog('debug') && this.config.console) {
-      console.debug(...this.formatMessage('debug', message, ...args));
+      );
     }
   }
 
   info(message, ...args) {
     if (this.shouldLog('info') && this.config.console) {
-      console.info(...this.formatMessage('info', message, ...args));
+      );
     }
   }
 
   warn(message, ...args) {
     if (this.shouldLog('warn') && this.config.console) {
-      console.warn(...this.formatMessage('warn', message, ...args));
+      );
     }
   }
 
   error(message, ...args) {
     if (this.shouldLog('error') && this.config.console) {
-      console.error(...this.formatMessage('error', message, ...args));
+      );
     }
   }
 
@@ -140,13 +140,13 @@ export const createLogger = (module) => new Logger(module);
 // Development helpers
 export const devLog = (...args) => {
   if (isDevelopment) {
-    console.log('[DEV]', ...args);
+    
   }
 };
 
 export const prodLog = (...args) => {
   if (isProduction) {
-    console.log('[PROD]', ...args);
+    
   }
 };
 

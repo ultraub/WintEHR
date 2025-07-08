@@ -17,6 +17,8 @@ from sqlalchemy.orm import sessionmaker
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 from database import DATABASE_URL
+import logging
+
 
 class LocalFixes:
     def __init__(self, check_only=False):
@@ -35,8 +37,7 @@ class LocalFixes:
     
     async def check_database_schema(self, session):
         """Check and fix database schema issues."""
-        print("🔍 Checking database schema...")
-        
+        logging.info("🔍 Checking database schema...")
         # Check if all required tables exist
         required_tables = {
             'fhir.resources': True,
@@ -63,8 +64,7 @@ class LocalFixes:
                     if not self.check_only:
                         await self.create_missing_table(session, schema, table_name)
                 else:
-                    print(f"  ⚠️  Optional table missing: {table}")
-        
+                    logging.info(f"  ⚠️  Optional table missing: {table}")
         # Check column types
         await self.check_column_types(session)
     
@@ -156,8 +156,7 @@ class LocalFixes:
     
     async def fix_meta_version_sync(self, session):
         """Sync meta.versionId with database version_id."""
-        print("🔧 Checking meta version sync...")
-        
+        logging.info("🔧 Checking meta version sync...")
         # Check if any resources have mismatched versions
         result = await session.execute(text("""
             SELECT COUNT(*) 
@@ -187,12 +186,12 @@ class LocalFixes:
     
     async def check_storage_file(self):
         """Check and fix storage.py issues."""
-        print("📄 Checking storage.py...")
+        logging.info("📄 Checking storage.py...")
         # Local path for storage.py
         storage_path = Path(__file__).parent.parent / 'core' / 'fhir' / 'storage.py'
         
         if not storage_path.exists():
-            print(f"  ⚠️  storage.py not found at {storage_path}")
+            logging.info(f"  ⚠️  storage.py not found at {storage_path}")
             return
         
         content = storage_path.read_text()
@@ -240,28 +239,25 @@ class LocalFixes:
                 storage_path.write_text(content)
                 self.fixes_applied.append("Fixed storage.py issues")
         else:
-            print("  ✅ storage.py is already fixed")
-    
+            logging.info("  ✅ storage.py is already fixed")
     async def check_nginx_config(self):
         """Check nginx configuration."""
-        print("🌐 Checking nginx configuration...")
+        logging.info("🌐 Checking nginx configuration...")
         nginx_path = Path(__file__).parent.parent.parent / 'frontend' / 'nginx.conf'
         
         if nginx_path.exists():
             content = nginx_path.read_text()
             if 'location /cds-hooks' in content:
-                print("  ✅ nginx.conf already has /cds-hooks proxy")
+                logging.info("  ✅ nginx.conf already has /cds-hooks proxy")
             else:
                 self.issues_found.append("nginx.conf missing /cds-hooks proxy")
-                print("  ❌ nginx.conf missing /cds-hooks proxy (already fixed in this session)")
+                logging.info("  ❌ nginx.conf missing /cds-hooks proxy (already fixed in this session)")
         else:
-            print("  ⚠️  nginx.conf not found")
-    
+            logging.info("  ⚠️  nginx.conf not found")
     async def run(self):
         """Run all checks and fixes."""
-        print("🚀 Local Repository Fixes")
-        print("=" * 60)
-        
+        logging.info("🚀 Local Repository Fixes")
+        logging.info("=" * 60)
         async_session = await self.connect()
         
         try:
@@ -278,24 +274,20 @@ class LocalFixes:
             await self.check_nginx_config()
             
             # Summary
-            print("\n📊 Summary")
-            print("=" * 60)
-            
+            logging.info("\n📊 Summary")
+            logging.info("=" * 60)
             if self.issues_found:
-                print(f"\n❌ Issues found ({len(self.issues_found)}):")
+                logging.info(f"\n❌ Issues found ({len(self.issues_found)}):")
                 for issue in self.issues_found:
-                    print(f"  - {issue}")
+                    logging.info(f"  - {issue}")
             else:
-                print("\n✅ No issues found!")
-            
+                logging.info("\n✅ No issues found!")
             if self.fixes_applied:
-                print(f"\n✅ Fixes applied ({len(self.fixes_applied)}):")
+                logging.info(f"\n✅ Fixes applied ({len(self.fixes_applied)}):")
                 for fix in self.fixes_applied:
-                    print(f"  - {fix}")
-            
+                    logging.info(f"  - {fix}")
             if self.check_only and self.issues_found:
-                print("\n💡 Run without --check-only to apply fixes")
-        
+                logging.info("\n💡 Run without --check-only to apply fixes")
         finally:
             if self.engine:
                 await self.engine.dispose()
@@ -308,5 +300,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("Running local repository fixes...")
+    logging.info("Running local repository fixes...")
     asyncio.run(main())

@@ -13,13 +13,14 @@ Usage:
 import asyncio
 import asyncpg
 import sys
+import logging
+
 
 async def validate_schema():
     """Validate database schema consistency."""
     
-    print("🔍 Validating MedGenEMR Database Schema")
-    print("=" * 50)
-    
+    logging.info("🔍 Validating MedGenEMR Database Schema")
+    logging.info("=" * 50)
     try:
         # Connect to database
         conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
@@ -27,7 +28,7 @@ async def validate_schema():
         validation_errors = []
         
         # Check 1: Validate fhir.resources table structure
-        print("📋 Checking fhir.resources table...")
+        logging.info("📋 Checking fhir.resources table...")
         resources_schema = await conn.fetch("""
             SELECT column_name, data_type, is_nullable 
             FROM information_schema.columns 
@@ -42,10 +43,9 @@ async def validate_schema():
         elif resources_columns['id'] not in ('integer', 'bigint'):
             validation_errors.append(f"❌ fhir.resources.id has wrong type: {resources_columns['id']} (should be integer/bigint)")
         else:
-            print(f"   ✅ resources.id: {resources_columns['id']}")
-        
+            logging.info(f"   ✅ resources.id: {resources_columns['id']}")
         # Check 2: Validate fhir.search_params table structure
-        print("📋 Checking fhir.search_params table...")
+        logging.info("📋 Checking fhir.search_params table...")
         search_params_exists = await conn.fetchval("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -71,7 +71,7 @@ async def validate_schema():
             elif search_params_columns['resource_id'] == 'uuid':
                 validation_errors.append(f"❌ CRITICAL: fhir.search_params.resource_id is UUID but should be INTEGER/BIGINT to match fhir.resources.id")
             elif search_params_columns['resource_id'] in ('integer', 'bigint'):
-                print(f"   ✅ search_params.resource_id: {search_params_columns['resource_id']}")
+                logging.info(f"   ✅ search_params.resource_id: {search_params_columns['resource_id']}")
             else:
                 validation_errors.append(f"❌ fhir.search_params.resource_id has unexpected type: {search_params_columns['resource_id']}")
             
@@ -81,10 +81,9 @@ async def validate_schema():
                 if col not in search_params_columns:
                     validation_errors.append(f"❌ fhir.search_params missing '{col}' column")
                 else:
-                    print(f"   ✅ search_params.{col}: {search_params_columns[col]}")
-        
+                    logging.info(f"   ✅ search_params.{col}: {search_params_columns[col]}")
         # Check 3: Validate fhir.resource_history table structure
-        print("📋 Checking fhir.resource_history table...")
+        logging.info("📋 Checking fhir.resource_history table...")
         history_exists = await conn.fetchval("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -108,12 +107,12 @@ async def validate_schema():
             if 'resource_id' not in history_columns:
                 validation_errors.append("❌ fhir.resource_history missing 'resource_id' column")
             elif history_columns['resource_id'] in ('integer', 'bigint'):
-                print(f"   ✅ resource_history.resource_id: {history_columns['resource_id']}")
+                logging.info(f"   ✅ resource_history.resource_id: {history_columns['resource_id']}")
             else:
                 validation_errors.append(f"❌ fhir.resource_history.resource_id has wrong type: {history_columns['resource_id']}")
         
         # Check 4: Validate foreign key constraints
-        print("📋 Checking foreign key constraints...")
+        logging.info("📋 Checking foreign key constraints...")
         foreign_keys = await conn.fetch("""
             SELECT 
                 tc.table_name, 
@@ -148,10 +147,9 @@ async def validate_schema():
             if table not in found_fks or (col, ref_table, ref_col) not in found_fks[table]:
                 validation_errors.append(f"❌ Missing foreign key: {table}.{col} -> {ref_table}.{ref_col}")
             else:
-                print(f"   ✅ Foreign key: {table}.{col} -> {ref_table}.{ref_col}")
-        
+                logging.info(f"   ✅ Foreign key: {table}.{col} -> {ref_table}.{ref_col}")
         # Check 5: Validate indexes exist
-        print("📋 Checking important indexes...")
+        logging.info("📋 Checking important indexes...")
         indexes = await conn.fetch("""
             SELECT indexname, tablename 
             FROM pg_indexes 
@@ -168,29 +166,28 @@ async def validate_schema():
         found_indexes = [idx['indexname'] for idx in indexes]
         for idx in important_indexes:
             if idx in found_indexes:
-                print(f"   ✅ Index exists: {idx}")
+                logging.info(f"   ✅ Index exists: {idx}")
             else:
                 validation_errors.append(f"⚠️  Missing recommended index: {idx}")
         
         # Summary
-        print(f"\n📊 Schema Validation Summary")
-        print("=" * 30)
-        
+        logging.info(f"\n📊 Schema Validation Summary")
+        logging.info("=" * 30)
         if validation_errors:
-            print(f"❌ Found {len(validation_errors)} issues:")
+            logging.error(f"❌ Found {len(validation_errors)} issues:")
             for error in validation_errors:
-                print(f"   {error}")
-            print(f"\n🔧 Run 'python scripts/init_database_complete.py' to fix schema issues")
+                logging.error(f"   {error}")
+            logging.info(f"\n🔧 Run 'python scripts/init_database_complete.py' to fix schema issues")
             return False
         else:
-            print("✅ All schema validations passed!")
-            print("✅ Database schema is consistent and properly configured")
+            logging.info("✅ All schema validations passed!")
+            logging.info("✅ Database schema is consistent and properly configured")
             return True
         
         await conn.close()
         
     except Exception as e:
-        print(f"❌ Validation failed: {e}")
+        logging.info(f"❌ Validation failed: {e}")
         return False
 
 if __name__ == '__main__':

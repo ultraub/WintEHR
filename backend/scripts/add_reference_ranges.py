@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from database.database import get_db, engine
 from models.synthea_models import Observation
 import random
+import logging
+
 
 
 def add_reference_ranges_and_interpretations(db: Session):
@@ -128,19 +130,16 @@ def add_reference_ranges_and_interpretations(db: Session):
             updated_count += 1
     
     db.commit()
-    print(f"✓ Updated {updated_count} observations with reference ranges and interpretations")
-
-
+    logging.info(f"✓ Updated {updated_count} observations with reference ranges and interpretations")
 def main():
     """Main function"""
-    print("Adding reference ranges and interpretations to lab data...")
-    
+    logging.info("Adding reference ranges and interpretations to lab data...")
     db = next(get_db())
     try:
         add_reference_ranges_and_interpretations(db)
-        print("✓ Successfully updated lab data with reference ranges")
+        logging.info("✓ Successfully updated lab data with reference ranges")
     except Exception as e:
-        print(f"✗ Error updating lab data: {e}")
+        logging.error(f"✗ Error updating lab data: {e}")
         db.rollback()
         raise
     finally:

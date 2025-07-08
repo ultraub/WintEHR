@@ -15,6 +15,8 @@ from pydicom.uid import generate_uid
 from datetime import datetime
 import uuid
 from PIL import Image, ImageDraw, ImageFont
+import logging
+
 
 async def generate_dicom_for_studies():
     # Connect to database
@@ -40,8 +42,7 @@ async def generate_dicom_for_studies():
             ORDER BY r.last_updated DESC
         """)
         
-        print(f"Found {len(studies)} imaging studies to generate DICOM for")
-        
+        logging.info(f"Found {len(studies)} imaging studies to generate DICOM for")
         # Base directory for DICOM files
         dicom_base = Path("/app/data/generated_dicoms")
         dicom_base.mkdir(parents=True, exist_ok=True)
@@ -79,7 +80,7 @@ async def generate_dicom_for_studies():
             
             # Skip if already exists
             if study_dir.exists():
-                print(f"DICOM directory already exists for {study_id}: {dir_name}")
+                logging.info(f"DICOM directory already exists for {study_id}: {dir_name}")
                 continue
             
             study_dir.mkdir(parents=True, exist_ok=True)
@@ -102,8 +103,7 @@ async def generate_dicom_for_studies():
                 series_number = series.get('number', 1)
                 num_instances = series.get('numberOfInstances', get_instance_count(study_type))
                 
-                print(f"Generating {num_instances} DICOM files for study {study_id}, series {series_number}")
-                
+                logging.info(f"Generating {num_instances} DICOM files for study {study_id}, series {series_number}")
                 for instance_num in range(1, num_instances + 1):
                     # Create DICOM dataset
                     ds = create_dicom_dataset(
@@ -148,10 +148,8 @@ async def generate_dicom_for_studies():
             """, json.dumps(study_resource), study_row['id'])
             
             generated_count += 1
-            print(f"Generated DICOM files for study {study_id} in {dir_name}")
-        
-        print(f"\nSuccessfully generated DICOM files for {generated_count} imaging studies")
-        
+            logging.info(f"Generated DICOM files for study {study_id} in {dir_name}")
+        logging.info(f"\nSuccessfully generated DICOM files for {generated_count} imaging studies")
     finally:
         await conn.close()
 

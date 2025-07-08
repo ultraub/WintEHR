@@ -6,6 +6,8 @@ import json
 from sqlalchemy import create_engine, text
 from collections import defaultdict
 import os
+import logging
+
 
 # Database connection
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://medgenemr:medgenemr@localhost:5432/medgenemr')
@@ -28,8 +30,7 @@ def analyze_status_fields():
     
     with engine.connect() as conn:
         for resource_type in resource_types:
-            print(f"\n=== Analyzing {resource_type} ===")
-            
+            logging.info(f"\n=== Analyzing {resource_type} ===")
             # Get sample resources
             query = text(f"""
                 SELECT resource_data 
@@ -42,7 +43,7 @@ def analyze_status_fields():
                 resources = [row[0] for row in result]
                 
                 if not resources:
-                    print(f"No {resource_type} resources found")
+                    logging.info(f"No {resource_type} resources found")
                     continue
                 
                 # Analyze status fields
@@ -68,26 +69,22 @@ def analyze_status_fields():
                 # Print unique values
                 for field, values in status_fields.items():
                     unique_values = list(set(values))
-                    print(f"  {field}: {unique_values}")
-                    print(f"    Count by value: {dict([(v, values.count(v)) for v in unique_values])}")
-                
+                    logging.info(f"  {field}: {unique_values}")
+                    logging.info(f"    Count by value: {dict([(v, values.count(v)) for v in unique_values])}")
                 # Show example resource structure
                 if resources:
-                    print(f"\n  Example {resource_type} structure:")
+                    logging.info(f"\n  Example {resource_type} structure:")
                     example = resources[0]
                     for key in ['id', 'status', 'clinicalStatus', 'verificationStatus']:
                         if key in example:
-                            print(f"    {key}: {json.dumps(example[key], indent=6)}")
-                
+                            logging.info(f"    {key}: {json.dumps(example[key], indent=6)}")
             except Exception as e:
-                print(f"Error analyzing {resource_type}: {e}")
-
+                logging.error(f"Error analyzing {resource_type}: {e}")
 def get_resource_counts():
     """Get counts of resources by status"""
     
     with engine.connect() as conn:
-        print("\n=== Resource Counts by Status ===")
-        
+        logging.info("\n=== Resource Counts by Status ===")
         # Conditions by clinical status
         query = text("""
             SELECT 
@@ -98,11 +95,10 @@ def get_resource_counts():
             ORDER BY count DESC
         """)
         
-        print("\nConditions by clinicalStatus:")
+        logging.info("\nConditions by clinicalStatus:")
         result = conn.execute(query)
         for row in result:
-            print(f"  {row[0] or 'null'}: {row[1]}")
-        
+            logging.info(f"  {row[0] or 'null'}: {row[1]}")
         # MedicationRequest by status
         query = text("""
             SELECT 
@@ -113,11 +109,10 @@ def get_resource_counts():
             ORDER BY count DESC
         """)
         
-        print("\nMedicationRequests by status:")
+        logging.info("\nMedicationRequests by status:")
         result = conn.execute(query)
         for row in result:
-            print(f"  {row[0] or 'null'}: {row[1]}")
-        
+            logging.info(f"  {row[0] or 'null'}: {row[1]}")
         # AllergyIntolerance by clinical status
         query = text("""
             SELECT 
@@ -128,11 +123,10 @@ def get_resource_counts():
             ORDER BY count DESC
         """)
         
-        print("\nAllergyIntolerances by clinicalStatus:")
+        logging.info("\nAllergyIntolerances by clinicalStatus:")
         result = conn.execute(query)
         for row in result:
-            print(f"  {row[0] or 'null'}: {row[1]}")
-
+            logging.info(f"  {row[0] or 'null'}: {row[1]}")
 if __name__ == '__main__':
     analyze_status_fields()
     get_resource_counts()

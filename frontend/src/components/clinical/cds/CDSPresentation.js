@@ -104,7 +104,7 @@ const CDSPresentation = ({
           try {
             sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
           } catch (e) {
-            console.warn('Failed to save dismissed alerts to session storage:', e);
+            
           }
         }
         return newSet;
@@ -142,7 +142,7 @@ const CDSPresentation = ({
         onClick={() => {
           if (link.type === 'smart') {
             // Handle SMART app launch
-            console.log('Launching SMART app:', link);
+            // Handle SMART app launch
           } else {
             window.open(link.url, '_blank');
           }

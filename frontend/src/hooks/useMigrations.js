@@ -20,7 +20,7 @@ export const useMigrations = () => {
       setLastResult(result);
       return result;
     } catch (error) {
-      console.error('Migration failed:', error);
+      
       throw error;
     } finally {
       setIsRunning(false);
@@ -44,7 +44,7 @@ export const useMigrations = () => {
       setLastResult(result);
       return result;
     } catch (error) {
-      console.error('Batch migration failed:', error);
+      
       throw error;
     } finally {
       setIsRunning(false);
@@ -59,7 +59,7 @@ export const useMigrations = () => {
       setMigrationStatus(status);
       return status;
     } catch (error) {
-      console.error('Failed to get migration status:', error);
+      
       throw error;
     }
   }, [migrationManager]);

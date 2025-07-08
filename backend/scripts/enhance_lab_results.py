@@ -290,22 +290,19 @@ class LabResultsEnhancer:
     
     def print_summary(self):
         """Print enhancement summary."""
-        print("\n" + "=" * 50)
-        print("LAB RESULTS ENHANCEMENT SUMMARY")
-        print("=" * 50)
-        print(f"Observations processed: {self.stats['observations_processed']}")
-        print(f"Observations updated: {self.stats['observations_updated']}")
-        print(f"Already had reference range: {self.stats['already_has_range']}")
-        print(f"No reference range available: {self.stats['no_range_available']}")
-        
+        logging.info("\n" + "=" * 50)
+        logging.info("LAB RESULTS ENHANCEMENT SUMMARY")
+        logging.info("=" * 50)
+        logging.info(f"Observations processed: {self.stats['observations_processed']}")
+        logging.info(f"Observations updated: {self.stats['observations_updated']}")
+        logging.info(f"Already had reference range: {self.stats['already_has_range']}")
+        logging.info(f"No reference range available: {self.stats['no_range_available']}")
         if self.stats['errors']:
-            print(f"\nErrors encountered: {len(self.stats['errors'])}")
+            logging.error(f"\nErrors encountered: {len(self.stats['errors'])}")
             for error in self.stats['errors'][:5]:  # Show first 5 errors
-                print(f"  - {error}")
+                logging.error(f"  - {error}")
             if len(self.stats['errors']) > 5:
-                print(f"  ... and {len(self.stats['errors']) - 5} more errors")
-
-
+                logging.error(f"  ... and {len(self.stats['errors']) - 5} more errors")
 async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Enhance lab results with reference ranges')
@@ -326,9 +323,7 @@ async def main():
         enhancer.print_summary()
         
         if args.dry_run:
-            print("\nThis was a DRY RUN. No changes were made.")
-            print("Run without --dry-run to apply changes.")
-
-
+            logging.info("\nThis was a DRY RUN. No changes were made.")
+            logging.info("Run without --dry-run to apply changes.")
 if __name__ == "__main__":
     asyncio.run(main())
