@@ -101,7 +101,7 @@ const DocumentationTab = () => {
       
       setEncounterNotes(notesFromEncounters);
     } catch (error) {
-      console.error('Error loading encounter notes:', error);
+      
     }
   };
 
@@ -177,7 +177,7 @@ const DocumentationTab = () => {
             fullNote = response.data;
             originalContent = `=== ORIGINAL NOTE (${format(new Date(fullNote.created_at || fullNote.createdAt), 'MM/dd/yyyy h:mm a')}) ===\n\n`;
           } catch (fetchError) {
-            console.error('Error fetching note, using cached data:', fetchError);
+            
             // Fall back to cached data if fetch fails
             fullNote = selectedNote;
             originalContent = `=== ORIGINAL NOTE (${format(new Date(fullNote.createdAt || fullNote.created_at), 'MM/dd/yyyy h:mm a')}) ===\n\n`;
@@ -289,7 +289,7 @@ const DocumentationTab = () => {
         setAddendumContent(originalContent + noteContent + '\n\n=== ADDENDUM ===\n\n');
         setShowAddendumDialog(true);
       } catch (error) {
-        console.error('Error loading note for addendum:', error);
+        
         alert('Error loading note content');
       }
     }
@@ -329,7 +329,7 @@ const DocumentationTab = () => {
         loadRecentNotes(currentPatient.id);
       }
     } catch (error) {
-      console.error('Error creating addendum:', error);
+      
       alert(`Error creating addendum: ${error.response?.data?.detail || error.message}`);
     }
   };

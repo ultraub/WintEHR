@@ -62,7 +62,7 @@ import CDSHookBuilder from '../cds/CDSHookBuilder';
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
-import fhirService from '../../../../services/fhirService';
+import fhirClient from ../../../../services/fhirClient\';
 import { useNavigate } from 'react-router-dom';
 
 function TabPanel({ children, value, index, ...other }) {
@@ -228,7 +228,7 @@ const CDSHooksTab = ({ patientId }) => {
         setCustomHooks(result.data);
       }
     } catch (error) {
-      console.error('Failed to load custom hooks:', error);
+      
       setCustomHooks([]);
     }
   };
@@ -306,7 +306,7 @@ const CDSHooksTab = ({ patientId }) => {
               // Create a new FHIR resource
               if (action.resource) {
                 const resourceType = action.resource.resourceType;
-                await fhirService.createResource(resourceType, action.resource);
+                await fhirClient.createResource(resourceType, action.resource);
                 setError(`Created new ${resourceType}`);
               }
               break;
@@ -315,7 +315,7 @@ const CDSHooksTab = ({ patientId }) => {
               // Update an existing FHIR resource
               if (action.resource && action.resource.id) {
                 const resourceType = action.resource.resourceType;
-                await fhirService.updateResource(resourceType, action.resource.id, action.resource);
+                await fhirClient.updateResource(resourceType, action.resource.id, action.resource);
                 setError(`Updated ${resourceType}`);
               }
               break;
@@ -324,13 +324,13 @@ const CDSHooksTab = ({ patientId }) => {
               // Delete a FHIR resource
               if (action.resource && action.resource.id) {
                 const resourceType = action.resource.resourceType;
-                await fhirService.deleteResource(resourceType, action.resource.id);
+                await fhirClient.deleteResource(resourceType, action.resource.id);
                 setError(`Deleted ${resourceType}`);
               }
               break;
               
             default:
-              console.warn('Unknown action type:', action.type);
+              
           }
         }
       }
@@ -349,14 +349,14 @@ const CDSHooksTab = ({ patientId }) => {
       // Handle resource creation/update/delete arrays
       if (suggestion.create && suggestion.create.length > 0) {
         for (const resource of suggestion.create) {
-          await fhirService.createResource(resource.resourceType, resource);
+          await fhirClient.createResource(resource.resourceType, resource);
         }
         setError(`Created ${suggestion.create.length} resource(s)`);
       }
       
       if (suggestion.update && suggestion.update.length > 0) {
         for (const resource of suggestion.update) {
-          await fhirService.updateResource(resource.resourceType, resource.id, resource);
+          await fhirClient.updateResource(resource.resourceType, resource.id, resource);
         }
         setError(`Updated ${suggestion.update.length} resource(s)`);
       }
@@ -364,14 +364,14 @@ const CDSHooksTab = ({ patientId }) => {
       if (suggestion.delete && suggestion.delete.length > 0) {
         for (const resourceRef of suggestion.delete) {
           const [resourceType, resourceId] = resourceRef.split('/');
-          await fhirService.deleteResource(resourceType, resourceId);
+          await fhirClient.deleteResource(resourceType, resourceId);
         }
         setError(`Deleted ${suggestion.delete.length} resource(s)`);
       }
       
       // Refresh patient data after actions
       if (patientId) {
-        await fhirService.refreshPatientResources(patientId);
+        await fhirClient.refreshPatientResources(patientId);
       }
       
       // Send feedback to CDS service
@@ -383,7 +383,7 @@ const CDSHooksTab = ({ patientId }) => {
             acceptedSuggestions: [{ id: suggestion.uuid }]
           });
         } catch (feedbackError) {
-          console.error('Failed to send CDS feedback:', feedbackError);
+          
         }
       }
       
@@ -395,7 +395,7 @@ const CDSHooksTab = ({ patientId }) => {
       }
       
     } catch (error) {
-      console.error('Error executing CDS suggestion:', error);
+      
       setError(`Failed to execute action: ${error.message}`);
     }
   };
@@ -412,7 +412,7 @@ const CDSHooksTab = ({ patientId }) => {
         await loadCDSServices();
         
       } catch (error) {
-        console.error('Error deleting hook:', error);
+        
         alert(`Failed to delete hook: ${error.message}`);
       }
     }
@@ -671,7 +671,7 @@ const CDSHooksTab = ({ patientId }) => {
                 setError(null);
               } catch (error) {
                 // Handle error - the actual error will be shown by CDSHookBuilder
-                console.error('Error in onSave callback:', error);
+                
               }
             }}
             onCancel={() => setShowBuilder(false)}

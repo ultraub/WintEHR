@@ -34,7 +34,6 @@ import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../services/fhirClient';
 import { providerService } from '../../services/providerService';
 
-
 const PatientHeader = ({ 
   onClose, 
   showEncounterInfo = true 
@@ -88,7 +87,7 @@ const PatientHeader = ({
         setCurrentEncounter(encounterList[0]);
       }
     } catch (error) {
-      console.error('Error loading encounters:', error);
+      
     } finally {
       setLoadingEncounters(false);
     }
@@ -103,13 +102,12 @@ const PatientHeader = ({
       
       const encounter = encounters.find(e => e.id === encounterId);
       if (encounter) {
-        console.log('Selected encounter:', encounter);
         setCurrentEncounter(encounter);
       } else if (!encounterId) {
         setCurrentEncounter(null);
       }
     } catch (error) {
-      console.error('Error changing encounter:', error);
+      
     }
   };
 

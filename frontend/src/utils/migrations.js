@@ -257,13 +257,13 @@ class ReferenceIntegrityMigration extends BaseMigration {
       // Validate resource type exists
       const validResourceTypes = ['Patient', 'Condition', 'Observation', 'MedicationRequest', 'Encounter', 'Practitioner', 'Organization'];
       if (!validResourceTypes.includes(resourceType)) {
-        console.warn(`Unknown resource type in reference: ${resourceType}`);
+        
       }
 
       // Validate ID format
       const idPattern = /^[A-Za-z0-9\-\.]{1,64}$/;
       if (!idPattern.test(id)) {
-        console.warn(`Invalid ID format in reference: ${id}`);
+        
       }
     }
 
@@ -754,7 +754,7 @@ class MigrationManager {
       const response = await fhirClient.update(resource.resourceType, resource.id, resource);
       return response;
     } catch (error) {
-      console.error('Failed to save migrated resource:', error);
+      
       throw error;
     }
   }
@@ -793,7 +793,7 @@ class MigrationManager {
 
       return status;
     } catch (error) {
-      console.error('Failed to get migration status:', error);
+      
       throw error;
     }
   }

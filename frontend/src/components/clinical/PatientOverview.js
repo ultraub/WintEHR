@@ -86,7 +86,6 @@ const PatientOverview = () => {
         
         // Process vitals data - searchResult contains { resources, total, bundle }
         const vitalsData = searchResult.resources || [];
-        console.log('Loaded vitals:', vitalsData);
         
         if (vitalsData.length > 0) {
           // Group by observation type and get most recent
@@ -179,7 +178,7 @@ const PatientOverview = () => {
           });
         }
       } catch (error) {
-        console.error('Error loading recent vitals:', error);
+        
       }
     };
     
@@ -197,7 +196,7 @@ const PatientOverview = () => {
       setNewAllergy({ allergen: '', severity: 'mild', reaction: '' });
       refreshPatientData();
     } catch (error) {
-      console.error('Error adding allergy:', error);
+      
     }
   };
 
@@ -240,7 +239,7 @@ const PatientOverview = () => {
       setEditingMedication(null);
       refreshPatientData();
     } catch (error) {
-      console.error('Error saving medication:', error);
+      
     }
   };
   
@@ -265,7 +264,7 @@ const PatientOverview = () => {
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {
-      console.error('Error deleting medication:', error);
+      
     }
   };
 
@@ -345,8 +344,8 @@ const PatientOverview = () => {
       setEditingProblem(null);
       refreshPatientData();
     } catch (error) {
-      console.error('Error saving problem:', error);
-      console.error('Error details:', error.response?.data);
+      
+      
       alert(`Error saving problem: ${error.response?.data?.detail || error.message}`);
     }
   };
@@ -376,7 +375,7 @@ const PatientOverview = () => {
       refreshPatientData();
       setDeleteConfirmDialog({ open: false, type: null, item: null });
     } catch (error) {
-      console.error('Error deleting problem:', error);
+      
     }
   };
   

@@ -183,64 +183,56 @@ class ImagingStudyEnhancer:
     
     def print_investigation_report(self, result: Dict[str, Any]):
         """Print a comprehensive investigation report."""
-        print("\n" + "="*80)
-        print("📊 IMAGING STUDY INVESTIGATION REPORT")
-        print("="*80)
-        
+        logging.info("\n" + "="*80)
+        logging.info("📊 IMAGING STUDY INVESTIGATION REPORT")
+        logging.info("="*80)
         if 'error' in result:
-            print(f"❌ Investigation failed: {result['error']}")
+            logging.error(f"❌ Investigation failed: {result['error']}")
             return
         
-        print(f"📈 Total FHIR Resources: {result['total_resources']:,}")
-        print(f"👥 Patients: {result['patient_count']:,}")
-        print(f"🏥 Encounters: {result['encounter_count']:,}")
-        print(f"⚕️  Procedures: {result['procedure_count']:,}")
-        
+        logging.info(f"📈 Total FHIR Resources: {result['total_resources']:,}")
+        logging.info(f"👥 Patients: {result['patient_count']:,}")
+        logging.info(f"🏥 Encounters: {result['encounter_count']:,}")
+        logging.info(f"⚕️  Procedures: {result['procedure_count']:,}")
         imaging = result['imaging_studies']
-        print(f"\n🖼️  IMAGING STUDIES: {imaging['count']:,}")
-        
+        logging.info(f"\n🖼️  IMAGING STUDIES: {imaging['count']:,}")
         if imaging['count'] > 0:
-            print(f"📊 Imaging-to-Patient Ratio: {result['imaging_ratio']:.2f}")
-            
+            logging.info(f"📊 Imaging-to-Patient Ratio: {result['imaging_ratio']:.2f}")
             analysis = imaging.get('analysis', {})
             if analysis:
                 modalities = analysis.get('modalities', [])
                 statuses = analysis.get('statuses', [])
                 
-                print(f"🔬 Modalities found: {', '.join(modalities) if modalities else 'None'}")
-                print(f"📋 Statuses found: {', '.join(statuses) if statuses else 'None'}")
-                
+                logging.info(f"🔬 Modalities found: {', '.join(modalities) if modalities else 'None'}")
+                logging.info(f"📋 Statuses found: {', '.join(statuses) if statuses else 'None'}")
                 # Show sample studies
                 samples = analysis.get('sample_studies', [])
                 if samples:
-                    print(f"\n📝 Sample Studies:")
+                    logging.info(f"\n📝 Sample Studies:")
                     for i, study in enumerate(samples[:3]):
                         print(f"  {i+1}. {study.get('modality', 'Unknown')} - "
                              f"{study.get('series_count', 0)} series, "
                              f"{study.get('instance_count', 0)} instances")
         else:
-            print("❌ NO IMAGING STUDIES FOUND!")
-            print("\nThis indicates that:")
-            print("  • Synthea is not generating imaging studies")
-            print("  • Imaging studies are not being imported properly")
-            print("  • Manual creation is needed for demonstration")
-        
+            logging.info("❌ NO IMAGING STUDIES FOUND!")
+            logging.info("\nThis indicates that:")
+            logging.info("  • Synthea is not generating imaging studies")
+            logging.info("  • Imaging studies are not being imported properly")
+            logging.info("  • Manual creation is needed for demonstration")
         # Recommendations
-        print(f"\n💡 RECOMMENDATIONS:")
+        logging.info(f"\n💡 RECOMMENDATIONS:")
         if imaging['count'] == 0:
-            print("  1. ✅ Run: enhance_imaging_import.py import --patient-count 10")
-            print("  2. ✅ Run: enhance_imaging_import.py generate-dicoms")
-            print("  3. ✅ Test clinical workspace imaging tab")
+            logging.info("  1. ✅ Run: enhance_imaging_import.py import --patient-count 10")
+            logging.info("  2. ✅ Run: enhance_imaging_import.py generate-dicoms")
+            logging.info("  3. ✅ Test clinical workspace imaging tab")
         elif result['imaging_ratio'] < 0.5:
-            print("  1. ✅ Low imaging study ratio - consider importing more")
-            print("  2. ✅ Run DICOM generation for existing studies")
+            logging.info("  1. ✅ Low imaging study ratio - consider importing more")
+            logging.info("  2. ✅ Run DICOM generation for existing studies")
         else:
-            print("  1. ✅ Good imaging study coverage")
-            print("  2. ✅ Ensure DICOM files are generated")
-            print("  3. ✅ Test clinical workspace integration")
-        
-        print("="*80)
-    
+            logging.info("  1. ✅ Good imaging study coverage")
+            logging.info("  2. ✅ Ensure DICOM files are generated")
+            logging.info("  3. ✅ Test clinical workspace integration")
+        logging.info("="*80)
     async def create_imaging_studies_for_patients(self, patient_count: int = 10) -> Dict[str, Any]:
         """Create realistic imaging studies for existing patients."""
         logger.info(f"🏥 Creating imaging studies for {patient_count} patients...")
@@ -594,39 +586,34 @@ async def main():
         elif args.command == "import":
             result = await enhancer.create_imaging_studies_for_patients(args.patient_count)
             if result.get('success'):
-                print(f"✅ Created {result['studies_created']} imaging studies for {result['patients_processed']} patients")
+                logging.info(f"✅ Created {result['studies_created']} imaging studies for {result['patients_processed']} patients")
                 for study in result['studies'][:5]:  # Show first 5
-                    print(f"  - {study['type']}: {study['description']}")
+                    logging.info(f"  - {study['type']}: {study['description']}")
             else:
-                print(f"❌ Failed: {result.get('error')}")
-        
+                logging.error(f"❌ Failed: {result.get('error')}")
         elif args.command == "generate-dicoms":
             result = await enhancer.generate_dicom_files()
             if result.get('success'):
-                print("✅ DICOM files generated successfully")
-                print(result.get('output', ''))
+                logging.info("✅ DICOM files generated successfully")
+                logging.info(result.get('output', ''))
             else:
-                print(f"❌ Failed: {result.get('error')}")
-        
+                logging.error(f"❌ Failed: {result.get('error')}")
         elif args.command == "test-endpoints":
             result = await enhancer.test_fhir_endpoints()
             if result.get('success'):
-                print(f"✅ FHIR endpoints working - {result['total_studies']} studies available")
+                logging.info(f"✅ FHIR endpoints working - {result['total_studies']} studies available")
             else:
-                print(f"❌ Endpoint test failed: {result.get('error')}")
-        
+                logging.error(f"❌ Endpoint test failed: {result.get('error')}")
         elif args.command == "full-workflow":
             results = await enhancer.full_workflow(args.patient_count)
             
-            print("📊 Full Workflow Results:")
-            print("="*50)
-            
+            logging.info("📊 Full Workflow Results:")
+            logging.info("="*50)
             for step, result in results.items():
                 if result.get('success') or (step == 'investigation' and 'error' not in result):
-                    print(f"✅ {step.replace('_', ' ').title()}: Success")
+                    logging.info(f"✅ {step.replace('_', ' ').title()}: Success")
                 else:
-                    print(f"❌ {step.replace('_', ' ').title()}: {result.get('error', 'Failed')}")
-    
+                    logging.error(f"❌ {step.replace('_', ' ').title()}: {result.get('error', 'Failed')}")
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
     except Exception as e:

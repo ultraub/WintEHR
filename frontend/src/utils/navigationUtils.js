@@ -20,7 +20,7 @@ export const decodeFhirId = (encodedId) => {
   try {
     return decodeURIComponent(encodedId);
   } catch (error) {
-    console.error('Error decoding FHIR ID:', error);
+    
     return encodedId; // Return as-is if decoding fails
   }
 };

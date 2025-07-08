@@ -37,7 +37,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import fhirService from '../../../services/fhirService';
+import fhirClient from ../../../services/fhirClient\';
 
 const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
   const { getPatientResources, refreshResources } = useFHIRResource();
@@ -128,7 +128,7 @@ const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to load report:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -171,10 +171,10 @@ const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
       if (report) {
         // Update existing report
         reportData.id = report.id;
-        await fhirService.updateResource('DiagnosticReport', report.id, reportData);
+        await fhirClient.updateResource('DiagnosticReport', report.id, reportData);
       } else {
         // Create new report
-        await fhirService.createResource('DiagnosticReport', reportData);
+        await fhirClient.createResource('DiagnosticReport', reportData);
       }
 
       // Refresh resources to get the updated report
@@ -182,7 +182,7 @@ const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
       await loadReport();
       setEditing(false);
     } catch (error) {
-      console.error('Failed to save report:', error);
+      
     } finally {
       setSaving(false);
     }

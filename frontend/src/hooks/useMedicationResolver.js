@@ -71,7 +71,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
                 medicationCache.set(id, null);
               }
             } catch (err) {
-              console.warn(`Failed to fetch Medication/${id}:`, err);
+              
               medicationCache.set(id, null);
             }
           }
@@ -134,7 +134,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
         setResolvedMedications(resolved);
       } catch (err) {
-        console.error('Error resolving medications:', err);
+        
         setError(err.message || 'Failed to resolve medications');
       } finally {
         setLoading(false);

@@ -205,7 +205,7 @@ const MedicationReconciliationDialog = ({
       await onReconcile(changesToApply);
       onClose();
     } catch (error) {
-      console.error('Error during reconciliation:', error);
+      
     } finally {
       setLoading(false);
     }

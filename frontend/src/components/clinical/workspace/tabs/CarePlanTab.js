@@ -78,7 +78,7 @@ import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { printDocument } from '../../../../utils/printUtils';
-import fhirService from '../../../../services/fhirService';
+import fhirClient from ../../../../services/fhirClient\';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Goal categories
@@ -467,7 +467,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
           }
         });
         
-        await fhirService.updateCareTeam(careTeam.id, careTeamResource);
+        await fhirClient.updateCareTeam(careTeam.id, careTeamResource);
       } else {
         // Create new CareTeam
         careTeamResource = {
@@ -515,7 +515,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
           }
         }
         
-        await fhirService.createCareTeam(careTeamResource);
+        await fhirClient.createCareTeam(careTeamResource);
       }
       
       // Reset form and close
@@ -900,7 +900,7 @@ const ActivityEditDialog = ({ open, onClose, activity, carePlanId, onSuccess }) 
       }
 
       // Refresh and close
-      await fhirService.refreshPatientResources(carePlan.subject.reference.split('/')[1]);
+      await fhirClient.refreshPatientResources(carePlan.subject.reference.split('/')[1]);
       onClose();
       if (onSuccess) {
         onSuccess();
@@ -1091,7 +1091,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
         const savedGoal = await response.json();
         
         // Check if we need to create or update a CarePlan
-        const carePlans = await fhirService.searchResources('CarePlan', {
+        const carePlans = await fhirClient.searchResources('CarePlan', {
           patient: patientId,
           status: 'active'
         });
@@ -1109,7 +1109,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
             carePlan.goal.push(goalRef);
           }
           
-          await fhirService.updateCarePlan(carePlan.id, carePlan);
+          await fhirClient.updateCarePlan(carePlan.id, carePlan);
         } else {
           // Create new CarePlan
           const newCarePlan = {
@@ -1139,11 +1139,11 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
             }]
           };
           
-          await fhirService.createCarePlan(newCarePlan);
+          await fhirClient.createCarePlan(newCarePlan);
         }
         
         // Refresh patient resources to show new/updated goal and care plan
-        await fhirService.refreshPatientResources(patientId);
+        await fhirClient.refreshPatientResources(patientId);
         onClose();
       } else {
         // Handle error - would use proper error logging in production
@@ -1823,7 +1823,7 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
             message: 'Care team member added successfully', 
             severity: 'success' 
           });
-          fhirService.refreshPatientResources(patientId);
+          fhirClient.refreshPatientResources(patientId);
         }}
       />
 

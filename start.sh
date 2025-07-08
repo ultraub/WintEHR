@@ -64,8 +64,54 @@ done
 # Run database initialization and table creation
 echo -e "${BLUE}🔧 Initializing database with definitive schema...${NC}"
 
-# Run definitive database initialization (creates everything correctly)
-python scripts/init_database_definitive.py || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
+# Check if database is accessible
+if ! python -c "import asyncio; import asyncpg; asyncio.run(asyncpg.connect('postgresql://emr_user:emr_password@localhost:5432/emr_db').close())" 2>/dev/null; then
+    echo -e "${RED}❌ Database not accessible. Please ensure PostgreSQL is running.${NC}"
+    kill $BACKEND_PID 2>/dev/null || true
+    exit 1
+fi
+
+# Run database schema validation and setup
+python scripts/init_database_definitive.py || {
+    echo -e "${YELLOW}⚠️  Definitive initialization failed, trying fallback...${NC}"
+    python scripts/init_database.py || echo -e "${YELLOW}⚠️  Database initialization skipped (may already be initialized)${NC}"
+}
+
+# Validate critical tables exist
+echo -e "${YELLOW}🔍 Validating database schema...${NC}"
+python -c "
+import asyncio
+import asyncpg
+import sys
+
+async def validate_schema():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@localhost:5432/emr_db')
+        
+        # Check critical tables
+        tables = await conn.fetch('SELECT table_name FROM information_schema.tables WHERE table_schema = \\'fhir\\'')
+        table_names = {row['table_name'] for row in tables}
+        required_tables = {'resources', 'search_params', 'resource_history'}
+        
+        missing = required_tables - table_names
+        if missing:
+            print(f'❌ Missing critical tables: {missing}')
+            return False
+            
+        print(f'✅ All critical tables present: {sorted(table_names)}')
+        await conn.close()
+        return True
+    except Exception as e:
+        print(f'❌ Schema validation failed: {e}')
+        return False
+
+success = asyncio.run(validate_schema())
+sys.exit(0 if success else 1)
+" || {
+    echo -e "${RED}❌ Database schema validation failed${NC}"
+    kill $BACKEND_PID 2>/dev/null || true
+    exit 1
+}
 
 cd ..
 

@@ -99,14 +99,13 @@ class SyntheaMaster:
         
         # Console output with colors
         if level == "ERROR":
-            print(f"❌ {log_message}")
+            logging.info(f"❌ {log_message}")
         elif level == "WARN":
-            print(f"⚠️  {log_message}")
+            logging.info(f"⚠️  {log_message}")
         elif level == "SUCCESS":
-            print(f"✅ {log_message}")
+            logging.info(f"✅ {log_message}")
         else:
-            print(f"ℹ️  {log_message}")
-        
+            logging.info(f"ℹ️  {log_message}")
         # File logging
         with open(self.log_file, "a") as f:
             f.write(log_message + "\n")
@@ -863,27 +862,23 @@ generate.demographics.default_state = Massachusetts
         """Print final statistics."""
         duration = datetime.now() - self.stats['start_time']
         
-        print("\n" + "=" * 60)
-        print("📊 Synthea Master - Final Statistics")
-        print("=" * 60)
-        print(f"Total Duration: {duration}")
-        print(f"Operations: {len(self.stats['operations'])}")
-        print(f"Errors: {len(self.stats['errors'])}")
-        print(f"Resources Imported: {self.stats['total_resources']}")
-        
+        logging.info("\n" + "=" * 60)
+        logging.info("📊 Synthea Master - Final Statistics")
+        logging.info("=" * 60)
+        logging.info(f"Total Duration: {duration}")
+        logging.info(f"Operations: {len(self.stats['operations'])}")
+        logging.error(f"Errors: {len(self.stats['errors'])}")
+        logging.info(f"Resources Imported: {self.stats['total_resources']}")
         if self.stats['import_stats']:
-            print("\nImport Details:")
+            logging.info("\nImport Details:")
             for key, value in self.stats['import_stats'].items():
                 if isinstance(value, dict):
-                    print(f"  {key}:")
+                    logging.info(f"  {key}:")
                     for k, v in value.items():
-                        print(f"    {k}: {v}")
+                        logging.info(f"    {k}: {v}")
                 else:
-                    print(f"  {key}: {value}")
-        
-        print("=" * 60)
-
-
+                    logging.info(f"  {key}: {value}")
+        logging.info("=" * 60)
 async def main():
     """Main entry point with comprehensive CLI."""
     parser = argparse.ArgumentParser(

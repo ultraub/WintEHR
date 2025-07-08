@@ -113,7 +113,7 @@ const PatientSummaryV4 = ({ patientId }) => {
         });
 
       } catch (err) {
-        console.error('Error loading patient data:', err);
+        
         setError('Failed to load patient data');
       } finally {
         setLoading(false);
@@ -154,13 +154,13 @@ const PatientSummaryV4 = ({ patientId }) => {
             })));
           }
         } catch (serviceError) {
-          console.error(`Error executing CDS service ${service.id}:`, serviceError);
+          
         }
       }
       
       setCdsAlerts(allAlerts);
     } catch (error) {
-      console.error('Error loading CDS alerts:', error);
+      
     } finally {
       setCdsLoading(false);
     }

@@ -14,6 +14,8 @@ from fhir.resources.communication import Communication
 from fhir.resources.reference import Reference
 from fhir.resources.extension import Extension
 from pydantic import BaseModel
+import logging
+
 
 
 router = APIRouter()
@@ -269,7 +271,7 @@ async def mark_all_notifications_read(
                 updated_count += 1
                 
         except Exception as e:
-            print(f"Error updating notification {resource.id}: {e}")
+            logging.error(f"Error updating notification {resource.id}: {e}")
             continue
     
     return {

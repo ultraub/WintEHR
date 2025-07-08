@@ -75,7 +75,7 @@ const UniversalSearchBar = ({
         setSearchResults(results);
         setShowResults(true);
       } catch (error) {
-        console.error('Error in universal search:', error);
+        
         setSearchResults({});
       } finally {
         setLoading(false);
@@ -112,7 +112,7 @@ const UniversalSearchBar = ({
         setSelectedResult(null);
         setSearchQuery('');
       } catch (error) {
-        console.error('Error adding to patient:', error);
+        
       }
     }
   };

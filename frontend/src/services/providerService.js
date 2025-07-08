@@ -70,7 +70,7 @@ class ProviderService {
 
       return null;
     } catch (error) {
-      console.error('Error resolving provider from encounter:', error);
+      
       return null;
     }
   }
@@ -100,7 +100,7 @@ class ProviderService {
 
       return providerInfo;
     } catch (error) {
-      console.error('Error fetching provider:', providerId, error);
+      
       return null;
     }
   }
@@ -126,7 +126,7 @@ class ProviderService {
 
       return organization;
     } catch (error) {
-      console.error('Error fetching organization:', orgId, error);
+      
       return null;
     }
   }
@@ -192,7 +192,7 @@ class ProviderService {
 
       return result.resources.map(practitioner => this.transformPractitioner(practitioner));
     } catch (error) {
-      console.error('Error searching providers:', error);
+      
       return [];
     }
   }
@@ -210,7 +210,7 @@ class ProviderService {
 
       return result.resources.map(practitioner => this.transformPractitioner(practitioner));
     } catch (error) {
-      console.error('Error fetching all providers:', error);
+      
       return [];
     }
   }

@@ -17,6 +17,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import DATABASE_URL
+import logging
+
 
 async def analyze_patients():
     """Analyze patients for CDS triggers"""
@@ -43,8 +45,7 @@ async def analyze_patients():
         result = await session.execute(query)
         patients = result.fetchall()
         
-        print(f"\nFound {len(patients)} patients\n")
-        
+        logging.info(f"\nFound {len(patients)} patients\n")
         # Analyze for CDS triggers
         seniors = []
         diabetes_patients = []
@@ -106,47 +107,39 @@ async def analyze_patients():
                 })
         
         # Print results
-        print("=" * 80)
-        print("PATIENTS THAT WILL TRIGGER CDS HOOKS")
-        print("=" * 80)
-        
-        print(f"\n1. SENIOR CARE REMINDER (Age >= 65): {len(seniors)} patients")
-        print("-" * 50)
+        logging.info("=" * 80)
+        logging.info("PATIENTS THAT WILL TRIGGER CDS HOOKS")
+        logging.info("=" * 80)
+        logging.info(f"\n1. SENIOR CARE REMINDER (Age >= 65): {len(seniors)} patients")
+        logging.info("-" * 50)
         for i, patient in enumerate(seniors[:5], 1):
-            print(f"{i}. {patient['name']} - Age: {patient['age']} (ID: {patient['id']})")
+            logging.info(f"{i}. {patient['name']} - Age: {patient['age']} (ID: {patient['id']})")
         if len(seniors) > 5:
-            print(f"   ... and {len(seniors) - 5} more")
-        
-        print(f"\n2. DIABETES MANAGEMENT ALERT: {len(diabetes_patients)} patients")
-        print("-" * 50)
+            logging.info(f"   ... and {len(seniors) - 5} more")
+        logging.info(f"\n2. DIABETES MANAGEMENT ALERT: {len(diabetes_patients)} patients")
+        logging.info("-" * 50)
         for i, patient in enumerate(diabetes_patients[:5], 1):
-            print(f"{i}. {patient['name']} - Age: {patient['age']} (ID: {patient['id']})")
+            logging.info(f"{i}. {patient['name']} - Age: {patient['age']} (ID: {patient['id']})")
             for condition in patient['conditions']:
-                print(f"   - {condition['display']} ({condition['code']})")
+                logging.info(f"   - {condition['display']} ({condition['code']})")
         if len(diabetes_patients) > 5:
-            print(f"   ... and {len(diabetes_patients) - 5} more")
-        
-        print(f"\n3. GENERAL PATIENT INFO CARD: All {len(patients)} patients")
-        print("-" * 50)
-        print("This card shows for every patient")
-        
+            logging.info(f"   ... and {len(diabetes_patients) - 5} more")
+        logging.info(f"\n3. GENERAL PATIENT INFO CARD: All {len(patients)} patients")
+        logging.info("-" * 50)
+        logging.info("This card shows for every patient")
         # Show some example patient IDs for testing
-        print("\n" + "=" * 80)
-        print("EXAMPLE PATIENT IDs FOR TESTING:")
-        print("=" * 80)
-        
+        logging.info("\n" + "=" * 80)
+        logging.info("EXAMPLE PATIENT IDs FOR TESTING:")
+        logging.info("=" * 80)
         if seniors:
-            print(f"\nSenior patient example: {seniors[0]['name']}")
-            print(f"URL: http://localhost:3000/patients/{seniors[0]['id']}")
-        
+            logging.info(f"\nSenior patient example: {seniors[0]['name']}")
+            logging.info(f"URL: http://localhost:3000/patients/{seniors[0]['id']}")
         if diabetes_patients:
-            print(f"\nDiabetes patient example: {diabetes_patients[0]['name']}")
-            print(f"URL: http://localhost:3000/patients/{diabetes_patients[0]['id']}")
-        
+            logging.info(f"\nDiabetes patient example: {diabetes_patients[0]['name']}")
+            logging.info(f"URL: http://localhost:3000/patients/{diabetes_patients[0]['id']}")
         # Any patient example
         if patients:
-            print(f"\nAny patient example: {patients[0].first_name} {patients[0].last_name}")
-            print(f"URL: http://localhost:3000/patients/{patients[0].fhir_id}")
-
+            logging.info(f"\nAny patient example: {patients[0].first_name} {patients[0].last_name}")
+            logging.info(f"URL: http://localhost:3000/patients/{patients[0].fhir_id}")
 if __name__ == "__main__":
     asyncio.run(analyze_patients())

@@ -78,9 +78,9 @@ class EMRClient {
         auditLogs: info.features?.includes('Audit logging')
       };
 
-      console.log('EMR Capabilities:', this.capabilities);
+      
     } catch (error) {
-      console.warn('EMR extensions not available:', error.message);
+      
       this.enabled = false;
     }
   }

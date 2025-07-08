@@ -145,3 +145,9 @@ synthea_import_progress.json
 *_backup_*/
 synthea_backup_*/
 backup_*/
+old/*
+
+
+.claude
+AWS_DEPLOYMENT_ISSUES_AND_FIXES.md
+AWS_DEPLOYMENT_COMPLETE_SUMMARY.md

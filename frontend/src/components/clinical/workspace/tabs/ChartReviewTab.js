@@ -73,7 +73,7 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
-import fhirService from '../../../../services/fhirService';
+import fhirClient from '../../../../services/fhirClient';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
@@ -864,7 +864,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddProblem = async (condition) => {
     try {
-      const createdCondition = await fhirService.createCondition(condition);
+      const createdCondition = await fhirClient.createCondition(condition);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
@@ -878,7 +878,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
-      const createdMedication = await fhirService.createMedicationRequest(medicationRequest);
+      const createdMedication = await fhirClient.createMedicationRequest(medicationRequest);
       
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -905,7 +905,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
-      const createdAllergy = await fhirService.createAllergyIntolerance(allergyIntolerance);
+      const createdAllergy = await fhirClient.createAllergyIntolerance(allergyIntolerance);
       
       // Publish workflow event for new allergy
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -937,7 +937,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirService.updateCondition(updatedCondition.id, updatedCondition);
+      const result = await fhirClient.updateCondition(updatedCondition.id, updatedCondition);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -960,7 +960,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteProblem = async (conditionId) => {
     try {
-      await fhirService.deleteCondition(conditionId);
+      await fhirClient.deleteCondition(conditionId);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
@@ -977,7 +977,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirService.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
+      const result = await fhirClient.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -1000,7 +1000,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteMedication = async (medicationId) => {
     try {
-      await fhirService.deleteMedicationRequest(medicationId);
+      await fhirClient.deleteMedicationRequest(medicationId);
       
       // Refresh the patient resources to remove the deleted medication
       await refreshPatientResources(patientId);
@@ -1017,7 +1017,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirService.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
+      const result = await fhirClient.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -1040,7 +1040,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteAllergy = async (allergyId) => {
     try {
-      await fhirService.deleteAllergyIntolerance(allergyId);
+      await fhirClient.deleteAllergyIntolerance(allergyId);
       
       // Refresh the patient resources to remove the deleted allergy
       await refreshPatientResources(patientId);

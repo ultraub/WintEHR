@@ -195,7 +195,7 @@ export const OrderProvider = ({ children }) => {
       const orders = (result.resources || []).map(transformFHIRServiceRequest);
       setActiveOrders(orders);
     } catch (error) {
-      console.error('Error loading active orders:', error);
+      
       throw error;
     }
   };
@@ -253,7 +253,7 @@ export const OrderProvider = ({ children }) => {
         setOrderSets(filtered);
       }
     } catch (error) {
-      console.error('Error loading order sets:', error);
+      
       // Fallback to empty array instead of throwing
       setOrderSets([]);
     }
@@ -306,7 +306,7 @@ export const OrderProvider = ({ children }) => {
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
-      console.error('Error creating medication order:', error);
+      
       throw error;
     } finally {
       setIsProcessingOrder(false);
@@ -345,7 +345,7 @@ export const OrderProvider = ({ children }) => {
       
       return alerts;
     } catch (error) {
-      console.error('Error checking drug interactions:', error);
+      
       // Return empty array on error to allow order to proceed
       return [];
     }
@@ -382,7 +382,7 @@ export const OrderProvider = ({ children }) => {
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
-      console.error('Error creating laboratory order:', error);
+      
       throw error;
     } finally {
       setIsProcessingOrder(false);
@@ -420,7 +420,7 @@ export const OrderProvider = ({ children }) => {
       await loadActiveOrders(currentPatient.id);
       return { order: { ...order, id: result.id } };
     } catch (error) {
-      console.error('Error creating imaging order:', error);
+      
       throw error;
     } finally {
       setIsProcessingOrder(false);
@@ -454,7 +454,7 @@ export const OrderProvider = ({ children }) => {
         await loadActiveOrders(currentPatient.id);
       }
     } catch (error) {
-      console.error('Error discontinuing order:', error);
+      
       throw error;
     }
   };
@@ -522,7 +522,7 @@ export const OrderProvider = ({ children }) => {
         orderSetName: orderSet.name
       };
     } catch (error) {
-      console.error('Error applying order set:', error);
+      
       throw error;
     } finally {
       setIsProcessingOrder(false);
@@ -549,7 +549,7 @@ export const OrderProvider = ({ children }) => {
         form: med.form
       }));
     } catch (error) {
-      console.error('Error searching medications:', error);
+      
       // Fallback to common medications
       return [
         { name: 'Aspirin 81mg', code: '243670', display: 'Aspirin 81 MG Oral Tablet' },
@@ -573,7 +573,7 @@ export const OrderProvider = ({ children }) => {
         system: test.system
       }));
     } catch (error) {
-      console.error('Error searching lab tests:', error);
+      
       // Fallback to common tests
       return [
         { name: 'Complete Blood Count', code: '58410-2', display: 'Complete blood count (hemogram) panel' },
@@ -597,7 +597,7 @@ export const OrderProvider = ({ children }) => {
         system: proc.system
       }));
     } catch (error) {
-      console.error('Error searching imaging procedures:', error);
+      
       // Fallback to common procedures
       return [
         { name: 'Chest X-ray', code: '36643-5', display: 'Chest X-ray 2 Views' },

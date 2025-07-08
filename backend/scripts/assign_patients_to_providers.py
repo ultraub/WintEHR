@@ -15,6 +15,8 @@ from models.session import PatientProviderAssignment
 from models.models import Patient
 import random
 from datetime import datetime
+import logging
+
 
 def assign_patients_to_providers():
     """Create patient-provider assignments"""
@@ -28,23 +30,22 @@ def assign_patients_to_providers():
         patients = db.query(Patient).all()
         providers = db.query(Provider).filter(Provider.active == True).all()
         
-        print(f"Found {len(patients)} patients and {len(providers)} active providers")
-        
+        logging.info(f"Found {len(patients)} patients and {len(providers)} active providers")
         if not providers:
-            print("No active providers found!")
+            logging.info("No active providers found!")
             return
         
         # Check if assignments already exist
         existing_assignments = db.query(PatientProviderAssignment).count()
         if existing_assignments > 0:
-            print(f"Found {existing_assignments} existing assignments")
+            logging.info(f"Found {existing_assignments} existing assignments")
             response = input("Do you want to delete existing assignments and recreate? (y/n): ")
             if response.lower() == 'y':
                 db.query(PatientProviderAssignment).delete()
                 db.commit()
-                print("Deleted existing assignments")
+                logging.info("Deleted existing assignments")
             else:
-                print("Keeping existing assignments")
+                logging.info("Keeping existing assignments")
                 return
         
         # Assign patients to providers
@@ -58,8 +59,7 @@ def assign_patients_to_providers():
         if not primary_care_providers:
             primary_care_providers = providers
         
-        print(f"Found {len(primary_care_providers)} primary care providers")
-        
+        logging.info(f"Found {len(primary_care_providers)} primary care providers")
         for patient in patients:
             # Assign a primary care provider to each patient
             primary_provider = random.choice(primary_care_providers)
@@ -88,10 +88,9 @@ def assign_patients_to_providers():
                 assignments_created += 1
         
         db.commit()
-        print(f"✅ Successfully created {assignments_created} patient-provider assignments")
-        
+        logging.info(f"✅ Successfully created {assignments_created} patient-provider assignments")
         # Also update encounters to have provider_id
-        print("\nUpdating encounters with provider assignments...")
+        logging.info("\nUpdating encounters with provider assignments...")
         encounters_updated = 0
         
         # Get all encounters without providers
@@ -111,15 +110,14 @@ def assign_patients_to_providers():
                 encounters_updated += 1
         
         db.commit()
-        print(f"✅ Updated {encounters_updated} encounters with provider assignments")
-        
+        logging.info(f"✅ Updated {encounters_updated} encounters with provider assignments")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logging.error(f"❌ Error: {e}")
         db.rollback()
     finally:
         db.close()
 
 if __name__ == "__main__":
-    print("🔗 Assigning Patients to Providers")
-    print("=" * 50)
+    logging.info("🔗 Assigning Patients to Providers")
+    logging.info("=" * 50)
     assign_patients_to_providers()

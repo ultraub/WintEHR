@@ -58,7 +58,7 @@ function Analytics() {
         setDiseasePrevalence(diseaseResponse.data);
         setMedicationPatterns(medResponse.data);
       } catch (apiError) {
-        console.warn('API endpoints not available, using mock data:', apiError);
+        
         
         // Set error to show mock data warning
         setError('DISPLAYING MOCK DATA - API endpoints not available');
@@ -121,7 +121,7 @@ function Analytics() {
         });
       }
     } catch (err) {
-      console.error('Error in analytics:', err);
+      
       setError('Failed to load analytics data');
     } finally {
       setLoading(false);

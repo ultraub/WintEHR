@@ -156,6 +156,10 @@ app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
 from api.dicom.dicom_service import router as dicom_router
 app.include_router(dicom_router, tags=["DICOM Services"])
 
+# Include debug router (temporary)
+from api.debug_router import debug_router
+app.include_router(debug_router, tags=["Debug"])
+
 # TODO: Migrate these to use FHIR APIs
 # app.include_router(allergies.router, prefix="/api", tags=["Allergies"])
 # app.include_router(diagnosis_codes.router, prefix="/api", tags=["Diagnosis Codes"])

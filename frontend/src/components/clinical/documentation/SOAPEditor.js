@@ -32,7 +32,6 @@ import { useDocumentation } from '../../../contexts/DocumentationContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import { format } from 'date-fns';
 
-
 const SOAPEditor = ({ noteId, onSave, onSign }) => {
   const { currentPatient, currentEncounter } = useClinical();
   const {
@@ -57,7 +56,7 @@ const SOAPEditor = ({ noteId, onSave, onSign }) => {
     if (noteId) {
       loadNote(noteId).catch(err => {
         setError('Failed to load note');
-        console.error(err);
+        
       });
     } else if (!currentNote) {
       // Create new note if none exists
@@ -92,7 +91,7 @@ const SOAPEditor = ({ noteId, onSave, onSign }) => {
       }
     } catch (err) {
       setError('Failed to save note');
-      console.error(err);
+      
     }
   };
 
@@ -109,7 +108,7 @@ const SOAPEditor = ({ noteId, onSave, onSign }) => {
       }
     } catch (err) {
       setError('Failed to sign note');
-      console.error(err);
+      
     }
   };
 

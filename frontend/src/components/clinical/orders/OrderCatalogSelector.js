@@ -68,7 +68,7 @@ const OrderCatalogSelector = ({ orderType, onSelect, value }) => {
       const response = await api.get(endpoint, { params });
       setOptions(response.data);
     } catch (error) {
-      console.error('Error loading catalog options:', error);
+      
       setOptions([]);
     } finally {
       setLoading(false);
@@ -99,7 +99,7 @@ const OrderCatalogSelector = ({ orderType, onSelect, value }) => {
       
       setAvailableFilters(filterData);
     } catch (error) {
-      console.error('Error loading filter options:', error);
+      
     }
   };
 

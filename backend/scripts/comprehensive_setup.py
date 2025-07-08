@@ -24,12 +24,13 @@ from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingS
 from models.clinical.notes import ClinicalNote, NoteTemplate
 from models.clinical.orders import Order, OrderSet as OrderSetModel
 from models.clinical.tasks import ClinicalTask, InboxItem
+import logging
+
 
 
 def create_all_tables():
     """Create all database tables"""
-    print("Creating database tables...")
-    
+    logging.info("Creating database tables...")
     # Create sync engine from async engine URL
     import os
     from sqlalchemy import create_engine
@@ -57,7 +58,7 @@ def create_all_tables():
         from models import dicom_models
         dicom_models.Base.metadata.create_all(bind=sync_engine)
         
-        print("✓ Database tables created successfully")
+        logging.info("✓ Database tables created successfully")
     finally:
         sync_engine.dispose()
 
@@ -65,29 +66,28 @@ def create_all_tables():
 def run_script(script_path, description, args=None):
     """Run a Python script and handle errors"""
     try:
-        print(f"\n{description}...")
+        logging.info(f"\n{description}...")
         cmd = [sys.executable, script_path]
         if args:
             cmd.extend(args)
         result = subprocess.run(cmd, 
                               capture_output=True, text=True, check=True)
-        print(f"✓ {description} completed successfully")
+        logging.info(f"✓ {description} completed successfully")
         if result.stdout:
-            print(result.stdout)
+            logging.info(result.stdout)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"✗ {description} failed:")
-        print(f"Error: {e.stderr}")
+        logging.info(f"✗ {description} failed:")
+        logging.error(f"Error: {e.stderr}")
         return False
     except FileNotFoundError:
-        print(f"✗ Script not found: {script_path}")
+        logging.info(f"✗ Script not found: {script_path}")
         return False
 
 
 def run_synthea_generation(num_patients=100):
     """Generate synthetic patients using Synthea"""
-    print(f"\nGenerating {num_patients} synthetic patients with Synthea...")
-    
+    logging.info(f"\nGenerating {num_patients} synthetic patients with Synthea...")
     # Find Synthea JAR file
     script_dir = Path(__file__).parent
     synthea_jar = script_dir / "synthea-with-dependencies.jar"
@@ -96,7 +96,7 @@ def run_synthea_generation(num_patients=100):
         synthea_jar = script_dir / "synthea" / "synthea-with-dependencies.jar"
     
     if not synthea_jar.exists():
-        print("✗ Synthea JAR file not found. Please ensure synthea-with-dependencies.jar is available.")
+        logging.info("✗ Synthea JAR file not found. Please ensure synthea-with-dependencies.jar is available.")
         return False
     
     try:
@@ -115,14 +115,14 @@ def run_synthea_generation(num_patients=100):
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(f"✓ Generated {num_patients} synthetic patients")
+        logging.info(f"✓ Generated {num_patients} synthetic patients")
         return True
         
     except subprocess.CalledProcessError as e:
-        print(f"✗ Synthea generation failed: {e.stderr}")
+        logging.info(f"✗ Synthea generation failed: {e.stderr}")
         return False
     except Exception as e:
-        print(f"✗ Error running Synthea: {e}")
+        logging.error(f"✗ Error running Synthea: {e}")
         return False
 
 
@@ -138,10 +138,9 @@ def main():
     
     args = parser.parse_args()
     
-    print("=== EMR System Database Setup ===")
-    print(f"Quick mode: {args.quick}")
-    print(f"Patients to generate: {args.patients}")
-    
+    logging.info("=== EMR System Database Setup ===")
+    logging.info(f"Quick mode: {args.quick}")
+    logging.info(f"Patients to generate: {args.patients}")
     script_dir = Path(__file__).parent
     success_count = 0
     total_steps = 4 if not args.skip_synthea else 3
@@ -151,7 +150,7 @@ def main():
         create_all_tables()
         success_count += 1
     except Exception as e:
-        print(f"✗ Database creation failed: {e}")
+        logging.info(f"✗ Database creation failed: {e}")
         return 1
     
     # Step 2: Create sample providers
@@ -180,19 +179,18 @@ def main():
                 success_count += 1
     
     # Summary
-    print(f"\n=== Setup Complete ===")
-    print(f"Successfully completed {success_count}/{total_steps} setup steps")
-    
+    logging.info(f"\n=== Setup Complete ===")
+    logging.info(f"Successfully completed {success_count}/{total_steps} setup steps")
     if success_count == total_steps:
-        print("✓ EMR system is ready for use!")
-        print("\nNext steps:")
-        print("1. Start the backend server: python main.py")
-        print("2. Start the frontend: npm start")
-        print("3. Access the application at http://localhost:3000")
-        print("4. Login with one of the sample providers")
+        logging.info("✓ EMR system is ready for use!")
+        logging.info("\nNext steps:")
+        logging.info("1. Start the backend server: python main.py")
+        logging.info("2. Start the frontend: npm start")
+        logging.info("3. Access the application at http://localhost:3000")
+        logging.info("4. Login with one of the sample providers")
         return 0
     else:
-        print("⚠ Setup completed with some issues. Check the logs above.")
+        logging.info("⚠ Setup completed with some issues. Check the logs above.")
         return 1
 
 

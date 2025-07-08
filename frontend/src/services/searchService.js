@@ -45,7 +45,7 @@ class SearchService {
       this.setCache(cacheKey, conditions);
       return conditions;
     } catch (error) {
-      console.error('Error searching conditions:', error);
+      
       return [];
     }
   }
@@ -76,7 +76,7 @@ class SearchService {
       this.setCache(cacheKey, medications);
       return medications;
     } catch (error) {
-      console.error('Error searching medications:', error);
+      
       return [];
     }
   }
@@ -107,7 +107,7 @@ class SearchService {
       this.setCache(cacheKey, labTests);
       return labTests;
     } catch (error) {
-      console.error('Error searching lab tests:', error);
+      
       return [];
     }
   }
@@ -138,7 +138,7 @@ class SearchService {
       this.setCache(cacheKey, procedures);
       return procedures;
     } catch (error) {
-      console.error('Error searching imaging procedures:', error);
+      
       return [];
     }
   }
@@ -188,7 +188,7 @@ class SearchService {
       this.setCache(cacheKey, results);
       return results;
     } catch (error) {
-      console.error('Error in universal search:', error);
+      
       return {
         medications: [],
         labTests: [],
@@ -228,7 +228,7 @@ class SearchService {
       this.setCache(cacheKey, procedures);
       return procedures;
     } catch (error) {
-      console.error('Error searching procedures:', error);
+      
       return [];
     }
   }
@@ -259,7 +259,7 @@ class SearchService {
       this.setCache(cacheKey, documentTypes);
       return documentTypes;
     } catch (error) {
-      console.error('Error searching document types:', error);
+      
       return [];
     }
   }
@@ -290,7 +290,7 @@ class SearchService {
       this.setCache(cacheKey, practitioners);
       return practitioners;
     } catch (error) {
-      console.error('Error searching practitioners:', error);
+      
       return [];
     }
   }
@@ -321,7 +321,7 @@ class SearchService {
       this.setCache(cacheKey, organizations);
       return organizations;
     } catch (error) {
-      console.error('Error searching organizations:', error);
+      
       return [];
     }
   }
@@ -352,7 +352,7 @@ class SearchService {
       this.setCache(cacheKey, vaccines);
       return vaccines;
     } catch (error) {
-      console.error('Error searching vaccines:', error);
+      
       return [];
     }
   }
@@ -382,7 +382,7 @@ class SearchService {
           source: 'medication_catalog'
         })));
       } catch (error) {
-        console.error('Error searching medication allergens:', error);
+        
       }
     }
 

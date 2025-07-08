@@ -249,7 +249,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       
       setAllVitalsData(transformedVitals);
     } catch (err) {
-      console.error('Error fetching vitals data:', err);
+      
       setError('Failed to load vital signs data');
     } finally {
       setLoading(false);

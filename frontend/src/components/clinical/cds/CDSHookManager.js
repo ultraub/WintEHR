@@ -227,7 +227,7 @@ const CDSHookManager = ({
     if (hookType) {
       await fireHooks(hookType, contextData);
     } else {
-      console.warn(`Unknown workflow trigger: ${trigger}`);
+      
     }
   }, [fireHooks]);
 

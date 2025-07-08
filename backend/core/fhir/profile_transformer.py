@@ -259,18 +259,22 @@ class SyntheaProfileHandler(ProfileHandler):
             elif 'medicationReference' in resource and 'medication' not in resource:
                 resource['medication'] = resource.pop('medicationReference')
             
-            # Clean medication field based on type
+            # Fix Synthea-style medication.coding structure
             if 'medication' in resource and isinstance(resource['medication'], dict):
-                if 'reference' in resource['medication']:
-                    # It's a Reference, wrap in CodeableReference
-                    resource['medication'] = {
-                        'reference': self._clean_reference(resource['medication'])
-                    }
-                elif 'concept' not in resource['medication'] and 'coding' in resource['medication']:
-                    # It's a CodeableConcept, wrap in CodeableReference
-                    resource['medication'] = {
-                        'concept': self._clean_codeable_concept(resource['medication'])
-                    }
+                if 'coding' in resource['medication'] or 'text' in resource['medication']:
+                    # This is a CodeableConcept directly in medication field (Synthea style)
+                    # Convert to medicationCodeableConcept
+                    resource['medicationCodeableConcept'] = self._clean_codeable_concept(resource['medication'])
+                    del resource['medication']
+                elif 'reference' in resource['medication']:
+                    # It's a Reference, convert to medicationReference
+                    resource['medicationReference'] = self._clean_reference(resource['medication'])
+                    del resource['medication']
+                elif 'concept' in resource['medication']:
+                    # It's already wrapped in CodeableReference (less common)
+                    # Extract the concept part
+                    resource['medicationCodeableConcept'] = self._clean_codeable_concept(resource['medication']['concept'])
+                    del resource['medication']
             
             # Fix reasonCode -> reasonCode (ensure array)
             if 'reasonCode' in resource and not isinstance(resource['reasonCode'], list):
@@ -1225,20 +1229,9 @@ class ProfileAwareFHIRTransformer:
         
         # Handle medication[x] polymorphic fields
         if resource_type == 'MedicationRequest':
-            # Handle medication[x] polymorphic field
-            if 'medicationCodeableConcept' in resource and 'medication' not in resource:
-                resource['medication'] = resource.pop('medicationCodeableConcept')
-            elif 'medicationReference' in resource and 'medication' not in resource:
-                resource['medication'] = resource.pop('medicationReference')
-            
-            # Wrap medication in CodeableReference structure
-            if 'medication' in resource and isinstance(resource['medication'], dict):
-                if 'reference' in resource['medication'] and 'concept' not in resource['medication']:
-                    # It's a Reference, wrap in CodeableReference
-                    resource['medication'] = {'reference': resource['medication']}
-                elif 'concept' not in resource['medication'] and 'coding' in resource['medication']:
-                    # It's a CodeableConcept, wrap in CodeableReference
-                    resource['medication'] = {'concept': resource['medication']}
+            # The fhir.resources library expects medicationCodeableConcept or medicationReference
+            # NOT a medication field with nested structure
+            # So we leave the fields as-is after Synthea transformation
             
             # Remove reasonReference - not in fhir.resources MedicationRequest
             resource.pop('reasonReference', None)

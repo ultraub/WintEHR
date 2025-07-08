@@ -119,7 +119,7 @@ const ClinicalWorkspaceV3 = () => {
           setLoadError(null);
           await setCurrentPatient(patientId);
         } catch (error) {
-          console.error('Failed to load patient:', error);
+          
           setLoadError(error.message || 'Failed to load patient');
         } finally {
           setIsInitialLoad(false);
@@ -212,7 +212,7 @@ const ClinicalWorkspaceV3 = () => {
         // Show success feedback
         setSnackbar({ open: true, message: 'Patient data refreshed successfully' });
       } catch (error) {
-        console.error('Failed to refresh patient data:', error);
+        
         setSnackbar({ open: true, message: 'Failed to refresh data. Reloading page...' });
         // Fallback to page reload after a short delay
         setTimeout(() => window.location.reload(), 1500);
@@ -309,11 +309,11 @@ const ClinicalWorkspaceV3 = () => {
             // Handle different actions
             if (action === 'accept' && suggestion) {
               // Could trigger FHIR resource creation, navigation, etc.
-              console.debug('Accepting CDS suggestion:', suggestion);
+              
             } else if (action === 'reject') {
-              console.debug('Rejecting CDS alert:', alert.summary);
+              
             } else if (action === 'dismiss') {
-              console.debug('Dismissing CDS alert:', alert.summary);
+              
             }
           }}
         />

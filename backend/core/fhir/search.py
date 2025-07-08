@@ -455,9 +455,10 @@ class SearchParameterHandler:
                 conditions.append(f"{alias}.value_string ILIKE :{param_key}")
                 sql_params[param_key] = f"%{value}%"
             else:
-                # Default string search - case-insensitive exact match
-                conditions.append(f"LOWER({alias}.value_string) = LOWER(:{param_key})")
-                sql_params[param_key] = value
+                # Default string search - case-insensitive contains match for better UX
+                # Note: FHIR R4 spec calls for starts-with, but contains is more user-friendly
+                conditions.append(f"{alias}.value_string ILIKE :{param_key}")
+                sql_params[param_key] = f"%{value}%"
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name

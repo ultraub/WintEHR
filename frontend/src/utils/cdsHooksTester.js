@@ -14,23 +14,23 @@ class CDSHooksTester {
    * Test all patient-view hooks for a specific patient
    */
   async testPatientViewHooks(patientId) {
-    console.log(`🔍 Testing patient-view hooks for patient: ${patientId}`);
+    
     
     try {
       // Get patient data for context
       const patient = await fhirClient.read('Patient', patientId);
-      console.log(`👤 Patient: ${patient.name?.[0]?.given?.[0]} ${patient.name?.[0]?.family}`);
+      
 
       // Get available services
       const services = await cdsHooksClient.discoverServices();
       const patientViewServices = services.filter(s => s.hook === 'patient-view');
       
-      console.log(`🔗 Found ${patientViewServices.length} patient-view services`);
+      
 
       const results = [];
 
       for (const service of patientViewServices) {
-        console.log(`\n🧪 Testing service: ${service.title || service.id}`);
+        
         
         const startTime = Date.now();
         
@@ -60,11 +60,11 @@ class CDSHooksTester {
 
           results.push(result);
           
-          console.log(`✅ Success: ${result.cardCount} cards generated (${executionTime}ms)`);
+          `);
           
           if (result.cards.length > 0) {
             result.cards.forEach((card, index) => {
-              console.log(`   📋 Card ${index + 1}: ${card.summary} (${card.indicator})`);
+              `);
             });
           }
 
@@ -79,7 +79,7 @@ class CDSHooksTester {
           };
 
           results.push(result);
-          console.log(`❌ Failed: ${error.message}`);
+          
         }
       }
 
@@ -93,7 +93,7 @@ class CDSHooksTester {
       return results;
 
     } catch (error) {
-      console.error(`💥 Error testing patient ${patientId}:`, error);
+      
       return [];
     }
   }
@@ -102,19 +102,19 @@ class CDSHooksTester {
    * Test medication-prescribe hooks with sample medication
    */
   async testMedicationPrescribeHooks(patientId, medicationName = 'Lisinopril') {
-    console.log(`💊 Testing medication-prescribe hooks for patient: ${patientId}`);
-    console.log(`💊 Test medication: ${medicationName}`);
+    
+    
     
     try {
       const services = await cdsHooksClient.discoverServices();
       const medicationServices = services.filter(s => s.hook === 'medication-prescribe');
       
-      console.log(`🔗 Found ${medicationServices.length} medication-prescribe services`);
+      
 
       const results = [];
 
       for (const service of medicationServices) {
-        console.log(`\n🧪 Testing service: ${service.title || service.id}`);
+        
         
         const startTime = Date.now();
         
@@ -158,13 +158,13 @@ class CDSHooksTester {
 
           results.push(result);
           
-          console.log(`✅ Success: ${result.cardCount} cards generated (${executionTime}ms)`);
+          `);
           
           if (result.cards.length > 0) {
             result.cards.forEach((card, index) => {
-              console.log(`   📋 Card ${index + 1}: ${card.summary} (${card.indicator})`);
+              `);
               if (card.detail) {
-                console.log(`      Details: ${card.detail}`);
+                
               }
             });
           }
@@ -181,14 +181,14 @@ class CDSHooksTester {
           };
 
           results.push(result);
-          console.log(`❌ Failed: ${error.message}`);
+          
         }
       }
 
       return results;
 
     } catch (error) {
-      console.error(`💥 Error testing medication prescribe for patient ${patientId}:`, error);
+      
       return [];
     }
   }
@@ -201,7 +201,7 @@ class CDSHooksTester {
       const response = await fhirClient.search('Patient', { _count: limit });
       return response.resources || [];
     } catch (error) {
-      console.error('Error getting test patients:', error);
+      
       return [];
     }
   }
@@ -210,21 +210,21 @@ class CDSHooksTester {
    * Run comprehensive CDS hooks test suite
    */
   async runTestSuite() {
-    console.log(`🚀 Starting CDS Hooks Test Suite`);
-    console.log(`📅 ${new Date().toISOString()}`);
-    console.log(`${'='.repeat(50)}`);
+    
+    .toISOString()}`);
+    }`);
 
     try {
       // Get test patients
       const patients = await this.getTestPatients(5);
-      console.log(`👥 Testing with ${patients.length} patients\n`);
+      
 
       const allResults = [];
 
       for (const patient of patients) {
-        console.log(`\n${'='.repeat(30)}`);
-        console.log(`Testing Patient: ${patient.id}`);
-        console.log(`${'='.repeat(30)}`);
+        }`);
+        
+        }`);
 
         // Test patient-view hooks
         const patientViewResults = await this.testPatientViewHooks(patient.id);
@@ -242,14 +242,14 @@ class CDSHooksTester {
       }
 
       // Summary
-      console.log(`\n${'='.repeat(50)}`);
-      console.log(`📊 TEST SUITE SUMMARY`);
-      console.log(`${'='.repeat(50)}`);
-      console.log(`Total tests: ${allResults.length}`);
-      console.log(`Successful: ${allResults.filter(r => r.success).length}`);
-      console.log(`Failed: ${allResults.filter(r => !r.success).length}`);
-      console.log(`Cards generated: ${allResults.reduce((sum, r) => sum + (r.cardCount || 0), 0)}`);
-      console.log(`Average execution time: ${Math.round(allResults.reduce((sum, r) => sum + (r.executionTime || 0), 0) / allResults.length)}ms`);
+      }`);
+      
+      }`);
+      
+      .length}`);
+      .length}`);
+       => sum + (r.cardCount || 0), 0)}`);
+       => sum + (r.executionTime || 0), 0) / allResults.length)}ms`);
 
       return {
         totalTests: allResults.length,
@@ -260,7 +260,7 @@ class CDSHooksTester {
       };
 
     } catch (error) {
-      console.error(`💥 Test suite failed:`, error);
+      
       return null;
     }
   }

@@ -84,7 +84,7 @@ const TasksTab = () => {
       loadTasks({ patient_id: currentPatient.id });
       loadTaskStats();
     } catch (error) {
-      console.error('Error creating task:', error);
+      
     }
   };
 
@@ -96,7 +96,7 @@ const TasksTab = () => {
       loadTasks({ patient_id: currentPatient.id });
       loadTaskStats();
     } catch (error) {
-      console.error('Error completing task:', error);
+      
     }
   };
 

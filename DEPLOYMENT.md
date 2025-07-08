@@ -1,6 +1,29 @@
 # MedGenEMR Deployment Guide
 
-This guide covers deployment options for MedGenEMR, supporting both Docker and local development environments.
+This guide covers deployment options for MedGenEMR on different environments with automated deployment scripts.
+
+## 🚀 Quick Deployment Options
+
+### Option 1: Full Production Deployment
+```bash
+# Complete deployment with patient data and DICOM images
+./deploy.sh
+
+# Custom configuration
+./deploy.sh --patients 20 --validation strict
+```
+
+### Option 2: Quick Development Start
+```bash
+# Minimal setup for immediate testing
+./quick-start.sh
+```
+
+### Option 3: Infrastructure Only
+```bash
+# Just start containers without data generation
+./deploy.sh --skip-data --no-dicom
+```
 
 ## Prerequisites
 
@@ -10,48 +33,58 @@ This guide covers deployment options for MedGenEMR, supporting both Docker and l
 - 8GB+ RAM allocated to Docker
 - Ports 3000, 8000, and 5432 available
 
-### For Local Deployment
-- Python 3.9+
-- Node.js 16+ and npm
-- PostgreSQL 13+ (or Docker for just the database)
-- Ports 3000, 8000, and 5432 available
+### For AWS Deployment
+- EC2 instance (t3.medium or larger)
+- Security groups with ports 22, 80, 3000, 8000, 5432 open
+- 20GB+ storage
 
-## Environment Configuration
+## 🌍 Environment-Specific Deployment
 
-### 1. Backend Configuration
-
-Copy the example environment file:
+### Local Development (macOS/Linux)
 ```bash
-cd backend
-cp .env.example .env
+# Automatically detects environment and sets up Docker
+./deploy.sh
 ```
 
-Update `.env` based on your deployment:
+### AWS EC2 Deployment
+```bash
+# On fresh EC2 instance (Amazon Linux 2)
+git clone https://github.com/your-org/MedGenEMR.git
+cd MedGenEMR
+./deploy.sh --environment aws --patients 10
 
-#### Docker Deployment
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/medgenemr
+# Or using AWS-specific compose file
+docker-compose -f docker-compose.yml -f docker-compose.aws.yml up -d
 ```
 
-#### Local with Docker PostgreSQL
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/medgenemr
+### Docker Environment
+```bash
+# Using only Docker containers
+docker-compose up -d
+docker exec emr-backend python scripts/init_database_definitive.py
 ```
 
-#### Local with Local PostgreSQL
-```env
-DATABASE_URL=postgresql+asyncpg://username@localhost:5432/emr_db
+## 📊 Configuration Options
+
+### Environment Variables
+```bash
+export PATIENT_COUNT=15          # Number of patients to generate
+export VALIDATION_MODE=strict    # FHIR validation level
+export INCLUDE_DICOM=true        # Generate DICOM images
+export SKIP_DATA_GENERATION=false # Skip patient data
+export AWS_PUBLIC_IP=1.2.3.4     # AWS instance public IP
 ```
 
-### 2. Frontend Configuration
-
-The frontend `.env` is already configured:
-```env
-REACT_APP_FHIR_ENDPOINT=http://localhost:8000/fhir/R4
-REACT_APP_API_URL=http://localhost:8000
+### Command Line Arguments
+```bash
+./deploy.sh --help               # Show all options
+./deploy.sh --patients 25        # Generate 25 patients
+./deploy.sh --no-dicom          # Skip DICOM generation
+./deploy.sh --validation strict  # Use strict FHIR validation
+./deploy.sh --skip-data         # Infrastructure only
 ```
 
-## Deployment Options
+## Manual Deployment Options
 
 ### Option 1: Full Docker Deployment
 

@@ -30,6 +30,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+import logging
+
 
 # Load environment
 load_dotenv()
@@ -49,8 +51,7 @@ class ImagingToolkit:
         
     def generate_dicom_for_studies(self, patient_id=None):
         """Generate DICOM files for existing imaging studies."""
-        print("🏥 Generating DICOM files for imaging studies...")
-        
+        logging.info("🏥 Generating DICOM files for imaging studies...")
         with Session(self.engine) as session:
             # Find imaging studies
             query = "SELECT id, patient_id, modality_list, description FROM imaging_studies"
@@ -62,17 +63,14 @@ class ImagingToolkit:
             result = session.execute(text(query), params)
             studies = result.fetchall()
             
-            print(f"Found {len(studies)} imaging studies")
-            
+            logging.info(f"Found {len(studies)} imaging studies")
             for study in studies:
                 self._create_dicom_for_study(study)
                 
-        print("✅ DICOM generation complete")
-        
+        logging.info("✅ DICOM generation complete")
     def create_generic_dicoms(self, count=5):
         """Create generic DICOM files for testing."""
-        print(f"Creating {count} generic DICOM files...")
-        
+        logging.info(f"Creating {count} generic DICOM files...")
         modalities = ['CT', 'MR', 'XR', 'US', 'DX']
         body_parts = ['HEAD', 'CHEST', 'ABDOMEN', 'EXTREMITY', 'SPINE']
         
@@ -104,12 +102,10 @@ class ImagingToolkit:
             filepath.parent.mkdir(exist_ok=True)
             
             ds.save_as(filepath, write_like_original=False)
-            print(f"✅ Created {filename}")
-            
+            logging.info(f"✅ Created {filename}")
     def add_imaging_to_patients(self, count_per_patient=1):
         """Add imaging studies to patients who don't have any."""
-        print("Adding imaging studies to patients...")
-        
+        logging.info("Adding imaging studies to patients...")
         with Session(self.engine) as session:
             # Find patients without imaging
             query = """
@@ -122,8 +118,7 @@ class ImagingToolkit:
             result = session.execute(text(query))
             patients = result.fetchall()
             
-            print(f"Found {len(patients)} patients without imaging")
-            
+            logging.info(f"Found {len(patients)} patients without imaging")
             modalities = ['CT', 'MR', 'XR', 'US']
             procedures = {
                 'CT': ['Head CT', 'Chest CT', 'Abdomen CT'],
@@ -164,7 +159,7 @@ class ImagingToolkit:
                             json=study_data
                         )
                         if response.status_code == 201:
-                            print(f"✅ Added {procedure} for {patient.first_name} {patient.last_name}")
+                            logging.info(f"✅ Added {procedure} for {patient.first_name} {patient.last_name}")
                     except:
                         pass
                         
@@ -292,9 +287,7 @@ class ImagingToolkit:
             filepath = series_dir / filename
             ds.save_as(filepath, write_like_original=False)
             
-        print(f"✅ Created {num_instances} DICOM files for study {study.id}")
-
-
+        logging.info(f"✅ Created {num_instances} DICOM files for study {study.id}")
 def main():
     parser = argparse.ArgumentParser(description="Imaging and DICOM tools for MedGenEMR")
     

@@ -90,7 +90,7 @@ const PharmacyPage = () => {
         const resources = result.resources || [];
         setMedicationRequests(resources);
       } catch (error) {
-        console.error('Error fetching medication requests:', error);
+        
         setMedicationRequests([]);
       } finally {
         setDataLoading(false);
@@ -230,7 +230,7 @@ const PharmacyPage = () => {
       const resources = result.resources || [];
       setMedicationRequests(resources);
     } catch (error) {
-      console.error('Failed to refresh pharmacy queue:', error);
+      
     } finally {
       setRefreshing(false);
     }
@@ -266,17 +266,17 @@ const PharmacyPage = () => {
         handleRefresh();
       }
     } catch (error) {
-      console.error('Failed to update pharmacy status:', error);
+      
     }
   }, [publish, handleRefresh]);
 
   // Speed dial actions
   const speedDialActions = [
     { icon: <RefreshIcon />, name: 'Refresh Queue', onClick: handleRefresh },
-    { icon: <PrintIcon />, name: 'Print Labels', onClick: () => console.log('Print labels') },
-    { icon: <InventoryIcon />, name: 'Check Inventory', onClick: () => console.log('Check inventory') },
+    { icon: <PrintIcon />, name: 'Print Labels', onClick: () => {} },
+    { icon: <InventoryIcon />, name: 'Check Inventory', onClick: () => {} },
     { icon: <AnalyticsIcon />, name: 'View Analytics', onClick: () => setActiveView('analytics') },
-    { icon: <AddIcon />, name: 'Manual Entry', onClick: () => console.log('Manual entry') }
+    { icon: <AddIcon />, name: 'Manual Entry', onClick: () => {} }
   ];
 
   return (

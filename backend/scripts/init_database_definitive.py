@@ -15,19 +15,20 @@ import asyncio
 import asyncpg
 import sys
 from pathlib import Path
+import logging
+
 
 async def init_database_definitive():
     """Initialize the complete database schema definitively."""
     
-    print("🚀 MedGenEMR Definitive Database Initialization")
-    print("=" * 60)
-    
+    logging.info("🚀 MedGenEMR Definitive Database Initialization")
+    logging.info("=" * 60)
     try:
         # Connect to database
         conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
         
         # Drop and recreate everything to ensure consistency
-        print("🧹 Cleaning up any existing schema...")
+        logging.info("🧹 Cleaning up any existing schema...")
         await conn.execute("""
             -- Drop all FHIR tables if they exist
             DROP TABLE IF EXISTS fhir.references CASCADE;
@@ -43,10 +44,9 @@ async def init_database_definitive():
             CREATE SCHEMA cds_hooks;
         """)
         
-        print("✅ Schemas cleaned and recreated")
-        
+        logging.info("✅ Schemas cleaned and recreated")
         # Create the definitive schema
-        print("🏗️  Creating definitive database schema...")
+        logging.info("🏗️  Creating definitive database schema...")
         await conn.execute("""
             -- Create resources table (the foundation)
             CREATE TABLE fhir.resources (
@@ -128,10 +128,9 @@ async def init_database_definitive():
             );
         """)
         
-        print("✅ Tables created successfully")
-        
+        logging.info("✅ Tables created successfully")
         # Create all performance indexes
-        print("📊 Creating performance indexes...")
+        logging.info("📊 Creating performance indexes...")
         await conn.execute("""
             -- Resources table indexes
             CREATE INDEX idx_resources_type ON fhir.resources(resource_type);
@@ -161,11 +160,9 @@ async def init_database_definitive():
             CREATE INDEX idx_references_path ON fhir.references(reference_path);
         """)
         
-        print("✅ Indexes created successfully")
-        
+        logging.info("✅ Indexes created successfully")
         # Verify the schema
-        print("🔍 Verifying schema...")
-        
+        logging.info("🔍 Verifying schema...")
         # Check table counts
         result = await conn.fetchrow("""
             SELECT 
@@ -209,22 +206,21 @@ async def init_database_definitive():
         if missing_columns:
             raise Exception(f"Missing search_params columns: {missing_columns}")
         
-        print(f"✅ Schema validation passed")
-        print(f"📊 Definitive Schema Summary:")
-        print(f"   - Tables created: {len(table_names)}")
-        print(f"   - Expected tables: {', '.join(expected_tables)}")
-        print(f"   - Actual tables: {', '.join(table_names)}")
-        print(f"   - Search params columns: {len(search_columns)}")
-        print(f"   - Resources: {result['resource_count']:,}")
-        print(f"   - Search params: {result['search_param_count']:,}")
-        print(f"   - History records: {result['history_count']:,}")
-        print(f"   - References: {result['reference_count']:,}")
-        
+        logging.info(f"✅ Schema validation passed")
+        logging.info(f"📊 Definitive Schema Summary:")
+        logging.info(f"   - Tables created: {len(table_names)}")
+        logging.info(f"   - Expected tables: {', '.join(expected_tables)}")
+        logging.info(f"   - Actual tables: {', '.join(table_names)}")
+        logging.info(f"   - Search params columns: {len(search_columns)}")
+        logging.info(f"   - Resources: {result['resource_count']:,}")
+        logging.info(f"   - Search params: {result['search_param_count']:,}")
+        logging.info(f"   - History records: {result['history_count']:,}")
+        logging.info(f"   - References: {result['reference_count']:,}")
         await conn.close()
         return True
         
     except Exception as e:
-        print(f"❌ Definitive database initialization failed: {e}")
+        logging.info(f"❌ Definitive database initialization failed: {e}")
         return False
 
 if __name__ == '__main__':

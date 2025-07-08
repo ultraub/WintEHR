@@ -17,6 +17,8 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+import logging
+
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -24,9 +26,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 def reset_database():
     """Drop and recreate the database."""
-    print("🗄️  Resetting Database")
-    print("=" * 60)
-    
+    logging.info("🗄️  Resetting Database")
+    logging.info("=" * 60)
     # Connection parameters
     DB_USER = os.getenv('DB_USER', 'emr_user')
     DB_PASS = os.getenv('DB_PASS', 'emr_password')
@@ -58,22 +59,19 @@ def reset_database():
     
     try:
         # Drop existing database
-        print("  🗑️  Dropping existing database...")
+        logging.info("  🗑️  Dropping existing database...")
         cur.execute(f"DROP DATABASE IF EXISTS {DB_NAME};")
-        print("  ✅ Database dropped")
-        
+        logging.info("  ✅ Database dropped")
         # Create new database
-        print("  🆕 Creating new database...")
+        logging.info("  🆕 Creating new database...")
         cur.execute(f"CREATE DATABASE {DB_NAME};")
-        print("  ✅ Database created")
-        
+        logging.info("  ✅ Database created")
         # Grant privileges
-        print("  🔐 Granting privileges...")
+        logging.info("  🔐 Granting privileges...")
         cur.execute(f"GRANT ALL PRIVILEGES ON DATABASE {DB_NAME} TO {DB_USER};")
-        print("  ✅ Privileges granted")
-        
+        logging.info("  ✅ Privileges granted")
     except Exception as e:
-        print(f"  ❌ Error: {e}")
+        logging.error(f"  ❌ Error: {e}")
         return False
     finally:
         cur.close()
@@ -84,9 +82,8 @@ def reset_database():
 
 async def init_fhir_schema():
     """Initialize FHIR schema and tables."""
-    print("\n🏥 Initializing FHIR Schema")
-    print("=" * 60)
-    
+    logging.info("\n🏥 Initializing FHIR Schema")
+    logging.info("=" * 60)
     DATABASE_URL = os.getenv(
         'DATABASE_URL',
         'postgresql+asyncpg://emr_user:emr_password@localhost:5432/emr_db'
@@ -97,8 +94,7 @@ async def init_fhir_schema():
     async with engine.begin() as conn:
         # Create FHIR schema
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS fhir;"))
-        print("  ✅ Created schema: fhir")
-        
+        logging.info("  ✅ Created schema: fhir")
         # Create resources table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS fhir.resources (
@@ -119,8 +115,7 @@ async def init_fhir_schema():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_resources_jsonb ON fhir.resources USING gin(resource);"))
         
-        print("  ✅ Created table: fhir.resources")
-        
+        logging.info("  ✅ Created table: fhir.resources")
         # Create resource history table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS fhir.resource_history (
@@ -140,8 +135,7 @@ async def init_fhir_schema():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_history_version ON fhir.resource_history(version_id);"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_history_modified ON fhir.resource_history(modified_at);"))
         
-        print("  ✅ Created table: fhir.resource_history")
-        
+        logging.info("  ✅ Created table: fhir.resource_history")
         # Create search parameters table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS fhir.search_params (
@@ -168,8 +162,7 @@ async def init_fhir_schema():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(value_token_system, value_token_code);"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(value_reference);"))
         
-        print("  ✅ Created table: fhir.search_params")
-        
+        logging.info("  ✅ Created table: fhir.search_params")
         # Create search parameters definition table
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS fhir.search_parameters (
@@ -186,35 +179,28 @@ async def init_fhir_schema():
         # Create index for search parameter lookups
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_search_parameters_lookup ON fhir.search_parameters(resource_type, name);"))
         
-        print("  ✅ Created table: fhir.search_parameters")
-        
+        logging.info("  ✅ Created table: fhir.search_parameters")
         # Grant permissions
         await conn.execute(text("GRANT ALL ON SCHEMA fhir TO emr_user;"))
         await conn.execute(text("GRANT ALL ON ALL TABLES IN SCHEMA fhir TO emr_user;"))
         await conn.execute(text("GRANT ALL ON ALL SEQUENCES IN SCHEMA fhir TO emr_user;"))
         
-        print("  ✅ Granted permissions to emr_user")
-    
+        logging.info("  ✅ Granted permissions to emr_user")
     await engine.dispose()
-    print("\n✅ FHIR schema initialized successfully!")
-
-
+    logging.info("\n✅ FHIR schema initialized successfully!")
 async def main():
     """Main entry point."""
-    print("🚀 Database Reset and Initialization")
-    print("=" * 60)
-    
+    logging.info("🚀 Database Reset and Initialization")
+    logging.info("=" * 60)
     # Step 1: Reset database
     if not reset_database():
-        print("\n❌ Failed to reset database")
+        logging.info("\n❌ Failed to reset database")
         return
     
     # Step 2: Initialize FHIR schema
     await init_fhir_schema()
     
-    print("\n🎉 Database setup completed successfully!")
-    print("=" * 60)
-
-
+    logging.info("\n🎉 Database setup completed successfully!")
+    logging.info("=" * 60)
 if __name__ == "__main__":
     asyncio.run(main())

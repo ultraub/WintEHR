@@ -6,6 +6,8 @@ from database.database import DATABASE_URL, Base
 from models.clinical.notes import ClinicalNote, NoteTemplate
 from models.clinical.orders import Order, MedicationOrder, LaboratoryOrder, ImagingOrder, OrderSet
 from models.clinical.tasks import InboxItem, ClinicalTask, CareTeam, PatientList
+import logging
+
 
 def upgrade():
     """Create clinical workflow tables"""
@@ -29,8 +31,7 @@ def upgrade():
         PatientList.__table__
     ])
     
-    print("Clinical workflow tables created successfully")
-
+    logging.info("Clinical workflow tables created successfully")
 def downgrade():
     """Drop clinical workflow tables"""
     engine = create_engine(DATABASE_URL)
@@ -53,8 +54,7 @@ def downgrade():
     for table in tables_to_drop:
         table.drop(engine, checkfirst=True)
     
-    print("Clinical workflow tables dropped successfully")
-
+    logging.info("Clinical workflow tables dropped successfully")
 if __name__ == "__main__":
     import sys
     

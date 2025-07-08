@@ -76,23 +76,30 @@ export const WebSocketProvider = ({ children }) => {
       const token = localStorage.getItem('auth_token');
       // Skip WebSocket connection if no valid token
       if (!token || token === 'null') {
-        console.log('WebSocket: Skipping connection - no valid auth token');
+        
         return;
       }
       
-      const wsUrl = `${WS_URL}?token=${encodeURIComponent(token)}`;
-      
-      wsRef.current = new WebSocket(wsUrl);
+      // Connect without token in URL for security
+      wsRef.current = new WebSocket(WS_URL);
 
       wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
+        // Send authentication message after connection
+        const authMessage = {
+          type: 'authenticate',
+          token: token
+        };
+        wsRef.current.send(JSON.stringify(authMessage));
+        
         setIsConnected(true);
         reconnectAttempts.current = 0;
 
-        // Re-subscribe to all active subscriptions
-        Object.entries(subscriptions).forEach(([id, { resourceTypes, patientIds }]) => {
-          subscribe(id, resourceTypes, patientIds);
-        });
+        // Re-subscribe to all active subscriptions after auth
+        setTimeout(() => {
+          Object.entries(subscriptions).forEach(([id, { resourceTypes, patientIds }]) => {
+            subscribe(id, resourceTypes, patientIds);
+          });
+        }, 100); // Small delay to ensure auth is processed
       };
 
       wsRef.current.onmessage = (event) => {
@@ -105,12 +112,12 @@ export const WebSocketProvider = ({ children }) => {
             sendMessage({ type: 'pong' });
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          
         }
       };
 
       wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
+        
         setIsConnected(false);
         wsRef.current = null;
 
@@ -122,7 +129,7 @@ export const WebSocketProvider = ({ children }) => {
 
           reconnectTimeoutRef.current = setTimeout(() => {
             if (user) {
-              console.log(`Attempting to reconnect... (attempt ${reconnectAttempts.current})`);
+              `);
               connect();
             }
           }, delay);
@@ -130,10 +137,10 @@ export const WebSocketProvider = ({ children }) => {
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        
       };
     } catch (error) {
-      console.error('Error creating WebSocket connection:', error);
+      
     }
   }, [user, subscriptions, subscribe, sendMessage]);
 

@@ -211,7 +211,7 @@ export const formatFHIRDate = (date, format = 'short') => {
         return dateObj.toLocaleDateString();
     }
   } catch (error) {
-    console.error('Error formatting FHIR date:', error);
+    
     return date;
   }
 };

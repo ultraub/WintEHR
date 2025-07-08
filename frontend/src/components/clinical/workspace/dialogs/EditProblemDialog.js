@@ -126,7 +126,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
       const results = await searchService.searchConditions(query, 20);
       setConditionOptions(results.map(searchService.formatCondition));
     } catch (error) {
-      console.error('Error searching conditions:', error);
+      
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);
@@ -236,7 +236,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
       await onSave(updatedCondition);
       handleClose();
     } catch (err) {
-      console.error('Error saving problem:', err);
+      
       // Ensure we always set a string error message
       const errorMessage = typeof err === 'string' ? err : 
                           err?.message || 
@@ -256,7 +256,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         await onDelete(condition.id);
         handleClose();
       } catch (err) {
-        console.error('Error deleting problem:', err);
+        
         // Ensure we always set a string error message
         const errorMessage = typeof err === 'string' ? err : 
                             err?.message || 

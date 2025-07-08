@@ -239,7 +239,7 @@ export const DocumentationProvider = ({ children }) => {
       setClinicalContextNote(note);
       setIsDirty(false);
     } catch (error) {
-      console.error('Error loading note:', error);
+      
       throw error;
     }
   };
@@ -263,7 +263,7 @@ export const DocumentationProvider = ({ children }) => {
       
       setRecentNotes(notes);
     } catch (error) {
-      console.error('Error loading recent notes:', error);
+      
       throw error;
     }
   };
@@ -301,7 +301,7 @@ export const DocumentationProvider = ({ children }) => {
       
       setNoteTemplates(templates);
     } catch (error) {
-      console.error('Error loading note templates:', error);
+      
       throw error;
     }
   };
@@ -357,7 +357,7 @@ export const DocumentationProvider = ({ children }) => {
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
     } catch (error) {
-      console.error('Error saving note:', error);
+      
       throw error;
     } finally {
       setIsSaving(false);
@@ -394,7 +394,7 @@ export const DocumentationProvider = ({ children }) => {
       // Reload the note to get updated status
       await loadNote(currentNote.id);
     } catch (error) {
-      console.error('Error signing note:', error);
+      
       throw error;
     }
   };
@@ -456,7 +456,7 @@ export const DocumentationProvider = ({ children }) => {
       
       return result;
     } catch (error) {
-      console.error('Error creating addendum:', error);
+      
       throw error;
     }
   };
@@ -485,7 +485,7 @@ export const DocumentationProvider = ({ children }) => {
         await loadRecentNotes(currentPatient.id);
       }
     } catch (error) {
-      console.error('Error deleting note:', error);
+      
       throw error;
     }
   };

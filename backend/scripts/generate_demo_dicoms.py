@@ -13,6 +13,8 @@ import pydicom
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import generate_uid, ExplicitVRLittleEndian
 import random
+import logging
+
 
 # DICOM data directory
 DICOM_DIR = Path(__file__).parent.parent / "data" / "generated_dicoms"
@@ -325,8 +327,7 @@ def generate_imaging_study(study_type, patient_id="DEMO_PATIENT", patient_name="
     study_dir = DICOM_DIR / f"{study_type}_{study_uid.split('.')[-1]}"
     study_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"Generating {study_type} study with {config['slices']} slices...")
-    
+    logging.info(f"Generating {study_type} study with {config['slices']} slices...")
     dicom_files = []
     
     for slice_num in range(config["slices"]):
@@ -357,10 +358,8 @@ def generate_imaging_study(study_type, patient_id="DEMO_PATIENT", patient_name="
         dicom_files.append(str(filepath))
         
         if (slice_num + 1) % 10 == 0:
-            print(f"  Generated {slice_num + 1}/{config['slices']} slices")
-    
-    print(f"✅ Study saved to: {study_dir}")
-    
+            logging.info(f"  Generated {slice_num + 1}/{config['slices']} slices")
+    logging.info(f"✅ Study saved to: {study_dir}")
     return {
         "study_uid": study_uid,
         "series_uid": series_uid,
@@ -375,8 +374,7 @@ def generate_imaging_study(study_type, patient_id="DEMO_PATIENT", patient_name="
 def generate_patient_imaging_studies(patient_id, patient_name="Demo^Patient"):
     """Generate a comprehensive set of imaging studies for a patient"""
     
-    print(f"Generating imaging studies for patient: {patient_id}")
-    
+    logging.info(f"Generating imaging studies for patient: {patient_id}")
     # Generate common study types
     study_types_to_generate = [
         "CT_CHEST",
@@ -396,16 +394,14 @@ def generate_patient_imaging_studies(patient_id, patient_name="Demo^Patient"):
             study_info = generate_imaging_study(study_type, patient_id, patient_name)
             generated_studies.append(study_info)
         except Exception as e:
-            print(f"❌ Failed to generate {study_type}: {e}")
-    
+            logging.info(f"❌ Failed to generate {study_type}: {e}")
     return generated_studies
 
 def main():
     """Main function to generate demo DICOM studies"""
     
-    print("=== DICOM Demo Generator ===")
-    print("Generating realistic DICOM images for demonstration...")
-    
+    logging.info("=== DICOM Demo Generator ===")
+    logging.info("Generating realistic DICOM images for demonstration...")
     # Ensure DICOM directory exists
     DICOM_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -415,14 +411,12 @@ def main():
     
     studies = generate_patient_imaging_studies(patient_id, patient_name)
     
-    print(f"\n✅ Generated {len(studies)} imaging studies:")
+    logging.info(f"\n✅ Generated {len(studies)} imaging studies:")
     for study in studies:
-        print(f"  - {study['study_type']}: {study['slices']} slices ({study['modality']})")
-        print(f"    Study UID: {study['study_uid']}")
-        print(f"    Directory: {study['directory']}")
-    
-    print(f"\nDICOM files saved to: {DICOM_DIR}")
-    print("Studies are ready for import into the EMR system.")
-
+        logging.info(f"  - {study['study_type']}: {study['slices']} slices ({study['modality']})")
+        logging.info(f"    Study UID: {study['study_uid']}")
+        logging.info(f"    Directory: {study['directory']}")
+    logging.info(f"\nDICOM files saved to: {DICOM_DIR}")
+    logging.info("Studies are ready for import into the EMR system.")
 if __name__ == "__main__":
     main()

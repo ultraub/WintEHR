@@ -108,7 +108,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
         setSelectedTest(tests[0].code);
       }
     } catch (err) {
-      console.error('Error fetching lab data:', err);
+      
       setError('Failed to load laboratory tests');
     } finally {
       setLoading(false);

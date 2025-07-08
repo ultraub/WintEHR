@@ -7,6 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
+import logging
+
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/medgenemr")
@@ -127,8 +129,6 @@ def add_fhir_auth_columns():
         conn.execute(add_columns_sql)
         conn.commit()
     
-    print("FHIR authentication fields added successfully")
-
-
+    logging.info("FHIR authentication fields added successfully")
 if __name__ == "__main__":
     add_fhir_auth_columns()

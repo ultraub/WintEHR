@@ -5,15 +5,16 @@ import asyncpg
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
+import logging
+
 
 async def generate_synthea_import_report():
     """Generate comprehensive Synthea import validation report"""
     
-    print("=" * 80)
-    print("SYNTHEA DATA IMPORT COMPREHENSIVE CHECK REPORT")
-    print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 80)
-    
+    logging.info("=" * 80)
+    logging.info("SYNTHEA DATA IMPORT COMPREHENSIVE CHECK REPORT")
+    logging.info(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logging.info("=" * 80)
     # Connect to database
     conn = await asyncpg.connect(
         host='localhost',
@@ -24,9 +25,8 @@ async def generate_synthea_import_report():
     )
     
     # 1. SOURCE FILE ANALYSIS
-    print("\n1. SOURCE FILE ANALYSIS")
-    print("-" * 50)
-    
+    logging.info("\n1. SOURCE FILE ANALYSIS")
+    logging.info("-" * 50)
     # Analyze current synthea output
     synthea_output = Path('synthea/output/fhir')
     source_stats = defaultdict(int)
@@ -36,10 +36,9 @@ async def generate_synthea_import_report():
         files = list(synthea_output.glob('*.json'))
         patient_files = [f for f in files if 'hospitalInformation' not in f.name and 'practitionerInformation' not in f.name]
         
-        print(f"Synthea output directory: {synthea_output}")
-        print(f"Total files: {len(files)}")
-        print(f"Patient bundle files: {len(patient_files)}")
-        
+        logging.info(f"Synthea output directory: {synthea_output}")
+        logging.info(f"Total files: {len(files)}")
+        logging.info(f"Patient bundle files: {len(patient_files)}")
         # Analyze each patient file
         for file_path in patient_files:
             try:
@@ -60,13 +59,12 @@ async def generate_synthea_import_report():
                         if resource_type:
                             source_stats[resource_type] += 1
             except Exception as e:
-                print(f"Error reading {file_path.name}: {e}")
-        
+                logging.error(f"Error reading {file_path.name}: {e}")
         # Check hospital and practitioner files
         for pattern, name in [('hospitalInformation*.json', 'Hospital'), ('practitionerInformation*.json', 'Practitioner')]:
             info_files = list(synthea_output.glob(pattern))
             if info_files:
-                print(f"\n{name} information files: {len(info_files)}")
+                logging.info(f"\n{name} information files: {len(info_files)}")
                 for file_path in info_files:
                     try:
                         with open(file_path, 'r') as f:
@@ -77,19 +75,16 @@ async def generate_synthea_import_report():
                                 if resource_type:
                                     source_stats[resource_type] += 1
                     except Exception as e:
-                        print(f"Error reading {file_path.name}: {e}")
-    
-    print(f"\nUnique patients in source files: {len(source_patients)}")
-    print("\nResource types in source files:")
+                        logging.error(f"Error reading {file_path.name}: {e}")
+    logging.info(f"\nUnique patients in source files: {len(source_patients)}")
+    logging.info("\nResource types in source files:")
     total_source = sum(source_stats.values())
     for rt, count in sorted(source_stats.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {rt:30} {count:8}")
-    print(f"\nTotal resources in source: {total_source}")
-    
+        logging.info(f"  {rt:30} {count:8}")
+    logging.info(f"\nTotal resources in source: {total_source}")
     # 2. DATABASE ANALYSIS
-    print("\n\n2. DATABASE ANALYSIS")
-    print("-" * 50)
-    
+    logging.info("\n\n2. DATABASE ANALYSIS")
+    logging.info("-" * 50)
     # Get database counts
     query = """
         SELECT resource_type, COUNT(*) as count
@@ -114,21 +109,18 @@ async def generate_synthea_import_report():
     """
     patient_count = await conn.fetchval(patient_query)
     
-    print(f"Patients in database: {patient_count}")
-    print(f"Total resources in database: {total_db}")
+    logging.info(f"Patients in database: {patient_count}")
+    logging.info(f"Total resources in database: {total_db}")
     if patient_count > 0:
-        print(f"Average resources per patient: {total_db / patient_count:.0f}")
-    
-    print("\nResource types in database:")
+        logging.info(f"Average resources per patient: {total_db / patient_count:.0f}")
+    logging.info("\nResource types in database:")
     for rt, count in sorted(db_stats.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {rt:30} {count:8}")
-    
+        logging.info(f"  {rt:30} {count:8}")
     # 3. COMPARISON
-    print("\n\n3. SOURCE vs DATABASE COMPARISON")
-    print("-" * 80)
-    print(f"{'Resource Type':30} {'Source':>10} {'Database':>10} {'Diff':>10} {'Ratio':>8} Status")
-    print("-" * 80)
-    
+    logging.info("\n\n3. SOURCE vs DATABASE COMPARISON")
+    logging.info("-" * 80)
+    logging.info(f"{'Resource Type':30} {'Source':>10} {'Database':>10} {'Diff':>10} {'Ratio':>8} Status")
+    logging.info("-" * 80)
     all_types = sorted(set(source_stats.keys()) | set(db_stats.keys()))
     
     issues = []
@@ -152,12 +144,10 @@ async def generate_synthea_import_report():
         else:
             status = "✓"
         
-        print(f"{rt:30} {source:10} {db:10} {diff:+10} {ratio:>8} {status}")
-    
+        logging.info(f"{rt:30} {source:10} {db:10} {diff:+10} {ratio:>8} {status}")
     # 4. MISSING RESOURCE TYPES
-    print("\n\n4. SYNTHEA STANDARD RESOURCE TYPES")
-    print("-" * 50)
-    
+    logging.info("\n\n4. SYNTHEA STANDARD RESOURCE TYPES")
+    logging.info("-" * 50)
     expected_types = {
         # Always present
         'Patient', 'Encounter', 'Condition', 'Observation', 'Procedure',
@@ -186,12 +176,10 @@ async def generate_synthea_import_report():
             missing_in_db.append(rt)
         
         status = f"Source: {'✓' if in_source else '✗'}  DB: {'✓' if in_db else '✗'}"
-        print(f"{rt:30} {status}")
-    
+        logging.info(f"{rt:30} {status}")
     # 5. DATA INTEGRITY CHECKS
-    print("\n\n5. DATA INTEGRITY CHECKS")
-    print("-" * 50)
-    
+    logging.info("\n\n5. DATA INTEGRITY CHECKS")
+    logging.info("-" * 50)
     # Check for URN references
     urn_query = """
         SELECT COUNT(*) as count
@@ -200,8 +188,7 @@ async def generate_synthea_import_report():
         AND resource::text LIKE '%urn:uuid:%'
     """
     urn_count = await conn.fetchval(urn_query)
-    print(f"Resources with URN references: {urn_count}")
-    
+    logging.info(f"Resources with URN references: {urn_count}")
     # Check medication references
     med_ref_query = """
         SELECT 
@@ -214,11 +201,10 @@ async def generate_synthea_import_report():
     """
     med_stats = await conn.fetchrow(med_ref_query)
     if med_stats:
-        print(f"\nMedicationRequest analysis:")
-        print(f"  With medicationReference: {med_stats['with_ref']}")
-        print(f"  With medicationCodeableConcept: {med_stats['with_concept']}")
-        print(f"  Total: {med_stats['total']}")
-    
+        logging.info(f"\nMedicationRequest analysis:")
+        logging.info(f"  With medicationReference: {med_stats['with_ref']}")
+        logging.info(f"  With medicationCodeableConcept: {med_stats['with_concept']}")
+        logging.info(f"  Total: {med_stats['total']}")
     # Check for duplicate imports
     dup_query = """
         WITH patient_data AS (
@@ -237,12 +223,11 @@ async def generate_synthea_import_report():
     """
     dups = await conn.fetch(dup_query)
     if dups:
-        print(f"\n⚠️  Found {len(dups)} duplicate patient records!")
+        logging.info(f"\n⚠️  Found {len(dups)} duplicate patient records!")
         for dup in dups[:5]:  # Show first 5
-            print(f"  {dup['given']} {dup['family']} - {dup['count']} copies")
+            logging.info(f"  {dup['given']} {dup['family']} - {dup['count']} copies")
     else:
-        print("\n✓ No duplicate patients found")
-    
+        logging.info("\n✓ No duplicate patients found")
     # Check latest imports
     latest_query = """
         SELECT 
@@ -256,44 +241,37 @@ async def generate_synthea_import_report():
         LIMIT 5
     """
     latest = await conn.fetch(latest_query)
-    print("\nMost recently updated resource types:")
+    logging.info("\nMost recently updated resource types:")
     for row in latest:
-        print(f"  {row['resource_type']:20} {row['count']:8} (last: {row['latest']})")
-    
+        logging.info(f"  {row['resource_type']:20} {row['count']:8} (last: {row['latest']})")
     await conn.close()
     
     # 6. SUMMARY AND RECOMMENDATIONS
-    print("\n\n6. SUMMARY AND RECOMMENDATIONS")
-    print("=" * 80)
-    
-    print(f"\n✓ Source files contain {total_source} resources across {len(source_stats)} types")
-    print(f"✓ Database contains {total_db} resources across {len(db_stats)} types")
-    
+    logging.info("\n\n6. SUMMARY AND RECOMMENDATIONS")
+    logging.info("=" * 80)
+    logging.info(f"\n✓ Source files contain {total_source} resources across {len(source_stats)} types")
+    logging.info(f"✓ Database contains {total_db} resources across {len(db_stats)} types")
     if patient_count > len(source_patients):
-        print(f"\n📊 Database has {patient_count} patients vs {len(source_patients)} in current source")
-        print("   This suggests multiple imports or additional data sources")
-    
+        logging.info(f"\n📊 Database has {patient_count} patients vs {len(source_patients)} in current source")
+        logging.info("   This suggests multiple imports or additional data sources")
     if missing_in_db:
-        print(f"\n⚠️  Resource types missing from database:")
+        logging.info(f"\n⚠️  Resource types missing from database:")
         for rt in missing_in_db:
             if rt in ['Goal', 'Coverage', 'Media', 'ServiceRequest']:
-                print(f"   - {rt} (optional - not always generated by Synthea)")
+                logging.info(f"   - {rt} (optional - not always generated by Synthea)")
             else:
-                print(f"   - {rt} (should be present)")
-    
+                logging.info(f"   - {rt} (should be present)")
     if issues:
-        print("\n⚠️  Import issues detected:")
+        logging.info("\n⚠️  Import issues detected:")
         for issue in issues:
-            print(f"   - {issue}")
-    
+            logging.info(f"   - {issue}")
     # Check backup directories
     backup_dir = Path('data/synthea_backups')
     if backup_dir.exists():
         backups = sorted(backup_dir.glob('synthea_backup_*'))
         if backups:
-            print(f"\n📁 Found {len(backups)} backup directories")
-            print(f"   Latest: {backups[-1].name}")
-            
+            logging.info(f"\n📁 Found {len(backups)} backup directories")
+            logging.info(f"   Latest: {backups[-1].name}")
             # Count total patient files across all backups
             total_backup_patients = 0
             for backup in backups:
@@ -302,15 +280,12 @@ async def generate_synthea_import_report():
                                and 'practitionerInformation' not in f.name]
                 total_backup_patients += len(patient_files)
             
-            print(f"   Total patient files in backups: {total_backup_patients}")
-            
+            logging.info(f"   Total patient files in backups: {total_backup_patients}")
             if total_backup_patients > len(source_patients):
-                print(f"\n💡 Recommendation: The backup directories contain more patient data")
-                print(f"   Consider re-importing from the latest backup for completeness")
-    
-    print("\n" + "=" * 80)
-    print("END OF REPORT")
-    print("=" * 80)
-
+                logging.info(f"\n💡 Recommendation: The backup directories contain more patient data")
+                logging.info(f"   Consider re-importing from the latest backup for completeness")
+    logging.info("\n" + "=" * 80)
+    logging.info("END OF REPORT")
+    logging.info("=" * 80)
 if __name__ == "__main__":
     asyncio.run(generate_synthea_import_report())

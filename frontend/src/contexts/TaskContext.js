@@ -168,7 +168,7 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get('/api/clinical/inbox/', { params: filters });
       setInboxItems(response.data);
     } catch (error) {
-      console.error('Error loading inbox items:', error);
+      
       throw error;
     }
   };
@@ -178,7 +178,7 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get('/api/clinical/inbox/stats');
       setInboxStats(response.data);
     } catch (error) {
-      console.error('Error loading inbox stats:', error);
+      
       throw error;
     }
   };
@@ -189,7 +189,7 @@ export const TaskProvider = ({ children }) => {
       await loadInboxItems();
       await loadInboxStats();
     } catch (error) {
-      console.error('Error marking inbox item as read:', error);
+      
       throw error;
     }
   };
@@ -203,7 +203,7 @@ export const TaskProvider = ({ children }) => {
       await loadInboxItems();
       await loadInboxStats();
     } catch (error) {
-      console.error('Error acknowledging inbox items:', error);
+      
       throw error;
     }
   };
@@ -218,7 +218,7 @@ export const TaskProvider = ({ children }) => {
       });
       await loadInboxItems();
     } catch (error) {
-      console.error('Error forwarding inbox items:', error);
+      
       throw error;
     }
   };
@@ -232,7 +232,7 @@ export const TaskProvider = ({ children }) => {
       await loadInboxItems();
       await loadTasks();
     } catch (error) {
-      console.error('Error creating task from inbox:', error);
+      
       throw error;
     }
   };
@@ -266,7 +266,7 @@ export const TaskProvider = ({ children }) => {
       const tasks = (result.resources || []).map(transformFHIRTask);
       setTasks(tasks);
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      
       throw error;
     }
   };
@@ -297,7 +297,7 @@ export const TaskProvider = ({ children }) => {
       
       setTaskStats(stats);
     } catch (error) {
-      console.error('Error loading task stats:', error);
+      
       throw error;
     }
   };
@@ -317,7 +317,7 @@ export const TaskProvider = ({ children }) => {
       
       return { ...taskData, id: result.id };
     } catch (error) {
-      console.error('Error creating task:', error);
+      
       throw error;
     }
   };
@@ -343,7 +343,7 @@ export const TaskProvider = ({ children }) => {
       await loadTasks();
       await loadTaskStats();
     } catch (error) {
-      console.error('Error updating task:', error);
+      
       throw error;
     }
   };
@@ -387,7 +387,7 @@ export const TaskProvider = ({ children }) => {
       await loadTasks();
       await loadTaskStats();
     } catch (error) {
-      console.error('Error completing task:', error);
+      
       throw error;
     }
   };
@@ -398,7 +398,7 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get(`/api/clinical/tasks/care-teams/patient/${patientId}`);
       setCareTeams(response.data);
     } catch (error) {
-      console.error('Error loading patient care teams:', error);
+      
       throw error;
     }
   };
@@ -411,7 +411,7 @@ export const TaskProvider = ({ children }) => {
       }
       return response.data;
     } catch (error) {
-      console.error('Error creating care team:', error);
+      
       throw error;
     }
   };
@@ -423,7 +423,7 @@ export const TaskProvider = ({ children }) => {
         await loadPatientCareTeams(currentPatient.id);
       }
     } catch (error) {
-      console.error('Error updating care team:', error);
+      
       throw error;
     }
   };
@@ -434,7 +434,7 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get('/api/clinical/tasks/patient-lists/');
       setPatientLists(response.data);
     } catch (error) {
-      console.error('Error loading patient lists:', error);
+      
       throw error;
     }
   };
@@ -445,7 +445,7 @@ export const TaskProvider = ({ children }) => {
       await loadPatientLists();
       return response.data;
     } catch (error) {
-      console.error('Error creating patient list:', error);
+      
       throw error;
     }
   };
@@ -455,7 +455,7 @@ export const TaskProvider = ({ children }) => {
       await api.put(`/api/clinical/tasks/patient-lists/${listId}/add-patient/${patientId}`);
       await loadPatientLists();
     } catch (error) {
-      console.error('Error adding patient to list:', error);
+      
       throw error;
     }
   };
@@ -465,7 +465,7 @@ export const TaskProvider = ({ children }) => {
       await api.delete(`/api/clinical/tasks/patient-lists/${listId}/remove-patient/${patientId}`);
       await loadPatientLists();
     } catch (error) {
-      console.error('Error removing patient from list:', error);
+      
       throw error;
     }
   };
@@ -475,7 +475,7 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get(`/api/clinical/tasks/patient-lists/${listId}/patients`);
       return response.data.patients;
     } catch (error) {
-      console.error('Error getting patient list patients:', error);
+      
       throw error;
     }
   };

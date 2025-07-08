@@ -25,6 +25,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from database import DATABASE_URL
+import logging
+
 
 
 class FHIRNameCleaner:
@@ -141,8 +143,7 @@ class FHIRNameCleaner:
     
     async def process_patients(self, dry_run: bool = False):
         """Process all Patient resources."""
-        print("\n=== Processing Patient Resources ===")
-        
+        logging.info("\n=== Processing Patient Resources ===")
         result = await self.session.execute(
             text("SELECT fhir_id, resource, version_id FROM fhir.resources WHERE resource_type = 'Patient' AND deleted = false")
         )
@@ -176,8 +177,7 @@ class FHIRNameCleaner:
                             new_parts.append(new_name['family'])
                         new_names.append(' '.join(new_parts))
                     
-                    print(f"  Patient {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
-                    
+                    logging.info(f"  Patient {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
                     if not dry_run:
                         # Update the resource
                         new_version = version_id + 1
@@ -200,13 +200,12 @@ class FHIRNameCleaner:
                         
             except Exception as e:
                 error_msg = f"Error processing patient {fhir_id}: {str(e)}"
-                print(f"  ERROR: {error_msg}")
+                logging.error(f"  ERROR: {error_msg}")
                 self.stats['errors'].append(error_msg)
     
     async def process_practitioners(self, dry_run: bool = False):
         """Process all Practitioner resources."""
-        print("\n=== Processing Practitioner Resources ===")
-        
+        logging.info("\n=== Processing Practitioner Resources ===")
         result = await self.session.execute(
             text("SELECT fhir_id, resource, version_id FROM fhir.resources WHERE resource_type = 'Practitioner' AND deleted = false")
         )
@@ -244,8 +243,7 @@ class FHIRNameCleaner:
                             new_parts.append(new_name['family'])
                         new_names.append(' '.join(new_parts))
                     
-                    print(f"  Practitioner {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
-                    
+                    logging.info(f"  Practitioner {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
                     if not dry_run:
                         # Update the resource
                         new_version = version_id + 1
@@ -268,13 +266,12 @@ class FHIRNameCleaner:
                         
             except Exception as e:
                 error_msg = f"Error processing practitioner {fhir_id}: {str(e)}"
-                print(f"  ERROR: {error_msg}")
+                logging.error(f"  ERROR: {error_msg}")
                 self.stats['errors'].append(error_msg)
     
     async def process_related_persons(self, dry_run: bool = False):
         """Process all RelatedPerson resources."""
-        print("\n=== Processing RelatedPerson Resources ===")
-        
+        logging.info("\n=== Processing RelatedPerson Resources ===")
         result = await self.session.execute(
             text("SELECT fhir_id, resource, version_id FROM fhir.resources WHERE resource_type = 'RelatedPerson' AND deleted = false")
         )
@@ -308,8 +305,7 @@ class FHIRNameCleaner:
                             new_parts.append(new_name['family'])
                         new_names.append(' '.join(new_parts))
                     
-                    print(f"  RelatedPerson {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
-                    
+                    logging.info(f"  RelatedPerson {fhir_id}: {' | '.join(old_names)} → {' | '.join(new_names)}")
                     if not dry_run:
                         # Update the resource
                         new_version = version_id + 1
@@ -332,16 +328,15 @@ class FHIRNameCleaner:
                         
             except Exception as e:
                 error_msg = f"Error processing related person {fhir_id}: {str(e)}"
-                print(f"  ERROR: {error_msg}")
+                logging.error(f"  ERROR: {error_msg}")
                 self.stats['errors'].append(error_msg)
     
     async def run(self, dry_run: bool = False):
         """Run the complete cleaning process."""
-        print("FHIR Name Cleaning Script")
-        print("=" * 50)
-        print(f"Mode: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
-        print()
-        
+        logging.info("FHIR Name Cleaning Script")
+        logging.info("=" * 50)
+        logging.info(f"Mode: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
+        logging.info()
         try:
             # Process each resource type
             await self.process_patients(dry_run)
@@ -352,31 +347,28 @@ class FHIRNameCleaner:
                 await self.session.commit()
                 
             # Print summary
-            print("\n" + "=" * 50)
-            print("SUMMARY")
-            print("=" * 50)
-            print(f"Patients processed: {self.stats['patients_processed']}")
-            print(f"Patients updated: {self.stats['patients_updated']}")
-            print(f"Practitioners processed: {self.stats['practitioners_processed']}")
-            print(f"Practitioners updated: {self.stats['practitioners_updated']}")
-            print(f"RelatedPersons processed: {self.stats['related_persons_processed']}")
-            print(f"RelatedPersons updated: {self.stats['related_persons_updated']}")
-            
+            logging.info("\n" + "=" * 50)
+            logging.info("SUMMARY")
+            logging.info("=" * 50)
+            logging.info(f"Patients processed: {self.stats['patients_processed']}")
+            logging.info(f"Patients updated: {self.stats['patients_updated']}")
+            logging.info(f"Practitioners processed: {self.stats['practitioners_processed']}")
+            logging.info(f"Practitioners updated: {self.stats['practitioners_updated']}")
+            logging.info(f"RelatedPersons processed: {self.stats['related_persons_processed']}")
+            logging.info(f"RelatedPersons updated: {self.stats['related_persons_updated']}")
             if self.stats['errors']:
-                print(f"\nErrors encountered: {len(self.stats['errors'])}")
+                logging.error(f"\nErrors encountered: {len(self.stats['errors'])}")
                 for error in self.stats['errors'][:5]:  # Show first 5 errors
-                    print(f"  - {error}")
+                    logging.error(f"  - {error}")
                 if len(self.stats['errors']) > 5:
-                    print(f"  ... and {len(self.stats['errors']) - 5} more errors")
-            
+                    logging.error(f"  ... and {len(self.stats['errors']) - 5} more errors")
             if dry_run:
-                print("\nThis was a DRY RUN. No changes were made.")
-                print("Run without --dry-run to apply changes.")
+                logging.info("\nThis was a DRY RUN. No changes were made.")
+                logging.info("Run without --dry-run to apply changes.")
             else:
-                print("\nAll changes have been committed to the database.")
-                
+                logging.info("\nAll changes have been committed to the database.")
         except Exception as e:
-            print(f"\nFATAL ERROR: {str(e)}")
+            logging.error(f"\nFATAL ERROR: {str(e)}")
             if not dry_run:
                 await self.session.rollback()
             raise

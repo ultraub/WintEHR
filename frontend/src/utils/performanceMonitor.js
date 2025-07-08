@@ -24,7 +24,7 @@ class PerformanceMonitor {
       memory: this.getMemoryUsage()
     });
 
-    console.log(`🚀 Starting: ${operationName}`, metadata);
+    
   }
 
   /**
@@ -35,7 +35,7 @@ class PerformanceMonitor {
 
     const timer = this.timers.get(operationName);
     if (!timer) {
-      console.warn(`⚠️ No timer found for operation: ${operationName}`);
+      
       return;
     }
 
@@ -68,8 +68,7 @@ class PerformanceMonitor {
     const memoryDelta = metric.memory.delta ? 
       ` (${(metric.memory.delta / 1024 / 1024).toFixed(2)}MB)` : '';
     
-    console.log(
-      `✅ Completed: ${operationName} in ${duration.toFixed(2)}ms${memoryDelta}`,
+    }ms${memoryDelta}`,
       additionalData
     );
 

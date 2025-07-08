@@ -15,6 +15,8 @@ from database import get_db_session
 from models.models import Patient, Encounter, Provider, Organization, Observation
 from fhir.resources.R4B.patient import Patient as FHIRPatient
 from fhir.resources.R4B.observation import Observation as FHIRObservation
+import logging
+
 
 router = APIRouter(tags=["CDS Hooks"])
 
@@ -168,19 +170,17 @@ class CDSHookEngine:
         """Evaluate a CDS hook against the given context"""
         cards = []
         
-        print(f"Evaluating hook: {hook_config.get('id')} for patient: {context.get('patientId')}")
-        
+        logging.info(f"Evaluating hook: {hook_config.get('id')} for patient: {context.get('patientId')}")
         # Check if conditions are met
         if self._evaluate_conditions(hook_config.get('conditions', []), context):
-            print(f"Conditions met for hook: {hook_config.get('id')}")
+            logging.info(f"Conditions met for hook: {hook_config.get('id')}")
             # Execute actions
             for action in hook_config.get('actions', []):
                 card = self._execute_action(action, context)
                 if card:
                     cards.append(card)
         else:
-            print(f"Conditions NOT met for hook: {hook_config.get('id')}")
-        
+            logging.info(f"Conditions NOT met for hook: {hook_config.get('id')}")
         return cards
     
     def _evaluate_conditions(self, conditions: List[dict], context: dict) -> bool:
@@ -201,7 +201,7 @@ class CDSHookEngine:
         patient_id = context.get('patientId')
         
         if not patient_id:
-            print(f"No patient ID in context")
+            logging.info(f"No patient ID in context")
             return False
         
         # Get patient data from FHIR storage
@@ -226,20 +226,19 @@ class CDSHookEngine:
             row = result.first()
             patient_dict = dict(row.resource) if row else None
         if not patient_dict:
-            print(f"Patient {patient_id} not found")
+            logging.info(f"Patient {patient_id} not found")
             return False
         
         try:
             patient = FHIRPatient(**patient_dict)
         except Exception as e:
-            print(f"Error parsing patient: {e}")
+            logging.error(f"Error parsing patient: {e}")
             return False
         
-        print(f"Checking condition type: {condition_type} with parameters: {parameters}")
-        
+        logging.info(f"Checking condition type: {condition_type} with parameters: {parameters}")
         if condition_type == 'patient-age':
             result = self._check_patient_age(patient, parameters)
-            print(f"Patient age check result: {result}")
+            logging.info(f"Patient age check result: {result}")
             return result
         elif condition_type == 'patient-gender':
             return self._check_patient_gender(patient, parameters)
@@ -255,7 +254,7 @@ class CDSHookEngine:
             return self._check_lab_missing(patient_id, parameters)
         elif condition_type == 'vital-sign':
             result = self._check_vital_sign(patient_id, parameters)
-            print(f"Vital sign check result: {result}")
+            logging.info(f"Vital sign check result: {result}")
             return result
         
         return False
@@ -263,7 +262,7 @@ class CDSHookEngine:
     def _check_patient_age(self, patient: FHIRPatient, parameters: dict) -> bool:
         """Check patient age condition"""
         if not patient.birthDate:
-            print(f"No birthDate for patient")
+            logging.info(f"No birthDate for patient")
             return False
         
         birth_date = patient.birthDate.date if hasattr(patient.birthDate, 'date') else patient.birthDate
@@ -271,15 +270,14 @@ class CDSHookEngine:
         operator = parameters.get('operator', 'eq')
         value = float(parameters.get('value', 0))
         
-        print(f"Patient age check: age={age:.1f}, operator={operator}, value={value}")
-        
+        logging.info(f"Patient age check: age={age:.1f}, operator={operator}, value={value}")
         if operator == 'eq':
             return abs(age - value) < 1  # Within 1 year
         elif operator == 'gt':
             return age > value
         elif operator == 'ge' or operator == '>=':
             result = age >= value
-            print(f"Age check result: {age:.1f} >= {value} = {result}")
+            logging.info(f"Age check result: {age:.1f} >= {value} = {result}")
             return result
         elif operator == 'lt':
             return age < value
@@ -304,11 +302,10 @@ class CDSHookEngine:
             codes = []
         
         if not codes:
-            print(f"No codes to check for patient {patient_id}")
+            logging.info(f"No codes to check for patient {patient_id}")
             return False
         
-        print(f"Checking diagnosis codes {codes} for patient {patient_id}")
-        
+        logging.info(f"Checking diagnosis codes {codes} for patient {patient_id}")
         # Direct query to check for conditions with these codes
         from sqlalchemy import text
         
@@ -336,8 +333,7 @@ class CDSHookEngine:
         })
         
         count = result.scalar()
-        print(f"Found {count} matching conditions for patient {patient_id}")
-        
+        logging.info(f"Found {count} matching conditions for patient {patient_id}")
         operator = parameters.get('operator', 'in')
         if operator == 'in':
             return count > 0
@@ -723,7 +719,7 @@ async def execute_hook(
         return {"cards": cards}
     except Exception as e:
         # Log error but don't fail - CDS Hooks should be non-blocking
-        print(f"Error executing CDS Hook {hook_id}: {str(e)}")
+        logging.error(f"Error executing CDS Hook {hook_id}: {str(e)}")
         return {"cards": []}
 
 @router.get("/hooks/{hook_id}")

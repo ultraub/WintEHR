@@ -481,7 +481,7 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
       setDischargeMedications(categorized.discharge);
 
     } catch (err) {
-      console.error('Error fetching medications:', err);
+      
       setError(err.message);
     } finally {
       setLoading(false);
@@ -542,7 +542,6 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
       // Update existing medications as needed
       // Create documentation of the reconciliation process
       
-      console.log('Reconciling medications:', selectedComparisons);
       
       // For demo purposes, just mark as complete
       setReconciliationComplete(true);

@@ -84,7 +84,7 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
       const results = await searchService.searchAllergens(query, category);
       setAllergenOptions(results);
     } catch (error) {
-      console.error('Error searching allergens:', error);
+      
       setAllergenOptions([]);
     } finally {
       setSearchLoading(false);

@@ -27,6 +27,7 @@ from fhir.resources.capabilitystatement import (
     CapabilityStatementRestResourceInteraction,
     CapabilityStatementRestResourceSearchParam
 )
+import logging
 
 
 # Create main FHIR router
@@ -168,15 +169,15 @@ async def process_bundle(
     
     try:
         response_bundle = await storage.process_bundle(bundle)
-        print(f"DEBUG: Response bundle type: {type(response_bundle)}")
+        logging.debug(f"DEBUG: Response bundle type: {type(response_bundle)}")
         if response_bundle is None:
-            print("ERROR: Response bundle is None!")
+            logging.error("ERROR: Response bundle is None!")
             raise HTTPException(status_code=500, detail="Bundle processing returned None")
         return response_bundle.dict()
     except Exception as e:
         import traceback
-        print(f"ERROR in process_bundle: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"ERROR in process_bundle: {e}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -433,22 +434,22 @@ async def create_resource(
     except TypeError as e:
         # This is likely the "an integer is required (got type str)" error
         import traceback
-        print(f"TypeError in create_resource: {e}")
-        print(f"Resource type: {resource_type}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"TypeError in create_resource: {e}")
+        logging.info(f"Resource type: {resource_type}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         # Try to identify which field is causing the issue
         if resource_type == "Observation" and "component" in resource_data:
-            print("DEBUG: Checking component structure...")
+            logging.debug("DEBUG: Checking component structure...")
             for i, comp in enumerate(resource_data.get("component", [])):
                 if "valueQuantity" in comp:
                     vq = comp["valueQuantity"]
-                    print(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
+                    logging.info(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         import traceback
-        print(f"Error in create_resource: {e}")
-        print(f"Resource type: {resource_type}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logging.error(f"Error in create_resource: {e}")
+        logging.info(f"Resource type: {resource_type}")
+        logging.info(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -566,6 +567,108 @@ async def get_instance_history(
         })
     
     return bundle.dict()
+
+
+@fhir_router.get("/Patient/{patient_id}/$everything")
+async def patient_everything(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Patient/$everything operation - return all resources related to the patient.
+    
+    This operation returns a Bundle containing:
+    - The Patient resource itself
+    - All resources that reference the patient (Observations, Conditions, etc.)
+    - Resources referenced by the patient
+    """
+    try:
+        storage = FHIRStorageEngine(db)
+        
+        # Get the patient resource
+        patient_resource = await storage.read_resource("Patient", patient_id)
+        if not patient_resource:
+            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found")
+        
+        # Create bundle entries
+        bundle_entries = []
+        
+        # Add the patient resource itself
+        bundle_entries.append({
+            "fullUrl": f"Patient/{patient_id}",
+            "resource": patient_resource
+        })
+        
+        # Get all resources that reference this patient
+        patient_reference = f"Patient/{patient_id}"
+        
+        # Search for related resources using direct database queries
+        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
+                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan",
+                             "DiagnosticReport", "ImagingStudy", "DocumentReference"]:
+            try:
+                # Direct database query for resources that reference this patient
+                from sqlalchemy import text
+                
+                query = text("""
+                    SELECT resource 
+                    FROM fhir.resources 
+                    WHERE resource_type = :resource_type 
+                    AND (
+                        resource->'subject'->>'reference' = :patient_ref OR
+                        resource->'patient'->>'reference' = :patient_ref OR
+                        resource->'subject'->>'reference' = :patient_ref_urn
+                    )
+                    AND deleted = false
+                    LIMIT 100
+                """)
+                
+                # Also check for urn:uuid: references (from Synthea)
+                patient_ref_urn = f"urn:uuid:{patient_id}"
+                
+                result = await db.execute(query, {
+                    "resource_type": resource_type,
+                    "patient_ref": patient_reference,
+                    "patient_ref_urn": patient_ref_urn
+                })
+                
+                count = 0
+                for row in result:
+                    resource_data = row[0]  # The JSONB resource data
+                    resource_id = resource_data.get('id', 'unknown')
+                    bundle_entries.append({
+                        "fullUrl": f"{resource_type}/{resource_id}",
+                        "resource": resource_data
+                    })
+                    count += 1
+                
+                if count > 0:
+                    logging.info(f"Found {count} {resource_type} resources for patient {patient_id}")
+            except Exception as e:
+                # Log the exception but continue
+                import traceback
+                logging.error(f"Error searching {resource_type}: {e}")
+                logging.info(traceback.format_exc())
+                pass
+        
+        # Create the bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "id": f"patient-everything-{patient_id}",
+            "type": "searchset",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total": len(bundle_entries),
+            "entry": bundle_entries
+        }
+        
+        return bundle
+        
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving patient data: {str(e)}")
 
 
 @fhir_router.get("/{resource_type}/{id}")

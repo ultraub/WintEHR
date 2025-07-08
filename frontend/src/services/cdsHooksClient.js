@@ -38,7 +38,7 @@ class CDSHooksClient {
       this.servicesCacheTime = now;
       return this.servicesCache;
     } catch (error) {
-      console.error('Error discovering CDS services:', error);
+      
       // Return cached data if available, even if expired
       return this.servicesCache || [];
     }
@@ -76,7 +76,7 @@ class CDSHooksClient {
       
       return response.data;
     } catch (error) {
-      console.error(`Error executing CDS Hook ${hookId}:`, error);
+      
       return { cards: [] };
     }
   }

@@ -118,7 +118,7 @@ const FHIROrdersTab = () => {
 
       setOrders({ medications, labs, imaging, procedures });
     } catch (error) {
-      console.error('Error loading orders:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -256,7 +256,7 @@ const FHIROrdersTab = () => {
         reason: ''
       });
     } catch (error) {
-      console.error('Error creating order:', error);
+      
       alert('Failed to create order: ' + error.message);
     }
   };
@@ -273,7 +273,7 @@ const FHIROrdersTab = () => {
       await fhirClient.update(resourceType, order.id, resource);
       await loadOrders();
     } catch (error) {
-      console.error('Error cancelling order:', error);
+      
       alert('Failed to cancel order: ' + error.message);
     }
   };

@@ -165,7 +165,7 @@ export const usePerformanceMonitor = (componentName) => {
     startTime.current = currentTime;
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`${componentName} render #${renderCount.current} took ${renderTime}ms`);
+      
     }
   });
 

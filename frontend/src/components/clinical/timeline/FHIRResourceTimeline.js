@@ -330,7 +330,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
             
             allResources.push(...typedResources);
           } catch (err) {
-            console.warn(`Failed to fetch ${resourceType}:`, err);
+            
           }
         }
 
@@ -351,7 +351,6 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
 
     fetchResources();
   }, [patientId]);
-
 
   // Filter resources based on settings
   const filteredResources = useMemo(() => {

@@ -9,6 +9,8 @@ import json
 import httpx
 import base64
 from datetime import datetime
+import logging
+
 
 FHIR_BASE_URL = "http://localhost:8000/fhir/R4"
 
@@ -147,24 +149,22 @@ async def create_drug_interaction_document(interaction_data):
             )
         
         if response.status_code in [200, 201]:
-            print(f"✅ Created drug interaction: {interaction_data['id']}")
+            logging.info(f"✅ Created drug interaction: {interaction_data['id']}")
             return True
         else:
-            print(f"❌ Failed to create drug interaction: {response.status_code}")
-            print(response.text)
+            logging.info(f"❌ Failed to create drug interaction: {response.status_code}")
+            logging.info(response.text)
             return False
 
 async def main():
     """Create all drug interaction documents."""
-    print("🏥 Creating Drug Interaction Database")
-    print("=" * 60)
-    
+    logging.info("🏥 Creating Drug Interaction Database")
+    logging.info("=" * 60)
     created_count = 0
     for interaction in DRUG_INTERACTIONS:
         if await create_drug_interaction_document(interaction):
             created_count += 1
     
-    print(f"\n✅ Created {created_count}/{len(DRUG_INTERACTIONS)} drug interactions")
-
+    logging.info(f"\n✅ Created {created_count}/{len(DRUG_INTERACTIONS)} drug interactions")
 if __name__ == "__main__":
     asyncio.run(main())

@@ -20,6 +20,8 @@ from sqlalchemy import and_, or_
 from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location
 from models.fhir_resource import FHIRResource, Condition
 from models.clinical.orders import MedicationOrder as Medication
+import logging
+
 
 # Export status storage (in production, use Redis or database)
 EXPORT_JOBS = {}
@@ -390,8 +392,7 @@ async def cleanup_old_exports():
                     del EXPORT_JOBS[job_id]
             
         except Exception as e:
-            print(f"Error cleaning up exports: {e}")
-        
+            logging.error(f"Error cleaning up exports: {e}")
         # Run every hour
         await asyncio.sleep(3600)
 

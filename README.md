@@ -14,15 +14,20 @@ A comprehensive, educational EMR system built with React and FastAPI, featuring 
 git clone https://github.com/yourusername/MedGenEMR.git
 cd MedGenEMR
 
-# Complete fresh start with sample data
-make fresh PATIENT_COUNT=20
+# Complete deployment with patient data and DICOM images
+./deploy.sh
+
+# Or for quick testing (no patient generation)
+./quick-start.sh
 ```
 
-**That's it!** The system will:
-- ✅ Build and start all containers (PostgreSQL, Backend API, Frontend)
-- ✅ Initialize database with complete FHIR schema
-- ✅ Generate 20 realistic patients with medical histories
-- ✅ Set up DICOM imaging studies with real medical images
+**That's it!** The deployment script will:
+- ✅ Auto-detect your environment (macOS, Linux, AWS)
+- ✅ Install and configure Docker if needed
+- ✅ Build and start all containers with proper health checks
+- ✅ Initialize database with definitive FHIR schema
+- ✅ Generate realistic patients with complete medical histories
+- ✅ Create DICOM imaging studies with real medical images
 - ✅ Configure all clinical workflows and integrations
 
 ### Access Points
@@ -98,22 +103,38 @@ MedGenEMR/
 
 ## 🛠️ Development
 
-### Docker Development (Recommended)
+### Quick Development Commands
 ```bash
-# Start development environment
-make up
+# Complete fresh deployment
+./deploy.sh --patients 10
 
-# View logs in real-time
-make logs
+# Development with quick setup
+./quick-start.sh
 
-# Access backend shell for debugging
-make shell
+# Infrastructure only (no data generation)
+./deploy.sh --skip-data --no-dicom
 
-# Run backend tests
-docker-compose exec backend pytest tests/ -v
+# AWS deployment
+./deploy.sh --environment aws --patients 20
 
-# Generate additional test data
-docker-compose exec backend python scripts/synthea_master.py generate --count 10
+# Custom configuration
+./deploy.sh --patients 50 --validation strict --no-dicom
+```
+
+### Manual Docker Development 
+```bash
+# Start containers manually
+docker-compose up -d
+
+# Initialize database
+docker exec emr-backend python scripts/init_database_definitive.py
+
+# Generate test data
+docker exec emr-backend python scripts/synthea_master.py generate --count 10
+docker exec emr-backend python scripts/synthea_master.py import --validation-mode light
+
+# View logs
+docker-compose logs -f backend
 ```
 
 ### Local Development (Advanced)
@@ -131,14 +152,17 @@ npm install
 npm start
 ```
 
-### Common Development Commands
+### Health Checks & Debugging
 ```bash
-make build          # Rebuild all containers
-make clean          # Clean up containers and volumes
-make fresh          # Complete fresh start with new data
-make health         # Check all services
-make db-backup      # Backup database
-make stats          # View container resource usage
+# Check deployment status
+curl http://localhost:8000/health
+curl http://localhost:8000/fhir/R4/Patient
+
+# View deployment configuration
+cat .deployment-config
+
+# Stop everything
+docker-compose down -v
 ```
 
 ## 🧪 Synthetic Patient Data
@@ -171,21 +195,31 @@ python backend/scripts/synthea_master.py import    # Import existing data
 
 ### AWS EC2 (Automated)
 ```bash
-./deployment/aws/deploy-ec2-production.sh
+# On fresh EC2 instance
+git clone <repo-url>
+cd MedGenEMR
+./deploy.sh --environment aws --patients 25
+
+# With AWS-specific optimizations
+docker-compose -f docker-compose.yml -f docker-compose.aws.yml up -d
 ```
 
-### Azure Container Instances
-```bash  
-./deployment/azure/deploy-azure-production.sh
+### Local Production Setup
+```bash
+# Production deployment with comprehensive data
+./deploy.sh --patients 100 --validation strict
+
+# Infrastructure ready for external connections
+./deploy.sh --skip-data  # Then load your own FHIR data
 ```
 
 ### Custom Docker Deployment
 ```bash
-# Production-ready stack
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-# With automatic scaling
-make prod-up
+# Environment-specific deployment
+export PATIENT_COUNT=50
+export INCLUDE_DICOM=true
+export VALIDATION_MODE=strict
+./deploy.sh
 ```
 
 ## 📚 Documentation
@@ -203,43 +237,47 @@ make prod-up
 - **[WebSocket Implementation](docs/websocket-implementation.md)** - Real-time features
 
 ### Configuration & Deployment
-- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment procedures
+- **[Deployment Guide](DEPLOYMENT.md)** - Complete deployment procedures for all environments
 - **[Tech Stack Modernization](docs/TECH_STACK_MODERNIZATION.md)** - Architecture decisions
 - **[CQL Analysis](docs/CQL_ANALYSIS.md)** - Clinical Quality Language support
 
 ## 🛠️ Troubleshooting
 
-### Docker Issues
+### Quick Fixes
 ```bash
-# Docker not running
-# → Start Docker Desktop and wait for full startup
+# Complete reset and restart
+docker-compose down -v
+./deploy.sh
 
-# Port conflicts
-docker-compose down && docker-compose up -d
+# Just restart services
+./quick-start.sh
 
-# Database connection issues  
-make clean && make fresh
-
-# Clear everything and restart
-docker system prune -a && make fresh
+# Check service health
+curl http://localhost:8000/health
+docker-compose ps
 ```
 
 ### Common Issues
 1. **"Cannot connect to Docker daemon"**
-   - Ensure Docker Desktop is running and fully started
-   - Check Docker icon in system tray shows "Running"
+   - Start Docker Desktop and wait for full startup
+   - Check Docker icon shows "Running"
 
-2. **Port 3000 or 8000 already in use**
-   - Modify ports in `docker-compose.yml` if needed
-   - Or stop conflicting services: `lsof -ti:3000 | xargs kill`
+2. **Port conflicts (3000, 8000, 5432)**
+   - Stop conflicting services: `lsof -ti:3000 | xargs kill`
+   - Or modify ports in `docker-compose.yml`
 
-3. **Database initialization fails**
-   - Run: `make clean && make fresh`
-   - Check logs: `make logs`
+3. **Database schema errors**
+   - Run: `docker exec emr-backend python scripts/init_database_definitive.py`
+   - Or full reset: `./deploy.sh`
 
-4. **Missing clinical data**
-   - Regenerate patients: `make init-data PATIENT_COUNT=20`
-   - Verify data: `curl http://localhost:8000/fhir/R4/Patient`
+4. **Missing patient data**
+   - Generate data: `./deploy.sh --patients 20`
+   - Verify: `curl http://localhost:8000/fhir/R4/Patient`
+
+5. **AWS deployment issues**
+   - Ensure security groups allow ports 22, 80, 3000, 8000, 5432
+   - Check instance has sufficient resources (t3.medium+)
+   - Verify Docker is installed: `sudo systemctl status docker`
 
 ## 🎯 Use Cases
 
@@ -286,4 +324,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Ready to explore modern healthcare technology?** Start with `make fresh PATIENT_COUNT=20` and access the EMR at http://localhost:3000
+**Ready to explore modern healthcare technology?** Start with `./deploy.sh` and access the EMR at http://localhost:3000
+
+### Quick Commands Reference
+```bash
+./deploy.sh                    # Full deployment with patient data
+./quick-start.sh              # Quick setup for immediate testing  
+./deploy.sh --help            # Show all deployment options
+docker-compose down -v        # Stop and reset everything
+```

@@ -17,13 +17,14 @@ import asyncpg
 import json
 import requests
 from pathlib import Path
+import logging
+
 
 async def test_dicom_integration():
     """Test the complete DICOM integration."""
     
-    print("🔍 Testing DICOM Integration")
-    print("=" * 50)
-    
+    logging.info("🔍 Testing DICOM Integration")
+    logging.info("=" * 50)
     # Connect to database
     conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
     
@@ -40,17 +41,15 @@ async def test_dicom_integration():
             LIMIT 3
         """)
         
-        print(f"Found {len(studies)} ImagingStudy resources to test")
-        
+        logging.info(f"Found {len(studies)} ImagingStudy resources to test")
         for study in studies:
             study_id = study['fhir_id']
             resource = json.loads(study['resource'])
             extensions = resource.get('extension', [])
             description = resource.get('description', 'Unknown')
             
-            print(f"\n📋 Testing Study: {study_id}")
-            print(f"   Description: {description}")
-            
+            logging.info(f"\n📋 Testing Study: {study_id}")
+            logging.info(f"   Description: {description}")
             # Find DICOM directory extension
             dicom_dir = None
             for ext in extensions:
@@ -59,23 +58,20 @@ async def test_dicom_integration():
                     break
             
             if not dicom_dir:
-                print("   ❌ No DICOM directory extension found")
+                logging.info("   ❌ No DICOM directory extension found")
                 continue
             
-            print(f"   📁 DICOM Directory: {dicom_dir}")
-            
+            logging.info(f"   📁 DICOM Directory: {dicom_dir}")
             # Check if directory exists
             dicom_path = Path(f"/app/data/generated_dicoms/{dicom_dir}")
             if not dicom_path.exists():
-                print("   ❌ DICOM directory does not exist on filesystem")
+                logging.info("   ❌ DICOM directory does not exist on filesystem")
                 continue
             
-            print("   ✅ DICOM directory exists")
-            
+            logging.info("   ✅ DICOM directory exists")
             # Count DICOM files
             dcm_files = list(dicom_path.glob("*.dcm"))
-            print(f"   📊 Found {len(dcm_files)} DICOM files")
-            
+            logging.info(f"   📊 Found {len(dcm_files)} DICOM files")
             # Test API endpoints
             base_url = "http://localhost:8000"
             
@@ -85,12 +81,12 @@ async def test_dicom_integration():
                 if response.status_code == 200:
                     metadata = response.json()
                     instances = metadata.get('instances', [])
-                    print(f"   ✅ Metadata API: {len(instances)} instances")
+                    logging.info(f"   ✅ Metadata API: {len(instances)} instances")
                 else:
-                    print(f"   ❌ Metadata API failed: {response.status_code}")
+                    logging.info(f"   ❌ Metadata API failed: {response.status_code}")
                     continue
             except Exception as e:
-                print(f"   ❌ Metadata API error: {e}")
+                logging.error(f"   ❌ Metadata API error: {e}")
                 continue
             
             # Test image endpoint for first instance
@@ -105,29 +101,26 @@ async def test_dicom_integration():
                     )
                     if response.status_code == 200:
                         image_size = len(response.content)
-                        print(f"   ✅ Image API: {image_size} bytes")
+                        logging.info(f"   ✅ Image API: {image_size} bytes")
                     else:
-                        print(f"   ❌ Image API failed: {response.status_code}")
+                        logging.info(f"   ❌ Image API failed: {response.status_code}")
                 except Exception as e:
-                    print(f"   ❌ Image API error: {e}")
-            
+                    logging.error(f"   ❌ Image API error: {e}")
             # Test viewer config endpoint
             try:
                 response = requests.get(f"{base_url}/api/dicom/studies/{dicom_dir}/viewer-config", timeout=5)
                 if response.status_code == 200:
                     config = response.json()
                     config_instances = config.get('instances', [])
-                    print(f"   ✅ Viewer Config: {len(config_instances)} instances")
+                    logging.info(f"   ✅ Viewer Config: {len(config_instances)} instances")
                 else:
-                    print(f"   ❌ Viewer Config failed: {response.status_code}")
+                    logging.info(f"   ❌ Viewer Config failed: {response.status_code}")
             except Exception as e:
-                print(f"   ❌ Viewer Config error: {e}")
-        
+                logging.error(f"   ❌ Viewer Config error: {e}")
     finally:
         await conn.close()
     
-    print("\n✅ DICOM Integration Test Complete")
-    print("=" * 50)
-
+    logging.info("\n✅ DICOM Integration Test Complete")
+    logging.info("=" * 50)
 if __name__ == '__main__':
     asyncio.run(test_dicom_integration())

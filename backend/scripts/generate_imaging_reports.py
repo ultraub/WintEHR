@@ -7,6 +7,8 @@ import json
 import uuid
 from datetime import datetime, timedelta
 import random
+import logging
+
 
 # Sample report templates based on modality and body site
 REPORT_TEMPLATES = {
@@ -149,8 +151,7 @@ async def generate_imaging_reports():
             ORDER BY last_updated DESC
         """)
         
-        print(f"Found {len(studies)} imaging studies")
-        
+        logging.info(f"Found {len(studies)} imaging studies")
         # Check for existing diagnostic reports
         existing_reports = await conn.fetch("""
             SELECT resource
@@ -168,8 +169,7 @@ async def generate_imaging_reports():
                 if 'ImagingStudy' in ref.get('reference', ''):
                     existing_study_refs.add(ref['reference'])
         
-        print(f"Found {len(existing_reports)} existing diagnostic reports")
-        
+        logging.info(f"Found {len(existing_reports)} existing diagnostic reports")
         reports_created = 0
         
         for study_row in studies:
@@ -178,7 +178,7 @@ async def generate_imaging_reports():
             
             # Skip if report already exists
             if study_ref in existing_study_refs:
-                print(f"Report already exists for {study['id']}")
+                logging.info(f"Report already exists for {study['id']}")
                 continue
             
             # Determine report template based on study type
@@ -263,10 +263,8 @@ async def generate_imaging_reports():
             """, report_id, 'DiagnosticReport', json.dumps(diagnostic_report))
             
             reports_created += 1
-            print(f"Created report for {study['id']} ({modality} - {description})")
-        
-        print(f"\nSuccessfully created {reports_created} diagnostic reports")
-        
+            logging.info(f"Created report for {study['id']} ({modality} - {description})")
+        logging.info(f"\nSuccessfully created {reports_created} diagnostic reports")
     finally:
         await conn.close()
 
