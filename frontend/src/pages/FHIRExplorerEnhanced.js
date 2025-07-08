@@ -89,6 +89,7 @@ import {
   TipsAndUpdates as TipsIcon,
   AutoAwesome as AutoAwesomeIcon,
   ArrowBack as ArrowBackIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
@@ -246,79 +247,265 @@ const QUERY_TEMPLATES = {
   'Find Patients': {
     description: 'Search for patients by various criteria',
     icon: <PersonIcon />,
+    category: 'Basic Searches',
+    difficulty: 'beginner',
     steps: [
       {
         label: 'Search by name',
         params: { resource: 'Patient', parameters: { family: '', given: '' } },
-        help: 'Enter family name and/or given name'
+        help: 'Enter family name and/or given name. Leave blank to search all.',
+        tips: ['Try partial names like "Smi" for Smith', 'Case-insensitive search'],
+        examples: { family: 'Smith', given: 'John' }
       },
       {
         label: 'Search by demographics',
         params: { resource: 'Patient', parameters: { gender: '', birthdate: '' } },
-        help: 'Select gender and/or birthdate'
+        help: 'Select gender and/or birthdate. Use date operators for ranges.',
+        tips: ['Use ge/le for date ranges', 'Combine with name for precise results'],
+        examples: { gender: 'female', birthdate: 'ge1980-01-01' }
       },
       {
         label: 'Search by identifier',
         params: { resource: 'Patient', parameters: { identifier: '' } },
-        help: 'Enter MRN or other identifier'
+        help: 'Enter MRN or other identifier',
+        tips: ['Exact match only', 'Use system|value for specific systems'],
+        examples: { identifier: 'MRN123456' }
+      },
+      {
+        label: 'Active patients only',
+        params: { resource: 'Patient', parameters: { active: 'true', _count: '20' } },
+        help: 'Find only active patients in the system',
+        tips: ['Combine with other filters', 'Use _count to limit results']
       },
     ]
   },
   'Find Lab Results': {
     description: 'Search for laboratory test results',
     icon: <ScienceIcon />,
+    category: 'Clinical Data',
+    difficulty: 'intermediate',
     steps: [
       {
-        label: 'Select patient',
-        params: { resource: 'Observation', parameters: { category: 'laboratory', patient: '' } },
-        help: 'Enter patient ID or search for patient first'
+        label: 'All labs for a patient',
+        params: { resource: 'Observation', parameters: { category: 'laboratory', patient: '', _sort: '-date' } },
+        help: 'Enter patient ID to see all their lab results',
+        tips: ['Results sorted by most recent first', 'Add _count to limit results'],
+        examples: { patient: 'Patient/123' }
       },
       {
-        label: 'Filter by test type',
-        params: { resource: 'Observation', parameters: { category: 'laboratory', code: '' } },
-        help: 'Select or enter LOINC code for specific test'
+        label: 'Specific test type',
+        params: { resource: 'Observation', parameters: { category: 'laboratory', code: '2708-6', patient: '' } },
+        help: 'Search for specific lab tests using LOINC codes',
+        tips: ['Use code display text for easier searching', 'Common codes provided below'],
+        examples: { code: '2708-6', patient: 'Patient/123' },
+        commonCodes: [
+          { code: '2708-6', display: 'Oxygen saturation' },
+          { code: '2951-2', display: 'Sodium' },
+          { code: '2823-3', display: 'Potassium' },
+          { code: '2075-0', display: 'Chloride' },
+          { code: '2028-9', display: 'CO2' },
+          { code: '1751-7', display: 'Albumin' },
+          { code: '1742-6', display: 'ALT' },
+          { code: '1920-8', display: 'AST' }
+        ]
       },
       {
-        label: 'Filter by date range',
-        params: { resource: 'Observation', parameters: { category: 'laboratory', date: 'ge2024-01-01' } },
-        help: 'Select date range for results'
+        label: 'Abnormal results only',
+        params: { resource: 'Observation', parameters: { category: 'laboratory', interpretation: 'abnormal', _sort: '-date' } },
+        help: 'Find only abnormal lab results',
+        tips: ['Includes high, low, and critical values', 'Check reference ranges']
+      },
+      {
+        label: 'Results by date range',
+        params: { resource: 'Observation', parameters: { category: 'laboratory', date: 'ge2024-01-01', patient: '' } },
+        help: 'Filter lab results by date',
+        tips: ['Use ge for "after", le for "before"', 'Combine for date ranges'],
+        examples: { date: 'ge2024-01-01&date=le2024-12-31' }
       },
     ]
   },
   'Find Vital Signs': {
     description: 'Search for vital sign measurements',
     icon: <AssessmentIcon />,
+    category: 'Clinical Data',
+    difficulty: 'beginner',
     steps: [
       {
-        label: 'Recent vital signs for patient',
+        label: 'Recent vital signs',
         params: { resource: 'Observation', parameters: { category: 'vital-signs', patient: '', _count: '10', _sort: '-date' } },
-        help: 'Shows most recent vital signs'
+        help: 'Shows most recent vital signs for a patient',
+        tips: ['Includes BP, temp, pulse, etc.', 'Adjust _count for more results'],
+        examples: { patient: 'Patient/123' }
       },
       {
-        label: 'Specific vital sign over time',
-        params: { resource: 'Observation', parameters: { category: 'vital-signs', code: '8480-6', patient: '' } },
-        help: 'Track blood pressure or other vital sign'
+        label: 'Blood pressure trends',
+        params: { resource: 'Observation', parameters: { category: 'vital-signs', code: '85354-9', patient: '', _sort: 'date' } },
+        help: 'Track blood pressure readings over time',
+        tips: ['Shows systolic and diastolic', 'Sort by date to see trends'],
+        vitalsCode: [
+          { code: '85354-9', display: 'Blood pressure panel' },
+          { code: '8480-6', display: 'Systolic BP' },
+          { code: '8462-4', display: 'Diastolic BP' },
+          { code: '8310-5', display: 'Body temperature' },
+          { code: '8867-4', display: 'Heart rate' },
+          { code: '9279-1', display: 'Respiratory rate' },
+          { code: '2708-6', display: 'Oxygen saturation' },
+          { code: '29463-7', display: 'Body weight' },
+          { code: '8302-2', display: 'Body height' }
+        ]
+      },
+      {
+        label: 'Abnormal vital signs',
+        params: { resource: 'Observation', parameters: { category: 'vital-signs', value-quantity: 'gt120', code: '8480-6' } },
+        help: 'Find vital signs outside normal ranges',
+        tips: ['Adjust thresholds as needed', 'Use component-value for BP'],
+        examples: { 'value-quantity': 'gt140', code: '8480-6' }
+      },
+    ]
+  },
+  'Active Conditions': {
+    description: 'Find active diagnoses and problems',
+    icon: <HospitalIcon />,
+    category: 'Clinical Data',
+    difficulty: 'intermediate',
+    steps: [
+      {
+        label: 'All active conditions',
+        params: { resource: 'Condition', parameters: { 'clinical-status': 'active', patient: '' } },
+        help: 'List all active conditions for a patient',
+        tips: ['Includes chronic and acute conditions', 'Check verification status'],
+        examples: { patient: 'Patient/123' }
+      },
+      {
+        label: 'Specific diagnosis',
+        params: { resource: 'Condition', parameters: { code: '44054006', 'clinical-status': 'active' } },
+        help: 'Search for specific conditions by SNOMED code',
+        commonCodes: [
+          { code: '44054006', display: 'Type 2 diabetes' },
+          { code: '38341003', display: 'Hypertension' },
+          { code: '13645005', display: 'COPD' },
+          { code: '195967001', display: 'Asthma' },
+          { code: '53741008', display: 'Coronary artery disease' },
+          { code: '399068003', display: 'Heart failure' },
+          { code: '49436004', display: 'Atrial fibrillation' }
+        ]
+      },
+      {
+        label: 'Recent diagnoses',
+        params: { resource: 'Condition', parameters: { 'onset-date': 'ge2024-01-01', patient: '' } },
+        help: 'Find conditions diagnosed recently',
+        tips: ['Useful for new problems', 'Combine with encounter']
+      },
+    ]
+  },
+  'Current Medications': {
+    description: 'Search for active medication orders',
+    icon: <MedicationIcon />,
+    category: 'Medications',
+    difficulty: 'intermediate',
+    steps: [
+      {
+        label: 'Active prescriptions',
+        params: { resource: 'MedicationRequest', parameters: { status: 'active', patient: '', _sort: '-authoredon' } },
+        help: 'All active medications for a patient',
+        tips: ['Sorted by most recent first', 'Check dosage instructions']
+      },
+      {
+        label: 'By medication name',
+        params: { resource: 'MedicationRequest', parameters: { medication: 'aspirin', status: 'active' } },
+        help: 'Search for specific medications',
+        tips: ['Use generic or brand names', 'Partial matching supported']
+      },
+      {
+        label: 'High priority meds',
+        params: { resource: 'MedicationRequest', parameters: { priority: 'urgent', status: 'active', patient: '' } },
+        help: 'Find urgent or stat medication orders',
+        tips: ['Includes stat and urgent orders', 'Check administration times']
+      },
+    ]
+  },
+  'Recent Encounters': {
+    description: 'Find patient visits and encounters',
+    icon: <EventIcon />,
+    category: 'Encounters',
+    difficulty: 'beginner',
+    steps: [
+      {
+        label: 'All encounters',
+        params: { resource: 'Encounter', parameters: { patient: '', _sort: '-date', _count: '10' } },
+        help: 'List recent encounters for a patient',
+        tips: ['Includes all visit types', 'Most recent first']
+      },
+      {
+        label: 'Emergency visits',
+        params: { resource: 'Encounter', parameters: { class: 'EMER', patient: '', _sort: '-date' } },
+        help: 'Find emergency department visits',
+        encounterClasses: [
+          { code: 'AMB', display: 'Ambulatory' },
+          { code: 'EMER', display: 'Emergency' },
+          { code: 'IMP', display: 'Inpatient' },
+          { code: 'ACUTE', display: 'Acute care' },
+          { code: 'VR', display: 'Virtual' }
+        ]
+      },
+      {
+        label: 'Current admissions',
+        params: { resource: 'Encounter', parameters: { status: 'in-progress', class: 'IMP' } },
+        help: 'Find patients currently admitted',
+        tips: ['Active inpatient stays', 'Check location for unit']
       },
     ]
   },
   'Patient Summary': {
     description: 'Get comprehensive patient information',
     icon: <AutoAwesomeIcon />,
+    category: 'Advanced Queries',
+    difficulty: 'advanced',
     steps: [
       {
-        label: 'Patient with recent encounters',
-        params: { resource: 'Patient', parameters: { _id: '', _revinclude: 'Encounter:patient' } },
-        help: 'Patient data with their encounters'
+        label: 'Basic patient summary',
+        params: { resource: 'Patient', parameters: { _id: '', _revinclude: 'Encounter:patient', _count: '5' } },
+        help: 'Patient demographics with recent encounters',
+        tips: ['Good starting point', 'Add more _revinclude for details']
       },
       {
-        label: 'Patient with conditions',
-        params: { resource: 'Patient', parameters: { _id: '', _revinclude: 'Condition:patient' } },
-        help: 'Patient data with their conditions'
+        label: 'Clinical summary',
+        params: { resource: 'Patient', parameters: { _id: '', _revinclude: ['Condition:patient', 'MedicationRequest:patient', 'AllergyIntolerance:patient'] } },
+        help: 'Patient with conditions, meds, and allergies',
+        tips: ['Core clinical data', 'May return large datasets']
       },
       {
-        label: 'Patient with everything',
-        params: { resource: 'Patient', parameters: { _id: '', _revinclude: ['Encounter:patient', 'Condition:patient', 'Observation:patient'] } },
-        help: 'Complete patient record'
+        label: 'Complete record',
+        params: { resource: 'Patient', parameters: { _id: '', _revinclude: '*' } },
+        help: 'Everything linked to the patient',
+        tips: ['Very large result set', 'Use with caution'],
+        warning: 'This query may take time and return extensive data'
+      },
+    ]
+  },
+  'Quality Measures': {
+    description: 'Population health and quality queries',
+    icon: <TipsIcon />,
+    category: 'Advanced Queries',
+    difficulty: 'advanced',
+    steps: [
+      {
+        label: 'Diabetic patients',
+        params: { resource: 'Patient', parameters: { _has: 'Condition:patient:code=44054006' } },
+        help: 'Find all patients with diabetes diagnosis',
+        tips: ['Use for population health', 'Combine with lab values']
+      },
+      {
+        label: 'Overdue screenings',
+        params: { resource: 'Patient', parameters: { _has: 'Observation:patient:code=82810-3', _has: 'Observation:patient:date=lt2023-01-01' } },
+        help: 'Patients needing preventive care',
+        tips: ['Customize date ranges', 'Add specific screening codes']
+      },
+      {
+        label: 'High-risk patients',
+        params: { resource: 'Patient', parameters: { _has: 'Condition:patient:code=38341003,44054006' } },
+        help: 'Patients with multiple chronic conditions',
+        tips: ['Adjust condition codes', 'Consider risk scores']
       },
     ]
   },
@@ -346,6 +533,8 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
     const saved = localStorage.getItem('fhir-saved-queries');
     return saved ? JSON.parse(saved) : [];
   });
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterDifficulty, setFilterDifficulty] = useState('all');
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -353,11 +542,6 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
 
   const handleBack = () => {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
-  };
-
-  const handleReset = () => {
-    setActiveStep(0);
-    setQueryParams({});
   };
 
   const handleParamChange = (param, value) => {
@@ -408,24 +592,79 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
             <Typography variant="h6" gutterBottom>
               Select a query template
             </Typography>
+            
+            <Box display="flex" gap={2} mb={2}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  label="Category"
+                >
+                  <MenuItem value="all">All Categories</MenuItem>
+                  <MenuItem value="Basic Searches">Basic Searches</MenuItem>
+                  <MenuItem value="Clinical Data">Clinical Data</MenuItem>
+                  <MenuItem value="Medications">Medications</MenuItem>
+                  <MenuItem value="Encounters">Encounters</MenuItem>
+                  <MenuItem value="Advanced Queries">Advanced Queries</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Difficulty</InputLabel>
+                <Select
+                  value={filterDifficulty}
+                  onChange={(e) => setFilterDifficulty(e.target.value)}
+                  label="Difficulty"
+                >
+                  <MenuItem value="all">All Levels</MenuItem>
+                  <MenuItem value="beginner">Beginner</MenuItem>
+                  <MenuItem value="intermediate">Intermediate</MenuItem>
+                  <MenuItem value="advanced">Advanced</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            
             <Grid container spacing={2}>
-              {Object.entries(QUERY_TEMPLATES).map(([name, template]) => (
+              {Object.entries(QUERY_TEMPLATES)
+                .filter(([name, template]) => {
+                  const categoryMatch = filterCategory === 'all' || template.category === filterCategory;
+                  const difficultyMatch = filterDifficulty === 'all' || template.difficulty === filterDifficulty;
+                  return categoryMatch && difficultyMatch;
+                })
+                .map(([name, template]) => (
                 <Grid item xs={12} sm={6} key={name}>
                   <Card 
                     variant="outlined" 
-                    sx={{ cursor: 'pointer', '&:hover': { boxShadow: 2 } }}
+                    sx={{ 
+                      cursor: 'pointer', 
+                      '&:hover': { boxShadow: 2 },
+                      position: 'relative',
+                      height: '100%'
+                    }}
                     onClick={() => {
                       setSelectedTemplate({ name, ...template });
                       setActiveStep(0);
                     }}
                   >
                     <CardContent>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        {template.icon}
-                        <Typography variant="h6">{name}</Typography>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          {template.icon}
+                          <Typography variant="h6">{name}</Typography>
+                        </Box>
+                        <Chip 
+                          label={template.difficulty} 
+                          size="small"
+                          color={template.difficulty === 'beginner' ? 'success' : 
+                                 template.difficulty === 'intermediate' ? 'warning' : 'error'}
+                        />
                       </Box>
                       <Typography variant="body2" color="text.secondary">
                         {template.description}
+                      </Typography>
+                      <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                        {template.category}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -443,12 +682,12 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
                   {savedQueries.map((query, index) => (
                     <ListItem
                       key={index}
-                      button
                       onClick={() => {
                         // Load saved query
                         setSelectedTemplate(QUERY_TEMPLATES[query.template]);
                         setQueryParams(query.params);
                       }}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
                     >
                       <ListItemIcon>
                         <FavoriteIcon />
@@ -485,6 +724,23 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       {step.help}
                     </Typography>
+                    
+                    {step.tips && (
+                      <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>Tips:</Typography>
+                        <ul style={{ margin: 0, paddingLeft: 20 }}>
+                          {step.tips.map((tip, idx) => (
+                            <li key={idx}><Typography variant="body2">{tip}</Typography></li>
+                          ))}
+                        </ul>
+                      </Alert>
+                    )}
+                    
+                    {step.warning && (
+                      <Alert severity="warning" sx={{ mb: 2 }}>
+                        {step.warning}
+                      </Alert>
+                    )}
                     
                     <Box sx={{ mt: 2 }}>
                       {Object.entries(step.params.parameters).map(([param, defaultValue]) => {
@@ -527,19 +783,48 @@ function QueryWizard({ open, onClose, onExecute, initialTemplate }) {
                         }
                         
                         return (
-                          <TextField
-                            key={param}
-                            fullWidth
-                            label={paramDef?.description || param}
-                            value={queryParams[param] || defaultValue}
-                            onChange={(e) => handleParamChange(param, e.target.value)}
-                            placeholder={paramDef?.placeholder}
-                            helperText={paramDef?.help}
-                            sx={{ mb: 2 }}
-                          />
+                          <Box key={param} sx={{ mb: 2 }}>
+                            <TextField
+                              fullWidth
+                              label={paramDef?.description || param}
+                              value={queryParams[param] || defaultValue}
+                              onChange={(e) => handleParamChange(param, e.target.value)}
+                              placeholder={step.examples?.[param] ? `e.g., ${step.examples[param]}` : paramDef?.placeholder}
+                              helperText={paramDef?.help}
+                            />
+                            {step.examples?.[param] && (
+                              <Button
+                                size="small"
+                                onClick={() => handleParamChange(param, step.examples[param])}
+                                sx={{ mt: 0.5 }}
+                              >
+                                Use example: {step.examples[param]}
+                              </Button>
+                            )}
+                          </Box>
                         );
                       })}
                     </Box>
+                    
+                    {(step.commonCodes || step.encounterClasses || step.vitalsCode) && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Common Values:
+                        </Typography>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {(step.commonCodes || step.encounterClasses || step.vitalsCode)?.slice(0, 5).map((item) => (
+                            <Chip
+                              key={item.code}
+                              label={`${item.code}: ${item.display}`}
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleParamChange('code', item.code)}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
                     
                     <Box sx={{ mb: 2 }}>
                       <Button
@@ -597,6 +882,14 @@ function InteractiveHelp({ param, onExample }) {
     quantity: ['gt100', 'lt50', '80|mg', 'ge120|mm[Hg]'],
   };
   
+  const syntaxHelp = {
+    string: 'Text search supports partial matching by default. Use :exact modifier for exact match.',
+    date: 'Dates support comparison prefixes: eq, gt, ge, lt, le. Combine with & for ranges.',
+    token: 'Token searches match exactly. Use system|value for namespaced identifiers.',
+    reference: 'References should be ResourceType/id format. Supports chaining with dot notation.',
+    quantity: 'Quantities support comparisons and units. Format: [prefix]value[|unit]',
+  };
+  
   return (
     <>
       <Tooltip title="Show examples and help">
@@ -639,18 +932,43 @@ function InteractiveHelp({ param, onExample }) {
             ))}
           </Box>
           
-          {param.type === 'date' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Date searches support prefixes: eq (equals), gt (greater than), ge (greater or equal), 
-              lt (less than), le (less or equal). Combine with & for ranges.
-            </Alert>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>Syntax Guide:</Typography>
+            <Typography variant="body2">
+              {syntaxHelp[param.type] || 'Standard FHIR search parameter syntax applies.'}
+            </Typography>
+          </Alert>
+          
+          {param.type === 'string' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Search Modifiers:</Typography>
+              <Box display="flex" gap={1} flexWrap="wrap">
+                <Chip label=":exact" size="small" onClick={() => onExample(`:exact=${examples.string[0]}`)} />
+                <Chip label=":contains" size="small" onClick={() => onExample(`:contains=${examples.string[0]}`)} />
+                <Chip label=":above" size="small" onClick={() => onExample(`:above=${examples.string[0]}`)} />
+                <Chip label=":below" size="small" onClick={() => onExample(`:below=${examples.string[0]}`)} />
+              </Box>
+            </Box>
           )}
           
-          {param.type === 'quantity' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Quantity searches: use prefixes (gt, lt, ge, le) or specify value|unit format. 
-              Examples: gt100, 80|mg, ge120|mm[Hg]
-            </Alert>
+          {param.type === 'token' && param.options && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Valid Values:</Typography>
+              <Box display="flex" gap={1} flexWrap="wrap">
+                {param.options.map((opt, idx) => (
+                  <Chip 
+                    key={idx} 
+                    label={opt} 
+                    size="small" 
+                    variant="outlined"
+                    onClick={() => {
+                      onExample(opt);
+                      setOpen(false);
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
@@ -842,6 +1160,7 @@ function FHIRExplorerEnhanced() {
   const [availablePatients, setAvailablePatients] = useState([]);
   const [metadata, setMetadata] = useState(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
+  const [queryValidation, setQueryValidation] = useState({ valid: true, errors: [], warnings: [] });
   
   // Fetch available patients for reference fields
   useEffect(() => {
@@ -889,8 +1208,68 @@ function FHIRExplorerEnhanced() {
       }
     });
     const queryString = params.toString();
-    setSearchQuery(`/fhir/R4/${selectedResource}${queryString ? '?' + queryString : ''}`);
+    const newQuery = `/fhir/R4/${selectedResource}${queryString ? '?' + queryString : ''}`;
+    setSearchQuery(newQuery);
+    
+    // Validate query in real-time
+    validateQuery(newQuery, selectedResource, queryParams);
   }, [selectedResource, queryParams]);
+
+  // Query validation function
+  const validateQuery = (query, resource, params) => {
+    const errors = [];
+    const warnings = [];
+    
+    // Validate resource type
+    if (!FHIR_RESOURCES.includes(resource)) {
+      errors.push(`Invalid resource type: ${resource}`);
+    }
+    
+    // Validate parameters
+    const validParams = [
+      ...(SEARCH_PARAMETERS[resource]?.basic || []).map(p => p.name),
+      ...(SEARCH_PARAMETERS[resource]?.advanced || []).map(p => p.name),
+      '_count', '_sort', '_include', '_revinclude', '_summary', '_elements'
+    ];
+    
+    Object.keys(params).forEach(param => {
+      if (!validParams.includes(param)) {
+        warnings.push(`Unknown parameter '${param}' for ${resource}`);
+      }
+      
+      // Validate date formats
+      if (param.includes('date') && params[param]) {
+        const dateValue = params[param];
+        const dateRegex = /^(eq|gt|ge|lt|le)?\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(dateValue)) {
+          errors.push(`Invalid date format for '${param}': ${dateValue}`);
+        }
+      }
+      
+      // Validate reference formats
+      if (param === 'patient' || param === 'subject' || param.includes('reference')) {
+        const refValue = params[param];
+        if (refValue && !refValue.includes('/')) {
+          warnings.push(`Reference '${param}' should be in format 'ResourceType/id'`);
+        }
+      }
+    });
+    
+    // Check for common mistakes
+    if (params._count && (isNaN(params._count) || params._count < 1 || params._count > 1000)) {
+      errors.push('_count must be between 1 and 1000');
+    }
+    
+    if (params._include && !params._include.includes(':')) {
+      warnings.push('_include should be in format "Resource:parameter"');
+    }
+    
+    setQueryValidation({
+      valid: errors.length === 0,
+      errors,
+      warnings
+    });
+  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -955,6 +1334,13 @@ function FHIRExplorerEnhanced() {
       ...prev,
       [param.name]: ''
     }));
+    
+    // Show snackbar with help for the parameter
+    setSnackbar({
+      open: true,
+      message: `Added ${param.description}. ${param.placeholder ? `Format: ${param.placeholder}` : ''}`,
+      severity: 'info'
+    });
   };
 
   const handleParameterChange = (name, value) => {
@@ -1204,21 +1590,51 @@ function FHIRExplorerEnhanced() {
               fullWidth
               label="FHIR Query URL"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const newQuery = e.target.value;
+                setSearchQuery(newQuery);
+                // Extract resource and params for validation
+                const match = newQuery.match(/\/fhir\/R4\/([^?/]+)(\?(.*))?/);
+                if (match) {
+                  const resource = match[1];
+                  const queryString = match[3] || '';
+                  const params = {};
+                  new URLSearchParams(queryString).forEach((value, key) => {
+                    if (params[key]) {
+                      params[key] = Array.isArray(params[key]) ? [...params[key], value] : [params[key], value];
+                    } else {
+                      params[key] = value;
+                    }
+                  });
+                  validateQuery(newQuery, resource, params);
+                }
+              }}
               multiline
               minRows={4}
               maxRows={12}
               placeholder="/fhir/R4/Patient?family=Smith&gender=female&_count=10"
               variant="outlined"
+              error={!queryValidation.valid}
               sx={{
                 '& .MuiInputBase-root': {
                   fontFamily: 'monospace',
                   fontSize: '14px',
                 }
               }}
-              helperText="Enter your FHIR query directly. Press Ctrl+Enter to execute."
+              helperText={
+                <Box>
+                  <Typography variant="caption">
+                    Enter your FHIR query directly. Press Ctrl+Enter to execute.
+                  </Typography>
+                  {!queryValidation.valid && (
+                    <Typography variant="caption" color="error" display="block">
+                      Fix errors before executing query.
+                    </Typography>
+                  )}
+                </Box>
+              }
               onKeyDown={(e) => {
-                if (e.ctrlKey && e.key === 'Enter') {
+                if (e.ctrlKey && e.key === 'Enter' && queryValidation.valid) {
                   executeQuery();
                 }
               }}
@@ -1312,9 +1728,10 @@ function FHIRExplorerEnhanced() {
             <Button
               variant="contained"
               onClick={() => executeQuery()}
-              disabled={loading}
+              disabled={loading || !queryValidation.valid}
               startIcon={loading ? <CircularProgress size={20} /> : <SendIcon />}
               size="large"
+              color={queryValidation.valid ? "primary" : "error"}
             >
               Execute Query
             </Button>
@@ -1348,6 +1765,29 @@ function FHIRExplorerEnhanced() {
           </Box>
           
           {loading && <LinearProgress sx={{ mt: 2 }} />}
+          
+          {/* Query Validation Feedback */}
+          {userMode !== 'guided' && queryValidation.errors.length > 0 && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Query Errors:</Typography>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {queryValidation.errors.map((err, idx) => (
+                  <li key={idx}>{err}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          
+          {userMode !== 'guided' && queryValidation.warnings.length > 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Query Warnings:</Typography>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {queryValidation.warnings.map((warn, idx) => (
+                  <li key={idx}>{warn}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
           
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -1389,6 +1829,137 @@ function FHIRExplorerEnhanced() {
                   </Tooltip>
                 </Box>
               </Box>
+              
+              {/* Result Analysis */}
+              {response.resourceType === 'Bundle' && response.entry && response.entry.length > 0 && (
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Resource Distribution
+                        </Typography>
+                        <Box>
+                          {(() => {
+                            const distribution = response.entry.reduce((acc, entry) => {
+                              const type = entry.resource?.resourceType || 'Unknown';
+                              acc[type] = (acc[type] || 0) + 1;
+                              return acc;
+                            }, {});
+                            return Object.entries(distribution).map(([type, count]) => (
+                              <Box key={type} display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                  {RESOURCE_ICONS[type] || <ApiIcon fontSize="small" />}
+                                  <Typography variant="body2">{type}</Typography>
+                                </Box>
+                                <Chip label={count} size="small" />
+                              </Box>
+                            ));
+                          })()}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Query Performance
+                        </Typography>
+                        <Box>
+                          <Box display="flex" justifyContent="space-between" mb={1}>
+                            <Typography variant="body2">Total Results:</Typography>
+                            <Typography variant="body2" fontWeight="bold">{response.total || response.entry.length}</Typography>
+                          </Box>
+                          <Box display="flex" justifyContent="space-between" mb={1}>
+                            <Typography variant="body2">Page Size:</Typography>
+                            <Typography variant="body2" fontWeight="bold">{response.entry.length}</Typography>
+                          </Box>
+                          <Box display="flex" justifyContent="space-between" mb={1}>
+                            <Typography variant="body2">Bundle Type:</Typography>
+                            <Typography variant="body2" fontWeight="bold">{response.type}</Typography>
+                          </Box>
+                          {response.link && (
+                            <Box display="flex" justifyContent="space-between">
+                              <Typography variant="body2">Pages:</Typography>
+                              <Typography variant="body2" fontWeight="bold">
+                                {Math.ceil((response.total || response.entry.length) / response.entry.length)}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Data Insights
+                        </Typography>
+                        {(() => {
+                          const insights = [];
+                          
+                          // Check for Observations
+                          const observations = response.entry.filter(e => e.resource?.resourceType === 'Observation');
+                          if (observations.length > 0) {
+                            const abnormal = observations.filter(e => 
+                              e.resource.interpretation?.coding?.[0]?.code?.includes('H') ||
+                              e.resource.interpretation?.coding?.[0]?.code?.includes('L') ||
+                              e.resource.interpretation?.coding?.[0]?.code?.includes('A')
+                            ).length;
+                            if (abnormal > 0) {
+                              insights.push({ 
+                                text: `${abnormal} abnormal results`, 
+                                severity: 'warning' 
+                              });
+                            }
+                          }
+                          
+                          // Check for active conditions
+                          const conditions = response.entry.filter(e => 
+                            e.resource?.resourceType === 'Condition' && 
+                            e.resource.clinicalStatus?.coding?.[0]?.code === 'active'
+                          ).length;
+                          if (conditions > 0) {
+                            insights.push({ 
+                              text: `${conditions} active conditions`, 
+                              severity: 'info' 
+                            });
+                          }
+                          
+                          // Check for medication requests
+                          const meds = response.entry.filter(e => 
+                            e.resource?.resourceType === 'MedicationRequest' && 
+                            e.resource.status === 'active'
+                          ).length;
+                          if (meds > 0) {
+                            insights.push({ 
+                              text: `${meds} active medications`, 
+                              severity: 'info' 
+                            });
+                          }
+                          
+                          if (insights.length === 0) {
+                            insights.push({ 
+                              text: 'No significant findings', 
+                              severity: 'success' 
+                            });
+                          }
+                          
+                          return insights.map((insight, idx) => (
+                            <Alert key={idx} severity={insight.severity} sx={{ mb: 1 }}>
+                              {insight.text}
+                            </Alert>
+                          ));
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              )}
               
               {response.resourceType === 'Bundle' && response.entry && (
                 <>
@@ -1648,6 +2219,356 @@ function FHIRExplorerEnhanced() {
 # Recent results sorted by date
 /fhir/R4/Observation?_sort=-date&_count=10`}
                   </SyntaxHighlighter>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={4}>
+          <Typography variant="h6" gutterBottom>
+            Server Metadata & Capabilities
+          </Typography>
+          
+          {metadataLoading ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : metadata ? (
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Server Information
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell component="th" scope="row">FHIR Version</TableCell>
+                            <TableCell>
+                              <Chip label={metadata.fhirVersion} color="primary" size="small" />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell component="th" scope="row">Software</TableCell>
+                            <TableCell>
+                              {metadata.software?.name} v{metadata.software?.version}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell component="th" scope="row">Publisher</TableCell>
+                            <TableCell>{metadata.publisher}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell component="th" scope="row">Implementation</TableCell>
+                            <TableCell>{metadata.implementation?.description}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell component="th" scope="row">Status</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={metadata.status} 
+                                color={metadata.status === 'active' ? 'success' : 'default'} 
+                                size="small" 
+                              />
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell component="th" scope="row">Formats Supported</TableCell>
+                            <TableCell>
+                              {metadata.format?.map((fmt, idx) => (
+                                <Chip key={idx} label={fmt} size="small" sx={{ mr: 0.5 }} />
+                              ))}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Supported Resources
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {metadata.rest?.[0]?.resource?.map((resource, idx) => (
+                        <Grid item xs={12} sm={6} md={4} key={idx}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                {RESOURCE_ICONS[resource.type] || <ApiIcon />}
+                                <Typography variant="subtitle1" fontWeight="bold">
+                                  {resource.type}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" color="text.secondary" gutterBottom>
+                                Interactions:
+                              </Typography>
+                              <Box display="flex" gap={0.5} flexWrap="wrap">
+                                {resource.interaction?.map((int, iIdx) => (
+                                  <Chip 
+                                    key={iIdx} 
+                                    label={int.code} 
+                                    size="small" 
+                                    variant="outlined"
+                                    color="primary"
+                                  />
+                                ))}
+                              </Box>
+                              {resource.searchParam && resource.searchParam.length > 0 && (
+                                <>
+                                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 1 }}>
+                                    Search Parameters: {resource.searchParam.length}
+                                  </Typography>
+                                  <Tooltip title={resource.searchParam.map(p => p.name).join(', ')}>
+                                    <Typography variant="caption" color="text.secondary">
+                                      Hover to see parameters
+                                    </Typography>
+                                  </Tooltip>
+                                </>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>Raw Capability Statement</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ maxHeight: '400px', overflow: 'auto' }}>
+                      <SyntaxHighlighter
+                        language="json"
+                        style={docco}
+                        customStyle={{
+                          fontSize: '12px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {JSON.stringify(metadata, null, 2)}
+                      </SyntaxHighlighter>
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              </Grid>
+            </Grid>
+          ) : (
+            <Alert severity="warning">
+              Unable to load server metadata. Check your connection and try again.
+            </Alert>
+          )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={5}>
+          <Typography variant="h6" gutterBottom>
+            FHIR Compliance & Standards
+          </Typography>
+          
+          <Grid container spacing={3}>
+            <Grid item xs={12} lg={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    FHIR R4 Compliance
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="RESTful API"
+                        secondary="Full REST implementation with GET, POST, PUT, DELETE"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="Search Parameters"
+                        secondary="Supports standard search parameters for all resources"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="Chained Queries"
+                        secondary="Complex queries with chained parameters (e.g., Patient.name)"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="_include & _revinclude"
+                        secondary="Include related resources in search results"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="Modifiers"
+                        secondary="Search modifiers like :exact, :contains, :missing"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckCircleIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="Bulk Export"
+                        secondary="$export operation for bulk data access"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} lg={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Query Syntax Reference
+                  </Typography>
+                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                    Comparison Operators:
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Prefix</TableCell>
+                          <TableCell>Meaning</TableCell>
+                          <TableCell>Example</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell><code>eq</code></TableCell>
+                          <TableCell>Equal (default)</TableCell>
+                          <TableCell><code>date=2024-01-01</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>gt</code></TableCell>
+                          <TableCell>Greater than</TableCell>
+                          <TableCell><code>date=gt2024-01-01</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>ge</code></TableCell>
+                          <TableCell>Greater or equal</TableCell>
+                          <TableCell><code>value-quantity=ge100</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>lt</code></TableCell>
+                          <TableCell>Less than</TableCell>
+                          <TableCell><code>date=lt2024-12-31</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>le</code></TableCell>
+                          <TableCell>Less or equal</TableCell>
+                          <TableCell><code>value-quantity=le50</code></TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  
+                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>
+                    Common Modifiers:
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Modifier</TableCell>
+                          <TableCell>Description</TableCell>
+                          <TableCell>Example</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell><code>:exact</code></TableCell>
+                          <TableCell>Exact match</TableCell>
+                          <TableCell><code>name:exact=Smith</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>:contains</code></TableCell>
+                          <TableCell>Contains substring</TableCell>
+                          <TableCell><code>name:contains=mit</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>:missing</code></TableCell>
+                          <TableCell>Field is missing</TableCell>
+                          <TableCell><code>email:missing=true</code></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell><code>:not</code></TableCell>
+                          <TableCell>Not equal</TableCell>
+                          <TableCell><code>status:not=active</code></TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    Advanced Query Examples
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Complex Patient Queries:
+                      </Typography>
+                      <SyntaxHighlighter language="bash" style={docco}>
+{`# Patients with specific condition
+/fhir/R4/Patient?_has:Condition:patient:code=44054006
+
+# Active patients with recent encounters
+/fhir/R4/Patient?active=true&_has:Encounter:patient:date=ge2024-01-01
+
+# Patients with everything
+/fhir/R4/Patient?_id=123&_revinclude=*`}
+                      </SyntaxHighlighter>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Complex Observation Queries:
+                      </Typography>
+                      <SyntaxHighlighter language="bash" style={docco}>
+{`# Blood pressure readings above threshold
+/fhir/R4/Observation?code=85354-9&component-code=8480-6&component-value-quantity=gt140
+
+# Lab results with critical values
+/fhir/R4/Observation?category=laboratory&value-quantity=gt500&status=final
+
+# Observations with patient included
+/fhir/R4/Observation?patient=Patient/123&_include=Observation:patient`}
+                      </SyntaxHighlighter>
+                    </Grid>
+                  </Grid>
                 </CardContent>
               </Card>
             </Grid>

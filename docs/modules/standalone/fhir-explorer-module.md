@@ -20,30 +20,61 @@ This module serves multiple educational and development purposes:
 - **Guided Mode**: Template-based query building for beginners
 - **Advanced Mode**: Visual parameter selection with categorization
 - **Expert Mode**: Direct FHIR query editing with syntax highlighting
+- **Real-Time Validation**: Immediate feedback on query syntax errors
 
 ### 2. Query Builder
-- **Resource Selection**: All major FHIR resource types
+- **Resource Selection**: All major FHIR resource types with icons
 - **Parameter Categories**: Basic, advanced, and special parameters
 - **Type-Aware Input**: Date pickers, dropdowns, quantity fields
 - **Real-Time Preview**: Live query URL generation
+- **Interactive Help**: Context-sensitive help with examples for each parameter type
+- **Smart Autocomplete**: Patient references and common code values
 
-### 3. Query Wizard
-- **Templates**: Pre-built query patterns for common use cases
-- **Step-by-Step Guidance**: Wizard interface for complex queries
+### 3. Enhanced Query Wizard
+- **8 Query Template Categories**: 
+  - Basic Searches (Patients)
+  - Clinical Data (Labs, Vitals, Conditions)
+  - Medications
+  - Encounters
+  - Advanced Queries (Patient Summary, Quality Measures)
+- **Difficulty Levels**: Beginner, Intermediate, Advanced
+- **Category Filtering**: Filter templates by type and difficulty
+- **Step-by-Step Guidance**: Wizard interface with tips and warnings
 - **Saved Queries**: Store and reuse frequent queries
-- **Interactive Help**: Context-sensitive parameter documentation
+- **Example Values**: Pre-filled examples and common codes
+- **Interactive Tips**: Contextual help for each step
 
-### 4. Results Viewer
+### 4. Results Viewer with Analytics
 - **Tabular View**: Resource summaries in table format
+- **Result Statistics**: 
+  - Resource distribution breakdown
+  - Query performance metrics
+  - Data insights (abnormal results, active conditions)
 - **JSON Explorer**: Syntax-highlighted raw JSON
 - **Pagination**: Navigate through large result sets
 - **Export**: Download results as JSON files
 
-### 5. Educational Features
-- **Parameter Help**: Examples and explanations for each parameter
-- **Value Sets**: Common codes and identifiers
-- **Documentation Tab**: Quick reference and patterns
-- **Query History**: Learn from previous queries
+### 5. Server Metadata & Compliance
+- **Metadata Tab**: 
+  - Server capability statement display
+  - Supported resources and interactions
+  - Search parameters per resource
+  - Server software information
+- **Compliance Tab**:
+  - FHIR R4 compliance checklist
+  - Query syntax reference with operators
+  - Common modifiers guide
+  - Advanced query examples
+
+### 6. Educational Features
+- **Interactive Syntax Help**: 
+  - Parameter-specific guidance
+  - Search modifiers for strings
+  - Date comparison operators
+  - Quantity search formats
+- **Value Sets**: Common LOINC, SNOMED, and RxNorm codes
+- **Query Validation**: Real-time error detection with helpful messages
+- **Query History**: Learn from previous queries with re-run capability
 
 ## Integration Points
 
@@ -83,11 +114,48 @@ This module serves multiple educational and development purposes:
 
 ## User Interface
 
-### Query Templates
-- Find Patients (by name, demographics, identifier)
-- Find Lab Results (by patient, test type, date)
-- Find Vital Signs (recent, specific types)
-- Patient Summary (with related resources)
+### Query Templates (Enhanced)
+1. **Find Patients**
+   - Search by name (with partial matching tips)
+   - Search by demographics (with date operators)
+   - Search by identifier (MRN/SSN)
+   - Active patients only
+
+2. **Find Lab Results**
+   - All labs for a patient
+   - Specific test types (with LOINC codes)
+   - Abnormal results only
+   - Results by date range
+
+3. **Find Vital Signs**
+   - Recent vital signs
+   - Blood pressure trends
+   - Abnormal vital signs
+
+4. **Active Conditions**
+   - All active conditions
+   - Specific diagnosis (with SNOMED codes)
+   - Recent diagnoses
+
+5. **Current Medications**
+   - Active prescriptions
+   - By medication name
+   - High priority medications
+
+6. **Recent Encounters**
+   - All encounters
+   - Emergency visits
+   - Current admissions
+
+7. **Patient Summary**
+   - Basic patient summary
+   - Clinical summary (conditions, meds, allergies)
+   - Complete record (with warning)
+
+8. **Quality Measures**
+   - Diabetic patients
+   - Overdue screenings
+   - High-risk patients
 
 ### Search Parameters
 Organized by category:
@@ -104,16 +172,35 @@ Organized by category:
 - Query parameters tracked in component state
 - History persisted to localStorage
 - No global state dependencies
+- Real-time validation state for query errors/warnings
+- Server metadata cached on load
 
 ### Performance
 - Debounced input for real-time updates
 - Lazy loading of large result sets
 - Efficient re-renders with React.memo
+- Progressive loading of patient references
+- Metadata fetched once and cached
+
+### Query Validation
+- **Real-time validation** of:
+  - Resource type validity
+  - Parameter name checking
+  - Date format validation
+  - Reference format validation
+  - _count range limits
+  - _include format checking
+- **Visual feedback**:
+  - Error alerts blocking execution
+  - Warning alerts for best practices
+  - Disabled execute button on errors
+  - Color-coded validation states
 
 ### Error Handling
 - Clear error messages for failed queries
-- Validation of query parameters
+- Validation of query parameters before execution
 - Graceful fallbacks for missing data
+- Helpful suggestions for common mistakes
 
 ## Best Practices
 
@@ -129,6 +216,25 @@ Organized by category:
 3. Graduate to expert mode for complex queries
 4. Reference documentation for syntax
 
+## Recent Updates (2025-01-08)
+
+### New Features Added
+1. **Server Metadata Tab**: Display and explore server capabilities
+2. **Compliance Documentation Tab**: FHIR R4 compliance reference
+3. **Enhanced Query Templates**: 8 categories with 30+ templates
+4. **Real-Time Query Validation**: Syntax checking and error prevention
+5. **Result Analytics**: Statistics and insights from query results
+6. **Interactive Help System**: Context-aware help with examples
+7. **Difficulty Levels**: Templates categorized by skill level
+8. **Common Code Values**: Pre-populated LOINC, SNOMED, RxNorm codes
+
+### UI/UX Improvements
+- Category and difficulty filtering for templates
+- Visual validation feedback
+- Enhanced parameter help with syntax guides
+- Result distribution visualization
+- Performance metrics display
+
 ## Future Enhancements
 - GraphQL query support
 - Bulk data export capabilities
@@ -136,6 +242,9 @@ Organized by category:
 - Integration with CDS Hooks builder
 - Collaborative query sharing
 - Video tutorials integration
+- Query result visualization charts
+- Batch query execution
+- Query optimization suggestions
 
 ## Related Modules
 - **Training Center**: Broader educational resources
