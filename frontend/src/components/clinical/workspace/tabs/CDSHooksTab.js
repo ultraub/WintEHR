@@ -62,7 +62,7 @@ import CDSHookBuilder from '../cds/CDSHookBuilder';
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
-import fhirClient from ../../../../services/fhirClient\';
+import fhirClient from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
 
 function TabPanel({ children, value, index, ...other }) {

@@ -61,8 +61,7 @@ class ConnectionManager:
         self.heartbeat_tasks: Dict[str, asyncio.Task] = {}
         
     async def connect(self, client_id: str, websocket: WebSocket):
-        """Accept a new WebSocket connection."""
-        await websocket.accept()
+        """Register a new WebSocket connection (already accepted)."""
         self.active_connections[client_id] = websocket
         
         # Send any pending messages

@@ -78,7 +78,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import fhirClient from ../../../../services/fhirClient\';
+import fhirClient from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';

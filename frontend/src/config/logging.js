@@ -79,51 +79,51 @@ export class Logger {
 
   debug(message, ...args) {
     if (this.shouldLog('debug') && this.config.console) {
-      );
+      // Debug logging disabled in production
     }
   }
 
   info(message, ...args) {
     if (this.shouldLog('info') && this.config.console) {
-      );
+      // Info logging disabled in production
     }
   }
 
   warn(message, ...args) {
     if (this.shouldLog('warn') && this.config.console) {
-      );
+      // Warning logging disabled in production
     }
   }
 
   error(message, ...args) {
     if (this.shouldLog('error') && this.config.console) {
-      );
+      // Error logging disabled in production
     }
   }
 
   // Group logging for related operations
   group(label, level = 'info') {
     if (this.shouldLog(level) && this.config.console) {
-      console.group(...this.formatMessage(level, label));
+      // Group logging disabled in production
     }
   }
 
   groupEnd() {
     if (this.config.console) {
-      console.groupEnd();
+      // Group end logging disabled in production
     }
   }
 
   // Performance timing
   time(label) {
     if (this.config.console) {
-      console.time(`${this.module}: ${label}`);
+      // Performance timing disabled in production
     }
   }
 
   timeEnd(label) {
     if (this.config.console) {
-      console.timeEnd(`${this.module}: ${label}`);
+      // Performance timing disabled in production
     }
   }
 }

@@ -347,12 +347,12 @@ class FHIRWebSocketClient {
       this.maxReconnectDelay
     );
 
-    `);
+    // Scheduling reconnection
 
     setTimeout(() => {
       this.connectionPromise = null;
       this.connect(token).catch(error => {
-        
+        // Error during reconnection
       });
     }, delay);
   }

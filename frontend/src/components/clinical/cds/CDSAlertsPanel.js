@@ -282,7 +282,9 @@ const CDSAlertsPanel = ({
       
       // Send feedback asynchronously (don't block UI)
       cdsHooksClient.httpClient.post(`/cds-services/${alert.serviceId}/feedback`, feedback)
-        .catch(err => );
+        .catch(err => {
+          // Silently handle feedback errors to not disrupt user experience
+        });
     }
     
     if (onAlertAction) {

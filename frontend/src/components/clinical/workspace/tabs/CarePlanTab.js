@@ -78,7 +78,7 @@ import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { printDocument } from '../../../../utils/printUtils';
-import fhirClient from ../../../../services/fhirClient\';
+import fhirClient from '../../../../services/fhirClient';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Goal categories

@@ -2,6 +2,7 @@
 
 import uuid
 import logging
+import os
 from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -11,6 +12,9 @@ from emr_api.auth import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Check if JWT is enabled
+JWT_ENABLED = os.getenv("JWT_ENABLED", "false").lower() == "true"
 
 # Optional security for WebSocket connections
 security = HTTPBearer(auto_error=False)
@@ -43,15 +47,20 @@ async def websocket_endpoint(
     # Accept connection first
     await websocket.accept()
     
-    # If no token in query, wait for authentication message
+    # Handle authentication based on JWT_ENABLED setting
     user = None
-    if token:
+    if not JWT_ENABLED:
+        # Simple mode: allow connections without authentication
+        user = {"username": "demo", "role": "user"}  # Default user for simple mode
+        logger.info("WebSocket connected in simple mode (JWT disabled)")
+    elif token:
+        # JWT mode with token in query
         user = await get_current_user_ws(websocket, token)
         if not user:
             await websocket.close(code=4001, reason="Unauthorized")
             return
     else:
-        # Wait for authentication message
+        # JWT mode: wait for authentication message
         try:
             auth_msg = await websocket.receive_json()
             if auth_msg.get('type') == 'authenticate' and auth_msg.get('token'):

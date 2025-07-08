@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Patient List Debug</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Patient List Debug Test</h1>
+    <div id="output"></div>
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            output.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+        
+        async function testPatientList() {
+            try {
+                log('Testing patient list API...');
+                
+                // Test 1: Direct API call
+                log('Test 1: Direct FHIR API call');
+                const response1 = await fetch('/fhir/R4/Patient?_count=5&_offset=0&_sort=-_lastUpdated&_total=accurate');
+                if (response1.ok) {
+                    const data1 = await response1.json();
+                    log(`✅ Direct API: Found ${data1.total} patients`);
+                    log(`Entry count: ${data1.entry ? data1.entry.length : 0}`);
+                    if (data1.entry && data1.entry.length > 0) {
+                        const patient = data1.entry[0].resource;
+                        log(`First patient: ${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}`);
+                    }
+                } else {
+                    log(`❌ Direct API failed: ${response1.status}`);
+                }
+                
+                // Test 2: Check authentication
+                log('\\nTest 2: Check authentication');
+                const token = localStorage.getItem('auth_token');
+                log(`Auth token: ${token ? 'Present' : 'Missing'}`);
+                
+                // Test 3: Try with authentication
+                if (token) {
+                    log('\\nTest 3: API call with auth token');
+                    const response2 = await fetch('/fhir/R4/Patient?_count=5', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/fhir+json'
+                        }
+                    });
+                    if (response2.ok) {
+                        const data2 = await response2.json();
+                        log(`✅ Authenticated API: Found ${data2.total} patients`);
+                    } else {
+                        log(`❌ Authenticated API failed: ${response2.status}`);
+                    }
+                }
+                
+                // Test 4: Check if app needs login
+                log('\\nTest 4: Check current page');
+                log(`Current URL: ${window.location.href}`);
+                log(`Page title: ${document.title}`);
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        // Run test
+        testPatientList();
+    </script>
+</body>
+</html>
