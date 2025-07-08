@@ -218,15 +218,14 @@ class SyntheaFHIRValidator(FHIRValidator):
     
     def _preprocess_medication_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fix MedicationRequest-specific Synthea format issues."""
-        # The error shows "medication -> coding" and "medication -> text" are extra fields
-        # This means the medication field is being treated as a CodeableConcept directly
-        # In FHIR R4, medication[x] can be either CodeableConcept or Reference
+        # The fhir.resources library expects medicationCodeableConcept or medicationReference
+        # NOT a medication field. Synthea outputs medication as a CodeableConcept
         
-        # Check if medication exists and clean it
+        # Check if medication exists and transform it
         if 'medication' in data and isinstance(data['medication'], dict):
             # Check if it's a CodeableConcept (has coding or text)
             if 'coding' in data['medication'] or 'text' in data['medication']:
-                # It's a CodeableConcept - clean it
+                # It's a CodeableConcept - clean and move to medicationCodeableConcept
                 allowed_cc_fields = {'id', 'extension', 'coding', 'text'}
                 cleaned_med = {
                     k: v for k, v in data['medication'].items()
@@ -244,7 +243,9 @@ class SyntheaFHIRValidator(FHIRValidator):
                         })
                     cleaned_med['coding'] = cleaned_codings
                 
-                data['medication'] = cleaned_med
+                # Move to medicationCodeableConcept
+                data['medicationCodeableConcept'] = cleaned_med
+                del data['medication']
             
             # Check if it's a Reference (has reference field)
             elif 'reference' in data['medication']:

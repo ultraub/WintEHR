@@ -44,6 +44,10 @@ class FHIRJSONEncoder(json.JSONEncoder):
         # Handle Decimal types for monetary amounts and measurements
         if isinstance(obj, Decimal):
             return float(obj)
+        # Handle bytes (base64 encoded data)
+        if isinstance(obj, bytes):
+            import base64
+            return base64.b64encode(obj).decode('utf-8')
         return super().default(obj)
 
 
@@ -310,6 +314,9 @@ class FHIRStorageEngine:
         Returns:
             Resource data or None if not found
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Reading resource: {resource_type}/{fhir_id} (version: {version_id})")
         if version_id:
             # Read specific version from history
             query = text("""
@@ -341,6 +348,9 @@ class FHIRStorageEngine:
         
         result = await self.session.execute(query, params)
         row = result.first()
+        
+        logger.debug(f"Query params: {params}")
+        logger.info(f"Query result: {'Found' if row else 'Not found'}")
         
         if row:
             return json.loads(row[0]) if isinstance(row[0], str) else row[0]
@@ -1568,9 +1578,9 @@ class FHIRStorageEngine:
                     
                     query = text("""
                         INSERT INTO fhir.references (
-                            source_id, source_type, target_type, target_id, reference_path, reference_value
+                            source_id, source_type, target_type, target_id, path
                         ) VALUES (
-                            :source_id, :source_type, :target_type, :target_id, :reference_path, :reference_value
+                            :source_id, :source_type, :target_type, :target_id, :path
                         )
                     """)
                     
@@ -1583,8 +1593,7 @@ class FHIRStorageEngine:
                         'source_type': source_type,
                         'target_type': target_type,
                         'target_id': target_id,
-                        'reference_path': path,  # Parent path of the reference
-                        'reference_value': value  # Full reference value
+                        'path': path  # Parent path of the reference
                     })
             
             elif isinstance(value, dict):

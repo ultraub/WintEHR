@@ -840,6 +840,8 @@ function FHIRExplorerEnhanced() {
   const [showResults, setShowResults] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [availablePatients, setAvailablePatients] = useState([]);
+  const [metadata, setMetadata] = useState(null);
+  const [metadataLoading, setMetadataLoading] = useState(false);
   
   // Fetch available patients for reference fields
   useEffect(() => {
@@ -856,6 +858,22 @@ function FHIRExplorerEnhanced() {
       }
     };
     fetchPatients();
+  }, []);
+
+  // Fetch server metadata
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      setMetadataLoading(true);
+      try {
+        const response = await api.get('/fhir/R4/metadata');
+        setMetadata(response.data);
+      } catch (err) {
+        console.error('Error fetching metadata:', err);
+      } finally {
+        setMetadataLoading(false);
+      }
+    };
+    fetchMetadata();
   }, []);
 
   useEffect(() => {
@@ -1278,6 +1296,8 @@ function FHIRExplorerEnhanced() {
             <Tab label="Results" icon={<VisibilityIcon />} disabled={!response} />
             <Tab label="History" icon={<HistoryIcon />} />
             <Tab label="Documentation" icon={<DescriptionIcon />} />
+            <Tab label="Server Metadata" icon={<ApiIcon />} />
+            <Tab label="Compliance" icon={<AssessmentIcon />} />
           </Tabs>
         </Box>
 

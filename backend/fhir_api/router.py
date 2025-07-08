@@ -568,6 +568,109 @@ async def get_instance_history(
     return bundle.dict()
 
 
+@fhir_router.get("/Patient/{patient_id}/$everything")
+async def patient_everything(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Patient/$everything operation - return all resources related to the patient.
+    
+    This operation returns a Bundle containing:
+    - The Patient resource itself
+    - All resources that reference the patient (Observations, Conditions, etc.)
+    - Resources referenced by the patient
+    """
+    try:
+        storage = FHIRStorageEngine(db)
+        
+        # Get the patient resource
+        patient_resource = await storage.read_resource("Patient", patient_id)
+        if not patient_resource:
+            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found")
+        
+        # Create bundle entries
+        bundle_entries = []
+        
+        # Add the patient resource itself
+        bundle_entries.append({
+            "fullUrl": f"Patient/{patient_id}",
+            "resource": patient_resource
+        })
+        
+        # Get all resources that reference this patient
+        patient_reference = f"Patient/{patient_id}"
+        
+        # Search for related resources using direct database queries
+        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
+                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan",
+                             "DiagnosticReport", "ImagingStudy", "DocumentReference"]:
+            try:
+                # Direct database query for resources that reference this patient
+                from sqlalchemy import text
+                
+                query = text("""
+                    SELECT resource 
+                    FROM fhir.resources 
+                    WHERE resource_type = :resource_type 
+                    AND (
+                        resource->'subject'->>'reference' = :patient_ref OR
+                        resource->'patient'->>'reference' = :patient_ref OR
+                        resource->'subject'->>'reference' = :patient_ref_urn
+                    )
+                    AND deleted = false
+                    LIMIT 100
+                """)
+                
+                # Also check for urn:uuid: references (from Synthea)
+                patient_ref_urn = f"urn:uuid:{patient_id}"
+                
+                result = await db.execute(query, {
+                    "resource_type": resource_type,
+                    "patient_ref": patient_reference,
+                    "patient_ref_urn": patient_ref_urn
+                })
+                
+                count = 0
+                for row in result:
+                    resource_data = row[0]  # The JSONB resource data
+                    resource_id = resource_data.get('id', 'unknown')
+                    bundle_entries.append({
+                        "fullUrl": f"{resource_type}/{resource_id}",
+                        "resource": resource_data
+                    })
+                    count += 1
+                
+                if count > 0:
+                    print(f"Found {count} {resource_type} resources for patient {patient_id}")
+                                    
+            except Exception as e:
+                # Log the exception but continue
+                import traceback
+                print(f"Error searching {resource_type}: {e}")
+                print(traceback.format_exc())
+                pass
+        
+        # Create the bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "id": f"patient-everything-{patient_id}",
+            "type": "searchset",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total": len(bundle_entries),
+            "entry": bundle_entries
+        }
+        
+        return bundle
+        
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving patient data: {str(e)}")
+
+
 @fhir_router.get("/{resource_type}/{id}")
 async def read_resource(
     resource_type: str,

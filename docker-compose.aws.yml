@@ -1,0 +1,46 @@
+# Docker Compose override for AWS deployment
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.aws.yml up -d
+
+services:
+  backend:
+    environment:
+      # AWS-specific environment variables
+      - ENVIRONMENT=aws
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_INSTANCE_ID=${AWS_INSTANCE_ID:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    environment:
+      # Update API endpoints for AWS
+      - REACT_APP_FHIR_ENDPOINT=http://${AWS_PUBLIC_IP:-localhost}:8000/fhir/R4
+      - REACT_APP_EMR_API=http://${AWS_PUBLIC_IP:-localhost}:8000/api/emr
+      - REACT_APP_CLINICAL_CANVAS_API=http://${AWS_PUBLIC_IP:-localhost}:8000/api/clinical-canvas
+      - PUBLIC_URL=/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    # AWS-optimized PostgreSQL settings
+    environment:
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200

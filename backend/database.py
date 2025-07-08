@@ -26,7 +26,12 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=os.getenv("SQL_ECHO", "false").lower() == "true",
     poolclass=NullPool,  # Disable connection pooling for async
-    future=True
+    future=True,
+    connect_args={
+        "server_settings": {
+            "search_path": "fhir,cds_hooks,public"
+        }
+    }
 )
 
 # Create session factory

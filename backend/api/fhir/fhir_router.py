@@ -43,6 +43,9 @@ from .query_builder import FHIRQueryBuilder
 from .optimized_queries import get_optimized_queries
 from api.services.audit_service import AuditService
 from emr_api.auth import get_current_user
+from core.fhir.operations import OperationHandler
+from core.fhir.storage import FHIRStorageEngine
+from core.fhir.validator import FHIRValidator
 
 router = APIRouter(prefix="/R4", tags=["FHIR R4"])
 
@@ -186,6 +189,83 @@ async def get_patient_summary(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating summary: {str(e)}")
+
+@router.get("/Patient/{patient_id}/test-everything")
+async def patient_everything(
+    patient_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Patient/$everything operation - return all resources related to the patient.
+    
+    This operation returns a Bundle containing:
+    - The Patient resource itself
+    - All resources that reference the patient (Observations, Conditions, etc.)
+    - Resources referenced by the patient
+    """
+    try:
+        # Debug: Show all patients
+        all_patients = db.query(FHIRResource).filter(FHIRResource.resource_type == "Patient").all()
+        patient_ids = [p.fhir_id for p in all_patients]
+        
+        # Get patient from FHIR resources table
+        patient_result = db.query(FHIRResource).filter(
+            FHIRResource.resource_type == "Patient",
+            FHIRResource.fhir_id == patient_id
+        ).first()
+        
+        if not patient_result:
+            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found. Available: {patient_ids}")
+        
+        # Create the bundle with the patient resource
+        bundle_entries = []
+        
+        # Add the patient resource itself
+        bundle_entries.append({
+            "fullUrl": f"Patient/{patient_id}",
+            "resource": patient_result.data
+        })
+        
+        # Get all resources that reference this patient
+        patient_reference_patterns = [
+            f"Patient/{patient_id}",
+            f"urn:uuid:{patient_id}"
+        ]
+        
+        # Search for resources that reference this patient
+        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
+                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan"]:
+            # Query resources that reference this patient
+            related_resources = db.query(FHIRResource).filter(
+                FHIRResource.resource_type == resource_type,
+                or_(
+                    func.jsonb_extract_path_text(FHIRResource.data, "subject", "reference").in_(patient_reference_patterns),
+                    func.jsonb_extract_path_text(FHIRResource.data, "patient", "reference").in_(patient_reference_patterns)
+                )
+            ).all()
+            
+            for resource in related_resources:
+                bundle_entries.append({
+                    "fullUrl": f"{resource_type}/{resource.fhir_id}",
+                    "resource": resource.data
+                })
+        
+        # Create the bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "id": f"patient-everything-{patient_id}",
+            "type": "searchset",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total": len(bundle_entries),
+            "entry": bundle_entries
+        }
+        
+        return bundle
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving patient data: {str(e)}")
 
 # FHIR Resource Type Mappings
 RESOURCE_MAPPINGS = {

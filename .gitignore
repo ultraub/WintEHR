@@ -145,3 +145,7 @@ synthea_import_progress.json
 *_backup_*/
 synthea_backup_*/
 backup_*/
+old/*
+
+
+.claude
