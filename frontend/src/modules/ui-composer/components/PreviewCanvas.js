@@ -38,6 +38,7 @@ import { useUIComposer } from '../contexts/UIComposerContext';
 import componentRegistry from '../utils/componentRegistry';
 import ProgressiveContainer from './ProgressiveContainer';
 import DynamicComponent from './DynamicComponent';
+import GeneratedComponentDisplay from './GeneratedComponentDisplay';
 
 const PreviewCanvas = () => {
   const {
@@ -379,7 +380,30 @@ const PreviewCanvas = () => {
         
         {/* Content */}
         <Box sx={{ minHeight: 300 }}>
-          {currentSpec.layout?.structure && renderComponent(currentSpec.layout.structure)}
+          {/* Render components from specification */}
+          {currentSpec.components && currentSpec.components.length > 0 ? (
+            <Stack spacing={2}>
+              {currentSpec.components.map((componentSpec, index) => {
+                // Get any generated code from the component registry
+                const registryEntry = componentRegistry.get(componentSpec.id);
+                const componentCode = registryEntry?.code || null;
+                
+                return (
+                  <GeneratedComponentDisplay
+                    key={componentSpec.id || index}
+                    componentSpec={componentSpec}
+                    componentCode={componentCode}
+                  />
+                );
+              })}
+            </Stack>
+          ) : currentSpec.layout?.structure ? (
+            renderComponent(currentSpec.layout.structure)
+          ) : (
+            <Alert severity="info">
+              No components to display
+            </Alert>
+          )}
         </Box>
       </Paper>
       

@@ -33,6 +33,9 @@ from api import auth
 
 # Import CDS Hooks router
 from api.cds_hooks import cds_hooks_router
+
+# Import UI Composer router
+from api.ui_composer import router as ui_composer_router
 # from api.app import app_router
 # from api.quality import quality_router
 # from api.cql_api import router as cql_router
@@ -123,6 +126,9 @@ app.include_router(imaging_studies_router, tags=["Imaging Studies"])
 # Include CDS Hooks router
 from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
 app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+
+# Include UI Composer router
+app.include_router(ui_composer_router, tags=["UI Composer"])
 
 # Include Notifications router
 from api.notifications import router as notifications_router

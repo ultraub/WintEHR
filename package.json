@@ -17,5 +17,9 @@
     "healthcare"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.56.0",
+    "dotenv": "^17.1.0"
+  }
 }

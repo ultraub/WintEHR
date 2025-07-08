@@ -77,26 +77,30 @@ class RefinementAgent {
   }
 
   /**
-   * Analyze feedback using Claude API
+   * Analyze feedback using backend API
    */
   async analyzeFeedbackWithClaude(feedback, specification, context) {
-    if (!window.claude || !window.claude.complete) {
-      throw new Error('Claude is not available. Please ensure you are running in Claude Code environment with window.claude.complete accessible.');
+    // Import the UI Composer service
+    const { uiComposerService } = await import('../../../services/uiComposerService');
+    
+    // Use the backend API to refine the UI
+    const result = await uiComposerService.refineUI(
+      feedback.text,
+      specification,
+      feedback.type || 'general',
+      feedback.componentId || null,
+      specification.method
+    );
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Refinement failed');
     }
     
-    const prompt = this.buildFeedbackAnalysisPrompt(feedback, specification, context);
-    
-    // Use window.claude.complete to access local Claude instance
-    const response = await window.claude.complete(prompt);
-    
-    // Parse Claude's response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in Claude response. Response should contain a JSON object with changes.');
-    }
-    
-    const analysis = JSON.parse(jsonMatch[0]);
-    return analysis;
+    // Return the changes analysis
+    return {
+      changes: result.changes || [],
+      reasoning: result.reasoning || 'Refinement completed'
+    };
   }
 
   /**

@@ -1,0 +1,9 @@
+{
+  "name": "medgenemr-backend",
+  "version": "1.0.0",
+  "description": "MedGenEMR Backend Services",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.56.0"
+  }
+}

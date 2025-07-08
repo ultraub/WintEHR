@@ -19,8 +19,23 @@ class BuilderAgent {
       
       const components = {};
       
-      // Build components recursively
-      await this.buildComponentsRecursive(specification.layout.structure, components, specification);
+      // Check if we have components array directly in specification
+      if (specification.components && specification.components.length > 0) {
+        // Build from components array
+        for (const component of specification.components) {
+          await this.buildComponentsRecursive(component, components, specification);
+        }
+      } else if (specification.layout?.structure?.children) {
+        // Build from layout structure
+        await this.buildComponentsRecursive(specification.layout.structure, components, specification);
+      } else {
+        // No components to build
+        return {
+          success: true,
+          components: {},
+          specification
+        };
+      }
       
       this.lastBuild = {
         specification,
@@ -82,22 +97,48 @@ class BuilderAgent {
    * Generate component using Claude API
    */
   async generateComponentWithClaude(componentSpec, specification) {
-    if (!window.claude || !window.claude.complete) {
-      throw new Error('Claude is not available. Please ensure you are running in Claude Code environment with window.claude.complete accessible.');
+    // Check if we already have the code from the backend
+    // The backend should have already generated all components when we analyzed the request
+    
+    // Import component registry to check if code exists
+    const componentRegistry = (await import('../utils/componentRegistry')).default;
+    
+    // Check if component is already registered with code
+    const existingComponent = componentRegistry.get(componentSpec.id);
+    if (existingComponent && existingComponent.code) {
+      return existingComponent.code;
     }
     
-    const prompt = this.buildComponentPrompt(componentSpec, specification);
+    // If not, we need to call the generate endpoint
+    // But this should be done in batch, not per component
+    const { uiComposerService } = await import('../../../services/uiComposerService');
     
-    // Use window.claude.complete to access local Claude instance
-    const response = await window.claude.complete(prompt);
-    
-    // Extract React component code from response
-    const codeMatch = response.match(/```(?:jsx?|typescript?)?\n([\s\S]*?)\n```/);
-    if (!codeMatch) {
-      throw new Error('No component code found in Claude response. Response should contain code wrapped in triple backticks.');
+    // Check if this is being called as part of the main flow
+    // If so, just return placeholder and let the orchestrator handle batch generation
+    if (specification._isFromOrchestrator) {
+      return `// Placeholder for ${componentSpec.type} component`;
     }
     
-    return codeMatch[1];
+    // Otherwise, generate just this component
+    const requestSpec = {
+      ...specification,
+      components: [componentSpec]
+    };
+    
+    const result = await uiComposerService.generateUI(requestSpec, true, specification.method);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Component generation failed');
+    }
+    
+    // Get the generated code
+    const code = result.components?.main || Object.values(result.components || {})[0];
+    
+    if (!code) {
+      throw new Error('No component code generated');
+    }
+    
+    return code;
   }
 
   /**

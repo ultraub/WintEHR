@@ -45,7 +45,8 @@ import NaturalLanguageInput from './components/NaturalLanguageInput';
 import PreviewCanvas from './components/PreviewCanvas';
 import FeedbackInterface from './components/FeedbackInterface';
 import DashboardManager from './components/DashboardManager';
-import AgentOrchestrator from './agents/AgentOrchestrator';
+import MethodSelector from './components/MethodSelector';
+import SimpleOrchestrator from './agents/SimpleOrchestrator';
 import componentRegistry from './utils/componentRegistry';
 import useClaudeStatus from './hooks/useClaudeStatus';
 
@@ -93,8 +94,9 @@ const UIComposerContent = () => {
   
   const [activeStep, setActiveStep] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [orchestrator] = useState(() => new AgentOrchestrator());
+  const [orchestrator] = useState(() => new SimpleOrchestrator());
   const [processingRequest, setProcessingRequest] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState('cli'); // Default to CLI mode to avoid API costs
   
   // Set up orchestrator listeners
   useEffect(() => {
@@ -134,7 +136,7 @@ const UIComposerContent = () => {
     if (currentRequest && !processingRequest) {
       processRequest();
     }
-  }, [currentRequest, processingRequest]);
+  }, [currentRequest]); // Remove processingRequest from dependencies to avoid re-triggering
   
   // Process user request through agent orchestrator
   const processRequest = useCallback(async () => {
@@ -149,7 +151,8 @@ const UIComposerContent = () => {
       const result = await orchestrator.processRequest(currentRequest, {
         // Add any relevant context
         userRole: 'clinician',
-        clinicalSetting: 'general practice'
+        clinicalSetting: 'general practice',
+        method: selectedMethod
       });
       
       if (result.success) {
@@ -216,15 +219,21 @@ const UIComposerContent = () => {
       {/* Claude Status Banner */}
       {!claudeStatus.available && !claudeStatus.checking && (
         <Alert 
-          severity="warning" 
+          severity="info" 
           sx={{ borderRadius: 0 }}
           action={
-            <Button color="inherit" size="small" onClick={claudeStatus.checkClaude}>
-              Retry
-            </Button>
+            <Box>
+              <Button color="inherit" size="small" onClick={() => setSidebarOpen(true)}>
+                Configure
+              </Button>
+              <Button color="inherit" size="small" onClick={claudeStatus.checkClaude}>
+                Retry
+              </Button>
+            </Box>
           }
         >
-          Claude Code is not available. The UI Composer requires Claude Code to be running.
+          No Claude authentication methods are currently available. Using development mode. 
+          Click Configure to set up Claude integration.
         </Alert>
       )}
       
@@ -406,6 +415,18 @@ const UIComposerContent = () => {
             <IconButton onClick={() => setSidebarOpen(false)}>
               <CloseIcon />
             </IconButton>
+          </Box>
+          
+          <Divider />
+          
+          {/* Method Selector */}
+          <Box sx={{ p: 2 }}>
+            <MethodSelector
+              selectedMethod={selectedMethod}
+              onMethodChange={setSelectedMethod}
+              methodStatus={claudeStatus.methodStatus}
+              disabled={processingRequest}
+            />
           </Box>
           
           <Divider />

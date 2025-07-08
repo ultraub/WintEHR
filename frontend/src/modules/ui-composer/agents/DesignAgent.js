@@ -59,26 +59,23 @@ class DesignAgent {
   }
 
   /**
-   * Use Claude API to analyze the request
+   * Use backend API to analyze the request
    */
   async analyzeWithClaude(request, context) {
-    // Check if Claude API is available
-    if (!window.claude || !window.claude.complete) {
-      throw new Error('Claude is not available. Please ensure you are running in Claude Code environment with window.claude.complete accessible.');
+    // Import the UI Composer service
+    const { uiComposerService } = await import('../../../services/uiComposerService');
+    
+    // Use the backend API to analyze the request
+    const result = await uiComposerService.analyzeRequest(request, context, context.method);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Analysis failed');
     }
-    
-    const prompt = this.buildAnalysisPrompt(request, context);
-    
-    // Use window.claude.complete to access local Claude instance
-    const response = await window.claude.complete(prompt);
-    
-    // Parse Claude's response
-    const analysisData = this.parseClaudeResponse(response);
     
     return {
       success: true,
-      data: analysisData,
-      reasoning: 'Analysis completed successfully'
+      data: result.analysis || {},
+      reasoning: result.reasoning || 'Analysis completed successfully'
     };
   }
 
@@ -228,6 +225,15 @@ Ensure all data comes from FHIR resources and follows clinical best practices.
     
     // Add components to layout
     spec.layout.structure.children = components;
+    
+    // Also add components array for backend compatibility
+    spec.components = components.map(comp => ({
+      id: comp.props?.id || `component-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      type: comp.type,
+      props: comp.props || {},
+      dataBinding: comp.dataBinding || null,
+      children: comp.children || []
+    }));
     
     return spec;
   }

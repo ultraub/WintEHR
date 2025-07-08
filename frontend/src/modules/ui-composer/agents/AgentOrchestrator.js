@@ -49,6 +49,9 @@ class AgentOrchestrator {
       // Step 1: Design Agent analyzes request and creates specification
       this.notifyListeners('agent_start', { agent: 'design', message: 'Analyzing request and creating UI specification...' });
       
+      // Pass method from context to agents
+      const method = context.method || null;
+      
       const designResult = await this.designAgent.analyzeRequest(request, context);
       
       if (!designResult.success) {
@@ -62,7 +65,13 @@ class AgentOrchestrator {
       // Step 2: Builder Agent converts specification to React components
       this.notifyListeners('agent_start', { agent: 'builder', message: 'Generating React components...' });
       
-      const buildResult = await this.builderAgent.buildComponents(designResult.specification);
+      // Add method to specification for downstream use
+      const specWithMethod = {
+        ...designResult.specification,
+        method
+      };
+      
+      const buildResult = await this.builderAgent.buildComponents(specWithMethod);
       
       if (!buildResult.success) {
         throw new Error(`Builder agent failed: ${buildResult.error}`);
@@ -92,9 +101,18 @@ class AgentOrchestrator {
         compilationResult
       });
       
+      // Ensure specification includes components array
+      const finalSpecification = {
+        ...designResult.specification,
+        components: Object.entries(buildResult.components || {}).map(([id, component]) => ({
+          id,
+          ...component
+        }))
+      };
+      
       return {
         success: true,
-        specification: designResult.specification,
+        specification: finalSpecification,
         components: buildResult.components,
         compiledComponents: compilationResult.components,
         conversationId: this.conversationHistory.length - 1
@@ -121,7 +139,13 @@ class AgentOrchestrator {
       this.notifyListeners('phase_change', { phase: 'refining', progress: 0 });
       this.notifyListeners('agent_start', { agent: 'refinement', message: 'Processing feedback and refining UI...' });
       
-      const refinementResult = await this.refinementAgent.refineUI(specification, feedback, context);
+      // Add method to specification if provided in context
+      const specWithMethod = {
+        ...specification,
+        method: context.method || specification.method
+      };
+      
+      const refinementResult = await this.refinementAgent.refineUI(specWithMethod, feedback, context);
       
       if (!refinementResult.success) {
         throw new Error(`Refinement agent failed: ${refinementResult.error}`);
