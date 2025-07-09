@@ -411,7 +411,76 @@ Clinical Context:
 IMPORTANT: Generate components based on the ACTUAL data structure and content shown above.
 """
             
-            prompt = f"""Generate a React component for a clinical UI based on the following specification:
+            # Log what we're actually sending
+            logger.info(f"Generating component - Type: {component.get('type')}, Mode: {generation_mode}")
+            logger.info(f"Component spec: {json.dumps(component, indent=2)}")
+            logger.info(f"Total components in specification: {len(components)}")
+            
+            # Check if this is a dashboard with multiple components
+            is_dashboard = specification.get('layout', {}).get('type') == 'dashboard' and len(components) > 1
+            
+            if is_dashboard and generation_mode == 'full':
+                # For full generation mode dashboards, we need to generate the entire dashboard
+                prompt = f"""Generate a complete React dashboard component that includes ALL of the following sub-components:
+
+Dashboard Layout: {specification.get('layout', {}).get('structure', {}).get('structure', 'Grid layout')}
+Total Components: {len(components)}
+Generation Mode: {generation_mode}
+
+Components to include:
+{json.dumps([{
+    'id': c.get('id'),
+    'type': c.get('type'),
+    'title': c.get('props', {}).get('title'),
+    'purpose': c.get('purpose', ''),
+    'dataBinding': c.get('dataBinding', {})
+} for c in components], indent=2)}
+
+{generation_specific_instructions}
+{data_context_section}
+
+CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
+1. Create a single dashboard component that contains ALL {len(components)} sub-components listed above
+2. Follow the exact layout structure specified: {specification.get('layout', {}).get('structure', {}).get('structure', '')}
+3. Each sub-component should match its specification exactly
+1. Use Material-UI components (@mui/material, @mui/icons-material)
+2. Follow MedGenEMR patterns and conventions
+3. Include proper error handling and loading states
+4. **MANDATORY**: Use ACTUAL MedGenEMR FHIR hooks - NOT MOCK DATA:
+   - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
+   - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
+   - import {{ fhirService }} from '../../../services/fhirService';
+5. **ABSOLUTELY NO MOCK DATA** - Query REAL FHIR database only
+6. Handle null/missing FHIR data gracefully with proper empty states
+7. Use progressive loading (show available data immediately)
+8. **REQUIRED**: Accept patientId as a prop and use it for data fetching
+9. Generate FHIR queries based on the ACTUAL data context provided above, NOT hardcoded examples.
+   - Use the resource types from the data context
+   - Use the actual LOINC/SNOMED codes found in the sample data
+   - Query for the specific clinical data relevant to this request
+
+10. Format FHIR data properly:
+   - Use resource.valueQuantity?.value for numeric values
+   - Use resource.code?.coding?.[0]?.display for code displays
+   - Use resource.effectiveDateTime for dates
+   - Always use optional chaining (?.) for safety
+
+11. **SPECIFIC TO THIS REQUEST**: The component must display ACTUAL patient data from the FHIR database. Do NOT generate example data like "Patient A", "Patient B" or hardcoded values. Use the real data returned from usePatientResources.
+
+12. **FOR POPULATION-LEVEL QUERIES**: If querying across multiple patients, use appropriate FHIR search parameters and display actual patient names and real values from the database.
+
+13. **AGENT PIPELINE DATA**: When agent pipeline data is provided above, you MUST:
+    - Use the exact resource types, LOINC codes, and data structures from the sample data
+    - Query for the specific clinical data mentioned in the agent context
+    - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
+    - Generate queries that match the clinical focus and domain from the agent analysis
+
+IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
+
+Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
+            else:
+                # For single components or non-dashboard layouts
+                prompt = f"""Generate a React component for a clinical UI based on the following specification:
 
 Component Type: {component.get('type')}
 Component Props: {json.dumps(component.get('props', {}), indent=2)}
@@ -452,12 +521,29 @@ CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
     - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
     - Generate queries that match the clinical focus and domain from the agent analysis
 
+IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
+
 Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
         
             logger.info(f"Component generation prompt length: {len(prompt)} characters")
             response = await self.complete(prompt, timeout=600)  # 10 minutes for generation
             # The response should already be cleaned by complete()
             logger.info(f"Component generation response length: {len(response)}")
+            
+            # Validate that we got code, not a description
+            if response and not any(keyword in response for keyword in ['import React', 'export default', 'const ', 'function ']):
+                logger.error("Response appears to be a description, not code!")
+                logger.error(f"Response preview: {response[:200]}...")
+                # Try to extract code if it's embedded in a description
+                if "```" in response:
+                    logger.info("Attempting to extract code from markdown blocks...")
+                    response = self._clean_markdown_response(response)
+                else:
+                    # Force a retry with clearer instructions
+                    logger.warning("Retrying with clearer code-only instructions...")
+                    retry_prompt = f"You returned a description instead of code. {prompt}\n\nREMEMBER: Return ONLY React component code, starting with imports and ending with export default. NO descriptions or explanations."
+                    response = await self.complete(retry_prompt, timeout=300)
+            
             return response
         
         except Exception as e:
