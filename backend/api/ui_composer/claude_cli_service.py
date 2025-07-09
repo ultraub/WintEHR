@@ -421,28 +421,52 @@ IMPORTANT: Generate components based on the ACTUAL data structure and content sh
             
             if is_dashboard and generation_mode == 'full':
                 # For full generation mode dashboards, we need to generate the entire dashboard
-                prompt = f"""Generate a complete React dashboard component that includes ALL of the following sub-components:
+                # Extract medical context from specification
+                medical_context = specification.get('metadata', {}).get('description', '')
+                clinical_focus = specification.get('metadata', {}).get('clinicalContext', {})
+                
+                # Build detailed component specifications
+                detailed_components = []
+                for c in components:
+                    detailed_components.append({
+                        'id': c.get('id'),
+                        'type': c.get('type'),
+                        'title': c.get('props', {}).get('title'),
+                        'purpose': c.get('purpose', ''),
+                        'dataBinding': c.get('dataBinding', {}),
+                        'props': c.get('props', {}),
+                        'filters': c.get('dataBinding', {}).get('filters', []),
+                        'aggregation': c.get('dataBinding', {}).get('aggregation', '')
+                    })
+                
+                prompt = f"""Generate a complete React dashboard component for the following medical scenario:
+
+MEDICAL CONTEXT: {medical_context}
+Clinical Focus: {json.dumps(clinical_focus, indent=2)}
 
 Dashboard Layout: {specification.get('layout', {}).get('structure', {}).get('structure', 'Grid layout')}
 Total Components: {len(components)}
 Generation Mode: {generation_mode}
 
-Components to include:
-{json.dumps([{
-    'id': c.get('id'),
-    'type': c.get('type'),
-    'title': c.get('props', {}).get('title'),
-    'purpose': c.get('purpose', ''),
-    'dataBinding': c.get('dataBinding', {})
-} for c in components], indent=2)}
+COMPONENTS TO GENERATE - YOU MUST INCLUDE ALL {len(components)} COMPONENTS:
+{json.dumps(detailed_components, indent=2)}
 
 {generation_specific_instructions}
 {data_context_section}
+
+MEDICAL DOMAIN REQUIREMENTS:
+- This is for {medical_context}
+- DO NOT use diabetes/A1C data unless explicitly requested
+- For hypertension: use blood pressure observations (LOINC codes 85354-9, 8480-6, 8462-4)
+- For stroke risk: calculate based on age, BP values, and conditions
+- Use the EXACT filters and aggregations specified in each component's dataBinding
 
 CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
 1. Create a single dashboard component that contains ALL {len(components)} sub-components listed above
 2. Follow the exact layout structure specified: {specification.get('layout', {}).get('structure', {}).get('structure', '')}
 3. Each sub-component should match its specification exactly
+4. DO NOT use mock patient names like "Patient A", "Patient B" - use real data from FHIR
+5. DO NOT use template data - generate based on the specification
 1. Use Material-UI components (@mui/material, @mui/icons-material)
 2. Follow MedGenEMR patterns and conventions
 3. Include proper error handling and loading states
@@ -474,6 +498,27 @@ CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
     - Query for the specific clinical data mentioned in the agent context
     - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
     - Generate queries that match the clinical focus and domain from the agent analysis
+
+FHIR QUERY REQUIREMENTS:
+- For population dashboards: Use fhirService.searchResources() to query ALL patients/resources
+- DO NOT filter by a single patientId for population views
+- Example for hypertension patients:
+  const conditionsResponse = await fhirService.searchResources('Condition', {
+    code: '38341003,59621000,1201005', // Hypertension SNOMED codes
+    _count: 1000
+  });
+- Example for blood pressure:
+  const observationsResponse = await fhirService.searchResources('Observation', {
+    code: '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
+    _count: 1000,
+    _sort: '-date'
+  });
+
+COMPONENT DATA REQUIREMENTS:
+- Each component must fetch and display REAL data based on its dataBinding specification
+- Use the exact filters from the component specification
+- Calculate aggregations (counts, averages, distributions) from the actual data
+- Display real patient names from patient.name[0].given[0] + patient.name[0].family
 
 IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
 
@@ -520,6 +565,27 @@ CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
     - Query for the specific clinical data mentioned in the agent context
     - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
     - Generate queries that match the clinical focus and domain from the agent analysis
+
+FHIR QUERY REQUIREMENTS:
+- For population dashboards: Use fhirService.searchResources() to query ALL patients/resources
+- DO NOT filter by a single patientId for population views
+- Example for hypertension patients:
+  const conditionsResponse = await fhirService.searchResources('Condition', {
+    code: '38341003,59621000,1201005', // Hypertension SNOMED codes
+    _count: 1000
+  });
+- Example for blood pressure:
+  const observationsResponse = await fhirService.searchResources('Observation', {
+    code: '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
+    _count: 1000,
+    _sort: '-date'
+  });
+
+COMPONENT DATA REQUIREMENTS:
+- Each component must fetch and display REAL data based on its dataBinding specification
+- Use the exact filters from the component specification
+- Calculate aggregations (counts, averages, distributions) from the actual data
+- Display real patient names from patient.name[0].given[0] + patient.name[0].family
 
 IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
 
@@ -696,7 +762,21 @@ Focus on clinical safety, user experience, and technical feasibility."""
     
     def _clean_markdown_response(self, response: str) -> str:
         """Clean markdown code blocks from response"""
-        if not response or "```" not in response:
+        if not response:
+            return response
+            
+        # First, check if response starts with descriptive text
+        if response.lower().startswith(("here's", "here is", "this is", "the following", "below is")):
+            # Find where the actual code starts
+            code_start_markers = ["import React", "const ", "function ", "export ", "```"]
+            for marker in code_start_markers:
+                idx = response.find(marker)
+                if idx != -1:
+                    response = response[idx:]
+                    break
+        
+        # If no markdown blocks, return as is
+        if "```" not in response:
             return response
         
         # Extract code from markdown blocks
