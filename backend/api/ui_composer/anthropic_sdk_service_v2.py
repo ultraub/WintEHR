@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
+from .cost_tracker import cost_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,9 @@ class AnthropicSDKServiceV2:
             
             if process.returncode != 0:
                 error_msg = stderr.decode().strip() or stdout.decode().strip()
+                logger.error(f"SDK runner failed with return code {process.returncode}")
+                logger.error(f"STDERR: {stderr.decode()}")
+                logger.error(f"STDOUT: {stdout.decode()}")
                 raise RuntimeError(f"SDK runner failed: {error_msg}")
             
             # Parse JSON output
@@ -133,17 +137,39 @@ class AnthropicSDKServiceV2:
         if not result.get('success'):
             raise RuntimeError(result.get('error', 'Completion failed'))
         
+        # Track usage if available
+        if result.get('usage') and options and options.get('model'):
+            session_id = options.get('session_id', 'default')
+            cost_data = cost_tracker.track_usage(
+                session_id,
+                result['usage']['input_tokens'],
+                result['usage']['output_tokens'],
+                options['model'],
+                'complete'
+            )
+            logger.info(f"API usage tracked: {cost_tracker.format_cost_display(cost_data)}")
+        
         return result.get('response', '')
     
     async def analyze_request(self, prompt: str, context: Dict[str, Any]) -> str:
         """Analyze a UI request using SDK"""
+        # Include FHIR context if available
+        fhir_context_section = ""
+        if context.get("fhirContext"):
+            fhir_context_section = f"""
+Available FHIR Data:
+{context.get("fhirContext")}
+
+Based on the actual FHIR data available, generate UI components that will query and display this real data.
+"""
+        
         full_prompt = f"""You are a UI design expert for a clinical EMR system. Analyze the following natural language request and create a detailed UI specification.
 
 Request: "{prompt}"
 
 Context:
-{json.dumps(context, indent=2)}
-
+{json.dumps({k: v for k, v in context.items() if k not in ["fhirData", "fhirContext"]}, indent=2)}
+{fhir_context_section}
 Please analyze this request and respond with a JSON object containing:
 {{
   "intent": "brief description of what the user wants",
@@ -176,7 +202,14 @@ Please analyze this request and respond with a JSON object containing:
 
 Focus on clinical accuracy, appropriate data visualization, and user workflow optimization."""
         
-        return await self.complete(full_prompt)
+        # Use model from context if provided
+        options = {}
+        if context.get('model'):
+            options['model'] = context['model']
+        if context.get('session_id'):
+            options['session_id'] = context['session_id']
+            
+        return await self.complete(full_prompt, options)
     
     async def generate_component(self, specification: Dict[str, Any]) -> str:
         """Generate a component from specification"""
@@ -196,13 +229,49 @@ Requirements:
 1. Use Material-UI components (@mui/material, @mui/icons-material)
 2. Follow MedGenEMR patterns and conventions
 3. Include proper error handling and loading states
-4. Use hooks for data fetching (assume useFHIRResources hook is available)
-5. Ensure clinical data safety and accuracy
-6. Make the component responsive and accessible
+4. Use ACTUAL MedGenEMR FHIR hooks:
+   - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
+   - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
+   - import {{ fhirService }} from '../../../services/fhirService';
+5. Query REAL FHIR data - NO MOCK DATA
+6. Handle null/missing FHIR data gracefully
+7. Use progressive loading (show available data immediately)
+8. Follow this exact pattern for FHIR data fetching:
 
-Generate a complete, functional React component. Return ONLY the component code."""
+```javascript
+// For observations (vitals, labs)
+const {{ resources: observations, loading, error }} = usePatientResources(
+  patientId, 
+  'Observation',
+  {{ 
+    params: {{ code: '4548-4', _sort: '-date', _count: 10 }},
+    enabled: !!patientId 
+  }}
+);
+
+// For conditions
+const {{ resources: conditions }} = usePatientResources(patientId, 'Condition');
+
+// For medications
+const {{ resources: medications }} = usePatientResources(patientId, 'MedicationRequest');
+```
+
+9. Format FHIR data properly:
+   - Use resource.valueQuantity?.value for numeric values
+   - Use resource.code?.coding?.[0]?.display for code displays
+   - Use resource.effectiveDateTime for dates
+   - Always use optional chaining (?.) for safety
+
+Generate a complete, functional React component that uses REAL FHIR data. Return ONLY the component code."""
         
-        return await self.complete(prompt)
+        # Use model from specification if provided
+        options = {}
+        if specification.get('method') == 'sdk' and specification.get('model'):
+            options['model'] = specification['model']
+        if specification.get('session_id'):
+            options['session_id'] = specification['session_id']
+            
+        return await self.complete(prompt, options)
     
     async def refine_ui(self, feedback: str, specification: Dict[str, Any],
                        feedback_type: str = 'general') -> str:
@@ -232,7 +301,14 @@ Please analyze the feedback and respond with a JSON object containing:
 
 Focus on clinical safety, user experience, and technical feasibility."""
         
-        return await self.complete(prompt)
+        # Use model from specification if provided
+        options = {}
+        if specification.get('method') == 'sdk' and specification.get('model'):
+            options['model'] = specification['model']
+        if specification.get('session_id'):
+            options['session_id'] = specification['session_id']
+            
+        return await self.complete(prompt, options)
 
 # Singleton instance
 anthropic_sdk_service_v2 = AnthropicSDKServiceV2()

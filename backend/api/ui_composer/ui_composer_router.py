@@ -24,6 +24,7 @@ from .models import (
 from .claude_cli_service import claude_cli_service
 from .ui_composer_service import ui_composer_service
 from .session_manager import SessionManager
+from .cost_tracker import cost_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -62,20 +63,29 @@ async def analyze_ui_request(
 ):
     """Analyze natural language UI request"""
     try:
+        logger.info(f"Received analyze request: method='{request.method}', model='{request.context.get('model') if request.context else 'unknown'}'")
+        
         # Get or create session
         session_id = request.session_id or str(uuid.uuid4())
         session = await session_manager.get_or_create_session(session_id)
         
-        # Use UI Composer service for analysis
+        # Add session_id to context for cost tracking
+        context = request.context or {}
+        context['session_id'] = session_id
+        
+        # Use UI Composer service for analysis with database session
         result = await ui_composer_service.analyze_request(
             request.request, 
-            request.context or {},
-            method=request.method
+            context,
+            method=request.method,
+            db_session=db
         )
         
         if not result.get("success"):
+            logger.error(f"Analysis failed: {result.get('error', 'Unknown error')}")
             raise ValueError(result.get("error", "Analysis failed"))
         
+        logger.info(f"Analysis successful using method: {result.get('method', 'unknown')}")
         analysis_data = result.get("analysis", {})
         
         # Create UI specification from analysis
@@ -91,15 +101,23 @@ async def analyze_ui_request(
             )
             components.append(component)
         
-        ui_spec = UISpecification(
-            metadata={
-                "name": f"Generated UI - {datetime.now().isoformat()}",
-                "description": analysis_data.get("intent", request.request),
-                "clinicalContext": {
-                    "scope": analysis_data.get("scope", "patient"),
-                    "dataRequirements": analysis_data.get("requiredData", [])
-                }
+        # Build metadata including agent pipeline data if available
+        metadata = {
+            "name": f"Generated UI - {datetime.now().isoformat()}",
+            "description": analysis_data.get("intent", request.request),
+            "clinicalContext": {
+                "scope": analysis_data.get("scope", "patient"),
+                "dataRequirements": analysis_data.get("requiredData", [])
             },
+            "generationMode": context.get("generationMode", "mixed")
+        }
+        
+        # Include agent pipeline data if available
+        if result.get("agentPipelineData"):
+            metadata["agentPipeline"] = result["agentPipelineData"]
+        
+        ui_spec = UISpecification(
+            metadata=metadata,
             layout={
                 "type": analysis_data.get("layoutType", "dashboard"),
                 "structure": analysis_data.get("layout", {})
@@ -130,7 +148,8 @@ async def analyze_ui_request(
             specification=ui_spec,
             analysis=analysis_data,
             reasoning=analysis_data.get("intent"),
-            session_id=session_id
+            session_id=session_id,
+            method=result.get("method")  # Include which method was actually used
         )
         
     except HTTPException:
@@ -154,10 +173,16 @@ async def generate_ui_components(
         if request.session_id:
             session = await session_manager.get_session(request.session_id)
         
+        # Add session_id to specification for cost tracking
+        spec_dict = request.specification.dict()
+        if request.session_id:
+            spec_dict['session_id'] = request.session_id
+        
         # Use UI Composer service to generate components
         components = await ui_composer_service.generate_components(
-            request.specification.dict(),
-            method=request.method
+            spec_dict,
+            method=request.method,
+            db_session=db
         )
         
         # Update session if exists
@@ -196,10 +221,15 @@ async def refine_ui(
         if request.session_id:
             session = await session_manager.get_session(request.session_id)
         
+        # Add session_id to specification for cost tracking
+        spec_dict = request.specification.dict()
+        if request.session_id:
+            spec_dict['session_id'] = request.session_id
+        
         # Use UI Composer service to refine UI
         result = await ui_composer_service.refine_ui(
             request.feedback,
-            request.specification.dict(),
+            spec_dict,
             feedback_type=request.feedback_type,
             selected_component=request.selected_component,
             method=request.method
@@ -297,3 +327,9 @@ async def get_session(
             detail=f"Session {session_id} not found"
         )
     return session
+
+@router.get("/sessions/{session_id}/cost")
+async def get_session_cost(session_id: str):
+    """Get cost information for a session"""
+    cost_data = cost_tracker.get_session_cost(session_id)
+    return cost_data

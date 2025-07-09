@@ -27,7 +27,11 @@ import {
   ListItemIcon,
   ListItemText,
   AppBar,
-  Toolbar
+  Toolbar,
+  Collapse,
+  Chip,
+  CircularProgress,
+  Stack
 } from '@mui/material';
 import {
   AutoAwesome as AutoAwesomeIcon,
@@ -38,7 +42,9 @@ import {
   Dashboard as DashboardIcon,
   Code as CodeIcon,
   Timeline as TimelineIcon,
-  Feedback as FeedbackIcon
+  Feedback as FeedbackIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { UIComposerProvider, useUIComposer } from './contexts/UIComposerContext';
 import NaturalLanguageInput from './components/NaturalLanguageInput';
@@ -49,6 +55,11 @@ import MethodSelector from './components/MethodSelector';
 import SimpleOrchestrator from './agents/SimpleOrchestrator';
 import componentRegistry from './utils/componentRegistry';
 import useClaudeStatus from './hooks/useClaudeStatus';
+import CostDisplay from './components/CostDisplay';
+import TestFHIRIntegration from './components/TestFHIRIntegration';
+import CreativeGenerationOptions from './components/CreativeGenerationOptions';
+import CostEstimator from './components/CostEstimator';
+import GenerationProgressIndicator from './components/GenerationProgressIndicator';
 
 const STEPS = [
   {
@@ -96,7 +107,13 @@ const UIComposerContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orchestrator] = useState(() => new SimpleOrchestrator());
   const [processingRequest, setProcessingRequest] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState('cli'); // Default to CLI mode to avoid API costs
+  const [selectedMethod, setSelectedMethod] = useState('cli'); // Default to CLI mode for testing
+  const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false); // Collapsed by default
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-20250514'); // Default to Sonnet 4
+  const [sessionCost, setSessionCost] = useState(null);
+  const [costLoading, setCostLoading] = useState(false);
+  const [generationMode, setGenerationMode] = useState('mixed'); // Default to mixed mode
+  const [showCostEstimator, setShowCostEstimator] = useState(false);
   
   // Set up orchestrator listeners
   useEffect(() => {
@@ -133,8 +150,14 @@ const UIComposerContent = () => {
   
   // Process request when it changes
   useEffect(() => {
-    if (currentRequest && !processingRequest) {
-      processRequest();
+    if (currentRequest && !processingRequest && !showCostEstimator) {
+      // Show cost estimator first for SDK method or if user wants to see costs
+      if (selectedMethod === 'sdk' || selectedMethod === 'cli') {
+        setShowCostEstimator(true);
+        setActiveStep(1.5); // Between describe and generate
+      } else {
+        processRequest();
+      }
     }
   }, [currentRequest]); // Remove processingRequest from dependencies to avoid re-triggering
   
@@ -152,7 +175,9 @@ const UIComposerContent = () => {
         // Add any relevant context
         userRole: 'clinician',
         clinicalSetting: 'general practice',
-        method: selectedMethod
+        method: selectedMethod,
+        model: selectedModel,
+        generationMode: generationMode
       });
       
       if (result.success) {
@@ -175,6 +200,18 @@ const UIComposerContent = () => {
       setProcessingRequest(false);
     }
   }, [currentRequest, processingRequest, orchestrator, setCurrentSpec, addConversationEntry, setError, clearError, setGenerationStatus]);
+  
+  // Handle cost estimator proceed
+  const handleCostEstimatorProceed = useCallback(async () => {
+    setShowCostEstimator(false);
+    await processRequest();
+  }, [processRequest]);
+  
+  // Handle cost estimator cancel
+  const handleCostEstimatorCancel = useCallback(() => {
+    setShowCostEstimator(false);
+    setActiveStep(0); // Go back to describe step
+  }, []);
   
   // Handle step changes
   const handleStepChange = useCallback((step) => {
@@ -207,12 +244,14 @@ const UIComposerContent = () => {
   useEffect(() => {
     if (!currentRequest) {
       setActiveStep(0);
+    } else if (currentRequest && showCostEstimator) {
+      setActiveStep(1); // Show cost estimator
     } else if (currentRequest && !currentSpec && !isLoading) {
       setActiveStep(1);
     } else if (currentSpec && !isLoading) {
       setActiveStep(2);
     }
-  }, [currentRequest, currentSpec, isLoading]);
+  }, [currentRequest, currentSpec, isLoading, showCostEstimator]);
   
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -259,6 +298,14 @@ const UIComposerContent = () => {
                 <Typography variant="body2">Claude Ready</Typography>
               </Box>
             </Tooltip>
+          )}
+          {/* Cost Display */}
+          {selectedMethod === 'sdk' && (
+            <CostDisplay 
+              sessionId={orchestrator.sessionId || null}
+              loading={costLoading}
+              onCostUpdate={setSessionCost}
+            />
           )}
           <Typography variant="body2" sx={{ mr: 2 }}>
             Experimental Feature
@@ -325,14 +372,15 @@ const UIComposerContent = () => {
                     {index === 1 && (
                       <Box sx={{ mt: 2 }}>
                         {isLoading ? (
-                          <Alert severity="info">
-                            <Typography variant="body2">
-                              {generationStatus.message || 'Processing your request...'}
-                            </Typography>
-                            <Typography variant="caption" display="block">
-                              Phase: {generationStatus.phase}
-                            </Typography>
-                          </Alert>
+                          <GenerationProgressIndicator
+                            phase={generationStatus.phase}
+                            progress={generationStatus.progress}
+                            message={generationStatus.message}
+                            isLoading={isLoading}
+                            selectedMethod={selectedMethod}
+                            selectedModel={selectedModel}
+                            generationMode={generationMode}
+                          />
                         ) : currentSpec ? (
                           <Alert severity="success">
                             UI generated successfully! Review it in the preview panel.
@@ -346,6 +394,20 @@ const UIComposerContent = () => {
                             Waiting for request...
                           </Typography>
                         )}
+                      </Box>
+                    )}
+                    
+                    {/* Cost Estimator Step */}
+                    {index === 1 && showCostEstimator && (
+                      <Box sx={{ mt: 2 }}>
+                        <CostEstimator
+                          request={currentRequest}
+                          selectedMethod={selectedMethod}
+                          selectedModel={selectedModel}
+                          generationMode={generationMode}
+                          onProceed={handleCostEstimatorProceed}
+                          onCancel={handleCostEstimatorCancel}
+                        />
                       </Box>
                     )}
                     
@@ -392,11 +454,48 @@ const UIComposerContent = () => {
             <PreviewCanvas />
           </Box>
           
-          {/* Feedback Interface */}
+          {/* Feedback Interface - Collapsible */}
           {currentSpec && (
-            <Box sx={{ borderTop: 1, borderColor: 'divider' }}>
-              <FeedbackInterface />
-            </Box>
+            <>
+              {/* Feedback Toggle Button */}
+              <Box 
+                sx={{ 
+                  borderTop: 1, 
+                  borderColor: 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  p: 1,
+                  bgcolor: 'background.paper',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setFeedbackPanelOpen(!feedbackPanelOpen)}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton size="small">
+                    {feedbackPanelOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                  <Typography variant="subtitle2">
+                    Feedback & Refinement
+                  </Typography>
+                </Box>
+                <Tooltip title={feedbackPanelOpen ? "Collapse panel" : "Expand to provide feedback"}>
+                  <Chip 
+                    label={feedbackPanelOpen ? "Hide" : "Show"} 
+                    size="small" 
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Tooltip>
+              </Box>
+              
+              {/* Collapsible Feedback Panel */}
+              <Collapse in={feedbackPanelOpen}>
+                <Box sx={{ borderTop: 1, borderColor: 'divider' }}>
+                  <FeedbackInterface />
+                </Box>
+              </Collapse>
+            </>
           )}
         </Box>
       </Box>
@@ -426,6 +525,29 @@ const UIComposerContent = () => {
               onMethodChange={setSelectedMethod}
               methodStatus={claudeStatus.methodStatus}
               disabled={processingRequest}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
+          </Box>
+          
+          <Divider />
+          
+          {/* Creative Generation Options */}
+          <Box sx={{ p: 2 }}>
+            <CreativeGenerationOptions
+              value={generationMode}
+              onChange={setGenerationMode}
+              disabled={processingRequest}
+            />
+          </Box>
+          
+          <Divider />
+          
+          {/* Temporary FHIR Test */}
+          <Box sx={{ p: 2 }}>
+            <TestFHIRIntegration 
+              selectedMethod={selectedMethod}
+              selectedModel={selectedModel}
             />
           </Box>
           

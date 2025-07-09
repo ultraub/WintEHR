@@ -70,6 +70,7 @@ class AnalyzeResponse(BaseModel):
     reasoning: Optional[str] = None
     error: Optional[str] = None
     session_id: Optional[str] = None
+    method: Optional[str] = None
 
 class GenerateRequest(BaseModel):
     """Request to generate UI components"""

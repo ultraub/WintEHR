@@ -270,28 +270,37 @@ export default GeneratedDashboard;
         """Generate chart component"""
         chart_type = spec.get("displayProperties", {}).get("chartType", "line")
         title = spec.get("displayProperties", {}).get("title", "Chart")
+        resource_type = spec.get("dataBinding", {}).get("resourceType", "Observation")
         
         return f'''
 import React, {{ useState, useEffect }} from 'react';
 import {{ Box, Paper, Typography, CircularProgress }} from '@mui/material';
 import {{ LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer }} from 'recharts';
+import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
 
-const GeneratedChart = ({{ data, ...props }}) => {{
+const GeneratedChart = ({{ patientId, ...props }}) => {{
+  const {{ resources: observations, loading, error }} = usePatientResources(
+    patientId, 
+    '{resource_type}',
+    {{ 
+      params: {{ _sort: '-date', _count: 10 }},
+      enabled: !!patientId 
+    }}
+  );
+  
   const [chartData, setChartData] = useState([]);
-  const [loading, setLoading] = useState(true);
   
   useEffect(() => {{
-    // Simulated data for development
-    const sampleData = [
-      {{ date: '2024-01', value: 120 }},
-      {{ date: '2024-02', value: 132 }},
-      {{ date: '2024-03', value: 125 }},
-      {{ date: '2024-04', value: 140 }},
-      {{ date: '2024-05', value: 135 }}
-    ];
-    setChartData(sampleData);
-    setLoading(false);
-  }}, [data]);
+    if (observations && observations.length > 0) {{
+      // Convert FHIR observations to chart data
+      const data = observations.map((obs, index) => ({{
+        date: obs.effectiveDateTime ? new Date(obs.effectiveDateTime).toLocaleDateString() : `Record ${{index + 1}}`,
+        value: obs.valueQuantity?.value || obs.component?.[0]?.valueQuantity?.value || Math.random() * 100,
+        unit: obs.valueQuantity?.unit || obs.component?.[0]?.valueQuantity?.unit || 'units'
+      }})).reverse(); // Show oldest first
+      setChartData(data);
+    }}
+  }}, [observations]);
   
   if (loading) {{
     return (
@@ -301,17 +310,37 @@ const GeneratedChart = ({{ data, ...props }}) => {{
     );
   }}
   
+  if (error) {{
+    return (
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{{error}}</Typography>
+      </Paper>
+    );
+  }}
+  
+  if (!chartData || chartData.length === 0) {{
+    return (
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6">{title}</Typography>
+        <Typography variant="body2" color="textSecondary">
+          No {resource_type.lower()} data available for this patient
+        </Typography>
+      </Paper>
+    );
+  }}
+  
   return (
     <Paper sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>
-        {title}
+        {title} ({{chartData.length}} records)
       </Typography>
       <ResponsiveContainer width="100%" height={{300}}>
         <{'LineChart' if chart_type == 'line' else 'BarChart'} data={{chartData}}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />
           <YAxis />
-          <Tooltip />
+          <Tooltip formatter={{(value, name) => [`${{value}} ${{chartData[0]?.unit || ''}}`, name]}} />
           <Legend />
           <{'Line' if chart_type == 'line' else 'Bar'} type="monotone" dataKey="value" stroke="#8884d8" {'fill="#8884d8"' if chart_type == 'bar' else ''} />
         </{'LineChart' if chart_type == 'line' else 'BarChart'}>
@@ -328,28 +357,81 @@ export default GeneratedChart;
         grid_type = spec.get("displayProperties", {}).get("gridType", "generic-table")
         title = spec.get("displayProperties", {}).get("title", "Data Table")
         columns = spec.get("displayProperties", {}).get("columns", ["name", "value", "date"])
+        resource_type = spec.get("dataBinding", {}).get("resourceType", "Observation")
         
         return f'''
 import React, {{ useState, useEffect }} from 'react';
 import {{
   Box, Paper, Typography, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, CircularProgress
+  TableContainer, TableHead, TableRow, CircularProgress, Chip
 }} from '@mui/material';
+import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
 
-const GeneratedGrid = ({{ data, ...props }}) => {{
+const GeneratedGrid = ({{ patientId, ...props }}) => {{
+  const {{ resources, loading, error }} = usePatientResources(
+    patientId, 
+    '{resource_type}',
+    {{ 
+      params: {{ _sort: '-date', _count: 20 }},
+      enabled: !!patientId 
+    }}
+  );
+  
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   
   useEffect(() => {{
-    // Simulated data for development
-    const sampleRows = [
-      {{ id: 1, {', '.join([f'{col}: "Sample {col} 1"' for col in columns])} }},
-      {{ id: 2, {', '.join([f'{col}: "Sample {col} 2"' for col in columns])} }},
-      {{ id: 3, {', '.join([f'{col}: "Sample {col} 3"' for col in columns])} }}
-    ];
-    setRows(sampleRows);
-    setLoading(false);
-  }}, [data]);
+    if (resources && resources.length > 0) {{
+      const formattedRows = resources.map((resource, index) => {{
+        const baseRow = {{ id: resource.id || index }};
+        
+        // Format based on resource type
+        if ('{resource_type}' === 'Observation') {{
+          return {{
+            ...baseRow,
+            name: resource.code?.coding?.[0]?.display || resource.code?.text || 'Unknown Test',
+            value: resource.valueQuantity?.value ? 
+              `${{resource.valueQuantity.value}} ${{resource.valueQuantity.unit || ''}}` :
+              resource.valueString || resource.valueCodeableConcept?.text || 'No value',
+            date: resource.effectiveDateTime ? 
+              new Date(resource.effectiveDateTime).toLocaleDateString() : 'Unknown date',
+            status: resource.status || 'unknown'
+          }};
+        }} else if ('{resource_type}' === 'MedicationRequest') {{
+          return {{
+            ...baseRow,
+            name: resource.medicationCodeableConcept?.text || 
+                  resource.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown Medication',
+            value: resource.dosageInstruction?.[0]?.text || 'See instructions',
+            date: resource.authoredOn ? 
+              new Date(resource.authoredOn).toLocaleDateString() : 'Unknown date',
+            status: resource.status || 'unknown'
+          }};
+        }} else if ('{resource_type}' === 'Condition') {{
+          return {{
+            ...baseRow,
+            name: resource.code?.text || resource.code?.coding?.[0]?.display || 'Unknown Condition',
+            value: resource.clinicalStatus?.coding?.[0]?.code || 'unknown',
+            date: resource.onsetDateTime ? 
+              new Date(resource.onsetDateTime).toLocaleDateString() : 
+              resource.recordedDate ? new Date(resource.recordedDate).toLocaleDateString() : 'Unknown date',
+            status: resource.verificationStatus?.coding?.[0]?.code || 'unknown'
+          }};
+        }} else {{
+          // Generic formatting
+          return {{
+            ...baseRow,
+            name: resource.text?.div?.replace(/<[^>]*>/g, '').substring(0, 50) || 
+                  `${{'{resource_type}'}} Record`,
+            value: resource.status || 'N/A',
+            date: resource.meta?.lastUpdated ? 
+              new Date(resource.meta.lastUpdated).toLocaleDateString() : 'Unknown date',
+            status: resource.status || 'unknown'
+          }};
+        }}
+      }});
+      setRows(formattedRows);
+    }}
+  }}, [resources]);
   
   if (loading) {{
     return (
@@ -359,22 +441,54 @@ const GeneratedGrid = ({{ data, ...props }}) => {{
     );
   }}
   
+  if (error) {{
+    return (
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{{error}}</Typography>
+      </Paper>
+    );
+  }}
+  
+  if (!rows || rows.length === 0) {{
+    return (
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6">{title}</Typography>
+        <Typography variant="body2" color="textSecondary">
+          No {resource_type.lower()} records found for this patient
+        </Typography>
+      </Paper>
+    );
+  }}
+  
   return (
     <Paper sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>
-        {title}
+        {title} ({{rows.length}} records)
       </Typography>
       <TableContainer>
         <Table>
           <TableHead>
             <TableRow>
-              {' '.join([f'<TableCell>{col.title()}</TableCell>' for col in columns])}
+              <TableCell>Name</TableCell>
+              <TableCell>Value</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {{rows.map((row) => (
               <TableRow key={{row.id}}>
-                {' '.join([f'<TableCell>{{row.{col}}}</TableCell>' for col in columns])}
+                <TableCell>{{row.name}}</TableCell>
+                <TableCell>{{row.value}}</TableCell>
+                <TableCell>{{row.date}}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={{row.status}} 
+                    size="small"
+                    color={{row.status === 'final' || row.status === 'active' ? 'success' : 'default'}}
+                  />
+                </TableCell>
               </TableRow>
             ))}}
           </TableBody>
@@ -390,32 +504,105 @@ export default GeneratedGrid;
     def _summary_template(self, spec: Dict[str, Any]) -> str:
         """Generate summary component"""
         title = spec.get("displayProperties", {}).get("title", "Summary")
+        resource_type = spec.get("dataBinding", {}).get("resourceType", "Observation")
         
         return f'''
 import React, {{ useState, useEffect }} from 'react';
 import {{ Box, Paper, Typography, Grid, CircularProgress }} from '@mui/material';
+import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
 
-const GeneratedSummary = ({{ data, ...props }}) => {{
+const GeneratedSummary = ({{ patientId, ...props }}) => {{
+  const {{ resources, loading, error }} = usePatientResources(
+    patientId, 
+    '{resource_type}',
+    {{ 
+      params: {{ _count: 100 }}, // Get more for statistics
+      enabled: !!patientId 
+    }}
+  );
+  
   const [stats, setStats] = useState({{}});
-  const [loading, setLoading] = useState(true);
   
   useEffect(() => {{
-    // Simulated stats for development
-    const sampleStats = {{
-      total: 42,
-      active: 15,
-      completed: 27,
-      average: 28.5
-    }};
-    setStats(sampleStats);
-    setLoading(false);
-  }}, [data]);
+    if (resources && resources.length > 0) {{
+      let calculatedStats = {{ total: resources.length }};
+      
+      if ('{resource_type}' === 'Observation') {{
+        const finalResults = resources.filter(obs => obs.status === 'final');
+        const abnormalResults = resources.filter(obs => 
+          obs.interpretation?.some(interp => 
+            interp.coding?.some(coding => 
+              coding.code === 'A' || coding.code === 'H' || coding.code === 'L'
+            )
+          )
+        );
+        calculatedStats = {{
+          ...calculatedStats,
+          final: finalResults.length,
+          abnormal: abnormalResults.length,
+          normal: finalResults.length - abnormalResults.length
+        }};
+      }} else if ('{resource_type}' === 'MedicationRequest') {{
+        const activeRequests = resources.filter(med => med.status === 'active');
+        const completedRequests = resources.filter(med => med.status === 'completed');
+        calculatedStats = {{
+          ...calculatedStats,
+          active: activeRequests.length,
+          completed: completedRequests.length,
+          pending: resources.length - activeRequests.length - completedRequests.length
+        }};
+      }} else if ('{resource_type}' === 'Condition') {{
+        const activeConditions = resources.filter(cond => 
+          cond.clinicalStatus?.coding?.[0]?.code === 'active'
+        );
+        const resolvedConditions = resources.filter(cond => 
+          cond.clinicalStatus?.coding?.[0]?.code === 'resolved'
+        );
+        calculatedStats = {{
+          ...calculatedStats,
+          active: activeConditions.length,
+          resolved: resolvedConditions.length,
+          other: resources.length - activeConditions.length - resolvedConditions.length
+        }};
+      }} else {{
+        // Generic status-based stats
+        const statusCounts = resources.reduce((acc, resource) => {{
+          const status = resource.status || 'unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }}, {{}});
+        calculatedStats = {{ ...calculatedStats, ...statusCounts }};
+      }}
+      
+      setStats(calculatedStats);
+    }}
+  }}, [resources]);
   
   if (loading) {{
     return (
       <Box display="flex" justifyContent="center" p={{2}}>
         <CircularProgress />
       </Box>
+    );
+  }}
+  
+  if (error) {{
+    return (
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" color="error">Error loading data</Typography>
+        <Typography variant="body2">{{error}}</Typography>
+      </Paper>
+    );
+  }}
+  
+  if (!stats.total) {{
+    return (
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6">{title}</Typography>
+        <Typography variant="body2" color="textSecondary">
+          No {resource_type.lower()} data available for analysis
+        </Typography>
+      </Paper>
     );
   }}
   
@@ -427,36 +614,29 @@ const GeneratedSummary = ({{ data, ...props }}) => {{
       <Grid container spacing={{2}}>
         <Grid item xs={{6}} sm={{3}}>
           <Typography variant="subtitle2" color="textSecondary">
-            Total
+            Total Records
           </Typography>
           <Typography variant="h4">
-            {{stats.total}}
+            {{stats.total || 0}}
           </Typography>
         </Grid>
-        <Grid item xs={{6}} sm={{3}}>
-          <Typography variant="subtitle2" color="textSecondary">
-            Active
-          </Typography>
-          <Typography variant="h4" color="primary">
-            {{stats.active}}
-          </Typography>
-        </Grid>
-        <Grid item xs={{6}} sm={{3}}>
-          <Typography variant="subtitle2" color="textSecondary">
-            Completed
-          </Typography>
-          <Typography variant="h4" color="success.main">
-            {{stats.completed}}
-          </Typography>
-        </Grid>
-        <Grid item xs={{6}} sm={{3}}>
-          <Typography variant="subtitle2" color="textSecondary">
-            Average
-          </Typography>
-          <Typography variant="h4">
-            {{stats.average}}
-          </Typography>
-        </Grid>
+        {{Object.entries(stats).filter(([key]) => key !== 'total').slice(0, 3).map(([key, value]) => (
+          <Grid item xs={{6}} sm={{3}} key={{key}}>
+            <Typography variant="subtitle2" color="textSecondary">
+              {{key.charAt(0).toUpperCase() + key.slice(1)}}
+            </Typography>
+            <Typography 
+              variant="h4" 
+              color={{
+                key === 'active' || key === 'final' ? 'primary' : 
+                key === 'completed' || key === 'normal' ? 'success.main' :
+                key === 'abnormal' ? 'warning.main' : 'text.primary'
+              }}
+            >
+              {{value}}
+            </Typography>
+          </Grid>
+        ))}}
       </Grid>
     </Paper>
   );

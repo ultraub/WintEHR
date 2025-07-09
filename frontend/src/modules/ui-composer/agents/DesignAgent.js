@@ -83,6 +83,10 @@ class DesignAgent {
    * Build analysis prompt for Claude
    */
   buildAnalysisPrompt(request, context) {
+    // Check if we have rich FHIR context from the agent pipeline
+    const hasAgentPipeline = context.agentPipelineUsed && context.fhirData;
+    const fhirContext = context.fhirContext || '';
+    
     return `
 You are a clinical UI design expert. Analyze the following request and create a detailed UI specification for a healthcare application.
 
@@ -93,6 +97,12 @@ Context:
 - Available FHIR resources: ${context.availableResources?.join(', ') || 'All standard FHIR resources'}
 - User role: ${context.userRole || 'clinician'}
 - Clinical setting: ${context.clinicalSetting || 'general practice'}
+${hasAgentPipeline ? '- Agent Pipeline: ENABLED - Real FHIR data analysis completed' : '- Agent Pipeline: DISABLED - Using basic FHIR context'}
+
+${fhirContext ? `\nREAL FHIR DATA ANALYSIS:
+${fhirContext}
+
+IMPORTANT: Use the above REAL data analysis to inform your UI design decisions. The data shown represents actual FHIR resources available in the database.` : ''}
 
 Please analyze this request and respond with a JSON object containing:
 
@@ -176,13 +186,36 @@ Ensure all data comes from FHIR resources and follows clinical best practices.
     spec.metadata.clinicalContext.scope = analysis.scope;
     spec.metadata.clinicalContext.dataRequirements = analysis.requiredData;
     
+    // Add agent pipeline metadata if available
+    if (this.lastAnalysis?.data?.agentPipelineUsed) {
+      spec.metadata.agentPipeline = {
+        enabled: true,
+        dataAnalysis: this.lastAnalysis.data.fhirData,
+        queryPlan: this.lastAnalysis.data.queryPlan,
+        executionResults: this.lastAnalysis.data.executionResults
+      };
+    }
+    
     // Update layout type
     spec.layout.type = analysis.layoutType;
     
-    // Create data sources
-    const dataSources = analysis.requiredData.map(resourceType => 
-      createDataSourceSpec(resourceType)
-    );
+    // Create data sources with enhanced information
+    const dataSources = analysis.requiredData.map(resourceType => {
+      const dataSource = createDataSourceSpec(resourceType);
+      
+      // Enhance with real data information if available
+      if (this.lastAnalysis?.data?.fhirData?.resourceSummary?.[resourceType]) {
+        const resourceInfo = this.lastAnalysis.data.fhirData.resourceSummary[resourceType];
+        dataSource.metadata = {
+          ...dataSource.metadata,
+          recordCount: resourceInfo.recordCount,
+          purpose: resourceInfo.purpose,
+          hasRealData: true
+        };
+      }
+      
+      return dataSource;
+    });
     spec.dataSources = dataSources;
     
     // Create components

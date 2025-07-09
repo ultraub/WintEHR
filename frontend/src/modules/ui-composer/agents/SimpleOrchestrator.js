@@ -9,6 +9,7 @@ import componentRegistry from '../utils/componentRegistry';
 class SimpleOrchestrator {
   constructor() {
     this.listeners = new Set();
+    this.sessionId = null;
   }
 
   /**
@@ -19,14 +20,20 @@ class SimpleOrchestrator {
       // Step 1: Analyze the request
       this.notifyListeners('phase_change', { phase: 'analyzing', progress: 0, message: 'Analyzing your request...' });
       
-      const analyzeResult = await uiComposerService.analyzeRequest(request, context, context.method);
+      const analyzeResult = await uiComposerService.analyzeRequest(request, {...context, model: context.model}, context.method);
       
       if (!analyzeResult.success) {
         throw new Error(analyzeResult.error || 'Analysis failed');
       }
       
-      // Add method to specification for downstream use
+      // Track session ID
+      if (analyzeResult.session_id) {
+        this.sessionId = analyzeResult.session_id;
+      }
+      
+      // Add method and model to specification for downstream use
       analyzeResult.specification.method = context.method;
+      analyzeResult.specification.model = context.model;
       analyzeResult.specification._isFromOrchestrator = true;
       
       // Step 2: Generate components

@@ -62,7 +62,11 @@ async function runRequest() {
                 
                 result = {
                     success: true,
-                    response: response
+                    response: response,
+                    usage: message.usage ? {
+                        input_tokens: message.usage.input_tokens,
+                        output_tokens: message.usage.output_tokens
+                    } : null
                 };
                 break;
                 

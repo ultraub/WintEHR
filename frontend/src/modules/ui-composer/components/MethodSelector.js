@@ -17,7 +17,10 @@ import {
   Alert,
   CircularProgress,
   Collapse,
-  IconButton
+  IconButton,
+  Select,
+  MenuItem,
+  InputLabel
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -41,24 +44,57 @@ const METHOD_INFO = {
     setup: 'Set ANTHROPIC_API_KEY in backend .env file'
   },
   cli: {
-    name: 'Claude CLI (Direct)',
-    description: 'Direct CLI invocation (requires authentication)',
-    requirements: 'Requires Claude CLI authentication',
-    setup: 'Run "claude setup-token" in terminal'
+    name: 'Claude CLI (Claude Max)',
+    description: 'Uses Claude Max subscription via Claude Code CLI',
+    requirements: 'Requires Claude Max subscription and authentication',
+    setup: 'Run "claude auth login" in terminal'
   },
   development: {
     name: 'Development Mode',
-    description: 'Template-based UI generation without Claude',
-    requirements: 'No authentication required',
-    setup: 'Works immediately, limited capabilities'
+    description: 'Template-based UI generation with REAL FHIR data',
+    requirements: 'No authentication required - completely free',
+    setup: 'Uses real patient data but generates simple templates'
   }
 };
+
+const MODEL_OPTIONS = [
+  {
+    value: 'claude-sonnet-4-20250514',
+    name: 'Claude 4 Sonnet',
+    description: 'Latest Sonnet model, excellent balance of speed and quality',
+    speed: 'Fast',
+    quality: 'Excellent'
+  },
+  {
+    value: 'claude-opus-4-20250514',
+    name: 'Claude 4 Opus',
+    description: 'Latest Opus model, highest quality for complex UIs',
+    speed: 'Slower',
+    quality: 'Best'
+  },
+  {
+    value: 'claude-3-5-sonnet-20241022',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Previous generation, fast and reliable',
+    speed: 'Fast',
+    quality: 'Good'
+  },
+  {
+    value: 'claude-3-opus-20240229',
+    name: 'Claude 3 Opus',
+    description: 'Previous generation Opus, high quality',
+    speed: 'Slower',
+    quality: 'Very Good'
+  }
+];
 
 const MethodSelector = ({ 
   selectedMethod, 
   onMethodChange, 
   methodStatus,
-  disabled = false 
+  disabled = false,
+  selectedModel,
+  onModelChange
 }) => {
   const [expandedInfo, setExpandedInfo] = React.useState(null);
 
@@ -197,6 +233,42 @@ const MethodSelector = ({
           </Alert>
         )}
       </FormControl>
+      
+      {/* Model Selection - Only show for SDK and CLI methods */}
+      {(selectedMethod === 'sdk' || selectedMethod === 'cli') && onModelChange && (
+        <FormControl fullWidth sx={{ mt: 3 }}>
+          <InputLabel id="model-select-label">AI Model</InputLabel>
+          <Select
+            labelId="model-select-label"
+            id="model-select"
+            value={selectedModel || 'claude-3-5-sonnet-20241022'}
+            label="AI Model"
+            onChange={(e) => onModelChange(e.target.value)}
+            disabled={disabled}
+          >
+            {MODEL_OPTIONS.map((model) => (
+              <MenuItem key={model.value} value={model.value}>
+                <Box>
+                  <Typography variant="body1">{model.name}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {model.description}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                    <Chip label={`Speed: ${model.speed}`} size="small" variant="outlined" />
+                    <Chip label={`Quality: ${model.quality}`} size="small" variant="outlined" />
+                  </Box>
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+          
+          {selectedModel && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+              {MODEL_OPTIONS.find(m => m.value === selectedModel)?.description}
+            </Typography>
+          )}
+        </FormControl>
+      )}
     </Paper>
   );
 };

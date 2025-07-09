@@ -145,12 +145,61 @@ class BuilderAgent {
    * Build component generation prompt
    */
   buildComponentPrompt(componentSpec, specification) {
+    // Check if we have rich data context from agent pipeline
+    const hasAgentPipeline = specification.metadata?.agentPipeline?.enabled;
+    const dataContext = specification.metadata?.agentPipeline?.dataAnalysis;
+    const resourceType = componentSpec.dataBinding?.resourceType;
+    
+    let dataContextSection = '';
+    if (hasAgentPipeline && dataContext) {
+      dataContextSection = `
+REAL FHIR DATA CONTEXT:
+${JSON.stringify(dataContext, null, 2)}
+
+COMPONENT-SPECIFIC DATA:`;
+      
+      if (resourceType && dataContext.sampleData?.[resourceType]) {
+        const sampleData = dataContext.sampleData[resourceType];
+        dataContextSection += `
+- Resource Type: ${resourceType}
+- Available Records: ${sampleData.count}
+- Sample Data Structure: ${JSON.stringify(sampleData.examples?.[0] || {}, null, 2)}
+- Value Ranges: ${JSON.stringify(sampleData.valueRanges || {}, null, 2)}
+- Date Range: ${JSON.stringify(sampleData.dateRange || {}, null, 2)}`;
+      }
+      
+      if (dataContext.recommendations?.components) {
+        const componentRecs = dataContext.recommendations.components
+          .filter(rec => rec.type === componentSpec.type || rec.dataSource === resourceType)
+          .slice(0, 3);
+        if (componentRecs.length > 0) {
+          dataContextSection += `
+
+COMPONENT RECOMMENDATIONS:
+${componentRecs.map(rec => `- ${rec.type}: ${rec.purpose} (Priority: ${rec.priority})`).join('\n')}`;
+        }
+      }
+      
+      if (dataContext.uiHints) {
+        dataContextSection += `
+
+UI GENERATION HINTS:
+- Layout: ${dataContext.uiHints.layout}
+- Emphasis: ${dataContext.uiHints.emphasis?.join(', ') || 'None'}
+- Data Quality: ${dataContext.dataQuality?.volume} volume, ${(dataContext.dataQuality?.completeness * 100).toFixed(0)}% complete
+${dataContext.uiHints.warnings?.length ? `- Warnings: ${dataContext.uiHints.warnings.join('; ')}` : ''}`;
+      }
+    }
+
     return `
 Generate a React component for a clinical UI based on the following specification:
 
 Component Type: ${componentSpec.type}
 Component Props: ${JSON.stringify(componentSpec.props, null, 2)}
 Data Binding: ${JSON.stringify(componentSpec.dataBinding, null, 2)}
+${hasAgentPipeline ? '\n🤖 AGENT PIPELINE ENABLED - Use real FHIR data context below' : '\n⚠️  AGENT PIPELINE DISABLED - Using basic specification'}
+
+${dataContextSection}
 
 Overall UI Specification:
 ${JSON.stringify(specification, null, 2)}
@@ -164,6 +213,10 @@ Requirements:
 6. Ensure clinical data safety and accuracy
 7. Make the component responsive and accessible
 8. Include proper FHIR data transformations
+${hasAgentPipeline ? `9. **CRITICAL**: Use the REAL data context provided above - NO mock data
+10. **CRITICAL**: Implement component based on actual data structure and ranges shown
+11. **CRITICAL**: Handle the specific data volume and quality indicated
+12. **CRITICAL**: Follow the component recommendations and UI hints provided` : `9. Use appropriate default data handling patterns`}
 
 Available imports:
 - React hooks (useState, useEffect, useMemo, useCallback)

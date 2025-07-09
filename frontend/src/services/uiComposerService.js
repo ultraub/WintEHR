@@ -252,6 +252,29 @@ class UIComposerService {
       };
     }
   }
+
+  /**
+   * Get cost information for a session
+   */
+  async getSessionCost(sessionId) {
+    try {
+      const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/cost`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to get session cost');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      throw new Error(`Get session cost failed: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

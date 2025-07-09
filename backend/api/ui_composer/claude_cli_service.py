@@ -173,7 +173,7 @@ class ClaudeCLIService:
                 "path": self.claude_path
             }
     
-    async def complete(self, prompt: str, timeout: int = 60) -> str:
+    async def complete(self, prompt: str, timeout: int = 300) -> str:  # Increased to 5 minutes
         """Execute Claude CLI with prompt and return response"""
         if not self.claude_path:
             raise RuntimeError("Claude CLI not available")
@@ -216,12 +216,55 @@ class ClaudeCLIService:
     
     async def analyze_request(self, prompt: str, context: Dict[str, Any]) -> str:
         """Analyze a UI request using CLI"""
+        # Get generation mode
+        generation_mode = context.get('generationMode', 'mixed')
+        
+        # Include generation mode instructions
+        generation_instructions = ""
+        if generation_mode == 'full':
+            generation_instructions = """
+Generation Mode: FULL GENERATION
+- Create completely new, creative components from scratch
+- Do not reuse existing MedGenEMR components
+- Prioritize unique designs and innovative layouts
+- Generate all custom code without relying on templates
+"""
+        elif generation_mode == 'mixed':
+            generation_instructions = """
+Generation Mode: SMART MIX
+- Combine existing MedGenEMR components with new generated parts
+- Reuse standard components like ChartReviewTab patterns where applicable
+- Generate custom code only for unique requirements
+- Balance consistency with innovation
+"""
+        elif generation_mode == 'template':
+            generation_instructions = """
+Generation Mode: TEMPLATE-BASED
+- Use existing MedGenEMR templates and patterns
+- Minimal custom generation, focus on configuration
+- Prioritize speed and consistency over creativity
+- Reuse proven UI patterns from the codebase
+"""
+        
+        # Include FHIR context if available
+        fhir_context_section = ""
+        if context.get("fhirContext"):
+            fhir_context_section = f"""
+Available FHIR Data:
+{context.get("fhirContext")}
+
+Based on the actual FHIR data available, generate UI components that will query and display this real data.
+"""
+        
         full_prompt = f"""You are a UI design expert for a clinical EMR system. Analyze the following natural language request and create a detailed UI specification.
 
 Request: "{prompt}"
-
+{generation_instructions}
 Context:
-{json.dumps(context, indent=2)}
+{json.dumps({k: v for k, v in context.items() if k not in ["fhirData", "fhirContext", "generationMode"]}, indent=2)}
+{fhir_context_section}
+
+IMPORTANT: This EMR system has REAL FHIR data with actual patients. The generated components must connect to and display this real data, not mock/example data.
 
 Please analyze this request and respond with a JSON object containing:
 {{
@@ -255,37 +298,180 @@ Please analyze this request and respond with a JSON object containing:
 
 Focus on clinical accuracy, appropriate data visualization, and user workflow optimization."""
         
-        response = await self.complete(full_prompt, timeout=60)
+        response = await self.complete(full_prompt, timeout=480)  # 8 minutes for analysis
         # The response should already be cleaned by complete(), but ensure it's valid JSON
         return response
     
     async def generate_component(self, specification: Dict[str, Any]) -> str:
         """Generate a component from specification"""
-        components = specification.get('components', [])
-        if not components:
-            return "// No components to generate"
+        try:
+            components = specification.get('components', [])
+            if not components:
+                return "// No components to generate"
+            
+            component = components[0]  # Process first component
+            # Check multiple places for generation mode
+            generation_mode = (specification.get('generationMode') or 
+                              specification.get('metadata', {}).get('generationMode') or 
+                              'mixed')
+            
+            logger.info(f"Generating component with mode: {generation_mode}")
+            
+            # Extract agent pipeline data if available
+            agent_data = specification.get('metadata', {}).get('agentPipeline', {})
+            has_agent_data = agent_data.get('enabled', False)
+            
+            # Check if we have query results from the new query-driven system
+            query_results = agent_data.get('queryResults')
+            query_plan = agent_data.get('queryPlan')
+            
+            if query_results and query_plan:
+                logger.info("Using query-driven generation with actual query results")
+                from .agents.query_driven_generator import QueryDrivenGenerator
+                
+                # Convert query results to proper format if needed
+                from .agents.query_orchestrator import QueryResult
+                formatted_results = {}
+                for result_id, result_data in query_results.items():
+                    qr = QueryResult(result_id, result_data.get('resourceType', 'Unknown'))
+                    qr.resources = result_data.get('resources', [])
+                    qr.aggregated_data = result_data.get('aggregated_data', {})
+                    formatted_results[result_id] = qr
+                
+                # Extract data structure and UI suggestions from agent data
+                data_structure = agent_data.get('dataAnalysis', {})
+                ui_suggestions = agent_data.get('uiStructure', {})
+                
+                # Create generator with generation mode
+                generator = QueryDrivenGenerator(generation_mode=generation_mode)
+                
+                # Generate component using query-driven approach with mode
+                component_code = generator.generate_component(
+                    formatted_results,
+                    data_structure,
+                    ui_suggestions,
+                    component.get('name', 'GeneratedComponent')
+                )
+                return component_code
+            
+            logger.info(f"Agent pipeline data available: {has_agent_data}")
+            if has_agent_data:
+                data_context = agent_data.get('dataAnalysis', {})
+                logger.info(f"Agent pipeline has {data_context.get('totalRecords', 0)} total records")
+                logger.info(f"Resource types: {list(data_context.get('resourceSummary', {}).keys())}")
+            
+            # Customize generation based on mode
+            generation_specific_instructions = ""
+            if generation_mode == 'full':
+                generation_specific_instructions = """
+FULL GENERATION MODE:
+- Create completely custom components from scratch
+- Use unique styling and layout approaches
+- Don't follow standard MedGenEMR patterns unless necessary
+- Focus on innovation and creativity
+- Generate all necessary sub-components inline
+"""
+            elif generation_mode == 'mixed':
+                generation_specific_instructions = """
+SMART MIX MODE:
+- Reuse MedGenEMR component patterns where appropriate
+- Import existing components like: ChartReviewTab, ResultsTab patterns
+- Generate custom code only for unique features
+- Follow established MedGenEMR conventions
+- Balance reusability with customization
+"""
+            elif generation_mode == 'template':
+                generation_specific_instructions = """
+TEMPLATE-BASED MODE:
+- Use minimal custom code
+- Rely heavily on existing MedGenEMR templates
+- Focus on configuration over generation
+- Reuse standard layout patterns
+- Prioritize speed and consistency
+"""
         
-        component = components[0]  # Process first component
-        
-        prompt = f"""Generate a React component for a clinical UI based on the following specification:
+            # Build dynamic context from agent pipeline data
+            data_context_section = ""
+            if has_agent_data and agent_data.get('dataAnalysis'):
+                data_analysis = agent_data['dataAnalysis']
+                data_context_section = f"""
+REAL DATA CONTEXT FROM AGENT PIPELINE:
+Total Records Available: {data_analysis.get('totalRecords', 0)}
+Data Quality: {data_analysis.get('dataQuality', {}).get('volume', 'unknown')}
+
+Available Resources:
+{self._format_resource_summary(data_analysis.get('resourceSummary', {}))}
+
+Actual Data Examples:
+{self._format_sample_data(data_analysis.get('sampleData', {}))}
+
+Clinical Context:
+{self._format_clinical_context(data_analysis.get('clinicalContext', {}))}
+
+IMPORTANT: Generate components based on the ACTUAL data structure and content shown above.
+"""
+            
+            prompt = f"""Generate a React component for a clinical UI based on the following specification:
 
 Component Type: {component.get('type')}
 Component Props: {json.dumps(component.get('props', {}), indent=2)}
 Data Binding: {json.dumps(component.get('dataBinding', {}), indent=2)}
+{generation_specific_instructions}
+{data_context_section}
 
-Requirements:
+CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
 1. Use Material-UI components (@mui/material, @mui/icons-material)
 2. Follow MedGenEMR patterns and conventions
 3. Include proper error handling and loading states
-4. Use hooks for data fetching (assume useFHIRResources hook is available)
-5. Ensure clinical data safety and accuracy
-6. Make the component responsive and accessible
+4. **MANDATORY**: Use ACTUAL MedGenEMR FHIR hooks - NOT MOCK DATA:
+   - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
+   - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
+   - import {{ fhirService }} from '../../../services/fhirService';
+5. **ABSOLUTELY NO MOCK DATA** - Query REAL FHIR database only
+6. Handle null/missing FHIR data gracefully with proper empty states
+7. Use progressive loading (show available data immediately)
+8. **REQUIRED**: Accept patientId as a prop and use it for data fetching
+9. Generate FHIR queries based on the ACTUAL data context provided above, NOT hardcoded examples.
+   - Use the resource types from the data context
+   - Use the actual LOINC/SNOMED codes found in the sample data
+   - Query for the specific clinical data relevant to this request
 
-Generate a complete, functional React component. Return ONLY the component code."""
+10. Format FHIR data properly:
+   - Use resource.valueQuantity?.value for numeric values
+   - Use resource.code?.coding?.[0]?.display for code displays
+   - Use resource.effectiveDateTime for dates
+   - Always use optional chaining (?.) for safety
+
+11. **SPECIFIC TO THIS REQUEST**: The component must display ACTUAL patient data from the FHIR database. Do NOT generate example data like "Patient A", "Patient B" or hardcoded values. Use the real data returned from usePatientResources.
+
+12. **FOR POPULATION-LEVEL QUERIES**: If querying across multiple patients, use appropriate FHIR search parameters and display actual patient names and real values from the database.
+
+13. **AGENT PIPELINE DATA**: When agent pipeline data is provided above, you MUST:
+    - Use the exact resource types, LOINC codes, and data structures from the sample data
+    - Query for the specific clinical data mentioned in the agent context
+    - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
+    - Generate queries that match the clinical focus and domain from the agent analysis
+
+Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
         
-        response = await self.complete(prompt, timeout=60)
-        # The response should already be cleaned by complete()
-        return response
+            logger.info(f"Component generation prompt length: {len(prompt)} characters")
+            response = await self.complete(prompt, timeout=600)  # 10 minutes for generation
+            # The response should already be cleaned by complete()
+            logger.info(f"Component generation response length: {len(response)}")
+            return response
+        
+        except Exception as e:
+            logger.error(f"Error in generate_component: {e}", exc_info=True)
+            # Return the error as a comment so we can see what went wrong
+            error_msg = f"""// Error generating component: {str(e)}
+// Component type: {component.get('type', 'unknown')}
+// Generation mode: {generation_mode}
+// Has agent data: {has_agent_data}
+"""
+            if has_agent_data:
+                error_msg += f"// Total records: {data_context.get('totalRecords', 0)}\n"
+                error_msg += f"// Resource types: {list(data_context.get('resourceSummary', {}).keys())}\n"
+            return error_msg
     
     async def refine_ui(self, feedback: str, specification: Dict[str, Any],
                        feedback_type: str = 'general') -> str:
@@ -315,7 +501,7 @@ Please analyze the feedback and respond with a JSON object containing:
 
 Focus on clinical safety, user experience, and technical feasibility."""
         
-        response = await self.complete(prompt, timeout=60)
+        response = await self.complete(prompt, timeout=360)  # 6 minutes for refinement
         # The response should already be cleaned by complete()
         return response
     
@@ -366,7 +552,7 @@ Focus on clinical safety, user experience, and technical feasibility."""
         
         # Log the command being executed (without full prompt for security)
         if len(args) > 0 and args[0] == "--print":
-            logger.info(f"Running Claude CLI: {self.claude_path} --print [prompt...]")
+            logger.info(f"Running Claude CLI: {self.claude_path} --print [prompt length: {len(args[1]) if len(args) > 1 else 0}]")
         else:
             logger.info(f"Running Claude CLI: {' '.join(cmd)}")
         
@@ -394,14 +580,22 @@ Focus on clinical safety, user experience, and technical feasibility."""
                 timeout=timeout
             )
             
-            return {
+            result = {
                 "returncode": process.returncode,
                 "stdout": stdout.decode('utf-8', errors='replace'),
                 "stderr": stderr.decode('utf-8', errors='replace')
             }
+            
+            if process.returncode != 0:
+                logger.error(f"Claude CLI returned code {process.returncode}")
+                logger.error(f"stderr: {result['stderr'][:500]}")
+                logger.error(f"stdout: {result['stdout'][:500]}")
+            
+            return result
         except asyncio.TimeoutError:
             process.kill()
             await process.wait()
+            logger.error(f"Claude CLI command timed out after {timeout} seconds")
             raise TimeoutError(f"Claude CLI command timed out after {timeout} seconds")
     
     async def _get_version(self) -> Optional[str]:
@@ -444,6 +638,34 @@ Focus on clinical safety, user experience, and technical feasibility."""
                 return code_part.strip()
         
         return response
+    
+    def _format_resource_summary(self, resource_summary: Dict[str, Any]) -> str:
+        """Format resource summary for prompt inclusion"""
+        lines = []
+        for resource_type, summary in resource_summary.items():
+            lines.append(f"- {resource_type}: {summary.get('recordCount', 0)} records ({summary.get('purpose', 'Unknown purpose')})")
+        return '\n'.join(lines) if lines else "No resources available"
+    
+    def _format_sample_data(self, sample_data: Dict[str, Any]) -> str:
+        """Format sample data for prompt inclusion"""
+        lines = []
+        for resource_type, samples in sample_data.items():
+            if samples.get('examples'):
+                lines.append(f"\n{resource_type} Examples:")
+                for i, example in enumerate(samples['examples'][:2]):  # Limit to 2 examples
+                    lines.append(f"  Example {i+1}: {json.dumps(example, indent=2)}")
+        return '\n'.join(lines) if lines else "No sample data available"
+    
+    def _format_clinical_context(self, clinical_context: Dict[str, Any]) -> str:
+        """Format clinical context for prompt inclusion"""
+        lines = []
+        if clinical_context.get('primaryClinicalFocus'):
+            lines.append(f"Focus: {clinical_context['primaryClinicalFocus']}")
+        if clinical_context.get('clinicalDomain'):
+            lines.append(f"Domains: {', '.join(clinical_context['clinicalDomain'])}")
+        if clinical_context.get('temporalContext'):
+            lines.append(f"Temporal: {clinical_context['temporalContext']}")
+        return '\n'.join(lines) if lines else "No clinical context available"
 
 # Singleton instance
 claude_cli_service = ClaudeCLIService()
