@@ -37,7 +37,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import fhirClient from '../../../services/fhirClient';
+import { fhirClient } from '../../../services/fhirClient';
 
 const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
   const { getPatientResources, refreshResources } = useFHIRResource();

@@ -17,12 +17,15 @@ class ClaudeCLIService:
     def __init__(self):
         # Try to find Claude CLI in multiple locations
         self.claude_paths = [
+            "/Users/robertbarrett/.nvm/versions/node/v22.17.0/bin/claude",  # Add the actual location
             "/Users/robertbarrett/.claude/local/claude",
             os.path.expanduser("~/.claude/local/claude"),
+            os.path.expanduser("~/.nvm/versions/node/v22.17.0/bin/claude"),
             "claude"  # Try system PATH
         ]
         self.claude_path = self._find_claude_cli()
         self.session_file = Path.home() / ".claude" / "session.json"
+        self._auth_token = None  # Will be populated by _check_session()
         
     def _find_claude_cli(self) -> Optional[str]:
         """Find the Claude CLI executable"""
@@ -69,20 +72,26 @@ class ClaudeCLIService:
                         lock_data = json.loads(lock_file.read_text())
                         if "authToken" in lock_data:
                             # Found an auth token, Claude is likely authenticated
+                            # Store the auth token for later use
+                            self._auth_token = lock_data["authToken"]
+                            
                             # Try a simple command to verify
                             result = subprocess.run(
                                 [self.claude_path, "--version"],
                                 capture_output=True,
                                 text=True,
                                 timeout=5,
-                                env={**os.environ, "CLAUDE_NON_INTERACTIVE": "true"}
+                                env={**os.environ, 
+                                     "CLAUDE_NON_INTERACTIVE": "true",
+                                     "CLAUDE_AUTH_TOKEN": self._auth_token}
                             )
                             
                             if result.returncode == 0:
                                 return {
                                     "authenticated": True,
                                     "session_exists": True,
-                                    "auth_type": "ide_lock"
+                                    "auth_type": "ide_lock",
+                                    "auth_token": self._auth_token
                                 }
                     except (json.JSONDecodeError, Exception) as e:
                         logger.debug(f"Could not read lock file {lock_file}: {e}")
@@ -183,6 +192,7 @@ class ClaudeCLIService:
         if not session_status.get("authenticated"):
             raise RuntimeError(f"Claude CLI not authenticated. {session_status.get('error', 'Please run: claude auth login')}")
         
+        # Don't use --output-format as it seems to cause timeouts
         result = await self._run_command(
             ["--print", prompt],
             timeout=timeout
@@ -256,47 +266,39 @@ Available FHIR Data:
 Based on the actual FHIR data available, generate UI components that will query and display this real data.
 """
         
-        full_prompt = f"""You are a UI design expert for a clinical EMR system. Analyze the following natural language request and create a detailed UI specification.
+        # Create a more concise prompt to avoid timeouts
+        full_prompt = f"""Analyze this clinical UI request and return ONLY valid JSON (no markdown):
 
 Request: "{prompt}"
-{generation_instructions}
-Context:
-{json.dumps({k: v for k, v in context.items() if k not in ["fhirData", "fhirContext", "generationMode"]}, indent=2)}
-{fhir_context_section}
+Mode: {context.get('generationMode', 'mixed')}
 
-IMPORTANT: This EMR system has REAL FHIR data with actual patients. The generated components must connect to and display this real data, not mock/example data.
-
-Please analyze this request and respond with a JSON object containing:
+Return this exact JSON structure:
 {{
-  "intent": "brief description of what the user wants",
+  "intent": "what user wants",
   "scope": "population|patient|encounter",
   "layoutType": "dashboard|report|focused-view",
-  "requiredData": ["list of FHIR resource types needed"],
+  "requiredData": ["FHIR resource types"],
   "components": [
     {{
-      "type": "chart|grid|summary|form|timeline|stat|container|text",
-      "purpose": "what this component will show",
+      "type": "chart|grid|stat|summary|timeline",
+      "purpose": "component purpose",
       "dataBinding": {{
-        "resourceType": "FHIR resource type",
-        "filters": ["any filters needed"],
-        "aggregation": "how data should be aggregated"
+        "resourceType": "Observation|Condition|etc",
+        "filters": ["optional filters"],
+        "aggregation": "count|average|latest"
       }},
       "displayProperties": {{
-        "title": "component title",
-        "chartType": "if chart: line|bar|pie|scatter|area",
-        "gridType": "if grid: patient-list|result-list|medication-list|generic-table",
-        "columns": ["if grid: column definitions"],
-        "grouping": "how to group data"
+        "title": "display title",
+        "chartType": "line|bar|pie",
+        "gridType": "patient-list|result-list"
       }}
     }}
   ],
   "layout": {{
-    "structure": "how components should be arranged",
-    "responsive": "mobile considerations"
+    "structure": "grid|stack|tabs",
+    "responsive": "yes|no"
   }}
-}}
-
-Focus on clinical accuracy, appropriate data visualization, and user workflow optimization."""
+}}"""
         
         response = await self.complete(full_prompt, timeout=480)  # 8 minutes for analysis
         # The response should already be cleaned by complete(), but ensure it's valid JSON
@@ -555,71 +557,25 @@ Generate a complete, functional React component that queries and displays REAL F
                     logger.debug(f"generation_specific_instructions type: {type(generation_specific_instructions)}, len: {len(generation_specific_instructions)}")
                     logger.debug(f"data_context_section type: {type(data_context_section)}, len: {len(data_context_section)}")
                     
-                    prompt = f"""Generate a React component for a clinical UI based on the following specification:
+                    # Create a concise prompt for component generation
+                    prompt = f"""Generate a React component. Return ONLY code, no explanations.
 
-Component Type: {component_type}
-Component Props: {component_props}
-Data Binding: {component_binding}
-{generation_specific_instructions}
-{data_context_section}
+Type: {component_type}
+Props: {component_props}
+Binding: {component_binding}
+Mode: {generation_mode}
 
-CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
-1. Use Material-UI components (@mui/material, @mui/icons-material)
-2. Follow MedGenEMR patterns and conventions
-3. Include proper error handling and loading states
-4. **MANDATORY**: Use ACTUAL MedGenEMR FHIR hooks - NOT MOCK DATA:
-   - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
-   - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
-   - import {{ fhirService }} from '../../../services/fhirService';
-5. **ABSOLUTELY NO MOCK DATA** - Query REAL FHIR database only
-6. Handle null/missing FHIR data gracefully with proper empty states
-7. Use progressive loading (show available data immediately)
-8. **REQUIRED**: Accept patientId as a prop and use it for data fetching
-9. Generate FHIR queries based on the ACTUAL data context provided above, NOT hardcoded examples.
-   - Use the resource types from the data context
-   - Use the actual LOINC/SNOMED codes found in the sample data
-   - Query for the specific clinical data relevant to this request
+Requirements:
+- Material-UI (@mui/material)
+- Import: import {{ usePatientResources }} from '../../../hooks/useFHIRResources'
+- Import: import {{ fhirService }} from '../../../services/fhirService'
+- NO mock data - use real FHIR queries
+- Handle loading/error states
+- Accept patientId prop
+- Use resource.valueQuantity?.value for values
+- Use resource.code?.coding?.[0]?.display for codes
 
-10. Format FHIR data properly:
-   - Use resource.valueQuantity?.value for numeric values
-   - Use resource.code?.coding?.[0]?.display for code displays
-   - Use resource.effectiveDateTime for dates
-   - Always use optional chaining (?.) for safety
-
-11. **SPECIFIC TO THIS REQUEST**: The component must display ACTUAL patient data from the FHIR database. Do NOT generate example data like "Patient A", "Patient B" or hardcoded values. Use the real data returned from usePatientResources.
-
-12. **FOR POPULATION-LEVEL QUERIES**: If querying across multiple patients, use appropriate FHIR search parameters and display actual patient names and real values from the database.
-
-13. **AGENT PIPELINE DATA**: When agent pipeline data is provided above, you MUST:
-    - Use the exact resource types, LOINC codes, and data structures from the sample data
-    - Query for the specific clinical data mentioned in the agent context
-    - NEVER use hardcoded LOINC codes like 4548-4 (A1C) unless they appear in the actual data context
-    - Generate queries that match the clinical focus and domain from the agent analysis
-
-FHIR QUERY REQUIREMENTS:
-- For population dashboards: Use fhirService.searchResources() to query ALL patients/resources
-- DO NOT filter by a single patientId for population views
-- Example for hypertension patients:
-  const conditionsResponse = await fhirService.searchResources('Condition', {{
-    'code': '38341003,59621000,1201005', // Hypertension SNOMED codes
-    _count: 1000
-  }});
-- Example for blood pressure:
-  const observationsResponse = await fhirService.searchResources('Observation', {{
-    'code': '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
-    _count: 1000,
-    _sort: '-date'
-  }});
-
-COMPONENT DATA REQUIREMENTS:
-- Each component must fetch and display REAL data based on its dataBinding specification
-- Use the exact filters from the component specification
-- Calculate aggregations (counts, averages, distributions) from the actual data
-- Display real patient names from patient.name[0].given[0] + patient.name[0].family
-
-IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
-
-Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
+Return complete React component code only."""
                 except NameError as e:
                     logger.error(f"NameError while building prompt: {e}")
                     import traceback
@@ -771,8 +727,8 @@ Focus on clinical safety, user experience, and technical feasibility."""
         # Set up environment with OAuth token if available
         env = {**os.environ, "CLAUDE_NON_INTERACTIVE": "true"}
         
-        # Check for Claude OAuth token
-        claude_token = os.environ.get('CLAUDE_AUTH_TOKEN')
+        # Check for Claude OAuth token - first from stored auth token, then from env
+        claude_token = getattr(self, '_auth_token', None) or os.environ.get('CLAUDE_AUTH_TOKEN')
         if claude_token:
             env['CLAUDE_AUTH_TOKEN'] = claude_token
             # Also try setting it as Authorization header format
@@ -841,7 +797,8 @@ Focus on clinical safety, user experience, and technical feasibility."""
         
         # Extract code from markdown blocks
         import re
-        code_block_regex = r'```(?:jsx?|javascript|typescript|tsx?)?\n?([\s\S]*?)```'
+        # Updated regex to also handle json blocks
+        code_block_regex = r'```(?:jsx?|javascript|typescript|tsx?|json)?\n?([\s\S]*?)```'
         matches = re.findall(code_block_regex, response)
         
         if matches:
@@ -859,7 +816,7 @@ Focus on clinical safety, user experience, and technical feasibility."""
                 code_part = parts[1]
                 # Remove language identifier if present
                 lines = code_part.split('\n')
-                if lines and lines[0].strip() in ['jsx', 'javascript', 'typescript', 'tsx', 'js', 'ts']:
+                if lines and lines[0].strip() in ['jsx', 'javascript', 'typescript', 'tsx', 'js', 'ts', 'json']:
                     return '\n'.join(lines[1:]).strip()
                 return code_part.strip()
         

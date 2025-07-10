@@ -78,7 +78,7 @@ import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { printDocument } from '../../../../utils/printUtils';
-import fhirClient from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../services/fhirClient';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
@@ -977,8 +977,7 @@ const ActivityEditDialog = ({ open, onClose, activity, carePlanId, onSuccess }) 
         throw new Error('Failed to update care plan');
       }
 
-      // Refresh and close
-      await refreshPatientResources(carePlan.subject.reference.split('/')[1]);
+      // Close dialog - parent component will handle refresh
       onClose();
       if (onSuccess) {
         onSuccess();
@@ -1220,8 +1219,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
           await fhirClient.create('CarePlan', newCarePlan);
         }
         
-        // Refresh patient resources to show new/updated goal and care plan
-        await refreshPatientResources(patientId);
+        // Close dialog - parent component will handle refresh
         onClose();
       } else {
         // Handle error - would use proper error logging in production

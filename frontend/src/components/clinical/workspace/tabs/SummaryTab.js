@@ -171,7 +171,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     if (conditions.length > 0 && stats.activeProblems === 0) {
       loadDashboardData();
     }
-  }, [getPatientResources, patientId, stats.activeProblems]);
+  }, [getPatientResources, patientId]); // Removed stats.activeProblems to prevent infinite loop
 
   // Subscribe to clinical events to refresh summary when data changes
   useEffect(() => {
@@ -578,17 +578,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       key={lab.id}
                       primary={lab.code?.text || lab.code?.coding?.[0]?.display}
                       secondary={
-                        <Box>
-                          <Typography variant="caption">
-                            {lab.valueQuantity ? 
-                              `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
-                              lab.valueString || 'Result pending'
-                            }
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d, yyyy')}
-                          </Typography>
-                        </Box>
+                        <>
+                          {lab.valueQuantity ? 
+                            `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
+                            lab.valueString || 'Result pending'
+                          }
+                          {' • '}
+                          {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d, yyyy')}
+                        </>
                       }
                       icon={<LabIcon color="info" />}
                       status={lab.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'High' : 

@@ -3,7 +3,7 @@
  * This maps old fhirService methods to fhirClient equivalents
  */
 
-import fhirClient from './fhirClient';
+import { fhirClient } from './fhirClient';
 
 // Create a compatibility layer that matches fhirService API
 const fhirServiceCompat = {

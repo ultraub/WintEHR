@@ -8,6 +8,7 @@ Implements versioning, history tracking, and search parameter extraction.
 import json
 import uuid
 import re
+import logging
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
