@@ -306,7 +306,7 @@ const CDSHooksTab = ({ patientId }) => {
               // Create a new FHIR resource
               if (action.resource) {
                 const resourceType = action.resource.resourceType;
-                await fhirClient.createResource(resourceType, action.resource);
+                await fhirClient.create(resourceType, action.resource);
                 setError(`Created new ${resourceType}`);
               }
               break;
@@ -315,7 +315,7 @@ const CDSHooksTab = ({ patientId }) => {
               // Update an existing FHIR resource
               if (action.resource && action.resource.id) {
                 const resourceType = action.resource.resourceType;
-                await fhirClient.updateResource(resourceType, action.resource.id, action.resource);
+                await fhirClient.update(resourceType, action.resource.id, action.resource);
                 setError(`Updated ${resourceType}`);
               }
               break;
@@ -324,7 +324,7 @@ const CDSHooksTab = ({ patientId }) => {
               // Delete a FHIR resource
               if (action.resource && action.resource.id) {
                 const resourceType = action.resource.resourceType;
-                await fhirClient.deleteResource(resourceType, action.resource.id);
+                await fhirClient.delete(resourceType, action.resource.id);
                 setError(`Deleted ${resourceType}`);
               }
               break;
@@ -349,14 +349,14 @@ const CDSHooksTab = ({ patientId }) => {
       // Handle resource creation/update/delete arrays
       if (suggestion.create && suggestion.create.length > 0) {
         for (const resource of suggestion.create) {
-          await fhirClient.createResource(resource.resourceType, resource);
+          await fhirClient.create(resource.resourceType, resource);
         }
         setError(`Created ${suggestion.create.length} resource(s)`);
       }
       
       if (suggestion.update && suggestion.update.length > 0) {
         for (const resource of suggestion.update) {
-          await fhirClient.updateResource(resource.resourceType, resource.id, resource);
+          await fhirClient.update(resource.resourceType, resource.id, resource);
         }
         setError(`Updated ${suggestion.update.length} resource(s)`);
       }
@@ -364,7 +364,7 @@ const CDSHooksTab = ({ patientId }) => {
       if (suggestion.delete && suggestion.delete.length > 0) {
         for (const resourceRef of suggestion.delete) {
           const [resourceType, resourceId] = resourceRef.split('/');
-          await fhirClient.deleteResource(resourceType, resourceId);
+          await fhirClient.delete(resourceType, resourceId);
         }
         setError(`Deleted ${suggestion.delete.length} resource(s)`);
       }

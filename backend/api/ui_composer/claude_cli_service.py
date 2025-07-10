@@ -305,6 +305,15 @@ Focus on clinical accuracy, appropriate data visualization, and user workflow op
     async def generate_component(self, specification: Dict[str, Any]) -> str:
         """Generate a component from specification"""
         try:
+            # Debug: Test if we can create a simple f-string
+            test_var = "test"
+            test_fstring = f"Test: {test_var}"
+            logger.debug(f"F-string test passed: {test_fstring}")
+            
+            # Debug: Check if 'code' is somehow in the specification
+            spec_str = str(specification)
+            if 'code' in spec_str and 'code:' not in spec_str and '"code"' not in spec_str:
+                logger.warning(f"Found bare 'code' in specification: {spec_str[:200]}...")
             components = specification.get('components', [])
             if not components:
                 return "// No components to generate"
@@ -360,6 +369,7 @@ Focus on clinical accuracy, appropriate data visualization, and user workflow op
             generation_specific_instructions = ""
             data_context_section = ""
             data_context = {}
+            prompt = ""  # Initialize prompt at method level
             
             logger.info(f"Agent pipeline data available: {has_agent_data}")
             if has_agent_data:
@@ -533,6 +543,7 @@ Generate a complete, functional React component that queries and displays REAL F
                 gen_inst_defined = generation_specific_instructions is not None
                 data_ctx_defined = data_context_section is not None
                 logger.info(f"Building prompt for single component. Variables defined: generation_specific_instructions={gen_inst_defined}, data_context_section={data_ctx_defined}")
+                
                 try:
                     # Build prompt step by step
                     component_type = component.get('type')
@@ -611,16 +622,35 @@ IMPORTANT: Generate and return ONLY the React component code. Do NOT return desc
 Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
                 except NameError as e:
                     logger.error(f"NameError while building prompt: {e}")
-                    has_gen_instructions = 'generation_specific_instructions' in locals()
-                    has_data_context = 'data_context_section' in locals()
-                    logger.error(f"Variables: generation_specific_instructions exists: {has_gen_instructions}")
-                    logger.error(f"Variables: data_context_section exists: {has_data_context}")
+                    import traceback
+                    import sys
+                    tb = traceback.format_exc()
+                    logger.error(f"Full traceback:\n{tb}")
+                    
+                    # Get the actual line where error occurred
+                    _, _, exc_tb = sys.exc_info()
+                    logger.error(f"Error at file: {exc_tb.tb_frame.f_code.co_filename}")
+                    logger.error(f"Error at line: {exc_tb.tb_lineno}")
+                    
+                    # Log all local variables
+                    logger.error("Local variables:")
+                    for k, v in locals().items():
+                        if k not in ['e', 'tb', 'exc_tb', 'traceback', 'sys']:
+                            logger.error(f"  {k} = {repr(v)[:200]}...")
+                    
                     raise
         
             logger.info(f"Component generation prompt length: {len(prompt)} characters")
-            response = await self.complete(prompt, timeout=600)  # 10 minutes for generation
-            # The response should already be cleaned by complete()
-            logger.info(f"Component generation response length: {len(response)}")
+            try:
+                response = await self.complete(prompt, timeout=600)  # 10 minutes for generation
+                # The response should already be cleaned by complete()
+                logger.info(f"Component generation response length: {len(response)}")
+            except Exception as e:
+                logger.error(f"Error during Claude complete call: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Traceback:\n{traceback.format_exc()}")
+                raise
             
             # Validate that we got code, not a description
             if response and not any(keyword in response for keyword in ['import React', 'export default', 'const ', 'function ']):

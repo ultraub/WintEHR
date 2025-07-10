@@ -245,8 +245,8 @@ class UIComposerService:
                 components["main"] = f"// SDK Execution Error: {error_message}\n// Check backend logs for details"
             else:
                 components["main"] = f"// Generation Error: {error_message}"
-            # Still raise to let router handle it
-            raise
+            # Don't raise - return the error as a component so we can see it
+            # raise
         
         return components
     

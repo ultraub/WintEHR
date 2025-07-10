@@ -864,7 +864,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddProblem = async (condition) => {
     try {
-      const createdCondition = await fhirClient.createCondition(condition);
+      const result = await fhirClient.create('Condition', condition);
+      const createdCondition = result.resource || condition;
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
@@ -878,7 +879,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
-      const createdMedication = await fhirClient.createMedicationRequest(medicationRequest);
+      const result = await fhirClient.create('MedicationRequest', medicationRequest);
+      const createdMedication = result.resource || medicationRequest;
       
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -905,7 +907,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
-      const createdAllergy = await fhirClient.createAllergyIntolerance(allergyIntolerance);
+      const result = await fhirClient.create('AllergyIntolerance', allergyIntolerance);
+      const createdAllergy = result.resource || allergyIntolerance;
       
       // Publish workflow event for new allergy
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -937,7 +940,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateCondition(updatedCondition.id, updatedCondition);
+      const result = await fhirClient.update('Condition', updatedCondition.id, updatedCondition);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -960,7 +963,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteProblem = async (conditionId) => {
     try {
-      await fhirClient.deleteCondition(conditionId);
+      await fhirClient.delete('Condition', conditionId);
       
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
@@ -977,7 +980,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
+      const result = await fhirClient.update('MedicationRequest', updatedMedicationRequest.id, updatedMedicationRequest);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -1000,7 +1003,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteMedication = async (medicationId) => {
     try {
-      await fhirClient.deleteMedicationRequest(medicationId);
+      await fhirClient.delete('MedicationRequest', medicationId);
       
       // Refresh the patient resources to remove the deleted medication
       await refreshPatientResources(patientId);
@@ -1017,7 +1020,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
+      const result = await fhirClient.update('AllergyIntolerance', updatedAllergyIntolerance.id, updatedAllergyIntolerance);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -1040,7 +1043,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteAllergy = async (allergyId) => {
     try {
-      await fhirClient.deleteAllergyIntolerance(allergyId);
+      await fhirClient.delete('AllergyIntolerance', allergyId);
       
       // Refresh the patient resources to remove the deleted allergy
       await refreshPatientResources(patientId);

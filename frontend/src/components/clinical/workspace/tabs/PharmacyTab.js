@@ -525,7 +525,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         status: newStatus
       };
 
-      await fhirClient.updateResource('MedicationRequest', requestId, updatedRequest);
+      await fhirClient.update('MedicationRequest', requestId, updatedRequest);
       
       // Refresh the medication requests
       await refreshPatientResources(patientId);
@@ -591,11 +591,11 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             numberOfRepeatsAllowed: (currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0) - 1
           }
         };
-        await fhirClient.updateMedicationRequest(dispenseData.medicationRequestId, updatedRequest);
+        await fhirClient.update('MedicationRequest', dispenseData.medicationRequestId, updatedRequest);
       }
       
       // Refresh patient resources to update the UI
-      await fhirClient.refreshPatientResources(patientId);
+      await refreshPatientResources(patientId);
       
       // Publish MEDICATION_DISPENSED event
       await publish(CLINICAL_EVENTS.MEDICATION_DISPENSED, {

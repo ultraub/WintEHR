@@ -44,6 +44,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -143,6 +144,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     isResourceLoading,
     currentPatient 
   } = useFHIRResource();
+  const { subscribe, publish } = useClinicalWorkflow();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -170,6 +172,39 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       loadDashboardData();
     }
   }, [getPatientResources, patientId, stats.activeProblems]);
+
+  // Subscribe to clinical events to refresh summary when data changes
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Subscribe to events that should trigger a refresh
+    const eventsToWatch = [
+      CLINICAL_EVENTS.CONDITION_ADDED,
+      CLINICAL_EVENTS.CONDITION_UPDATED,
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED,
+      CLINICAL_EVENTS.RESULT_RECEIVED,
+      CLINICAL_EVENTS.ENCOUNTER_CREATED,
+      CLINICAL_EVENTS.ALLERGY_ADDED,
+      CLINICAL_EVENTS.ALLERGY_UPDATED
+    ];
+
+    eventsToWatch.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (data) => {
+        // Only refresh if the event is for the current patient
+        if (data.patientId === patientId || data.resourceType) {
+          setRefreshing(true);
+          loadDashboardData();
+        }
+      });
+      unsubscribers.push(unsubscribe);
+    });
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe, patientId]);
 
   const loadDashboardData = async () => {
     try {
@@ -262,10 +297,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   };
 
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadDashboardData();
-  };
+  }, []);
 
   const handlePrintSummary = () => {
     const patientInfo = {
