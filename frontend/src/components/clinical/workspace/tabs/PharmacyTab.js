@@ -414,7 +414,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
 
 const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -513,8 +513,29 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   // Handle status changes
   const handleStatusChange = useCallback(async (requestId, newStatus) => {
     try {
-      // TODO: Integrate with FHIR service to update the status
-      // await fhirClient.updateMedicationRequest(requestId, { status: newStatus });
+      // Get the current medication request
+      const currentRequest = medicationRequests.find(req => req.id === requestId);
+      if (!currentRequest) {
+        throw new Error('Medication request not found');
+      }
+
+      // Update the medication request status
+      const updatedRequest = {
+        ...currentRequest,
+        status: newStatus
+      };
+
+      await fhirClient.updateResource('MedicationRequest', requestId, updatedRequest);
+      
+      // Refresh the medication requests
+      await refreshPatientResources(patientId);
+
+      // Publish event for other tabs
+      await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
+        resourceId: requestId,
+        newStatus: newStatus,
+        resourceType: 'MedicationRequest'
+      });
       
       setSnackbar({
         open: true,
@@ -522,13 +543,14 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         severity: 'success'
       });
     } catch (error) {
+      console.error('Failed to update medication request status:', error);
       setSnackbar({
         open: true,
         message: 'Failed to update medication request status',
         severity: 'error'
       });
     }
-  }, [onNotificationUpdate]);
+  }, [medicationRequests, refreshPatientResources, publish, patientId]);
 
   // Handle dispensing
   const handleDispense = useCallback(async (dispenseData) => {
