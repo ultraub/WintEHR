@@ -76,7 +76,7 @@ const TestFHIRIntegration = ({ selectedMethod, selectedModel }) => {
             usesFHIRClient: code.includes('useFHIRClient'),
             queriesObservations: code.includes("'Observation'"),
             hasRealCodes: code.includes('85354-9') || code.includes('8867-4'), // BP, HR codes
-            noMockData: !code.includes('mockData') && !code.includes('John Doe')
+            noMockData: !code.includes('mockData') && !code.includes('John Doe') && !code.includes('john doe')
           };
           
           setTestResult({

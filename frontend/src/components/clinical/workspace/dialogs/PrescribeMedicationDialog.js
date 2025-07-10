@@ -122,9 +122,11 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
               medications: {
                 new: [{
                   resourceType: 'MedicationRequest',
-                  medicationCodeableConcept: {
-                    text: medication.display || medication.name,
-                    coding: medication.coding || []
+                  medication: {
+                    concept: {
+                      text: medication.display || medication.name,
+                      coding: medication.coding || []
+                    }
                   }
                 }]
               }
@@ -209,15 +211,17 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
         status: 'active',
         intent: 'order',
         priority: formData.priority,
-        medicationCodeableConcept: formData.selectedMedication ? {
-          coding: [{
-            system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
-            code: formData.selectedMedication.code.replace('RxNorm:', ''),
-            display: formData.selectedMedication.display
-          }],
-          text: formData.selectedMedication.display
-        } : {
-          text: formData.customMedication
+        medication: {
+          concept: formData.selectedMedication ? {
+            coding: [{
+              system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+              code: formData.selectedMedication.code.replace('RxNorm:', ''),
+              display: formData.selectedMedication.display
+            }],
+            text: formData.selectedMedication.display
+          } : {
+            text: formData.customMedication
+          }
         },
         subject: {
           reference: `Patient/${patientId}`

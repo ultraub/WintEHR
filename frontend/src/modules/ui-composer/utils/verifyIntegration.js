@@ -95,7 +95,7 @@ if (process.env.NODE_ENV === 'development') {
   setTimeout(() => {
     const verification = verifyUIComposerIntegration();
     if (!verification.ready) {
-      console.warn('UI Composer Integration Issues:', verification);
+      // UI Composer integration issues detected - check verification object
     }
   }, 1000);
 }

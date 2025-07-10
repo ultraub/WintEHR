@@ -253,18 +253,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     </Box>
                   }
                   secondary={
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        {condition.onsetDateTime ? 
-                          `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
-                          'Onset date unknown'}
-                      </Typography>
+                    <>
+                      {condition.onsetDateTime ? 
+                        `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
+                        'Onset date unknown'}
                       {condition.note?.[0]?.text && expandedItems[condition.id] && (
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                          {condition.note[0].text}
-                        </Typography>
+                        ` • ${condition.note[0].text}`
                       )}
-                    </Box>
+                    </>
                   }
                 />
                 <ListItemSecondaryAction>
@@ -550,14 +546,11 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     </Box>
                   }
                   secondary={
-                    <Box>
-                      <Typography variant="caption">
-                        {med.dosageInstruction?.[0]?.text || 'No dosage information'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
-                      </Typography>
-                    </Box>
+                    <>
+                      {med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                      {' • '}
+                      Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                    </>
                   }
                 />
                 <ListItemSecondaryAction>

@@ -83,9 +83,9 @@ async function test() {
         })) {
             messages.push(message);
         }
-        console.log(JSON.stringify({ success: true, message: "SDK is working" }));
+        process.stdout.write(JSON.stringify({ success: true, message: "SDK is working" }));
     } catch (error) {
-        console.log(JSON.stringify({ success: false, error: error.message }));
+        process.stdout.write(JSON.stringify({ success: false, error: error.message }));
     }
 }
 
@@ -165,9 +165,9 @@ async function complete() {{
                 response += message.content;
             }}
         }}
-        console.log(JSON.stringify({{ success: true, response }}));
+        process.stdout.write(JSON.stringify({{ success: true, response }}));
     }} catch (error) {{
-        console.log(JSON.stringify({{ success: false, error: error.message }}));
+        process.stdout.write(JSON.stringify({{ success: false, error: error.message }}));
     }}
 }}
 

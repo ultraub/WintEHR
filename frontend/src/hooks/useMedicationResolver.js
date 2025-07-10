@@ -155,8 +155,16 @@ export const useMedicationResolver = (medicationRequests = []) => {
       return resolved.name;
     }
     
-    // Fallback to medicationCodeableConcept if no resolution
-    if (medicationRequest.medicationCodeableConcept) {
+    // Fallback to medication field (R5 format) or medicationCodeableConcept (R4 format)
+    if (medicationRequest.medication?.concept) {
+      // FHIR R5 format
+      const concept = medicationRequest.medication.concept;
+      const fallbackName = concept.text || 
+                          concept.coding?.[0]?.display || 
+                          'Unknown medication';
+      return fallbackName;
+    } else if (medicationRequest.medicationCodeableConcept) {
+      // FHIR R4 format
       const fallbackName = medicationRequest.medicationCodeableConcept.text || 
                           medicationRequest.medicationCodeableConcept.coding?.[0]?.display || 
                           'Unknown medication';
@@ -165,6 +173,63 @@ export const useMedicationResolver = (medicationRequests = []) => {
     
     return 'Unknown medication';
   }, [resolvedMedications]);
+
+  // Helper function to detect FHIR format and extract medication info
+  const getMedicationInfo = useCallback((medicationRequest) => {
+    if (!medicationRequest) {
+      return { format: 'unknown', concept: null };
+    }
+
+    // Detect R5 format
+    if (medicationRequest.medication?.concept) {
+      return {
+        format: 'R5',
+        concept: medicationRequest.medication.concept
+      };
+    }
+    
+    // Detect R4 format
+    if (medicationRequest.medicationCodeableConcept) {
+      return {
+        format: 'R4',
+        concept: medicationRequest.medicationCodeableConcept
+      };
+    }
+    
+    // Reference format
+    if (medicationRequest.medicationReference) {
+      return {
+        format: 'reference',
+        reference: medicationRequest.medicationReference
+      };
+    }
+    
+    return { format: 'unknown', concept: null };
+  }, []);
+
+  // Helper function to convert any format to R5 format
+  const convertToR5Format = useCallback((medicationRequest) => {
+    const info = getMedicationInfo(medicationRequest);
+    
+    if (info.format === 'R5') {
+      // Already R5, return as-is
+      return medicationRequest.medication;
+    }
+    
+    if (info.format === 'R4' && info.concept) {
+      // Convert R4 to R5
+      return {
+        concept: info.concept
+      };
+    }
+    
+    // For reference format or unknown, return a generic structure
+    return {
+      concept: {
+        text: 'Unknown medication'
+      }
+    };
+  }, [getMedicationInfo]);
 
   return {
     resolvedMedications,

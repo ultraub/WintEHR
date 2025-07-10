@@ -1,0 +1,582 @@
+{
+  "timestamp": "2025-07-10T13:59:44.477275",
+  "real_data_tests": 12,
+  "passed": 12,
+  "failed": 0,
+  "patient_data": {
+    "patient_1": {
+      "name": "Thi53 Almeta56 Wunsch504",
+      "file": "/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/backend/data/synthea_backups/synthea_backup_20250708_003954/Thi53_Wunsch504_c1f1fcaa-82fd-d5b7-3544-c8f9708b06a8.json",
+      "medication_count": 6
+    },
+    "patient_2": {
+      "name": "Ellyn26 Shayla126 O'Conner199",
+      "file": "/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/backend/data/synthea_backups/synthea_backup_20250708_003954/Ellyn26_Shayla126_O'Conner199_2f912103-2489-115d-7b15-e827e769a268.json",
+      "medication_count": 6
+    },
+    "patient_3": {
+      "name": "Damon455 Sergio619 Langosh790",
+      "file": "/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/backend/data/synthea_backups/synthea_backup_20250708_003954/Damon455_Langosh790_b9c610cd-28a6-4636-ccb6-c7a0d2a4cb85.json",
+      "medication_count": 3
+    }
+  },
+  "medication_analysis": {
+    "patient_1": {
+      "total_medications": 6,
+      "r4_format_count": 4,
+      "r5_format_count": 0,
+      "reference_format_count": 2,
+      "unknown_format_count": 0,
+      "format_details": [
+        {
+          "id": "9728561b-9663-870a-f972-ffe8aa131889",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Penicillin V Potassium 250 MG Oral Tablet",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "d731ef31-c426-1d72-e576-775b4fc02ebd",
+          "format": "reference",
+          "medication_field": "medicationReference",
+          "display_name": "Referenced Medication",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "706467cb-a8d8-25e1-68ba-7332c84c1536",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Amoxicillin 500 MG Oral Tablet",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "a3daf4f2-8868-f9a0-a2c9-b5d0cde6916c",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Ibuprofen 100 MG Oral Tablet",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "f7f4ae5a-ca44-cbde-d152-29a73127d8bd",
+          "format": "reference",
+          "medication_field": "medicationReference",
+          "display_name": "Referenced Medication",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "72fd70ac-12e8-9879-6bc2-91a951df31e2",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Seasonique 91 Day Pack",
+          "has_coding": false,
+          "coding_system": null
+        }
+      ]
+    },
+    "patient_2": {
+      "total_medications": 6,
+      "r4_format_count": 5,
+      "r5_format_count": 0,
+      "reference_format_count": 1,
+      "unknown_format_count": 0,
+      "format_details": [
+        {
+          "id": "d277eab2-5f79-b82e-c432-ee2aa635d1ee",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Natazia 28 Day Pack",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "8eefde54-8689-5017-91cf-a83303048383",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Yaz 28 Day Pack",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "3407b66f-c40b-fa0f-9770-3fd8d83a738a",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Natazia 28 Day Pack",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "28c4b76f-d4d4-ed7f-8b3b-9759fa275763",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Natazia 28 Day Pack",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "76814394-b891-66e0-8e6d-8d9f3a43b244",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Vitamin B12 5 MG/ML Injectable Solution",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "cd59aa14-888d-4b8e-a7e3-b95da4c1c7d2",
+          "format": "reference",
+          "medication_field": "medicationReference",
+          "display_name": "Referenced Medication",
+          "has_coding": false,
+          "coding_system": null
+        }
+      ]
+    },
+    "patient_3": {
+      "total_medications": 3,
+      "r4_format_count": 3,
+      "r5_format_count": 0,
+      "reference_format_count": 0,
+      "unknown_format_count": 0,
+      "format_details": [
+        {
+          "id": "4d1ffb17-23dc-f93b-3870-6f5805e3e959",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Amoxicillin 500 MG Oral Tablet",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "4973eaed-de52-3120-8890-d39e1e954056",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Ibuprofen 100 MG Oral Tablet",
+          "has_coding": false,
+          "coding_system": null
+        },
+        {
+          "id": "2023646e-3387-8903-f3f7-f6fe37772918",
+          "format": "R4",
+          "medication_field": "medicationCodeableConcept",
+          "display_name": "Acetaminophen 160 MG Chewable Tablet",
+          "has_coding": false,
+          "coding_system": null
+        }
+      ]
+    }
+  },
+  "format_compatibility": {},
+  "errors": [],
+  "patient_1_format_analysis": {
+    "total_medications": 6,
+    "r4_format_count": 4,
+    "r5_format_count": 0,
+    "reference_format_count": 2,
+    "unknown_format_count": 0,
+    "format_details": [
+      {
+        "id": "9728561b-9663-870a-f972-ffe8aa131889",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Penicillin V Potassium 250 MG Oral Tablet",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "d731ef31-c426-1d72-e576-775b4fc02ebd",
+        "format": "reference",
+        "medication_field": "medicationReference",
+        "display_name": "Referenced Medication",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "706467cb-a8d8-25e1-68ba-7332c84c1536",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Amoxicillin 500 MG Oral Tablet",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "a3daf4f2-8868-f9a0-a2c9-b5d0cde6916c",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Ibuprofen 100 MG Oral Tablet",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "f7f4ae5a-ca44-cbde-d152-29a73127d8bd",
+        "format": "reference",
+        "medication_field": "medicationReference",
+        "display_name": "Referenced Medication",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "72fd70ac-12e8-9879-6bc2-91a951df31e2",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Seasonique 91 Day Pack",
+        "has_coding": false,
+        "coding_system": null
+      }
+    ]
+  },
+  "patient_1_r4_to_r5_conversion": {
+    "total_tested": 4,
+    "successful_conversions": 4,
+    "failed_conversions": 0,
+    "conversion_details": [
+      {
+        "id": "9728561b-9663-870a-f972-ffe8aa131889",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "706467cb-a8d8-25e1-68ba-7332c84c1536",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "a3daf4f2-8868-f9a0-a2c9-b5d0cde6916c",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "72fd70ac-12e8-9879-6bc2-91a951df31e2",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      }
+    ]
+  },
+  "patient_1_medication_resolver": {
+    "total_medications": 6,
+    "resolved_count": 6,
+    "failed_resolution": 0,
+    "resolution_details": [
+      {
+        "id": "9728561b-9663-870a-f972-ffe8aa131889",
+        "display_name": "Penicillin V Potassium 250 MG Oral Tablet",
+        "status": "resolved"
+      },
+      {
+        "id": "d731ef31-c426-1d72-e576-775b4fc02ebd",
+        "display_name": "Referenced Medication",
+        "status": "resolved"
+      },
+      {
+        "id": "706467cb-a8d8-25e1-68ba-7332c84c1536",
+        "display_name": "Amoxicillin 500 MG Oral Tablet",
+        "status": "resolved"
+      },
+      {
+        "id": "a3daf4f2-8868-f9a0-a2c9-b5d0cde6916c",
+        "display_name": "Ibuprofen 100 MG Oral Tablet",
+        "status": "resolved"
+      },
+      {
+        "id": "f7f4ae5a-ca44-cbde-d152-29a73127d8bd",
+        "display_name": "Referenced Medication",
+        "status": "resolved"
+      },
+      {
+        "id": "72fd70ac-12e8-9879-6bc2-91a951df31e2",
+        "display_name": "Seasonique 91 Day Pack",
+        "status": "resolved"
+      }
+    ]
+  },
+  "patient_1_context_behavior": {
+    "patient_id": "c1f1fcaa-82fd-d5b7-3544-c8f9708b06a8",
+    "patient_name": "Thi53 Almeta56 Wunsch504",
+    "medication_count": 6,
+    "context_operations": [
+      {
+        "operation": "loadPatientResources",
+        "patient_id": "c1f1fcaa-82fd-d5b7-3544-c8f9708b06a8",
+        "resource_count": 6,
+        "status": "success"
+      },
+      {
+        "operation": "updateMedication",
+        "medication_id": "9728561b-9663-870a-f972-ffe8aa131889",
+        "new_status": "on-hold",
+        "status": "success"
+      },
+      {
+        "operation": "refreshPatientResources",
+        "patient_id": "c1f1fcaa-82fd-d5b7-3544-c8f9708b06a8",
+        "status": "success"
+      }
+    ]
+  },
+  "patient_2_format_analysis": {
+    "total_medications": 6,
+    "r4_format_count": 5,
+    "r5_format_count": 0,
+    "reference_format_count": 1,
+    "unknown_format_count": 0,
+    "format_details": [
+      {
+        "id": "d277eab2-5f79-b82e-c432-ee2aa635d1ee",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Natazia 28 Day Pack",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "8eefde54-8689-5017-91cf-a83303048383",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Yaz 28 Day Pack",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "3407b66f-c40b-fa0f-9770-3fd8d83a738a",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Natazia 28 Day Pack",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "28c4b76f-d4d4-ed7f-8b3b-9759fa275763",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Natazia 28 Day Pack",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "76814394-b891-66e0-8e6d-8d9f3a43b244",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Vitamin B12 5 MG/ML Injectable Solution",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "cd59aa14-888d-4b8e-a7e3-b95da4c1c7d2",
+        "format": "reference",
+        "medication_field": "medicationReference",
+        "display_name": "Referenced Medication",
+        "has_coding": false,
+        "coding_system": null
+      }
+    ]
+  },
+  "patient_2_r4_to_r5_conversion": {
+    "total_tested": 5,
+    "successful_conversions": 5,
+    "failed_conversions": 0,
+    "conversion_details": [
+      {
+        "id": "d277eab2-5f79-b82e-c432-ee2aa635d1ee",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "8eefde54-8689-5017-91cf-a83303048383",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "3407b66f-c40b-fa0f-9770-3fd8d83a738a",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "28c4b76f-d4d4-ed7f-8b3b-9759fa275763",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "76814394-b891-66e0-8e6d-8d9f3a43b244",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      }
+    ]
+  },
+  "patient_2_medication_resolver": {
+    "total_medications": 6,
+    "resolved_count": 6,
+    "failed_resolution": 0,
+    "resolution_details": [
+      {
+        "id": "d277eab2-5f79-b82e-c432-ee2aa635d1ee",
+        "display_name": "Natazia 28 Day Pack",
+        "status": "resolved"
+      },
+      {
+        "id": "8eefde54-8689-5017-91cf-a83303048383",
+        "display_name": "Yaz 28 Day Pack",
+        "status": "resolved"
+      },
+      {
+        "id": "3407b66f-c40b-fa0f-9770-3fd8d83a738a",
+        "display_name": "Natazia 28 Day Pack",
+        "status": "resolved"
+      },
+      {
+        "id": "28c4b76f-d4d4-ed7f-8b3b-9759fa275763",
+        "display_name": "Natazia 28 Day Pack",
+        "status": "resolved"
+      },
+      {
+        "id": "76814394-b891-66e0-8e6d-8d9f3a43b244",
+        "display_name": "Vitamin B12 5 MG/ML Injectable Solution",
+        "status": "resolved"
+      },
+      {
+        "id": "cd59aa14-888d-4b8e-a7e3-b95da4c1c7d2",
+        "display_name": "Referenced Medication",
+        "status": "resolved"
+      }
+    ]
+  },
+  "patient_2_context_behavior": {
+    "patient_id": "2f912103-2489-115d-7b15-e827e769a268",
+    "patient_name": "Ellyn26 Shayla126 O'Conner199",
+    "medication_count": 6,
+    "context_operations": [
+      {
+        "operation": "loadPatientResources",
+        "patient_id": "2f912103-2489-115d-7b15-e827e769a268",
+        "resource_count": 6,
+        "status": "success"
+      },
+      {
+        "operation": "updateMedication",
+        "medication_id": "d277eab2-5f79-b82e-c432-ee2aa635d1ee",
+        "new_status": "on-hold",
+        "status": "success"
+      },
+      {
+        "operation": "refreshPatientResources",
+        "patient_id": "2f912103-2489-115d-7b15-e827e769a268",
+        "status": "success"
+      }
+    ]
+  },
+  "patient_3_format_analysis": {
+    "total_medications": 3,
+    "r4_format_count": 3,
+    "r5_format_count": 0,
+    "reference_format_count": 0,
+    "unknown_format_count": 0,
+    "format_details": [
+      {
+        "id": "4d1ffb17-23dc-f93b-3870-6f5805e3e959",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Amoxicillin 500 MG Oral Tablet",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "4973eaed-de52-3120-8890-d39e1e954056",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Ibuprofen 100 MG Oral Tablet",
+        "has_coding": false,
+        "coding_system": null
+      },
+      {
+        "id": "2023646e-3387-8903-f3f7-f6fe37772918",
+        "format": "R4",
+        "medication_field": "medicationCodeableConcept",
+        "display_name": "Acetaminophen 160 MG Chewable Tablet",
+        "has_coding": false,
+        "coding_system": null
+      }
+    ]
+  },
+  "patient_3_r4_to_r5_conversion": {
+    "total_tested": 3,
+    "successful_conversions": 3,
+    "failed_conversions": 0,
+    "conversion_details": [
+      {
+        "id": "4d1ffb17-23dc-f93b-3870-6f5805e3e959",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "4973eaed-de52-3120-8890-d39e1e954056",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      },
+      {
+        "id": "2023646e-3387-8903-f3f7-f6fe37772918",
+        "status": "success",
+        "original_format": "R4",
+        "converted_format": "R5"
+      }
+    ]
+  },
+  "patient_3_medication_resolver": {
+    "total_medications": 3,
+    "resolved_count": 3,
+    "failed_resolution": 0,
+    "resolution_details": [
+      {
+        "id": "4d1ffb17-23dc-f93b-3870-6f5805e3e959",
+        "display_name": "Amoxicillin 500 MG Oral Tablet",
+        "status": "resolved"
+      },
+      {
+        "id": "4973eaed-de52-3120-8890-d39e1e954056",
+        "display_name": "Ibuprofen 100 MG Oral Tablet",
+        "status": "resolved"
+      },
+      {
+        "id": "2023646e-3387-8903-f3f7-f6fe37772918",
+        "display_name": "Acetaminophen 160 MG Chewable Tablet",
+        "status": "resolved"
+      }
+    ]
+  },
+  "patient_3_context_behavior": {
+    "patient_id": "b9c610cd-28a6-4636-ccb6-c7a0d2a4cb85",
+    "patient_name": "Damon455 Sergio619 Langosh790",
+    "medication_count": 3,
+    "context_operations": [
+      {
+        "operation": "loadPatientResources",
+        "patient_id": "b9c610cd-28a6-4636-ccb6-c7a0d2a4cb85",
+        "resource_count": 3,
+        "status": "success"
+      },
+      {
+        "operation": "updateMedication",
+        "medication_id": "4d1ffb17-23dc-f93b-3870-6f5805e3e959",
+        "new_status": "on-hold",
+        "status": "success"
+      },
+      {
+        "operation": "refreshPatientResources",
+        "patient_id": "b9c610cd-28a6-4636-ccb6-c7a0d2a4cb85",
+        "status": "success"
+      }
+    ]
+  }
+}

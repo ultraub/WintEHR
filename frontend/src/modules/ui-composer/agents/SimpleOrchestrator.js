@@ -102,7 +102,7 @@ class SimpleOrchestrator {
       try {
         listener(event, data);
       } catch (error) {
-        console.error('Listener error:', error);
+        // Listener error silently handled
       }
     });
   }

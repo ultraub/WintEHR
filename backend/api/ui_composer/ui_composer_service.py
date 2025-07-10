@@ -77,7 +77,10 @@ class UIComposerService:
         # Add FHIR context if database session is available
         if db_session:
             try:
-                if self.enable_agent_pipeline and not context.get('lightweight', self.lightweight_mode):
+                # Skip agent pipeline for SDK method as it interferes with component generation
+                if (self.enable_agent_pipeline and 
+                    not context.get('lightweight', self.lightweight_mode) and
+                    method != "sdk"):
                     # Use new agent pipeline for FHIR data integration
                     agent_result = await self._run_agent_pipeline(request, context, db_session)
                     if agent_result["success"]:
@@ -91,7 +94,7 @@ class UIComposerService:
                         # Fall back to basic FHIR context
                         await self._add_basic_fhir_context(request, context, db_session)
                 else:
-                    # Use original FHIR context approach
+                    # Use original FHIR context approach for SDK or when agent pipeline disabled
                     await self._add_basic_fhir_context(request, context, db_session)
                     
             except Exception as e:

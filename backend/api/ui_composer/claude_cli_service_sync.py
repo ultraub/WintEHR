@@ -183,6 +183,14 @@ class ClaudeCLIServiceSync:
         if self._auth_token:
             env['CLAUDE_AUTH_TOKEN'] = self._auth_token
         
+        # Remove Claude Code specific vars that might cause conflicts
+        env.pop('CLAUDE_CODE_SSE_PORT', None)
+        env.pop('CLAUDE_CODE_ENTRYPOINT', None)
+        env.pop('CLAUDECODE', None)
+        
+        # Set simple terminal
+        env['TERM'] = 'dumb'
+        
         # Run command
         cmd = [self.claude_path, '--print', prompt]
         

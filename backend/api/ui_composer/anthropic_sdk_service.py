@@ -75,12 +75,12 @@ async function test() {
             }]
         });
         
-        console.log(JSON.stringify({ 
+        process.stdout.write(JSON.stringify({ 
             success: true, 
             message: message.content[0].text 
         }));
     } catch (error) {
-        console.log(JSON.stringify({ 
+        process.stdout.write(JSON.stringify({ 
             success: false, 
             error: error.message 
         }));
@@ -171,12 +171,12 @@ async function complete() {{
             }}]
         }});
         
-        console.log(JSON.stringify({{ 
+        process.stdout.write(JSON.stringify({{ 
             success: true, 
             response: message.content[0].text 
         }}));
     }} catch (error) {{
-        console.log(JSON.stringify({{ 
+        process.stdout.write(JSON.stringify({{ 
             success: false, 
             error: error.message 
         }}));

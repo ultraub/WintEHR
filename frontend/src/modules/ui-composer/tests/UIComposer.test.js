@@ -160,8 +160,8 @@ describe('UI Composer', () => {
       const mockPatient = {
         id: 'patient-123',
         name: [{
-          given: ['John'],
-          family: 'Doe'
+          given: ['Patient'],
+          family: 'Test123'
         }],
         gender: 'male',
         birthDate: '1990-01-01',
@@ -176,7 +176,7 @@ describe('UI Composer', () => {
       const demographics = extractPatientDemographics(mockPatient);
       
       expect(demographics.id).toBe('patient-123');
-      expect(demographics.fullName).toBe('John Doe');
+      expect(demographics.fullName).toBe('Patient Test123');
       expect(demographics.gender).toBe('male');
       expect(demographics.birthDate).toBe('1990-01-01');
       expect(demographics.address.city).toBe('Anytown');

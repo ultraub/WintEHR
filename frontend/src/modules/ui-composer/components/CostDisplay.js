@@ -47,7 +47,7 @@ const CostDisplay = ({ sessionId, loading, onCostUpdate }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch cost data:', error);
+      // Failed to fetch cost data - error handled silently
     } finally {
       setFetchingCost(false);
     }

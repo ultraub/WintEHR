@@ -375,24 +375,7 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (version_id, last_updated)
         """
-        # Validate resource
-        try:
-            # Ensure resourceType is set
-            if 'resourceType' not in resource_data:
-                resource_data['resourceType'] = resource_type
-            
-            # Preprocess with SyntheaFHIRValidator before validation
-            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
-            
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
-            resource_dict = fhir_resource.dict(exclude_none=True)
-            
-            # Ensure resourceType is in the final dict
-            resource_dict['resourceType'] = resource_type
-        except Exception as e:
-            raise ValueError(f"Invalid FHIR resource: {str(e)}")
-        
-        # Get current resource
+        # Get current resource first
         query = text("""
             SELECT id, version_id
             FROM fhir.resources
@@ -412,6 +395,26 @@ class FHIRStorageEngine:
             raise ValueError(f"Resource {resource_type}/{fhir_id} not found")
         
         resource_id, current_version = row
+        
+        # Validate resource early to prevent search parameter corruption
+        try:
+            # Ensure resourceType is set
+            if 'resourceType' not in resource_data:
+                resource_data['resourceType'] = resource_type
+            
+            # Preprocess with SyntheaFHIRValidator before validation
+            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
+            
+            fhir_resource = construct_fhir_element(resource_type, resource_data)
+            resource_dict = fhir_resource.dict(exclude_none=True)
+            
+            # Ensure resourceType is in the final dict
+            resource_dict['resourceType'] = resource_type
+            
+            logging.debug(f"DEBUG: Successfully validated {resource_type} {fhir_id}")
+        except Exception as e:
+            logging.error(f"ERROR: FHIR validation failed for {resource_type} {fhir_id}: {e}")
+            raise ValueError(f"Invalid FHIR resource: {str(e)}")
         
         # Check if-match condition
         if if_match:
@@ -454,20 +457,27 @@ class FHIRStorageEngine:
             resource_id, new_version, 'update', resource_dict
         )
         
-        # Update search parameters
-        await self._delete_search_parameters(resource_id)
+        # Atomic update of search parameters and references
         try:
+            # Update search parameters
+            await self._delete_search_parameters(resource_id)
             await self._extract_search_parameters(resource_id, resource_type, resource_dict)
             logging.debug(f"DEBUG: Successfully updated search parameters for {resource_type} {fhir_id}")
-        except Exception as e:
-            logging.error(f"ERROR: Failed to update search parameters for {resource_type} {fhir_id}: {e}")
-        # Update references
-        await self._delete_references(resource_id)
-        try:
+            
+            # Update references
+            await self._delete_references(resource_id)
             await self._extract_references(resource_id, resource_dict, "", resource_type)
+            logging.debug(f"DEBUG: Successfully updated references for {resource_type} {fhir_id}")
+            
+            # Commit all changes atomically
+            await self.session.commit()
+            logging.debug(f"DEBUG: Successfully committed update for {resource_type} {fhir_id}")
+            
         except Exception as e:
-            logging.error(f"ERROR: Failed to update references for {resource_type} {fhir_id}: {e}")
-        await self.session.commit()
+            # Rollback the entire transaction on any failure
+            await self.session.rollback()
+            logging.error(f"ERROR: Failed to update search parameters/references for {resource_type} {fhir_id}: {e}")
+            raise ValueError(f"Failed to update resource indexing: {str(e)}")
         
         # Send WebSocket notification
         if notification_service:

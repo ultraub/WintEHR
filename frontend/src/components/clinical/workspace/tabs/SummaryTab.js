@@ -162,16 +162,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     loadDashboardData();
   }, [patientId]);
 
-  // Reload data when resources change
-  useEffect(() => {
-    // Get conditions to check if data has been loaded
-    const conditions = getPatientResources(patientId, 'Condition') || [];
-    
-    // If we previously had no conditions but now have some, reload
-    if (conditions.length > 0 && stats.activeProblems === 0) {
-      loadDashboardData();
-    }
-  }, [getPatientResources, patientId]); // Removed stats.activeProblems to prevent infinite loop
+  // Note: Removed problematic useEffect that was causing infinite loops
+  // Data refreshing is now handled only by the event system below
 
   // Subscribe to clinical events to refresh summary when data changes
   useEffect(() => {

@@ -75,10 +75,10 @@ async function runRequest() {
         }
         
         // Output result as JSON
-        console.log(JSON.stringify(result));
+        process.stdout.write(JSON.stringify(result));
         
     } catch (error) {
-        console.log(JSON.stringify({
+        process.stdout.write(JSON.stringify({
             success: false,
             error: error.message
         }));

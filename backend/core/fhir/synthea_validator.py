@@ -9,6 +9,7 @@ from fhir.resources import construct_fhir_element
 from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
 from pydantic import ValidationError
 import re
+import logging
 
 from .validator import FHIRValidator
 
@@ -217,7 +218,14 @@ class SyntheaFHIRValidator(FHIRValidator):
         return data
     
     def _preprocess_medication_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Fix MedicationRequest-specific Synthea format issues."""
+        """Fix MedicationRequest-specific Synthea format issues and handle R4/R5 conversion."""
+        # Enhanced to handle both R4 and R5 formats gracefully
+        # R4 uses: medicationCodeableConcept, medicationReference
+        # R5 uses: medication.concept, medication.reference
+        
+        resource_id = data.get('id', 'unknown')
+        logging.debug(f"DEBUG: Preprocessing MedicationRequest {resource_id} - checking format")
+        
         # The fhir.resources library expects medicationCodeableConcept or medicationReference
         # NOT a medication field. Synthea outputs medication as a CodeableConcept
         
@@ -256,11 +264,42 @@ class SyntheaFHIRValidator(FHIRValidator):
                     if k in allowed_ref_fields
                 }
         
-        # Fix medicationCodeableConcept if it exists (older Synthea format)
+        # Enhanced R4/R5 format tolerance - convert to proper R5 structure
+        # Handle R4 format: medicationCodeableConcept -> medication.concept
         if 'medicationCodeableConcept' in data:
-            data['medication'] = data.pop('medicationCodeableConcept')
+            logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
+            medication_concept = data.pop('medicationCodeableConcept')
+            # Ensure proper R5 structure with concept wrapper
+            data['medication'] = {
+                'concept': medication_concept
+            }
+        # Handle R4 format: medicationReference -> medication.reference  
         elif 'medicationReference' in data:
-            data['medication'] = data.pop('medicationReference')
+            logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
+            medication_ref = data.pop('medicationReference')
+            data['medication'] = {
+                'reference': medication_ref
+            }
+        # Handle existing R5 format or ensure proper nesting
+        elif 'medication' in data and isinstance(data['medication'], dict):
+            # If medication exists but doesn't have concept/reference wrapper, fix it
+            medication = data['medication']
+            
+            # Check if it's already properly structured (has concept or reference)
+            if 'concept' not in medication and 'reference' not in medication:
+                # Check if it looks like a CodeableConcept (has coding or text)
+                if 'coding' in medication or 'text' in medication:
+                    logging.debug(f"DEBUG: Wrapping loose medication CodeableConcept in R5 structure for {resource_id}")
+                    # Wrap in concept structure for R5
+                    data['medication'] = {
+                        'concept': medication
+                    }
+                else:
+                    logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+            else:
+                logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+        
+        logging.debug(f"DEBUG: MedicationRequest {resource_id} preprocessing complete")
         
         # Fix reason field - the error shows "reason -> 0 -> reference" and "reason -> 0 -> display" issues
         # This suggests reason is an array with improper Reference objects

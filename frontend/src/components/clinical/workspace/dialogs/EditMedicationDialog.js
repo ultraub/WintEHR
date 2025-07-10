@@ -31,6 +31,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, parseISO } from 'date-fns';
 import { searchService } from '../../../../services/searchService';
+import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 
 const DOSING_FREQUENCIES = [
   { value: 'once-daily', display: 'Once daily' },
@@ -73,6 +74,10 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
   const [searchLoading, setSearchLoading] = useState(false);
   const [medicationOptions, setMedicationOptions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Use medication resolver for format detection and conversion
+  const { getMedicationDisplay } = useMedicationResolver([]);
+  
   const [formData, setFormData] = useState({
     selectedMedication: null,
     customMedication: '',
@@ -101,11 +106,27 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
       const endDate = medicationRequest.dispenseRequest?.validityPeriod?.end ? 
         parseISO(medicationRequest.dispenseRequest.validityPeriod.end) : null;
       
-      // Extract medication information
+      // Extract medication information using format-aware approach
       let selectedMedication = null;
       let customMedication = '';
       
-      if (medicationRequest.medicationCodeableConcept) {
+      // Handle R5 format (medication.concept)
+      if (medicationRequest.medication?.concept) {
+        const concept = medicationRequest.medication.concept;
+        if (concept.coding && concept.coding.length > 0) {
+          const coding = concept.coding[0];
+          selectedMedication = {
+            code: coding.code,
+            display: coding.display || concept.text,
+            system: coding.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
+            source: 'existing'
+          };
+        } else if (concept.text) {
+          customMedication = concept.text;
+        }
+      }
+      // Handle R4 format (medicationCodeableConcept) for backward compatibility
+      else if (medicationRequest.medicationCodeableConcept) {
         const med = medicationRequest.medicationCodeableConcept;
         if (med.coding && med.coding.length > 0) {
           const coding = med.coding[0];
@@ -113,14 +134,22 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
             code: coding.code,
             display: coding.display || med.text,
             system: coding.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-            source: 'existing'
+            source: 'existing-r4'
           };
         } else if (med.text) {
           customMedication = med.text;
         }
-      } else if (medicationRequest.medicationReference) {
-        // Handle medication reference - would need to resolve
+      } 
+      // Handle medication reference
+      else if (medicationRequest.medicationReference) {
         customMedication = 'Referenced Medication';
+      }
+      // Fallback: try to get display name using medication resolver
+      else {
+        const displayName = getMedicationDisplay(medicationRequest);
+        if (displayName && displayName !== 'Unknown medication') {
+          customMedication = displayName;
+        }
       }
 
       // Extract dosage information
@@ -278,26 +307,28 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
       }
 
       // Create updated FHIR MedicationRequest resource
+      // Always convert to R5 format for backend consistency
       const updatedMedicationRequest = {
-        ...medicationRequest, // Preserve existing fields like id, meta, etc.
-        resourceType: 'MedicationRequest', // Ensure resourceType is set
-        id: medicationRequest.id, // Explicitly set ID
+        ...medicationRequest, // Start with original resource
+        // Only update specific fields that the user changed
         status: formData.status,
-        intent: 'order',
         priority: formData.priority,
-        medicationCodeableConcept: formData.selectedMedication ? {
-          coding: [{
-            system: formData.selectedMedication.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-            code: formData.selectedMedication.code,
-            display: formData.selectedMedication.display
-          }],
-          text: formData.selectedMedication.display
-        } : {
-          text: formData.customMedication
+        // Always use R5 format for consistency with backend validation
+        medication: {
+          concept: formData.selectedMedication ? {
+            coding: [{
+              system: formData.selectedMedication.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
+              code: formData.selectedMedication.code,
+              display: formData.selectedMedication.display
+            }],
+            text: formData.selectedMedication.display
+          } : {
+            text: formData.customMedication
+          }
         },
-        subject: {
-          reference: `Patient/${patientId}`
-        },
+        // Remove any R4 format fields to ensure clean R5 structure
+        medicationCodeableConcept: undefined,
+        medicationReference: undefined,
         authoredOn: formData.startDate.toISOString(),
         dosageInstruction: [{
           text: formData.instructions || `${formData.dosage} ${DOSING_FREQUENCIES.find(f => f.value === formData.frequency)?.display}`,
@@ -397,7 +428,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
     }
   };
 
-  const getMedicationDisplay = () => {
+  const getFormMedicationDisplay = () => {
     if (formData.selectedMedication) {
       return formData.selectedMedication.display;
     }
@@ -781,7 +812,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
                   Updated Prescription Preview:
                 </Typography>
                 <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                  {getMedicationDisplay()}
+                  {getFormMedicationDisplay()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {formData.dosage} {formData.route} {DOSING_FREQUENCIES.find(f => f.value === formData.frequency)?.display}

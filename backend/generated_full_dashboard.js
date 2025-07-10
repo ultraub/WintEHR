@@ -4,7 +4,7 @@ import { PersonOutline } from '@mui/icons-material';
 import { usePatientResources } from '../../../hooks/useFHIRResources';
 import { useFHIRClient } from '../../../contexts/FHIRClientContext';
 
-const HypertensionPatientStat = () => {
+const HypertensionPatientCount = () => {
   const { client } = useFHIRClient();
   const patientId = client?.patient?.id;
 
@@ -15,8 +15,7 @@ const HypertensionPatientStat = () => {
     {
       params: {
         code: 'I10-I16',
-        'clinical-status': 'active',
-        _count: 1000
+        status: 'active',
       },
       enabled: !!patientId
     }
@@ -26,8 +25,10 @@ const HypertensionPatientStat = () => {
   if (loading) {
     return (
       <Card>
-        <CardContent sx={{ textAlign: 'center', py: 2 }}>
-          <CircularProgress size={20} />
+        <CardContent>
+          <Box display="flex" alignItems="center" justifyContent="center" p={2}>
+            <CircularProgress size={24} />
+          </Box>
         </CardContent>
       </Card>
     );
@@ -37,7 +38,7 @@ const HypertensionPatientStat = () => {
   if (error) {
     return (
       <Card>
-        <CardContent sx={{ textAlign: 'center', py: 2 }}>
+        <CardContent>
           <Typography color="error">
             Error loading hypertension data
           </Typography>
@@ -46,20 +47,20 @@ const HypertensionPatientStat = () => {
     );
   }
 
-  // Count unique patients with hypertension
-  const patientCount = conditions?.length || 0;
+  // Calculate count of active hypertension conditions
+  const count = conditions?.length || 0;
 
   return (
     <Card>
-      <CardContent sx={{ p: 2 }}>
+      <CardContent>
         <Box display="flex" alignItems="center">
           <PersonOutline sx={{ mr: 1, color: 'primary.main' }} />
           <Box>
             <Typography variant="h4" component="div">
-              {patientCount}
+              {count}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Active Hypertension Cases
+            <Typography variant="body2" color="textSecondary">
+              Active Hypertension Patients
             </Typography>
           </Box>
         </Box>
@@ -68,4 +69,4 @@ const HypertensionPatientStat = () => {
   );
 };
 
-export default HypertensionPatientStat;
+export default HypertensionPatientCount;
