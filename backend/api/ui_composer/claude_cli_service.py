@@ -309,6 +309,8 @@ Focus on clinical accuracy, appropriate data visualization, and user workflow op
             if not components:
                 return "// No components to generate"
             
+            # Store components for later use
+            all_components = components
             component = components[0]  # Process first component
             # Check multiple places for generation mode
             generation_mode = (specification.get('generationMode') or 
@@ -354,6 +356,11 @@ Focus on clinical accuracy, appropriate data visualization, and user workflow op
                 )
                 return component_code
             
+            # Initialize variables that will be used in prompts
+            generation_specific_instructions = ""
+            data_context_section = ""
+            data_context = {}
+            
             logger.info(f"Agent pipeline data available: {has_agent_data}")
             if has_agent_data:
                 data_context = agent_data.get('dataAnalysis', {})
@@ -361,7 +368,6 @@ Focus on clinical accuracy, appropriate data visualization, and user workflow op
                 logger.info(f"Resource types: {list(data_context.get('resourceSummary', {}).keys())}")
             
             # Customize generation based on mode
-            generation_specific_instructions = ""
             if generation_mode == 'full':
                 generation_specific_instructions = """
 FULL GENERATION MODE:
@@ -391,7 +397,6 @@ TEMPLATE-BASED MODE:
 """
         
             # Build dynamic context from agent pipeline data
-            data_context_section = ""
             if has_agent_data and agent_data.get('dataAnalysis'):
                 data_analysis = agent_data['dataAnalysis']
                 data_context_section = f"""
@@ -414,10 +419,10 @@ IMPORTANT: Generate components based on the ACTUAL data structure and content sh
             # Log what we're actually sending
             logger.info(f"Generating component - Type: {component.get('type')}, Mode: {generation_mode}")
             logger.info(f"Component spec: {json.dumps(component, indent=2)}")
-            logger.info(f"Total components in specification: {len(components)}")
+            logger.info(f"Total components in specification: {len(all_components)}")
             
             # Check if this is a dashboard with multiple components
-            is_dashboard = specification.get('layout', {}).get('type') == 'dashboard' and len(components) > 1
+            is_dashboard = specification.get('layout', {}).get('type') == 'dashboard' and len(all_components) > 1
             
             if is_dashboard and generation_mode == 'full':
                 # For full generation mode dashboards, we need to generate the entire dashboard
@@ -427,7 +432,7 @@ IMPORTANT: Generate components based on the ACTUAL data structure and content sh
                 
                 # Build detailed component specifications
                 detailed_components = []
-                for c in components:
+                for c in all_components:
                     detailed_components.append({
                         'id': c.get('id'),
                         'type': c.get('type'),
@@ -445,10 +450,10 @@ MEDICAL CONTEXT: {medical_context}
 Clinical Focus: {json.dumps(clinical_focus, indent=2)}
 
 Dashboard Layout: {specification.get('layout', {}).get('structure', {}).get('structure', 'Grid layout')}
-Total Components: {len(components)}
+Total Components: {len(all_components)}
 Generation Mode: {generation_mode}
 
-COMPONENTS TO GENERATE - YOU MUST INCLUDE ALL {len(components)} COMPONENTS:
+COMPONENTS TO GENERATE - YOU MUST INCLUDE ALL {len(all_components)} COMPONENTS:
 {json.dumps(detailed_components, indent=2)}
 
 {generation_specific_instructions}
@@ -462,7 +467,7 @@ MEDICAL DOMAIN REQUIREMENTS:
 - Use the EXACT filters and aggregations specified in each component's dataBinding
 
 CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
-1. Create a single dashboard component that contains ALL {len(components)} sub-components listed above
+1. Create a single dashboard component that contains ALL {len(all_components)} sub-components listed above
 2. Follow the exact layout structure specified: {specification.get('layout', {}).get('structure', {}).get('structure', '')}
 3. Each sub-component should match its specification exactly
 4. DO NOT use mock patient names like "Patient A", "Patient B" - use real data from FHIR
@@ -503,16 +508,16 @@ FHIR QUERY REQUIREMENTS:
 - For population dashboards: Use fhirService.searchResources() to query ALL patients/resources
 - DO NOT filter by a single patientId for population views
 - Example for hypertension patients:
-  const conditionsResponse = await fhirService.searchResources('Condition', {
-    code: '38341003,59621000,1201005', // Hypertension SNOMED codes
+  const conditionsResponse = await fhirService.searchResources('Condition', {{
+    'code': '38341003,59621000,1201005', // Hypertension SNOMED codes
     _count: 1000
-  });
+  }});
 - Example for blood pressure:
-  const observationsResponse = await fhirService.searchResources('Observation', {
-    code: '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
+  const observationsResponse = await fhirService.searchResources('Observation', {{
+    'code': '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
     _count: 1000,
     _sort: '-date'
-  });
+  }});
 
 COMPONENT DATA REQUIREMENTS:
 - Each component must fetch and display REAL data based on its dataBinding specification
@@ -525,11 +530,25 @@ IMPORTANT: Generate and return ONLY the React component code. Do NOT return desc
 Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
             else:
                 # For single components or non-dashboard layouts
-                prompt = f"""Generate a React component for a clinical UI based on the following specification:
+                gen_inst_defined = generation_specific_instructions is not None
+                data_ctx_defined = data_context_section is not None
+                logger.info(f"Building prompt for single component. Variables defined: generation_specific_instructions={gen_inst_defined}, data_context_section={data_ctx_defined}")
+                try:
+                    # Build prompt step by step
+                    component_type = component.get('type')
+                    component_props = json.dumps(component.get('props', {}), indent=2)
+                    component_binding = json.dumps(component.get('dataBinding', {}), indent=2)
+                    
+                    # Log values before building prompt to help debug
+                    logger.debug(f"component_type: {component_type}")
+                    logger.debug(f"generation_specific_instructions type: {type(generation_specific_instructions)}, len: {len(generation_specific_instructions)}")
+                    logger.debug(f"data_context_section type: {type(data_context_section)}, len: {len(data_context_section)}")
+                    
+                    prompt = f"""Generate a React component for a clinical UI based on the following specification:
 
-Component Type: {component.get('type')}
-Component Props: {json.dumps(component.get('props', {}), indent=2)}
-Data Binding: {json.dumps(component.get('dataBinding', {}), indent=2)}
+Component Type: {component_type}
+Component Props: {component_props}
+Data Binding: {component_binding}
 {generation_specific_instructions}
 {data_context_section}
 
@@ -570,16 +589,16 @@ FHIR QUERY REQUIREMENTS:
 - For population dashboards: Use fhirService.searchResources() to query ALL patients/resources
 - DO NOT filter by a single patientId for population views
 - Example for hypertension patients:
-  const conditionsResponse = await fhirService.searchResources('Condition', {
-    code: '38341003,59621000,1201005', // Hypertension SNOMED codes
+  const conditionsResponse = await fhirService.searchResources('Condition', {{
+    'code': '38341003,59621000,1201005', // Hypertension SNOMED codes
     _count: 1000
-  });
+  }});
 - Example for blood pressure:
-  const observationsResponse = await fhirService.searchResources('Observation', {
-    code: '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
+  const observationsResponse = await fhirService.searchResources('Observation', {{
+    'code': '85354-9,8480-6,8462-4', // Blood pressure LOINC codes
     _count: 1000,
     _sort: '-date'
-  });
+  }});
 
 COMPONENT DATA REQUIREMENTS:
 - Each component must fetch and display REAL data based on its dataBinding specification
@@ -590,6 +609,13 @@ COMPONENT DATA REQUIREMENTS:
 IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
 
 Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
+                except NameError as e:
+                    logger.error(f"NameError while building prompt: {e}")
+                    has_gen_instructions = 'generation_specific_instructions' in locals()
+                    has_data_context = 'data_context_section' in locals()
+                    logger.error(f"Variables: generation_specific_instructions exists: {has_gen_instructions}")
+                    logger.error(f"Variables: data_context_section exists: {has_data_context}")
+                    raise
         
             logger.info(f"Component generation prompt length: {len(prompt)} characters")
             response = await self.complete(prompt, timeout=600)  # 10 minutes for generation
@@ -615,14 +641,18 @@ Generate a complete, functional React component that queries and displays REAL F
         except Exception as e:
             logger.error(f"Error in generate_component: {e}", exc_info=True)
             # Return the error as a comment so we can see what went wrong
+            # Use locals() to safely check if variables are defined
+            local_vars = locals()
+            
             error_msg = f"""// Error generating component: {str(e)}
-// Component type: {component.get('type', 'unknown')}
-// Generation mode: {generation_mode}
-// Has agent data: {has_agent_data}
+// Component type: {local_vars.get('component', {}).get('type', 'unknown') if 'component' in local_vars else 'unknown'}
+// Generation mode: {local_vars.get('generation_mode', 'unknown')}
+// Has agent data: {local_vars.get('has_agent_data', 'unknown')}
 """
-            if has_agent_data:
-                error_msg += f"// Total records: {data_context.get('totalRecords', 0)}\n"
-                error_msg += f"// Resource types: {list(data_context.get('resourceSummary', {}).keys())}\n"
+            if 'has_agent_data' in local_vars and local_vars.get('has_agent_data') and 'data_context' in local_vars:
+                data_ctx = local_vars.get('data_context', {})
+                error_msg += f"// Total records: {data_ctx.get('totalRecords', 0)}\n"
+                error_msg += f"// Resource types: {list(data_ctx.get('resourceSummary', {}).keys())}\n"
             return error_msg
     
     async def refine_ui(self, feedback: str, specification: Dict[str, Any],

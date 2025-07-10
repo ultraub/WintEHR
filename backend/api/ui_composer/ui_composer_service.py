@@ -229,13 +229,13 @@ class UIComposerService:
                 # Development mode generates components individually
                 for component in specification.get("components", []):
                     component_id = component.get("id", f"comp-{len(components)}")
-                    code = await service.generate_component(component)
-                    components[component_id] = code
+                    component_code = await service.generate_component(component)
+                    components[component_id] = component_code
             else:
                 # Other services expect full specification
-                code = await service.generate_component(specification)
+                component_code = await service.generate_component(specification)
                 # For now, treat as single component
-                components["main"] = code
+                components["main"] = component_code
                 
         except Exception as e:
             logger.error(f"Error generating components with {method}: {e}", exc_info=True)
