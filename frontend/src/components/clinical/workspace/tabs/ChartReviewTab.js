@@ -342,7 +342,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
 
   const handleEditMedication = (medication) => {
-    setSelectedMedication(medication);
+    // Ensure we're setting a fresh copy of the medication
+    setSelectedMedication({...medication});
     setShowEditDialog(true);
   };
 
@@ -356,7 +357,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       await onEditMedication(updatedMedication);
       handleCloseEditDialog();
     } catch (error) {
-      // Error is thrown to be handled by the calling component
+      // Error is thrown to be handled by the dialog component
+      // Don't close the dialog on error so user can see the error message
       throw error;
     }
   };
@@ -583,6 +585,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       />
       
       <EditMedicationDialog
+        key={selectedMedication?.id || 'new'}
         open={showEditDialog}
         onClose={handleCloseEditDialog}
         onSave={handleSaveMedication}
@@ -965,8 +968,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     try {
       await fhirClient.delete('Condition', conditionId);
       
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
       // Trigger refresh of the resources
       setRefreshKey(prev => prev + 1);
+      
+      // Publish event for condition deletion
+      await publish(CLINICAL_EVENTS.CONDITION_UPDATED, {
+        conditionId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       
       // Refresh completed successfully
     } catch (error) {
@@ -1005,8 +1019,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     try {
       await fhirClient.delete('MedicationRequest', medicationId);
       
-      // Refresh the patient resources to remove the deleted medication
-      await refreshPatientResources(patientId);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
+      
+      // Publish event for medication deletion
+      await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
+        medicationId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       
       // Refresh completed successfully
     } catch (error) {
@@ -1045,8 +1070,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     try {
       await fhirClient.delete('AllergyIntolerance', allergyId);
       
-      // Refresh the patient resources to remove the deleted allergy
-      await refreshPatientResources(patientId);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
+      
+      // Publish event for allergy deletion
+      await publish(CLINICAL_EVENTS.ALLERGY_UPDATED, {
+        allergyId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       
       // Refresh completed successfully
     } catch (error) {

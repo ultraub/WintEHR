@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, Optional, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from .claude_cli_service import claude_cli_service
+from .claude_cli_service_sync import claude_cli_service_sync
 from .claude_hooks_service import claude_hooks_service
 from .anthropic_sdk_service_v2 import anthropic_sdk_service_v2
 from .development_mode_service import development_mode_service
@@ -26,7 +27,7 @@ class UIComposerService:
         self.services = {
             "hooks": claude_hooks_service,
             "sdk": anthropic_sdk_service_v2,
-            "cli": claude_cli_service,
+            "cli": claude_cli_service_sync,  # Use sync version as workaround
             "development": development_mode_service
         }
         self.default_method = "cli"
