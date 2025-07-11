@@ -21,11 +21,11 @@ class CDSClinicalDataService {
   }
 
   /**
-   * Get lab catalog with reference ranges
+   * Get lab catalog with reference ranges (DYNAMIC - from actual patient data)
    * @param {string} search - Search term
    * @param {string} category - Filter by category (chemistry, hematology, etc.)
    * @param {number} limit - Maximum results
-   * @returns {Promise<Array>} Array of lab test objects with reference ranges
+   * @returns {Promise<Array>} Array of lab test objects with reference ranges calculated from patient data
    */
   async getLabCatalog(search = null, category = null, limit = 50) {
     const cacheKey = `lab-catalog:${search}:${category}:${limit}`;
@@ -46,8 +46,129 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching lab catalog:', error);
-      return [];
+      console.error('Error fetching dynamic lab catalog:', error);
+      // Don't return empty array - throw error so caller knows something is wrong
+      throw new Error(`Failed to fetch lab catalog: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get dynamic medication catalog from actual patient prescriptions
+   * @param {string} search - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of medication objects with usage frequencies
+   */
+  async getDynamicMedicationCatalog(search = null, limit = 50) {
+    const cacheKey = `dynamic-medications:${search}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = {};
+      if (search) params.search = search;
+      params.limit = limit;
+
+      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/medications`, { params });
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching dynamic medication catalog:', error);
+      throw new Error(`Failed to fetch medication catalog: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get dynamic condition catalog from actual patient diagnoses  
+   * @param {string} search - Search term
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of condition objects with diagnosis frequencies
+   */
+  async getDynamicConditionCatalog(search = null, limit = 50) {
+    const cacheKey = `dynamic-conditions:${search}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = {};
+      if (search) params.search = search;
+      params.limit = limit;
+
+      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/conditions`, { params });
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching dynamic condition catalog:', error);
+      throw new Error(`Failed to fetch condition catalog: ${error.message}`);
+    }
+  }
+
+  /**
+   * Search across all dynamic catalogs simultaneously
+   * @param {string} query - Search term
+   * @param {number} limit - Maximum results per category
+   * @returns {Promise<Object>} Object with results from all catalog types
+   */
+  async searchAllDynamicCatalogs(query, limit = 10) {
+    const cacheKey = `dynamic-search:${query}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = { query, limit };
+      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/search`, { params });
+      
+      const data = response.data || {};
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error searching dynamic catalogs:', error);
+      throw new Error(`Failed to search catalogs: ${error.message}`);
+    }
+  }
+
+  /**
+   * Force refresh all dynamic catalogs
+   * @param {number} limit - Optional limit for each catalog
+   * @returns {Promise<Object>} Refresh summary
+   */
+  async refreshDynamicCatalogs(limit = null) {
+    try {
+      const params = {};
+      if (limit) params.limit = limit;
+
+      const response = await this.httpClient.post(`${this.baseUrl}/dynamic-catalog/refresh`, null, { params });
+      
+      // Clear our cache since catalogs have been refreshed
+      this.clearCache();
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error refreshing dynamic catalogs:', error);
+      throw new Error(`Failed to refresh catalogs: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get statistics about dynamic catalogs
+   * @returns {Promise<Object>} Catalog statistics including resource counts
+   */
+  async getDynamicCatalogStatistics() {
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/statistics`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching catalog statistics:', error);
+      throw new Error(`Failed to fetch catalog statistics: ${error.message}`);
     }
   }
 

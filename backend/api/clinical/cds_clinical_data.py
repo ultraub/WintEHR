@@ -575,61 +575,48 @@ async def get_lab_catalog(
     search: Optional[str] = Query(None, description="Search term for lab test"),
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=100),
-    use_dynamic: bool = Query(True, description="Use dynamic catalog from patient data"),
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Get lab test catalog with reference ranges for CDS Hooks."""
+    """Get lab test catalog with reference ranges for CDS Hooks - DYNAMIC ONLY."""
     
-    if use_dynamic:
-        # Use dynamic catalog from actual patient data
-        try:
-            dynamic_service = DynamicCatalogService(db)
-            dynamic_labs = await dynamic_service.extract_lab_test_catalog(limit)
-            
-            # Convert to the expected format
-            results = []
-            for lab in dynamic_labs:
-                lab_item = {
-                    "id": lab["id"],
-                    "name": lab["name"],
-                    "display": lab["display"],
-                    "loinc_code": lab["loinc_code"],
-                    "category": lab["category"],
-                    "specimen_type": lab["specimen_type"],
-                    "reference_range": lab["reference_range"] or {
-                        "min": None,
-                        "max": None,
-                        "unit": "",
-                        "interpretation": "no data"
-                    },
-                    "critical_low": None,  # Could be calculated from value_statistics
-                    "critical_high": None,
-                    "common_conditions": []  # Could be enhanced from condition associations
-                }
-                results.append(lab_item)
-            
-            # Apply filters
-            if category:
-                results = [lab for lab in results if lab["category"].lower() == category.lower()]
-            
-            if search:
-                search_lower = search.lower()
-                results = [
-                    lab for lab in results
-                    if search_lower in lab["name"].lower() or 
-                    search_lower in lab["display"].lower() or
-                    search_lower in lab["loinc_code"].lower()
-                ]
-            
-            return results[:limit]
+    # Use dynamic catalog from actual patient data - NO FALLBACK
+    dynamic_service = DynamicCatalogService(db)
+    dynamic_labs = await dynamic_service.extract_lab_test_catalog(limit)
+    
+    # Convert to the expected format
+    results = []
+    for lab in dynamic_labs:
+        # Calculate critical values from statistics if available
+        critical_low = None
+        critical_high = None
+        if lab.get("value_statistics"):
+            stats = lab["value_statistics"]
+            if stats["min"] is not None and stats["max"] is not None:
+                # Use 1st percentile as critical low, 99th percentile as critical high
+                range_span = stats["max"] - stats["min"]
+                critical_low = stats["min"] - (range_span * 0.1)  # 10% below minimum
+                critical_high = stats["max"] + (range_span * 0.1)  # 10% above maximum
         
-        except Exception as e:
-            # Fall back to static catalog if dynamic fails
-            pass
+        lab_item = {
+            "id": lab["id"],
+            "name": lab["name"],
+            "display": lab["display"],
+            "loinc_code": lab["loinc_code"],
+            "category": lab["category"],
+            "specimen_type": lab["specimen_type"],
+            "reference_range": lab["reference_range"] or {
+                "min": None,
+                "max": None,
+                "unit": "",
+                "interpretation": "insufficient data"
+            },
+            "critical_low": critical_low,
+            "critical_high": critical_high,
+            "common_conditions": []  # Could be enhanced by analyzing conditions with these lab values
+        }
+        results.append(lab_item)
     
-    # Use static catalog as fallback
-    results = LAB_CATALOG
-    
+    # Apply filters
     if category:
         results = [lab for lab in results if lab["category"].lower() == category.lower()]
     
@@ -679,11 +666,31 @@ async def get_vital_sign_details(vital_id: str):
 async def get_condition_catalog(
     search: Optional[str] = Query(None, description="Search term for condition"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """Get medical condition catalog for CDS Hooks."""
-    results = CONDITION_CATALOG
+    """Get medical condition catalog for CDS Hooks - DYNAMIC ONLY."""
     
+    # Use dynamic catalog from actual patient data - NO FALLBACK
+    dynamic_service = DynamicCatalogService(db)
+    dynamic_conditions = await dynamic_service.extract_condition_catalog(limit)
+    
+    # Convert to the expected format
+    results = []
+    for cond in dynamic_conditions:
+        condition_item = {
+            "id": cond["id"],
+            "display": cond["display"],
+            "icd10_code": None,  # Could be extracted if present in system
+            "snomed_code": cond["code"] if cond.get("system") == "http://snomed.info/sct" else None,
+            "category": cond["categories"][0] if cond.get("categories") else "general",
+            "severity_levels": cond.get("common_severities", []),
+            "common_symptoms": [],  # Could be enhanced with symptom analysis
+            "risk_factors": []  # Could be enhanced with risk factor analysis
+        }
+        results.append(condition_item)
+    
+    # Apply filters
     if category:
         results = [cond for cond in results if cond["category"].lower() == category.lower()]
     
@@ -691,8 +698,8 @@ async def get_condition_catalog(
         search_lower = search.lower()
         results = [
             cond for cond in results
-            if search_lower in cond["display"].lower() or 
-            any(search_lower in symptom.lower() for symptom in cond["common_symptoms"])
+            if search_lower in cond["display"].lower() or
+            (cond["snomed_code"] and search_lower in cond["snomed_code"].lower())
         ]
     
     return results[:limit]
