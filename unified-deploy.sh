@@ -693,6 +693,13 @@ deploy_local() {
     while [ $attempt -lt $max_attempts ]; do
         if curl -s http://localhost:8000/health > /dev/null 2>&1; then
             log_success "Backend is healthy"
+            
+            # Always ensure database is properly initialized
+            log_info "Ensuring database is fully initialized..."
+            docker-compose exec -T backend python scripts/init_complete_database.py || {
+                log_warning "Database initialization had issues, but continuing..."
+            }
+            
             break
         fi
         attempt=$((attempt + 1))
@@ -898,6 +905,12 @@ async def count():
     await conn.close()
 asyncio.run(count())
 " || echo "0"
+    
+    # Fix static file permissions
+    log_info "Fixing static file permissions..."
+    docker-compose exec frontend chmod 644 /usr/share/nginx/html/manifest.json /usr/share/nginx/html/favicon.ico 2>/dev/null || {
+        log_warning "Could not fix static file permissions - files may not exist yet"
+    }
     
     # Run validation tests
     if [[ "$VERBOSE" == true ]]; then
