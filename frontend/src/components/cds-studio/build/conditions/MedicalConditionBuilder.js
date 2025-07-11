@@ -33,6 +33,7 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 import { searchService } from '../../../../services/searchService';
+import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
 import { debounce } from 'lodash';
 
 // Condition operators
@@ -76,17 +77,7 @@ const CONDITION_CATEGORIES = [
   { id: 'oncology', label: 'Oncology', icon: '🎗️' }
 ];
 
-// Pre-populated common conditions for quick selection
-const COMMON_CONDITIONS = [
-  { code: '44054006', system: 'SNOMED', display: 'Diabetes mellitus type 2', category: 'endocrine' },
-  { code: '38341003', system: 'SNOMED', display: 'Hypertension', category: 'cardiac' },
-  { code: '53741008', system: 'SNOMED', display: 'Coronary artery disease', category: 'cardiac' },
-  { code: '49601007', system: 'SNOMED', display: 'Chronic obstructive pulmonary disease', category: 'respiratory' },
-  { code: '195967001', system: 'SNOMED', display: 'Asthma', category: 'respiratory' },
-  { code: '40055000', system: 'SNOMED', display: 'Chronic kidney disease', category: 'renal' },
-  { code: '267036007', system: 'SNOMED', display: 'Dyslipidemia', category: 'endocrine' },
-  { code: '370221004', system: 'SNOMED', display: 'Major depressive disorder', category: 'mental' }
-];
+// No hardcoded conditions - using dynamic catalog only
 
 const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -95,8 +86,10 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [showQuickSelect, setShowQuickSelect] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [commonConditions, setCommonConditions] = useState([]);
+  const [loadingCommon, setLoadingCommon] = useState(false);
 
-  // Initialize from existing condition
+  // Initialize from existing condition and load common conditions
   useEffect(() => {
     if (condition.conditionCode && condition.conditionDisplay) {
       setSelectedCondition({
@@ -106,6 +99,30 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
       });
       setShowQuickSelect(false);
     }
+
+    // Load common conditions from dynamic catalog
+    const loadCommonConditions = async () => {
+      setLoadingCommon(true);
+      try {
+        const dynamicConditions = await cdsClinicalDataService.getDynamicConditionCatalog(null, 20);
+        const formatted = dynamicConditions.map(cond => ({
+          code: cond.code,
+          display: cond.display,
+          system: 'SNOMED', // Most conditions are SNOMED
+          category: cond.categories?.[0] || 'general',
+          frequency_count: cond.frequency_count,
+          source: 'dynamic'
+        }));
+        setCommonConditions(formatted);
+      } catch (error) {
+        console.error('Error loading dynamic condition catalog:', error);
+        setCommonConditions([]);
+      } finally {
+        setLoadingCommon(false);
+      }
+    };
+
+    loadCommonConditions();
   }, [condition.conditionCode, condition.conditionDisplay, condition.conditionSystem]);
 
   // Debounced search function
@@ -181,12 +198,12 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
     onChange(updates);
   };
 
-  // Get filtered common conditions
+  // Get filtered common conditions from dynamic data
   const getFilteredCommonConditions = () => {
     if (selectedCategory === 'all') {
-      return COMMON_CONDITIONS;
+      return commonConditions;
     }
-    return COMMON_CONDITIONS.filter(c => c.category === selectedCategory);
+    return commonConditions.filter(c => c.category === selectedCategory);
   };
 
   return (
@@ -247,43 +264,62 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
           {showQuickSelect && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="caption" color="text.secondary" gutterBottom>
-                Or select from common conditions:
+                Or select from common conditions (from patient data):
               </Typography>
               
-              {/* Category filter */}
-              <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
-                <Chip
-                  label="All"
-                  onClick={() => setSelectedCategory('all')}
-                  color={selectedCategory === 'all' ? 'primary' : 'default'}
-                  size="small"
-                />
-                {CONDITION_CATEGORIES.map(cat => (
-                  <Chip
-                    key={cat.id}
-                    label={`${cat.icon} ${cat.label}`}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    color={selectedCategory === cat.id ? 'primary' : 'default'}
-                    size="small"
-                  />
-                ))}
-              </Stack>
+              {loadingCommon && (
+                <Box display="flex" justifyContent="center" sx={{ my: 2 }}>
+                  <CircularProgress size={20} />
+                  <Typography variant="caption" sx={{ ml: 1 }}>Loading conditions...</Typography>
+                </Box>
+              )}
 
-              {/* Common conditions grid */}
-              <Grid container spacing={1}>
-                {getFilteredCommonConditions().map(cond => (
-                  <Grid item xs={12} md={6} key={cond.code}>
+              {!loadingCommon && commonConditions.length > 0 && (
+                <>
+                  {/* Category filter */}
+                  <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
                     <Chip
-                      label={cond.display}
-                      onClick={() => handleQuickSelect(cond)}
-                      clickable
-                      icon={<ConditionIcon />}
-                      variant="outlined"
-                      sx={{ width: '100%', justifyContent: 'flex-start' }}
+                      label="All"
+                      onClick={() => setSelectedCategory('all')}
+                      color={selectedCategory === 'all' ? 'primary' : 'default'}
+                      size="small"
                     />
+                    {CONDITION_CATEGORIES.map(cat => (
+                      <Chip
+                        key={cat.id}
+                        label={`${cat.icon} ${cat.label}`}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        color={selectedCategory === cat.id ? 'primary' : 'default'}
+                        size="small"
+                      />
+                    ))}
+                  </Stack>
+
+                  {/* Common conditions grid */}
+                  <Grid container spacing={1}>
+                    {getFilteredCommonConditions().map(cond => (
+                      <Grid item xs={12} md={6} key={cond.code}>
+                        <Chip
+                          label={`${cond.display} (${cond.frequency_count || 0})`}
+                          onClick={() => handleQuickSelect(cond)}
+                          clickable
+                          icon={<ConditionIcon />}
+                          variant="outlined"
+                          sx={{ width: '100%', justifyContent: 'flex-start' }}
+                        />
+                      </Grid>
+                    ))}
                   </Grid>
-                ))}
-              </Grid>
+                </>
+              )}
+
+              {!loadingCommon && commonConditions.length === 0 && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Typography variant="caption">
+                    No conditions available. Try using the search above to find conditions.
+                  </Typography>
+                </Alert>
+              )}
             </Box>
           )}
 
