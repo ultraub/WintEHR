@@ -78,8 +78,9 @@ import { format, parseISO, formatDistanceToNow, addDays, isPast, isFuture } from
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { printDocument } from '../../../../utils/printUtils';
-import fhirClient from ../../../../services/fhirClient\';
+import { fhirClient } from '../../../../services/fhirClient';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Goal categories
 const goalCategories = {
@@ -467,7 +468,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
           }
         });
         
-        await fhirClient.updateCareTeam(careTeam.id, careTeamResource);
+        await fhirClient.update('CareTeam', careTeam.id, careTeamResource);
       } else {
         // Create new CareTeam
         careTeamResource = {
@@ -515,7 +516,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
           }
         }
         
-        await fhirClient.createCareTeam(careTeamResource);
+        await fhirClient.create('CareTeam', careTeamResource);
       }
       
       // Reset form and close
@@ -525,6 +526,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
         onSuccess();
       }
     } catch (error) {
+      console.error('Failed to add care team member:', error);
       alert('Failed to add care team member: ' + error.message);
     }
   };
@@ -601,6 +603,68 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
   );
 };
 
+// Helper function to fetch observations related to a goal
+const fetchGoalRelatedObservations = async (goal) => {
+  try {
+    if (!goal || !goal.id) return [];
+    
+    // Goals can be linked to observations in several ways:
+    // 1. Observation.goal references the Goal
+    // 2. Goal.addresses references a Condition, and Observations reference the same Condition
+    // 3. Goal.target.measure specifies what type of observation to look for
+    
+    const observations = [];
+    
+    // Try to get the measure code from the goal target
+    const measureCode = goal.target?.[0]?.measure?.coding?.[0]?.code;
+    const measureSystem = goal.target?.[0]?.measure?.coding?.[0]?.system;
+    
+    if (measureCode) {
+      // Search for observations with matching code
+      const searchParams = {
+        patient: goal.subject?.reference?.split('/')[1],
+        code: measureCode,
+        _sort: '-date',
+        _count: 100
+      };
+      
+      const response = await fhirClient.searchResources('Observation', searchParams);
+      if (response.entry) {
+        observations.push(...response.entry.map(e => e.resource));
+      }
+    }
+    
+    // Also try to find observations that directly reference this goal
+    try {
+      const goalRefSearchParams = {
+        patient: goal.subject?.reference?.split('/')[1],
+        goal: `Goal/${goal.id}`,
+        _sort: '-date',
+        _count: 100
+      };
+      
+      const goalRefResponse = await fhirClient.searchResources('Observation', goalRefSearchParams);
+      if (goalRefResponse.entry) {
+        // Add observations that aren't already in the list
+        const existingIds = new Set(observations.map(o => o.id));
+        goalRefResponse.entry.forEach(entry => {
+          if (!existingIds.has(entry.resource.id)) {
+            observations.push(entry.resource);
+          }
+        });
+      }
+    } catch (err) {
+      // Goal reference search might not be supported by all servers
+      console.debug('Goal reference search not supported:', err);
+    }
+    
+    return observations;
+  } catch (error) {
+    console.error('Error fetching goal-related observations:', error);
+    return [];
+  }
+};
+
 // Goal Progress Dialog
 const GoalProgressDialog = ({ open, onClose, goal, patientId }) => {
   const [progressData, setProgressData] = useState([]);
@@ -616,45 +680,41 @@ const GoalProgressDialog = ({ open, onClose, goal, patientId }) => {
   const loadProgressData = async () => {
     setLoading(true);
     try {
-      // In a real implementation, this would fetch actual measurements
-      // For now, we'll generate sample progress data
-      const mockData = generateMockProgressData(goal);
-      setProgressData(mockData);
+      // Fetch actual observations related to this goal
+      const observations = await fetchGoalRelatedObservations(goal);
+      
+      if (observations && observations.length > 0) {
+        // Transform observations into progress data
+        const progressDataPoints = observations
+          .filter(obs => obs.valueQuantity?.value !== undefined)
+          .map(obs => ({
+            date: format(parseISO(obs.effectiveDateTime || obs.issued), 'MMM d'),
+            value: obs.valueQuantity.value,
+            unit: obs.valueQuantity.unit,
+            target: goal.target?.[0]?.detailQuantity?.value || null
+          }))
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        setProgressData(progressDataPoints);
+      } else {
+        // No observations found - show empty state
+        setProgressData([]);
+      }
     } catch (error) {
-      // Handle error
+      console.error('Failed to load goal progress data:', error);
+      setProgressData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateMockProgressData = (goal) => {
-    const targetValue = goal.target?.[0]?.detailQuantity?.value || 100;
-    const startDate = new Date(goal.startDate || Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const data = [];
-    
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + (i * 7)); // Weekly data points
-      
-      const progress = Math.min(
-        targetValue,
-        (targetValue / 12) * i + Math.random() * (targetValue / 12)
-      );
-      
-      data.push({
-        date: format(date, 'MMM d'),
-        value: Math.round(progress),
-        target: targetValue
-      });
-    }
-    
-    return data;
-  };
+  // Function removed - now using real FHIR Observation data
 
   const calculateProgress = () => {
     if (!progressData.length) return 0;
     const latestValue = progressData[progressData.length - 1].value;
-    const targetValue = goal.target?.[0]?.detailQuantity?.value || 100;
+    const targetValue = goal.target?.[0]?.detailQuantity?.value;
+    if (!targetValue) return 0;
     return Math.round((latestValue / targetValue) * 100);
   };
 
@@ -775,29 +835,48 @@ const GoalProgressDialog = ({ open, onClose, goal, patientId }) => {
             <Card>
               <CardHeader title="Progress Over Time" />
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={progressData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke={theme.palette.primary.main} 
-                      strokeWidth={2}
-                      name="Actual Progress"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="target" 
-                      stroke={theme.palette.error.main} 
-                      strokeDasharray="5 5"
-                      name="Target"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {progressData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={progressData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <RechartsTooltip />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke={theme.palette.primary.main} 
+                        strokeWidth={2}
+                        name="Actual Progress"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="target" 
+                        stroke={theme.palette.error.main} 
+                        strokeDasharray="5 5"
+                        name="Target"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box 
+                    sx={{ 
+                      height: 300, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <Typography variant="body1" color="text.secondary" gutterBottom>
+                      No progress data available
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Progress will appear here once observations are recorded for this goal
+                    </Typography>
+                  </Box>
+                )}
               </CardContent>
             </Card>
 
@@ -899,8 +978,7 @@ const ActivityEditDialog = ({ open, onClose, activity, carePlanId, onSuccess }) 
         throw new Error('Failed to update care plan');
       }
 
-      // Refresh and close
-      await fhirClient.refreshPatientResources(carePlan.subject.reference.split('/')[1]);
+      // Close dialog - parent component will handle refresh
       onClose();
       if (onSuccess) {
         onSuccess();
@@ -1109,7 +1187,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
             carePlan.goal.push(goalRef);
           }
           
-          await fhirClient.updateCarePlan(carePlan.id, carePlan);
+          await fhirClient.update('CarePlan', carePlan.id, carePlan);
         } else {
           // Create new CarePlan
           const newCarePlan = {
@@ -1139,11 +1217,10 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
             }]
           };
           
-          await fhirClient.createCarePlan(newCarePlan);
+          await fhirClient.create('CarePlan', newCarePlan);
         }
         
-        // Refresh patient resources to show new/updated goal and care plan
-        await fhirClient.refreshPatientResources(patientId);
+        // Close dialog - parent component will handle refresh
         onClose();
       } else {
         // Handle error - would use proper error logging in production
@@ -1155,7 +1232,8 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
         onClose();
       }
       // In production, this would show an error snackbar or dialog
-      alert('Failed to save goal. Please try again.');
+      console.error('Failed to save goal:', error);
+      // Would show error notification in production
     }
   };
 
@@ -1267,7 +1345,8 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
 const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   
   const [filterStatus, setFilterStatus] = useState('active');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -1738,7 +1817,11 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
                     setProgressDialogOpen(false);
                   }
                 } catch (error) {
-                  // Handle error - would show user notification in production
+                  setSnackbar({
+                    open: true,
+                    message: 'Failed to update goal progress: ' + error.message,
+                    severity: 'error'
+                  });
                 }
               }
             }}
@@ -1823,7 +1906,7 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
             message: 'Care team member added successfully', 
             severity: 'success' 
           });
-          fhirClient.refreshPatientResources(patientId);
+          refreshPatientResources(patientId);
         }}
       />
 

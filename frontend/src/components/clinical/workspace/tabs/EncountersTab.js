@@ -71,6 +71,7 @@ import DialogActions from '@mui/material/DialogActions';
 import { printDocument, formatEncountersForPrint } from '../../../../utils/printUtils';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounterClass) => {
@@ -212,6 +213,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish, subscribe } = useClinicalWorkflow();
   
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'timeline'
   const [filterType, setFilterType] = useState('all');
@@ -234,6 +236,39 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Subscribe to encounter-related events
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Subscribe to encounter updates from other modules
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
+        if (data.encounterId) {
+          // Refresh encounters when an order is placed in an encounter
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+        }
+      })
+    );
+
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.RESULT_RECEIVED, (data) => {
+        if (data.encounterId) {
+          // Refresh encounters when results are received for an encounter
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+        }
+      })
+    );
+
+    // Cleanup subscriptions
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [patientId, subscribe]);
 
   // Handle encounter selection for summary dialog
   const handleViewEncounterDetails = (encounter) => {
@@ -351,6 +386,18 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       });
 
       if (response.ok) {
+        const savedEncounter = await response.json();
+        
+        // Publish encounter created event
+        await publish(CLINICAL_EVENTS.ENCOUNTER_CREATED, {
+          encounterId: savedEncounter.id,
+          patientId,
+          type: newEncounterData.type,
+          reasonForVisit: newEncounterData.reasonForVisit,
+          provider: newEncounterData.provider,
+          timestamp: new Date().toISOString()
+        });
+        
         // Refresh patient resources to show new encounter
         window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
           detail: { patientId } 

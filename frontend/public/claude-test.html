@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Claude Code API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .available {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .not-available {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Claude Code API Test</h1>
+    
+    <div id="status" class="status">Checking...</div>
+    
+    <button onclick="testClaude()" id="testBtn" disabled>Test Claude API</button>
+    
+    <h2>Debug Information:</h2>
+    <pre id="debug"></pre>
+    
+    <h2>Instructions:</h2>
+    <ol>
+        <li>If you see "Claude API is NOT available", you need to access this page from within Claude Code</li>
+        <li>Try opening this URL directly in Claude Code's interface</li>
+        <li>Or check if Claude Code has a browser extension that needs to be enabled</li>
+        <li>The URL to this test page is: <code>http://localhost:3000/claude-test.html</code></li>
+    </ol>
+    
+    <script>
+        function checkClaude() {
+            const statusEl = document.getElementById('status');
+            const debugEl = document.getElementById('debug');
+            const testBtn = document.getElementById('testBtn');
+            
+            // Debug info
+            let debugInfo = 'Window properties:\n';
+            debugInfo += `- window.claude: ${typeof window.claude}\n`;
+            debugInfo += `- window.claude?.complete: ${typeof window.claude?.complete}\n`;
+            debugInfo += `\nBrowser info:\n`;
+            debugInfo += `- User Agent: ${navigator.userAgent}\n`;
+            debugInfo += `- Location: ${window.location.href}\n`;
+            
+            debugEl.textContent = debugInfo;
+            
+            if (window.claude && typeof window.claude.complete === 'function') {
+                statusEl.className = 'status available';
+                statusEl.textContent = '✓ Claude API is available!';
+                testBtn.disabled = false;
+            } else {
+                statusEl.className = 'status not-available';
+                statusEl.textContent = '✗ Claude API is NOT available';
+                testBtn.disabled = true;
+            }
+        }
+        
+        async function testClaude() {
+            const debugEl = document.getElementById('debug');
+            try {
+                debugEl.textContent = 'Testing Claude API...\n';
+                const response = await window.claude.complete('Say "Hello from Claude!" in JSON format');
+                debugEl.textContent += `\nResponse: ${response}`;
+            } catch (error) {
+                debugEl.textContent += `\nError: ${error.message}`;
+            }
+        }
+        
+        // Check on load
+        checkClaude();
+        
+        // Check periodically in case Claude Code loads later
+        setInterval(checkClaude, 2000);
+    </script>
+</body>
+</html>

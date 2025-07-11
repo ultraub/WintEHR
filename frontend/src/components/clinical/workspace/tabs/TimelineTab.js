@@ -30,7 +30,8 @@ import {
   ToggleButtonGroup,
   Tooltip,
   useTheme,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   Timeline,
@@ -440,6 +441,8 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [visibleCount, setVisibleCount] = useState(20); // Start with 20 items
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [workflowEvents, setWorkflowEvents] = useState([]);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     setLoading(false);
@@ -449,31 +452,51 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   useEffect(() => {
     const unsubscribers = [];
     
-    // Subscribe to all event types
-    Object.values(CLINICAL_EVENTS).forEach(eventType => {
-      const unsubscribe = subscribe(eventType, (eventData) => {
-        // Add the event to our workflow events
-        const workflowEvent = {
-          id: `workflow-${Date.now()}-${Math.random()}`,
-          resourceType: 'WorkflowEvent',
-          eventType: eventType,
-          date: eventData.timestamp || new Date().toISOString(),
-          data: eventData,
-          patientId: eventData.patientId
-        };
+    try {
+      // Subscribe to all event types
+      Object.values(CLINICAL_EVENTS).forEach(eventType => {
+        const unsubscribe = subscribe(eventType, (eventData) => {
+          try {
+            // Add the event to our workflow events
+            const workflowEvent = {
+              id: `workflow-${Date.now()}-${Math.random()}`,
+              resourceType: 'WorkflowEvent',
+              eventType: eventType,
+              date: eventData.timestamp || new Date().toISOString(),
+              data: eventData,
+              patientId: eventData.patientId
+            };
+            
+            // Only add events for the current patient
+            if (eventData.patientId === patientId) {
+              setWorkflowEvents(prev => [...prev, workflowEvent]);
+            }
+          } catch (err) {
+            console.error('Error processing workflow event:', err);
+            setSnackbar({
+              open: true,
+              message: 'Error processing workflow event',
+              severity: 'error'
+            });
+          }
+        });
         
-        // Only add events for the current patient
-        if (eventData.patientId === patientId) {
-          setWorkflowEvents(prev => [...prev, workflowEvent]);
-        }
+        unsubscribers.push(unsubscribe);
       });
-      
-      unsubscribers.push(unsubscribe);
-    });
+    } catch (err) {
+      console.error('Error subscribing to workflow events:', err);
+      setError('Failed to subscribe to workflow events');
+    }
     
     // Cleanup subscriptions on unmount
     return () => {
-      unsubscribers.forEach(unsubscribe => unsubscribe());
+      unsubscribers.forEach(unsubscribe => {
+        try {
+          unsubscribe();
+        } catch (err) {
+          console.error('Error unsubscribing from workflow event:', err);
+        }
+      });
     };
   }, [subscribe, patientId]);
 
@@ -482,29 +505,40 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     const events = [];
     const seenIds = new Set(); // Track unique IDs to prevent duplicates
     
-    // Add all resource types
-    Object.keys(eventTypes).forEach(resourceType => {
-      if (resourceType === 'WorkflowEvent') {
-        // Add workflow events from state
-        workflowEvents.forEach(event => {
-          const uniqueKey = `${event.resourceType}-${event.id}`;
-          if (!seenIds.has(uniqueKey)) {
-            seenIds.add(uniqueKey);
-            events.push(event);
+    try {
+      // Add all resource types
+      Object.keys(eventTypes).forEach(resourceType => {
+        try {
+          if (resourceType === 'WorkflowEvent') {
+            // Add workflow events from state
+            workflowEvents.forEach(event => {
+              const uniqueKey = `${event.resourceType}-${event.id}`;
+              if (!seenIds.has(uniqueKey)) {
+                seenIds.add(uniqueKey);
+                events.push(event);
+              }
+            });
+          } else {
+            // Add FHIR resources
+            const resources = getPatientResources(patientId, resourceType) || [];
+            resources.forEach(resource => {
+              const uniqueKey = `${resource.resourceType}-${resource.id}`;
+              if (!seenIds.has(uniqueKey)) {
+                seenIds.add(uniqueKey);
+                events.push(resource);
+              }
+            });
           }
-        });
-      } else {
-        // Add FHIR resources
-        const resources = getPatientResources(patientId, resourceType) || [];
-        resources.forEach(resource => {
-          const uniqueKey = `${resource.resourceType}-${resource.id}`;
-          if (!seenIds.has(uniqueKey)) {
-            seenIds.add(uniqueKey);
-            events.push(resource);
-          }
-        });
-      }
-    });
+        } catch (err) {
+          console.error(`Error processing ${resourceType} resources:`, err);
+          // Continue processing other resource types
+        }
+      });
+    } catch (err) {
+      console.error('Error collecting timeline events:', err);
+      setError('Failed to load timeline events');
+      return [];
+    }
 
     return events;
   }, [patientId, getPatientResources, workflowEvents]); // Recalculate when patientId, resources, or workflow events update
@@ -611,18 +645,19 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const handlePrintTimeline = () => {
-    const patientInfo = {
-      name: currentPatient ? 
-        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
-        'Unknown Patient',
-      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
-      birthDate: currentPatient?.birthDate,
-      gender: currentPatient?.gender,
-      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
-    };
-    
-    let content = '<h2>Clinical Timeline</h2>';
-    content += `<p>Showing ${sortedEvents.length} events${filterPeriod !== 'all' ? ` from the last ${filterPeriod}` : ''}</p>`;
+    try {
+      const patientInfo = {
+        name: currentPatient ? 
+          `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+          'Unknown Patient',
+        mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+        birthDate: currentPatient?.birthDate,
+        gender: currentPatient?.gender,
+        phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+      };
+      
+      let content = '<h2>Clinical Timeline</h2>';
+      content += `<p>Showing ${sortedEvents.length} events${filterPeriod !== 'all' ? ` from the last ${filterPeriod}` : ''}</p>`;
     
     // Group events by date
     const eventsByDate = {};
@@ -689,17 +724,38 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       content += '</tbody></table>';
     });
     
-    printDocument({
-      title: 'Clinical Timeline',
-      patient: patientInfo,
-      content
-    });
+      printDocument({
+        title: 'Clinical Timeline',
+        patient: patientInfo,
+        content
+      });
+    } catch (err) {
+      console.error('Error printing timeline:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to print timeline. Please try again.',
+        severity: 'error'
+      });
+    }
   };
 
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Button variant="outlined" onClick={() => window.location.reload()}>
+          Reload Page
+        </Button>
       </Box>
     );
   }
@@ -997,6 +1053,22 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           })}
         </Stack>
       )}
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

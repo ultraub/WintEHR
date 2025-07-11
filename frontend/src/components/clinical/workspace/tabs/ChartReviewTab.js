@@ -73,7 +73,7 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
-import fhirClient from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../services/fhirClient';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
@@ -253,18 +253,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     </Box>
                   }
                   secondary={
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        {condition.onsetDateTime ? 
-                          `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
-                          'Onset date unknown'}
-                      </Typography>
+                    <>
+                      {condition.onsetDateTime ? 
+                        `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
+                        'Onset date unknown'}
                       {condition.note?.[0]?.text && expandedItems[condition.id] && (
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                          {condition.note[0].text}
-                        </Typography>
+                        ` • ${condition.note[0].text}`
                       )}
-                    </Box>
+                    </>
                   }
                 />
                 <ListItemSecondaryAction>
@@ -342,7 +338,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
 
   const handleEditMedication = (medication) => {
-    setSelectedMedication(medication);
+    // Ensure we're setting a fresh copy of the medication
+    setSelectedMedication({...medication});
     setShowEditDialog(true);
   };
 
@@ -356,7 +353,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       await onEditMedication(updatedMedication);
       handleCloseEditDialog();
     } catch (error) {
-      // Error is thrown to be handled by the calling component
+      // Error is thrown to be handled by the dialog component
+      // Don't close the dialog on error so user can see the error message
       throw error;
     }
   };
@@ -548,14 +546,11 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     </Box>
                   }
                   secondary={
-                    <Box>
-                      <Typography variant="caption">
-                        {med.dosageInstruction?.[0]?.text || 'No dosage information'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
-                      </Typography>
-                    </Box>
+                    <>
+                      {med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                      {' • '}
+                      Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                    </>
                   }
                 />
                 <ListItemSecondaryAction>
@@ -583,6 +578,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       />
       
       <EditMedicationDialog
+        key={selectedMedication?.id || 'new'}
         open={showEditDialog}
         onClose={handleCloseEditDialog}
         onSave={handleSaveMedication}
@@ -855,7 +851,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); // Force re-render after updates
+  // Removed refreshKey - now using unified resource system
 
   useEffect(() => {
     // Data is already loaded by FHIRResourceContext
@@ -864,10 +860,11 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddProblem = async (condition) => {
     try {
-      const createdCondition = await fhirClient.createCondition(condition);
+      const result = await fhirClient.create('Condition', condition);
+      const createdCondition = result.resource || condition;
       
       // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -878,7 +875,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
-      const createdMedication = await fhirClient.createMedicationRequest(medicationRequest);
+      const result = await fhirClient.create('MedicationRequest', medicationRequest);
+      const createdMedication = result.resource || medicationRequest;
       
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -894,7 +892,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -905,7 +903,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
-      const createdAllergy = await fhirClient.createAllergyIntolerance(allergyIntolerance);
+      const result = await fhirClient.create('AllergyIntolerance', allergyIntolerance);
+      const createdAllergy = result.resource || allergyIntolerance;
       
       // Publish workflow event for new allergy
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -922,7 +921,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -937,17 +936,32 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateCondition(updatedCondition.id, updatedCondition);
+      // Update the condition on the server
+      const result = await fhirClient.update('Condition', updatedCondition.id, updatedCondition);
       
-      // Clear intelligent cache for this patient
+      // Clear intelligent cache for this patient to force fresh data
       intelligentCache.clearPatient(patientId);
+      
+      // Clear the specific condition cache entries
+      intelligentCache.clearResourceType('Condition');
+      
+      // Publish workflow event for condition update
+      await publish(CLINICAL_EVENTS.CONDITION_UPDATED, {
+        conditionId: updatedCondition.id,
+        patientId,
+        status: 'updated',
+        conditionText: updatedCondition.code?.text || 
+                      updatedCondition.code?.coding?.[0]?.display || 
+                      'Unknown condition',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Force refresh of patient resources to ensure UI updates
+      await refreshPatientResources(patientId);
       
       // Show success message
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-      
-      // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -960,10 +974,21 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteProblem = async (conditionId) => {
     try {
-      await fhirClient.deleteCondition(conditionId);
+      await fhirClient.delete('Condition', conditionId);
       
-      // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
+      // Publish event for condition deletion
+      await publish(CLINICAL_EVENTS.CONDITION_UPDATED, {
+        conditionId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Refresh patient resources to update condition list
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -977,7 +1002,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
+      const result = await fhirClient.update('MedicationRequest', updatedMedicationRequest.id, updatedMedicationRequest);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -987,7 +1012,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      await refreshPatientResources(patientId);
       
       return result;
     } catch (error) {
@@ -1000,10 +1025,21 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteMedication = async (medicationId) => {
     try {
-      await fhirClient.deleteMedicationRequest(medicationId);
+      await fhirClient.delete('MedicationRequest', medicationId);
       
-      // Refresh the patient resources to remove the deleted medication
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
+      // Trigger refresh of the resources
       await refreshPatientResources(patientId);
+      
+      // Publish event for medication deletion
+      await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
+        medicationId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       
       // Refresh completed successfully
     } catch (error) {
@@ -1017,7 +1053,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
+      const result = await fhirClient.update('AllergyIntolerance', updatedAllergyIntolerance.id, updatedAllergyIntolerance);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
@@ -1027,7 +1063,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      setRefreshKey(prev => prev + 1);
+      await refreshPatientResources(patientId);
       
       return result;
     } catch (error) {
@@ -1040,10 +1076,21 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handleDeleteAllergy = async (allergyId) => {
     try {
-      await fhirClient.deleteAllergyIntolerance(allergyId);
+      await fhirClient.delete('AllergyIntolerance', allergyId);
       
-      // Refresh the patient resources to remove the deleted allergy
+      // Clear intelligent cache for this patient
+      intelligentCache.clearPatient(patientId);
+      
+      // Trigger refresh of the resources
       await refreshPatientResources(patientId);
+      
+      // Publish event for allergy deletion
+      await publish(CLINICAL_EVENTS.ALLERGY_UPDATED, {
+        allergyId,
+        patientId,
+        status: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       
       // Refresh completed successfully
     } catch (error) {
@@ -1128,69 +1175,14 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
-  // Get resources - with refreshKey to force updates
-  const [conditions, setConditions] = useState([]);
-  const [medications, setMedications] = useState([]);
-  const [allergies, setAllergies] = useState([]);
+  // Get resources using unified resource system
+  const conditions = getPatientResources(patientId, 'Condition') || [];
+  const medications = getPatientResources(patientId, 'MedicationRequest') || [];
+  const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
   const observations = getPatientResources(patientId, 'Observation') || [];
   const immunizations = getPatientResources(patientId, 'Immunization') || [];
   
-  // Load conditions, medications, and allergies with refresh capability
-  useEffect(() => {
-    const loadResources = async () => {
-      try {
-        // Force refresh only when refreshKey changes (after updates)
-        const forceRefresh = refreshKey > 0;
-        
-        // Clear intelligent cache when force refreshing
-        if (forceRefresh) {
-          // Clear the intelligent cache for this patient's conditions
-          const conditionParams = { patient: patientId, _count: 1000, _sort: '-recorded-date' };
-          const conditionCacheKey = `searches:Condition_${JSON.stringify(conditionParams)}`;
-          intelligentCache.delete(conditionCacheKey);
-          
-          const medicationParams = { patient: patientId, _count: 1000, _sort: '-authored' };
-          const medicationCacheKey = `searches:MedicationRequest_${JSON.stringify(medicationParams)}`;
-          intelligentCache.delete(medicationCacheKey);
-          
-          const allergyParams = { patient: patientId, _count: 1000, _sort: '-date' };
-          const allergyCacheKey = `searches:AllergyIntolerance_${JSON.stringify(allergyParams)}`;
-          intelligentCache.delete(allergyCacheKey);
-        }
-        
-        // Load conditions
-        const conditionsResult = await searchResources('Condition', { 
-          patient: patientId, 
-          _count: 1000, 
-          _sort: '-recorded-date' 
-        }, forceRefresh);
-        // Set conditions from result
-        setConditions(conditionsResult.resources || []);
-        
-        // Load medications
-        const medicationsResult = await searchResources('MedicationRequest', { 
-          patient: patientId, 
-          _count: 1000, 
-          _sort: '-authored' 
-        }, forceRefresh);
-        setMedications(medicationsResult.resources || []);
-        
-        // Load allergies
-        const allergiesResult = await searchResources('AllergyIntolerance', { 
-          patient: patientId, 
-          _count: 1000, 
-          _sort: '-date' 
-        }, forceRefresh);
-        setAllergies(allergiesResult.resources || []);
-      } catch (error) {
-        // Error loading resources - UI will show appropriate message
-      }
-    };
-    
-    if (patientId) {
-      loadResources();
-    }
-  }, [patientId, refreshKey]); // Remove searchResources from dependencies to prevent loops
+  // Resources are now loaded automatically via getPatientResources hook
 
   if (loading) {
     return (

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Test</title>
+</head>
+<body>
+    <h1>Auth Test</h1>
+    <div id="output"></div>
+    <script>
+        const output = document.getElementById('output');
+        
+        // Check localStorage
+        const token = localStorage.getItem('auth_token');
+        const user = localStorage.getItem('auth_user');
+        
+        output.innerHTML = `
+            <p><strong>Auth Token:</strong> ${token || 'Not found'}</p>
+            <p><strong>User:</strong> ${user || 'Not found'}</p>
+            <p><strong>All localStorage:</strong></p>
+            <pre>${JSON.stringify(localStorage, null, 2)}</pre>
+        `;
+        
+        // Test API call
+        async function testApiCall() {
+            try {
+                const response = await fetch('/fhir/R4/Patient?_count=5', {
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/fhir+json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.innerHTML += `<p><strong>API Response:</strong> ${data.total} patients found</p>`;
+                } else {
+                    output.innerHTML += `<p><strong>API Error:</strong> ${response.status} - ${response.statusText}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML += `<p><strong>Error:</strong> ${error.message}</p>`;
+            }
+        }
+        
+        testApiCall();
+    </script>
+</body>
+</html>

@@ -72,7 +72,8 @@ import {
   Analytics as AnalyticsIcon,
   CloudUpload as UploadIcon,
   Download as DownloadIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  DashboardCustomize as DashboardCustomizeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
@@ -110,6 +111,7 @@ const navigationConfig = {
     icon: <ApiIcon />,
     items: [
       { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Browse FHIR resources', badge: 'Enhanced' },
+      { text: 'UI Composer', icon: <DashboardCustomizeIcon />, path: '/ui-composer', description: 'Dynamic UI generation', badge: 'Experimental' },
       { text: 'CDS Hooks', icon: <WebhookIcon />, path: '/cds-hooks', description: 'Clinical decision support' },
       { text: 'CDS Studio', icon: <LightbulbIcon />, path: '/cds-studio', description: 'Visual CDS builder', badge: 'New' },
       { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }

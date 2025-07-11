@@ -60,11 +60,11 @@ class CDSHooksTester {
 
           results.push(result);
           
-          `);
+          // Test successful
           
           if (result.cards.length > 0) {
             result.cards.forEach((card, index) => {
-              `);
+              // Processing card
             });
           }
 
@@ -158,13 +158,13 @@ class CDSHooksTester {
 
           results.push(result);
           
-          `);
+          // Summary generated
           
           if (result.cards.length > 0) {
             result.cards.forEach((card, index) => {
-              `);
+              // Processing card details
               if (card.detail) {
-                
+                // Card has detail
               }
             });
           }
@@ -210,9 +210,7 @@ class CDSHooksTester {
    * Run comprehensive CDS hooks test suite
    */
   async runTestSuite() {
-    
-    .toISOString()}`);
-    }`);
+    // Starting test suite
 
     try {
       // Get test patients
@@ -222,9 +220,7 @@ class CDSHooksTester {
       const allResults = [];
 
       for (const patient of patients) {
-        }`);
-        
-        }`);
+        // Testing patient
 
         // Test patient-view hooks
         const patientViewResults = await this.testPatientViewHooks(patient.id);
@@ -242,14 +238,12 @@ class CDSHooksTester {
       }
 
       // Summary
-      }`);
+      // Test suite completed
       
-      }`);
-      
-      .length}`);
-      .length}`);
-       => sum + (r.cardCount || 0), 0)}`);
-       => sum + (r.executionTime || 0), 0) / allResults.length)}ms`);
+      // Total results: allResults.length
+      // Successful tests: allResults.filter(r => r.success).length
+      // Total cards: allResults.reduce((sum, r) => sum + (r.cardCount || 0), 0)
+      // Average execution time: allResults.reduce((sum, r) => sum + (r.executionTime || 0), 0) / allResults.length
 
       return {
         totalTests: allResults.length,

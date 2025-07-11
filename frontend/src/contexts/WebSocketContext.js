@@ -18,6 +18,7 @@ export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
   const [subscriptions, setSubscriptions] = useState({});
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
@@ -70,17 +71,55 @@ export const WebSocketProvider = ({ children }) => {
 
   // Connect to WebSocket
   const connect = useCallback(() => {
-    if (!user) return;
+    // Don't require user in simple auth mode
+    if (isConnected || !isOnline) {
+      return;
+    }
 
     try {
       const token = localStorage.getItem('auth_token');
-      // Skip WebSocket connection if no valid token
+      
+      // Check if we're in simple mode (no JWT required)
       if (!token || token === 'null') {
+        // Try connecting without authentication for simple mode
+        wsRef.current = new WebSocket(WS_URL);
+        
+        wsRef.current.onopen = () => {
+          console.log('WebSocket connected in simple mode');
+          setIsConnected(true);
+          reconnectAttempts.current = 0;
+        };
+        
+        wsRef.current.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            setLastMessage({ data: event.data, timestamp: Date.now() });
+            
+            if (message.type === 'ping') {
+              sendMessage({ type: 'pong' });
+            }
+          } catch (error) {
+            console.warn('WebSocket message parse error:', error);
+          }
+        };
+        
+        wsRef.current.onclose = () => {
+          console.log('WebSocket disconnected');
+          setIsConnected(false);
+          wsRef.current = null;
+          
+          // Retry connection after delay
+          if (reconnectAttempts.current < 3) {
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+            reconnectAttempts.current += 1;
+            setTimeout(connect, delay);
+          }
+        };
         
         return;
       }
       
-      // Connect without token in URL for security
+      // Connect with authentication for JWT mode
       wsRef.current = new WebSocket(WS_URL);
 
       wsRef.current.onopen = () => {
@@ -129,7 +168,7 @@ export const WebSocketProvider = ({ children }) => {
 
           reconnectTimeoutRef.current = setTimeout(() => {
             if (user) {
-              `);
+              // Reconnecting to WebSocket
               connect();
             }
           }, delay);
@@ -172,6 +211,28 @@ export const WebSocketProvider = ({ children }) => {
       disconnect();
     };
   }, [user]); // Only depend on user, not on connect/disconnect
+
+  // Handle online/offline events
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (user) {
+        connect();
+      }
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [user, connect]);
 
   // Cleanup on unmount
   useEffect(() => {

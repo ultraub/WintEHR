@@ -33,6 +33,9 @@ from api import auth
 
 # Import CDS Hooks router
 from api.cds_hooks import cds_hooks_router
+
+# Import UI Composer router
+from api.ui_composer import router as ui_composer_router
 # from api.app import app_router
 # from api.quality import quality_router
 # from api.cql_api import router as cql_router
@@ -87,6 +90,14 @@ async def shutdown_event():
 # from api.health import router as health_router
 # app.include_router(health_router, prefix="/api", tags=["Health Check"])
 app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
+
+# Add multi-version FHIR router
+from api.fhir.version_router import router as version_router
+app.include_router(version_router, tags=["FHIR Multi-Version"])
+
+# Add content negotiation endpoints
+from api.fhir.version_router import version_aware_router
+app.include_router(version_aware_router.router, tags=["FHIR Content Negotiation"])
 app.include_router(emr_router, tags=["EMR Extensions"])  # Already has /api/emr prefix
 app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])  # Already has /api/clinical-canvas prefix
 
@@ -123,6 +134,9 @@ app.include_router(imaging_studies_router, tags=["Imaging Studies"])
 # Include CDS Hooks router
 from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
 app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+
+# Include UI Composer router
+app.include_router(ui_composer_router, tags=["UI Composer"])
 
 # Include Notifications router
 from api.notifications import router as notifications_router

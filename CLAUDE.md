@@ -576,20 +576,22 @@ Documentation Locations:
 3. Update CLAUDE.md if new patterns established
 4. Commit documentation changes
 
-## 🤖 Claude Code Agent System
+## 🤖 Claude Code Agent System with Context7 MCP Integration
 
-**MedGenEMR includes a comprehensive agent system for reliable feature development**
+**MedGenEMR includes a comprehensive agent system enhanced with Context7 MCP for reliable feature development with real-time documentation access**
 
 ### 🚀 Master Feature Workflow
 
 **Primary Command**: `python .claude/agents/feature-workflow.py 'feature request'`
 
-The master workflow orchestrates all agents for complete feature development:
-1. ✅ **Analysis** - Feature analyzer creates comprehensive todo lists
-2. ✅ **Scaffolding** - Generate boilerplate following MedGenEMR patterns  
-3. ✅ **Validation** - FHIR compliance and integration checks
-4. ✅ **Quality** - Code cleanup and error detection
-5. ✅ **Documentation** - Automatic doc updates and cross-referencing
+The master workflow orchestrates all agents with Context7 integration for complete feature development:
+1. ✅ **Context Gathering** - Context7 queries for real-time patterns and documentation
+2. ✅ **Analysis** - Feature analyzer creates comprehensive todo lists with Context7 insights
+3. ✅ **Scaffolding** - Generate boilerplate following latest patterns from Context7  
+4. ✅ **Validation** - FHIR compliance and integration checks with real-time standards
+5. ✅ **Quality** - Code cleanup and error detection using current best practices
+6. ✅ **Documentation** - Automatic doc updates and knowledge base integration
+7. ✅ **Knowledge Update** - Context7 knowledge base updated with new discoveries
 
 ```bash
 # Complete feature development workflow
@@ -818,6 +820,81 @@ python .claude/agents/fhir-integration-checker.py src/problematic/file.js
 - Run master workflow for complete feature development
 - Integrate agents into CI/CD for automated quality gates
 
+## 🔗 Context7 MCP Integration
+
+**Context7 enhances all agents with real-time documentation and pattern access**
+
+### Setup and Configuration
+```bash
+# Context7 MCP is configured via HTTP transport
+claude mcp add --transport http context7 https://mcp.context7.com/mcp
+
+# Verify setup
+claude mcp list
+# Should show: context7: https://mcp.context7.com/mcp (HTTP)
+```
+
+### Integration Features
+- **Pre-task Hooks**: Automatically warm Context7 cache with relevant patterns
+- **Agent Enhancement**: All agents query Context7 for latest standards and best practices
+- **Post-task Hooks**: Update Context7 knowledge base with new discoveries
+- **Error Context**: Context7 provides debugging guidance during error conditions
+- **Cross-session Persistence**: Context and learnings persist across development sessions
+
+### Context7 Integration Module
+**File**: `.claude/utils/context7_integration.py`
+
+```python
+# Direct usage in agents
+from context7_integration import Context7Client, get_agent_context
+
+client = Context7Client()
+context = client.get_context("FHIR R5 validation patterns")
+agent_context = client.get_agent_context("fhir-checker", "Validating Patient component")
+client.update_knowledge("validation_pattern", pattern_data, "fhir-checker")
+```
+
+### Command Line Usage
+```bash
+# Cache warmup (used by pre-task hooks)
+python .claude/utils/context7_integration.py --cache-warmup
+
+# Direct queries
+python .claude/utils/context7_integration.py --query "React component patterns"
+
+# Agent-specific context
+python .claude/utils/context7_integration.py --agent-context fhir-checker --task-context "validating new component"
+
+# Knowledge base updates (used by post-task hooks)
+python .claude/utils/context7_integration.py --update-knowledge
+
+# Error debugging context
+python .claude/utils/context7_integration.py --error-context
+```
+
+### Enhanced Workflows with Context7
+All workflows now include Context7 integration:
+- **new-feature**: Context7 queries for implementation patterns
+- **quick-feature**: Context7 for rapid pattern access
+- **quality-check**: Context7 for latest best practices
+- **debug-feature**: Context7 for error debugging guidance
+- **ui-composer**: Context7 for React component patterns
+
+### Agent Enhancements
+All agents are enhanced with Context7:
+- **feature-scaffold.py**: Queries latest MedGenEMR patterns (Context7 enhanced)
+- **fhir-integration-checker.py**: Real-time FHIR R5 standards validation (Context7 enhanced)
+- **qa-agent.py**: Current React/FastAPI best practices (Context7 enhanced)
+- **integration-validator.py**: Latest integration patterns (Context7 enhanced)
+- **feature-analyzer.py**: Context-aware feature analysis (Context7 enhanced)
+
+### Benefits
+- **Real-time Documentation**: Always current standards and patterns
+- **Enhanced Analysis**: Context7-powered feature analysis and scaffolding
+- **Knowledge Persistence**: Cross-session learning and context preservation
+- **Error Guidance**: Context7 debugging assistance for common issues
+- **Pattern Discovery**: Automatic knowledge base updates with new patterns
+
 ## 📚 Enhanced Documentation System
 
 ### Automatic Documentation Tracking
@@ -925,6 +1002,43 @@ git status docs/ --porcelain
 - Error handling and loading state validation
 
 This agent system ensures reliable, consistent feature development following MedGenEMR patterns and maintains code quality standards automatically.
+
+### Recent Updates - 2025-01-10
+
+**🔗 Context7 MCP Integration Complete**
+- ✅ Successfully integrated Context7 MCP server via HTTP transport
+- ✅ Created comprehensive Context7 integration module (.claude/utils/context7_integration.py)
+- ✅ Enhanced all existing agents with Context7 real-time context capabilities
+- ✅ Updated hook system for automatic Context7 cache warming and knowledge updates
+- ✅ Enhanced all workflows to include Context7 pattern queries and guidance
+- ✅ Added agent-specific context and cross-session knowledge persistence
+- ✅ Implemented CLI support for direct Context7 queries and debugging
+
+**Context7 Agent Enhancements**:
+- **feature-scaffold.py**: Now queries Context7 for latest MedGenEMR patterns during scaffolding
+- **fhir-integration-checker.py**: Real-time FHIR R5 standards validation with current documentation
+- **qa-agent.py**: Enhanced with latest React/FastAPI best practices from Context7
+- **integration-validator.py**: Uses Context7 for current integration patterns
+- **feature-analyzer.py**: Context-aware feature analysis with real-time insights
+
+**Hook System Integration**:
+- Pre-task hooks automatically warm Context7 cache with relevant patterns
+- Post-task hooks update Context7 knowledge base with new discoveries
+- Error hooks provide Context7 debugging guidance
+- Feature-request hooks include Context7 pattern queries
+
+**Workflow Enhancements**:
+- All workflows now include Context7 queries for real-time pattern access
+- Enhanced scaffolding with Context7 insights
+- Context7-powered quality checks and debugging
+- Knowledge base updates after successful implementations
+
+**Benefits Realized**:
+- Real-time access to current documentation and standards
+- Cross-session context persistence and learning
+- Enhanced pattern recognition and code generation
+- Automatic knowledge base updates with new discoveries
+- Error debugging assistance with current best practices
 
 ### Recent Updates - 2025-01-08 (Part 2)
 

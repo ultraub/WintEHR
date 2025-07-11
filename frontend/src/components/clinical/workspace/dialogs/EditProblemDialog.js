@@ -207,7 +207,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         } : {
           text: formData.problemText
         },
-        subject: {
+        subject: condition.subject || {
           reference: `Patient/${patientId}`
         },
         ...(formData.onsetDate && {

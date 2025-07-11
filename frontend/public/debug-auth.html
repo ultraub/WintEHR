@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Debug</title>
+</head>
+<body>
+    <h1>Authentication Debug</h1>
+    <div id="output"></div>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="clearAuth()">Clear Auth</button>
+    
+    <script>
+        function displayAuth() {
+            const output = document.getElementById('output');
+            const token = localStorage.getItem('auth_token');
+            const user = localStorage.getItem('auth_user');
+            
+            output.innerHTML = `
+                <h3>Current Auth State:</h3>
+                <p><strong>Token:</strong> ${token || 'None'}</p>
+                <p><strong>User:</strong> ${user || 'None'}</p>
+                <p><strong>Token Length:</strong> ${token ? token.length : 0}</p>
+                <p><strong>Token Valid:</strong> ${token && token !== 'null' ? 'Yes' : 'No'}</p>
+            `;
+        }
+        
+        async function testLogin() {
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'demo', password: 'password' })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('auth_user', JSON.stringify(data.user));
+                    alert('Login successful!');
+                    displayAuth();
+                } else {
+                    alert('Login failed: ' + response.statusText);
+                }
+            } catch (error) {
+                alert('Login error: ' + error.message);
+            }
+        }
+        
+        function clearAuth() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            alert('Auth cleared');
+            displayAuth();
+        }
+        
+        displayAuth();
+    </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
  * This maps old fhirService methods to fhirClient equivalents
  */
 
-import fhirClient from './fhirClient';
+import { fhirClient } from './fhirClient';
 
 // Create a compatibility layer that matches fhirService API
 const fhirServiceCompat = {
@@ -30,13 +30,19 @@ const fhirServiceCompat = {
 
   // Patient-specific methods
   async getPatient(patientId) {
-    return fhirClient.getPatient(patientId);
+    return fhirClient.read('Patient', patientId);
   },
 
   async getPatientResources(patientId, resourceTypes = null) {
     // If no resource types specified, get all
     if (!resourceTypes) {
-      return fhirClient.getPatientEverything(patientId);
+      // Use the $everything operation
+      const response = await fhirClient.operation({
+        resourceType: 'Patient',
+        id: patientId,
+        $operation: '$everything'
+      });
+      return response;
     }
     
     // Otherwise, batch get specific resource types
@@ -57,62 +63,65 @@ const fhirServiceCompat = {
 
   // Condition methods
   async getConditions(patientId) {
-    return fhirClient.getConditions(patientId);
+    const result = await fhirClient.search('Condition', { patient: patientId });
+    return result.entry ? result.entry.map(e => e.resource) : [];
   },
 
   async createCondition(conditionData) {
-    return fhirClient.createCondition(conditionData);
+    return fhirClient.create('Condition', conditionData);
   },
 
   async updateCondition(conditionId, conditionData) {
-    return fhirClient.updateCondition(conditionId, conditionData);
+    return fhirClient.update('Condition', conditionId, conditionData);
   },
 
   async deleteCondition(conditionId) {
-    return fhirClient.deleteCondition(conditionId);
+    return fhirClient.delete('Condition', conditionId);
   },
 
   // Medication methods
   async getMedicationRequests(patientId) {
-    return fhirClient.getMedicationRequests(patientId);
+    const result = await fhirClient.search('MedicationRequest', { patient: patientId });
+    return result.entry ? result.entry.map(e => e.resource) : [];
   },
 
   async createMedicationRequest(medicationData) {
-    return fhirClient.createMedicationRequest(medicationData);
+    return fhirClient.create('MedicationRequest', medicationData);
   },
 
   async updateMedicationRequest(medicationId, medicationData) {
-    return fhirClient.updateMedicationRequest(medicationId, medicationData);
+    return fhirClient.update('MedicationRequest', medicationId, medicationData);
   },
 
   async deleteMedicationRequest(medicationId) {
-    return fhirClient.deleteMedicationRequest(medicationId);
+    return fhirClient.delete('MedicationRequest', medicationId);
   },
 
   // Allergy methods
   async getAllergyIntolerances(patientId) {
-    return fhirClient.getAllergyIntolerances(patientId);
+    const result = await fhirClient.search('AllergyIntolerance', { patient: patientId });
+    return result.entry ? result.entry.map(e => e.resource) : [];
   },
 
   async createAllergyIntolerance(allergyData) {
-    return fhirClient.createAllergyIntolerance(allergyData);
+    return fhirClient.create('AllergyIntolerance', allergyData);
   },
 
   async updateAllergyIntolerance(allergyId, allergyData) {
-    return fhirClient.updateAllergyIntolerance(allergyId, allergyData);
+    return fhirClient.update('AllergyIntolerance', allergyId, allergyData);
   },
 
   async deleteAllergyIntolerance(allergyId) {
-    return fhirClient.deleteAllergyIntolerance(allergyId);
+    return fhirClient.delete('AllergyIntolerance', allergyId);
   },
 
   // Additional methods from fhirService
   async getActiveProblems(patientId) {
-    const conditions = await fhirClient.getConditions(patientId);
-    // Filter for active conditions
-    return conditions.filter(condition => 
-      condition.clinicalStatus?.coding?.[0]?.code === 'active'
-    );
+    const result = await fhirClient.search('Condition', { 
+      patient: patientId,
+      'clinical-status': 'active'
+    });
+    return result.entry ? result.entry.map(e => e.resource) : [];
   },
 
   async getMedicationHistory(patientId) {
@@ -133,20 +142,21 @@ const fhirServiceCompat = {
 
   // Immunization methods
   async getImmunizations(patientId) {
-    return fhirClient.getImmunizations(patientId);
+    const result = await fhirClient.search('Immunization', { patient: patientId });
+    return result.entry ? result.entry.map(e => e.resource) : [];
   },
 
   async createImmunization(immunizationData) {
-    return fhirClient.createImmunization(immunizationData);
+    return fhirClient.create('Immunization', immunizationData);
   },
 
   async updateImmunization(immunizationId, immunizationData) {
-    return fhirClient.updateImmunization(immunizationId, immunizationData);
+    return fhirClient.update('Immunization', immunizationId, immunizationData);
   },
 
   // Search helper
   async searchPatients(searchParams) {
-    return fhirClient.searchPatients(searchParams);
+    return fhirClient.search('Patient', searchParams);
   },
 
   // Reference helpers (static methods)

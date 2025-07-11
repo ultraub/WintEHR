@@ -44,6 +44,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -143,6 +144,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     isResourceLoading,
     currentPatient 
   } = useFHIRResource();
+  const { subscribe, publish } = useClinicalWorkflow();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -160,16 +162,41 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     loadDashboardData();
   }, [patientId]);
 
-  // Reload data when resources change
+  // Note: Removed problematic useEffect that was causing infinite loops
+  // Data refreshing is now handled only by the event system below
+
+  // Subscribe to clinical events to refresh summary when data changes
   useEffect(() => {
-    // Get conditions to check if data has been loaded
-    const conditions = getPatientResources(patientId, 'Condition') || [];
-    
-    // If we previously had no conditions but now have some, reload
-    if (conditions.length > 0 && stats.activeProblems === 0) {
-      loadDashboardData();
-    }
-  }, [getPatientResources, patientId, stats.activeProblems]);
+    const unsubscribers = [];
+
+    // Subscribe to events that should trigger a refresh
+    const eventsToWatch = [
+      CLINICAL_EVENTS.CONDITION_ADDED,
+      CLINICAL_EVENTS.CONDITION_UPDATED,
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED,
+      CLINICAL_EVENTS.RESULT_RECEIVED,
+      CLINICAL_EVENTS.ENCOUNTER_CREATED,
+      CLINICAL_EVENTS.ALLERGY_ADDED,
+      CLINICAL_EVENTS.ALLERGY_UPDATED
+    ];
+
+    eventsToWatch.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (data) => {
+        // Only refresh if the event is for the current patient
+        if (data.patientId === patientId || data.resourceType) {
+          setRefreshing(true);
+          loadDashboardData();
+        }
+      });
+      unsubscribers.push(unsubscribe);
+    });
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe, patientId]);
 
   const loadDashboardData = async () => {
     try {
@@ -254,7 +281,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
       setLastRefresh(new Date());
     } catch (error) {
-      // Error loading data - in production would use proper error logging
+      console.error('Error loading summary data:', error);
+      // In production, this would show an error notification to the user
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -262,10 +290,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   };
 
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadDashboardData();
-  };
+  }, []);
 
   const handlePrintSummary = () => {
     const patientInfo = {
@@ -543,17 +571,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       key={lab.id}
                       primary={lab.code?.text || lab.code?.coding?.[0]?.display}
                       secondary={
-                        <Box>
-                          <Typography variant="caption">
-                            {lab.valueQuantity ? 
-                              `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
-                              lab.valueString || 'Result pending'
-                            }
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d, yyyy')}
-                          </Typography>
-                        </Box>
+                        <>
+                          {lab.valueQuantity ? 
+                            `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
+                            lab.valueString || 'Result pending'
+                          }
+                          {' • '}
+                          {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d, yyyy')}
+                        </>
                       }
                       icon={<LabIcon color="info" />}
                       status={lab.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'High' : 

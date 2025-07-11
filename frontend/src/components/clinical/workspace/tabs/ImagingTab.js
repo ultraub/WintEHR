@@ -2,7 +2,7 @@
  * Imaging Tab Component
  * Display and manage medical imaging studies with DICOM viewer integration
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -74,6 +74,7 @@ import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../utils/printUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Get modality icon
 const getModalityIcon = (modality) => {
@@ -292,6 +293,7 @@ const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
 const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { publish, subscribe } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [filterModality, setFilterModality] = useState('all');
@@ -306,12 +308,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const [studies, setStudies] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Load imaging studies
-  useEffect(() => {
-    loadImagingStudies();
-  }, [patientId]);
-
-  const loadImagingStudies = async () => {
+  // Load imaging studies function with useCallback
+  const loadImagingStudies = useCallback(async () => {
     setLoading(true);
     try {
       // Try to get imaging studies from FHIR resources first
@@ -341,7 +339,54 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, getPatientResources]);
+
+  // Load imaging studies
+  useEffect(() => {
+    loadImagingStudies();
+  }, [loadImagingStudies]);
+
+  // Subscribe to imaging-related events
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Subscribe to order placed events for imaging orders
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
+        if (data.type === 'imaging' && data.patientId === patientId) {
+          // Refresh imaging studies when a new imaging order is placed
+          loadImagingStudies();
+          
+          setSnackbar({
+            open: true,
+            message: 'New imaging order placed',
+            severity: 'info'
+          });
+        }
+      })
+    );
+
+    // Subscribe to result received events for imaging results
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.RESULT_RECEIVED, (data) => {
+        if (data.type === 'imaging' && data.patientId === patientId) {
+          // Refresh imaging studies when results are available
+          loadImagingStudies();
+          
+          setSnackbar({
+            open: true,
+            message: 'New imaging results available',
+            severity: 'success'
+          });
+        }
+      })
+    );
+
+    // Cleanup subscriptions
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [patientId, subscribe, loadImagingStudies]);
 
   // Filter studies
   const filteredStudies = studies.filter(study => {
@@ -404,8 +449,18 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     return acc;
   }, {});
 
-  const handleViewStudy = (study) => {
+  const handleViewStudy = async (study) => {
     setViewerDialog({ open: true, study });
+    
+    // Publish imaging study viewed event
+    await publish(CLINICAL_EVENTS.IMAGING_STUDY_VIEWED, {
+      studyId: study.id,
+      patientId,
+      modality: study.modality?.code || 'Unknown',
+      studyDate: study.started,
+      description: study.description,
+      timestamp: new Date().toISOString()
+    });
   };
 
   const handlePrintStudy = (study) => {

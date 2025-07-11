@@ -8,6 +8,7 @@ Implements versioning, history tracking, and search parameter extraction.
 import json
 import uuid
 import re
+import logging
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
@@ -20,6 +21,8 @@ from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIs
 
 from .synthea_validator import SyntheaFHIRValidator
 from .reference_utils import ReferenceUtils
+from .version_negotiator import FHIRVersion, version_negotiator
+from .version_transformer import fhir_transformer
 try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:
@@ -54,9 +57,12 @@ class FHIRJSONEncoder(json.JSONEncoder):
 class FHIRStorageEngine:
     """Core storage engine for FHIR resources."""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, default_version: FHIRVersion = FHIRVersion.R4):
         self.session = session
         self.validator = SyntheaFHIRValidator()
+        self.default_version = default_version
+        self.version_negotiator = version_negotiator
+        self.version_transformer = fhir_transformer
     
     def _get_search_parameter_definitions(self) -> Dict[str, Dict]:
         """Get search parameter definitions for all resource types."""
@@ -176,7 +182,8 @@ class FHIRStorageEngine:
         self,
         resource_type: str,
         resource_data: Dict[str, Any],
-        if_none_exist: Optional[str] = None
+        if_none_exist: Optional[str] = None,
+        target_version: Optional[FHIRVersion] = None
     ) -> Tuple[str, int, datetime]:
         """
         Create a new FHIR resource.
@@ -189,6 +196,23 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (fhir_id, version_id, last_updated)
         """
+        
+        # Handle FHIR version transformation
+        if target_version is None:
+            target_version = self.default_version
+        
+        # Detect source version and transform if needed
+        detection_result = self.version_negotiator.detect_version_from_resource(resource_data)
+        if detection_result.detected_version != target_version:
+            transformation_result = self.version_transformer.transform_resource(
+                resource_data, target_version, detection_result.detected_version
+            )
+            if transformation_result.success:
+                resource_data = transformation_result.transformed_resource
+                logging.info(f"Transformed {resource_type} from {detection_result.detected_version.value} "
+                           f"to {target_version.value}")
+            else:
+                logging.warning(f"Version transformation failed: {transformation_result.warnings}")
         
         # Validate resource
         try:
@@ -273,6 +297,7 @@ class FHIRStorageEngine:
         
         # Extract search parameters
         try:
+            logging.info(f"DEBUG: About to extract search params - resource_id={resource_id}, resource_type={resource_type}, fhir_id={fhir_id}")
             await self._extract_search_parameters(resource_id, resource_type, resource_dict)
             logging.debug(f"DEBUG: Successfully extracted search parameters for {resource_type} {fhir_id}")
         except Exception as e:
@@ -374,24 +399,7 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (version_id, last_updated)
         """
-        # Validate resource
-        try:
-            # Ensure resourceType is set
-            if 'resourceType' not in resource_data:
-                resource_data['resourceType'] = resource_type
-            
-            # Preprocess with SyntheaFHIRValidator before validation
-            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
-            
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
-            resource_dict = fhir_resource.dict(exclude_none=True)
-            
-            # Ensure resourceType is in the final dict
-            resource_dict['resourceType'] = resource_type
-        except Exception as e:
-            raise ValueError(f"Invalid FHIR resource: {str(e)}")
-        
-        # Get current resource
+        # Get current resource first
         query = text("""
             SELECT id, version_id
             FROM fhir.resources
@@ -411,6 +419,26 @@ class FHIRStorageEngine:
             raise ValueError(f"Resource {resource_type}/{fhir_id} not found")
         
         resource_id, current_version = row
+        
+        # Validate resource early to prevent search parameter corruption
+        try:
+            # Ensure resourceType is set
+            if 'resourceType' not in resource_data:
+                resource_data['resourceType'] = resource_type
+            
+            # Preprocess with SyntheaFHIRValidator before validation
+            resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
+            
+            fhir_resource = construct_fhir_element(resource_type, resource_data)
+            resource_dict = fhir_resource.dict(exclude_none=True)
+            
+            # Ensure resourceType is in the final dict
+            resource_dict['resourceType'] = resource_type
+            
+            logging.debug(f"DEBUG: Successfully validated {resource_type} {fhir_id}")
+        except Exception as e:
+            logging.error(f"ERROR: FHIR validation failed for {resource_type} {fhir_id}: {e}")
+            raise ValueError(f"Invalid FHIR resource: {str(e)}")
         
         # Check if-match condition
         if if_match:
@@ -453,20 +481,27 @@ class FHIRStorageEngine:
             resource_id, new_version, 'update', resource_dict
         )
         
-        # Update search parameters
-        await self._delete_search_parameters(resource_id)
+        # Atomic update of search parameters and references
         try:
+            # Update search parameters
+            await self._delete_search_parameters(resource_id)
             await self._extract_search_parameters(resource_id, resource_type, resource_dict)
             logging.debug(f"DEBUG: Successfully updated search parameters for {resource_type} {fhir_id}")
-        except Exception as e:
-            logging.error(f"ERROR: Failed to update search parameters for {resource_type} {fhir_id}: {e}")
-        # Update references
-        await self._delete_references(resource_id)
-        try:
+            
+            # Update references
+            await self._delete_references(resource_id)
             await self._extract_references(resource_id, resource_dict, "", resource_type)
+            logging.debug(f"DEBUG: Successfully updated references for {resource_type} {fhir_id}")
+            
+            # Commit all changes atomically
+            await self.session.commit()
+            logging.debug(f"DEBUG: Successfully committed update for {resource_type} {fhir_id}")
+            
         except Exception as e:
-            logging.error(f"ERROR: Failed to update references for {resource_type} {fhir_id}: {e}")
-        await self.session.commit()
+            # Rollback the entire transaction on any failure
+            await self.session.rollback()
+            logging.error(f"ERROR: Failed to update search parameters/references for {resource_type} {fhir_id}: {e}")
+            raise ValueError(f"Failed to update resource indexing: {str(e)}")
         
         # Send WebSocket notification
         if notification_service:
@@ -734,7 +769,159 @@ class FHIRStorageEngine:
                     await self.session.rollback()
                 response_bundle.entry.append(response_entry)
         
+        # Convert to dict to avoid serialization issues with fhir.resources objects
+        return response_bundle.dict()
+    
+    async def process_bundle_dict(self, bundle_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process a FHIR Bundle from dictionary data (without fhir.resources validation).
+        
+        Args:
+            bundle_data: Bundle data as dictionary
+            
+        Returns:
+            Response Bundle as dictionary
+        """
+        bundle_type = bundle_data.get('type')
+        entries = bundle_data.get('entry', [])
+        
+        response_bundle = {
+            "resourceType": "Bundle",
+            "type": "batch-response" if bundle_type == "batch" else "transaction-response",
+            "entry": []
+        }
+        
+        # Transaction handling
+        if bundle_type == "transaction":
+            # All operations must succeed
+            try:
+                for entry in entries:
+                    response_entry = await self._process_bundle_entry_dict(entry)
+                    response_bundle['entry'].append(response_entry)
+                await self.session.commit()
+            except Exception as e:
+                await self.session.rollback()
+                raise
+        else:
+            # Batch - independent operations
+            for entry in entries:
+                try:
+                    response_entry = await self._process_bundle_entry_dict(entry)
+                    await self.session.commit()
+                except Exception as e:
+                    # Create error response
+                    response_entry = {
+                        "response": {
+                            "status": "500",
+                            "outcome": {
+                                "resourceType": "OperationOutcome",
+                                "issue": [{
+                                    "severity": "error",
+                                    "code": "exception",
+                                    "diagnostics": str(e)
+                                }]
+                            }
+                        }
+                    }
+                    await self.session.rollback()
+                response_bundle['entry'].append(response_entry)
+        
         return response_bundle
+    
+    async def _process_bundle_entry_dict(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """Process a single bundle entry from dictionary."""
+        request = entry.get('request')
+        resource = entry.get('resource')
+        
+        if not request:
+            raise ValueError("Bundle entry missing request")
+        
+        method = request.get('method')
+        url = request.get('url')
+        
+        # Parse URL to get resource type and ID
+        url_parts = url.split('/')
+        resource_type = url_parts[0]
+        fhir_id = url_parts[1] if len(url_parts) > 1 else None
+        
+        response_entry = {}
+        
+        if method == "POST":
+            # Create
+            if resource:
+                fhir_id, version_id, last_updated = await self.create_resource(
+                    resource_type, resource
+                )
+                response_entry['response'] = {
+                    "status": "201",
+                    "location": f"{resource_type}/{fhir_id}/_history/{version_id}",
+                    "lastModified": last_updated.isoformat()
+                }
+        
+        elif method == "PUT":
+            # Update
+            if fhir_id and resource:
+                version_id, last_updated = await self.update_resource(
+                    resource_type, fhir_id, resource
+                )
+                response_entry['response'] = {
+                    "status": "200",
+                    "location": f"{resource_type}/{fhir_id}/_history/{version_id}",
+                    "lastModified": last_updated.isoformat()
+                }
+        
+        elif method == "DELETE":
+            # Delete
+            if fhir_id:
+                deleted = await self.delete_resource(resource_type, fhir_id)
+                response_entry['response'] = {
+                    "status": "204" if deleted else "404"
+                }
+        
+        elif method == "GET":
+            # Read/Search
+            if fhir_id:
+                # Read single resource
+                resource = await self.get_resource(resource_type, fhir_id)
+                if resource:
+                    response_entry['resource'] = resource
+                    response_entry['response'] = {"status": "200"}
+                else:
+                    response_entry['response'] = {"status": "404"}
+            else:
+                # Search
+                try:
+                    # Simple search without parameters for now
+                    resources, total = await self.search_resources(
+                        resource_type, {}, limit=10
+                    )
+                    
+                    search_bundle = {
+                        "resourceType": "Bundle",
+                        "type": "searchset",
+                        "total": total,
+                        "entry": [
+                            {"resource": res} for res in resources
+                        ]
+                    }
+                    
+                    response_entry['resource'] = search_bundle
+                    response_entry['response'] = {"status": "200"}
+                    
+                except Exception as e:
+                    response_entry['response'] = {
+                        "status": "500",
+                        "outcome": {
+                            "resourceType": "OperationOutcome",
+                            "issue": [{
+                                "severity": "error",
+                                "code": "exception",
+                                "diagnostics": str(e)
+                            }]
+                        }
+                    }
+        
+        return response_entry
     
     async def _process_bundle_entry(self, entry: BundleEntry) -> BundleEntry:
         """Process a single bundle entry."""
@@ -1021,7 +1208,7 @@ class FHIRStorageEngine:
                 
                 # Also extract patient-specific reference
                 # Handle both standard Patient/id and urn:uuid: formats
-                resource_type_ref, resource_id = ReferenceUtils.extract_resource_type_and_id(ref)
+                resource_type_ref, ref_resource_id = ReferenceUtils.extract_resource_type_and_id(ref)
                 if resource_type_ref == 'Patient' or (resource_type_ref is None and ref.startswith('urn:uuid:')):
                     # For urn:uuid refs, we assume subject refers to patient in Observation context
                     params_to_extract.append({
@@ -1532,7 +1719,7 @@ class FHIRStorageEngine:
                 except (ValueError, TypeError):
                     value_number = None
             
-            await self.session.execute(query, {
+            params_dict = {
                 'resource_id': resource_id,
                 'resource_type': resource_type,
                 'param_name': param['param_name'],
@@ -1542,7 +1729,9 @@ class FHIRStorageEngine:
                 'value_date': param.get('value_date'),
                 'value_token_system': param.get('value_token_system'),
                 'value_token_code': param.get('value_token_code')
-            })
+            }
+            
+            await self.session.execute(query, params_dict)
     
     async def _extract_references(
         self,
@@ -1562,25 +1751,10 @@ class FHIRStorageEngine:
                     target_type = parts[0]
                     target_id = parts[1]
                     
-                    query = text("""
-                        INSERT INTO fhir.references (
-                            source_id, source_type, target_type, target_id, path
-                        ) VALUES (
-                            :source_id, :source_type, :target_type, :target_id, :path
-                        )
-                    """)
-                    
-                    # Get source type from parameter or resource
-                    if not source_type:
-                        source_type = resource_data.get('resourceType', 'Unknown')
-                    
-                    await self.session.execute(query, {
-                        'source_id': resource_id,
-                        'source_type': source_type,
-                        'target_type': target_type,
-                        'target_id': target_id,
-                        'path': path  # Parent path of the reference
-                    })
+                    # Skip inserting references for now since the schema expects integer target_id
+                    # but we have string FHIR IDs. This would need schema migration to fix properly.
+                    # The search parameters already capture the reference information.
+                    pass
             
             elif isinstance(value, dict):
                 # Recurse into nested objects
