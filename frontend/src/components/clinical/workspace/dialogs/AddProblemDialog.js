@@ -27,7 +27,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
-import { searchService } from '../../../../services/searchService';
+import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
 
 const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
   const [loading, setLoading] = useState(false);
@@ -46,7 +46,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     notes: ''
   });
 
-  // Search for conditions as user types
+  // Search for conditions as user types using dynamic catalog
   const handleSearchConditions = async (query) => {
     if (!query || query.length < 2) {
       setConditionOptions([]);
@@ -55,10 +55,16 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
 
     setSearchLoading(true);
     try {
-      const results = await searchService.searchConditions(query, 20);
-      setConditionOptions(results.map(searchService.formatCondition));
+      const results = await cdsClinicalDataService.getDynamicConditionCatalog(query, 20);
+      setConditionOptions(results.map(cond => ({
+        code: cond.code,
+        display: cond.display,
+        system: 'http://snomed.info/sct', // Most conditions are SNOMED
+        frequency_count: cond.frequency_count,
+        source: 'dynamic'
+      })));
     } catch (error) {
-      
+      console.error('Error searching conditions:', error);
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);

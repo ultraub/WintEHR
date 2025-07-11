@@ -7,7 +7,7 @@ import axios from 'axios';
 class CDSHooksClient {
   constructor() {
     // Use relative URL for production compatibility
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/api/cds-hooks';
+    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/cds-hooks';
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
