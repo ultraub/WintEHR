@@ -61,6 +61,9 @@ import {
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
+import LabValueConditionBuilder from './conditions/LabValueConditionBuilder';
+import VitalSignConditionBuilder from './conditions/VitalSignConditionBuilder';
+import MedicalConditionBuilder from './conditions/MedicalConditionBuilder';
 
 const HOOK_TYPES = [
   { value: 'patient-view', label: 'Patient View', description: 'Fired when user is viewing a patient' },
@@ -339,71 +342,106 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           hookData.conditions.map((condition) => (
             <Card key={condition.id} variant="outlined">
               <CardContent>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Condition Type</InputLabel>
-                      <Select
-                        value={condition.type}
-                        label="Condition Type"
-                        onChange={(e) => updateCondition(condition.id, { type: e.target.value })}
-                      >
-                        {CONDITION_TYPES.map(type => (
-                          <MenuItem key={type.value} value={type.value}>
-                            {type.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Operator</InputLabel>
-                      <Select
-                        value={condition.operator}
-                        label="Operator"
-                        onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
-                      >
-                        <MenuItem value="equals">Equals</MenuItem>
-                        <MenuItem value="greater_than">Greater Than</MenuItem>
-                        <MenuItem value="less_than">Less Than</MenuItem>
-                        <MenuItem value="contains">Contains</MenuItem>
-                        <MenuItem value="exists">Exists</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Value"
-                      value={condition.value}
-                      onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
-                      placeholder="Enter condition value"
+                <Stack spacing={2}>
+                  {/* Condition Type Selector */}
+                  <FormControl fullWidth>
+                    <InputLabel>Condition Type</InputLabel>
+                    <Select
+                      value={condition.type}
+                      label="Condition Type"
+                      onChange={(e) => updateCondition(condition.id, { type: e.target.value })}
+                      data-testid="condition-type-select"
+                    >
+                      {CONDITION_TYPES.map(type => (
+                        <MenuItem key={type.value} value={type.value}>
+                          <Stack>
+                            <Typography>{type.label}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {type.description}
+                            </Typography>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Dynamic Condition Builder based on type */}
+                  {condition.type === 'lab_value' && (
+                    <LabValueConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
                     />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <Stack direction="row" spacing={1}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            size="small"
-                            checked={condition.enabled}
-                            onChange={(e) => updateCondition(condition.id, { enabled: e.target.checked })}
-                          />
-                        }
-                        label="Enabled"
-                      />
-                      <IconButton 
-                        size="small" 
-                        color="error"
-                        onClick={() => removeCondition(condition.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Stack>
-                  </Grid>
-                </Grid>
+                  )}
+                  
+                  {condition.type === 'vital_sign' && (
+                    <VitalSignConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
+                    />
+                  )}
+                  
+                  {condition.type === 'condition' && (
+                    <MedicalConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
+                    />
+                  )}
+                  
+                  {/* Default builder for other condition types */}
+                  {!['lab_value', 'vital_sign', 'condition'].includes(condition.type) && (
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth>
+                          <InputLabel>Operator</InputLabel>
+                          <Select
+                            value={condition.operator}
+                            label="Operator"
+                            onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
+                            data-testid="operator-select"
+                          >
+                            <MenuItem value="equals">Equals</MenuItem>
+                            <MenuItem value="greater_than">Greater Than</MenuItem>
+                            <MenuItem value="less_than">Less Than</MenuItem>
+                            <MenuItem value="contains">Contains</MenuItem>
+                            <MenuItem value="exists">Exists</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Value"
+                          value={condition.value}
+                          onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
+                          placeholder="Enter condition value"
+                        />
+                      </Grid>
+                    </Grid>
+                  )}
+
+                  {/* Common controls for all condition types */}
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={condition.enabled}
+                          onChange={(e) => updateCondition(condition.id, { enabled: e.target.checked })}
+                        />
+                      }
+                      label="Enabled"
+                    />
+                    <IconButton 
+                      color="error"
+                      onClick={() => removeCondition(condition.id)}
+                      aria-label="Remove condition"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Stack>
+                </Stack>
               </CardContent>
             </Card>
           ))

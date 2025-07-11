@@ -132,6 +132,52 @@ class CDSHooksService {
       } else if (condition.operator === 'equals') {
         parameters.operator = '==';
       }
+    } else if (condition.type === 'lab_value') {
+      // Lab value specific parameters
+      parameters.code = condition.labTest;
+      parameters.labTest = condition.labTest; // For backward compatibility
+      if (condition.value2) {
+        parameters.value2 = condition.value2;
+      }
+      if (condition.timeframe) {
+        parameters.timeframe = condition.timeframe;
+      }
+      if (condition.trendMinResults) {
+        parameters.trendMinResults = condition.trendMinResults;
+      }
+      // Map frontend operators to backend format
+      const operatorMap = {
+        'gt': 'gt',
+        'gte': 'ge',
+        'lt': 'lt',
+        'lte': 'le',
+        'eq': 'eq',
+        'between': 'between',
+        'not_between': 'not_between',
+        'abnormal': 'abnormal',
+        'critical': 'critical',
+        'trending_up': 'trending_up',
+        'trending_down': 'trending_down',
+        'missing': 'missing'
+      };
+      parameters.operator = operatorMap[condition.operator] || condition.operator;
+    } else if (condition.type === 'vital_sign') {
+      // Vital sign specific parameters
+      parameters.type = condition.vitalType;
+      if (condition.component) {
+        parameters.component = condition.component;
+      }
+      if (condition.timeframe) {
+        parameters.timeframe = condition.timeframe;
+      }
+    } else if (condition.type === 'condition') {
+      // Medical condition specific parameters
+      if (condition.codes) {
+        parameters.codes = condition.codes;
+      }
+      if (condition.system) {
+        parameters.system = condition.system;
+      }
     }
 
     return parameters;

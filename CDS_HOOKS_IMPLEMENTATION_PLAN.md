@@ -167,41 +167,51 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
 
 ## Phase 3: Advanced Features
 
-### 3.1 Display Behavior Configuration 🚧 TODO
-**Create**: `/frontend/src/components/cds-studio/build/DisplayBehaviorPanel.js`
+### 3.1 Display Behavior Configuration ✅ COMPLETED
+**Location**: `/frontend/src/components/cds-studio/build/DisplayBehaviorPanel.js`
 
-#### Subtasks:
-- [ ] Presentation mode selector
-  - [ ] Hard stop (modal, must address)
-  - [ ] Dismissible popup
-  - [ ] Non-obtrusive (sidebar/banner)
-  - [ ] Inline suggestion
-- [ ] Per-indicator overrides
-  - [ ] Critical → Always hard stop
-  - [ ] Warning → Configurable
-  - [ ] Info → Default non-obtrusive
-- [ ] Acknowledgment settings
-  - [ ] Require reason for override
-  - [ ] Capture dismissal reason
-  - [ ] Snooze duration options
+#### Completed Features:
+- [x] Presentation mode selector
+  - [x] Hard stop (modal, must address)
+  - [x] Dismissible popup
+  - [x] Sidebar alert (non-blocking)
+  - [x] Inline suggestion
+- [x] Per-indicator overrides
+  - [x] Info/Warning/Critical/Success mapping
+  - [x] Default mode with overrides
+  - [x] Visual severity indicators
+- [x] Acknowledgment settings
+  - [x] 4 acknowledgment types
+  - [x] Custom reason options
+  - [x] Attestation requirements
+- [x] Snooze configuration
+  - [x] Enable/disable snooze
+  - [x] Duration options (1hr to 1 week)
+  - [x] Maximum snooze limits
+- [x] Timing controls
+  - [x] Auto-display with delay
+  - [x] Auto-dismiss settings
 
-### 3.2 Prefetch Query Builder 🚧 TODO
-**Create**: `/frontend/src/components/cds-studio/build/PrefetchBuilder.js`
+### 3.2 Prefetch Query Builder ✅ COMPLETED
+**Location**: `/frontend/src/components/cds-studio/build/PrefetchBuilderImproved.js`
 
-#### Subtasks:
-- [ ] Visual query builder interface
-- [ ] Common query templates
-  - [ ] Active conditions
-  - [ ] Current medications
-  - [ ] Recent labs (by date)
-  - [ ] Allergies
-  - [ ] Recent vitals
-- [ ] US Core profile integration
-- [ ] Token replacement preview
-  - [ ] Show example with test patient
-  - [ ] Validate token syntax
-- [ ] Query performance estimation
-- [ ] _include parameter builder
+#### Completed Features:
+- [x] Visual query builder interface
+- [x] Common query templates
+  - [x] Active conditions
+  - [x] Current medications
+  - [x] Recent labs (90 days)
+  - [x] Recent vitals (7 days)
+  - [x] Active allergies
+- [x] 7 FHIR resource types supported
+- [x] Visual parameter editing
+- [x] Token replacement support
+  - [x] {{today-Xdays}} syntax
+  - [x] {{context.patientId}} tokens
+- [x] Advanced query options
+  - [x] Custom URL editing
+  - [x] _count limits
+  - [x] _include support
 
 #### Example Prefetch Templates:
 ```javascript
@@ -340,36 +350,43 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
 ## Progress Tracking
 
 ### Completed ✅
+Phase 1: Condition Builders
 - Lab Value Condition Builder
-- Vital Signs Condition Builder
+- Vital Signs Condition Builder  
 - Medical Condition Builder
+
+Phase 2: Card Configuration
 - Card Builder with tabbed interface
 - Suggestion Builder with FHIR templates
 - Action Builder with SMART apps
-- Improved CDS Studio UI (cleaner layout)
-- Development environment setup with hot reload
+
+Phase 3: Advanced Features
+- Display Behavior Configuration
+- Prefetch Query Builder
+
+Infrastructure:
+- Improved CDS Studio UI (step-by-step workflow)
+- Development environment with hot reload
 - Cypress workflow testing framework
-- Fixed import path issues
 - Multiple git commits and pushes
 
 ### In Progress 🚧
-- Testing all builders in UI
-- Advanced features (next priority)
+- Testing all features in UI
+- Documentation updates
 
 ### Not Started 🚧
-- Display Behavior Configuration
-- Prefetch Query Builder
-- Policy/Governance Panel
+- Policy/Governance Panel (low priority)
 - Additional UI/UX improvements
 - Backend API endpoints
 - Programmatic tests
+- Live preview panel
 
 ## Next Steps
 
-1. **Immediate**: Test all builders in the UI
-2. **Next**: Implement Display Behavior Configuration
-3. **Then**: Build Prefetch Query Builder
-4. **Finally**: Add remaining advanced features and backend APIs
+1. **Immediate**: Comprehensive UI testing of all features
+2. **Next**: Create backend API endpoints for catalogs
+3. **Then**: Add programmatic tests for validation
+4. **Finally**: Implement remaining UI improvements
 
 ## References
 

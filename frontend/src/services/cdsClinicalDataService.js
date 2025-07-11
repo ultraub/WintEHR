@@ -1,0 +1,342 @@
+/**
+ * CDS Clinical Data Service
+ * Provides access to clinical reference data, lab catalogs with reference ranges,
+ * and vital sign references for CDS Hooks condition evaluation
+ */
+import axios from 'axios';
+
+class CDSClinicalDataService {
+  constructor() {
+    this.baseUrl = '/api/clinical';
+    this.cache = new Map();
+    this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
+    
+    // Create a dedicated HTTP client
+    this.httpClient = axios.create({
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+  }
+
+  /**
+   * Get lab catalog with reference ranges
+   * @param {string} search - Search term
+   * @param {string} category - Filter by category (chemistry, hematology, etc.)
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of lab test objects with reference ranges
+   */
+  async getLabCatalog(search = null, category = null, limit = 50) {
+    const cacheKey = `lab-catalog:${search}:${category}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = {};
+      if (search) params.search = search;
+      if (category) params.category = category;
+      params.limit = limit;
+
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-catalog`, { params });
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching lab catalog:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get detailed lab test information including reference ranges
+   * @param {string} labId - Lab test ID
+   * @returns {Promise<Object>} Lab test details
+   */
+  async getLabDetails(labId) {
+    const cacheKey = `lab-details:${labId}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-catalog/${labId}`);
+      
+      const data = response.data;
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching lab details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get vital sign reference ranges
+   * @param {string} vitalType - Filter by vital sign type
+   * @returns {Promise<Array>} Array of vital sign references
+   */
+  async getVitalSignReferences(vitalType = null) {
+    const cacheKey = `vital-references:${vitalType}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = {};
+      if (vitalType) params.vital_type = vitalType;
+
+      const response = await this.httpClient.get(`${this.baseUrl}/vital-references`, { params });
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching vital sign references:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get detailed vital sign reference information
+   * @param {string} vitalId - Vital sign ID
+   * @returns {Promise<Object>} Vital sign reference details
+   */
+  async getVitalSignDetails(vitalId) {
+    const cacheKey = `vital-details:${vitalId}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/vital-references/${vitalId}`);
+      
+      const data = response.data;
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching vital sign details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get medical condition catalog
+   * @param {string} search - Search term
+   * @param {string} category - Filter by category
+   * @param {number} limit - Maximum results
+   * @returns {Promise<Array>} Array of condition objects
+   */
+  async getConditionCatalog(search = null, category = null, limit = 50) {
+    const cacheKey = `condition-catalog:${search}:${category}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const params = {};
+      if (search) params.search = search;
+      if (category) params.category = category;
+      params.limit = limit;
+
+      const response = await this.httpClient.get(`${this.baseUrl}/condition-catalog`, { params });
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching condition catalog:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get detailed condition information
+   * @param {string} conditionId - Condition ID
+   * @returns {Promise<Object>} Condition details
+   */
+  async getConditionDetails(conditionId) {
+    const cacheKey = `condition-details:${conditionId}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/condition-catalog/${conditionId}`);
+      
+      const data = response.data;
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching condition details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get available lab test categories
+   * @returns {Promise<Array>} Array of category strings
+   */
+  async getLabCategories() {
+    const cacheKey = 'lab-categories';
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-categories`);
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching lab categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get available condition categories
+   * @returns {Promise<Array>} Array of category strings
+   */
+  async getConditionCategories() {
+    const cacheKey = 'condition-categories';
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.baseUrl}/condition-categories`);
+      
+      const data = response.data || [];
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching condition categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Check if a lab value is within normal range
+   * @param {string} labCode - LOINC code
+   * @param {number} value - Lab value
+   * @param {string} ageGroup - Patient age group
+   * @returns {Object} { inRange: boolean, interpretation: string }
+   */
+  checkLabValueRange(labCode, value, ageGroup = 'adult') {
+    // This would typically call the backend, but for now we'll use local logic
+    const labTest = this.cache.get(`lab-details:${labCode}`)?.data;
+    if (!labTest) {
+      return { inRange: null, interpretation: 'Unknown' };
+    }
+
+    const range = labTest.reference_range;
+    if (!range) {
+      return { inRange: null, interpretation: 'No reference range' };
+    }
+
+    if (value < range.min) {
+      return { 
+        inRange: false, 
+        interpretation: value < labTest.critical_low ? 'Critical Low' : 'Low' 
+      };
+    } else if (value > range.max) {
+      return { 
+        inRange: false, 
+        interpretation: value > labTest.critical_high ? 'Critical High' : 'High' 
+      };
+    } else {
+      return { inRange: true, interpretation: 'Normal' };
+    }
+  }
+
+  /**
+   * Check if a vital sign is within normal range
+   * @param {string} vitalType - Vital sign type
+   * @param {number} value - Vital sign value
+   * @param {string} ageGroup - Patient age group
+   * @param {string} component - For BP: 'systolic' or 'diastolic'
+   * @returns {Object} { inRange: boolean, interpretation: string }
+   */
+  checkVitalSignRange(vitalType, value, ageGroup = 'adult', component = null) {
+    const vitalSign = this.cache.get(`vital-details:${vitalType}`)?.data;
+    if (!vitalSign) {
+      return { inRange: null, interpretation: 'Unknown' };
+    }
+
+    const ranges = vitalSign.normal_ranges[ageGroup] || vitalSign.normal_ranges['all'];
+    if (!ranges) {
+      return { inRange: null, interpretation: 'No reference range' };
+    }
+
+    let min, max;
+    if (vitalType === 'blood-pressure' && component) {
+      min = ranges[`${component}_min`];
+      max = ranges[`${component}_max`];
+    } else {
+      min = ranges.min;
+      max = ranges.max;
+    }
+
+    if (value < min) {
+      return { 
+        inRange: false, 
+        interpretation: value < vitalSign.critical_low ? 'Critical Low' : 'Low' 
+      };
+    } else if (value > max) {
+      return { 
+        inRange: false, 
+        interpretation: value > vitalSign.critical_high ? 'Critical High' : 'High' 
+      };
+    } else {
+      return { inRange: true, interpretation: 'Normal' };
+    }
+  }
+
+  /**
+   * Get item from cache if not expired
+   * @param {string} key - Cache key
+   * @returns {any|null} Cached value or null
+   */
+  getFromCache(key) {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.data;
+    }
+    return null;
+  }
+
+  /**
+   * Set item in cache with timestamp
+   * @param {string} key - Cache key
+   * @param {any} data - Data to cache
+   */
+  setCache(key, data) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Clear all cached data
+   */
+  clearCache() {
+    this.cache.clear();
+  }
+}
+
+// Export singleton instance
+export const cdsClinicalDataService = new CDSClinicalDataService();
+export default cdsClinicalDataService;

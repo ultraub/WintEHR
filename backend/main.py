@@ -170,6 +170,10 @@ app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
 from api.dicom.dicom_service import router as dicom_router
 app.include_router(dicom_router, tags=["DICOM Services"])
 
+# Include CDS Clinical Data API
+from api.clinical.cds_clinical_data import router as cds_clinical_router
+app.include_router(cds_clinical_router, tags=["CDS Clinical Data"])
+
 # Include debug router (temporary)
 from api.debug_router import debug_router
 app.include_router(debug_router, tags=["Debug"])
