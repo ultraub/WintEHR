@@ -1,11 +1,16 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function(app) {
+  // Use Docker service name when running in container, localhost otherwise
+  const backendUrl = process.env.NODE_ENV === 'development' 
+    ? 'http://backend:8000'  // Docker service name
+    : 'http://localhost:8000';
+
   // Proxy API requests to the backend
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: backendUrl,
       changeOrigin: true,
       secure: false,
       timeout: 10000,
@@ -23,7 +28,7 @@ module.exports = function(app) {
   app.use(
     '/cds-hooks',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: backendUrl,
       changeOrigin: true,
       secure: false,
       timeout: 10000,
@@ -41,7 +46,7 @@ module.exports = function(app) {
   app.use(
     '/fhir',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: backendUrl,
       changeOrigin: true,
       secure: false,
       timeout: 10000,
