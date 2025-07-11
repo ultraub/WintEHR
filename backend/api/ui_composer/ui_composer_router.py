@@ -25,6 +25,7 @@ from .claude_cli_service import claude_cli_service
 from .ui_composer_service import ui_composer_service
 from .session_manager import SessionManager
 from .cost_tracker import cost_tracker
+from .llm_service import unified_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -333,3 +334,89 @@ async def get_session_cost(session_id: str):
     """Get cost information for a session"""
     cost_data = cost_tracker.get_session_cost(session_id)
     return cost_data
+
+# New endpoints for multi-LLM support
+
+@router.get("/providers/status")
+async def get_providers_status():
+    """Get availability status of all LLM providers"""
+    try:
+        status = await unified_llm_service.get_available_providers()
+        return status
+    except Exception as e:
+        logger.error(f"Error checking provider status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/compare")
+async def compare_providers(
+    request_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Compare analysis results across multiple LLM providers"""
+    try:
+        request_text = request_data.get("request", "")
+        context = request_data.get("context", {})
+        providers = request_data.get("providers", None)
+        
+        # Run comparison
+        comparison_result = await unified_llm_service.analyze_request_comparison(
+            request_text, 
+            context, 
+            providers
+        )
+        
+        return comparison_result
+    except Exception as e:
+        logger.error(f"Error in provider comparison: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/compare/fhir-queries")
+async def compare_fhir_queries(
+    request_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Compare FHIR query generation across providers"""
+    try:
+        clinical_request = request_data.get("request", "")
+        available_resources = request_data.get("available_resources", [
+            "Patient", "Observation", "Condition", "MedicationRequest",
+            "AllergyIntolerance", "Procedure", "DiagnosticReport"
+        ])
+        providers = request_data.get("providers", None)
+        
+        comparison_result = await unified_llm_service.generate_fhir_queries_comparison(
+            clinical_request,
+            available_resources,
+            providers
+        )
+        
+        return comparison_result
+    except Exception as e:
+        logger.error(f"Error in FHIR query comparison: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-with-provider")
+async def generate_with_specific_provider(
+    request_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Generate UI component using a specific LLM provider"""
+    try:
+        specification = request_data.get("specification", {})
+        fhir_data = request_data.get("fhir_data", {})
+        provider = request_data.get("provider", None)
+        
+        component_code = await unified_llm_service.generate_ui_component(
+            specification,
+            fhir_data,
+            provider
+        )
+        
+        return {
+            "success": True,
+            "component": component_code,
+            "provider": provider
+        }
+    except Exception as e:
+        logger.error(f"Error generating with provider: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

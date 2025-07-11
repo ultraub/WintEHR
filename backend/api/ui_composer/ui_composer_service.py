@@ -6,15 +6,8 @@ Main service for UI composition functionality with multiple method support
 import logging
 from typing import Dict, Any, Optional, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
-from .claude_cli_service import claude_cli_service
-from .claude_cli_service_sync import claude_cli_service_sync
-from .claude_hooks_service import claude_hooks_service
-from .anthropic_sdk_service_v2 import anthropic_sdk_service_v2
-from .development_mode_service import development_mode_service
-from .fhir_query_service import FHIRQueryService
-from .agents.fhir_query_planner_agent import FHIRQueryPlannerAgent
-from .agents.fhir_executor_agent import FHIRExecutorAgent
-from .agents.data_context_agent import DataContextAgent
+from .claude_integration_service import claude_integration_service
+from .agents.simplified_agents import SimplifiedUIComposerOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -24,42 +17,14 @@ class UIComposerService:
     """Service for UI composition with multiple method support"""
     
     def __init__(self):
-        self.services = {
-            "hooks": claude_hooks_service,
-            "sdk": anthropic_sdk_service_v2,
-            "cli": claude_cli_service_sync,  # Use sync version as workaround
-            "development": development_mode_service
-        }
-        self.default_method = "cli"
+        self.integration_service = claude_integration_service
+        self.default_method = "sdk"  # Changed to SDK as primary
         self.enable_agent_pipeline = True  # Feature flag for new agent workflow
         self.lightweight_mode = False  # Flag to reduce token usage
     
     async def get_method_status(self, method: Optional[MethodType] = None) -> Dict[str, Any]:
         """Get status for a specific method or all methods"""
-        # Convert enum to string value if needed
-        if method and hasattr(method, 'value'):
-            method = method.value
-        if method:
-            service = self.services.get(method)
-            if not service:
-                return {"available": False, "error": f"Unknown method: {method}"}
-            
-            try:
-                if hasattr(service, 'test_connection'):
-                    return await service.test_connection()
-                elif hasattr(service, 'is_available'):
-                    available = await service.is_available()
-                    return {"available": available}
-                else:
-                    return {"available": True}
-            except Exception as e:
-                return {"available": False, "error": str(e)}
-        
-        # Get status for all methods
-        status = {}
-        for method_name, service in self.services.items():
-            status[method_name] = await self.get_method_status(method_name)
-        return status
+        return await self.integration_service.get_status()
     
     async def analyze_request(self, request: str, context: Dict[str, Any], 
                             method: Optional[MethodType] = None,
@@ -101,57 +66,41 @@ class UIComposerService:
                 logger.error(f"Error adding FHIR context: {e}")
                 context["fhirError"] = str(e)
         
-        service = self.services.get(method)
-        
-        if not service:
-            return {
-                "success": False,
-                "error": f"Unknown method: {method}"
-            }
-        
         try:
-            # Check if service is available
-            if hasattr(service, 'is_available') and not await service.is_available():
-                return {
-                    "success": False,
-                    "error": f"{method} service is not available",
-                    "method": method
+            # Use consolidated service for all methods
+            prompt = self._build_analysis_prompt(request, context)
+            
+            response = await self.integration_service.complete(
+                prompt=prompt,
+                options={
+                    "model": context.get("model", "claude-3-5-sonnet-20241022"),
+                    "max_tokens": 4096,
+                    "temperature": 0
+                },
+                method=method
+            )
+            
+            # Parse response to extract JSON
+            analysis_data = self._parse_json_response(response)
+            
+            # Include agent pipeline data if it was used
+            result = {
+                "success": True,
+                "analysis": analysis_data,
+                "reasoning": analysis_data.get("intent", "Analysis completed"),
+                "method": method,
+                "raw_response": response
+            }
+            
+            # Add agent pipeline data to result if available
+            if context.get("agentPipelineUsed") and context.get("fhirData"):
+                result["agentPipelineData"] = {
+                    "enabled": True,
+                    "dataContext": context["fhirData"],
+                    "formattedContext": context.get("fhirContext", "")
                 }
             
-            # Call the appropriate analyze method
-            if method == "development":
-                analysis = await service.analyze_request(request, context)
-                return {
-                    "success": True,
-                    "analysis": analysis,
-                    "reasoning": analysis.get("intent", "Analysis completed"),
-                    "method": method
-                }
-            else:
-                # For hooks, sdk, and cli services
-                response = await service.analyze_request(request, context)
-                
-                # Parse response to extract JSON
-                analysis_data = self._parse_json_response(response)
-                
-                # Include agent pipeline data if it was used
-                result = {
-                    "success": True,
-                    "analysis": analysis_data,
-                    "reasoning": analysis_data.get("intent", "Analysis completed"),
-                    "method": method,
-                    "raw_response": response
-                }
-                
-                # Add agent pipeline data to result if available
-                if context.get("agentPipelineUsed") and context.get("fhirData"):
-                    result["agentPipelineData"] = {
-                        "enabled": True,
-                        "dataContext": context["fhirData"],
-                        "formattedContext": context.get("fhirContext", "")
-                    }
-                
-                return result
+            return result
                 
         except Exception as e:
             logger.error(f"Error using {method} service: {e}")
@@ -160,6 +109,78 @@ class UIComposerService:
                 "error": str(e),
                 "method": method
             }
+    
+    def _build_analysis_prompt(self, request: str, context: Dict[str, Any]) -> str:
+        """Build analysis prompt with context"""
+        prompt = f"""You are a UI design expert for a clinical EMR system. Analyze the following natural language request and create a detailed UI specification.
+
+Request: {request}
+
+Clinical Context:
+- User ID: {context.get('user_id', 'unknown')}
+- User Role: {context.get('user_role', 'physician')}
+
+FHIR Context:
+{context.get('fhirContext', 'No FHIR data available')}
+
+Create a detailed JSON specification for the UI components needed. Include:
+1. Component types (charts, tables, cards, etc.)
+2. Data sources (FHIR resources and queries)
+3. Layout and organization
+4. User interactions
+
+Return your response as a valid JSON object with this structure:
+{{
+  "intent": "Brief description of the user's intent",
+  "components": [
+    {{
+      "type": "component type",
+      "title": "Component title",
+      "dataSource": {{
+        "resourceType": "FHIR resource",
+        "query": "FHIR query parameters"
+      }},
+      "visualization": "How to display the data",
+      "interactions": ["list of user interactions"]
+    }}
+  ],
+  "layout": {{
+    "type": "grid/flex/etc",
+    "columns": number,
+    "responsive": true/false
+  }}
+}}"""
+        return prompt
+    
+    def _build_generation_prompt(self, specification: Dict[str, Any]) -> str:
+        """Build component generation prompt from specification"""
+        prompt = f"""You are a React component developer for a clinical EMR system. Generate production-ready React components based on the following specification.
+
+UI Specification:
+{json.dumps(specification, indent=2)}
+
+Requirements:
+1. Use Material-UI (@mui/material) for UI components
+2. Use the useFHIRResources or usePatientResources hooks for data fetching
+3. Include proper loading and error states
+4. Use the MedGenEMR patterns (no console.log, proper error handling)
+5. Make components responsive and accessible
+6. Include TypeScript-style prop validation with PropTypes
+
+Generate a complete, working React component that:
+- Fetches the required FHIR data
+- Displays it according to the specification
+- Handles all edge cases (loading, errors, empty data)
+- Follows MedGenEMR coding standards
+
+Return only the component code without markdown code blocks."""
+        
+        # Add agent pipeline data if available
+        if specification.get('metadata', {}).get('agentPipeline', {}).get('enabled'):
+            agent_data = specification['metadata']['agentPipeline']
+            prompt += f"\n\nAvailable FHIR Data Analysis:\n{json.dumps(agent_data.get('dataAnalysis', {}), indent=2)}"
+            
+        return prompt
     
     def _parse_json_response(self, response: str) -> Dict[str, Any]:
         """Parse JSON from Claude response"""
@@ -192,11 +213,6 @@ class UIComposerService:
             method = method.value
         method = method or self.default_method
         logger.info(f"Generating components with method: {method}")
-        logger.info(f"Available services: {list(self.services.keys())}")
-        service = self.services.get(method)
-        
-        if not service:
-            raise ValueError(f"Unknown method: {method}. Available: {list(self.services.keys())}")
         
         # Check if agent pipeline data is already in specification
         has_agent_data = specification.get('metadata', {}).get('agentPipeline', {}).get('enabled', False)
@@ -229,17 +245,22 @@ class UIComposerService:
         components = {}
         
         try:
-            if method == "development":
-                # Development mode generates components individually
-                for component in specification.get("components", []):
-                    component_id = component.get("id", f"comp-{len(components)}")
-                    component_code = await service.generate_component(component)
-                    components[component_id] = component_code
-            else:
-                # Other services expect full specification
-                component_code = await service.generate_component(specification)
-                # For now, treat as single component
-                components["main"] = component_code
+            # Build generation prompt
+            prompt = self._build_generation_prompt(specification)
+            
+            # Generate using consolidated service
+            component_code = await self.integration_service.complete(
+                prompt=prompt,
+                options={
+                    "model": specification.get("metadata", {}).get("model", "claude-3-5-sonnet-20241022"),
+                    "max_tokens": 8192,
+                    "temperature": 0
+                },
+                method=method
+            )
+            
+            # For now, treat as single component
+            components["main"] = component_code
                 
         except Exception as e:
             logger.error(f"Error generating components with {method}: {e}", exc_info=True)
@@ -373,25 +394,28 @@ class UIComposerService:
             use_query_driven = context.get("useQueryDriven", True)
             
             if use_query_driven:
-                # Use the new query-driven orchestrator
-                logger.info("Using query-driven UI generation orchestrator")
-                from .agents.ui_generation_orchestrator import UIGenerationOrchestrator
+                # Use the simplified orchestrator
+                logger.info("Using simplified UI generation orchestrator")
+                orchestrator = SimplifiedUIComposerOrchestrator(db_session)
                 
-                orchestrator = UIGenerationOrchestrator()
-                result = await orchestrator.generate_ui_from_request(request, context)
+                # Add patient ID to context if available
+                if hasattr(db_session, 'patient_id'):
+                    context['patient_id'] = db_session.patient_id
+                    
+                result = await orchestrator.generate_ui(request, context)
                 
                 if result["success"]:
                     # Convert orchestrator result to agent pipeline format
                     return {
                         "success": True,
-                        "dataContext": result["data_analysis"],
-                        "formattedContext": self._format_orchestrator_context(result),
-                        "queryPlan": result["query_plan"],
-                        "queryResults": result.get("query_results", {}),
-                        "uiStructure": result["ui_structure"],
-                        "componentCode": result["component_code"],
-                        "executionStats": result["execution_stats"],
-                        "reasoning": f"Query-driven generation completed in {result['execution_stats']['total_time']:.2f}s"
+                        "dataContext": result.get("fhirData", {}),
+                        "formattedContext": result.get("specification", {}).get("metadata", {}).get("fhirContext", ""),
+                        "queryPlan": {"simplified": True, "specification": result.get("specification", {})},
+                        "queryResults": result.get("fhirData", {}),
+                        "uiStructure": result.get("specification", {}),
+                        "componentCode": result.get("component", ""),
+                        "executionStats": {"agentPipeline": "simplified"},
+                        "reasoning": "Simplified agent pipeline completed successfully"
                     }
                 else:
                     return {
@@ -399,10 +423,10 @@ class UIComposerService:
                         "error": result.get("error", "Query-driven generation failed")
                     }
             
-            # Fall back to original agent pipeline
-            # Step 1: Query Planning Agent - Analyze request and plan FHIR queries
-            query_planner = FHIRQueryPlannerAgent()
-            planning_result = await query_planner.plan_queries(request, context)
+            # Fall back to simplified pipeline without old agents
+            logger.info("Falling back to simplified pipeline")
+            orchestrator = SimplifiedUIComposerOrchestrator(db_session)
+            result = await orchestrator.generate_ui(request, context)
             
             if not planning_result["success"]:
                 return {
@@ -452,6 +476,20 @@ class UIComposerService:
             
         except Exception as e:
             logger.error(f"Agent pipeline error: {e}")
+            # Try simplified pipeline as last resort
+            try:
+                orchestrator = SimplifiedUIComposerOrchestrator(db_session)
+                result = await orchestrator.generate_ui(request, context)
+                if result["success"]:
+                    return {
+                        "success": True,
+                        "dataContext": result.get("fhirData", {}),
+                        "formattedContext": "Fallback generation",
+                        "queryPlan": {"simplified": True},
+                        "reasoning": "Fallback to simplified pipeline"
+                    }
+            except:
+                pass
             return {
                 "success": False,
                 "error": str(e)

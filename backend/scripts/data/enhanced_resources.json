@@ -1,0 +1,1541 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "a73bb0eb-5b0c-4e70-8b8f-a2a3ee3d8866",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855586Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "1350010824"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ]
+          }
+        ],
+        "name": "St. Lowell Clinic",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(811) 465-6596",
+            "use": "work"
+          },
+          {
+            "system": "fax",
+            "value": "(564) 632-5068",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "use": "work",
+            "type": "physical",
+            "line": [
+              "5403 Elm Street"
+            ],
+            "city": "Lowell",
+            "state": "MA",
+            "postalCode": "42418",
+            "country": "USA"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Organization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "ef0faac1-aa9e-48f8-a094-323545cc26ee",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855630Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "1791560820"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ]
+          }
+        ],
+        "name": "Regional Aurora Medical Center",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(260) 704-7792",
+            "use": "work"
+          },
+          {
+            "system": "fax",
+            "value": "(753) 875-6049",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "use": "work",
+            "type": "physical",
+            "line": [
+              "9267 Oak Street"
+            ],
+            "city": "Aurora",
+            "state": "IL",
+            "postalCode": "57966",
+            "country": "USA"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Organization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "12b67335-5268-4499-b72f-afdb55eae534",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855652Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "1501305672"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ]
+          }
+        ],
+        "name": "Community Boston Hospital",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(204) 406-5899",
+            "use": "work"
+          },
+          {
+            "system": "fax",
+            "value": "(513) 890-5972",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "use": "work",
+            "type": "physical",
+            "line": [
+              "1111 Washington Street"
+            ],
+            "city": "Boston",
+            "state": "MA",
+            "postalCode": "28412",
+            "country": "USA"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Organization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "f069ae0c-003d-48a6-aa8b-79140e630d02",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855678Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "1462375937"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ]
+          }
+        ],
+        "name": "Regional Joliet Clinic",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(382) 296-7210",
+            "use": "work"
+          },
+          {
+            "system": "fax",
+            "value": "(621) 409-9625",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "use": "work",
+            "type": "physical",
+            "line": [
+              "7838 Washington Street"
+            ],
+            "city": "Joliet",
+            "state": "IL",
+            "postalCode": "80054",
+            "country": "USA"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Organization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "09433da5-7b48-412a-84ea-9c38657dcfc7",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855705Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "1365879902"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ]
+          }
+        ],
+        "name": "City Houston Hospital",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(281) 487-6817",
+            "use": "work"
+          },
+          {
+            "system": "fax",
+            "value": "(299) 538-3455",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "use": "work",
+            "type": "physical",
+            "line": [
+              "9818 Oak Street"
+            ],
+            "city": "Houston",
+            "state": "TX",
+            "postalCode": "10325",
+            "country": "USA"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Organization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "8a3244a1-94a1-45ed-bde8-972179377082",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855726Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2781587729"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-59869"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Brown",
+            "given": [
+              "Mary"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(580) 311-7960",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1973-06-14",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-1990"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Stanford Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "dfed12bc-07e0-417c-a823-55300a35834c",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855755Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2375042329"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-10243"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Lopez",
+            "given": [
+              "Daniel"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(829) 715-7195",
+            "use": "work"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1988-10-30",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-2005"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Stanford Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "1250da58-75e3-4b5f-8035-304e1ba3f78c",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855780Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2841711321"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-59636"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Lopez",
+            "given": [
+              "Jessica"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(716) 753-1577",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1970-08-11",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-2007"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Yale Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "853526b8-024a-4b58-976d-b5881008624b",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855813Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2360273765"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-IL-44489"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Moore",
+            "given": [
+              "Robert"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(230) 804-3558",
+            "use": "work"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1977-12-30",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-1996"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Columbia Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "5e7e0436-ddb6-4392-a144-657407e0e23a",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855849Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2416808925"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-81980"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Lopez",
+            "given": [
+              "Elizabeth"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(716) 734-4229",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1986-03-31",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-1995"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Yale Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "4dfe4e81-b7e3-4800-ab18-8a18a5d2c9e9",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855873Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2995511901"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-18830"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Hernandez",
+            "given": [
+              "Susan"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(784) 551-5971",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1967-04-26",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-1995"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Stanford Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "fb8738c1-0eaa-4945-abf6-33ee620c0acb",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855895Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2939580089"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-NY-86562"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Hernandez",
+            "given": [
+              "Elizabeth"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(799) 349-3534",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1973-08-24",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-2014"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Yale Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "928660a1-21e1-4e3e-8711-4a61933fbcb4",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855924Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2455932810"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-IL-66817"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Johnson",
+            "given": [
+              "David"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(267) 701-2967",
+            "use": "work"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1984-05-23",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-2005"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Harvard Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "89b358e7-0e6a-4556-be42-1a8cb0f4aa18",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.855943Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2201034905"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-NY-54326"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Williams",
+            "given": [
+              "Mary"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(387) 971-9686",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1970-06-04",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-1995"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Stanford Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "a1203f84-3e7f-483c-b3e5-ee0765bcec8f",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856314Z"
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "2887866861"
+          },
+          {
+            "system": "http://example.org/license",
+            "value": "MD-TX-44511"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Hernandez",
+            "given": [
+              "Patricia"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "(550) 245-8786",
+            "use": "work"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1987-06-28",
+        "qualification": [
+          {
+            "identifier": [
+              {
+                "system": "http://example.org/UniversityID",
+                "value": "MD-2011"
+              }
+            ],
+            "code": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+                  "code": "MD",
+                  "display": "Doctor of Medicine"
+                }
+              ]
+            },
+            "issuer": {
+              "display": "Stanford Medical School"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "Practitioner"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "0c70f61d-b0ff-47dd-a77a-54b0d0d3d632",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856352Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2019-02-21"
+        },
+        "practitioner": {
+          "reference": "Practitioner/8a3244a1-94a1-45ed-bde8-972179377082"
+        },
+        "organization": {
+          "reference": "Organization/f069ae0c-003d-48a6-aa8b-79140e630d02"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "2084P0800X",
+                "display": "Psychiatry"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394587001",
+                "display": "Psychiatry"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "11478372-c05b-4df2-b656-4b772b4a4136",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856360Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2019-08-28"
+        },
+        "practitioner": {
+          "reference": "Practitioner/dfed12bc-07e0-417c-a823-55300a35834c"
+        },
+        "organization": {
+          "reference": "Organization/ef0faac1-aa9e-48f8-a094-323545cc26ee"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "2084P0800X",
+                "display": "Psychiatry"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394587001",
+                "display": "Psychiatry"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "e2480843-b5a0-404b-bb83-02799cbcd975",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856367Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2019-11-18"
+        },
+        "practitioner": {
+          "reference": "Practitioner/1250da58-75e3-4b5f-8035-304e1ba3f78c"
+        },
+        "organization": {
+          "reference": "Organization/09433da5-7b48-412a-84ea-9c38657dcfc7"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "207R00000X",
+                "display": "Internal Medicine"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "419192003",
+                "display": "Internal Medicine"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "38c46f7c-850c-4df4-bd66-75ab07d47718",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856382Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2022-04-28"
+        },
+        "practitioner": {
+          "reference": "Practitioner/853526b8-024a-4b58-976d-b5881008624b"
+        },
+        "organization": {
+          "reference": "Organization/ef0faac1-aa9e-48f8-a094-323545cc26ee"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208000000X",
+                "display": "Pediatrics"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394537008",
+                "display": "Pediatrics"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "23f39be2-8e42-4c98-8e8e-fdb58d9a7301",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856389Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2016-10-31"
+        },
+        "practitioner": {
+          "reference": "Practitioner/5e7e0436-ddb6-4392-a144-657407e0e23a"
+        },
+        "organization": {
+          "reference": "Organization/a73bb0eb-5b0c-4e70-8b8f-a2a3ee3d8866"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208600000X",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394609007",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "3fe62887-41c6-4029-b2e7-3a8d51f2b36f",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856495Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2023-04-09"
+        },
+        "practitioner": {
+          "reference": "Practitioner/4dfe4e81-b7e3-4800-ab18-8a18a5d2c9e9"
+        },
+        "organization": {
+          "reference": "Organization/f069ae0c-003d-48a6-aa8b-79140e630d02"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "207Q00000X",
+                "display": "Family Medicine"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "419772000",
+                "display": "Family Medicine"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "1952418c-dd62-4bb0-bc80-1afcdb501cec",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856504Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2024-06-18"
+        },
+        "practitioner": {
+          "reference": "Practitioner/fb8738c1-0eaa-4945-abf6-33ee620c0acb"
+        },
+        "organization": {
+          "reference": "Organization/12b67335-5268-4499-b72f-afdb55eae534"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "207P00000X",
+                "display": "Emergency Medicine"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "773568002",
+                "display": "Emergency Medicine"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "394d9f2f-f1a4-422e-9563-8f2a22571811",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856510Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2017-07-25"
+        },
+        "practitioner": {
+          "reference": "Practitioner/928660a1-21e1-4e3e-8711-4a61933fbcb4"
+        },
+        "organization": {
+          "reference": "Organization/f069ae0c-003d-48a6-aa8b-79140e630d02"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208600000X",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394609007",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "5ceb0509-0427-4ff0-925d-b13d122d0336",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856516Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2016-06-30"
+        },
+        "practitioner": {
+          "reference": "Practitioner/89b358e7-0e6a-4556-be42-1a8cb0f4aa18"
+        },
+        "organization": {
+          "reference": "Organization/12b67335-5268-4499-b72f-afdb55eae534"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208600000X",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394609007",
+                "display": "Surgery"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "24f3b445-5812-44a6-9129-fb3f27d42908",
+        "meta": {
+          "lastUpdated": "2025-07-11T02:01:07.856521Z"
+        },
+        "active": true,
+        "period": {
+          "start": "2019-05-31"
+        },
+        "practitioner": {
+          "reference": "Practitioner/a1203f84-3e7f-483c-b3e5-ee0765bcec8f"
+        },
+        "organization": {
+          "reference": "Organization/12b67335-5268-4499-b72f-afdb55eae534"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "207RC0000X",
+                "display": "Cardiology"
+              }
+            ]
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "394579002",
+                "display": "Cardiology"
+              }
+            ]
+          }
+        ],
+        "availableTime": [
+          {
+            "daysOfWeek": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri"
+            ],
+            "availableStartTime": "09:00:00",
+            "availableEndTime": "17:00:00"
+          }
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "PractitionerRole"
+      }
+    }
+  ]
+}

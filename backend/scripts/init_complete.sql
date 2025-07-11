@@ -1,5 +1,12 @@
 -- Complete initialization SQL for MedGenEMR
 -- This file contains all necessary database setup for Docker initialization
+-- Run via PostgreSQL's docker-entrypoint-initdb.d system
+
+-- Enable error handling
+\set ON_ERROR_STOP on
+
+-- Transaction block for atomic initialization
+BEGIN;
 
 -- Create FHIR schema if not exists
 CREATE SCHEMA IF NOT EXISTS fhir;
@@ -127,8 +134,39 @@ COMMENT ON TABLE fhir.search_params IS 'Search parameter index for FHIR resource
 COMMENT ON TABLE fhir.resource_history IS 'Version history for FHIR resources';
 COMMENT ON TABLE cds_hooks.hook_configurations IS 'CDS Hooks configuration storage';
 
+-- Commit transaction
+COMMIT;
+
 -- Show final status
 SELECT 'Database initialization complete' AS status;
 SELECT table_schema, table_name FROM information_schema.tables 
 WHERE table_schema IN ('fhir', 'cds_hooks') 
 ORDER BY table_schema, table_name;
+
+-- Verify critical tables exist
+DO $$
+DECLARE
+    table_count INTEGER;
+    required_tables TEXT[] := ARRAY['resources', 'search_params', 'resource_history', 'references'];
+    missing_tables TEXT;
+BEGIN
+    SELECT COUNT(*) INTO table_count
+    FROM information_schema.tables 
+    WHERE table_schema = 'fhir' 
+    AND table_name = ANY(required_tables);
+    
+    IF table_count < array_length(required_tables, 1) THEN
+        SELECT string_agg(t, ', ') INTO missing_tables
+        FROM (
+            SELECT unnest(required_tables) AS t
+            EXCEPT
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'fhir'
+        ) missing;
+        
+        RAISE EXCEPTION 'Missing critical tables: %', missing_tables;
+    END IF;
+    
+    RAISE NOTICE 'Database schema validation passed - all % critical tables present', table_count;
+END $$;
