@@ -240,10 +240,12 @@ const MedicationReconciliationDialog = ({
       }}
     >
       <DialogTitle>
-        <Typography variant="h6">Medication Reconciliation</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Review and reconcile medications from multiple sources
-        </Typography>
+        <Box>
+          <Typography variant="h6" component="div">Medication Reconciliation</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Review and reconcile medications from multiple sources
+          </Typography>
+        </Box>
       </DialogTitle>
       
       <DialogContent>

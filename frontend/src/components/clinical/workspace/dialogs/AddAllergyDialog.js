@@ -220,9 +220,7 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
           sx: { minHeight: '650px' }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6">Add New Allergy/Intolerance</Typography>
-        </DialogTitle>
+        <DialogTitle>Add New Allergy/Intolerance</DialogTitle>
         
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
@@ -396,9 +394,9 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
                     ...prev,
                     onsetDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                   maxDate={new Date()}
                 />
               </Grid>

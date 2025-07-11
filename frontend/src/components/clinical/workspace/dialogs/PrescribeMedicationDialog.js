@@ -309,9 +309,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
           sx: { minHeight: '700px' }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6">Prescribe Medication</Typography>
-        </DialogTitle>
+        <DialogTitle>Prescribe Medication</DialogTitle>
         
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>

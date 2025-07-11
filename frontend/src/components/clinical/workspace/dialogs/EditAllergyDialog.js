@@ -516,9 +516,9 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                     ...prev,
                     onsetDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                 />
               </Grid>
 
