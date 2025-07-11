@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Override frontend for development with hot reload
+  frontend:
+    image: node:18-alpine
+    container_name: emr-frontend-dev
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_FHIR_ENDPOINT=http://localhost:8000/fhir/R4
+      - REACT_APP_EMR_API=http://localhost:8000/api/emr
+      - REACT_APP_CLINICAL_CANVAS_API=http://localhost:8000/api/clinical-canvas
+      - CHOKIDAR_USEPOLLING=true  # For file watching in Docker
+      - WATCHPACK_POLLING=true
+    stdin_open: true
+    tty: true
+
+volumes:
+  frontend_node_modules:
