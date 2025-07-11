@@ -61,6 +61,8 @@ import VisualConditionBuilderImproved from './VisualConditionBuilderImproved';
 import CardDesigner from './CardDesigner';
 import CardDesignerImproved from './CardDesignerImproved';
 import PrefetchBuilder from './PrefetchBuilder';
+import PrefetchBuilderImproved from './PrefetchBuilderImproved';
+import DisplayBehaviorPanel from './DisplayBehaviorPanel';
 import HookPreview from './HookPreview';
 import HookTemplateSelector from './HookTemplateSelector';
 import HookTestingPanel from './HookTestingPanel';
@@ -127,6 +129,13 @@ const BUILDER_STEPS = [
     label: 'Data Requirements',
     description: 'Specify required patient data',
     icon: <PrefetchIcon />,
+    optional: true
+  },
+  { 
+    id: 'display', 
+    label: 'Display Behavior',
+    description: 'Control how alerts are presented',
+    icon: <SettingsIcon />,
     optional: true
   }
 ];
@@ -304,12 +313,19 @@ const CDSBuildModeImproved = () => {
   // Render prefetch step
   const renderPrefetch = () => (
     <Box>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Prefetch queries are optional but can improve performance by pre-loading required data
-      </Alert>
-      <PrefetchBuilder
+      <PrefetchBuilderImproved
         prefetch={currentHook.prefetch || {}}
         onChange={(prefetch) => actions.updateHook({ prefetch })}
+      />
+    </Box>
+  );
+
+  // Render display behavior step
+  const renderDisplayBehavior = () => (
+    <Box>
+      <DisplayBehaviorPanel
+        hookConfig={currentHook}
+        onChange={(updates) => actions.updateHook(updates)}
       />
     </Box>
   );
@@ -325,6 +341,8 @@ const CDSBuildModeImproved = () => {
         return renderCards();
       case 'prefetch':
         return renderPrefetch();
+      case 'display':
+        return renderDisplayBehavior();
       default:
         return null;
     }

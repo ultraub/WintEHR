@@ -108,74 +108,62 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
 
 ## Phase 2: Response Card Configuration
 
-### 2.1 Card Builder Restructure 🚧 TODO
-**Location**: Create new `/frontend/src/components/cds-studio/build/cards/EnhancedCardBuilder.js`
+### 2.1 Card Builder Restructure ✅ COMPLETED
+**Location**: `/frontend/src/components/cds-studio/build/CardDesignerImproved.js`
 
-#### Subtasks:
-- [ ] Create tabbed interface
-  - [ ] Info Cards tab
-  - [ ] Suggestion Cards tab
-  - [ ] Action Cards tab
-- [ ] Implement card type switching
-- [ ] Add card preview panel
-- [ ] Support multiple cards per hook
+#### Completed Features:
+- [x] Create tabbed interface
+  - [x] Content tab with markdown editor
+  - [x] Suggestions tab
+  - [x] Actions tab
+  - [x] Advanced options tab
+- [x] Implement card type switching
+- [x] Add live markdown preview panel
+- [x] Support multiple cards per hook
+- [x] Card templates for common use cases
+- [x] Collapsible card editors
 
-### 2.2 Info Cards Enhancement 🚧 TODO
-#### Subtasks:
-- [ ] Markdown editor with live preview
-- [ ] External link builder
-  - [ ] URL validation
-  - [ ] Link text customization
-  - [ ] Target window options
-- [ ] Source attribution
-  - [ ] Guideline references
-  - [ ] Evidence level indicators
-- [ ] Card styling options
-- [ ] Icon selection
+### 2.2 Info Cards Enhancement ✅ COMPLETED
+#### Completed Features:
+- [x] Markdown editor with live preview
+- [x] Markdown toolbar (bold, italic, lists, links)
+- [x] External link builder in Advanced tab
+  - [x] URL input
+  - [x] Source attribution
+- [x] Card indicator selection (info/warning/critical/success)
+- [x] Preview toggle
+- [x] Template system for quick starts
 
-### 2.3 Suggestion Cards 🚧 TODO
-**Create**: `/frontend/src/components/cds-studio/build/cards/SuggestionBuilder.js`
+### 2.3 Suggestion Cards ✅ COMPLETED
+**Location**: `/frontend/src/components/cds-studio/build/cards/SuggestionBuilder.js`
 
-#### Subtasks:
-- [ ] FHIR resource templates
-  - [ ] ServiceRequest (lab/imaging orders)
-  - [ ] MedicationRequest
-  - [ ] Appointment
-  - [ ] Task
-  - [ ] CarePlan
-  - [ ] Procedure
-- [ ] Template customization
-- [ ] Multiple suggestions per card
-- [ ] Suggestion grouping (at-most-one, any)
-- [ ] Priority ordering UI
+#### Completed Features:
+- [x] FHIR resource templates
+  - [x] ServiceRequest (lab/imaging orders)
+  - [x] MedicationRequest
+  - [x] Appointment
+  - [x] Task
+  - [x] ServiceRequest_Referral
+- [x] Template customization with fields
+- [x] Multiple suggestions per card
+- [x] Mark as recommended option
+- [x] FHIR resource preview
+- [x] Common lab test selection
 
-#### FHIR Templates Needed:
-```javascript
-// ServiceRequest template for lab order
-{
-  resourceType: "ServiceRequest",
-  status: "draft",
-  intent: "order",
-  code: { /* populated from selection */ },
-  subject: { reference: "Patient/{{context.patientId}}" },
-  authoredOn: "{{timestamp}}"
-}
-```
+### 2.4 Action Cards ✅ COMPLETED
+**Location**: `/frontend/src/components/cds-studio/build/cards/ActionBuilder.js`
 
-### 2.4 Action Cards 🚧 TODO
-**Create**: `/frontend/src/components/cds-studio/build/cards/ActionBuilder.js`
-
-#### Subtasks:
-- [ ] SMART app launcher configuration
-  - [ ] App URL input
-  - [ ] Launch context builder
-  - [ ] Parameter mapping
-- [ ] External API integration
-  - [ ] MDCalc calculator links
-  - [ ] Clinical guideline APIs
-  - [ ] Risk score calculators
-- [ ] Custom action definitions
-- [ ] Action validation
+#### Completed Features:
+- [x] SMART app launcher configuration
+  - [x] App URL input
+  - [x] Pre-built SMART app examples
+  - [x] Open in new tab option
+- [x] External resource integration
+  - [x] MDCalc calculator links (6 calculators)
+  - [x] Clinical guideline links
+  - [x] External resource links
+- [x] Action type selection
+- [x] Custom parameters support
 
 ## Phase 3: Advanced Features
 
@@ -355,28 +343,33 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
 - Lab Value Condition Builder
 - Vital Signs Condition Builder
 - Medical Condition Builder
+- Card Builder with tabbed interface
+- Suggestion Builder with FHIR templates
+- Action Builder with SMART apps
 - Improved CDS Studio UI (cleaner layout)
 - Development environment setup with hot reload
 - Cypress workflow testing framework
 - Fixed import path issues
-- Git commits and pushes
+- Multiple git commits and pushes
 
 ### In Progress 🚧
-- Testing all condition builders in UI
-- Card Builder enhancements (next priority)
+- Testing all builders in UI
+- Advanced features (next priority)
 
 ### Not Started 🚧
-- Advanced features (Display behavior, Prefetch, Policy)
+- Display Behavior Configuration
+- Prefetch Query Builder
+- Policy/Governance Panel
 - Additional UI/UX improvements
 - Backend API endpoints
 - Programmatic tests
 
 ## Next Steps
 
-1. **Immediate**: Test all three condition builders in the UI
-2. **Next**: Enhance Card Builder with tabbed interface
-3. **Then**: Add FHIR resource templates for suggestions
-4. **Finally**: Implement advanced features (Display behavior, Prefetch)
+1. **Immediate**: Test all builders in the UI
+2. **Next**: Implement Display Behavior Configuration
+3. **Then**: Build Prefetch Query Builder
+4. **Finally**: Add remaining advanced features and backend APIs
 
 ## References
 
