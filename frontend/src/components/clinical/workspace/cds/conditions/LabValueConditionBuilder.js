@@ -25,30 +25,9 @@ import {
   TrendingDown as TrendingDownIcon
 } from '@mui/icons-material';
 import { searchService } from '../../../../../services/searchService';
+import { cdsClinicalDataService } from '../../../../../services/cdsClinicalDataService';
 
-// Common lab tests with LOINC codes
-const COMMON_LAB_TESTS = [
-  { code: '4548-4', display: 'Hemoglobin A1c', unit: '%', category: 'Diabetes' },
-  { code: '2160-0', display: 'Creatinine', unit: 'mg/dL', category: 'Renal' },
-  { code: '2345-7', display: 'Glucose', unit: 'mg/dL', category: 'Diabetes' },
-  { code: '2951-2', display: 'Sodium', unit: 'mmol/L', category: 'Electrolytes' },
-  { code: '2823-3', display: 'Potassium', unit: 'mmol/L', category: 'Electrolytes' },
-  { code: '3094-0', display: 'BUN (Blood Urea Nitrogen)', unit: 'mg/dL', category: 'Renal' },
-  { code: '33914-3', display: 'eGFR', unit: 'mL/min/1.73m²', category: 'Renal' },
-  { code: '2085-9', display: 'HDL Cholesterol', unit: 'mg/dL', category: 'Lipids' },
-  { code: '2089-1', display: 'LDL Cholesterol', unit: 'mg/dL', category: 'Lipids' },
-  { code: '2571-8', display: 'Triglycerides', unit: 'mg/dL', category: 'Lipids' },
-  { code: '1742-6', display: 'ALT', unit: 'U/L', category: 'Liver' },
-  { code: '1920-8', display: 'AST', unit: 'U/L', category: 'Liver' },
-  { code: '789-8', display: 'Hemoglobin', unit: 'g/dL', category: 'Hematology' },
-  { code: '718-7', display: 'WBC', unit: '10*3/uL', category: 'Hematology' },
-  { code: '777-3', display: 'Platelet Count', unit: '10*3/uL', category: 'Hematology' },
-  { code: '1988-5', display: 'CRP', unit: 'mg/L', category: 'Inflammation' },
-  { code: '4544-3', display: 'Hematocrit', unit: '%', category: 'Hematology' },
-  { code: '17861-6', display: 'Calcium', unit: 'mg/dL', category: 'Electrolytes' },
-  { code: '14749-6', display: 'Glucose (fasting)', unit: 'mg/dL', category: 'Diabetes' },
-  { code: '1759-0', display: 'Albumin', unit: 'g/dL', category: 'Liver' }
-];
+// No hardcoded lab tests - using dynamic catalog only
 
 // Operators for lab values
 const LAB_OPERATORS = [
@@ -80,38 +59,70 @@ const TIMEFRAMES = [
 const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
   const [selectedLab, setSelectedLab] = useState(null);
   const [labSearchInput, setLabSearchInput] = useState('');
-  const [labOptions, setLabOptions] = useState(COMMON_LAB_TESTS);
+  const [labOptions, setLabOptions] = useState([]);
   const [searching, setSearching] = useState(false);
 
   // Initialize from existing condition
   useEffect(() => {
     if (condition.labTest) {
-      const lab = COMMON_LAB_TESTS.find(l => l.code === condition.labTest);
+      const lab = labOptions.find(l => l.code === condition.labTest);
       if (lab) {
         setSelectedLab(lab);
       }
     }
-  }, [condition.labTest]);
+  }, [condition.labTest, labOptions]);
 
-  // Search for lab tests
+  // Load initial dynamic catalog on component mount
+  useEffect(() => {
+    searchLabTests('');
+  }, []);
+
+  // Search for lab tests using dynamic catalog - NO FALLBACKS
   const searchLabTests = async (query) => {
     if (!query || query.length < 2) {
-      setLabOptions(COMMON_LAB_TESTS);
+      // Load dynamic lab catalog without search filter
+      setSearching(true);
+      try {
+        const dynamicLabs = await cdsClinicalDataService.getLabCatalog(null, null, 50);
+        const formatted = dynamicLabs.map(lab => ({
+          code: lab.loinc_code,
+          display: lab.display,
+          unit: lab.reference_range?.unit || '',
+          category: lab.category || 'laboratory',
+          reference_range: lab.reference_range,
+          critical_low: lab.critical_low,
+          critical_high: lab.critical_high,
+          source: 'dynamic'
+        }));
+        setLabOptions(formatted);
+      } catch (error) {
+        console.error('Error loading dynamic lab catalog:', error);
+        throw new Error(`Failed to load lab catalog: ${error.message}`);
+      } finally {
+        setSearching(false);
+      }
       return;
     }
 
     setSearching(true);
     try {
-      // In real implementation, this would search LOINC
-      // For now, filter common tests
-      const filtered = COMMON_LAB_TESTS.filter(lab =>
-        lab.display.toLowerCase().includes(query.toLowerCase()) ||
-        lab.code.includes(query)
-      );
-      setLabOptions(filtered.length > 0 ? filtered : COMMON_LAB_TESTS);
+      // Search dynamic catalog - DYNAMIC ONLY
+      const dynamicLabs = await cdsClinicalDataService.getLabCatalog(query, null, 20);
+      const formatted = dynamicLabs.map(lab => ({
+        code: lab.loinc_code,
+        display: lab.display,
+        unit: lab.reference_range?.unit || '',
+        category: lab.category || 'laboratory',
+        reference_range: lab.reference_range,
+        critical_low: lab.critical_low,
+        critical_high: lab.critical_high,
+        source: 'dynamic'
+      }));
+
+      setLabOptions(formatted);
     } catch (error) {
       console.error('Error searching lab tests:', error);
-      setLabOptions(COMMON_LAB_TESTS);
+      throw new Error(`Failed to search lab tests: ${error.message}`);
     } finally {
       setSearching(false);
     }
@@ -179,19 +190,20 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
   const getReferenceRange = () => {
     if (!selectedLab) return null;
     
-    // Reference ranges (simplified - in production, these would be age/gender specific)
-    const ranges = {
-      '4548-4': { low: 4.0, high: 5.6, critical_low: null, critical_high: 9.0 }, // A1c
-      '2160-0': { low: 0.6, high: 1.2, critical_low: null, critical_high: 4.0 }, // Creatinine
-      '2345-7': { low: 70, high: 100, critical_low: 40, critical_high: 400 }, // Glucose
-      '2951-2': { low: 136, high: 145, critical_low: 120, critical_high: 160 }, // Sodium
-      '2823-3': { low: 3.5, high: 5.1, critical_low: 2.5, critical_high: 6.5 }, // Potassium
-      '789-8': { low: 12.0, high: 16.0, critical_low: 7.0, critical_high: null }, // Hemoglobin
-      '718-7': { low: 4.5, high: 11.0, critical_low: 2.0, critical_high: 30.0 }, // WBC
-      '777-3': { low: 150, high: 400, critical_low: 50, critical_high: 1000 } // Platelets
-    };
+    // Use dynamic reference range - DYNAMIC ONLY, NO FALLBACKS
+    if (selectedLab.reference_range) {
+      return {
+        low: selectedLab.reference_range.min,
+        high: selectedLab.reference_range.max,
+        critical_low: selectedLab.critical_low,
+        critical_high: selectedLab.critical_high,
+        unit: selectedLab.reference_range.unit,
+        source: 'dynamic'
+      };
+    }
     
-    return ranges[selectedLab.code];
+    // No fallback - if no dynamic reference range, return null
+    return null;
   };
 
   const needsValueInput = () => {
@@ -217,9 +229,15 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
             renderOption={(props, option) => (
               <Box component="li" {...props}>
                 <Box>
-                  <Typography variant="body2">{option.display}</Typography>
+                  <Typography variant="body2">
+                    {option.display}
+                    {option.source === 'dynamic' && (
+                      <Chip size="small" label="Real Data" color="primary" sx={{ ml: 1, height: 16 }} />
+                    )}
+                  </Typography>
                   <Typography variant="caption" color="text.secondary">
                     LOINC: {option.code} | Category: {option.category}
+                    {option.unit && ` | Unit: ${option.unit}`}
                   </Typography>
                 </Box>
               </Box>
@@ -250,7 +268,10 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
           <Grid item xs={12}>
             <Alert severity="info" icon={<InfoIcon />}>
               <Typography variant="caption">
-                Normal range: {getReferenceRange().low} - {getReferenceRange().high} {selectedLab.unit}
+                Normal range: {getReferenceRange().low} - {getReferenceRange().high} {getReferenceRange().unit || selectedLab.unit}
+                {getReferenceRange().source === 'dynamic' && (
+                  <Chip size="small" label="From Patient Data" color="primary" sx={{ ml: 1, height: 16 }} />
+                )}
                 {getReferenceRange().critical_low && (
                   <> | Critical low: &lt;{getReferenceRange().critical_low}</>
                 )}
