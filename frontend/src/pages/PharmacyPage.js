@@ -150,6 +150,34 @@ const PharmacyPage = () => {
     return filtered;
   }, [allMedicationRequests, searchTerm, filterStatus, selectedDateRange]);
 
+  // Helper function to determine pharmacy status
+  const getPharmacyStatus = useCallback((medicationRequest) => {
+    // Check for pharmacy status extension
+    const extensions = medicationRequest.extension || [];
+    for (const ext of extensions) {
+      if (ext.url === 'http://medgenemr.com/fhir/StructureDefinition/pharmacy-status') {
+        for (const subExt of ext.extension || []) {
+          if (subExt.url === 'status') {
+            return subExt.valueString;
+          }
+        }
+      }
+    }
+
+    // Default logic based on medication request status and timing
+    const status = medicationRequest.status;
+    if (status === 'completed') return 'ready';
+    if (status === 'cancelled' || status === 'stopped') return 'ready';
+    
+    // Check how long since prescribed
+    const authoredDate = new Date(medicationRequest.authoredOn);
+    const hoursSince = (new Date() - authoredDate) / (1000 * 60 * 60);
+    
+    if (hoursSince < 1) return 'newOrders';
+    if (hoursSince < 4) return 'verification';
+    return 'dispensing';
+  }, []);
+
   // Categorize queue items by pharmacy status
   const queueCategories = useMemo(() => {
     const categories = {
@@ -167,7 +195,7 @@ const PharmacyPage = () => {
     });
 
     return categories;
-  }, [pharmacyQueue]);
+  }, [pharmacyQueue, getPharmacyStatus]);
 
   // Update queue statistics
   useEffect(() => {
@@ -193,34 +221,6 @@ const PharmacyPage = () => {
       unsubscribeNewPrescription();
     };
   }, [subscribe]);
-
-  // Helper function to determine pharmacy status
-  const getPharmacyStatus = (medicationRequest) => {
-    // Check for pharmacy status extension
-    const extensions = medicationRequest.extension || [];
-    for (const ext of extensions) {
-      if (ext.url === 'http://medgenemr.com/fhir/StructureDefinition/pharmacy-status') {
-        for (const subExt of ext.extension || []) {
-          if (subExt.url === 'status') {
-            return subExt.valueString;
-          }
-        }
-      }
-    }
-
-    // Default logic based on medication request status and timing
-    const status = medicationRequest.status;
-    if (status === 'completed') return 'ready';
-    if (status === 'cancelled' || status === 'stopped') return 'ready';
-    
-    // Check how long since prescribed
-    const authoredDate = new Date(medicationRequest.authoredOn);
-    const hoursSince = (new Date() - authoredDate) / (1000 * 60 * 60);
-    
-    if (hoursSince < 1) return 'newOrders';
-    if (hoursSince < 4) return 'verification';
-    return 'dispensing';
-  };
 
   // Handle queue refresh
   const handleRefresh = useCallback(async () => {

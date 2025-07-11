@@ -2,7 +2,7 @@
  * Imaging Tab Component
  * Display and manage medical imaging studies with DICOM viewer integration
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -308,10 +308,43 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
   const [studies, setStudies] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
+  // Load imaging studies function with useCallback
+  const loadImagingStudies = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Try to get imaging studies from FHIR resources first
+      const fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
+      
+      // If no FHIR studies, try the API endpoint
+      if (fhirStudies.length === 0) {
+        try {
+          const response = await axios.get(`/api/imaging/studies/${patientId}`);
+          const apiStudies = response.data?.data || [];
+          setStudies(apiStudies);
+        } catch (error) {
+          // Failed to load from API - fall back to FHIR data
+          setStudies(fhirStudies);
+        }
+      } else {
+        setStudies(fhirStudies);
+      }
+    } catch (error) {
+      // Handle error - imaging studies failed to load
+      setSnackbar({
+        open: true,
+        message: 'Failed to load imaging studies',
+        severity: 'error'
+      });
+      setStudies([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId, getPatientResources]);
+
   // Load imaging studies
   useEffect(() => {
     loadImagingStudies();
-  }, [patientId]);
+  }, [loadImagingStudies]);
 
   // Subscribe to imaging-related events
   useEffect(() => {
@@ -354,38 +387,6 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
   }, [patientId, subscribe, loadImagingStudies]);
-
-  const loadImagingStudies = async () => {
-    setLoading(true);
-    try {
-      // Try to get imaging studies from FHIR resources first
-      const fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
-      
-      // If no FHIR studies, try the API endpoint
-      if (fhirStudies.length === 0) {
-        try {
-          const response = await axios.get(`/api/imaging/studies/${patientId}`);
-          const apiStudies = response.data?.data || [];
-          setStudies(apiStudies);
-        } catch (error) {
-          // Failed to load from API - fall back to FHIR data
-          setStudies(fhirStudies);
-        }
-      } else {
-        setStudies(fhirStudies);
-      }
-    } catch (error) {
-      // Handle error - imaging studies failed to load
-      setSnackbar({
-        open: true,
-        message: 'Failed to load imaging studies',
-        severity: 'error'
-      });
-      setStudies([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Filter studies
   const filteredStudies = studies.filter(study => {
