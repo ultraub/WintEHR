@@ -59,6 +59,7 @@ import {
 // Import components
 import VisualConditionBuilderImproved from './VisualConditionBuilderImproved';
 import CardDesigner from './CardDesigner';
+import CardDesignerImproved from './CardDesignerImproved';
 import PrefetchBuilder from './PrefetchBuilder';
 import HookPreview from './HookPreview';
 import HookTemplateSelector from './HookTemplateSelector';
@@ -293,7 +294,7 @@ const CDSBuildModeImproved = () => {
   // Render cards step
   const renderCards = () => (
     <Box>
-      <CardDesigner
+      <CardDesignerImproved
         cards={currentHook.cards || []}
         onChange={(cards) => actions.updateHook({ cards })}
       />
