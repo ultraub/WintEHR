@@ -20,7 +20,10 @@ import {
   CircularProgress,
   TablePagination,
   LinearProgress,
-  Stack
+  Stack,
+  Skeleton,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -41,6 +44,9 @@ import { debounce } from 'lodash';
 
 function PaginatedPatientList() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   // Data state
   const [patients, setPatients] = useState([]);
@@ -50,7 +56,7 @@ function PaginatedPatientList() {
   
   // Pagination state
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(isMobile ? 10 : 25);
   const pageSizeOptions = [10, 25, 50, 100];
   
   // Search state
@@ -64,11 +70,13 @@ function PaginatedPatientList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
+  // Responsive columns configuration
   const columns = [
     {
       field: 'mrn',
       headerName: 'MRN',
-      width: 120,
+      flex: isMobile ? 0 : 0.8,
+      minWidth: isMobile ? 80 : 120,
       renderCell: (params) => (
         <Chip
           label={params.value || 'N/A'}
@@ -81,14 +89,16 @@ function PaginatedPatientList() {
     {
       field: 'name',
       headerName: 'Name',
-      width: 200,
+      flex: 1.5,
+      minWidth: isMobile ? 150 : 200,
       valueGetter: (params) => 
         `${params.row.last_name}, ${params.row.first_name}`,
     },
-    {
+    ...(!isMobile ? [{
       field: 'date_of_birth',
       headerName: 'Date of Birth',
-      width: 120,
+      flex: 1,
+      minWidth: 120,
       renderCell: (params) => {
         if (!params.value) return 'Unknown';
         const birthDate = new Date(params.value);
@@ -104,11 +114,12 @@ function PaginatedPatientList() {
           </Box>
         );
       },
-    },
-    {
+    }] : []),
+    ...(!isTablet ? [{
       field: 'gender',
       headerName: 'Gender',
-      width: 100,
+      flex: 0.6,
+      minWidth: 100,
       renderCell: (params) => (
         <Chip
           label={params.value?.charAt(0).toUpperCase() + params.value?.slice(1) || 'Unknown'}
@@ -116,34 +127,38 @@ function PaginatedPatientList() {
           color={params.value === 'male' ? 'info' : params.value === 'female' ? 'secondary' : 'default'}
         />
       ),
-    },
-    {
+    }] : []),
+    ...(!isMobile ? [{
       field: 'phone',
       headerName: 'Phone',
-      width: 140,
-    },
-    {
+      flex: 1,
+      minWidth: 140,
+    }] : []),
+    ...(!isTablet ? [{
       field: 'insurance_name',
       headerName: 'Insurance',
-      width: 180,
+      flex: 1.2,
+      minWidth: 180,
       renderCell: (params) => params.value || 'Not Available',
-    },
+    }] : []),
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 120,
+      flex: 0.8,
+      minWidth: isMobile ? 100 : 120,
       sortable: false,
       renderCell: (params) => (
         <Button
           variant="contained"
           size="small"
           onClick={() => navigate(getPatientDetailUrl(params.row.id))}
+          aria-label={`View chart for ${params.row.first_name} ${params.row.last_name}`}
         >
-          View Chart
+          {isMobile ? 'View' : 'View Chart'}
         </Button>
       ),
     },
-  ];
+  ].filter(Boolean);
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -336,6 +351,7 @@ function PaginatedPatientList() {
             placeholder="Search by name or MRN..."
             value={searchTerm}
             onChange={handleSearchChange}
+            aria-label="Search patients by name or MRN"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -343,17 +359,30 @@ function PaginatedPatientList() {
                 </InputAdornment>
               ),
             }}
+            inputProps={{
+              'aria-describedby': 'patient-search-helper'
+            }}
           />
+          <Typography id="patient-search-helper" variant="caption" sx={{ display: 'none' }}>
+            Search for patients by entering their name or medical record number
+          </Typography>
           
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Refresh">
-              <IconButton onClick={handleRefresh} disabled={isRefreshing}>
+            <Tooltip title="Refresh patient list">
+              <IconButton 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+                aria-label="Refresh patient list"
+              >
                 <RefreshIcon className={isRefreshing ? 'rotating' : ''} />
               </IconButton>
             </Tooltip>
             
-            <Tooltip title="Export">
-              <IconButton onClick={handleExport}>
+            <Tooltip title="Export patient data to CSV">
+              <IconButton 
+                onClick={handleExport}
+                aria-label="Export patient data"
+              >
                 <DownloadIcon />
               </IconButton>
             </Tooltip>
@@ -362,8 +391,9 @@ function PaginatedPatientList() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => setOpenNewPatient(true)}
+              aria-label="Register new patient"
             >
-              New Patient
+              {isMobile ? 'New' : 'New Patient'}
             </Button>
           </Stack>
         </Stack>
@@ -378,25 +408,49 @@ function PaginatedPatientList() {
       <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         {loading && <LinearProgress />}
         
-        <Box sx={{ flexGrow: 1 }}>
-          <DataGrid
-            rows={patients}
-            columns={columns}
-            loading={loading}
-            pageSize={pageSize}
-            rowsPerPageOptions={[]}
-            checkboxSelection={false}
-            disableSelectionOnClick
-            disableColumnMenu
-            hideFooter
-            autoHeight={false}
-            sx={{
-              '& .MuiDataGrid-cell:hover': {
-                cursor: 'pointer',
-              },
-            }}
-            onRowClick={(params) => navigate(getPatientDetailUrl(params.row.id))}
-          />
+        <Box sx={{ flexGrow: 1, minHeight: 400 }}>
+          {loading ? (
+            <Box sx={{ p: 2 }}>
+              {/* Skeleton loading for better UX */}
+              {Array.from(new Array(pageSize)).map((_, index) => (
+                <Box key={index} sx={{ mb: 2 }}>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Skeleton variant="rectangular" width={isMobile ? 60 : 100} height={32} />
+                    <Skeleton variant="text" sx={{ flex: 1 }} height={24} />
+                    {!isMobile && <Skeleton variant="rectangular" width={120} height={24} />}
+                    {!isTablet && <Skeleton variant="rectangular" width={80} height={24} />}
+                    <Skeleton variant="rectangular" width={isMobile ? 60 : 100} height={32} />
+                  </Stack>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <DataGrid
+              rows={patients}
+              columns={columns}
+              loading={false}
+              pageSize={pageSize}
+              rowsPerPageOptions={[]}
+              checkboxSelection={false}
+              disableSelectionOnClick
+              disableColumnMenu
+              hideFooter
+              autoHeight={false}
+              sx={{
+                '& .MuiDataGrid-cell:hover': {
+                  cursor: 'pointer',
+                },
+                '& .MuiDataGrid-row:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                },
+              }}
+              onRowClick={(params) => navigate(getPatientDetailUrl(params.row.id))}
+              localeText={{
+                noRowsLabel: 'No patients found',
+                noResultsOverlayLabel: 'No patients match your search',
+              }}
+            />
+          )}
         </Box>
 
         <TablePagination
