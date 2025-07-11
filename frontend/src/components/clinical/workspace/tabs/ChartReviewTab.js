@@ -39,7 +39,9 @@ import {
   useTheme,
   alpha,
   Snackbar,
-  Backdrop
+  Backdrop,
+  Skeleton,
+  useMediaQuery
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -846,6 +848,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     currentPatient 
   } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
@@ -1192,6 +1197,42 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     );
   }
 
+  // Show skeleton loading while data is loading
+  if (isLoading || loading) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Grid container spacing={isMobile ? 2 : 3}>
+          {/* Skeleton for each section */}
+          {[1, 2, 3, 4].map((item) => (
+            <Grid item xs={12} md={6} key={item}>
+              <Card>
+                <CardContent>
+                  <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
+                  <Stack spacing={1}>
+                    {[1, 2, 3].map((i) => (
+                      <Box key={i}>
+                        <Skeleton variant="text" width="100%" height={24} />
+                        <Skeleton variant="text" width="80%" height={20} />
+                      </Box>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Skeleton variant="text" width="40%" height={32} />
+                <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3, position: 'relative' }}>
       {/* Save Progress Overlay */}
@@ -1228,9 +1269,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           {saveError || 'Failed to save changes'}
         </Alert>
       </Snackbar>
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {/* Problem List */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <ProblemList 
             conditions={conditions} 
             patientId={patientId} 
@@ -1242,7 +1283,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Medications */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <MedicationList 
             medications={medications} 
             patientId={patientId} 
@@ -1254,7 +1295,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Allergies */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <AllergyList 
             allergies={allergies} 
             patientId={patientId} 
@@ -1266,7 +1307,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Social History */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <SocialHistory observations={observations} patientId={patientId} />
         </Grid>
 
