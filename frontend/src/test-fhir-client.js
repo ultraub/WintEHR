@@ -3,7 +3,7 @@ import { fhirClient } from './services/fhirClient';
 
 async function testFhirClient() {
   try {
-    console.log('Testing fhirClient...');
+    // Testing fhirClient...
     
     // Test searchPatients
     const result = await fhirClient.searchPatients({
@@ -13,14 +13,14 @@ async function testFhirClient() {
       _total: 'accurate'
     });
     
-    console.log('Search result:', result);
-    console.log('Total patients:', result.total);
-    console.log('Resources count:', result.resources.length);
+    // Search result received
+    // Total patients: result.total
+    // Resources count: result.resources.length
     
     if (result.resources.length > 0) {
       const firstPatient = result.resources[0];
-      console.log('First patient:', firstPatient);
-      console.log('First patient name:', firstPatient.name?.[0]);
+      // First patient: firstPatient
+      // First patient name: firstPatient.name?.[0]
     }
     
   } catch (error) {

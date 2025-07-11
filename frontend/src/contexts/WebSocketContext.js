@@ -85,7 +85,7 @@ export const WebSocketProvider = ({ children }) => {
         wsRef.current = new WebSocket(WS_URL);
         
         wsRef.current.onopen = () => {
-          console.log('WebSocket connected in simple mode');
+          // WebSocket connected in simple mode
           setIsConnected(true);
           reconnectAttempts.current = 0;
         };
@@ -104,7 +104,7 @@ export const WebSocketProvider = ({ children }) => {
         };
         
         wsRef.current.onclose = () => {
-          console.log('WebSocket disconnected');
+          // WebSocket disconnected
           setIsConnected(false);
           wsRef.current = null;
           
