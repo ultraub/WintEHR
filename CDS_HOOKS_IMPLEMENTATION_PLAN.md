@@ -78,22 +78,29 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
   - Temp: 8310-5
   - O2 Sat: 2708-6
 
-### 1.3 Medical Conditions 🚧 TODO
-**Status**: Placeholder created, needs implementation
+### 1.3 Medical Conditions ✅ COMPLETED
+**Status**: Fully implemented and ready for testing
 **Location**: `/frontend/src/components/cds-studio/build/conditions/MedicalConditionBuilder.js`
 
-#### Subtasks:
-- [ ] Integrate condition search from `searchService.js`
-- [ ] Create autocomplete with debouncing
-- [ ] Display format: "CODE - Description"
-- [ ] Support multiple code systems:
-  - [ ] SNOMED CT
-  - [ ] ICD-10
-  - [ ] ICD-9 (legacy)
-- [ ] Add severity filters (mild/moderate/severe)
-- [ ] Add status filters (active/resolved/inactive)
-- [ ] Support condition categories
-- [ ] Add "excludes condition" operator
+#### Completed Features:
+- [x] Integrate condition search from `searchService.js`
+- [x] Create autocomplete with debouncing (300ms)
+- [x] Display format: "CODE - Description" with system info
+- [x] Support multiple code systems:
+  - [x] SNOMED CT (primary)
+  - [x] ICD-10 (via search)
+  - [x] ICD-9 (legacy support)
+- [x] Add severity filters (any/mild/moderate/severe)
+- [x] Add status filters (has/not has/active/resolved/inactive)
+- [x] Support condition categories (8 categories)
+- [x] Add advanced operators:
+  - [x] New diagnosis (within timeframe)
+  - [x] Chronic vs Acute conditions
+  - [x] Include related conditions option
+- [x] Quick select from 8 common conditions
+- [x] Category-based filtering for quick selection
+- [x] Visual indicators for severity levels
+- [x] Helpful examples for each operator
 
 #### References:
 - Search service: `/frontend/src/services/searchService.js`
@@ -347,26 +354,29 @@ This document tracks the comprehensive implementation of CDS Hooks Builder enhan
 ### Completed ✅
 - Lab Value Condition Builder
 - Vital Signs Condition Builder
+- Medical Condition Builder
+- Improved CDS Studio UI (cleaner layout)
 - Development environment setup with hot reload
 - Cypress workflow testing framework
 - Fixed import path issues
+- Git commits and pushes
 
 ### In Progress 🚧
-- Testing Vital Signs Condition Builder in UI
-- Medical Condition Builder (next priority)
+- Testing all condition builders in UI
+- Card Builder enhancements (next priority)
 
 ### Not Started 🚧
-- Card Builder enhancements
-- Advanced features
-- UI/UX improvements
+- Advanced features (Display behavior, Prefetch, Policy)
+- Additional UI/UX improvements
 - Backend API endpoints
+- Programmatic tests
 
 ## Next Steps
 
-1. **Immediate**: Test VitalSignConditionBuilder in the UI
-2. **Next**: Implement MedicalConditionBuilder
-3. **Then**: Enhance card builder with tabs
-4. **Finally**: Add advanced features and polish
+1. **Immediate**: Test all three condition builders in the UI
+2. **Next**: Enhance Card Builder with tabbed interface
+3. **Then**: Add FHIR resource templates for suggestions
+4. **Finally**: Implement advanced features (Display behavior, Prefetch)
 
 ## References
 

@@ -48,6 +48,7 @@ import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { v4 as uuidv4 } from 'uuid';
 import LabValueConditionBuilder from './conditions/LabValueConditionBuilder';
 import VitalSignConditionBuilder from './conditions/VitalSignConditionBuilder';
+import MedicalConditionBuilder from './conditions/MedicalConditionBuilder';
 
 // Simplified condition categories
 const CONDITION_CATEGORIES = [
@@ -125,6 +126,14 @@ const ConditionItem = ({ condition, index, onChange, onDelete, onDuplicate }) =>
       case 'lab_value':
         return (
           <LabValueConditionBuilder
+            condition={condition}
+            onChange={onChange}
+            onRemove={onDelete}
+          />
+        );
+      case 'medical_condition':
+        return (
+          <MedicalConditionBuilder
             condition={condition}
             onChange={onChange}
             onRemove={onDelete}
@@ -234,11 +243,16 @@ const VisualConditionBuilderImproved = ({ conditions = [], onChange }) => {
 
   // Add new condition
   const addCondition = (category) => {
+    let type = '';
+    if (category === 'vitals') type = 'vital_sign';
+    else if (category === 'laboratory') type = 'lab_value';
+    else if (category === 'clinical') type = 'medical_condition';
+    
     const newCondition = {
       id: uuidv4(),
-      type: category === 'vitals' ? 'vital_sign' : category === 'laboratory' ? 'lab_value' : '',
+      type,
       category,
-      operator: 'gt',
+      operator: category === 'clinical' ? 'has' : 'gt',
       value: ''
     };
 
