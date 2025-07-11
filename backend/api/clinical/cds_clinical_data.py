@@ -4,10 +4,14 @@ Provides clinical reference data, lab catalogs with reference ranges,
 and vital sign references for CDS Hooks condition evaluation
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
+
+from database import get_db_session
+from services.dynamic_catalog_service import DynamicCatalogService
 
 router = APIRouter(prefix="/api/clinical", tags=["CDS Clinical Data"])
 
@@ -570,9 +574,60 @@ CONDITION_CATALOG = [
 async def get_lab_catalog(
     search: Optional[str] = Query(None, description="Search term for lab test"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
+    use_dynamic: bool = Query(True, description="Use dynamic catalog from patient data"),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """Get lab test catalog with reference ranges for CDS Hooks."""
+    
+    if use_dynamic:
+        # Use dynamic catalog from actual patient data
+        try:
+            dynamic_service = DynamicCatalogService(db)
+            dynamic_labs = await dynamic_service.extract_lab_test_catalog(limit)
+            
+            # Convert to the expected format
+            results = []
+            for lab in dynamic_labs:
+                lab_item = {
+                    "id": lab["id"],
+                    "name": lab["name"],
+                    "display": lab["display"],
+                    "loinc_code": lab["loinc_code"],
+                    "category": lab["category"],
+                    "specimen_type": lab["specimen_type"],
+                    "reference_range": lab["reference_range"] or {
+                        "min": None,
+                        "max": None,
+                        "unit": "",
+                        "interpretation": "no data"
+                    },
+                    "critical_low": None,  # Could be calculated from value_statistics
+                    "critical_high": None,
+                    "common_conditions": []  # Could be enhanced from condition associations
+                }
+                results.append(lab_item)
+            
+            # Apply filters
+            if category:
+                results = [lab for lab in results if lab["category"].lower() == category.lower()]
+            
+            if search:
+                search_lower = search.lower()
+                results = [
+                    lab for lab in results
+                    if search_lower in lab["name"].lower() or 
+                    search_lower in lab["display"].lower() or
+                    search_lower in lab["loinc_code"].lower()
+                ]
+            
+            return results[:limit]
+        
+        except Exception as e:
+            # Fall back to static catalog if dynamic fails
+            pass
+    
+    # Use static catalog as fallback
     results = LAB_CATALOG
     
     if category:
