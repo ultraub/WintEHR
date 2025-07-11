@@ -41,6 +41,20 @@ async def create_missing_tables(conn):
         CREATE INDEX IF NOT EXISTS idx_resource_history_version ON fhir.resource_history(resource_id, version_id);
     """)
     
+    # Add missing columns to existing tables
+    logger.info("Adding missing columns to existing tables...")
+    
+    # Add resource_type column to search_params if missing
+    await conn.execute("ALTER TABLE fhir.search_params ADD COLUMN IF NOT EXISTS resource_type VARCHAR(255);")
+    
+    # Add created_at column to search_params if missing  
+    await conn.execute("ALTER TABLE fhir.search_params ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
+    
+    # Add source_id column to references if missing (for compatibility)
+    await conn.execute("ALTER TABLE fhir.references ADD COLUMN IF NOT EXISTS source_id INTEGER;")
+    
+    logger.info("Updated table columns for compatibility")
+    
     # Create references table if missing
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS fhir.references (

@@ -78,14 +78,13 @@ CREATE TABLE IF NOT EXISTS fhir.search_params (
 CREATE TABLE IF NOT EXISTS fhir.references (
     id BIGSERIAL PRIMARY KEY,
     source_resource_id BIGINT NOT NULL,
-    source_id BIGINT NOT NULL, -- Alias for compatibility
+    source_id BIGINT, -- Alias for compatibility (will be synced with source_resource_id)
     source_path VARCHAR(255) NOT NULL,
     target_resource_type VARCHAR(255),
     target_resource_id VARCHAR(255),
     target_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (source_resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE,
-    FOREIGN KEY (source_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
+    FOREIGN KEY (source_resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
 );
 
 -- Compartments table for patient compartment
