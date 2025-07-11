@@ -909,7 +909,8 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         });
       }
     } catch (error) {
-      
+      // Non-critical error - event publishing failed
+      console.warn('Failed to publish clinical event:', error);
     }
   };
 

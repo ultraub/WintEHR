@@ -59,34 +59,49 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Subscribe to clinical events
   const subscribe = useCallback((eventType, callback) => {
-    const listeners = eventListeners.get(eventType) || [];
-    listeners.push(callback);
-    setEventListeners(prev => new Map(prev).set(eventType, listeners));
+    setEventListeners(prev => {
+      const newMap = new Map(prev);
+      const listeners = newMap.get(eventType) || [];
+      listeners.push(callback);
+      newMap.set(eventType, listeners);
+      return newMap;
+    });
     
     // Return unsubscribe function
     return () => {
-      const currentListeners = eventListeners.get(eventType) || [];
-      const updatedListeners = currentListeners.filter(cb => cb !== callback);
-      setEventListeners(prev => new Map(prev).set(eventType, updatedListeners));
+      setEventListeners(prev => {
+        const newMap = new Map(prev);
+        const currentListeners = newMap.get(eventType) || [];
+        const updatedListeners = currentListeners.filter(cb => cb !== callback);
+        newMap.set(eventType, updatedListeners);
+        return newMap;
+      });
     };
-  }, [eventListeners]);
+  }, []); // Remove eventListeners dependency to prevent infinite loops
 
   // Publish clinical events
   const publish = useCallback(async (eventType, data) => {
-    const listeners = eventListeners.get(eventType) || [];
-    
-    // Execute all listeners
-    for (const listener of listeners) {
-      try {
-        await listener(data);
-      } catch (error) {
+    // Get current listeners from state ref to avoid dependency
+    setEventListeners(currentEventListeners => {
+      const listeners = currentEventListeners.get(eventType) || [];
+      
+      // Execute all listeners asynchronously
+      (async () => {
+        for (const listener of listeners) {
+          try {
+            await listener(data);
+          } catch (error) {
+            console.warn('Error in event listener:', error);
+          }
+        }
         
-      }
-    }
-    
-    // Handle special event types with automated workflows
-    await handleAutomatedWorkflows(eventType, data);
-  }, [eventListeners]);
+        // Handle special event types with automated workflows
+        await handleAutomatedWorkflows(eventType, data);
+      })();
+      
+      return currentEventListeners; // Return unchanged state
+    });
+  }, []); // Remove eventListeners dependency
 
   // Handle automated workflows
   const handleAutomatedWorkflows = async (eventType, data) => {

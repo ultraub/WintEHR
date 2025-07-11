@@ -90,6 +90,14 @@ async def shutdown_event():
 # from api.health import router as health_router
 # app.include_router(health_router, prefix="/api", tags=["Health Check"])
 app.include_router(fhir_router, tags=["FHIR R4"])  # Already has /fhir/R4 prefix
+
+# Add multi-version FHIR router
+from api.fhir.version_router import router as version_router
+app.include_router(version_router, tags=["FHIR Multi-Version"])
+
+# Add content negotiation endpoints
+from api.fhir.version_router import version_aware_router
+app.include_router(version_aware_router.router, tags=["FHIR Content Negotiation"])
 app.include_router(emr_router, tags=["EMR Extensions"])  # Already has /api/emr prefix
 app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])  # Already has /api/clinical-canvas prefix
 

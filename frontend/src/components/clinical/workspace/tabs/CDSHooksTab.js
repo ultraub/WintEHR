@@ -37,6 +37,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
   useTheme
 } from '@mui/material';
 import {
@@ -64,6 +65,7 @@ import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -82,6 +84,7 @@ function TabPanel({ children, value, index, ...other }) {
 const CDSHooksTab = ({ patientId }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { publish, subscribe } = useClinicalWorkflow();
   const [tabValue, setTabValue] = useState(0);
   const [services, setServices] = useState([]);
   const [hooks, setHooks] = useState([]);
@@ -93,6 +96,7 @@ const CDSHooksTab = ({ patientId }) => {
   const [executionHistory, setExecutionHistory] = useState([]);
   const [serviceSettings, setServiceSettings] = useState({});
   const [customHooks, setCustomHooks] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     loadCDSServices();
@@ -105,6 +109,49 @@ const CDSHooksTab = ({ patientId }) => {
       executePatientViewHooks();
     }
   }, [patientId, tabValue]);
+
+  // Subscribe to CDS-relevant events
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Subscribe to medication events for drug-drug interaction checks
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, async (data) => {
+        if (data.patientId === patientId) {
+          // Re-execute medication-related hooks
+          const medicationServices = services.filter(s => 
+            (s.hook === 'medication-prescribe' || s.hook === 'order-sign') && 
+            serviceSettings[s.id]?.enabled
+          );
+          
+          if (medicationServices.length > 0) {
+            await executeHooksForServices(medicationServices, 'medication-update');
+          }
+        }
+      })
+    );
+
+    // Subscribe to order events for order-sign hooks
+    unsubscribers.push(
+      subscribe(CLINICAL_EVENTS.ORDER_PLACED, async (data) => {
+        if (data.patientId === patientId) {
+          // Execute order-sign hooks
+          const orderServices = services.filter(s => 
+            s.hook === 'order-sign' && serviceSettings[s.id]?.enabled
+          );
+          
+          if (orderServices.length > 0) {
+            await executeHooksForServices(orderServices, 'order-sign');
+          }
+        }
+      })
+    );
+
+    // Cleanup subscriptions
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [patientId, services, serviceSettings, subscribe]);
 
   const loadCDSServices = async () => {
     setLoading(true);
@@ -124,6 +171,70 @@ const CDSHooksTab = ({ patientId }) => {
       setServiceSettings(settings);
     } catch (err) {
       setError(`Failed to load CDS services: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeHooksForServices = async (servicesToExecute, context) => {
+    setLoading(true);
+    const startTime = Date.now();
+    const allCards = [];
+    
+    try {
+      for (const service of servicesToExecute) {
+        try {
+          const response = await cdsHooksClient.callService(service.id, {
+            hook: service.hook,
+            hookInstance: `${service.hook}-${Date.now()}`,
+            context: { patientId }
+          });
+          
+          if (response.cards) {
+            allCards.push(...response.cards.map(card => ({
+              ...card,
+              serviceId: service.id,
+              serviceName: service.title || service.id,
+              timestamp: new Date()
+            })));
+          }
+        } catch (serviceError) {
+          // Continue with other services
+        }
+      }
+      
+      if (allCards.length > 0) {
+        setCards(prevCards => [...allCards, ...prevCards]);
+        
+        // Publish CDS alerts
+        await publish(CLINICAL_EVENTS.CDS_ALERT_TRIGGERED, {
+          patientId,
+          alertCount: allCards.length,
+          context,
+          alerts: allCards.map(card => ({
+            summary: card.summary,
+            indicator: card.indicator,
+            source: card.serviceName
+          })),
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Update execution history
+      const newExecution = {
+        id: Date.now(),
+        timestamp: new Date(),
+        hook: context,
+        patientId,
+        servicesExecuted: servicesToExecute.length,
+        cardsGenerated: allCards.length,
+        success: true,
+        responseTime: Date.now() - startTime
+      };
+      
+      setExecutionHistory(prev => [newExecution, ...prev].slice(0, 50));
+    } catch (err) {
+      setError(`Failed to execute hooks: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -162,6 +273,20 @@ const CDSHooksTab = ({ patientId }) => {
       }
       
       setCards(allCards);
+      
+      // Publish CDS alerts triggered event if we have cards
+      if (allCards.length > 0) {
+        await publish(CLINICAL_EVENTS.CDS_ALERT_TRIGGERED, {
+          patientId,
+          alertCount: allCards.length,
+          alerts: allCards.map(card => ({
+            summary: card.summary,
+            indicator: card.indicator,
+            source: card.serviceName
+          })),
+          timestamp: new Date().toISOString()
+        });
+      }
       
       // Add to execution history
       const newExecution = {
@@ -228,7 +353,11 @@ const CDSHooksTab = ({ patientId }) => {
         setCustomHooks(result.data);
       }
     } catch (error) {
-      
+      setSnackbar({
+        open: true,
+        message: `Failed to load custom hooks: ${error.message}`,
+        severity: 'error'
+      });
       setCustomHooks([]);
     }
   };
@@ -238,7 +367,8 @@ const CDSHooksTab = ({ patientId }) => {
     try {
       localStorage.setItem('cds-execution-history', JSON.stringify(history));
     } catch (error) {
-      // Failed to save - ignore error
+      // Failed to save to localStorage - non-critical error
+      console.warn('Failed to save execution history to localStorage:', error);
     }
   };
 
@@ -383,7 +513,11 @@ const CDSHooksTab = ({ patientId }) => {
             acceptedSuggestions: [{ id: suggestion.uuid }]
           });
         } catch (feedbackError) {
-          
+          setSnackbar({
+            open: true,
+            message: `Failed to send feedback: ${feedbackError.message}`,
+            severity: 'error'
+          });
         }
       }
       
@@ -413,7 +547,11 @@ const CDSHooksTab = ({ patientId }) => {
         
       } catch (error) {
         
-        alert(`Failed to delete hook: ${error.message}`);
+        setSnackbar({
+          open: true,
+          message: `Failed to delete hook: ${error.message}`,
+          severity: 'error'
+        });
       }
     }
   };
@@ -1145,6 +1283,22 @@ const CDSHooksTab = ({ patientId }) => {
       <TabPanel value={tabValue} index={4}>
         <CDSHooksVerifier />
       </TabPanel>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

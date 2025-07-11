@@ -526,6 +526,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
         onSuccess();
       }
     } catch (error) {
+      console.error('Failed to add care team member:', error);
       alert('Failed to add care team member: ' + error.message);
     }
   };
@@ -1231,7 +1232,8 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
         onClose();
       }
       // In production, this would show an error snackbar or dialog
-      alert('Failed to save goal. Please try again.');
+      console.error('Failed to save goal:', error);
+      // Would show error notification in production
     }
   };
 
@@ -1815,7 +1817,11 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
                     setProgressDialogOpen(false);
                   }
                 } catch (error) {
-                  // Handle error - would show user notification in production
+                  setSnackbar({
+                    open: true,
+                    message: 'Failed to update goal progress: ' + error.message,
+                    severity: 'error'
+                  });
                 }
               }
             }}
