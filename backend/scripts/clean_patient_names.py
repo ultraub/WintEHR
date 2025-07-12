@@ -77,7 +77,7 @@ async def clean_patient_names():
                         version_id = version_id + 1,
                         last_updated = CURRENT_TIMESTAMP
                     WHERE id = $2
-                """, resource, patient['id'])
+                """, json.dumps(resource), patient['id'])
                 
                 cleaned_count += 1
                 
