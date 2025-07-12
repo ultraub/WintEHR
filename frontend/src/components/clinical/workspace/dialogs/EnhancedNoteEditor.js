@@ -48,12 +48,15 @@ import {
   Draw as SignIcon,
   Close as CloseIcon,
   Assignment as TemplateIcon,
-  Visibility as PreviewIcon
+  Visibility as PreviewIcon,
+  Share as ShareIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { NOTE_TEMPLATES, noteAutoPopulationService } from '../../../../services/noteTemplatesService';
+import QualityMeasurePrompts from '../../quality/QualityMeasurePrompts';
 
 // Template Selection Component
 const TemplateSelector = ({ selectedTemplate, onTemplateChange, onLoadTemplate, autoPopulateEnabled, onAutoPopulateToggle }) => {
@@ -280,6 +283,167 @@ const AutoPopulationPreview = ({ template, patientId, onApply }) => {
         </Stack>
       </AccordionDetails>
     </Accordion>
+  );
+};
+
+// Note Sharing Component
+const NoteSharing = ({ note, onShare }) => {
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareWith, setShareWith] = useState([]);
+  const [shareMessage, setShareMessage] = useState('');
+  const [availableProviders, setAvailableProviders] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Mock providers for demonstration - in real implementation, fetch from FHIR Practitioner resources
+  useEffect(() => {
+    setAvailableProviders([
+      { id: 'dr-smith', name: 'Dr. Sarah Smith', specialty: 'Internal Medicine' },
+      { id: 'dr-jones', name: 'Dr. Michael Jones', specialty: 'Cardiology' },
+      { id: 'dr-brown', name: 'Dr. Lisa Brown', specialty: 'Endocrinology' },
+      { id: 'nurse-wilson', name: 'Nurse Jennifer Wilson', specialty: 'Primary Care' }
+    ]);
+  }, []);
+
+  const handleShare = async () => {
+    if (shareWith.length === 0) return;
+    
+    setLoading(true);
+    try {
+      // In real implementation, this would:
+      // 1. Create Communication resource linking to the note
+      // 2. Set permissions/access rights
+      // 3. Send notifications
+      
+      const shareData = {
+        noteId: note?.id,
+        sharedWith: shareWith,
+        message: shareMessage,
+        timestamp: new Date().toISOString()
+      };
+      
+      await onShare(shareData);
+      setShareDialogOpen(false);
+      setShareWith([]);
+      setShareMessage('');
+    } catch (error) {
+      console.error('Error sharing note:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!note || note.docStatus === 'draft') {
+    return null; // Only allow sharing of non-draft notes
+  }
+
+  return (
+    <>
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <ShareIcon color="primary" />
+              <Typography variant="h6">Note Sharing</Typography>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary">
+              Share this note with other providers for collaboration and consultation.
+            </Typography>
+            
+            <Button
+              variant="outlined"
+              startIcon={<ShareIcon />}
+              onClick={() => setShareDialogOpen(true)}
+              disabled={!note || note.docStatus === 'draft'}
+            >
+              Share Note
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* Share Dialog */}
+      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <ShareIcon />
+            <Typography variant="h6">Share Clinical Note</Typography>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Alert severity="info">
+              Sharing this note will allow selected providers to view and reference it in their clinical workflow.
+            </Alert>
+            
+            <FormControl fullWidth>
+              <InputLabel>Select Providers</InputLabel>
+              <Select
+                multiple
+                value={shareWith}
+                onChange={(e) => setShareWith(e.target.value)}
+                label="Select Providers"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((providerId) => {
+                      const provider = availableProviders.find(p => p.id === providerId);
+                      return (
+                        <Chip 
+                          key={providerId} 
+                          label={provider?.name || providerId}
+                          size="small"
+                          icon={<PersonIcon />}
+                        />
+                      );
+                    })}
+                  </Box>
+                )}
+              >
+                {availableProviders.map((provider) => (
+                  <MenuItem key={provider.id} value={provider.id}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PersonIcon fontSize="small" />
+                      <Box>
+                        <Typography variant="body2">{provider.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {provider.specialty}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <TextField
+              fullWidth
+              label="Message (Optional)"
+              multiline
+              rows={3}
+              value={shareMessage}
+              onChange={(e) => setShareMessage(e.target.value)}
+              placeholder="Add a message about why you're sharing this note..."
+              variant="outlined"
+            />
+          </Stack>
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={() => setShareDialogOpen(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleShare}
+            disabled={loading || shareWith.length === 0}
+            startIcon={loading ? <CircularProgress size={16} /> : <ShareIcon />}
+          >
+            {loading ? 'Sharing...' : 'Share Note'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 
@@ -596,6 +760,81 @@ const EnhancedNoteEditor = ({
     }
   };
 
+  // Handle note sharing
+  const handleShareNote = async (shareData) => {
+    try {
+      // In real implementation, this would create a Communication resource
+      // linking to the note and set appropriate permissions
+      
+      // For demonstration, we'll just show a success message
+      setSnackbar({
+        open: true,
+        message: `Note shared with ${shareData.sharedWith.length} provider(s) successfully`,
+        severity: 'success'
+      });
+
+      // Publish sharing event
+      await publish(CLINICAL_EVENTS.DOCUMENTATION_SHARED, {
+        noteId: shareData.noteId,
+        sharedWith: shareData.sharedWith,
+        message: shareData.message,
+        timestamp: shareData.timestamp,
+        patientId
+      });
+
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error sharing note: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Handle quality measure note creation
+  const handleQualityNoteCreation = async (qualityPrompt) => {
+    try {
+      // Set up the note with quality measure content
+      setNoteData({
+        title: qualityPrompt.title,
+        content: qualityPrompt.content,
+        sections: {}
+      });
+
+      // Set appropriate template if available
+      if (qualityPrompt.template?.id) {
+        setSelectedTemplate(qualityPrompt.template.id);
+      } else {
+        // Default to progress note for quality documentation
+        setSelectedTemplate('progress');
+      }
+
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: `Quality measure documentation template loaded: ${qualityPrompt.measureName}`,
+        severity: 'success'
+      });
+
+      // Publish workflow event
+      await publish(CLINICAL_EVENTS.QUALITY_DOCUMENTATION_INITIATED, {
+        patientId,
+        encounterId: encounter?.id,
+        measureId: qualityPrompt.measureId,
+        measureName: qualityPrompt.measureName,
+        priority: qualityPrompt.priority,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error loading quality measure template: ' + error.message,
+        severity: 'error'
+      });
+    }
+  };
+
   const currentTemplate = selectedTemplate ? NOTE_TEMPLATES[selectedTemplate] : null;
 
   return (
@@ -631,6 +870,17 @@ const EnhancedNoteEditor = ({
               onAutoPopulateToggle={setAutoPopulateEnabled}
             />
 
+            {/* Quality Measure Documentation Prompts */}
+            {patientId && !amendmentMode && (
+              <QualityMeasurePrompts
+                patientId={patientId}
+                encounterId={encounter?.id}
+                onCreateNote={handleQualityNoteCreation}
+                variant="inline"
+                showSummary={true}
+              />
+            )}
+
             {/* Amendment Reason (only shown in amendment mode) */}
             {amendmentMode && (
               <Paper sx={{ p: 2, bgcolor: 'warning.light', border: '1px solid', borderColor: 'warning.main' }}>
@@ -660,6 +910,14 @@ const EnhancedNoteEditor = ({
                 template={currentTemplate}
                 patientId={patientId}
                 onApply={handleApplyAutoPopulation}
+              />
+            )}
+
+            {/* Note Sharing */}
+            {note && (
+              <NoteSharing
+                note={note}
+                onShare={handleShareNote}
               />
             )}
 
