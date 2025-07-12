@@ -42,7 +42,7 @@ import {
   Psychology as WellnessIcon,
   LocalHospital as AcuteIcon,
   Favorite as ChronicIcon,
-  FollowUp as FollowUpIcon,
+  EventRepeat as FollowUpIcon,
   AutoAwesome as SmartIcon
 } from '@mui/icons-material';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
