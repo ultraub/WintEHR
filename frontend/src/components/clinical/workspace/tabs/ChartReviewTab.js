@@ -41,7 +41,11 @@ import {
   Snackbar,
   Backdrop,
   Skeleton,
-  useMediaQuery
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -75,6 +79,7 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
+import RefillManagement from '../../medications/RefillManagement';
 import { fhirClient } from '../../../../services/fhirClient';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
@@ -335,6 +340,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
+  const [showRefillDialog, setShowRefillDialog] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
@@ -464,6 +470,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 <PharmacyIcon />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Refill Management">
+              <IconButton 
+                size="small" 
+                onClick={() => setShowRefillDialog(true)}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Export">
               <IconButton 
                 size="small"
@@ -570,6 +584,35 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         currentMedications={medications}
         onReconcile={handleReconciliation}
       />
+      
+      <Dialog
+        open={showRefillDialog}
+        onClose={() => setShowRefillDialog(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { minHeight: '80vh' }
+        }}
+      >
+        <DialogTitle>
+          Medication Refill Management
+        </DialogTitle>
+        <DialogContent>
+          <RefillManagement
+            patientId={patientId}
+            medications={medications}
+            onRefresh={() => {
+              // Refresh patient resources when refills are processed
+              window.location.reload(); // Simple refresh for now
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowRefillDialog(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       <Menu
         anchorEl={exportAnchorEl}
