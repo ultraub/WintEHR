@@ -71,7 +71,8 @@ import {
   Flag as PriorityIcon,
   MoreVert as MoreIcon,
   Close as CloseIcon,
-  Assignment
+  Assignment,
+  Signature as SignIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -82,6 +83,8 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtil
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import CDSHookManagerV2, { WORKFLOW_TRIGGERS } from '../../cds/CDSHookManagerV2';
 import CDSErrorBoundary from '../../cds/CDSErrorBoundary';
+import CPOEDialog from '../dialogs/CPOEDialog';
+import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -495,6 +498,8 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
   const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
+  const [cpoeDialogOpen, setCpoeDialogOpen] = useState(false);
+  const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [cdsTrigger, setCdsTrigger] = useState(0);
@@ -706,6 +711,106 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Order signing functionality
+  const handleSignOrders = () => {
+    const draftOrders = sortedOrders.filter(order => 
+      selectedOrders.has(order.id) && order.status === 'draft'
+    );
+
+    if (draftOrders.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'No draft orders selected for signing',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    setSignOrdersDialog({ open: true, orders: draftOrders });
+  };
+
+  const handleOrderSigned = async (signedOrders, pin, reason) => {
+    try {
+      setLoading(true);
+      
+      // Update each order status to active and add signature
+      const promises = signedOrders.map(async (order) => {
+        const updatedOrder = {
+          ...order,
+          status: 'active',
+          meta: {
+            ...order.meta,
+            signature: {
+              type: 'digital',
+              when: new Date().toISOString(),
+              who: currentPatient ? `Practitioner/${currentPatient.id}` : 'Unknown',
+              reason: reason,
+              hash: btoa(`${order.id}:${pin}:${Date.now()}`)
+            }
+          }
+        };
+        
+        const endpoint = order.resourceType === 'MedicationRequest' 
+          ? '/fhir/R4/MedicationRequest' 
+          : '/fhir/R4/ServiceRequest';
+        
+        return axios.put(`${endpoint}/${order.id}`, updatedOrder);
+      });
+
+      await Promise.all(promises);
+
+      // Publish order signed events
+      for (const order of signedOrders) {
+        await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+          orderId: order.id,
+          patientId,
+          orderType: order.resourceType === 'MedicationRequest' ? 'medication' : 'service',
+          providerId: currentPatient?.id,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Refresh patient resources
+      window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+        detail: { patientId } 
+      }));
+
+      setSnackbar({
+        open: true,
+        message: `${signedOrders.length} order(s) signed successfully`,
+        severity: 'success'
+      });
+
+      setSignOrdersDialog({ open: false, orders: [] });
+      setSelectedOrders(new Set());
+
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to sign orders: ' + error.message,
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // CPOE handlers
+  const handleOpenCPOE = (orderType = 'medication') => {
+    setCpoeDialogOpen(true);
+  };
+
+  const handleCPOEOrdersCreated = (createdOrders) => {
+    setSnackbar({
+      open: true,
+      message: `${createdOrders.length} order(s) created successfully`,
+      severity: 'success'
+    });
+    
+    // Trigger CDS check for new orders
+    setCdsTrigger(prev => prev + 1);
+  };
+
   // Batch send selected orders to pharmacy
   const handleBatchSendToPharmacy = async () => {
     const medicationOrders = sortedOrders.filter(order => 
@@ -903,7 +1008,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       // Trigger CDS hooks for order signing
       setCdsTrigger(prev => prev + 1);
 
-      // TODO: Implement actual order signing logic
+      // Order signing implemented via batch dialog
       // This would typically involve updating the order status and adding a signature
       setSnackbar({
         open: true,
@@ -1086,6 +1191,14 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <>
               <Button
                 variant="outlined"
+                startIcon={<SignIcon />}
+                onClick={handleSignOrders}
+                color="primary"
+              >
+                Sign Orders ({selectedOrders.size})
+              </Button>
+              <Button
+                variant="outlined"
                 startIcon={<SendIcon />}
                 onClick={handleBatchSendToPharmacy}
               >
@@ -1104,9 +1217,16 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
+            onClick={() => handleOpenCPOE('medication')}
+          >
+            CPOE Order Entry
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
             onClick={() => setQuickOrderDialog({ open: true, type: 'medication' })}
           >
-            New Order
+            Quick Order
           </Button>
           <Button
             variant="outlined"
@@ -1382,6 +1502,24 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
           Export as PDF
         </MenuItem>
       </Menu>
+
+      {/* CPOE Dialog */}
+      <CPOEDialog
+        open={cpoeDialogOpen}
+        onClose={() => setCpoeDialogOpen(false)}
+        patientId={patientId}
+        initialOrderType="medication"
+        onOrderCreated={handleCPOEOrdersCreated}
+      />
+
+      {/* Order Signing Dialog */}
+      <OrderSigningDialog
+        open={signOrdersDialog.open}
+        onClose={() => setSignOrdersDialog({ open: false, orders: [] })}
+        orders={signOrdersDialog.orders}
+        onOrdersSigned={handleOrderSigned}
+        loading={loading}
+      />
     </Box>
   );
 };
