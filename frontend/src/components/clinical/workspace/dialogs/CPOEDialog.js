@@ -34,6 +34,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Collapse,
   Grid,
   Card,
   CardContent,
@@ -72,6 +73,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { fhirClient } from '../../../../services/fhirClient';
 import { prescriptionStatusService } from '../../../../services/prescriptionStatusService';
 import EnhancedMedicationSearch from '../../prescribing/EnhancedMedicationSearch';
+import MedicationHistoryReview from '../../prescribing/MedicationHistoryReview';
 
 // Order Templates
 const ORDER_TEMPLATES = {
@@ -221,6 +223,7 @@ const CPOEDialog = ({
     providerPin: '',
     scheduleDate: null
   });
+  const [showMedicationHistory, setShowMedicationHistory] = useState(false);
 
   // Initialize with empty order based on type
   useEffect(() => {
@@ -305,6 +308,28 @@ const CPOEDialog = ({
   };
 
   // Handle enhanced medication selection
+  const handleMedicationFromHistory = (historicalMed) => {
+    // Create new order based on historical medication
+    const newOrder = {
+      id: Date.now(),
+      type: 'medication',
+      medication: historicalMed.medication,
+      dosage: historicalMed.dosageInstructions?.split(' ')[0] || '',
+      route: 'oral', // Default, could be parsed from dosageInstructions
+      frequency: historicalMed.dosageInstructions?.replace(/^\d+\w+\s*/, '') || '',
+      duration: '30 days', // Default
+      quantity: historicalMed.quantity?.value || '',
+      refills: historicalMed.refills || 0,
+      substitution: true
+    };
+    
+    setOrders(prev => [...prev, newOrder]);
+    setShowMedicationHistory(false);
+    
+    // Trigger CDS checks
+    checkCDSRules(historicalMed.medication);
+  };
+
   const handleMedicationSelect = (orderId, medicationData) => {
     if (medicationData.template) {
       // Handle template selection - create multiple orders
@@ -899,6 +924,38 @@ const CPOEDialog = ({
             ))}
           </Stack>
         </Box>
+
+        {/* Medication History for medication orders */}
+        {orderType === 'medication' && (
+          <Box sx={{ mb: 3 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6">
+                Medication History
+              </Typography>
+              <Button
+                size="small"
+                startIcon={<HistoryIcon />}
+                onClick={() => setShowMedicationHistory(!showMedicationHistory)}
+                variant={showMedicationHistory ? 'contained' : 'outlined'}
+              >
+                {showMedicationHistory ? 'Hide' : 'Review'} History
+              </Button>
+            </Stack>
+            
+            <Collapse in={showMedicationHistory}>
+              <Paper variant="outlined" sx={{ p: 2, maxHeight: 400, overflow: 'auto' }}>
+                <MedicationHistoryReview
+                  patientId={patientId}
+                  onMedicationSelect={handleMedicationFromHistory}
+                  showActiveOnly={false}
+                  timeRange={12}
+                  highlightDuplicates={true}
+                  compactView={false}
+                />
+              </Paper>
+            </Collapse>
+          </Box>
+        )}
 
         {/* CDS Alerts */}
         {cdsAlerts.length > 0 && (
