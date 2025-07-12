@@ -39,19 +39,20 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
     "test:ci": "CI=true react-scripts test --coverage --watchAll=false",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx --max-warnings 0",
     "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
-    "analyze": "npm run build && npx serve -s build",
-    "dev": "REACT_APP_ENVIRONMENT=development react-scripts start",
-    "dev:staging": "REACT_APP_ENVIRONMENT=staging react-scripts start",
-    "build:staging": "REACT_APP_ENVIRONMENT=staging react-scripts build",
-    "build:production": "REACT_APP_ENVIRONMENT=production react-scripts build"
+    "analyze": "ANALYZE=true npm run build",
+    "serve": "npx serve -s build",
+    "dev": "REACT_APP_ENVIRONMENT=development craco start",
+    "dev:staging": "REACT_APP_ENVIRONMENT=staging craco start",
+    "build:staging": "REACT_APP_ENVIRONMENT=staging craco build",
+    "build:production": "REACT_APP_ENVIRONMENT=production craco build"
   },
   "eslintConfig": {
     "extends": [
@@ -73,6 +74,10 @@
   },
   "proxy": "http://backend:8000",
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "compression-webpack-plugin": "^10.0.0",
+    "webpack-bundle-analyzer": "^4.10.1",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "http-proxy-middleware": "^3.0.5"
   }
 }

@@ -1174,4 +1174,4 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   );
 };
 
-export default DocumentationTab;
+export default React.memo(DocumentationTab);

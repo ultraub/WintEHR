@@ -1361,4 +1361,4 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default ChartReviewTab;
+export default React.memo(ChartReviewTab);

@@ -1257,4 +1257,4 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default ResultsTab;
+export default React.memo(ResultsTab);

@@ -833,4 +833,4 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default EncountersTab;
+export default React.memo(EncountersTab);

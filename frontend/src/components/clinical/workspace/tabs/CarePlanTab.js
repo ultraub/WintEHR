@@ -2035,4 +2035,4 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default CarePlanTab;
+export default React.memo(CarePlanTab);

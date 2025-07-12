@@ -56,8 +56,10 @@ import { decodeFhirId } from '../../utils/navigationUtils';
 // Components
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';
 import WorkspaceContent from './workspace/WorkspaceContent';
-const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
 import { usePatientCDSAlerts } from '../../contexts/CDSContext';
+
+// Lazy-loaded Components
+const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
 
 // Tab Components - Lazy Loaded for Performance
 const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));

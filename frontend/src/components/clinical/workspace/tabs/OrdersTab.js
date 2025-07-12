@@ -1503,4 +1503,4 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default OrdersTab;
+export default React.memo(OrdersTab);
