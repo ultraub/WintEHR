@@ -71,6 +71,7 @@ import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
 import { fhirClient } from '../../../../services/fhirClient';
+import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Medication status definitions
@@ -519,6 +520,8 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         throw new Error('Medication request not found');
       }
 
+      const oldStatus = currentRequest.status;
+
       // Update the medication request status
       const updatedRequest = {
         ...currentRequest,
@@ -527,6 +530,17 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
 
       await fhirClient.update('MedicationRequest', requestId, updatedRequest);
       
+      // Update medication lists based on status change
+      try {
+        await medicationListManagementService.handlePrescriptionStatusUpdate(
+          requestId, 
+          newStatus, 
+          oldStatus
+        );
+      } catch (error) {
+        console.error('Error updating medication lists:', error);
+      }
+      
       // Refresh the medication requests
       await refreshPatientResources(patientId);
 
@@ -534,6 +548,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
         resourceId: requestId,
         newStatus: newStatus,
+        oldStatus: oldStatus,
         resourceType: 'MedicationRequest'
       });
       

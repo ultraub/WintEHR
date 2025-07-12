@@ -373,64 +373,36 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     }
   };
 
-  const handleReconciliation = async (reconciliationChanges) => {
+  const handleReconciliation = async (reconciliationResults) => {
     try {
-      // Apply each reconciliation change
-      for (const change of reconciliationChanges) {
-        if (change.type === 'add') {
-          // Create new medication request from external source
-          const newMedRequest = {
-            resourceType: 'MedicationRequest',
-            status: 'active',
-            intent: 'order',
-            priority: 'routine',
-            medicationCodeableConcept: {
-              text: change.medication.name
-            },
-            subject: {
-              reference: `Patient/${patientId}`
-            },
-            authoredOn: new Date().toISOString(),
-            dosageInstruction: [{
-              text: change.medication.dosage
-            }],
-            note: [{
-              text: `Added via medication reconciliation from ${change.source}`
-            }]
-          };
-          await onPrescribeMedication(newMedRequest);
-        } else if (change.type === 'discontinue') {
-          // Mark medication as stopped
-          const updatedMed = {
-            ...change.medication,
-            status: 'stopped',
-            note: [
-              ...(change.medication.note || []),
-              {
-                text: `Discontinued via medication reconciliation from ${change.source}`,
-                time: new Date().toISOString()
-              }
-            ]
-          };
-          await onEditMedication(updatedMed);
-        } else if (change.type === 'modify') {
-          // Update dosage
-          const updatedMed = {
-            ...change.medication,
-            dosageInstruction: [{
-              text: change.newDosage
-            }],
-            note: [
-              ...(change.medication.note || []),
-              {
-                text: `Dosage updated via medication reconciliation from ${change.source}`,
-                time: new Date().toISOString()
-              }
-            ]
-          };
-          await onEditMedication(updatedMed);
-        }
+      // The reconciliation service has already applied the changes
+      // reconciliationResults contains the results of each change
+      
+      const successfulChanges = reconciliationResults.filter(result => result.result.success);
+      const failedChanges = reconciliationResults.filter(result => !result.result.success);
+      
+      // Refresh the medication list to reflect changes
+      await refreshPatientResources(patientId);
+      
+      // Publish workflow event for successful reconciliation
+      if (successfulChanges.length > 0) {
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'medication-reconciliation',
+          step: 'completed',
+          data: {
+            patientId,
+            changesApplied: successfulChanges.length,
+            changesFailed: failedChanges.length,
+            timestamp: new Date().toISOString()
+          }
+        });
       }
+      
+      // Close the dialog
+      setShowReconciliationDialog(false);
+      
+      // Log summary for debugging
+      console.log(`Medication reconciliation completed: ${successfulChanges.length} successful, ${failedChanges.length} failed`);
       
       // Medication reconciliation completed successfully
     } catch (error) {

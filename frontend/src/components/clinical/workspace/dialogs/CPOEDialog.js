@@ -72,6 +72,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { prescriptionStatusService } from '../../../../services/prescriptionStatusService';
+import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import EnhancedMedicationSearch from '../../prescribing/EnhancedMedicationSearch';
 import MedicationHistoryReview from '../../prescribing/MedicationHistoryReview';
 
@@ -617,6 +618,13 @@ const CPOEDialog = ({
             );
           } catch (error) {
             console.error('Error initializing prescription status:', error);
+          }
+          
+          // Update medication lists automatically
+          try {
+            await medicationListManagementService.handleNewPrescription(order);
+          } catch (error) {
+            console.error('Error updating medication lists:', error);
           }
         }
 
