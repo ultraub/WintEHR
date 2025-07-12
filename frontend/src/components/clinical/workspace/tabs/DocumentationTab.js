@@ -80,10 +80,11 @@ import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMo
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
-import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
+import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
+import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
 
 // Note type configuration
 const noteTypes = {
@@ -101,7 +102,7 @@ const noteTypes = {
 };
 
 // Note Card Component
-const NoteCard = ({ note, onEdit, onView, onSign }) => {
+const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -211,6 +212,12 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
                 <EditIcon />
               </IconButton>
             )}
+            <IconButton size="small" onClick={() => onPrint(note)}>
+              <PrintIcon />
+            </IconButton>
+            <IconButton size="small" onClick={() => onExport(note)}>
+              <ShareIcon />
+            </IconButton>
           </Stack>
         </Stack>
       </CardContent>
@@ -1006,7 +1013,9 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
     let content = '';
     sortedDocuments.forEach((doc, index) => {
       if (index > 0) content += '<div class="page-break"></div>';
-      content += formatClinicalNoteForPrint(doc);
+      const template = getTemplateForNote(doc);
+      const printOptions = formatClinicalNoteForPrint(doc, patientInfo, template);
+      content += printOptions.content;
     });
     
     printDocument({
@@ -1014,6 +1023,77 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       patient: patientInfo,
       content
     });
+  };
+
+  // Helper function to get template for a note
+  const getTemplateForNote = (note) => {
+    const loincCode = note.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+    const templateId = Object.keys(NOTE_TEMPLATES).find(key => 
+      NOTE_TEMPLATES[key].code === loincCode
+    ) || 'progress';
+    return NOTE_TEMPLATES[templateId];
+  };
+
+  // Handle individual note print
+  const handlePrintNote = (note) => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender
+    };
+
+    const template = getTemplateForNote(note);
+    const printOptions = formatClinicalNoteForPrint(note, patientInfo, template);
+    printDocument(printOptions);
+  };
+
+  // Handle individual note export
+  const handleExportNote = async (note) => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      id: currentPatient?.id
+    };
+
+    const template = getTemplateForNote(note);
+    
+    // Show format selection dialog or default to text
+    try {
+      const blob = await exportClinicalNote({
+        note,
+        patient: patientInfo,
+        template,
+        format: 'txt'
+      });
+
+      // Create download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${template.label}_${patientInfo.name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'Note exported successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error exporting note: ' + error.message,
+        severity: 'error'
+      });
+    }
   };
   
   useEffect(() => {
@@ -1173,6 +1253,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
               onEdit={handleEditNote}
               onView={handleViewNote}
               onSign={handleSignNote}
+              onPrint={handlePrintNote}
+              onExport={handleExportNote}
             />
           ))}
         </Box>

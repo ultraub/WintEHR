@@ -3,6 +3,7 @@
  */
 
 import { format, parseISO } from 'date-fns';
+import { NOTE_TEMPLATES } from '../services/noteTemplatesService';
 
 /**
  * Create a print-friendly HTML document
@@ -388,31 +389,217 @@ export const formatEncountersForPrint = (encounters) => {
 /**
  * Format clinical note for printing
  * @param {Object} note - FHIR DocumentReference resource
- * @returns {string} HTML string
+ * @param {Object} patient - Patient information
+ * @param {Object} template - Note template information
+ * @returns {Object} Print document options
  */
-export const formatClinicalNoteForPrint = (note) => {
-  const type = note.type?.text || note.type?.coding?.[0]?.display || 'Clinical Note';
-  const author = note.author?.[0]?.display || 'Unknown';
-  const date = note.date ? format(parseISO(note.date), 'MMMM d, yyyy h:mm a') : 'Unknown date';
-  
-  let content = '';
-  if (note.content?.[0]?.attachment?.data) {
-    try {
-      content = atob(note.content[0].attachment.data);
-    } catch (e) {
-      content = 'Unable to decode note content';
-    }
-  } else {
-    content = note.text || 'No content available';
+export const formatClinicalNoteForPrint = (note, patient, template) => {
+  if (!note) {
+    return {
+      title: 'Clinical Note',
+      patient,
+      content: '<p>No note content available.</p>',
+      footer: 'Printed from MedGenEMR'
+    };
   }
 
-  let html = '<div class="section">';
-  html += `<h2>${type}</h2>`;
-  html += '<div class="note-box">';
-  html += `<p><strong>Author:</strong> ${author} | <strong>Date:</strong> ${date}</p>`;
-  html += `<div style="white-space: pre-wrap; margin-top: 10px;">${content}</div>`;
-  html += '</div>';
-  html += '</div>';
+  // Extract note content
+  let content = '';
+  try {
+    if (note.content?.[0]?.attachment?.data) {
+      const decodedContent = atob(note.content[0].attachment.data);
+      
+      // Handle sectioned vs freeform notes
+      if (template?.structure === 'sections') {
+        try {
+          const sections = JSON.parse(decodedContent);
+          content = formatSectionedNoteForPrint(sections, template);
+        } catch (e) {
+          content = `<div class="note-box">${formatPlainTextNote(decodedContent)}</div>`;
+        }
+      } else {
+        content = `<div class="note-box">${formatPlainTextNote(decodedContent)}</div>`;
+      }
+    }
+  } catch (error) {
+    content = '<p>Error loading note content.</p>';
+  }
 
+  // Add note metadata
+  const noteDate = note.date ? format(parseISO(note.date), 'MMMM d, yyyy h:mm a') : 'Unknown';
+  const author = note.author?.[0]?.display || 'Unknown';
+  const status = note.docStatus || 'preliminary';
+  const noteType = template?.label || note.type?.coding?.[0]?.display || 'Clinical Note';
+
+  const metadata = `
+    <div class="note-metadata avoid-break">
+      <table>
+        <tr>
+          <td class="label">Note Type:</td>
+          <td>${noteType}</td>
+          <td class="label">Date:</td>
+          <td>${noteDate}</td>
+        </tr>
+        <tr>
+          <td class="label">Author:</td>
+          <td>${author}</td>
+          <td class="label">Status:</td>
+          <td style="text-transform: capitalize;">${status}</td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  return {
+    title: `${noteType} - ${patient?.name || 'Patient'}`,
+    patient,
+    content: metadata + content,
+    footer: 'Printed from MedGenEMR Clinical Documentation System'
+  };
+};
+
+/**
+ * Format sectioned note content for printing
+ * @param {Object} sections - Note sections object
+ * @param {Object} template - Note template
+ * @returns {string} HTML string
+ */
+const formatSectionedNoteForPrint = (sections, template) => {
+  let html = '<div class="sectioned-note">';
+  
+  Object.entries(template.sections || {}).forEach(([sectionKey, sectionConfig]) => {
+    const sectionContent = sections[sectionKey] || '';
+    if (sectionContent.trim()) {
+      html += `
+        <div class="note-section avoid-break">
+          <h3>${sectionConfig.label}</h3>
+          <div class="section-content">${formatPlainTextNote(sectionContent)}</div>
+        </div>
+      `;
+    }
+  });
+  
+  html += '</div>';
   return html;
+};
+
+/**
+ * Format plain text note content for printing (preserve line breaks)
+ * @param {string} text - Plain text content
+ * @returns {string} HTML string
+ */
+const formatPlainTextNote = (text) => {
+  return text
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>')
+    .replace(/$/, '</p>')
+    .replace(/<p><\/p>/g, '');
+};
+
+/**
+ * Export clinical note data in various formats
+ * @param {Object} options - Export options
+ * @param {Object} options.note - FHIR DocumentReference resource
+ * @param {Object} options.patient - Patient information
+ * @param {Object} options.template - Note template
+ * @param {string} options.format - Export format ('json', 'txt')
+ * @returns {Promise<Blob>} Exported data as blob
+ */
+export const exportClinicalNote = async (options) => {
+  const { note, patient, template, format = 'txt' } = options;
+  
+  switch (format) {
+    case 'json':
+      return exportNoteAsJSON(note, patient, template);
+    case 'txt':
+      return exportNoteAsText(note, patient, template);
+    default:
+      throw new Error(`Unsupported export format: ${format}`);
+  }
+};
+
+/**
+ * Export note as JSON blob
+ */
+const exportNoteAsJSON = (note, patient, template) => {
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    patient: {
+      name: patient?.name,
+      id: patient?.id,
+      mrn: patient?.mrn
+    },
+    note: {
+      id: note.id,
+      type: template?.label || note.type?.coding?.[0]?.display,
+      date: note.date,
+      author: note.author?.[0]?.display,
+      status: note.docStatus,
+      content: note.content?.[0]?.attachment?.data ? 
+        atob(note.content[0].attachment.data) : ''
+    },
+    template: template ? {
+      id: template.id,
+      label: template.label,
+      structure: template.structure
+    } : null
+  };
+  
+  const jsonString = JSON.stringify(exportData, null, 2);
+  return new Blob([jsonString], { type: 'application/json' });
+};
+
+/**
+ * Export note as plain text blob
+ */
+const exportNoteAsText = (note, patient, template) => {
+  const noteDate = note.date ? format(parseISO(note.date), 'MMMM d, yyyy h:mm a') : 'Unknown';
+  const author = note.author?.[0]?.display || 'Unknown';
+  const noteType = template?.label || note.type?.coding?.[0]?.display || 'Clinical Note';
+  
+  let content = '';
+  try {
+    if (note.content?.[0]?.attachment?.data) {
+      const decodedContent = atob(note.content[0].attachment.data);
+      
+      if (template?.structure === 'sections') {
+        try {
+          const sections = JSON.parse(decodedContent);
+          Object.entries(template.sections || {}).forEach(([sectionKey, sectionConfig]) => {
+            const sectionContent = sections[sectionKey] || '';
+            if (sectionContent.trim()) {
+              content += `\n${sectionConfig.label.toUpperCase()}\n`;
+              content += '='.repeat(sectionConfig.label.length) + '\n';
+              content += sectionContent + '\n';
+            }
+          });
+        } catch (e) {
+          content = decodedContent;
+        }
+      } else {
+        content = decodedContent;
+      }
+    }
+  } catch (error) {
+    content = 'Error loading note content.';
+  }
+
+  const textContent = `
+${noteType.toUpperCase()}
+${'='.repeat(noteType.length)}
+
+Patient: ${patient?.name || 'Unknown'}
+MRN: ${patient?.mrn || patient?.id || 'Unknown'}
+Date: ${noteDate}
+Author: ${author}
+Status: ${note.docStatus || 'preliminary'}
+
+${content}
+
+---
+Exported from MedGenEMR on ${format(new Date(), 'MMMM d, yyyy h:mm a')}
+  `.trim();
+  
+  return new Blob([textContent], { type: 'text/plain' });
 };
