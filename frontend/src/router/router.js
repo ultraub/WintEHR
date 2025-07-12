@@ -16,7 +16,6 @@ import NotFound from '../pages/NotFound';
 import MedicationReconciliationPage from '../pages/MedicationReconciliationPage';
 import VitalSignsPage from '../pages/VitalSignsPage';
 import TrainingCenterPage from '../pages/TrainingCenterPage';
-import CDSHooksPage from '../pages/CDSHooksPage';
 import CDSHooksStudio from '../pages/CDSHooksStudio';
 import EncountersPage from '../pages/EncountersPage';
 import LabResultsPage from '../pages/LabResultsPage';
@@ -201,16 +200,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '/cds-hooks',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <CDSHooksPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/cds-studio',
     element: (
       <ProtectedRoute>
         <LayoutV3>
