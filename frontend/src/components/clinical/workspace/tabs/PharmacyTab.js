@@ -577,7 +577,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       };
       
       // Create the MedicationDispense resource
-      const createdDispense = await fhirClient.createResource('MedicationDispense', dispenseResource);
+      const createdDispense = await fhirClient.create('MedicationDispense', dispenseResource);
       
       // Get the current medication request to update it
       const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);

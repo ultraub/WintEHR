@@ -58,6 +58,7 @@ import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { fhirClient } from '../../../../services/fhirClient';
 
 const SIGNING_STEPS = [
   {
@@ -324,13 +325,9 @@ const EncounterSigningDialog = ({
       };
 
       // Save signature
-      const signatureResponse = await fetch('/fhir/R4/Provenance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signature)
-      });
+      const signatureResponse = await fhirClient.create('Provenance', signature);
 
-      if (!signatureResponse.ok) {
+      if (!signatureResponse) {
         throw new Error('Failed to create digital signature');
       }
 
@@ -344,13 +341,9 @@ const EncounterSigningDialog = ({
         }
       };
 
-      const encounterResponse = await fetch(`/fhir/R4/Encounter/${encounter.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedEncounter)
-      });
+      const encounterResponse = await fhirClient.update('Encounter', encounter.id, updatedEncounter);
 
-      if (!encounterResponse.ok) {
+      if (!encounterResponse) {
         throw new Error('Failed to update encounter status');
       }
 
@@ -358,17 +351,9 @@ const EncounterSigningDialog = ({
       for (const diagnosis of diagnosesData) {
         if (diagnosis.code && diagnosis.code.text) {
           if (diagnosis.id) {
-            await fetch(`/fhir/R4/Condition/${diagnosis.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(diagnosis)
-            });
+            await fhirClient.update('Condition', diagnosis.id, diagnosis);
           } else {
-            await fetch('/fhir/R4/Condition', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(diagnosis)
-            });
+            await fhirClient.create('Condition', diagnosis);
           }
         }
       }

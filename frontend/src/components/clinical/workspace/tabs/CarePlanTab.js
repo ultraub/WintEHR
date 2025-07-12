@@ -294,16 +294,16 @@ const CareTeamCard = ({ careTeam, onAddMember, onViewAll }) => {
               <ListItemText
                 primary={participant.member?.display || 'Team Member'}
                 secondary={
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="caption">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Typography variant="caption" component="span">
                       {participant.role?.[0]?.text || participant.role?.[0]?.coding?.[0]?.display || 'Role not specified'}
                     </Typography>
                     {participant.period?.start && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" component="span">
                         • Since {format(parseISO(participant.period.start), 'MMM yyyy')}
                       </Typography>
                     )}
-                  </Stack>
+                  </span>
                 }
               />
             </ListItem>

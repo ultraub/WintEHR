@@ -2,7 +2,7 @@
  * Chart Review Tab Component
  * Comprehensive view of patient's problems, medications, and allergies
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -80,8 +80,7 @@ import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import CDSHookManagerV2, { WORKFLOW_TRIGGERS } from '../../cds/CDSHookManagerV2';
-import CDSErrorBoundary from '../../cds/CDSErrorBoundary';
+import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
@@ -858,31 +857,24 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [cdsTrigger, setCdsTrigger] = useState(0);
   // Removed refreshKey - now using unified resource system
+
+  // Use centralized CDS alerts
+  const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
 
   useEffect(() => {
     // Data is already loaded by FHIRResourceContext
     setLoading(false);
   }, []);
 
-  // Trigger patient-view CDS hooks when patient changes
+  // Handle CDS alerts notification count
   useEffect(() => {
-    if (patientId && currentPatient) {
-      setCdsTrigger(prev => prev + 1);
+    if (cdsAlerts.length > 0 && onNotificationUpdate) {
+      // Pass critical alert count to match what ClinicalWorkspaceV3 expects
+      const criticalCount = cdsAlerts.filter(alert => alert.indicator === 'critical').length;
+      onNotificationUpdate(criticalCount || cdsAlerts.length);
     }
-  }, [patientId, currentPatient]);
-
-  // Handle CDS alerts
-  const handleCDSAlerts = (hookType, alerts) => {
-    if (alerts.length > 0 && onNotificationUpdate) {
-      onNotificationUpdate({
-        type: 'cds-alert',
-        count: alerts.length,
-        severity: alerts.some(a => a.indicator === 'critical') ? 'critical' : 'info'
-      });
-    }
-  };
+  }, [cdsAlerts, onNotificationUpdate]);
 
   const handleAddProblem = async (condition) => {
     try {
@@ -1259,22 +1251,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   return (
     <Box sx={{ p: 3, position: 'relative' }}>
-      {/* CDS Hook Manager V2 - Stable implementation with Error Boundary */}
-      <CDSErrorBoundary showDetails={false}>
-        <CDSHookManagerV2
-          patientId={patientId}
-          hookType="patient-view"
-          context={{ 
-            tab: 'chart-review',
-            patientId,
-            userId: 'current-user' // TODO: Get from auth context
-          }}
-          trigger={cdsTrigger}
-          onAlertsChange={handleCDSAlerts}
-          debugMode={false}
-        />
-      </CDSErrorBoundary>
-
       {/* Save Progress Overlay */}
       <Backdrop
         sx={{ 

@@ -13,16 +13,37 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Teaching EMR System</title>
     
-    <!-- Material-UI Roboto Font -->
+    <!-- Preconnect to improve performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    
+    <!-- Material-UI Roboto Font with optimized loading -->
     <link
-      rel="stylesheet"
+      rel="preload"
       href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
-    <!-- Material Icons -->
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+      />
+    </noscript>
+    
+    <!-- Material Icons with optimized loading -->
     <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="preload"
+      href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      />
+    </noscript>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -49,13 +49,15 @@ const CDSHookManagerV2 = ({
   const [error, setError] = useState(null);
 
   // Stable context object using useMemo to prevent infinite re-renders
+  // Only recreate if the stringified context changes to avoid object reference issues
+  const contextString = JSON.stringify(context);
   const stableContext = useMemo(() => ({
     patientId,
     userId,
     encounterId,
     hookType,
     ...context
-  }), [patientId, userId, encounterId, hookType, context]);
+  }), [patientId, userId, encounterId, hookType, contextString]);
 
   // Simple CDS execution function based on PrescribeMedicationDialog pattern
   const executeCDSHooks = useCallback(async () => {

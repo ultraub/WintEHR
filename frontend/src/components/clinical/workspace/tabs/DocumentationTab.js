@@ -243,8 +243,9 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
 };
 
 // Note Editor Component
-const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) => {
+const NoteEditor = ({ open, onClose, note, patientId }) => {
   const { publish } = useClinicalWorkflow();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
@@ -377,26 +378,16 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
         delete updatePayload.text;
         delete updatePayload.context;
         
-        response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updatePayload)
-        });
+        const updatedResource = await fhirClient.update('DocumentReference', note.id, updatePayload);
+        response = { ok: true, data: updatedResource };
       } else {
         // Create new note
-        response = await fetch('/fhir/R4/DocumentReference', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(documentReference)
-        });
+        const createdResource = await fhirClient.create('DocumentReference', documentReference);
+        response = { ok: true, data: createdResource };
       }
 
       if (response.ok) {
-        const savedNote = await response.json();
+        const savedNote = response.data;
         
         // Publish DOCUMENTATION_CREATED event
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
@@ -430,13 +421,11 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
         throw new Error(`Failed to save note: ${response.statusText}`);
       }
     } catch (error) {
-      // Handle error appropriately
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to save note. Please try again.'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Failed to save note. Please try again.',
+        severity: 'error'
+      });
     }
   };
 
@@ -573,6 +562,22 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
           Save & Sign
         </Button>
       </DialogActions>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 };
@@ -812,15 +817,9 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         docStatus: 'final'
       };
       
-      const response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedNote)
-      });
+      const updatedResource = await fhirClient.update('DocumentReference', note.id, updatedNote);
       
-      if (response.ok) {
+      if (updatedResource) {
         // Publish DOCUMENTATION_CREATED event (for signed note)
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
           ...updatedNote,
@@ -855,12 +854,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           severity: 'success'
         });
       } else {
-        throw new Error(`Failed to sign note: ${response.statusText}`);
-        setSnackbar({
-          open: true,
-          message: 'Failed to sign note',
-          severity: 'error'
-        });
+        throw new Error('Failed to sign note');
       }
     } catch (error) {
       // Handle error
@@ -1148,11 +1142,6 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         onClose={() => setEditorOpen(false)}
         note={selectedNote}
         patientId={patientId}
-        onNotificationUpdate={(notification) => setSnackbar({
-          open: true,
-          message: notification.message,
-          severity: notification.type === 'error' ? 'error' : 'success'
-        })}
       />
       
       {/* Addendum Dialog */}

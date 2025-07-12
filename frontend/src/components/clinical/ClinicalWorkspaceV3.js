@@ -2,7 +2,7 @@
  * ClinicalWorkspaceV3 Component
  * Modern tab-based clinical workspace with customizable layouts
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -16,8 +16,10 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
+  AlertTitle,
   Button,
   Typography,
+  Stack,
   useTheme,
   useMediaQuery,
   Fab,
@@ -54,20 +56,93 @@ import { decodeFhirId } from '../../utils/navigationUtils';
 // Components
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';
 import WorkspaceContent from './workspace/WorkspaceContent';
-import LayoutBuilder from './workspace/LayoutBuilder';
-import CDSAlertsPanel from './cds/CDSAlertsPanel';
+const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
+import { usePatientCDSAlerts } from '../../contexts/CDSContext';
 
-// Tab Components
-import SummaryTab from './workspace/tabs/SummaryTab';
-import ChartReviewTab from './workspace/tabs/ChartReviewTab';
-import EncountersTab from './workspace/tabs/EncountersTab';
-import ResultsTab from './workspace/tabs/ResultsTab';
-import OrdersTab from './workspace/tabs/OrdersTab';
-import PharmacyTab from './workspace/tabs/PharmacyTab';
-import DocumentationTab from './workspace/tabs/DocumentationTab';
-import CarePlanTab from './workspace/tabs/CarePlanTab';
-import TimelineTab from './workspace/tabs/TimelineTab';
-import ImagingTab from './workspace/tabs/ImagingTab';
+// Tab Components - Lazy Loaded for Performance
+const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
+const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTab'));
+const EncountersTab = React.lazy(() => import('./workspace/tabs/EncountersTab'));
+const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTab'));
+const OrdersTab = React.lazy(() => import('./workspace/tabs/OrdersTab'));
+const PharmacyTab = React.lazy(() => import('./workspace/tabs/PharmacyTab'));
+const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTab'));
+const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTab'));
+const TimelineTab = React.lazy(() => import('./workspace/tabs/TimelineTab'));
+const ImagingTab = React.lazy(() => import('./workspace/tabs/ImagingTab'));
+
+// Tab Loading Component
+const TabLoadingFallback = () => (
+  <Box sx={{ 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '200px',
+    flexDirection: 'column',
+    gap: 2
+  }}>
+    <CircularProgress size={32} />
+    <Typography variant="body2" color="text.secondary">
+      Loading clinical data...
+    </Typography>
+  </Box>
+);
+
+// CDS Alerts Display Component
+const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
+  const { alerts, loading } = usePatientCDSAlerts(patientId);
+  const [dismissed, setDismissed] = useState(new Set());
+  
+  // Filter out dismissed alerts and limit to maxAlerts
+  const visibleAlerts = alerts
+    .filter(alert => !dismissed.has(alert.uuid))
+    .slice(0, maxAlerts);
+  
+  if (loading || visibleAlerts.length === 0) {
+    return null;
+  }
+  
+  const handleDismiss = (alertId) => {
+    setDismissed(prev => new Set([...prev, alertId]));
+  };
+  
+  return (
+    <Box sx={{ px: 2, pt: 1, pb: compact ? 0.5 : 1, flexShrink: 0 }}>
+      <Stack spacing={1}>
+        {visibleAlerts.map((alert) => (
+          <Alert
+            key={alert.uuid}
+            severity={
+              alert.indicator === 'critical' ? 'error' :
+              alert.indicator === 'warning' ? 'warning' : 'info'
+            }
+            onClose={() => handleDismiss(alert.uuid)}
+            sx={{
+              '& .MuiAlert-message': {
+                width: '100%'
+              }
+            }}
+          >
+            <AlertTitle sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
+              {alert.summary}
+            </AlertTitle>
+            {!compact && alert.detail && (
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                {alert.detail}
+              </Typography>
+            )}
+            {alert.source?.label && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
+                Source: {alert.source.label}
+              </Typography>
+            )}
+          </Alert>
+        ))}
+      </Stack>
+    </Box>
+  );
+};
+
 // Tab Configuration
 const TAB_CONFIG = [
   { id: 'summary', label: 'Summary', icon: <DashboardIcon />, component: SummaryTab },
@@ -294,29 +369,8 @@ const ClinicalWorkspaceV3 = () => {
         onNavigateToTab={handleTabChange}
       />
 
-      {/* CDS Alerts Panel - Enhanced with Multiple Presentation Modes */}
-      <Box sx={{ px: 2, pt: 1, flexShrink: 0 }}>
-        <CDSAlertsPanel 
-          patientId={patientId}
-          hook="patient-view"
-          compact={true}
-          maxAlerts={3}
-          autoRefresh={false}
-          useEnhancedHooks={true}
-          debugMode={false}
-          onAlertAction={(alert, action, suggestion) => {
-            // Handle different actions
-            if (action === 'accept' && suggestion) {
-              // Could trigger FHIR resource creation, navigation, etc.
-              
-            } else if (action === 'reject') {
-              
-            } else if (action === 'dismiss') {
-              
-            }
-          }}
-        />
-      </Box>
+      {/* CDS Alerts Display - Using Centralized CDS System */}
+      <CDSAlertsDisplay patientId={patientId} compact={true} maxAlerts={3} />
 
       {/* Tab Navigation or Custom Layout Toggle */}
       {!customLayout ? (
@@ -417,9 +471,12 @@ const ClinicalWorkspaceV3 = () => {
                 key={tab.id}
                 role="tabpanel"
                 hidden={activeTab !== tab.id}
-                sx={{ height: '100%' }}
+                sx={{ 
+                  height: '100%',
+                  display: activeTab === tab.id ? 'block' : 'none'
+                }}
               >
-                {activeTab === tab.id && (
+                <Suspense fallback={<TabLoadingFallback />}>
                   <tab.component 
                     patientId={patientId}
                     onNotificationUpdate={(count) => updateTabNotification(tab.id, count)}
@@ -428,7 +485,7 @@ const ClinicalWorkspaceV3 = () => {
                     newOrderDialogOpen={tab.id === 'orders' ? newOrderDialogOpen : false}
                     onNewOrderDialogClose={() => setNewOrderDialogOpen(false)}
                   />
-                )}
+                </Suspense>
               </Box>
             ))}
           </Box>
@@ -486,12 +543,20 @@ const ClinicalWorkspaceV3 = () => {
       </Menu>
 
       {/* Layout Builder Dialog */}
-      <LayoutBuilder
-        open={isLayoutBuilderOpen}
-        onClose={() => setIsLayoutBuilderOpen(false)}
-        onSelectLayout={handleLayoutSelect}
-        patientId={patientId}
-      />
+      {isLayoutBuilderOpen && (
+        <Suspense fallback={
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
+            <CircularProgress />
+          </Box>
+        }>
+          <LayoutBuilder
+            open={isLayoutBuilderOpen}
+            onClose={() => setIsLayoutBuilderOpen(false)}
+            onSelectLayout={handleLayoutSelect}
+            patientId={patientId}
+          />
+        </Suspense>
+      )}
 
       {/* Snackbar for notifications */}
       <Snackbar

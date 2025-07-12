@@ -10,6 +10,7 @@ import { TaskProvider } from '../contexts/TaskContext';
 import { InboxProvider } from '../contexts/InboxContext';
 import { AppointmentProvider } from '../contexts/AppointmentContext';
 import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
+import { CDSProvider } from '../contexts/CDSContext';
 
 /**
  * AppProviders - Combines all application context providers
@@ -19,32 +20,35 @@ import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
  * 1. AuthProvider - Must be first as other providers may need auth
  * 2. WebSocketProvider - Needs auth for connection
  * 3. FHIRResourceProvider - Core data provider
- * 4. WorkflowProvider - General workflow state
- * 5. Domain-specific providers (Clinical, Documentation, etc.)
- * 6. ClinicalWorkflowProvider - Depends on other clinical contexts
+ * 4. CDSProvider - Clinical Decision Support, needs FHIR data
+ * 5. WorkflowProvider - General workflow state
+ * 6. Domain-specific providers (Clinical, Documentation, etc.)
+ * 7. ClinicalWorkflowProvider - Depends on other clinical contexts
  */
 export const AppProviders = ({ children }) => {
   return (
     <AuthProvider>
       <WebSocketProvider>
         <FHIRResourceProvider>
-          <WorkflowProvider>
-            <ClinicalProvider>
-              <DocumentationProvider>
-                <OrderProvider>
-                  <TaskProvider>
-                    <InboxProvider>
-                      <AppointmentProvider>
-                        <ClinicalWorkflowProvider>
-                          {children}
-                        </ClinicalWorkflowProvider>
-                      </AppointmentProvider>
-                    </InboxProvider>
-                  </TaskProvider>
-                </OrderProvider>
-              </DocumentationProvider>
-            </ClinicalProvider>
-          </WorkflowProvider>
+          <CDSProvider>
+            <WorkflowProvider>
+              <ClinicalProvider>
+                <DocumentationProvider>
+                  <OrderProvider>
+                    <TaskProvider>
+                      <InboxProvider>
+                        <AppointmentProvider>
+                          <ClinicalWorkflowProvider>
+                            {children}
+                          </ClinicalWorkflowProvider>
+                        </AppointmentProvider>
+                      </InboxProvider>
+                    </TaskProvider>
+                  </OrderProvider>
+                </DocumentationProvider>
+              </ClinicalProvider>
+            </WorkflowProvider>
+          </CDSProvider>
         </FHIRResourceProvider>
       </WebSocketProvider>
     </AuthProvider>

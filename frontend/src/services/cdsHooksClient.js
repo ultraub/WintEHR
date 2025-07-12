@@ -23,6 +23,9 @@ class CDSHooksClient {
     this.requestCache = new Map();
     this.requestCacheTimeout = 30 * 1000; // 30 seconds cache for individual requests
     this.lastFailureLogged = null;
+    
+    // Promise deduplication for in-flight requests
+    this.inFlightRequests = new Map();
   }
 
   /**
@@ -35,28 +38,46 @@ class CDSHooksClient {
       return this.servicesCache;
     }
 
-    try {
-      const response = await this.httpClient.get('/cds-services');
-      this.servicesCache = response.data.services || [];
-      this.servicesCacheTime = now;
-      console.log(`✅ CDS Services loaded: ${this.servicesCache.length} services found`);
-      return this.servicesCache;
-    } catch (error) {
-      console.warn('⚠️ Failed to load CDS services:', error.message);
-      
-      // Return cached data if available, even if expired
-      if (this.servicesCache && this.servicesCache.length > 0) {
-        console.log(`📦 Using cached CDS services: ${this.servicesCache.length} services`);
-        return this.servicesCache;
-      }
-      
-      // Return empty array as fallback - don't log repeatedly
-      if (!this.lastFailureLogged || Date.now() - this.lastFailureLogged > 60000) {
-        console.log('📭 No CDS services available (cache empty) - will retry in background');
-        this.lastFailureLogged = Date.now();
-      }
-      return [];
+    // Check if there's already an in-flight request for service discovery
+    const inFlightKey = 'discover-services';
+    if (this.inFlightRequests.has(inFlightKey)) {
+      console.log('♻️ CDS Services discovery already in progress, waiting...');
+      return this.inFlightRequests.get(inFlightKey);
     }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        const response = await this.httpClient.get('/cds-services');
+        this.servicesCache = response.data.services || [];
+        this.servicesCacheTime = now;
+        console.log(`✅ CDS Services loaded: ${this.servicesCache.length} services found`);
+        return this.servicesCache;
+      } catch (error) {
+        console.warn('⚠️ Failed to load CDS services:', error.message);
+        
+        // Return cached data if available, even if expired
+        if (this.servicesCache && this.servicesCache.length > 0) {
+          console.log(`📦 Using cached CDS services: ${this.servicesCache.length} services`);
+          return this.servicesCache;
+        }
+        
+        // Return empty array as fallback - don't log repeatedly
+        if (!this.lastFailureLogged || Date.now() - this.lastFailureLogged > 60000) {
+          console.log('📭 No CDS services available (cache empty) - will retry in background');
+          this.lastFailureLogged = Date.now();
+        }
+        return [];
+      } finally {
+        // Clean up the in-flight request
+        this.inFlightRequests.delete(inFlightKey);
+      }
+    })();
+
+    // Store the promise for deduplication
+    this.inFlightRequests.set(inFlightKey, requestPromise);
+    
+    return requestPromise;
   }
 
   /**
@@ -73,36 +94,53 @@ class CDSHooksClient {
       return cached.data;
     }
 
-    try {
-      const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
-      
-      // Cache the response
-      this.requestCache.set(cacheKey, {
-        data: response.data,
-        time: now
-      });
-      
-      // Clean old cache entries
-      for (const [key, value] of this.requestCache.entries()) {
-        if (now - value.time > this.requestCacheTimeout) {
-          this.requestCache.delete(key);
-        }
-      }
-      
-      console.log(`✅ CDS Hook executed: ${hookId}, ${response.data.cards?.length || 0} cards returned`);
-      return response.data;
-    } catch (error) {
-      console.warn(`⚠️ Failed to execute CDS hook ${hookId}:`, error.message);
-      
-      // Check if we have cached data for this request
-      const cached = this.requestCache.get(cacheKey);
-      if (cached) {
-        console.log(`📦 Using cached CDS hook response for ${hookId}`);
-        return cached.data;
-      }
-      
-      return { cards: [] };
+    // Check if there's already an in-flight request for this exact hook/context
+    if (this.inFlightRequests.has(cacheKey)) {
+      console.log(`♻️ CDS Hook ${hookId} already executing, waiting...`);
+      return this.inFlightRequests.get(cacheKey);
     }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
+        
+        // Cache the response
+        this.requestCache.set(cacheKey, {
+          data: response.data,
+          time: now
+        });
+        
+        // Clean old cache entries
+        for (const [key, value] of this.requestCache.entries()) {
+          if (now - value.time > this.requestCacheTimeout) {
+            this.requestCache.delete(key);
+          }
+        }
+        
+        console.log(`✅ CDS Hook executed: ${hookId}, ${response.data.cards?.length || 0} cards returned`);
+        return response.data;
+      } catch (error) {
+        console.warn(`⚠️ Failed to execute CDS hook ${hookId}:`, error.message);
+        
+        // Check if we have cached data for this request
+        const cached = this.requestCache.get(cacheKey);
+        if (cached) {
+          console.log(`📦 Using cached CDS hook response for ${hookId}`);
+          return cached.data;
+        }
+        
+        return { cards: [] };
+      } finally {
+        // Clean up the in-flight request
+        this.inFlightRequests.delete(cacheKey);
+      }
+    })();
+
+    // Store the promise for deduplication
+    this.inFlightRequests.set(cacheKey, requestPromise);
+    
+    return requestPromise;
   }
 
   /**

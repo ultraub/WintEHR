@@ -80,11 +80,17 @@ const CDSAlertsPanel = ({
   const contextRef = useRef(context);
   const lastPatientIdRef = useRef(patientId);
   const compactRef = useRef(null);
+  const dismissedAlertsRef = useRef(dismissedAlerts);
 
   // Update context ref when context changes
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
+
+  // Update dismissedAlerts ref when it changes
+  useEffect(() => {
+    dismissedAlertsRef.current = dismissedAlerts;
+  }, [dismissedAlerts]);
 
   const loadCDSAlerts = useCallback(async () => {
     if (!patientId) {
@@ -120,11 +126,11 @@ const CDSAlertsPanel = ({
         const alertKey = `${serviceId}-${alert.summary}`;
         
         cdsLogger.debug(`Processing alert: ${alertKey}`, { 
-          dismissed: dismissedAlerts.has(alertKey), 
+          dismissed: dismissedAlertsRef.current.has(alertKey), 
           seen: seenKeys.has(alertKey) 
         });
         
-        if (!dismissedAlerts.has(alertKey) && !seenKeys.has(alertKey)) {
+        if (!dismissedAlertsRef.current.has(alertKey) && !seenKeys.has(alertKey)) {
           seenKeys.add(alertKey);
           // Ensure alert has required fields for display
           const processedAlert = {
@@ -150,7 +156,7 @@ const CDSAlertsPanel = ({
       setLoading(false);
       cdsLogger.debug('CDS alert loading complete');
     }
-  }, [patientId, hook, dismissedAlerts]);
+  }, [patientId, hook]); // Removed dismissedAlerts to prevent re-creation
 
   // Load CDS alerts on mount and when dependencies change
   useEffect(() => {
@@ -175,7 +181,7 @@ const CDSAlertsPanel = ({
       setLoading(false);
       setAlerts([]);
     }
-  }, [patientId, hook]); // Removed loadCDSAlerts to prevent infinite re-creation
+  }, [patientId, hook, loadCDSAlerts]);
 
   // Auto-refresh if enabled
   useEffect(() => {

@@ -310,6 +310,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
 
   // Load imaging studies function with useCallback
   const loadImagingStudies = useCallback(async () => {
+    if (!patientId) return;
+    
     setLoading(true);
     try {
       // Try to get imaging studies from FHIR resources first
@@ -322,8 +324,11 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
           const apiStudies = response.data?.data || [];
           setStudies(apiStudies);
         } catch (error) {
-          // Failed to load from API - fall back to FHIR data
-          setStudies(fhirStudies);
+          if (error.response?.status !== 404) {
+            console.warn('Failed to load imaging studies from API:', error.message);
+          }
+          // Failed to load from API - fall back to FHIR data (empty in this case)
+          setStudies([]);
         }
       } else {
         setStudies(fhirStudies);
@@ -339,7 +344,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     } finally {
       setLoading(false);
     }
-  }, [patientId, getPatientResources]);
+  }, [patientId]);
 
   // Load imaging studies
   useEffect(() => {

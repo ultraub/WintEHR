@@ -69,6 +69,7 @@ import { format, addDays, addWeeks, addMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { fhirClient } from '../../../../services/fhirClient';
 
 // Order Templates
 const ORDER_TEMPLATES = {
@@ -504,19 +505,14 @@ const CPOEDialog = ({
         }
         
         // Save the order
-        const endpoint = orderType === 'medication' ? 'MedicationRequest' : 'ServiceRequest';
-        const response = await fetch(`/fhir/R4/${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fhirResource)
-        });
+        const resourceType = orderType === 'medication' ? 'MedicationRequest' : 'ServiceRequest';
+        const createdResource = await fhirClient.create(resourceType, fhirResource);
         
-        if (!response.ok) {
+        if (!createdResource) {
           throw new Error(`Failed to create ${orderType} order`);
         }
         
-        const savedOrder = await response.json();
-        createdOrders.push(savedOrder);
+        createdOrders.push(createdResource);
       }
       
       // Publish order created events
