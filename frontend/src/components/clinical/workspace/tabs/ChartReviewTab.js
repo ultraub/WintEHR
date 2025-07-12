@@ -80,7 +80,9 @@ import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import RefillManagement from '../../medications/RefillManagement';
+import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
 import { fhirClient } from '../../../../services/fhirClient';
+import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
@@ -341,11 +343,18 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
   const [showRefillDialog, setShowRefillDialog] = useState(false);
+  const [showDiscontinuationDialog, setShowDiscontinuationDialog] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
   // Resolve medication references
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
+  
+  // Clinical workflow context for events
+  const { publish } = useClinicalWorkflow();
+  
+  // FHIR resource context for refreshing data
+  const { refreshPatientResources } = useFHIRResource();
 
   const handleEditMedication = (medication) => {
     // Ensure we're setting a fresh copy of the medication
@@ -413,6 +422,39 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       // Medication reconciliation completed successfully
     } catch (error) {
       // Error during medication reconciliation
+      throw error;
+    }
+  };
+
+  const handleDiscontinuation = async (discontinuationData) => {
+    try {
+      const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
+      
+      // Refresh the medication list to reflect changes
+      await refreshPatientResources(patientId);
+      
+      // Publish workflow event for medication discontinuation
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'medication-discontinuation',
+        step: 'completed',
+        data: {
+          medicationName: result.originalRequest.medicationCodeableConcept?.text || 'Unknown medication',
+          reason: discontinuationData.reason.display,
+          discontinuationType: discontinuationData.discontinuationType,
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Close the dialog
+      setShowDiscontinuationDialog(false);
+      setSelectedMedication(null);
+      
+      // Log success
+      console.log(`Medication discontinued successfully: ${result.originalRequest.medicationCodeableConcept?.text}`);
+      
+    } catch (error) {
+      console.error('Error discontinuing medication:', error);
       throw error;
     }
   };
@@ -544,15 +586,30 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   }
                 />
                 <ListItemSecondaryAction>
-                  <Tooltip title="Edit Medication">
-                    <IconButton 
-                      edge="end" 
-                      size="small"
-                      onClick={() => handleEditMedication(med)}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  <Stack direction="row" spacing={0.5}>
+                    <Tooltip title="Edit Medication">
+                      <IconButton 
+                        size="small"
+                        onClick={() => handleEditMedication(med)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {med.status === 'active' && (
+                      <Tooltip title="Discontinue Medication">
+                        <IconButton 
+                          size="small"
+                          onClick={() => {
+                            setSelectedMedication(med);
+                            setShowDiscontinuationDialog(true);
+                          }}
+                          color="error"
+                        >
+                          <CancelIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
                 </ListItemSecondaryAction>
               </ListItem>
             ))
@@ -613,6 +670,37 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           </Button>
         </DialogActions>
       </Dialog>
+      
+      <MedicationDiscontinuationDialog
+        open={showDiscontinuationDialog}
+        onClose={() => {
+          setShowDiscontinuationDialog(false);
+          setSelectedMedication(null);
+        }}
+        medicationRequest={selectedMedication}
+        onDiscontinue={async (discontinuationData) => {
+          try {
+            const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
+            
+            // Publish workflow event
+            await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
+              medicationId: selectedMedication.id,
+              patientId,
+              status: 'discontinued',
+              reason: discontinuationData.reason.display,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Refresh patient resources to show updated medication status
+            await refreshPatientResources(patientId);
+            
+            return result;
+          } catch (error) {
+            console.error('Error discontinuing medication:', error);
+            throw error;
+          }
+        }}
+      />
       
       <Menu
         anchorEl={exportAnchorEl}
