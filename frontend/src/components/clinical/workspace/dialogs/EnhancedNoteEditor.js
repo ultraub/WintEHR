@@ -463,7 +463,7 @@ const EnhancedNoteEditor = ({
   };
 
   // Save note
-  const handleSave = async (signNote = false) => {
+  const handleSave = async (status = 'preliminary') => {
     if (!selectedTemplate || !patientId) return;
 
     setSaving(true);
@@ -482,7 +482,7 @@ const EnhancedNoteEditor = ({
       const documentReference = {
         resourceType: 'DocumentReference',
         status: 'current', // Always current per FHIR R4 - use docStatus for workflow
-        docStatus: signNote ? 'final' : 'preliminary',
+        docStatus: status, // 'draft', 'preliminary', or 'final'
         type: {
           coding: [{
             system: template.system,
@@ -563,7 +563,8 @@ const EnhancedNoteEditor = ({
         ...savedNote,
         noteType: template.label,
         isUpdate: !!(note?.id),
-        isSigned: signNote,
+        isSigned: status === 'final',
+        docStatus: status,
         patientId,
         encounterId: encounter?.id,
         timestamp: new Date().toISOString()
@@ -701,19 +702,28 @@ const EnhancedNoteEditor = ({
             Cancel
           </Button>
           <Button 
-            onClick={() => handleSave(false)} 
+            onClick={() => handleSave('draft')} 
             disabled={saving || !selectedTemplate}
             startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+            color="warning"
           >
             {saving ? 'Saving...' : 'Save as Draft'}
           </Button>
           <Button 
+            onClick={() => handleSave('preliminary')} 
+            disabled={saving || !selectedTemplate}
+            startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+            color="info"
+          >
+            {saving ? 'Saving...' : 'Save for Review'}
+          </Button>
+          <Button 
             variant="contained" 
-            onClick={() => handleSave(true)}
+            onClick={() => handleSave('final')}
             disabled={saving || !selectedTemplate}
             startIcon={saving ? <CircularProgress size={16} /> : <SignIcon />}
           >
-            {saving ? 'Saving...' : 'Save & Sign'}
+            {saving ? 'Saving...' : 'Sign & Complete'}
           </Button>
         </DialogActions>
       </Dialog>

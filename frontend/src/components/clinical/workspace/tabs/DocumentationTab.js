@@ -110,7 +110,7 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
   const typeConfig = noteTypes[noteType] || noteTypes.other;
   const author = note.author?.[0]?.display || 'Unknown';
   const date = note.date || note.meta?.lastUpdated;
-  const isSigned = note.status === 'final';
+  const isSigned = note.docStatus === 'final';
   
   // Ensure typeConfig has required properties
   if (!typeConfig || !typeConfig.color) {
@@ -134,12 +134,19 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
               <Typography variant="h6">
                 {typeConfig.label}
               </Typography>
-              {isSigned ? (
+              {note.docStatus === 'final' ? (
                 <Chip 
                   icon={<SignedIcon />} 
                   label="Signed" 
                   size="small" 
                   color="success"
+                />
+              ) : note.docStatus === 'preliminary' ? (
+                <Chip 
+                  icon={<UnsignedIcon />} 
+                  label="Ready for Review" 
+                  size="small" 
+                  color="info"
                 />
               ) : (
                 <Chip 
