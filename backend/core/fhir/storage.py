@@ -1075,6 +1075,96 @@ class FHIRStorageEngine:
         
         return response_entry
     
+    async def _update_search_params(self, resource_id: int, resource_type: str, resource_data: Dict[str, Any]):
+        """Update search parameters for a resource."""
+        # Delete existing search params
+        delete_query = text("""
+            DELETE FROM fhir.search_params
+            WHERE resource_id = :resource_id
+        """)
+        await self.session.execute(delete_query, {'resource_id': resource_id})
+        
+        # Extract and add new search params
+        # Always index the resource ID
+        await self._add_search_param(
+            resource_id, resource_type, '_id', 'token', 
+            value_string=resource_data.get('id')
+        )
+        
+        # Resource-specific parameters
+        if resource_type == 'Patient':
+            # Names
+            if 'name' in resource_data:
+                for name in resource_data['name']:
+                    if 'family' in name:
+                        await self._add_search_param(
+                            resource_id, resource_type, 'family', 'string',
+                            value_string=name['family']
+                        )
+                    if 'given' in name:
+                        for given in name['given']:
+                            await self._add_search_param(
+                                resource_id, resource_type, 'given', 'string',
+                                value_string=given
+                            )
+            
+            # Gender
+            if 'gender' in resource_data:
+                await self._add_search_param(
+                    resource_id, resource_type, 'gender', 'token',
+                    value_string=resource_data['gender']
+                )
+        
+        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 
+                              'MedicationAdministration', 'Procedure', 'DiagnosticReport', 
+                              'Immunization', 'AllergyIntolerance', 'ImagingStudy']:
+            # Patient reference (handle both Patient/ and urn:uuid: formats)
+            if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
+                ref = resource_data['subject'].get('reference', '')
+                patient_id = None
+                
+                if ref.startswith('Patient/'):
+                    patient_id = ref.replace('Patient/', '')
+                elif ref.startswith('urn:uuid:'):
+                    # Extract UUID from urn:uuid: format
+                    patient_id = ref.replace('urn:uuid:', '')
+                
+                if patient_id:
+                    await self._add_search_param(
+                        resource_id, resource_type, 'patient', 'reference',
+                        value_reference=patient_id
+                    )
+    
+    async def _add_search_param(self, resource_id: int, resource_type: str, param_name: str, 
+                               param_type: str, **values):
+        """Add a search parameter to the database."""
+        query = text("""
+            INSERT INTO fhir.search_params (
+                resource_id, resource_type, param_name, param_type,
+                value_string, value_number, value_date,
+                value_token_system, value_token_code, value_reference
+            ) VALUES (
+                :resource_id, :resource_type, :param_name, :param_type,
+                :value_string, :value_number, :value_date,
+                :value_token_system, :value_token_code, :value_reference
+            )
+        """)
+        
+        params = {
+            'resource_id': resource_id,
+            'resource_type': resource_type,
+            'param_name': param_name,
+            'param_type': param_type,
+            'value_string': values.get('value_string'),
+            'value_number': values.get('value_number'),
+            'value_date': values.get('value_date'),
+            'value_token_system': values.get('value_token_system'),
+            'value_token_code': values.get('value_token_code'),
+            'value_reference': values.get('value_reference')
+        }
+        
+        await self.session.execute(query, params)
+    
     async def _create_history_entry(
         self,
         resource_id: int,
@@ -1275,7 +1365,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1318,7 +1409,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1387,7 +1479,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1438,7 +1531,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1574,7 +1668,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1613,7 +1708,8 @@ class FHIRStorageEngine:
                 })
                 
                 # Also extract patient-specific reference
-                if ref.startswith('Patient/'):
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
@@ -1745,16 +1841,48 @@ class FHIRStorageEngine:
             current_path = f"{path}.{key}" if path else key
             
             if key == 'reference' and isinstance(value, str):
-                # Found a reference
-                parts = value.split('/')
-                if len(parts) >= 2:
-                    target_type = parts[0]
-                    target_id = parts[1]
+                # Found a reference - extract target type and ID
+                target_type = None
+                target_id = None
+                
+                # Handle different reference formats
+                if value.startswith('urn:uuid:'):
+                    # Handle urn:uuid: format (common in Synthea data)
+                    target_id = value.replace('urn:uuid:', '')
+                    # For urn:uuid references, we need to determine the type from context
+                    # This is typically found in the parent path (e.g., "subject", "patient", "encounter")
+                    parent_key = path.split('.')[-1] if '.' in path else path
+                    target_type = self._infer_resource_type_from_path(parent_key)
+                elif '/' in value:
+                    # Handle ResourceType/id format
+                    parts = value.split('/', 1)
+                    if len(parts) == 2:
+                        target_type = parts[0]
+                        target_id = parts[1]
+                elif value.startswith('#'):
+                    # Skip internal references (contained resources)
+                    continue
+                
+                # Store the reference if we have both type and ID
+                if target_type and target_id and source_type:
+                    query = text("""
+                        INSERT INTO fhir.references (
+                            source_id, source_type, target_type, target_id,
+                            reference_path, reference_value
+                        ) VALUES (
+                            :source_id, :source_type, :target_type, :target_id,
+                            :reference_path, :reference_value
+                        )
+                    """)
                     
-                    # Skip inserting references for now since the schema expects integer target_id
-                    # but we have string FHIR IDs. This would need schema migration to fix properly.
-                    # The search parameters already capture the reference information.
-                    pass
+                    await self.session.execute(query, {
+                        'source_id': resource_id,
+                        'source_type': source_type,
+                        'target_type': target_type,
+                        'target_id': target_id,
+                        'reference_path': path,  # Remove the .reference part for cleaner paths
+                        'reference_value': value
+                    })
             
             elif isinstance(value, dict):
                 # Recurse into nested objects
@@ -1767,6 +1895,48 @@ class FHIRStorageEngine:
                         await self._extract_references(
                             resource_id, item, f"{current_path}[{i}]", source_type
                         )
+    
+    def _infer_resource_type_from_path(self, path_element: str) -> str:
+        """Infer the resource type from the reference path element."""
+        # Common FHIR reference field to resource type mappings
+        reference_mappings = {
+            'subject': 'Patient',  # Most common
+            'patient': 'Patient',
+            'encounter': 'Encounter',
+            'author': 'Practitioner',
+            'performer': 'Practitioner',
+            'requester': 'Practitioner',
+            'practitioner': 'Practitioner',
+            'organization': 'Organization',
+            'managingOrganization': 'Organization',
+            'location': 'Location',
+            'medicationReference': 'Medication',
+            'medication': 'Medication',
+            'basedOn': 'ServiceRequest',
+            'partOf': 'Procedure',
+            'reasonReference': 'Condition',
+            'focus': 'Resource',  # Generic
+            'context': 'Encounter',
+            'supportingInformation': 'Resource',  # Could be various types
+            'specimen': 'Specimen',
+            'device': 'Device',
+            'related': 'Resource',  # Generic
+            'derivedFrom': 'Observation',
+            'hasMember': 'Observation',
+            'interpretation': 'Observation',
+            'bodySite': 'BodyStructure',
+            'method': 'Procedure',
+            'component': 'Observation',
+            'referenceRange': 'Observation',
+            'member': 'Patient',
+            'coverage': 'Coverage',
+            'payor': 'Organization',
+            'prescription': 'MedicationRequest',
+            'eventHistory': 'Provenance'
+        }
+        
+        # Return the mapped type or 'Resource' as a fallback
+        return reference_mappings.get(path_element, 'Resource')
     
     async def _delete_search_parameters(self, resource_id: int):
         """Delete all search parameters for a resource."""
