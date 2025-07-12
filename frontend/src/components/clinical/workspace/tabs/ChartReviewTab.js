@@ -66,7 +66,9 @@ import {
   Timeline as TimelineIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
-  ErrorOutline as SeverityIcon
+  ErrorOutline as SeverityIcon,
+  Refresh as RefreshIcon,
+  Cancel as CancelIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';

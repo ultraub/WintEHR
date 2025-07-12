@@ -431,6 +431,11 @@ class MedicationEffectivenessService {
 
         if (!medicationExtension) continue;
 
+        // Get medication reference for this plan
+        const medicationRef = medicationExtension.extension?.find(
+          ext => ext.url === 'originalMedication'
+        )?.valueReference?.reference;
+
         // Check for overdue assessments
         const overdueActivities = plan.activity?.filter(activity => {
           const scheduledDate = activity.detail?.scheduledTiming?.event?.[0];
@@ -439,9 +444,6 @@ class MedicationEffectivenessService {
         });
 
         if (overdueActivities?.length > 0) {
-          const medicationRef = medicationExtension.extension?.find(
-            ext => ext.url === 'originalMedication'
-          )?.valueReference?.reference;
 
           alerts.push({
             type: 'effectiveness-assessment-overdue',

@@ -52,6 +52,7 @@ import {
   Science as LabIcon,
   Image as ImagingIcon,
   Assignment as OrderIcon,
+  Assignment as AssignmentIcon,
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Info as InfoIcon,
@@ -64,7 +65,8 @@ import {
   Save as SaveIcon,
   Send as SendIcon,
   Security as SecurityIcon,
-  VerifiedUser as VerifiedIcon
+  VerifiedUser as VerifiedIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import { format, addDays, addWeeks, addMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -73,6 +75,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { fhirClient } from '../../../../services/fhirClient';
 import { prescriptionStatusService } from '../../../../services/prescriptionStatusService';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
+import { enhancedLabOrderingService } from '../../../../services/enhancedLabOrderingService';
 import EnhancedMedicationSearch from '../../prescribing/EnhancedMedicationSearch';
 import MedicationHistoryReview from '../../prescribing/MedicationHistoryReview';
 
@@ -114,32 +117,7 @@ const ORDER_TEMPLATES = {
       ]
     }
   },
-  lab: {
-    'diabetes-monitoring': {
-      name: 'Diabetes Monitoring Panel',
-      items: [
-        { test: 'Hemoglobin A1C', code: '4548-4', priority: 'routine' },
-        { test: 'Fasting Glucose', code: '1558-6', priority: 'routine' },
-        { test: 'Basic Metabolic Panel', code: '51990-0', priority: 'routine' }
-      ]
-    },
-    'lipid-panel': {
-      name: 'Lipid Panel',
-      items: [
-        { test: 'Lipid Panel', code: '57698-3', priority: 'routine' },
-        { test: 'Total Cholesterol', code: '2093-3', priority: 'routine' }
-      ]
-    },
-    'annual-physical': {
-      name: 'Annual Physical Labs',
-      items: [
-        { test: 'Complete Blood Count', code: '58410-2', priority: 'routine' },
-        { test: 'Comprehensive Metabolic Panel', code: '24323-8', priority: 'routine' },
-        { test: 'Lipid Panel', code: '57698-3', priority: 'routine' },
-        { test: 'TSH', code: '3016-3', priority: 'routine' }
-      ]
-    }
-  },
+  lab: {}, // Enhanced lab ordering now handled by enhancedLabOrderingService
   imaging: {
     'chest-workup': {
       name: 'Chest X-Ray Workup',
@@ -225,6 +203,13 @@ const CPOEDialog = ({
     scheduleDate: null
   });
   const [showMedicationHistory, setShowMedicationHistory] = useState(false);
+  
+  // Enhanced lab ordering state
+  const [labPanels, setLabPanels] = useState({});
+  const [conditionSets, setConditionSets] = useState({});
+  const [routineTemplates, setRoutineTemplates] = useState({});
+  const [appropriatenessAlerts, setAppropriatenessAlerts] = useState([]);
+  const [patientConditions, setPatientConditions] = useState([]);
 
   // Initialize with empty order based on type
   useEffect(() => {
@@ -233,11 +218,40 @@ const CPOEDialog = ({
     }
   }, [open, orderType]);
 
+  // Initialize enhanced lab ordering data
+  useEffect(() => {
+    if (open && orderType === 'lab') {
+      initializeLabOrderingData();
+    }
+  }, [open, orderType, patientId]);
+
+  const initializeLabOrderingData = async () => {
+    try {
+      // Load lab panels, condition sets, and routine templates
+      const panels = enhancedLabOrderingService.getCommonLabPanels();
+      const conditions = enhancedLabOrderingService.getConditionBasedSets();
+      const templates = enhancedLabOrderingService.getRoutineCareTemplates();
+      
+      setLabPanels(panels);
+      setConditionSets(conditions);
+      setRoutineTemplates(templates);
+
+      // Get patient conditions for appropriateness checking
+      if (patientId) {
+        const conditions = getPatientResources(patientId, 'Condition') || [];
+        setPatientConditions(conditions);
+      }
+    } catch (error) {
+      console.error('Error initializing lab ordering data:', error);
+    }
+  };
+
   const resetForm = () => {
     setOrders([]);
     setSelectedTemplate('');
     setCdsAlerts([]);
     setValidationErrors([]);
+    setAppropriatenessAlerts([]);
     setOrderDetails({
       priority: 'routine',
       notes: '',
@@ -301,6 +315,30 @@ const CPOEDialog = ({
     // Trigger CDS checks when medication changes
     if (field === 'medication' && orderType === 'medication') {
       checkCDSRules(value);
+    }
+    
+    // Trigger lab appropriateness checks when lab test changes
+    if (field === 'test' && orderType === 'lab') {
+      checkLabAppropriateness(value);
+    }
+  };
+
+  // Lab appropriateness checking
+  const checkLabAppropriateness = async (testName) => {
+    if (!testName || !patientId) return;
+    
+    try {
+      const alerts = await enhancedLabOrderingService.checkLabAppropriateness({
+        patientId,
+        testName,
+        patientConditions,
+        recentOrders: getPatientResources(patientId, 'ServiceRequest') || [],
+        currentMedications: getPatientResources(patientId, 'MedicationRequest') || []
+      });
+      
+      setAppropriatenessAlerts(alerts);
+    } catch (error) {
+      console.error('Error checking lab appropriateness:', error);
     }
   };
 
@@ -408,17 +446,79 @@ const CPOEDialog = ({
   };
 
   const applyTemplate = (templateKey) => {
-    const template = ORDER_TEMPLATES[orderType]?.[templateKey];
+    if (orderType === 'lab') {
+      applyLabTemplate(templateKey);
+    } else {
+      const template = ORDER_TEMPLATES[orderType]?.[templateKey];
+      if (!template) return;
+      
+      const templateOrders = template.items.map((item, index) => ({
+        id: Date.now() + index,
+        type: orderType,
+        ...item
+      }));
+      
+      setOrders(templateOrders);
+      setSelectedTemplate(templateKey);
+    }
+  };
+
+  const applyLabTemplate = (templateKey) => {
+    let template = null;
+    let sourceType = '';
+
+    // Check which type of lab template this is
+    if (labPanels[templateKey]) {
+      template = labPanels[templateKey];
+      sourceType = 'panel';
+    } else if (conditionSets[templateKey]) {
+      template = conditionSets[templateKey];
+      sourceType = 'condition-set';
+    } else if (routineTemplates[templateKey]) {
+      template = routineTemplates[templateKey];
+      sourceType = 'routine-template';
+    }
+
     if (!template) return;
-    
-    const templateOrders = template.items.map((item, index) => ({
-      id: Date.now() + index,
-      type: orderType,
-      ...item
-    }));
-    
+
+    let templateOrders = [];
+
+    if (sourceType === 'panel') {
+      // Single panel with components
+      templateOrders = [{
+        id: Date.now(),
+        type: 'lab',
+        test: template.name,
+        code: template.code,
+        specimen: 'blood',
+        fastingRequired: template.fastingRequired || false,
+        urgency: 'routine',
+        panelComponents: template.components,
+        estimatedTAT: template.estimatedTAT,
+        clinicalUse: template.clinicalUse
+      }];
+    } else if (sourceType === 'condition-set' || sourceType === 'routine-template') {
+      // Multiple tests/panels
+      templateOrders = template.tests.map((test, index) => ({
+        id: Date.now() + index,
+        type: 'lab',
+        test: test.name,
+        code: test.code,
+        specimen: test.specimen || 'blood',
+        fastingRequired: test.fastingRequired || false,
+        urgency: test.urgency || 'routine',
+        estimatedTAT: test.estimatedTAT,
+        clinicalUse: test.clinicalUse
+      }));
+    }
+
     setOrders(templateOrders);
     setSelectedTemplate(templateKey);
+
+    // Check appropriateness for each test
+    templateOrders.forEach(order => {
+      checkLabAppropriateness(order.test);
+    });
   };
 
   const validateOrders = () => {
@@ -778,9 +878,53 @@ const CPOEDialog = ({
                   <MenuItem value="stool">Stool</MenuItem>
                   <MenuItem value="sputum">Sputum</MenuItem>
                   <MenuItem value="swab">Swab</MenuItem>
+                  <MenuItem value="saliva">Saliva</MenuItem>
+                  <MenuItem value="csf">CSF</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
+            
+            {/* Enhanced lab order fields */}
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Priority</InputLabel>
+                <Select
+                  value={order.urgency || 'routine'}
+                  onChange={(e) => updateOrder(order.id, 'urgency', e.target.value)}
+                >
+                  <MenuItem value="routine">Routine</MenuItem>
+                  <MenuItem value="urgent">Urgent</MenuItem>
+                  <MenuItem value="stat">STAT</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {order.estimatedTAT && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Estimated TAT"
+                  value={order.estimatedTAT}
+                  InputProps={{ readOnly: true }}
+                  helperText="Estimated turnaround time"
+                />
+              </Grid>
+            )}
+            
+            {order.clinicalUse && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Clinical Use"
+                  value={order.clinicalUse}
+                  InputProps={{ readOnly: true }}
+                  multiline
+                  rows={2}
+                  helperText="Clinical indication for this test"
+                />
+              </Grid>
+            )}
+            
             <Grid item xs={12}>
               <FormControlLabel
                 control={
@@ -792,6 +936,26 @@ const CPOEDialog = ({
                 label="Fasting required"
               />
             </Grid>
+            
+            {/* Panel Components Display */}
+            {order.panelComponents && order.panelComponents.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Panel Components:
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {order.panelComponents.map((component, index) => (
+                    <Chip
+                      key={index}
+                      label={component.name}
+                      size="small"
+                      variant="outlined"
+                      title={`${component.code} - ${component.system}`}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
           </Grid>
         );
         
@@ -881,9 +1045,9 @@ const CPOEDialog = ({
           </Box>
           <Stack direction="row" spacing={1}>
             <Chip label={`${orders.length} Order${orders.length !== 1 ? 's' : ''}`} />
-            {cdsAlerts.length > 0 && (
+            {(cdsAlerts.length > 0 || appropriatenessAlerts.length > 0) && (
               <Chip 
-                label={`${cdsAlerts.length} Alert${cdsAlerts.length !== 1 ? 's' : ''}`} 
+                label={`${cdsAlerts.length + appropriatenessAlerts.length} Alert${(cdsAlerts.length + appropriatenessAlerts.length) !== 1 ? 's' : ''}`} 
                 color="warning"
                 icon={<WarningIcon />}
               />
@@ -919,18 +1083,89 @@ const CPOEDialog = ({
           <Typography variant="h6" gutterBottom>
             Order Templates
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {Object.entries(ORDER_TEMPLATES[orderType] || {}).map(([key, template]) => (
-              <Button
-                key={key}
-                variant={selectedTemplate === key ? 'contained' : 'outlined'}
-                size="small"
-                onClick={() => applyTemplate(key)}
-              >
-                {template.name}
-              </Button>
-            ))}
-          </Stack>
+          
+          {orderType === 'lab' ? (
+            <Box>
+              {/* Common Lab Panels */}
+              {Object.keys(labPanels).length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Common Lab Panels
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {Object.entries(labPanels).map(([key, panel]) => (
+                      <Button
+                        key={key}
+                        variant={selectedTemplate === key ? 'contained' : 'outlined'}
+                        size="small"
+                        onClick={() => applyTemplate(key)}
+                        startIcon={<LabIcon />}
+                      >
+                        {panel.name}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Condition-Based Sets */}
+              {Object.keys(conditionSets).length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Condition-Based Lab Sets
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {Object.entries(conditionSets).map(([key, set]) => (
+                      <Button
+                        key={key}
+                        variant={selectedTemplate === key ? 'contained' : 'outlined'}
+                        size="small"
+                        onClick={() => applyTemplate(key)}
+                        startIcon={<AssignmentIcon />}
+                      >
+                        {set.name}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Routine Care Templates */}
+              {Object.keys(routineTemplates).length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Routine Care Templates
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {Object.entries(routineTemplates).map(([key, template]) => (
+                      <Button
+                        key={key}
+                        variant={selectedTemplate === key ? 'contained' : 'outlined'}
+                        size="small"
+                        onClick={() => applyTemplate(key)}
+                        startIcon={<ScheduleIcon />}
+                      >
+                        {template.name}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {Object.entries(ORDER_TEMPLATES[orderType] || {}).map(([key, template]) => (
+                <Button
+                  key={key}
+                  variant={selectedTemplate === key ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => applyTemplate(key)}
+                >
+                  {template.name}
+                </Button>
+              ))}
+            </Stack>
+          )}
         </Box>
 
         {/* Medication History for medication orders */}
@@ -966,11 +1201,12 @@ const CPOEDialog = ({
         )}
 
         {/* CDS Alerts */}
-        {cdsAlerts.length > 0 && (
+        {(cdsAlerts.length > 0 || appropriatenessAlerts.length > 0) && (
           <Box sx={{ mb: 3 }}>
+            {/* Medication CDS Alerts */}
             {cdsAlerts.map((alert, index) => (
               <Alert 
-                key={index} 
+                key={`cds-${index}`} 
                 severity={alert.severity} 
                 sx={{ mb: 1 }}
                 action={
@@ -987,6 +1223,42 @@ const CPOEDialog = ({
                 {alert.suggestion && (
                   <Typography variant="body2">
                     Suggestion: {alert.suggestion}
+                  </Typography>
+                )}
+              </Alert>
+            ))}
+            
+            {/* Lab Appropriateness Alerts */}
+            {appropriatenessAlerts.map((alert, index) => (
+              <Alert 
+                key={`lab-${index}`} 
+                severity={alert.severity} 
+                sx={{ mb: 1 }}
+                icon={<LabIcon />}
+                action={
+                  alert.recommendation && (
+                    <Button color="inherit" size="small">
+                      View Details
+                    </Button>
+                  )
+                }
+              >
+                <Typography variant="body2" fontWeight="bold">
+                  {alert.message}
+                </Typography>
+                {alert.reason && (
+                  <Typography variant="body2">
+                    Reason: {alert.reason}
+                  </Typography>
+                )}
+                {alert.recommendation && (
+                  <Typography variant="body2">
+                    Recommendation: {alert.recommendation}
+                  </Typography>
+                )}
+                {alert.lastOrderDate && (
+                  <Typography variant="caption" color="text.secondary">
+                    Last ordered: {format(new Date(alert.lastOrderDate), 'MMM d, yyyy')}
                   </Typography>
                 )}
               </Alert>

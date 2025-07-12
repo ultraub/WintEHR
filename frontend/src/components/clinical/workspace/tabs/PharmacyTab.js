@@ -67,7 +67,8 @@ import {
   Done as DoneIcon,
   People as PeopleIcon,
   CheckCircle as ApprovedIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
