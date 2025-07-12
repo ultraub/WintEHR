@@ -73,20 +73,37 @@ const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTab'));
 const TimelineTab = React.lazy(() => import('./workspace/tabs/TimelineTab'));
 const ImagingTab = React.lazy(() => import('./workspace/tabs/ImagingTab'));
 
-// Tab Loading Component
+// Tab Loading Component with Skeleton
 const TabLoadingFallback = () => (
-  <Box sx={{ 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    height: '200px',
-    flexDirection: 'column',
-    gap: 2
-  }}>
-    <CircularProgress size={32} />
-    <Typography variant="body2" color="text.secondary">
-      Loading clinical data...
-    </Typography>
+  <Box sx={{ p: 3 }}>
+    <Stack spacing={3}>
+      {/* Header Skeleton */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ width: 200, height: 32, bgcolor: 'grey.200', borderRadius: 1 }} />
+        <Box sx={{ width: 120, height: 36, bgcolor: 'grey.200', borderRadius: 1 }} />
+      </Box>
+      
+      {/* Filter Bar Skeleton */}
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ width: 200, height: 40, bgcolor: 'grey.200', borderRadius: 1 }} />
+        <Box sx={{ width: 120, height: 40, bgcolor: 'grey.200', borderRadius: 1 }} />
+        <Box sx={{ width: 100, height: 40, bgcolor: 'grey.200', borderRadius: 1 }} />
+      </Box>
+      
+      {/* Content List Skeleton */}
+      <Stack spacing={1}>
+        {Array.from({ length: 5 }, (_, index) => (
+          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1 }}>
+            <Box sx={{ width: 40, height: 40, bgcolor: 'grey.200', borderRadius: '50%' }} />
+            <Box sx={{ flex: 1 }}>
+              <Box sx={{ width: '60%', height: 20, bgcolor: 'grey.200', borderRadius: 1, mb: 0.5 }} />
+              <Box sx={{ width: '40%', height: 16, bgcolor: 'grey.200', borderRadius: 1 }} />
+            </Box>
+            <Box sx={{ width: 80, height: 24, bgcolor: 'grey.200', borderRadius: 1 }} />
+          </Box>
+        ))}
+      </Stack>
+    </Stack>
   </Box>
 );
 
@@ -468,28 +485,36 @@ const ClinicalWorkspaceV3 = () => {
           />
         ) : (
           <Box sx={{ height: '100%' }}>
-            {TAB_CONFIG.map((tab) => (
-              <Box
-                key={tab.id}
-                role="tabpanel"
-                hidden={activeTab !== tab.id}
-                sx={{ 
-                  height: '100%',
-                  display: activeTab === tab.id ? 'block' : 'none'
-                }}
-              >
-                <Suspense fallback={<TabLoadingFallback />}>
-                  <tab.component 
-                    patientId={patientId}
-                    onNotificationUpdate={(count) => updateTabNotification(tab.id, count)}
-                    newNoteDialogOpen={tab.id === 'documentation' ? newNoteDialogOpen : false}
-                    onNewNoteDialogClose={() => setNewNoteDialogOpen(false)}
-                    newOrderDialogOpen={tab.id === 'orders' ? newOrderDialogOpen : false}
-                    onNewOrderDialogClose={() => setNewOrderDialogOpen(false)}
-                  />
-                </Suspense>
-              </Box>
-            ))}
+            {TAB_CONFIG.map((tab, index) => {
+              const currentIndex = TAB_CONFIG.findIndex(t => t.id === activeTab);
+              // Only render active tab and adjacent tabs to reduce DOM size
+              const shouldRender = Math.abs(index - currentIndex) <= 1;
+              
+              return (
+                <Box
+                  key={tab.id}
+                  role="tabpanel"
+                  hidden={activeTab !== tab.id}
+                  sx={{ 
+                    height: '100%',
+                    display: activeTab === tab.id ? 'block' : 'none'
+                  }}
+                >
+                  {shouldRender ? (
+                    <Suspense fallback={<TabLoadingFallback />}>
+                      <tab.component 
+                        patientId={patientId}
+                        onNotificationUpdate={(count) => updateTabNotification(tab.id, count)}
+                        newNoteDialogOpen={tab.id === 'documentation' ? newNoteDialogOpen : false}
+                        onNewNoteDialogClose={() => setNewNoteDialogOpen(false)}
+                        newOrderDialogOpen={tab.id === 'orders' ? newOrderDialogOpen : false}
+                        onNewOrderDialogClose={() => setNewOrderDialogOpen(false)}
+                      />
+                    </Suspense>
+                  ) : null}
+                </Box>
+              );
+            })}
           </Box>
         )}
       </Box>

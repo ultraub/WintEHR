@@ -80,6 +80,7 @@ import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../../../services/fhirClient';
 import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
@@ -1333,7 +1334,24 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         <Alert severity="info">
           No orders found matching your criteria
         </Alert>
+      ) : sortedOrders.length > 20 ? (
+        // Use virtual scrolling for large lists
+        <VirtualizedList
+          items={sortedOrders}
+          itemHeight={120}
+          containerHeight={600}
+          renderItem={(order, index, key) => (
+            <OrderCard
+              key={key}
+              order={order}
+              selected={selectedOrders.has(order.id)}
+              onSelect={handleSelectOrder}
+              onAction={handleOrderAction}
+            />
+          )}
+        />
       ) : (
+        // Use regular rendering for small lists
         <Box>
           {sortedOrders.map((order) => (
             <OrderCard
