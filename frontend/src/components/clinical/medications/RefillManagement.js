@@ -117,7 +117,7 @@ const RefillRequestDialog = ({ open, onClose, medicationRequest, onSubmit }) => 
     }
   };
 
-  const { getMedicationDisplay } = useMedicationResolver([medicationRequest]);
+  const { getMedicationDisplay } = useMedicationResolver(medicationRequest ? [medicationRequest] : []);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

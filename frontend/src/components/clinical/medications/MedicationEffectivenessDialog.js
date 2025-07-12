@@ -96,7 +96,7 @@ const MedicationEffectivenessDialog = ({
   const [nextReviewDate, setNextReviewDate] = useState(addWeeks(new Date(), 4));
   const [recommendedActions, setRecommendedActions] = useState([]);
 
-  const { getMedicationDisplay } = useMedicationResolver([medicationRequest]);
+  const { getMedicationDisplay } = useMedicationResolver(medicationRequest ? [medicationRequest] : []);
 
   useEffect(() => {
     if (assessmentPrompts?.assessmentQuestions) {

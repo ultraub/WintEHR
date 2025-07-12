@@ -170,7 +170,7 @@ const MedicationDiscontinuationDialog = ({
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const { getMedicationDisplay } = useMedicationResolver([medicationRequest]);
+  const { getMedicationDisplay } = useMedicationResolver(medicationRequest ? [medicationRequest] : []);
 
   useEffect(() => {
     if (reasonCode) {
