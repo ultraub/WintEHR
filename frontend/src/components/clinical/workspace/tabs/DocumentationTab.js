@@ -235,13 +235,23 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
           </Button>
         )}
         {isSigned && (
-          <Button 
-            size="small" 
-            startIcon={<AddIcon />}
-            onClick={() => onEdit && onEdit({ ...note, isAddendum: true })}
-          >
-            Addendum
-          </Button>
+          <>
+            <Button 
+              size="small" 
+              startIcon={<AddIcon />}
+              onClick={() => onEdit && onEdit({ ...note, isAddendum: true })}
+            >
+              Addendum
+            </Button>
+            <Button 
+              size="small" 
+              startIcon={<EditIcon />}
+              onClick={() => onEdit && onEdit({ ...note, isAmendment: true })}
+              color="warning"
+            >
+              Amend
+            </Button>
+          </>
         )}
         <Button size="small" startIcon={<ShareIcon />}>
           Share
@@ -669,6 +679,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [editorOpen, setEditorOpen] = useState(false);
   const [enhancedEditorOpen, setEnhancedEditorOpen] = useState(false);
   const [templateWizardOpen, setTemplateWizardOpen] = useState(false);
+  const [amendmentMode, setAmendmentMode] = useState(false);
+  const [originalNoteForAmendment, setOriginalNoteForAmendment] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
@@ -827,6 +839,13 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       // This is from the addendum button in NoteCard
       setSelectedNoteForAddendum(note);
       setAddendumDialogOpen(true);
+    } else if (note.isAmendment) {
+      // This is from the amend button in NoteCard
+      setSelectedNote(null); // Clear selected note for new amendment
+      setSelectedTemplate(null);
+      setAmendmentMode(true);
+      setOriginalNoteForAmendment(note);
+      setEnhancedEditorOpen(true);
     } else {
       // Regular edit - use enhanced editor
       setSelectedNote(note);
@@ -1271,10 +1290,16 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       {/* Enhanced Note Editor Dialog */}
       <EnhancedNoteEditor
         open={enhancedEditorOpen}
-        onClose={() => setEnhancedEditorOpen(false)}
+        onClose={() => {
+          setEnhancedEditorOpen(false);
+          setAmendmentMode(false);
+          setOriginalNoteForAmendment(null);
+        }}
         note={selectedNote}
         patientId={patientId}
         defaultTemplate={selectedTemplate}
+        amendmentMode={amendmentMode}
+        originalNote={originalNoteForAmendment}
       />
 
       {/* Legacy Note Editor Dialog (keeping for compatibility) */}

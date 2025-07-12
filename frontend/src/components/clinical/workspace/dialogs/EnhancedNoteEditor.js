@@ -289,7 +289,9 @@ const EnhancedNoteEditor = ({
   note, 
   patientId,
   defaultTemplate = null,
-  encounter = null 
+  encounter = null,
+  amendmentMode = false,
+  originalNote = null
 }) => {
   const { publish } = useClinicalWorkflow();
   const { currentUser } = useFHIRResource();
@@ -297,6 +299,7 @@ const EnhancedNoteEditor = ({
   // State management
   const [selectedTemplate, setSelectedTemplate] = useState(defaultTemplate);
   const [autoPopulateEnabled, setAutoPopulateEnabled] = useState(true);
+  const [amendmentReason, setAmendmentReason] = useState('');
   const [noteData, setNoteData] = useState({
     title: '',
     content: '',
@@ -525,15 +528,33 @@ const EnhancedNoteEditor = ({
         };
       }
 
+      // Handle amendment mode
+      if (amendmentMode && originalNote?.id) {
+        // Add relatesTo for amendments
+        documentReference.relatesTo = [{
+          code: 'replaces',
+          target: {
+            reference: `DocumentReference/${originalNote.id}`
+          }
+        }];
+        
+        // Add amendment reason to description
+        if (amendmentReason.trim()) {
+          documentReference.description = `${documentReference.description} - AMENDMENT: ${amendmentReason.trim()}`;
+        } else {
+          documentReference.description = `${documentReference.description} - AMENDED`;
+        }
+      }
+
       let savedNote;
-      if (note?.id) {
-        // Update existing note
+      if (note?.id && !amendmentMode) {
+        // Update existing note (only if not in amendment mode)
         savedNote = await fhirClient.update('DocumentReference', note.id, {
           ...documentReference,
           id: note.id
         });
       } else {
-        // Create new note
+        // Create new note (includes amendments)
         savedNote = await fhirClient.create('DocumentReference', documentReference);
       }
 
@@ -579,9 +600,17 @@ const EnhancedNoteEditor = ({
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
         <DialogTitle>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">
-              {note ? 'Edit Clinical Note' : 'New Clinical Note'}
-            </Typography>
+            <Box>
+              <Typography variant="h6">
+                {amendmentMode ? 'Amend Clinical Note' : 
+                 note ? 'Edit Clinical Note' : 'New Clinical Note'}
+              </Typography>
+              {amendmentMode && originalNote && (
+                <Typography variant="caption" color="text.secondary">
+                  Creating amendment to: {originalNote.description || 'Original Note'}
+                </Typography>
+              )}
+            </Box>
             <IconButton onClick={onClose} size="small">
               <CloseIcon />
             </IconButton>
@@ -598,6 +627,29 @@ const EnhancedNoteEditor = ({
               autoPopulateEnabled={autoPopulateEnabled}
               onAutoPopulateToggle={setAutoPopulateEnabled}
             />
+
+            {/* Amendment Reason (only shown in amendment mode) */}
+            {amendmentMode && (
+              <Paper sx={{ p: 2, bgcolor: 'warning.light', border: '1px solid', borderColor: 'warning.main' }}>
+                <Stack spacing={2}>
+                  <Typography variant="subtitle2" color="warning.dark" fontWeight="600">
+                    Amendment Required
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    label="Reason for Amendment"
+                    value={amendmentReason}
+                    onChange={(e) => setAmendmentReason(e.target.value)}
+                    placeholder="Explain why this note is being amended..."
+                    multiline
+                    rows={2}
+                    helperText="Describe the reason for creating this amendment (optional but recommended)"
+                    variant="outlined"
+                    size="small"
+                  />
+                </Stack>
+              </Paper>
+            )}
 
             {/* Auto-Population Preview */}
             {currentTemplate && (
