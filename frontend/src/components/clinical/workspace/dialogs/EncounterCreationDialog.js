@@ -53,6 +53,7 @@ import { format, addMinutes } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import api from '../../../../services/api';
 
 // Encounter Templates
 const ENCOUNTER_TEMPLATES = {
@@ -352,17 +353,8 @@ const EncounterCreationDialog = ({
       }
 
       // Save encounter
-      const response = await fetch('/fhir/R4/Encounter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(encounter)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create encounter: ${response.statusText}`);
-      }
-
-      const savedEncounter = await response.json();
+      const response = await api.post('/fhir/R4/Encounter', encounter);
+      const savedEncounter = response.data;
 
       // Publish encounter created event
       await publish(CLINICAL_EVENTS.ENCOUNTER_CREATED, {
