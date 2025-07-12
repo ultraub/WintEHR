@@ -22,7 +22,7 @@ import {
   Divider
 } from '@mui/material';
 import {
-  Signature as SignatureIcon,
+  Draw as SignatureIcon,
   Medication as MedicationIcon,
   Science as LabIcon,
   Image as ImagingIcon,

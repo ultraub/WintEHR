@@ -72,7 +72,7 @@ import {
   MoreVert as MoreIcon,
   Close as CloseIcon,
   Assignment,
-  Signature as SignIcon
+  Draw as SignIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';

@@ -59,7 +59,7 @@ import {
   CalendarMonth as CalendarIcon,
   AccessTime as TimeIcon,
   Person as ProviderIcon,
-  Signature as SignIcon
+  Draw as SignIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';

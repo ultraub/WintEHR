@@ -63,7 +63,7 @@ import {
   Save as SaveIcon,
   Send as SendIcon,
   Security as SecurityIcon,
-  Verified as VerifiedIcon
+  VerifiedUser as VerifiedIcon
 } from '@mui/icons-material';
 import { format, addDays, addWeeks, addMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';

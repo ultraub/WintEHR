@@ -45,14 +45,14 @@ import {
   Assignment as NoteIcon,
   LocalPharmacy as MedicationIcon,
   Science as LabIcon,
-  Diagnosis as DiagnosisIcon,
+  MedicalServices as DiagnosisIcon,
   Person as ProviderIcon,
   Schedule as TimeIcon,
   WarningAmber as WarningIcon,
   ExpandMore as ExpandMoreIcon,
-  Signature as SignatureIcon,
+  Draw as SignatureIcon,
   Lock as LockIcon,
-  Verified as VerifiedIcon
+  VerifiedUser as VerifiedIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
