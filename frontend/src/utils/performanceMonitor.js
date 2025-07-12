@@ -1,14 +1,85 @@
 /**
  * Performance Monitoring Utility
- * Tracks loading times, memory usage, and other performance metrics
+ * Tracks loading times, memory usage, Core Web Vitals, and other performance metrics
  */
+
+import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals';
 
 class PerformanceMonitor {
   constructor() {
     this.metrics = new Map();
     this.timers = new Map();
+    this.webVitals = new Map();
+    this.observers = [];
     this.enabled = process.env.NODE_ENV === 'development' || 
                   localStorage.getItem('enablePerformanceMonitoring') === 'true';
+    this.setupWebVitalsTracking();
+    this.setupPerformanceObservers();
+  }
+
+  /**
+   * Setup Core Web Vitals tracking
+   */
+  setupWebVitalsTracking() {
+    if (!this.enabled) return;
+
+    const onVital = (metric) => {
+      this.webVitals.set(metric.name, {
+        value: metric.value,
+        rating: metric.rating,
+        delta: metric.delta,
+        id: metric.id,
+        timestamp: Date.now()
+      });
+    };
+
+    getCLS(onVital);
+    getFID(onVital);
+    getFCP(onVital);
+    getLCP(onVital);
+    getTTFB(onVital);
+  }
+
+  /**
+   * Setup performance observers
+   */
+  setupPerformanceObservers() {
+    if (!this.enabled || !('PerformanceObserver' in window)) return;
+
+    // Long task observer
+    try {
+      const longTaskObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          this.recordMetric('long-task', {
+            duration: entry.duration,
+            startTime: entry.startTime,
+            name: entry.name
+          });
+        }
+      });
+      longTaskObserver.observe({ entryTypes: ['longtask'] });
+      this.observers.push(longTaskObserver);
+    } catch (e) {
+      // Long task observer not supported
+    }
+
+    // Resource timing observer
+    try {
+      const resourceObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          this.recordMetric('resource-timing', {
+            name: entry.name,
+            duration: entry.duration,
+            transferSize: entry.transferSize || 0,
+            encodedBodySize: entry.encodedBodySize || 0
+          });
+        }
+      });
+      resourceObserver.observe({ entryTypes: ['resource'] });
+      this.observers.push(resourceObserver);
+    } catch (e) {
+      // Resource timing observer not supported
+    }
   }
 
   /**
@@ -23,8 +94,6 @@ class PerformanceMonitor {
       metadata,
       memory: this.getMemoryUsage()
     });
-
-    
   }
 
   /**
@@ -225,14 +294,121 @@ class PerformanceMonitor {
   }
 
   /**
+   * Get Core Web Vitals metrics
+   */
+  getWebVitals() {
+    return Object.fromEntries(this.webVitals);
+  }
+
+  /**
+   * Check performance budgets
+   */
+  checkPerformanceBudgets() {
+    const budgets = {
+      LCP: 2500, // ms
+      FID: 100,  // ms
+      CLS: 0.1,  // score
+      FCP: 1800, // ms
+      TTFB: 600  // ms
+    };
+
+    const violations = [];
+    const webVitals = this.getWebVitals();
+
+    for (const [metric, budget] of Object.entries(budgets)) {
+      const vital = webVitals[metric];
+      if (vital && vital.value > budget) {
+        violations.push({
+          metric,
+          value: vital.value,
+          budget,
+          rating: vital.rating
+        });
+      }
+    }
+
+    return {
+      passed: violations.length === 0,
+      violations,
+      budgets,
+      webVitals
+    };
+  }
+
+  /**
+   * Send metrics to analytics endpoint
+   */
+  sendMetrics(endpoint = '/api/analytics/performance') {
+    if (!this.enabled) return;
+
+    const report = {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      webVitals: this.getWebVitals(),
+      performanceStats: this.getAllStats(),
+      budgetCheck: this.checkPerformanceBudgets()
+    };
+
+    // Use beacon API for reliable sending
+    if ('sendBeacon' in navigator) {
+      navigator.sendBeacon(endpoint, JSON.stringify(report));
+    } else {
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+      }).catch(() => {
+        // Ignore failures
+      });
+    }
+  }
+
+  /**
+   * Cleanup observers
+   */
+  cleanup() {
+    this.observers.forEach(observer => {
+      try {
+        observer.disconnect();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    });
+    this.observers = [];
+  }
+
+  /**
    * Generate performance report
    */
   generateReport() {
     const stats = this.getAllStats();
+    const webVitals = this.getWebVitals();
+    const budgetCheck = this.checkPerformanceBudgets();
     const memoryInfo = this.getMemoryUsage();
     
     let report = '📊 Performance Report\n';
     report += '=====================\n\n';
+    
+    // Core Web Vitals
+    report += 'Core Web Vitals:\n';
+    report += '----------------\n';
+    for (const [name, vital] of Object.entries(webVitals)) {
+      const rating = vital.rating === 'good' ? '✅' : vital.rating === 'needs-improvement' ? '⚠️' : '❌';
+      report += `${name}: ${vital.value}${name === 'CLS' ? '' : 'ms'} ${rating} (${vital.rating})\n`;
+    }
+    report += '\n';
+
+    // Budget check
+    if (!budgetCheck.passed) {
+      report += '❌ Performance Budget Violations:\n';
+      budgetCheck.violations.forEach(violation => {
+        report += `  ${violation.metric}: ${violation.value} > ${violation.budget}\n`;
+      });
+      report += '\n';
+    } else {
+      report += '✅ All performance budgets met\n\n';
+    }
     
     if (memoryInfo) {
       report += `Memory Usage: ${(memoryInfo / 1024 / 1024).toFixed(2)}MB\n\n`;
