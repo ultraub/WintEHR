@@ -478,7 +478,7 @@ const EnhancedNoteEditor = ({
       // Create FHIR DocumentReference
       const documentReference = {
         resourceType: 'DocumentReference',
-        status: signNote ? 'current' : 'preliminary',
+        status: 'current', // Always current per FHIR R4 - use docStatus for workflow
         docStatus: signNote ? 'final' : 'preliminary',
         type: {
           coding: [{
@@ -489,7 +489,7 @@ const EnhancedNoteEditor = ({
         },
         category: [{
           coding: [{
-            system: 'http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category',
+            system: 'http://hl7.org/fhir/ValueSet/document-reference-category',
             code: 'clinical-note',
             display: 'Clinical Note'
           }]
@@ -499,12 +499,13 @@ const EnhancedNoteEditor = ({
         },
         date: new Date().toISOString(),
         author: [{
+          reference: currentUser?.id ? `Practitioner/${currentUser.id}` : undefined,
           display: currentUser?.name || 'Current User'
-        }],
+        }].filter(author => author), // Remove undefined references
         description: noteData.title || template.label,
         content: [{
           attachment: {
-            contentType: 'application/json',
+            contentType: template.structure === 'sections' ? 'application/json' : 'text/plain',
             data: btoa(content),
             title: noteData.title || template.label,
             creation: new Date().toISOString()
@@ -517,7 +518,10 @@ const EnhancedNoteEditor = ({
         documentReference.context = {
           encounter: [{
             reference: `Encounter/${encounter.id}`
-          }]
+          }],
+          period: encounter.period || {
+            start: new Date().toISOString()
+          }
         };
       }
 
