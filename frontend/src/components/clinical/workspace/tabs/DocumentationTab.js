@@ -82,6 +82,8 @@ import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
+import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 
 // Note type configuration
 const noteTypes = {
@@ -658,7 +660,10 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editorOpen, setEditorOpen] = useState(false);
+  const [enhancedEditorOpen, setEnhancedEditorOpen] = useState(false);
+  const [templateWizardOpen, setTemplateWizardOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
   const [selectedNoteForAddendum, setSelectedNoteForAddendum] = useState(null);
 
@@ -785,9 +790,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const draftCount = allDocuments.filter(d => d.status === 'draft').length;
   const signedCount = allDocuments.filter(d => d.status === 'final').length;
 
+  // Get patient conditions for template wizard
+  const conditions = getPatientResources(patientId, 'Condition') || [];
+  const patientConditions = conditions
+    .filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active')
+    .map(c => c.code?.text || c.code?.coding?.[0]?.display || 'Unknown condition')
+    .slice(0, 10);
+
   const handleNewNote = () => {
     setSelectedNote(null);
-    setEditorOpen(true);
+    setSelectedTemplate(null);
+    setTemplateWizardOpen(true);
+  };
+
+  const handleTemplateSelected = (templateData) => {
+    setSelectedTemplate(templateData.templateId);
+    setTemplateWizardOpen(false);
+    setEnhancedEditorOpen(true);
+  };
+
+  const handleNewNoteWithTemplate = (templateId = null) => {
+    setSelectedNote(null);
+    setSelectedTemplate(templateId);
+    setEnhancedEditorOpen(true);
   };
 
   const handleEditNote = (note) => {
@@ -796,9 +821,10 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       setSelectedNoteForAddendum(note);
       setAddendumDialogOpen(true);
     } else {
-      // Regular edit
+      // Regular edit - use enhanced editor
       setSelectedNote(note);
-      setEditorOpen(true);
+      setSelectedTemplate(null);
+      setEnhancedEditorOpen(true);
     }
   };
 
@@ -997,10 +1023,10 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   }, [newNoteDialogOpen]);
   
   useEffect(() => {
-    if (!editorOpen && onNewNoteDialogClose) {
+    if (!enhancedEditorOpen && !templateWizardOpen && onNewNoteDialogClose) {
       onNewNoteDialogClose();
     }
-  }, [editorOpen, onNewNoteDialogClose]);
+  }, [enhancedEditorOpen, templateWizardOpen, onNewNoteDialogClose]);
 
   if (loading) {
     return (
@@ -1017,13 +1043,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         <Typography variant="h5" fontWeight="bold">
           Clinical Documentation
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleNewNote}
-        >
-          New Note
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => handleNewNoteWithTemplate('progress')}
+          >
+            Progress Note
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => handleNewNoteWithTemplate('soap')}
+          >
+            SOAP Note
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleNewNote}
+          >
+            New Note
+          </Button>
+        </Stack>
       </Stack>
 
       {/* Summary Stats */}
@@ -1136,7 +1178,24 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         </Box>
       )}
 
-      {/* Note Editor Dialog */}
+      {/* Template Wizard Dialog */}
+      <NoteTemplateWizard
+        open={templateWizardOpen}
+        onClose={() => setTemplateWizardOpen(false)}
+        onTemplateSelected={handleTemplateSelected}
+        patientConditions={patientConditions}
+      />
+
+      {/* Enhanced Note Editor Dialog */}
+      <EnhancedNoteEditor
+        open={enhancedEditorOpen}
+        onClose={() => setEnhancedEditorOpen(false)}
+        note={selectedNote}
+        patientId={patientId}
+        defaultTemplate={selectedTemplate}
+      />
+
+      {/* Legacy Note Editor Dialog (keeping for compatibility) */}
       <NoteEditor
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
