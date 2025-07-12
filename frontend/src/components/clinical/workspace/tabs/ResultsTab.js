@@ -83,6 +83,10 @@ import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import QuickResultNote from '../../results/QuickResultNote';
+import CriticalValueAlert from '../../results/CriticalValueAlert';
+import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';
+import ResultTrendAnalysis from '../../results/ResultTrendAnalysis';
+import { resultsManagementService } from '../../../../services/resultsManagementService';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -164,7 +168,7 @@ const getResultStatus = (observation) => {
 };
 
 // Result Row Component for Table View
-const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected }) => {
+const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected, onShowTrend }) => {
   const theme = useTheme();
   const status = getResultStatus(observation);
   const date = observation.effectiveDateTime || observation.issued;
@@ -262,15 +266,33 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected 
         </Typography>
       </TableCell>
       <TableCell>
-        <QuickResultNote
-          result={observation}
-          patientId={observation.subject?.reference?.split('/')[1]}
-          variant="button"
-          onNoteCreated={(data) => {
-            // Could add refresh logic here
-            console.log('Note created for result:', data);
-          }}
-        />
+        <Stack direction="row" spacing={1}>
+          <QuickResultNote
+            result={observation}
+            patientId={observation.subject?.reference?.split('/')[1]}
+            variant="button"
+            onNoteCreated={(data) => {
+              // Could add refresh logic here
+            }}
+          />
+          {/* Add trend button for lab results with LOINC codes */}
+          {observation.code?.coding?.some(c => c.system === 'http://loinc.org') && (
+            <Tooltip title="View Trends">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const loincCode = observation.code.coding.find(c => c.system === 'http://loinc.org')?.code;
+                  if (loincCode && onShowTrend) {
+                    onShowTrend(observation);
+                  }
+                }}
+              >
+                <TrendingUpIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </TableCell>
     </TableRow>
   );
@@ -354,7 +376,6 @@ const ResultCard = ({ observation, onClick }) => {
           variant="inline"
           onNoteCreated={(data) => {
             // Refresh data or show success message
-            console.log('Note created for result:', data);
           }}
         />
       </CardActions>
@@ -383,6 +404,14 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [selectedResultIds, setSelectedResultIds] = useState(new Set());
   const [acknowledgingResults, setAcknowledgingResults] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // New state for enhanced results management
+  const [criticalAlertOpen, setCriticalAlertOpen] = useState(false);
+  const [criticalResult, setCriticalResult] = useState(null);
+  const [showAcknowledgmentPanel, setShowAcknowledgmentPanel] = useState(false);
+  const [showTrendAnalysis, setShowTrendAnalysis] = useState(false);
+  const [selectedTestForTrend, setSelectedTestForTrend] = useState(null);
+  const [unacknowledgedCount, setUnacknowledgedCount] = useState(0);
 
   // Get observations and diagnostic reports early for monitoring
   const observations = getPatientResources(patientId, 'Observation') || [];
@@ -411,6 +440,18 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         const status = getResultStatus(obs);
         return status.color === 'error' || status.color === 'warning';
       });
+      
+      // Check specifically for critical values
+      const criticalResults = observations.filter(obs => {
+        const criticalCheck = resultsManagementService.checkCriticalValue(obs);
+        return criticalCheck.isCritical && !alertedResults.has(obs.id);
+      });
+      
+      // Show critical value alert for the first critical result
+      if (criticalResults.length > 0 && !criticalAlertOpen) {
+        setCriticalResult(criticalResults[0]);
+        setCriticalAlertOpen(true);
+      }
       
       // Publish critical alerts for abnormal results
       if (recentAbnormalResults.length > 0) {
@@ -604,6 +645,59 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
+  // Handle critical value acknowledgment
+  const handleCriticalValueAcknowledge = async (data) => {
+    const newAlertedResults = new Set(alertedResults);
+    newAlertedResults.add(criticalResult.id);
+    setAlertedResults(newAlertedResults);
+    
+    // Publish critical value acknowledged event
+    await publish(CLINICAL_EVENTS.CRITICAL_VALUE_ACKNOWLEDGED, {
+      observationId: criticalResult.id,
+      patientId,
+      ...data
+    });
+    
+    setSnackbar({
+      open: true,
+      message: 'Critical value acknowledged and documented',
+      severity: 'success'
+    });
+  };
+
+  // Handle result selection for trend analysis
+  const handleShowTrend = (observation) => {
+    const loincCode = observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+    if (loincCode) {
+      setSelectedTestForTrend(loincCode);
+      setShowTrendAnalysis(true);
+    } else {
+      setSnackbar({
+        open: true,
+        message: 'Unable to show trend - no LOINC code found',
+        severity: 'warning'
+      });
+    }
+  };
+
+  // Load unacknowledged results count
+  useEffect(() => {
+    const loadUnacknowledgedCount = async () => {
+      try {
+        // For demo, we'll use a simple provider ID - in production this would come from auth context
+        const providerId = 'current-provider';
+        const unacknowledged = await resultsManagementService.getUnacknowledgedResults(providerId, patientId);
+        setUnacknowledgedCount(unacknowledged.length);
+      } catch (error) {
+        // Handle error silently
+      }
+    };
+    
+    if (patientId) {
+      loadUnacknowledgedCount();
+    }
+  }, [patientId, observations]);
+
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {
     const labResults = [];
@@ -724,6 +818,17 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
+          {/* Acknowledgment Panel Toggle */}
+          <Badge badgeContent={unacknowledgedCount} color="warning">
+            <Button
+              variant={showAcknowledgmentPanel ? "contained" : "outlined"}
+              onClick={() => setShowAcknowledgmentPanel(!showAcknowledgmentPanel)}
+              startIcon={<CheckCircle />}
+            >
+              Acknowledgments
+            </Button>
+          </Badge>
+          
           {selectedResultIds.size > 0 && (
             <Button
               variant="contained"
@@ -863,6 +968,25 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         </Stack>
       </Paper>
 
+      {/* Acknowledgment Panel */}
+      {showAcknowledgmentPanel && (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={4}>
+            <ResultAcknowledgmentPanel
+              patientId={patientId}
+              providerId="current-provider" // In production, get from auth context
+              onResultSelect={(result) => {
+                setSelectedResult(result);
+                setDetailsDialogOpen(true);
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={8}>
+            {/* Main content area shifts when panel is open */}
+          </Grid>
+        </Grid>
+      )}
+
       {/* Results Display */}
       {sortedResults.length === 0 ? (
         <Alert severity="info">
@@ -906,6 +1030,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                     selected={selectedResult?.id === result.id}
                     onSelectResult={handleSelectResult}
                     isSelected={selectedResultIds.has(result.id)}
+                    onShowTrend={handleShowTrend}
                   />
                 ))
               }
@@ -958,6 +1083,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                         observation={result}
                         onClick={() => handleViewDetails(result)}
                         selected={selectedResult?.id === result.id}
+                        onShowTrend={handleShowTrend}
                       />
                     ))
                   }
@@ -1035,7 +1161,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                           patientId={report.subject?.reference?.split('/')[1]}
                           variant="button"
                           onNoteCreated={(data) => {
-                            console.log('Note created for diagnostic report:', data);
                           }}
                         />
                       </Stack>
@@ -1269,6 +1394,49 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             Close
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Critical Value Alert */}
+      <CriticalValueAlert
+        open={criticalAlertOpen}
+        onClose={() => {
+          setCriticalAlertOpen(false);
+          setCriticalResult(null);
+        }}
+        observation={criticalResult}
+        patient={currentPatient}
+        provider={{ id: 'current-provider', display: 'Current Provider' }} // In production, get from auth
+        onAcknowledge={handleCriticalValueAcknowledge}
+      />
+
+      {/* Result Trend Analysis Dialog */}
+      <Dialog
+        open={showTrendAnalysis}
+        onClose={() => {
+          setShowTrendAnalysis(false);
+          setSelectedTestForTrend(null);
+        }}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Lab Result Trends
+          <IconButton
+            onClick={() => {
+              setShowTrendAnalysis(false);
+              setSelectedTestForTrend(null);
+            }}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <ResultTrendAnalysis
+            patientId={patientId}
+            initialTestCode={selectedTestForTrend}
+          />
+        </DialogContent>
       </Dialog>
 
       {/* Snackbar for notifications */}
