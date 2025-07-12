@@ -1517,6 +1517,44 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         onOrdersSigned={handleOrderSigned}
         loading={loading}
       />
+
+      {/* Edit Order Dialog */}
+      <Dialog
+        open={editOrderDialog.open}
+        onClose={() => setEditOrderDialog({ open: false, order: null })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Order</DialogTitle>
+        <DialogContent>
+          {editOrderDialog.order && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Order editing functionality is being enhanced. For now, please cancel this order and create a new one with the correct details.
+              </Typography>
+              <Typography variant="subtitle2" color="text.secondary">
+                Current Order: {editOrderDialog.order.resourceType === 'MedicationRequest' 
+                  ? editOrderDialog.order.medicationCodeableConcept?.text 
+                  : editOrderDialog.order.code?.text || 'Unknown'}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditOrderDialog({ open: false, order: null })}>
+            Close
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              setEditOrderDialog({ open: false, order: null });
+              setCpoeDialogOpen(true);
+            }}
+          >
+            Create New Order
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -24,6 +24,7 @@ import QualityMeasuresPage from '../pages/QualityMeasuresPage';
 import CareGapsPage from '../pages/CareGapsPage';
 import AuditTrailPage from '../pages/AuditTrailPage';
 import PharmacyPage from '../pages/PharmacyPage';
+import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
 
 // Create router with future flags enabled
@@ -63,6 +64,16 @@ export const router = createBrowserRouter([
         <ClinicalLayout>
           <ClinicalWorkspaceV3 />
         </ClinicalLayout>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/patients/:id/timeline',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <PatientTimelinePage />
+        </LayoutV3>
       </ProtectedRoute>
     )
   },

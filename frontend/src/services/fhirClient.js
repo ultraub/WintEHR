@@ -41,22 +41,76 @@ class FHIRClient {
     try {
       const response = await this.httpClient.get('/metadata');
       this.capabilities = response.data;
+      console.log('FHIR Capabilities discovered:', this.capabilities);
       return this.capabilities;
     } catch (error) {
-      
-      // Continue without capabilities - assume basic FHIR compliance
-      return null;
+      console.warn('Could not discover FHIR server capabilities:', error.message);
+      // Create default capabilities for common FHIR resources
+      this.capabilities = this.getDefaultCapabilities();
+      return this.capabilities;
     }
+  }
+
+  /**
+   * Get default FHIR R4 capabilities when server metadata is unavailable
+   */
+  getDefaultCapabilities() {
+    return {
+      resourceType: 'CapabilityStatement',
+      status: 'active',
+      kind: 'instance',
+      fhirVersion: '4.0.1',
+      format: ['application/fhir+json'],
+      rest: [{
+        mode: 'server',
+        resource: [
+          { type: 'Patient', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Observation', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Condition', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'MedicationRequest', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'MedicationDispense', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'AllergyIntolerance', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Encounter', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'ServiceRequest', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'DocumentReference', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Procedure', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'ImagingStudy', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Coverage', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] },
+          { type: 'Organization', interaction: [{ code: 'read' }, { code: 'search-type' }, { code: 'create' }, { code: 'update' }, { code: 'delete' }] }
+        ]
+      }]
+    };
   }
 
   /**
    * Check if server supports a specific resource type
    */
   supportsResource(resourceType) {
-    if (!this.capabilities) return true; // Assume support if no capabilities
+    if (!this.capabilities) {
+      console.warn(`No capabilities available, assuming ${resourceType} is supported`);
+      return true; // Assume support if no capabilities
+    }
     
     const resources = this.capabilities.rest?.[0]?.resource || [];
-    return resources.some(r => r.type === resourceType);
+    const isSupported = resources.some(r => r.type === resourceType);
+    
+    if (!isSupported) {
+      console.warn(`Resource type ${resourceType} not found in server capabilities`);
+      // For common FHIR R4 resources, assume support even if not in capabilities
+      const commonResources = [
+        'Patient', 'Observation', 'Condition', 'MedicationRequest', 
+        'MedicationDispense', 'AllergyIntolerance', 'Encounter', 
+        'ServiceRequest', 'DocumentReference', 'Procedure', 
+        'ImagingStudy', 'Coverage', 'Organization'
+      ];
+      
+      if (commonResources.includes(resourceType)) {
+        console.log(`Assuming common FHIR resource ${resourceType} is supported`);
+        return true;
+      }
+    }
+    
+    return isSupported;
   }
 
   /**
@@ -77,16 +131,30 @@ class FHIRClient {
    */
   async create(resourceType, resource) {
     if (!this.supportsResource(resourceType)) {
-      throw new Error(`Server does not support ${resourceType} resources`);
+      console.warn(`Server capabilities indicate ${resourceType} may not be supported, attempting anyway...`);
     }
 
-    const response = await this.httpClient.post(`/${resourceType}`, resource);
-    return {
-      id: response.headers.location?.split('/').pop() || resource.id,
-      location: response.headers.location,
-      etag: response.headers.etag,
-      resource: response.data
-    };
+    try {
+      const response = await this.httpClient.post(`/${resourceType}`, resource);
+      return {
+        id: response.headers.location?.split('/').pop() || response.data?.id || resource.id,
+        location: response.headers.location,
+        etag: response.headers.etag,
+        resource: response.data
+      };
+    } catch (error) {
+      // Provide more helpful error messages
+      if (error.response?.status === 400) {
+        console.error(`FHIR Validation Error creating ${resourceType}:`, error.response.data);
+        throw new Error(`Invalid ${resourceType} resource: ${error.response.data?.detail || error.message}`);
+      } else if (error.response?.status === 404) {
+        console.error(`${resourceType} endpoint not found`);
+        throw new Error(`Server does not support ${resourceType} resources`);
+      } else {
+        console.error(`Error creating ${resourceType}:`, error);
+        throw error;
+      }
+    }
   }
 
   /**

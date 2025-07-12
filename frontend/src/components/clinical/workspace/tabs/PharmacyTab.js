@@ -1286,6 +1286,71 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         onDispense={handleDispense}
       />
 
+      {/* Details Dialog */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Medication Request Details</DialogTitle>
+        <DialogContent>
+          {selectedRequest && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Medication</Typography>
+                  <Typography variant="body1">{selectedRequest.medicationCodeableConcept?.text || 'Unknown medication'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Typography variant="body1">{selectedRequest.status || 'Unknown'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Priority</Typography>
+                  <Typography variant="body1">{selectedRequest.priority || 'routine'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Authored Date</Typography>
+                  <Typography variant="body1">
+                    {selectedRequest.authoredOn ? format(parseISO(selectedRequest.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                {selectedRequest.dosageInstruction?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
+                    <Typography variant="body1">{selectedRequest.dosageInstruction[0].text || 'See prescription'}</Typography>
+                  </Grid>
+                )}
+                {selectedRequest.dispenseRequest && (
+                  <>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" color="text.secondary">Quantity</Typography>
+                      <Typography variant="body1">
+                        {selectedRequest.dispenseRequest.quantity?.value || 'Not specified'} {selectedRequest.dispenseRequest.quantity?.unit || ''}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" color="text.secondary">Refills Allowed</Typography>
+                      <Typography variant="body1">{selectedRequest.dispenseRequest.numberOfRepeatsAllowed || 0}</Typography>
+                    </Grid>
+                  </>
+                )}
+                {selectedRequest.reasonCode?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Reason</Typography>
+                    <Typography variant="body1">{selectedRequest.reasonCode[0].text || 'Not specified'}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}

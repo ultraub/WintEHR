@@ -249,6 +249,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
   const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
+  const [editEncounterDialogOpen, setEditEncounterDialogOpen] = useState(false);
+  const [selectedEncounterForEdit, setSelectedEncounterForEdit] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [selectedEncounterForNote, setSelectedEncounterForNote] = useState(null);
@@ -341,6 +343,17 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const handleCloseNoteEditor = () => {
     setNoteEditorOpen(false);
     setSelectedEncounterForNote(null);
+  };
+
+  // Handle edit encounter
+  const handleEditEncounter = (encounter) => {
+    setSelectedEncounterForEdit(encounter);
+    setEditEncounterDialogOpen(true);
+  };
+
+  const handleCloseEditEncounter = () => {
+    setEditEncounterDialogOpen(false);
+    setSelectedEncounterForEdit(null);
   };
 
   const handleNewEncounter = () => {
@@ -681,7 +694,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
               key={encounter.id}
               encounter={encounter}
               onViewDetails={() => handleViewEncounterDetails(encounter)}
-              onEdit={() => {}}
+              onEdit={() => handleEditEncounter(encounter)}
               onSign={() => handleSignEncounter(encounter)}
               onAddNote={handleAddNoteToEncounter}
             />
@@ -844,6 +857,50 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
             disabled={!newEncounterData.reasonForVisit.trim()}
           >
             Create Encounter
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Encounter Dialog */}
+      <Dialog
+        open={editEncounterDialogOpen}
+        onClose={handleCloseEditEncounter}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Encounter</DialogTitle>
+        <DialogContent>
+          {selectedEncounterForEdit && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Encounter editing functionality is being enhanced. For now, encounter details can be viewed but not directly edited.
+              </Typography>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Status: {selectedEncounterForEdit.status}
+              </Typography>
+              {selectedEncounterForEdit.period?.start && (
+                <Typography variant="body2" color="text.secondary">
+                  Date: {format(parseISO(selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditEncounter}>
+            Close
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              handleCloseEditEncounter();
+              setEncounterCreationDialogOpen(true);
+            }}
+          >
+            Create New Encounter
           </Button>
         </DialogActions>
       </Dialog>

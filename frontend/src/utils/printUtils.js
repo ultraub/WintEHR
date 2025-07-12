@@ -536,8 +536,14 @@ const exportNoteAsJSON = (note, patient, template) => {
       date: note.date,
       author: note.author?.[0]?.display,
       status: note.docStatus,
-      content: note.content?.[0]?.attachment?.data ? 
-        atob(note.content[0].attachment.data) : ''
+      content: (() => {
+        try {
+          return note.content?.[0]?.attachment?.data ? 
+            atob(note.content[0].attachment.data) : '';
+        } catch (error) {
+          return 'Error: Unable to decode note content';
+        }
+      })()
     },
     template: template ? {
       id: template.id,

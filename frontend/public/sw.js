@@ -1,9 +1,9 @@
 // Service Worker for MedGenEMR
 // Provides caching for better performance and offline capabilities
 
-const CACHE_NAME = 'medgen-emr-v1.0.0';
-const STATIC_CACHE_NAME = 'medgen-static-v1.0.0';
-const API_CACHE_NAME = 'medgen-api-v1.0.0';
+const CACHE_NAME = 'medgen-emr-v1.0.1';
+const STATIC_CACHE_NAME = 'medgen-static-v1.0.1';
+const API_CACHE_NAME = 'medgen-api-v1.0.1';
 
 // Static assets to cache
 const STATIC_ASSETS = [
@@ -45,20 +45,38 @@ const cacheFirst = async (request) => {
 const networkFirst = async (request) => {
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    
+    // Only cache successful responses (200-299 status codes)
+    if (networkResponse.ok && networkResponse.status >= 200 && networkResponse.status < 300) {
       const cache = await caches.open(API_CACHE_NAME);
       // Only cache GET requests
       if (request.method === 'GET') {
         cache.put(request, networkResponse.clone());
       }
+    } else if (networkResponse.status >= 400) {
+      // For error responses, remove any existing cache to prevent serving stale data
+      const cache = await caches.open(API_CACHE_NAME);
+      await cache.delete(request);
     }
+    
     return networkResponse;
   } catch (error) {
     console.log('Network failed, trying cache for:', request.url);
     const cachedResponse = await caches.match(request);
     if (cachedResponse) {
-      return cachedResponse;
+      // Check if cached response is recent (less than 5 minutes old)
+      const cacheDate = new Date(cachedResponse.headers.get('date') || 0);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      
+      if (cacheDate > fiveMinutesAgo) {
+        return cachedResponse;
+      } else {
+        // Remove stale cache
+        const cache = await caches.open(API_CACHE_NAME);
+        await cache.delete(request);
+      }
     }
+    
     return new Response(
       JSON.stringify({ error: 'Offline - data not available' }), 
       { 

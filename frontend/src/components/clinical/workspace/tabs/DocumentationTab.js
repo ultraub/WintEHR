@@ -690,6 +690,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [originalNoteForAmendment, setOriginalNoteForAmendment] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [viewNoteDialogOpen, setViewNoteDialogOpen] = useState(false);
+  const [selectedNoteForView, setSelectedNoteForView] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
   const [selectedNoteForAddendum, setSelectedNoteForAddendum] = useState(null);
 
@@ -863,7 +865,8 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
 
   const handleViewNote = (note) => {
     // Show note details in a modal or expanded view
-    setSelectedNote(note);
+    setSelectedNoteForView(note);
+    setViewNoteDialogOpen(true);
     // You could also open a dialog here if needed
   };
 
@@ -1327,6 +1330,119 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         note={selectedNoteForAddendum}
         onSave={handleSaveAddendum}
       />
+
+      {/* View Note Dialog */}
+      <Dialog
+        open={viewNoteDialogOpen}
+        onClose={() => {
+          setViewNoteDialogOpen(false);
+          setSelectedNoteForView(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>View Note</DialogTitle>
+        <DialogContent>
+          {selectedNoteForView && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Title</Typography>
+                  <Typography variant="body1">{selectedNoteForView.title || 'Untitled Note'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Type</Typography>
+                  <Typography variant="body1">{selectedNoteForView.type?.coding?.[0]?.display || 'Unknown'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Typography variant="body1">{selectedNoteForView.status || 'current'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Date</Typography>
+                  <Typography variant="body1">
+                    {selectedNoteForView.date ? format(parseISO(selectedNoteForView.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">Content</Typography>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
+                    {(() => {
+                      // Try to decode base64 content
+                      let content = 'No content available';
+                      if (selectedNoteForView.content?.[0]?.attachment?.data) {
+                        try {
+                          const decodedContent = atob(selectedNoteForView.content[0].attachment.data);
+                          try {
+                            // Try to parse as JSON for structured content
+                            const parsed = JSON.parse(decodedContent);
+                            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+                              return (
+                                <Box>
+                                  {parsed.subjective && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Subjective</Typography>
+                                      <Typography variant="body2">{parsed.subjective}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.objective && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Objective</Typography>
+                                      <Typography variant="body2">{parsed.objective}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.assessment && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Assessment</Typography>
+                                      <Typography variant="body2">{parsed.assessment}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.plan && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Plan</Typography>
+                                      <Typography variant="body2">{parsed.plan}</Typography>
+                                    </Box>
+                                  )}
+                                </Box>
+                              );
+                            } else {
+                              content = decodedContent;
+                            }
+                          } catch (e) {
+                            content = decodedContent;
+                          }
+                        } catch (e) {
+                          content = 'Error decoding note content';
+                        }
+                      }
+                      return <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{content}</Typography>;
+                    })()}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setViewNoteDialogOpen(false);
+            setSelectedNoteForView(null);
+          }}>
+            Close
+          </Button>
+          {selectedNoteForView && (
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                setViewNoteDialogOpen(false);
+                handleEditNote(selectedNoteForView);
+              }}
+            >
+              Edit Note
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar
