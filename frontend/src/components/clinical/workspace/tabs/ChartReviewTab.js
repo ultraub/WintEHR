@@ -83,6 +83,7 @@ import RefillManagement from '../../medications/RefillManagement';
 import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
 import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
 import WorkflowValidationPanel from '../../medications/WorkflowValidationPanel';
+import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
 import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
@@ -1495,6 +1496,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         {/* Medication Workflow Validation */}
         <Grid item xs={12}>
           <WorkflowValidationPanel
+            patientId={patientId}
+            medications={medications}
+            onRefresh={async () => {
+              await refreshPatientResources(patientId);
+            }}
+          />
+        </Grid>
+
+        {/* Clinical Safety Verification */}
+        <Grid item xs={12}>
+          <ClinicalSafetyPanel
             patientId={patientId}
             medications={medications}
             onRefresh={async () => {
