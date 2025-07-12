@@ -81,8 +81,10 @@ import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import RefillManagement from '../../medications/RefillManagement';
 import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
+import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
+import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
@@ -1003,6 +1005,14 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const result = await fhirClient.create('MedicationRequest', medicationRequest);
       const createdMedication = result.resource || medicationRequest;
       
+      // Create effectiveness monitoring plan for new medication
+      try {
+        await medicationEffectivenessService.createMonitoringPlan(createdMedication);
+      } catch (error) {
+        console.warn('Could not create monitoring plan for medication:', error);
+        // Don't fail the prescription process if monitoring plan creation fails
+      }
+
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'prescription-dispense',
@@ -1468,6 +1478,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
               <PrescriptionStatusDashboard patientId={patientId} />
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Medication Effectiveness Monitoring */}
+        <Grid item xs={12}>
+          <EffectivenessMonitoringPanel
+            patientId={patientId}
+            medications={medications}
+            onRefresh={async () => {
+              await refreshPatientResources(patientId);
+            }}
+          />
         </Grid>
       </Grid>
     </Box>
