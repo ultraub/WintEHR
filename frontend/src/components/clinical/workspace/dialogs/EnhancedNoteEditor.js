@@ -577,7 +577,9 @@ const EnhancedNoteEditor = ({
 
       setSnackbar({
         open: true,
-        message: `Note ${signNote ? 'saved and signed' : 'saved as draft'} successfully`,
+        message: `Note ${status === 'final' ? 'saved and signed' : 
+                         status === 'preliminary' ? 'saved for review' : 
+                         'saved as draft'} successfully`,
         severity: 'success'
       });
 

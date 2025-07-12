@@ -92,6 +92,11 @@ module.exports = {
     compress: true,
     // Enable HTTP/2 for better performance
     http2: true,
+    // Bind to all interfaces for Docker access
+    host: '0.0.0.0',
+    port: 3000,
+    // Allow connections from any host
+    allowedHosts: 'all',
   },
   babel: {
     plugins: [
