@@ -351,18 +351,9 @@ const EncounterCreationDialog = ({
         }];
       }
 
-      // Save encounter
-      const response = await fetch('/fhir/R4/Encounter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(encounter)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create encounter: ${response.statusText}`);
-      }
-
-      const savedEncounter = await response.json();
+      // Save encounter using fhirService
+      const fhirService = await import('../../../../services/fhirService');
+      const savedEncounter = await fhirService.createResource('Encounter', encounter);
 
       // Publish encounter created event
       await publish(CLINICAL_EVENTS.ENCOUNTER_CREATED, {
