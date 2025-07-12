@@ -7,7 +7,16 @@ import axios from 'axios';
 
 class CDSClinicalDataService {
   constructor() {
-    this.baseUrl = '/api/clinical';
+    // Use direct backend URL for development to bypass proxy issues
+    // Check if running in Docker container
+    const isInDocker = !!process.env.HOSTNAME;
+    const backendHost = isInDocker ? 'http://backend:8000' : 'http://localhost:8000';
+    
+    this.baseUrl = process.env.REACT_APP_BACKEND_URL 
+      ? `${process.env.REACT_APP_BACKEND_URL}/api/clinical`
+      : (process.env.NODE_ENV === 'development' ? `${backendHost}/api/clinical` : '/api/clinical');
+    
+    console.log('🔧 CDSClinicalDataService initialized with baseUrl:', this.baseUrl);
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
     

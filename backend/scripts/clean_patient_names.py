@@ -1,109 +1,102 @@
 #!/usr/bin/env python3
 """
-Clean patient names by removing numeric suffixes
+Clean Synthea-generated patient names by removing numbers.
 """
 
 import asyncio
-import asyncpg
+import sys
 import re
 import json
+from pathlib import Path
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 import logging
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+from database import DATABASE_URL
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 async def clean_patient_names():
-    """Clean numeric suffixes from patient names"""
+    """Clean patient names in the database."""
+    engine = create_async_engine(
+        DATABASE_URL.replace('postgresql://', 'postgresql+asyncpg://'),
+        echo=False
+    )
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    # Database connection
-    conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
-    
-    try:
+    async with async_session() as session:
+        logging.info("🧹 Cleaning patient names...")
+        
+        # Temporarily disable history trigger
+        await session.execute(text("ALTER TABLE fhir.resources DISABLE TRIGGER resource_history_trigger"))
+        
         # Get all patients
-        patients = await conn.fetch("""
+        result = await session.execute(text("""
             SELECT id, fhir_id, resource
             FROM fhir.resources
             WHERE resource_type = 'Patient'
             AND deleted = false
-        """)
+        """))
         
-        logger.info(f"Found {len(patients)} patients to process")
-        
+        patients = result.fetchall()
         cleaned_count = 0
         
-        for patient in patients:
-            resource = patient['resource']
-            # Parse JSON if it's a string
-            if isinstance(resource, str):
-                resource = json.loads(resource)
+        for db_id, fhir_id, resource_data in patients:
+            if isinstance(resource_data, str):
+                resource_data = json.loads(resource_data)
+            
             modified = False
             
-            # Process each name in the resource
-            if 'name' in resource:
-                for name in resource['name']:
+            # Clean name array
+            if 'name' in resource_data and isinstance(resource_data['name'], list):
+                for name in resource_data['name']:
                     # Clean given names
-                    if 'given' in name:
+                    if 'given' in name and isinstance(name['given'], list):
                         cleaned_given = []
                         for given_name in name['given']:
-                            # Remove numeric suffix
+                            # Remove trailing numbers (e.g., "John123" becomes "John")
                             cleaned = re.sub(r'\d+$', '', given_name)
-                            cleaned = cleaned.strip()
-                            if cleaned:
-                                cleaned_given.append(cleaned)
-                            else:
-                                # If empty after cleaning, keep original
-                                cleaned_given.append(given_name)
-                        
-                        if cleaned_given != name['given']:
-                            name['given'] = cleaned_given
-                            modified = True
+                            if cleaned != given_name:
+                                modified = True
+                                logging.info(f"  Cleaning: {given_name} -> {cleaned}")
+                            cleaned_given.append(cleaned)
+                        name['given'] = cleaned_given
                     
                     # Clean family name
                     if 'family' in name:
-                        original = name['family']
-                        # Remove numeric suffix
-                        cleaned = re.sub(r'\d+$', '', original)
-                        cleaned = cleaned.strip()
-                        
-                        if cleaned and cleaned != original:
-                            name['family'] = cleaned
+                        cleaned_family = re.sub(r'\d+$', '', name['family'])
+                        if cleaned_family != name['family']:
                             modified = True
+                            logging.info(f"  Cleaning: {name['family']} -> {cleaned_family}")
+                            name['family'] = cleaned_family
             
-            # Update if modified
             if modified:
-                await conn.execute("""
+                # Update the resource
+                await session.execute(text("""
                     UPDATE fhir.resources
-                    SET resource = $1,
-                        version_id = version_id + 1,
-                        last_updated = CURRENT_TIMESTAMP
-                    WHERE id = $2
-                """, json.dumps(resource), patient['id'])
-                
+                    SET resource = :resource
+                    WHERE id = :id
+                """), {
+                    'id': db_id,
+                    'resource': json.dumps(resource_data)
+                })
                 cleaned_count += 1
-                
-                # Log progress
-                if cleaned_count % 10 == 0:
-                    logger.info(f"Cleaned {cleaned_count} patients...")
+                logging.info(f"  ✅ Cleaned patient {fhir_id}")
         
-        logger.info(f"✅ Successfully cleaned names for {cleaned_count} patients")
+        await session.commit()
         
-        # Show sample of cleaned names
-        sample = await conn.fetch("""
-            SELECT 
-                resource->'name'->0->'given'->0 as first_name,
-                resource->'name'->0->>'family' as last_name
-            FROM fhir.resources
-            WHERE resource_type = 'Patient'
-            AND deleted = false
-            LIMIT 5
-        """)
+        # Re-enable history trigger
+        await session.execute(text("ALTER TABLE fhir.resources ENABLE TRIGGER resource_history_trigger"))
+        await session.commit()
         
-        logger.info("Sample of cleaned names:")
-        for row in sample:
-            logger.info(f"  {row['first_name']} {row['last_name']}")
-            
-    finally:
-        await conn.close()
+        logging.info(f"✅ Cleaned {cleaned_count} patient names")
+        
+    await engine.dispose()
+
 
 if __name__ == "__main__":
     asyncio.run(clean_patient_names())

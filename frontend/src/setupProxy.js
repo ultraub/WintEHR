@@ -1,64 +1,28 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function(app) {
-  // Proxy API requests to the backend
-  app.use(
-    '/api',
-    createProxyMiddleware({
-      target: 'http://backend:8000',
-      changeOrigin: true,
-      secure: false,
-      timeout: 10000,
-      onError: function(err, req, res) {
-        console.error('Proxy error:', err);
-        res.writeHead(500, {
-          'Content-Type': 'text/plain'
-        });
-        res.end('Proxy error: ' + err.message);
-      }
-    })
-  );
+  // Determine backend target based on environment
+  const isInDocker = !!process.env.HOSTNAME;
+  const backendTarget = process.env.REACT_APP_BACKEND_URL || 
+                       (isInDocker ? 'http://backend:8000' : 'http://localhost:8000');
+  
+  console.log('🔥 PROXY SETUP: Setting up simple proxy with target:', backendTarget);
+  
+  // Simple proxy configuration for all /api requests
+  app.use('/api', createProxyMiddleware({
+    target: backendTarget,
+    changeOrigin: true,
+    logLevel: 'debug'
+  }));
 
-  // Proxy CDS Hooks requests to the backend
-  app.use(
-    '/cds-hooks',
-    createProxyMiddleware({
-      target: 'http://backend:8000',
-      changeOrigin: true,
-      secure: false,
-      timeout: 10000,
-      logLevel: 'debug',
-      onProxyReq: function(proxyReq, req, res) {
-        console.log('CDS Hooks proxy request:', req.method, req.url, '-> http://backend:8000' + req.url);
-      },
-      onProxyRes: function(proxyRes, req, res) {
-        console.log('CDS Hooks proxy response:', proxyRes.statusCode, req.url);
-      },
-      onError: function(err, req, res) {
-        console.error('CDS Hooks proxy error:', err);
-        res.writeHead(500, {
-          'Content-Type': 'text/plain'
-        });
-        res.end('CDS Hooks proxy error: ' + err.message);
-      }
-    })
-  );
+  // Proxy CDS Hooks and FHIR requests
+  app.use('/cds-hooks', createProxyMiddleware({
+    target: backendTarget,
+    changeOrigin: true
+  }));
 
-  // Proxy FHIR requests to the backend
-  app.use(
-    '/fhir',
-    createProxyMiddleware({
-      target: 'http://backend:8000',
-      changeOrigin: true,
-      secure: false,
-      timeout: 10000,
-      onError: function(err, req, res) {
-        console.error('FHIR proxy error:', err);
-        res.writeHead(500, {
-          'Content-Type': 'text/plain'
-        });
-        res.end('FHIR proxy error: ' + err.message);
-      }
-    })
-  );
+  app.use('/fhir', createProxyMiddleware({
+    target: backendTarget,
+    changeOrigin: true
+  }));
 };

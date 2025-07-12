@@ -66,7 +66,7 @@ const EnhancedMedicationSearch = ({
   const [dosingGuidance, setDosingGuidance] = useState(null);
   const [safetyAlerts, setSafetyAlerts] = useState([]);
   const [showDetails, setShowDetails] = useState(false);
-  const [showTemplates, setShowTemplatesDialog] = useState(false);
+  const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
   const [commonTemplates, setCommonTemplates] = useState([]);
   const [recentMedications, setRecentMedications] = useState([]);
 
@@ -494,7 +494,7 @@ const EnhancedMedicationSearch = ({
 
       {/* Templates Dialog */}
       <Dialog
-        open={showTemplates}
+        open={showTemplatesDialog}
         onClose={() => setShowTemplatesDialog(false)}
         maxWidth="md"
         fullWidth

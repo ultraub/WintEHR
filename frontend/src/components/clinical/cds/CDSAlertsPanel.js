@@ -42,7 +42,9 @@ import {
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import CDSHookManager, { WORKFLOW_TRIGGERS } from './CDSHookManager';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
+import CDSDocumentationPrompts from './CDSDocumentationPrompts';
 import { cdsLogger } from '../../../config/logging';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 
 const CDSAlertsPanel = ({ 
   patientId, 
@@ -75,6 +77,8 @@ const CDSAlertsPanel = ({
     // Only persist acknowledged alerts for the current browser session, not across sessions
     return new Set();
   });
+  const [showDocumentationPrompts, setShowDocumentationPrompts] = useState(true);
+  const { publish } = useClinicalWorkflow();
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef(null);
   const contextRef = useRef(context);
@@ -215,6 +219,29 @@ const CDSAlertsPanel = ({
       isMountedRef.current = false;
     };
   }, []);
+
+  const handleCreateNoteFromPrompt = useCallback(async (noteData) => {
+    try {
+      // Publish workflow event for note creation
+      await publish('CDS_DOCUMENTATION_NOTE_REQUESTED', {
+        patientId,
+        template: noteData.template,
+        content: noteData.content,
+        title: noteData.title,
+        linkedAlerts: noteData.linkedAlerts,
+        context: noteData.context,
+        source: 'cds-alert'
+      });
+      
+      cdsLogger.info('CDS documentation note creation requested', { 
+        patientId, 
+        template: noteData.template,
+        linkedAlerts: noteData.linkedAlerts 
+      });
+    } catch (error) {
+      cdsLogger.error('Error creating note from CDS prompt:', error);
+    }
+  }, [patientId, publish]);
 
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
@@ -533,6 +560,18 @@ const CDSAlertsPanel = ({
               </Alert>
             ))}
 
+            {/* Documentation Prompts Section */}
+            {showDocumentationPrompts && alerts.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <CDSDocumentationPrompts
+                  cdsAlerts={alerts}
+                  patientId={patientId}
+                  encounterId={context.encounterId}
+                  onCreateNote={handleCreateNoteFromPrompt}
+                />
+              </Box>
+            )}
+
             <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
               {alerts.length > maxAlerts && (
                 <Button 
@@ -554,6 +593,13 @@ const CDSAlertsPanel = ({
                   Clear Acknowledged
                 </Button>
               )}
+              <Button 
+                variant="text" 
+                size="small" 
+                onClick={() => setShowDocumentationPrompts(!showDocumentationPrompts)}
+              >
+                {showDocumentationPrompts ? 'Hide' : 'Show'} Documentation Prompts
+              </Button>
             </Stack>
           </Box>
         </Collapse>

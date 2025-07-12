@@ -82,6 +82,7 @@ import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import QuickResultNote from '../../results/QuickResultNote';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -260,6 +261,17 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected 
           {date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'No date'}
         </Typography>
       </TableCell>
+      <TableCell>
+        <QuickResultNote
+          result={observation}
+          patientId={observation.subject?.reference?.split('/')[1]}
+          variant="button"
+          onNoteCreated={(data) => {
+            // Could add refresh logic here
+            console.log('Note created for result:', data);
+          }}
+        />
+      </TableCell>
     </TableRow>
   );
 };
@@ -336,6 +348,15 @@ const ResultCard = ({ observation, onClick }) => {
       
       <CardActions>
         <Button size="small" startIcon={<ViewIcon />} onClick={(e) => { e.stopPropagation(); onClick(); }}>View Details</Button>
+        <QuickResultNote
+          result={observation}
+          patientId={observation.subject?.reference?.split('/')[1]}
+          variant="inline"
+          onNoteCreated={(data) => {
+            // Refresh data or show success message
+            console.log('Note created for result:', data);
+          }}
+        />
       </CardActions>
     </Card>
   );
@@ -871,6 +892,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 <TableCell>Reference Range</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Date</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -924,6 +946,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                     <TableCell>Reference Range</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Date</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1003,9 +1026,19 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                         'No date'}
                     </TableCell>
                     <TableCell>
-                      <Button size="small" startIcon={<ViewIcon />} onClick={() => handleViewDetails(report)}>
-                        View
-                      </Button>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" startIcon={<ViewIcon />} onClick={() => handleViewDetails(report)}>
+                          View
+                        </Button>
+                        <QuickResultNote
+                          result={report}
+                          patientId={report.subject?.reference?.split('/')[1]}
+                          variant="button"
+                          onNoteCreated={(data) => {
+                            console.log('Note created for diagnostic report:', data);
+                          }}
+                        />
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}

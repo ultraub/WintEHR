@@ -73,7 +73,6 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://backend:8000",
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "compression-webpack-plugin": "^10.0.0",

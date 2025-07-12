@@ -70,6 +70,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../services/fhirClient';
+import EnhancedMedicationSearch from '../../prescribing/EnhancedMedicationSearch';
 
 // Order Templates
 const ORDER_TEMPLATES = {
@@ -300,6 +301,55 @@ const CPOEDialog = ({
 
   const removeOrder = (orderId) => {
     setOrders(prev => prev.filter(order => order.id !== orderId));
+  };
+
+  // Handle enhanced medication selection
+  const handleMedicationSelect = (orderId, medicationData) => {
+    if (medicationData.template) {
+      // Handle template selection - create multiple orders
+      const templateOrders = medicationData.medications.map(medData => ({
+        id: Date.now() + Math.random(),
+        ...getEmptyOrderData('medication'),
+        medication: medData.medication?.name || '',
+        dosage: medData.dosing?.split(' ')[0] || '',
+        frequency: medData.dosing?.replace(/^\d+\w+\s*/, '') || '',
+        duration: medData.duration || '',
+        refills: medData.refills || 0,
+        route: 'oral'
+      }));
+
+      setOrders(prev => [...prev.filter(order => order.id !== orderId), ...templateOrders]);
+    } else if (medicationData.medication) {
+      // Handle single medication selection
+      const medication = medicationData.medication;
+      const dosing = medicationData.dosing;
+
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? {
+          ...order,
+          medication: medication.name || '',
+          dosage: dosing?.recommended?.initial?.split(' ')[0] || dosing?.adult?.initial?.split(' ')[0] || '',
+          frequency: dosing?.recommended?.initial?.replace(/^\d+\w+\s*/, '') || dosing?.adult?.initial?.replace(/^\d+\w+\s*/, '') || '',
+          duration: '30 days',
+          route: 'oral',
+          medicationDetails: medication,
+          dosingGuidance: dosing,
+          safetyAlerts: medicationData.safetyAlerts || []
+        } : order
+      ));
+
+      // Trigger CDS checks with enhanced data
+      if (medicationData.safetyAlerts?.length > 0) {
+        const enhancedAlerts = medicationData.safetyAlerts.map(alert => ({
+          severity: alert.severity === 'critical' ? 'error' : alert.severity,
+          message: alert.description || alert.reaction || 'Safety alert',
+          suggestion: alert.recommendation || 'Review medication safety',
+          type: 'medication'
+        }));
+        
+        setCdsAlerts(prev => [...prev, ...enhancedAlerts]);
+      }
+    }
   };
 
   const checkCDSRules = async (medication) => {
@@ -552,25 +602,30 @@ const CPOEDialog = ({
       case 'medication':
         return (
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Medication"
-                value={order.medication}
-                onChange={(e) => updateOrder(order.id, 'medication', e.target.value)}
-                placeholder="Enter medication name"
+            <Grid item xs={12}>
+              <EnhancedMedicationSearch
+                patientId={patientId}
+                currentMedications={orders.filter(o => o.medication && o.id !== order.id).map(o => o.medicationDetails).filter(Boolean)}
+                onMedicationSelect={(medicationData) => handleMedicationSelect(order.id, medicationData)}
+                defaultValue={order.medication}
+                showDosingGuidance={true}
+                showSafetyChecks={true}
+                showTemplates={true}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Dosage"
-                value={order.dosage}
-                onChange={(e) => updateOrder(order.id, 'dosage', e.target.value)}
-                placeholder="e.g., 500mg"
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
+            {order.medication && (
+              <>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Dosage"
+                    value={order.dosage}
+                    onChange={(e) => updateOrder(order.id, 'dosage', e.target.value)}
+                    placeholder="e.g., 500mg"
+                    helperText={order.dosingGuidance?.recommended?.initial || order.dosingGuidance?.adult?.initial || ''}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Route</InputLabel>
                 <Select
@@ -621,17 +676,19 @@ const CPOEDialog = ({
                 inputProps={{ min: 0, max: 11 }}
               />
             </Grid>
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={order.substitution}
-                    onChange={(e) => updateOrder(order.id, 'substitution', e.target.checked)}
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={order.substitution}
+                        onChange={(e) => updateOrder(order.id, 'substitution', e.target.checked)}
+                      />
+                    }
+                    label="Allow generic substitution"
                   />
-                }
-                label="Allow generic substitution"
-              />
-            </Grid>
+                </Grid>
+              </>
+            )}
           </Grid>
         );
         

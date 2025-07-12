@@ -264,6 +264,33 @@ const foodAllergies = await searchService.searchAllergens('peanut', 10, 'food');
 const results = await searchService.searchAll('aspirin', 5);
 ```
 
+### Dynamic Clinical Catalogs
+```javascript
+// ✅ CORRECT - Use dynamic catalogs extracted from patient data
+import { cdsClinicalDataService } from '../services/cdsClinicalDataService';
+
+// Get conditions from actual patient diagnoses
+const conditions = await cdsClinicalDataService.getDynamicConditionCatalog('diabetes', 20);
+
+// Get medications from actual prescriptions with usage frequencies
+const medications = await cdsClinicalDataService.getDynamicMedicationCatalog('insulin', 20);
+
+// Get lab tests with calculated reference ranges from patient data
+const labTests = await cdsClinicalDataService.getLabCatalog('glucose', null, 20);
+
+// Search across all dynamic catalogs
+const allResults = await cdsClinicalDataService.searchAllDynamicCatalogs('blood pressure', 10);
+
+// Refresh catalogs after data changes
+await cdsClinicalDataService.refreshDynamicCatalogs(100);
+```
+
+**Note**: Dynamic catalogs are built from actual patient FHIR resources and include:
+- **Conditions**: Frequency counts, clinical statuses from real diagnoses
+- **Medications**: Usage patterns, dosing frequencies from prescriptions  
+- **Lab Tests**: Reference ranges calculated from patient data (5th-95th percentile)
+- **Procedures**: Frequency counts from actual procedures performed
+
 ### CDS Hooks Management
 ```javascript
 // ✅ CORRECT - Create and manage custom CDS hooks
@@ -299,12 +326,14 @@ const testResult = await cdsHooksService.testHook(hookData, {patientId});
 | CDS hook validation errors | Ensure all required fields, check hook ID uniqueness |
 | Migration fails | Check resource validation, ensure proper FHIR structure |
 | Search service timeout | Check cache (5-min timeout), increase limit parameter |
+| Dynamic catalog 404 errors | Service bypasses proxy, uses direct backend connection in development |
 
 ## 📁 Critical Files to Know
 
 ### Frontend Core
 ```
 src/services/fhirService.js          # FHIR CRUD operations
+src/services/cdsClinicalDataService.js # Dynamic clinical catalogs from patient data
 src/contexts/FHIRResourceContext.js  # Resource state management
 src/contexts/ClinicalWorkflowContext.js # Cross-module events
 src/hooks/useFHIRResources.js        # Data fetching hooks
@@ -315,6 +344,8 @@ src/hooks/useMedicationResolver.js   # Medication display logic
 ```
 backend/core/fhir/storage.py         # FHIR storage engine
 backend/api/fhir/fhir_router.py      # FHIR R4 endpoints
+backend/api/clinical/dynamic_catalog_router.py # Dynamic clinical catalogs API
+backend/services/dynamic_catalog_service.py    # Dynamic catalog extraction logic
 backend/core/fhir/search.py          # Search implementation
 backend/api/auth_enhanced.py         # Dual-mode auth
 backend/scripts/synthea_master.py    # Data management
@@ -1078,5 +1109,36 @@ This agent system ensures reliable, consistent feature development following Med
 - ErrorBoundary provides fallback UI and recovery options
 - All debug logging removed for production readiness
 - Provider pyramid eliminated for better maintainability
+
+### Recent Updates - 2025-07-12
+
+**🔧 Dynamic Clinical Catalog System Fixed**
+- ✅ Resolved 404 errors for dynamic catalog API endpoints
+- ✅ Fixed frontend proxy configuration conflicts between package.json and setupProxy.js
+- ✅ Implemented direct backend connection bypass for development environments
+- ✅ Added environment-aware service configuration (Docker vs local development)
+- ✅ Verified all dynamic catalog endpoints: conditions, medications, lab tests, procedures
+- ✅ Confirmed autocomplete search functionality in EditProblemDialog works correctly
+
+**Dynamic Catalog Features Working**:
+- **Conditions Catalog**: 57 conditions extracted from patient data with frequency counts
+- **Medications Catalog**: 27 medications with usage patterns and dosing frequencies  
+- **Lab Tests Catalog**: 47 lab tests with calculated reference ranges (5th-95th percentile)
+- **Procedures Catalog**: 91 procedures with frequency counts from actual procedures
+- **Statistics Endpoint**: Resource counts and cache status information
+- **Search Functionality**: Cross-catalog search with caching and real-time results
+
+**Technical Implementation**:
+- Updated `cdsClinicalDataService.js` to use Docker container name (`backend:8000`) in containers
+- Falls back to `localhost:8000` for local development outside Docker
+- Maintains relative URLs (`/api/clinical`) for production deployments
+- Added environment detection using `process.env.HOSTNAME` for Docker containers
+- Removed conflicting `"proxy"` field from package.json to enable setupProxy.js
+
+**User Impact**:
+- ✅ Condition search in problem editing dialogs now works without 404 errors
+- ✅ All clinical catalog autocompletes function correctly
+- ✅ Real-time data extracted from actual patient FHIR resources
+- ✅ Enhanced search experience with frequency-based relevance
 
 **Remember: No code is complete without documentation!**

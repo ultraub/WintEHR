@@ -39,6 +39,7 @@ from .models import (
     HookCondition,
     HookAction
 )
+from .medication_prescribe_hooks import medication_prescribe_hooks
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -369,6 +370,11 @@ SAMPLE_HOOKS = {
         ]
     )
 }
+
+# Add medication prescribe hooks
+medication_hooks = medication_prescribe_hooks.get_medication_prescribe_hooks()
+for hook in medication_hooks:
+    SAMPLE_HOOKS[hook.id] = hook
 
 
 class CDSHookEngine:
@@ -831,6 +837,20 @@ class CDSHookEngine:
                 
                 return card
             
+            # Handle medication prescribe specific actions
+            elif action_type in ['check-interactions', 'check-allergies', 'dosing-guidance', 'renal-dosing']:
+                # Delegate to medication prescribe hooks
+                cards = []
+                if action_type == 'check-interactions':
+                    cards = await medication_prescribe_hooks.execute_drug_interaction_check(request)
+                elif action_type == 'check-allergies':
+                    cards = await medication_prescribe_hooks.execute_allergy_check(request)
+                elif action_type == 'dosing-guidance':
+                    cards = await medication_prescribe_hooks.execute_age_based_dosing(request)
+                
+                # Return the first card if any
+                return cards[0] if cards else None
+            
             return None
             
         except Exception as e:
@@ -1173,6 +1193,23 @@ async def test_hook(
     except Exception as e:
         logger.error(f"Error testing hook {hook_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to test hook")
+
+# Sync sample hooks endpoint
+@router.post("/hooks/sync-samples")
+async def sync_sample_hooks(db: AsyncSession = Depends(get_db_session)):
+    """Sync sample hooks to database"""
+    try:
+        await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
+        db_hooks = await load_hooks_from_database(db)
+        
+        return {
+            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample hooks",
+            "hooks_count": len(db_hooks),
+            "hooks": list(db_hooks.keys())
+        }
+    except Exception as e:
+        logger.error(f"Error syncing sample hooks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync sample hooks")
 
 # Health check endpoint
 @router.get("/health")

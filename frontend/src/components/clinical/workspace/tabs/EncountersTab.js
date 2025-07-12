@@ -67,6 +67,7 @@ import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
 import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
+import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -101,7 +102,7 @@ const getEncounterTypeLabel = (encounter) => {
 };
 
 // Encounter Card Component
-const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign }) => {
+const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -206,6 +207,14 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign }) => {
         >
           Edit
         </Button>
+        <Button 
+          size="small" 
+          startIcon={<NotesIcon />}
+          onClick={() => onAddNote && onAddNote(encounter)}
+          color="secondary"
+        >
+          Add Note
+        </Button>
         {encounter.status === 'in-progress' && (
           <Button 
             size="small" 
@@ -241,6 +250,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
   const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [selectedEncounterForNote, setSelectedEncounterForNote] = useState(null);
   const [newEncounterData, setNewEncounterData] = useState({
     type: 'AMB',
     reasonForVisit: '',
@@ -318,6 +329,18 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
     window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
       detail: { patientId } 
     }));
+  };
+
+  // Handle adding note to encounter
+  const handleAddNoteToEncounter = (encounter) => {
+    setSelectedEncounterForNote(encounter);
+    setNoteEditorOpen(true);
+  };
+
+  // Handle closing note editor
+  const handleCloseNoteEditor = () => {
+    setNoteEditorOpen(false);
+    setSelectedEncounterForNote(null);
   };
 
   const handleNewEncounter = () => {
@@ -660,6 +683,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
               onViewDetails={() => handleViewEncounterDetails(encounter)}
               onEdit={() => {}}
               onSign={() => handleSignEncounter(encounter)}
+              onAddNote={handleAddNoteToEncounter}
             />
           ))}
         </Box>
@@ -744,6 +768,16 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         onClose={() => setEncounterCreationDialogOpen(false)}
         patientId={patientId}
         onEncounterCreated={handleEncounterCreated}
+      />
+
+      {/* Enhanced Note Editor for Encounter Notes */}
+      <EnhancedNoteEditor
+        open={noteEditorOpen}
+        onClose={handleCloseNoteEditor}
+        note={null}
+        patientId={patientId}
+        encounter={selectedEncounterForNote}
+        defaultTemplate={null}
       />
 
       {/* New Encounter Dialog */}

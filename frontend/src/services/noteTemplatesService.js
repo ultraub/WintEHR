@@ -555,5 +555,14 @@ export class NoteAutoPopulationService {
   }
 }
 
+// Export template service for external access
+export const noteTemplatesService = {
+  getTemplate: (templateId) => NOTE_TEMPLATES[templateId],
+  getAllTemplates: () => NOTE_TEMPLATES,
+  getAutoPopulatedTemplate: async (templateId, patientId, encounterId) => {
+    return await noteAutoPopulationService.generateTemplateContent(templateId, patientId);
+  }
+};
+
 // Export singleton instance
 export const noteAutoPopulationService = new NoteAutoPopulationService();

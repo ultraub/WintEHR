@@ -78,6 +78,8 @@ services:
       - CHOKIDAR_USEPOLLING=true  # For file watching in Docker
       - WATCHPACK_POLLING=true
       - FAST_REFRESH=true
+      - HOST=0.0.0.0  # Bind to all interfaces for Docker access
+      - PORT=3000
       - WDS_SOCKET_HOST=localhost
       - WDS_SOCKET_PORT=3000
     networks:
