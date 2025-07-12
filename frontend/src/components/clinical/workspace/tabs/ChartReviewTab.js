@@ -81,6 +81,7 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtil
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
+import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
@@ -1353,6 +1354,15 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
                   }
                 </Typography>
               )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Prescription Status Dashboard */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <PrescriptionStatusDashboard patientId={patientId} />
             </CardContent>
           </Card>
         </Grid>

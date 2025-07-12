@@ -70,6 +70,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../services/fhirClient';
+import { prescriptionStatusService } from '../../../../services/prescriptionStatusService';
 import EnhancedMedicationSearch from '../../prescribing/EnhancedMedicationSearch';
 
 // Order Templates
@@ -567,7 +568,7 @@ const CPOEDialog = ({
       
       // Publish order created events
       for (const order of createdOrders) {
-        await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+        const eventData = {
           orderId: order.id,
           patientId,
           encounterId,
@@ -575,7 +576,26 @@ const CPOEDialog = ({
           providerId: currentUser.id,
           priority: orderDetails.priority,
           timestamp: new Date().toISOString()
-        });
+        };
+
+        // Add medication-specific data for prescriptions
+        if (orderType === 'medication') {
+          eventData.medicationRequestId = order.id;
+          eventData.medication = order.medicationCodeableConcept?.text;
+          
+          // Initialize prescription status tracking
+          try {
+            await prescriptionStatusService.updatePrescriptionStatus(
+              order.id,
+              'ORDERED',
+              'Prescription created and sent to pharmacy'
+            );
+          } catch (error) {
+            console.error('Error initializing prescription status:', error);
+          }
+        }
+
+        await publish(CLINICAL_EVENTS.ORDER_PLACED, eventData);
       }
       
       // Refresh patient resources
