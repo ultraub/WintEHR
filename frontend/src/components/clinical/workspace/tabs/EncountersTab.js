@@ -66,6 +66,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
 import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
+import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -238,6 +239,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
+  const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [newEncounterData, setNewEncounterData] = useState({
     type: 'AMB',
@@ -319,7 +321,20 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const handleNewEncounter = () => {
-    setNewEncounterDialogOpen(true);
+    setEncounterCreationDialogOpen(true);
+  };
+
+  const handleEncounterCreated = (newEncounter) => {
+    setSnackbar({
+      open: true,
+      message: 'Encounter created successfully',
+      severity: 'success'
+    });
+    
+    // Refresh encounter data
+    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+      detail: { patientId } 
+    }));
   };
 
   const handlePrintEncounters = () => {
@@ -721,6 +736,14 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         encounter={selectedEncounter}
         patientId={patientId}
         onEncounterSigned={handleEncounterSigned}
+      />
+
+      {/* Enhanced Encounter Creation Dialog */}
+      <EncounterCreationDialog
+        open={encounterCreationDialogOpen}
+        onClose={() => setEncounterCreationDialogOpen(false)}
+        patientId={patientId}
+        onEncounterCreated={handleEncounterCreated}
       />
 
       {/* New Encounter Dialog */}
