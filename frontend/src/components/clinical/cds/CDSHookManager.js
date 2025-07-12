@@ -2,7 +2,7 @@
  * CDS Hook Manager
  * Manages CDS hooks firing at different workflow points with appropriate presentation modes
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
 import { cdsLogger } from '../../../config/logging';
@@ -65,7 +65,7 @@ const WORKFLOW_TRIGGERS = {
   VITAL_ENTRY: 'patient-view'  // Can reuse patient-view for vital entry
 };
 
-const CDSHookManager = ({ 
+const CDSHookManager = forwardRef(({ 
   patientId,
   userId = 'current-user',
   encounterId = null,
@@ -75,23 +75,12 @@ const CDSHookManager = ({
   onAlertAction = null,
   disabled = false,
   debugMode = false
-}) => {
+}, ref) => {
   const [activeAlerts, setActiveAlerts] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const lastContextRef = useRef(null);
   const hookTimeoutRef = useRef(null);
-
-  // Debounced hook firing to prevent excessive calls
-  const fireHooksDebounced = useCallback(async (hookType, hookContext, delay = 500) => {
-    if (hookTimeoutRef.current) {
-      clearTimeout(hookTimeoutRef.current);
-    }
-
-    hookTimeoutRef.current = setTimeout(async () => {
-      await fireHooks(hookType, hookContext);
-    }, delay);
-  }, []);
 
   const fireHooks = useCallback(async (hookType, hookContext = {}) => {
     if (disabled || !patientId) {
@@ -203,14 +192,35 @@ const CDSHookManager = ({
     } finally {
       setLoading(false);
     }
-  }, [patientId, userId, encounterId, disabled, onHookFired, debugMode]);
+  }, [patientId, userId, encounterId, disabled, onHookFired]);
+
+  // Debounced hook firing to prevent excessive calls
+  const fireHooksDebounced = useCallback(async (hookType, hookContext, delay = 500) => {
+    if (hookTimeoutRef.current) {
+      clearTimeout(hookTimeoutRef.current);
+    }
+
+    hookTimeoutRef.current = setTimeout(async () => {
+      await fireHooks(hookType, hookContext);
+    }, delay);
+  }, [fireHooks]);
+
+  // Expose methods to parent components via ref
+  useImperativeHandle(ref, () => ({
+    triggerHook: fireHooks,
+    triggerHookDebounced: fireHooksDebounced
+  }));
+
+  // Store context in ref to avoid infinite re-renders
+  const contextRef = useRef(context);
+  contextRef.current = context;
 
   // Fire hooks when dependencies change
   useEffect(() => {
     if (currentHook && patientId) {
-      fireHooksDebounced(currentHook, context);
+      fireHooksDebounced(currentHook, contextRef.current);
     }
-  }, [currentHook, patientId, userId, encounterId, context, fireHooksDebounced]);
+  }, [currentHook, patientId, userId, encounterId, fireHooksDebounced]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -271,7 +281,7 @@ const CDSHookManager = ({
     if (onAlertAction) {
       onAlertAction(alert, action, suggestion);
     }
-  }, [onAlertAction, debugMode]);
+  }, [onAlertAction]);
 
   // Render alerts for current hook
   const renderAlertsForHook = (hookType) => {
@@ -340,7 +350,7 @@ const CDSHookManager = ({
       )}
     </>
   );
-};
+});
 
 export default CDSHookManager;
 export { WORKFLOW_TRIGGERS, HOOK_PRESENTATION_CONFIG };

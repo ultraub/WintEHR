@@ -5,7 +5,7 @@ module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: 'http://backend:8000',
       changeOrigin: true,
       secure: false,
       timeout: 10000,
@@ -23,10 +23,17 @@ module.exports = function(app) {
   app.use(
     '/cds-hooks',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: 'http://backend:8000',
       changeOrigin: true,
       secure: false,
       timeout: 10000,
+      logLevel: 'debug',
+      onProxyReq: function(proxyReq, req, res) {
+        console.log('CDS Hooks proxy request:', req.method, req.url, '-> http://backend:8000' + req.url);
+      },
+      onProxyRes: function(proxyRes, req, res) {
+        console.log('CDS Hooks proxy response:', proxyRes.statusCode, req.url);
+      },
       onError: function(err, req, res) {
         console.error('CDS Hooks proxy error:', err);
         res.writeHead(500, {
@@ -41,7 +48,7 @@ module.exports = function(app) {
   app.use(
     '/fhir',
     createProxyMiddleware({
-      target: 'http://localhost:8000',
+      target: 'http://backend:8000',
       changeOrigin: true,
       secure: false,
       timeout: 10000,

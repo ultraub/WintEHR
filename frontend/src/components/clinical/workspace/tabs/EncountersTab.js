@@ -58,12 +58,14 @@ import {
   Print as PrintIcon,
   CalendarMonth as CalendarIcon,
   AccessTime as TimeIcon,
-  Person as ProviderIcon
+  Person as ProviderIcon,
+  Signature as SignIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
+import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -98,7 +100,7 @@ const getEncounterTypeLabel = (encounter) => {
 };
 
 // Encounter Card Component
-const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
+const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -203,6 +205,17 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
         >
           Edit
         </Button>
+        {encounter.status === 'in-progress' && (
+          <Button 
+            size="small" 
+            variant="contained"
+            color="primary"
+            startIcon={<SignIcon />}
+            onClick={onSign}
+          >
+            Sign & Close
+          </Button>
+        )}
       </CardActions>
 
     </Card>
@@ -223,6 +236,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [newEncounterData, setNewEncounterData] = useState({
@@ -279,6 +293,29 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const handleCloseSummaryDialog = () => {
     setSummaryDialogOpen(false);
     setSelectedEncounter(null);
+  };
+
+  const handleSignEncounter = (encounter) => {
+    setSelectedEncounter(encounter);
+    setSigningDialogOpen(true);
+  };
+
+  const handleCloseSigningDialog = () => {
+    setSigningDialogOpen(false);
+    setSelectedEncounter(null);
+  };
+
+  const handleEncounterSigned = (signedEncounter) => {
+    setSnackbar({
+      open: true,
+      message: 'Encounter signed successfully',
+      severity: 'success'
+    });
+    
+    // Refresh encounter data
+    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+      detail: { patientId } 
+    }));
   };
 
   const handleNewEncounter = () => {
@@ -607,6 +644,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
               encounter={encounter}
               onViewDetails={() => handleViewEncounterDetails(encounter)}
               onEdit={() => {}}
+              onSign={() => handleSignEncounter(encounter)}
             />
           ))}
         </Box>
@@ -674,6 +712,15 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         onClose={handleCloseSummaryDialog}
         encounter={selectedEncounter}
         patientId={patientId}
+      />
+
+      {/* Encounter Signing Dialog */}
+      <EncounterSigningDialog
+        open={signingDialogOpen}
+        onClose={handleCloseSigningDialog}
+        encounter={selectedEncounter}
+        patientId={patientId}
+        onEncounterSigned={handleEncounterSigned}
       />
 
       {/* New Encounter Dialog */}

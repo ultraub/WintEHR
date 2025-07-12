@@ -2,7 +2,7 @@
  * Prescribe Medication Dialog Component
  * Allows prescribing new medications to patient
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -77,6 +77,17 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
     genericSubstitution: true,
     notes: ''
   });
+
+  // Trigger CDS hooks when medication selection changes
+  useEffect(() => {
+    if (formData.selectedMedication) {
+      checkCDSHooks(formData.selectedMedication);
+    } else if (formData.customMedication && formData.customMedication.length > 2) {
+      checkCDSHooks({ display: formData.customMedication, name: formData.customMedication });
+    } else {
+      setCdsAlerts([]);
+    }
+  }, [formData.selectedMedication, formData.customMedication, patientId]);
 
   // Search for medications as user types
   const handleSearchMedications = async (query) => {
@@ -202,6 +213,21 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
       if (!formData.quantity) {
         setError('Please specify the quantity to dispense');
         return;
+      }
+
+      // Trigger final CDS hooks check before creating prescription
+      await checkCDSHooks(formData.selectedMedication || { display: formData.customMedication, name: formData.customMedication });
+
+      // Check for critical alerts that should block prescription
+      const criticalAlerts = cdsAlerts.filter(alert => alert.indicator === 'critical');
+      if (criticalAlerts.length > 0) {
+        const shouldProceed = window.confirm(
+          `⚠️ Critical Safety Alert!\n\n${criticalAlerts.map(alert => alert.summary).join('\n\n')}\n\nDo you want to proceed with this prescription anyway?`
+        );
+        if (!shouldProceed) {
+          setLoading(false);
+          return;
+        }
       }
 
       // Create FHIR MedicationRequest resource

@@ -80,6 +80,8 @@ import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
+import CDSHookManagerV2, { WORKFLOW_TRIGGERS } from '../../cds/CDSHookManagerV2';
+import CDSErrorBoundary from '../../cds/CDSErrorBoundary';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -495,10 +497,22 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [viewOrderDialog, setViewOrderDialog] = useState({ open: false, order: null });
   const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [cdsTrigger, setCdsTrigger] = useState(0);
 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Handle CDS alerts
+  const handleCDSAlerts = (hookType, alerts) => {
+    if (alerts.length > 0 && onNotificationUpdate) {
+      onNotificationUpdate({
+        type: 'cds-alert',
+        count: alerts.length,
+        severity: alerts.some(a => a.indicator === 'critical') ? 'critical' : 'info'
+      });
+    }
+  };
 
   // Get all orders
   const medicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
@@ -853,13 +867,16 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  const handleOrderAction = (order, action) => {
+  const handleOrderAction = async (order, action) => {
     switch (action) {
       case 'view':
         setViewOrderDialog({ open: true, order });
         break;
       case 'edit':
         setEditOrderDialog({ open: true, order });
+        break;
+      case 'sign':
+        await handleSignOrder(order);
         break;
       case 'cancel':
         // Cancel order by updating status
@@ -880,9 +897,34 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Handle order signing with CDS hooks
+  const handleSignOrder = async (order) => {
+    try {
+      // Trigger CDS hooks for order signing
+      setCdsTrigger(prev => prev + 1);
+
+      // TODO: Implement actual order signing logic
+      // This would typically involve updating the order status and adding a signature
+      setSnackbar({
+        open: true,
+        message: 'Order signed successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to sign order',
+        severity: 'error'
+      });
+    }
+  };
+
   // Handle order creation from QuickOrderDialog
   const handleOrderCreated = async (order, orderType) => {
     try {
+      // Trigger CDS hooks for order selection before placing
+      setCdsTrigger(prev => prev + 1);
+
       // Publish ORDER_PLACED event
       await publish(CLINICAL_EVENTS.ORDER_PLACED, {
         ...order,
@@ -1018,6 +1060,22 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* CDS Hook Manager V2 - Stable implementation with Error Boundary */}
+      <CDSErrorBoundary showDetails={false}>
+        <CDSHookManagerV2
+          patientId={patientId}
+          hookType="patient-view"
+          context={{ 
+            tab: 'orders',
+            patientId,
+            userId: 'current-user' // TODO: Get from auth context
+          }}
+          trigger={cdsTrigger}
+          onAlertsChange={handleCDSAlerts}
+          debugMode={false}
+        />
+      </CDSErrorBoundary>
+
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" fontWeight="bold">

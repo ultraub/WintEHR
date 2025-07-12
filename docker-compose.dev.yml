@@ -1,7 +1,64 @@
-version: '3.8'
-
 services:
-  # Override frontend for development with hot reload
+  # PostgreSQL Database (same as production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: emr-postgres
+    environment:
+      POSTGRES_USER: emr_user
+      POSTGRES_PASSWORD: emr_password
+      POSTGRES_DB: emr_db
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - emr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db && psql -U emr_user -d emr_db -c 'SELECT 1 FROM fhir.resources LIMIT 1;' > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Backend API with hot reload
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: emr-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backend/data/generated_dicoms:/app/data/generated_dicoms
+      # Exclude __pycache__ and other Python artifacts
+      - /app/__pycache__
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - DATABASE_URL=postgresql+asyncpg://emr_user:emr_password@postgres:5432/emr_db
+      - JWT_ENABLED=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - WATCHFILES_FORCE_POLLING=true
+    networks:
+      - emr-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend with hot reload
   frontend:
     image: node:18-alpine
     container_name: emr-frontend-dev
@@ -9,6 +66,7 @@ services:
     command: sh -c "npm install && npm start"
     ports:
       - "3000:3000"
+      - "3001:3001"  # For potential additional dev servers
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
@@ -19,8 +77,26 @@ services:
       - REACT_APP_CLINICAL_CANVAS_API=http://localhost:8000/api/clinical-canvas
       - CHOKIDAR_USEPOLLING=true  # For file watching in Docker
       - WATCHPACK_POLLING=true
+      - FAST_REFRESH=true
+      - WDS_SOCKET_HOST=localhost
+      - WDS_SOCKET_PORT=3000
+    networks:
+      - emr-network
+    depends_on:
+      - backend
     stdin_open: true
     tty: true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  emr-network:
+    driver: bridge
 
 volumes:
+  postgres_data:
   frontend_node_modules:
