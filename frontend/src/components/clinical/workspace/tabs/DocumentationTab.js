@@ -366,16 +366,23 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
       let response;
       if (note && note.id) {
         // Update existing note
+        // Only include valid FHIR fields, exclude text and context if they're invalid
+        const updatePayload = {
+          ...documentReference,
+          id: note.id,
+          resourceType: 'DocumentReference'
+        };
+        
+        // Remove invalid fields that might exist in the note
+        delete updatePayload.text;
+        delete updatePayload.context;
+        
         response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            ...note,
-            ...documentReference,
-            id: note.id
-          })
+          body: JSON.stringify(updatePayload)
         });
       } else {
         // Create new note

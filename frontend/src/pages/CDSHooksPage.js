@@ -17,10 +17,11 @@ import {
 import {
   Psychology as CDSIcon,
   ArrowBack as BackIcon,
-  DeveloperMode as DevIcon
+  DeveloperMode as DevIcon,
+  Webhook as WebhookIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import CDSHooksTab from '../components/clinical/workspace/tabs/CDSHooksTab';
+import CDSHooksDeveloperTool from '../components/developer/CDSHooksDeveloperTool';
 
 const CDSHooksPage = () => {
   const navigate = useNavigate();
@@ -60,13 +61,13 @@ const CDSHooksPage = () => {
         </Stack>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <CDSIcon color="primary" sx={{ fontSize: 32 }} />
+          <WebhookIcon color="primary" sx={{ fontSize: 32 }} />
           <Box>
             <Typography variant="h4" fontWeight="bold">
-              CDS Hooks Management
+              CDS Hooks Development Center
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Clinical Decision Support Hooks testing and configuration
+              Comprehensive Clinical Decision Support development, testing, and management
             </Typography>
           </Box>
         </Box>
@@ -77,18 +78,16 @@ const CDSHooksPage = () => {
       {/* Info Alert */}
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="subtitle2" gutterBottom>
-          CDS Hooks Developer Tools
+          CDS Hooks Developer Center
         </Typography>
         <Typography variant="body2">
-          This tool allows you to test and configure Clinical Decision Support (CDS) hooks. 
-          Use it to evaluate CDS services, test hook responses, and debug CDS integrations.
+          Complete development environment for Clinical Decision Support hooks. Build custom hooks with advanced 
+          condition builders, test with multiple scenarios, manage service configurations, and monitor execution history.
         </Typography>
       </Alert>
 
-      {/* CDS Hooks Component */}
-      <Paper sx={{ p: 0 }}>
-        <CDSHooksTab patientId="test-patient" />
-      </Paper>
+      {/* CDS Hooks Developer Tool */}
+      <CDSHooksDeveloperTool />
     </Box>
   );
 };

@@ -330,6 +330,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedMedication}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     setSearchQuery(value);
                     handleSearchMedications(value);

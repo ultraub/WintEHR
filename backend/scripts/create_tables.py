@@ -4,6 +4,7 @@ Simple script to create the necessary database tables for MedGenEMR
 """
 
 import asyncio
+import os
 import asyncpg
 import os
 from dotenv import load_dotenv

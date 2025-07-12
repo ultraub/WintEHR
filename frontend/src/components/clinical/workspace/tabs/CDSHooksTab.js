@@ -28,6 +28,10 @@ import {
   Divider,
   Switch,
   FormControlLabel,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Badge,
   Accordion,
   AccordionSummary,
@@ -56,11 +60,13 @@ import {
   ExpandMore as ExpandMoreIcon,
   Timeline as TimelineIcon,
   Settings as SettingsIcon,
-  School as TrainingIcon
+  School as TrainingIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import CDSHookBuilder from '../cds/CDSHookBuilder';
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
+import CDSCardDisplay from '../cds/CDSCardDisplay';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
 import { fhirClient } from '../../../../services/fhirClient';
@@ -97,6 +103,15 @@ const CDSHooksTab = ({ patientId }) => {
   const [serviceSettings, setServiceSettings] = useState({});
   const [customHooks, setCustomHooks] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [displayBehavior, setDisplayBehavior] = useState({
+    displayMode: 'immediate',
+    position: 'top',
+    maxCards: 10,
+    priority: 'critical-first',
+    allowDismiss: true,
+    groupByService: true,
+    animation: true
+  });
 
   useEffect(() => {
     loadCDSServices();
@@ -204,7 +219,19 @@ const CDSHooksTab = ({ patientId }) => {
       }
       
       if (allCards.length > 0) {
-        setCards(prevCards => [...allCards, ...prevCards]);
+        // Filter out duplicate cards based on summary and serviceId
+        setCards(prevCards => {
+          const existingCardKeys = new Set(
+            prevCards.map(card => `${card.serviceId}-${card.summary}`)
+          );
+          
+          const newCards = allCards.filter(card => 
+            !existingCardKeys.has(`${card.serviceId}-${card.summary}`)
+          );
+          
+          // Add new cards at the beginning, limit to most recent 50
+          return [...newCards, ...prevCards].slice(0, 50);
+        });
         
         // Publish CDS alerts
         await publish(CLINICAL_EVENTS.CDS_ALERT_TRIGGERED, {
@@ -272,7 +299,19 @@ const CDSHooksTab = ({ patientId }) => {
         }
       }
       
-      setCards(allCards);
+      // Apply deduplication logic like in executeHooksForServices
+      setCards(prevCards => {
+        const existingCardKeys = new Set(
+          prevCards.map(card => `${card.serviceId}-${card.summary}`)
+        );
+        
+        const newCards = allCards.filter(card => 
+          !existingCardKeys.has(`${card.serviceId}-${card.summary}`)
+        );
+        
+        // Replace with new cards (since this is a refresh)
+        return allCards;
+      });
       
       // Publish CDS alerts triggered event if we have cards
       if (allCards.length > 0) {
@@ -403,12 +442,26 @@ const CDSHooksTab = ({ patientId }) => {
       });
       
       if (response.cards) {
-        setCards(prev => [...response.cards.map(card => ({
+        const newCards = response.cards.map(card => ({
           ...card,
           serviceId: service.id,
           serviceName: service.title || service.id,
           timestamp: new Date()
-        })), ...prev]);
+        }));
+        
+        // Apply deduplication
+        setCards(prevCards => {
+          const existingCardKeys = new Set(
+            prevCards.map(card => `${card.serviceId}-${card.summary}`)
+          );
+          
+          const uniqueNewCards = newCards.filter(card => 
+            !existingCardKeys.has(`${card.serviceId}-${card.summary}`)
+          );
+          
+          // Add new unique cards at the beginning, limit to 50
+          return [...uniqueNewCards, ...prevCards].slice(0, 50);
+        });
       }
     } catch (err) {
       setError(`Failed to execute hook ${service.id}: ${err.message}`);
@@ -417,12 +470,30 @@ const CDSHooksTab = ({ patientId }) => {
     }
   };
 
+  const handleDismissCard = (cardIndex) => {
+    setCards(prevCards => prevCards.filter((_, index) => index !== cardIndex));
+    setSnackbar({
+      open: true,
+      message: 'Alert dismissed',
+      severity: 'info'
+    });
+  };
+
   const getCardIcon = (indicator) => {
     switch (indicator) {
       case 'info': return <InfoIcon color="info" />;
       case 'warning': return <WarningIcon color="warning" />;
       case 'critical': return <ErrorIcon color="error" />;
       default: return <InfoIcon color="info" />;
+    }
+  };
+
+  const getCardColor = (indicator) => {
+    switch (indicator) {
+      case 'info': return 'info';
+      case 'warning': return 'warning';
+      case 'critical': return 'error';
+      default: return 'default';
     }
   };
 
@@ -556,15 +627,6 @@ const CDSHooksTab = ({ patientId }) => {
     }
   };
 
-  const getCardColor = (indicator) => {
-    switch (indicator) {
-      case 'info': return 'info';
-      case 'warning': return 'warning';
-      case 'critical': return 'error';
-      default: return 'info';
-    }
-  };
-
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
       <Paper sx={{ mb: 2 }}>
@@ -628,9 +690,28 @@ const CDSHooksTab = ({ patientId }) => {
                       color={cards.length > 0 ? 'warning' : 'success'}
                       size="small"
                     />
+                    {cards.length > 0 && (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setCards([]);
+                          setSnackbar({
+                            open: true,
+                            message: 'All alerts cleared',
+                            severity: 'info'
+                          });
+                        }}
+                        disabled={loading}
+                      >
+                        Clear All
+                      </Button>
+                    )}
                     <Tooltip title="Refresh Alerts">
                       <IconButton 
-                        onClick={executePatientViewHooks}
+                        onClick={() => {
+                          setCards([]); // Clear existing cards before refresh
+                          executePatientViewHooks();
+                        }}
                         disabled={!patientId || loading}
                       >
                         <RefreshIcon />
@@ -649,62 +730,92 @@ const CDSHooksTab = ({ patientId }) => {
                     No active clinical decision support alerts for this patient.
                   </Alert>
                 ) : (
-                  <Stack spacing={2}>
-                    {cards.map((card, index) => (
-                      <Card key={index} variant="outlined">
-                        <CardContent>
-                          <Stack direction="row" spacing={2} alignItems="flex-start">
-                            {getCardIcon(card.indicator)}
-                            <Box sx={{ flexGrow: 1 }}>
-                              <Typography variant="subtitle1" gutterBottom>
-                                {card.summary}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary" paragraph>
-                                {card.detail}
-                              </Typography>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Chip 
-                                  label={card.serviceName} 
-                                  size="small" 
-                                  variant="outlined"
-                                />
-                                <Chip 
-                                  label={card.indicator} 
-                                  size="small" 
-                                  color={getCardColor(card.indicator)}
-                                />
-                                <Typography variant="caption" color="text.secondary">
-                                  {format(card.timestamp, 'MMM d, yyyy HH:mm')}
-                                </Typography>
-                              </Stack>
-                            </Box>
-                          </Stack>
-                          {card.suggestions && card.suggestions.length > 0 && (
-                            <Box sx={{ mt: 2 }}>
-                              <Typography variant="subtitle2" gutterBottom>
-                                Suggested Actions:
-                              </Typography>
-                              <Stack spacing={1}>
-                                {card.suggestions.map((suggestion, suggIndex) => (
-                                  <Button
-                                    key={suggIndex}
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={() => {
-                                      handleSuggestionAction(suggestion, card);
-                                    }}
-                                  >
-                                    {suggestion.label}
-                                  </Button>
-                                ))}
-                              </Stack>
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </Stack>
+                  <CDSCardDisplay
+                    cards={cards}
+                    displayBehavior={displayBehavior}
+                    onDismiss={(card, index) => handleDismissCard(index)}
+                    onAction={handleSuggestionAction}
+                    patientName={patientId}
+                  />
                 )}
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          {/* Display Settings */}
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader
+                title="Display Settings"
+                subheader="Configure how CDS alerts are displayed"
+                avatar={<SettingsIcon />}
+              />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <FormControl fullWidth>
+                      <InputLabel>Display Position</InputLabel>
+                      <Select
+                        value={displayBehavior.position}
+                        label="Display Position"
+                        onChange={(e) => setDisplayBehavior({ ...displayBehavior, position: e.target.value })}
+                      >
+                        <MenuItem value="top">Top (Inline)</MenuItem>
+                        <MenuItem value="modal">Modal Dialog</MenuItem>
+                        <MenuItem value="right">Right Sidebar</MenuItem>
+                        <MenuItem value="bottom">Bottom Panel</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControl fullWidth>
+                      <InputLabel>Display Mode</InputLabel>
+                      <Select
+                        value={displayBehavior.displayMode}
+                        label="Display Mode"
+                        onChange={(e) => setDisplayBehavior({ ...displayBehavior, displayMode: e.target.value })}
+                      >
+                        <MenuItem value="immediate">Show Immediately</MenuItem>
+                        <MenuItem value="user-action">On User Action</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControl fullWidth>
+                      <InputLabel>Priority</InputLabel>
+                      <Select
+                        value={displayBehavior.priority}
+                        label="Priority"
+                        onChange={(e) => setDisplayBehavior({ ...displayBehavior, priority: e.target.value })}
+                      >
+                        <MenuItem value="critical-first">Critical First</MenuItem>
+                        <MenuItem value="newest-first">Newest First</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Stack direction="row" spacing={2}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={displayBehavior.groupByService}
+                            onChange={(e) => setDisplayBehavior({ ...displayBehavior, groupByService: e.target.checked })}
+                          />
+                        }
+                        label="Group by Service"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={displayBehavior.animation}
+                            onChange={(e) => setDisplayBehavior({ ...displayBehavior, animation: e.target.checked })}
+                          />
+                        }
+                        label="Enable Animations"
+                      />
+                    </Stack>
+                  </Grid>
+                </Grid>
               </CardContent>
             </Card>
           </Grid>

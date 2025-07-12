@@ -3,6 +3,7 @@
 Analyze FHIR resource status fields to understand active/inactive patterns
 """
 import json
+import os
 from sqlalchemy import create_engine, text
 from collections import defaultdict
 import os

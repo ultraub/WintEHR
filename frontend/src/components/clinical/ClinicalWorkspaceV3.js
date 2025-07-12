@@ -38,7 +38,6 @@ import {
   Assignment as OrdersIcon,
   Timeline as TimelineIcon,
   Image as ImagingIcon,
-  Psychology as CDSIcon,
   ViewModule as LayoutIcon,
   Add as AddIcon,
   Print as PrintIcon,
@@ -69,7 +68,6 @@ import DocumentationTab from './workspace/tabs/DocumentationTab';
 import CarePlanTab from './workspace/tabs/CarePlanTab';
 import TimelineTab from './workspace/tabs/TimelineTab';
 import ImagingTab from './workspace/tabs/ImagingTab';
-import CDSHooksTab from './workspace/tabs/CDSHooksTab';
 // Tab Configuration
 const TAB_CONFIG = [
   { id: 'summary', label: 'Summary', icon: <DashboardIcon />, component: SummaryTab },
@@ -81,8 +79,7 @@ const TAB_CONFIG = [
   { id: 'imaging', label: 'Imaging', icon: <ImagingIcon />, component: ImagingTab },
   { id: 'documentation', label: 'Documentation', icon: <DocumentationIcon />, component: DocumentationTab },
   { id: 'careplan', label: 'Care Plan', icon: <CarePlanIcon />, component: CarePlanTab },
-  { id: 'timeline', label: 'Timeline', icon: <TimelineIcon />, component: TimelineTab },
-  { id: 'cds', label: 'CDS Hooks', icon: <CDSIcon />, component: CDSHooksTab }
+  { id: 'timeline', label: 'Timeline', icon: <TimelineIcon />, component: TimelineTab }
 ];
 
 const ClinicalWorkspaceV3 = () => {

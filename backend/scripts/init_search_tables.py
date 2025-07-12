@@ -5,6 +5,7 @@ Creates the fhir.search_params table if it doesn't exist
 """
 
 import asyncio
+import os
 import asyncpg
 import os
 import logging

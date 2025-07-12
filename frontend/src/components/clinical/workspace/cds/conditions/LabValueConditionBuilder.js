@@ -64,6 +64,11 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
 
   // Initialize from existing condition
   useEffect(() => {
+    // Initialize operator if not set
+    if (!condition.operator) {
+      onChange({ operator: 'gt' });
+    }
+    
     if (condition.labTest) {
       const lab = labOptions.find(l => l.code === condition.labTest);
       if (lab) {

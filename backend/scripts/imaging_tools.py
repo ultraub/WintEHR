@@ -13,6 +13,7 @@ This script consolidates functionality from multiple imaging-related scripts.
 
 import argparse
 import os
+import os
 import sys
 import uuid
 from datetime import datetime
