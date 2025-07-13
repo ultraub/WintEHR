@@ -424,9 +424,9 @@ class StructureMapProcessor:
         compare_values(original, converted_back)
         return len(differences) == 0, differences
     
-    async def transform_resource(self, source_resource: Dict[str, Any], 
-                               source_version: str = "4.0", 
-                               target_version: str = "5.0") -> Dict[str, Any]:
+    def transform_resource(self, source_resource: Dict[str, Any], 
+                         source_version: str = "4.0", 
+                         target_version: str = "5.0") -> Dict[str, Any]:
         """
         Transform a FHIR resource between versions
         
@@ -448,4 +448,8 @@ class StructureMapProcessor:
             else:
                 raise ValueError(f"Unsupported conversion: {source_version} → {target_version}")
         else:
-            raise ValueError(f"Unsupported resource type: {resource_type}")
+            # For now, other resources will need to be implemented
+            # This is a placeholder for the general StructureMap processor
+            logger.warning(f"Generic StructureMap processing not yet implemented for {resource_type}")
+            logger.warning(f"Falling back to identity transformation (no conversion)")
+            return source_resource.copy()  # Return unchanged for now

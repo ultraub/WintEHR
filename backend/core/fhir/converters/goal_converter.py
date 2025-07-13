@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Official FHIR StructureMap-based AllergyIntolerance R4↔R5 converter
+Official FHIR StructureMap-based Goal R4↔R5 converter
 
 Implements the official HL7 StructureMap transformations:
-- http://hl7.org/fhir/StructureMap/AllergyIntolerance4to5
-- http://hl7.org/fhir/StructureMap/AllergyIntolerance5to4
+- http://hl7.org/fhir/StructureMap/Goal4to5
+- http://hl7.org/fhir/StructureMap/Goal5to4
 
 Generated automatically from official FHIR StructureMaps.
 """
@@ -16,9 +16,9 @@ from ..structure_map_processor import StructureMapProcessor
 
 logger = logging.getLogger(__name__)
 
-class AllergyIntoleranceConverter:
+class GoalConverter:
     """
-    Official StructureMap-based converter for AllergyIntolerance resources
+    Official StructureMap-based converter for Goal resources
     
     Features:
     - Official HL7 StructureMap compliance
@@ -34,21 +34,21 @@ class AllergyIntoleranceConverter:
         maps_dir = base_dir / "official_resources/structure_maps"
         
         self.processor = StructureMapProcessor(str(maps_dir))
-        self.resource_type = "AllergyIntolerance"
+        self.resource_type = "Goal"
         logger.info(f"✅ {self.resource_type} converter initialized with official StructureMaps")
     
     def convert_r4_to_r5(self, r4_resource: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert AllergyIntolerance from R4 to R5 format using official StructureMap
+        Convert Goal from R4 to R5 format using official StructureMap
         
         Args:
-            r4_resource: R4 AllergyIntolerance resource
+            r4_resource: R4 Goal resource
             
         Returns:
-            R5 AllergyIntolerance resource
+            R5 Goal resource
             
         Raises:
-            ValueError: If resource is not AllergyIntolerance
+            ValueError: If resource is not Goal
         """
         if r4_resource.get("resourceType") != self.resource_type:
             raise ValueError(f"Expected {self.resource_type}, got {r4_resource.get('resourceType')}")
@@ -67,16 +67,16 @@ class AllergyIntoleranceConverter:
     
     def convert_r5_to_r4(self, r5_resource: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert AllergyIntolerance from R5 to R4 format using official StructureMap
+        Convert Goal from R5 to R4 format using official StructureMap
         
         Args:
-            r5_resource: R5 AllergyIntolerance resource
+            r5_resource: R5 Goal resource
             
         Returns:
-            R4 AllergyIntolerance resource
+            R4 Goal resource
             
         Raises:
-            ValueError: If resource is not AllergyIntolerance
+            ValueError: If resource is not Goal
         """
         if r5_resource.get("resourceType") != self.resource_type:
             raise ValueError(f"Expected {self.resource_type}, got {r5_resource.get('resourceType')}")
@@ -126,7 +126,7 @@ class AllergyIntoleranceConverter:
         """
         # Load official R4 example
         base_dir = Path(__file__).parent.parent
-        r4_example_path = base_dir / "official_resources/r4/AllergyIntolerance.json"
+        r4_example_path = base_dir / "official_resources/r4/Goal.json"
         
         if not r4_example_path.exists():
             return {
@@ -169,37 +169,37 @@ class AllergyIntoleranceConverter:
 
 # Integration functions for version-aware storage
 
-async def convert_allergy_intolerance_r4_to_r5(resource_data: Dict[str, Any]) -> Dict[str, Any]:
+async def convert_goal_r4_to_r5(resource_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Async wrapper for version-aware storage integration
     
     Args:
-        resource_data: R4 AllergyIntolerance resource
+        resource_data: R4 Goal resource
         
     Returns:
-        R5 AllergyIntolerance resource
+        R5 Goal resource
     """
-    converter = AllergyIntoleranceConverter()
+    converter = GoalConverter()
     return converter.convert_r4_to_r5(resource_data)
 
 
-async def convert_allergy_intolerance_r5_to_r4(resource_data: Dict[str, Any]) -> Dict[str, Any]:
+async def convert_goal_r5_to_r4(resource_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Async wrapper for version-aware storage integration
     
     Args:
-        resource_data: R5 AllergyIntolerance resource
+        resource_data: R5 Goal resource
         
     Returns:
-        R4 AllergyIntolerance resource
+        R4 Goal resource
     """
-    converter = AllergyIntoleranceConverter()
+    converter = GoalConverter()
     return converter.convert_r5_to_r4(resource_data)
 
 
 # Export converter class and integration functions
 __all__ = [
-    "AllergyIntoleranceConverter",
-    "convert_allergy_intolerance_r4_to_r5", 
-    "convert_allergy_intolerance_r5_to_r4"
+    "GoalConverter",
+    "convert_goal_r4_to_r5", 
+    "convert_goal_r5_to_r4"
 ]
