@@ -193,10 +193,10 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
                 display: '-webkit-box',
                 WebkitLineClamp: expanded ? 'unset' : 3,
                 WebkitBoxOrient: 'vertical',
-                whiteSpace: 'pre-wrap'
+                whiteSpace: 'pre-line'
               }}
             >
-              {note.text?.div || note.text || 'No content available'}
+              {note.displayContent || note.text?.div || note.text || 'No content available'}
             </Typography>
 
             {note.section && (
@@ -1336,6 +1336,20 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
                               </Box>
                             )}
                           </Box>
+                        );
+                      }
+                      
+                      if (formattedContent.type === 'medical-history') {
+                        return (
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              whiteSpace: 'pre-line',
+                              '& > *:not(:last-child)': { mb: 1 }
+                            }}
+                          >
+                            {formattedContent.displayContent}
+                          </Typography>
                         );
                       }
                       

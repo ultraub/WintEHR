@@ -544,7 +544,7 @@ const PatientSummaryV4 = ({ patientId }) => {
                 <Button 
                   size="small" 
                   variant="outlined"
-                  onClick={() => window.open('/cds-hooks', '_blank')}
+                  onClick={() => window.open('/cds-studio', '_blank')}
                 >
                   View Details
                 </Button>

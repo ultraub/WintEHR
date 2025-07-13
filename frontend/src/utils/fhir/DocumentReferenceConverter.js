@@ -62,7 +62,7 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
       category: 'clinical-note',
       title: '',
       description: '',
-      contentType: 'text', // 'text' or 'soap'
+      contentType: 'text', // 'text', 'soap', or 'medical-history'
       content: '',
       soapSections: {
         subjective: '',
@@ -122,28 +122,44 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
         // Decode base64 content
         const decodedContent = this._decodeBase64Content(docRef.content[0].attachment.data);
         
-        // Check if it's JSON (SOAP format)
-        if (docRef.content[0].attachment.contentType === 'application/json') {
-          try {
-            const parsed = JSON.parse(decodedContent);
-            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
-              contentType = 'soap';
-              soapSections = {
-                subjective: parsed.subjective || '',
-                objective: parsed.objective || '',
-                assessment: parsed.assessment || '',
-                plan: parsed.plan || ''
-              };
-            } else if (parsed.text) {
-              content = parsed.text;
-            } else {
-              content = decodedContent;
-            }
-          } catch (e) {
-            // Not valid JSON, treat as text
+        // Try to parse as JSON for structured content
+        try {
+          const parsed = JSON.parse(decodedContent);
+          
+          // Check for SOAP format
+          if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+            contentType = 'soap';
+            soapSections = {
+              subjective: parsed.subjective || '',
+              objective: parsed.objective || '',
+              assessment: parsed.assessment || '',
+              plan: parsed.plan || ''
+            };
+          }
+          // Check for medical history format
+          else if (parsed.chiefComplaint || parsed.historyOfPresentIllness || parsed.pastMedicalHistory) {
+            contentType = 'medical-history';
+            // Convert medical history to readable text format
+            const sections = [];
+            if (parsed.chiefComplaint) sections.push(`Chief Complaint: ${parsed.chiefComplaint}`);
+            if (parsed.historyOfPresentIllness) sections.push(`History of Present Illness: ${parsed.historyOfPresentIllness}`);
+            if (parsed.pastMedicalHistory) sections.push(`Past Medical History: ${parsed.pastMedicalHistory}`);
+            if (parsed.medications) sections.push(`Medications: ${parsed.medications}`);
+            if (parsed.allergies) sections.push(`Allergies: ${parsed.allergies}`);
+            if (parsed.socialHistory) sections.push(`Social History: ${parsed.socialHistory}`);
+            if (parsed.familyHistory) sections.push(`Family History: ${parsed.familyHistory}`);
+            content = sections.join('\n\n');
+          }
+          // Check for text wrapper
+          else if (parsed.text) {
+            content = parsed.text;
+          }
+          // Fall back to stringified JSON
+          else {
             content = decodedContent;
           }
-        } else {
+        } catch (e) {
+          // Not valid JSON, treat as plain text
           content = decodedContent;
         }
       } catch (error) {
@@ -374,27 +390,49 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
       const decodedContent = this._decodeBase64Content(docRef.content[0].attachment.data);
       const contentType = docRef.content[0].attachment.contentType;
 
-      if (contentType === 'application/json') {
-        try {
-          const parsed = JSON.parse(decodedContent);
-          if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
-            return {
-              type: 'soap',
-              content: decodedContent,
-              sections: parsed,
-              error: null
-            };
-          } else if (parsed.text) {
-            return {
-              type: 'text',
-              content: parsed.text,
-              sections: null,
-              error: null
-            };
-          }
-        } catch (e) {
-          // Fall through to treat as text
+      // Try to parse as JSON for structured content
+      try {
+        const parsed = JSON.parse(decodedContent);
+        
+        // Check for SOAP format
+        if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+          return {
+            type: 'soap',
+            content: decodedContent,
+            sections: parsed,
+            error: null
+          };
         }
+        // Check for medical history format
+        else if (parsed.chiefComplaint || parsed.historyOfPresentIllness || parsed.pastMedicalHistory) {
+          // Convert medical history to readable text format
+          const sections = [];
+          if (parsed.chiefComplaint) sections.push(`Chief Complaint: ${parsed.chiefComplaint}`);
+          if (parsed.historyOfPresentIllness) sections.push(`History of Present Illness: ${parsed.historyOfPresentIllness}`);
+          if (parsed.pastMedicalHistory) sections.push(`Past Medical History: ${parsed.pastMedicalHistory}`);
+          if (parsed.medications) sections.push(`Medications: ${parsed.medications}`);
+          if (parsed.allergies) sections.push(`Allergies: ${parsed.allergies}`);
+          if (parsed.socialHistory) sections.push(`Social History: ${parsed.socialHistory}`);
+          if (parsed.familyHistory) sections.push(`Family History: ${parsed.familyHistory}`);
+          
+          return {
+            type: 'medical-history',
+            content: sections.join('\n\n'),
+            sections: null,
+            error: null
+          };
+        }
+        // Check for text wrapper
+        else if (parsed.text) {
+          return {
+            type: 'text',
+            content: parsed.text,
+            sections: null,
+            error: null
+          };
+        }
+      } catch (e) {
+        // Fall through to treat as text
       }
 
       return {

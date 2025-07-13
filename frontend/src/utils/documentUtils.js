@@ -42,6 +42,15 @@ export const formatDocumentForDisplay = (docRef) => {
       hasContent: true
     };
   }
+  
+  if (extracted.type === 'medical-history') {
+    return {
+      displayContent: extracted.content,
+      type: 'medical-history',
+      sections: null,
+      hasContent: true
+    };
+  }
 
   return {
     displayContent: extracted.content || 'No content available',

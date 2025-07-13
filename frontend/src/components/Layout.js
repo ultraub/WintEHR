@@ -55,7 +55,7 @@ const menuItems = [
   { divider: true },
   { text: 'FHIR Explorer', icon: <ApiIcon />, emoji: '🔍', path: '/fhir' },
   { text: 'CDS Demo', icon: <LightbulbIcon />, emoji: '💡', path: '/cds-demo' },
-  { text: 'CDS Hooks Builder', icon: <WebhookIcon />, emoji: '🎯', path: '/cds-hooks' },
+  { text: 'CDS Hooks Builder', icon: <WebhookIcon />, emoji: '🎯', path: '/cds-studio' },
   { divider: true },
   { text: 'Audit Trail', icon: <SecurityIcon />, emoji: '🔐', path: '/audit-trail' },
 ];

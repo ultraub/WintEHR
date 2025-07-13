@@ -209,8 +209,13 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     )
   },
+  // Redirect old CDS path to avoid conflicts with API endpoints
   {
     path: '/cds-hooks',
+    element: <Navigate to="/cds-studio" replace />
+  },
+  {
+    path: '/cds-studio',
     element: (
       <ProtectedRoute>
         <LayoutV3>
