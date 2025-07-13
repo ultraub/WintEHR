@@ -294,11 +294,20 @@ export const createMedicationRequestResource = (formData, patientId) => {
     medication: {
       concept: formData.selectedMedication ? {
         coding: [{
-          system: formData.selectedMedication.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-          code: formData.selectedMedication.code,
-          display: formData.selectedMedication.display
+          system: formData.selectedMedication.system || 
+                  formData.selectedMedication.code?.coding?.[0]?.system ||
+                  'http://www.nlm.nih.gov/research/umls/rxnorm',
+          code: String(formData.selectedMedication.code?.coding?.[0]?.code || 
+                       formData.selectedMedication.code || 
+                       formData.selectedMedication.id || 
+                       'unknown'),
+          display: formData.selectedMedication.display || 
+                   formData.selectedMedication.code?.text || 
+                   'Unknown medication'
         }],
-        text: formData.selectedMedication.display
+        text: formData.selectedMedication.display || 
+              formData.selectedMedication.code?.text || 
+              'Unknown medication'
       } : {
         text: formData.customMedication
       }
@@ -395,11 +404,20 @@ export const updateMedicationRequestResource = (formData, existingResource) => {
     medication: {
       concept: formData.selectedMedication ? {
         coding: [{
-          system: formData.selectedMedication.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-          code: formData.selectedMedication.code,
-          display: formData.selectedMedication.display
+          system: formData.selectedMedication.system || 
+                  formData.selectedMedication.code?.coding?.[0]?.system ||
+                  'http://www.nlm.nih.gov/research/umls/rxnorm',
+          code: String(formData.selectedMedication.code?.coding?.[0]?.code || 
+                       formData.selectedMedication.code || 
+                       formData.selectedMedication.id || 
+                       'unknown'),
+          display: formData.selectedMedication.display || 
+                   formData.selectedMedication.code?.text || 
+                   'Unknown medication'
         }],
-        text: formData.selectedMedication.display
+        text: formData.selectedMedication.display || 
+              formData.selectedMedication.code?.text || 
+              'Unknown medication'
       } : {
         text: formData.customMedication
       }
