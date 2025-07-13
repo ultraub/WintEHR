@@ -656,6 +656,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [originalNoteForAmendment, setOriginalNoteForAmendment] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateData, setTemplateData] = useState(null);
   const [viewNoteDialogOpen, setViewNoteDialogOpen] = useState(false);
   const [selectedNoteForView, setSelectedNoteForView] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
@@ -785,8 +786,15 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
     setTemplateWizardOpen(true);
   };
 
-  const handleTemplateSelected = (templateData) => {
-    setSelectedTemplate(templateData.templateId);
+  const handleTemplateSelected = (templateWizardData) => {
+    // Store both the template ID and the full template data from wizard
+    setSelectedTemplate(templateWizardData.templateId);
+    setTemplateData({
+      templateId: templateWizardData.templateId,
+      visitType: templateWizardData.visitType,
+      chiefComplaint: templateWizardData.chiefComplaint,
+      autoPopulate: templateWizardData.autoPopulate || false
+    });
     setTemplateWizardOpen(false);
     setEnhancedEditorOpen(true);
   };
@@ -1281,10 +1289,12 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           setEnhancedEditorOpen(false);
           setAmendmentMode(false);
           setOriginalNoteForAmendment(null);
+          setTemplateData(null); // Clear template data when closing
         }}
         note={selectedNote}
         patientId={patientId}
         defaultTemplate={selectedTemplate}
+        templateData={templateData}
         amendmentMode={amendmentMode}
         originalNote={originalNoteForAmendment}
       />

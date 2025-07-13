@@ -454,6 +454,7 @@ const EnhancedNoteEditor = ({
   note, 
   patientId,
   defaultTemplate = null,
+  templateData = null,
   encounter = null,
   amendmentMode = false,
   originalNote = null

@@ -2,7 +2,7 @@
  * PatientSummaryV4 Component
  * Beautiful, modern patient summary with clinical workspace integration
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -72,25 +72,15 @@ const PatientSummaryV4 = ({ patientId }) => {
   const [cdsLoading, setCdsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Load patient data using centralized FHIRResourceContext with cache optimization
+  // Load patient data using centralized FHIRResourceContext
   useEffect(() => {
     const loadPatientData = async () => {
       if (!patientId) return;
       
       try {
-        // Check if cache is already warm for summary data
-        const cacheIsWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance']);
-        
         // Only set current patient if it's different
         if (!currentPatient || currentPatient.id !== patientId) {
-          if (cacheIsWarm) {
-            // Patient data is already cached, just set current patient
-            await setCurrentPatient(patientId);
-          } else {
-            // Pre-warm cache for summary view to ensure fast display
-            await warmPatientCache(patientId, 'summary');
-            await setCurrentPatient(patientId);
-          }
+          await setCurrentPatient(patientId);
         }
         setIsInitialLoad(false);
       } catch (err) {
@@ -99,7 +89,7 @@ const PatientSummaryV4 = ({ patientId }) => {
     };
 
     loadPatientData();
-  }, [patientId, currentPatient, setCurrentPatient, warmPatientCache, isCacheWarm]);
+  }, [patientId, currentPatient?.id]); // Remove setCurrentPatient from dependencies to prevent loops
 
   // Load CDS alerts for patient-view hooks
   const loadCDSAlerts = async () => {

@@ -210,24 +210,13 @@ const ClinicalWorkspaceV3 = () => {
   const [newOrderDialogOpen, setNewOrderDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
-  // Load patient data with cache optimization
+  // Load patient data
   useEffect(() => {
     const loadPatient = async () => {
       if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
         try {
           setLoadError(null);
-          
-          // Check if coming from summary page with warm cache
-          const cacheIsWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation']);
-          
-          if (cacheIsWarm) {
-            // Cache is already warm, proceed directly
-            await setCurrentPatient(patientId);
-          } else {
-            // Pre-warm cache for complete clinical workspace
-            await warmPatientCache(patientId, 'all');
-            await setCurrentPatient(patientId);
-          }
+          await setCurrentPatient(patientId);
         } catch (error) {
           setLoadError(error.message || 'Failed to load patient');
         } finally {
@@ -238,7 +227,7 @@ const ClinicalWorkspaceV3 = () => {
       }
     };
     loadPatient();
-  }, [patientId, currentPatient, setCurrentPatient, warmPatientCache, isCacheWarm]);
+  }, [patientId, currentPatient?.id]); // Remove setCurrentPatient from dependencies to prevent loops
 
   // Handle URL parameters for tab
   useEffect(() => {
