@@ -45,7 +45,12 @@ import { printDocument } from '../../../../utils/printUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {
-  switch (encounterClass?.code) {
+  // Handle both array format (R5) and object format (R4)
+  const classCode = Array.isArray(encounterClass) 
+    ? encounterClass[0]?.coding?.[0]?.code 
+    : encounterClass?.code;
+    
+  switch (classCode) {
     case 'IMP':
     case 'ACUTE':
       return { icon: <ProviderIcon />, color: 'error' };
@@ -127,7 +132,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
 
   if (!encounter) return null;
 
-  const period = encounter.period || {};
+  const period = encounter.actualPeriod || encounter.period || {};
   const startDate = period.start ? parseISO(period.start) : null;
   const endDate = period.end ? parseISO(period.end) : null;
   const iconInfo = getEncounterIcon(encounter.class);
@@ -149,22 +154,27 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           title: 'Encounter Information',
           items: [
             ['Status', encounter.status?.toUpperCase()],
-            ['Class', encounter.class?.display || encounter.class?.code || 'Unknown'],
+            ['Class', (Array.isArray(encounter.class) 
+              ? encounter.class[0]?.coding?.[0]?.display 
+              : encounter.class?.display) || encounter.class?.code || 'Unknown'],
             ['Type', encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Not specified'],
             ['Start Date', startDate ? format(startDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
             ['End Date', endDate ? format(endDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
             ['Provider', encounter.participant?.find(p => 
-              p.type?.[0]?.coding?.[0]?.code === 'ATND'
+              p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
+            )?.actor?.display || encounter.participant?.find(p => 
+              p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
             )?.individual?.display || 'No provider recorded']
           ]
         }
       ]
     };
 
-    if (encounter.reasonCode && encounter.reasonCode.length > 0) {
+    if ((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) {
+      const reasons = encounter.reasonCode || encounter.reason || [];
       printContent.sections.push({
         title: 'Reason for Visit',
-        content: encounter.reasonCode.map(r => r.text || r.coding?.[0]?.display).join(', ')
+        content: reasons.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
       });
     }
 
@@ -334,7 +344,9 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                       Class
                     </Typography>
                     <Typography variant="body1" fontWeight="500">
-                      {encounter.class?.display || encounter.class?.code || 'Unknown'}
+                      {(Array.isArray(encounter.class) 
+                        ? encounter.class[0]?.coding?.[0]?.display 
+                        : encounter.class?.display) || encounter.class?.code || 'Unknown'}
                     </Typography>
                   </Box>
 
@@ -390,7 +402,9 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                     </Typography>
                     <Typography variant="body1" fontWeight="500">
                       {encounter.participant?.find(p => 
-                        p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                        p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                      )?.actor?.display || encounter.participant?.find(p => 
+                        p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
                       )?.individual?.display || 'No provider recorded'}
                     </Typography>
                   </Box>
@@ -398,7 +412,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </Grid>
             </Grid>
 
-            {encounter.reasonCode && encounter.reasonCode.length > 0 && (
+            {((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) && (
               <Box sx={{ 
                 mt: 3, 
                 pt: 3,
@@ -408,10 +422,10 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   Reason for Visit
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                  {encounter.reasonCode.map((reason, idx) => (
+                  {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
                     <Chip 
                       key={idx}
-                      label={reason.text || reason.coding?.[0]?.display} 
+                      label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
                       variant="filled"
                       sx={{ 
                         bgcolor: theme.palette.primary.main + '15',

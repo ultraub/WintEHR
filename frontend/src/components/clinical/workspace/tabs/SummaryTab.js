@@ -652,8 +652,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       key={encounter.id}
                       primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
                       secondary={
-                        encounter.period?.start ? 
-                          format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 
+                        (encounter.actualPeriod || encounter.period)?.start ? 
+                          format(parseISO((encounter.actualPeriod || encounter.period).start), 'MMM d, yyyy h:mm a') : 
                           'Date unknown'
                       }
                       icon={<EncounterIcon color="secondary" />}
