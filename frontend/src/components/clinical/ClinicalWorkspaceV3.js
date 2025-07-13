@@ -189,7 +189,13 @@ const ClinicalWorkspaceV3 = () => {
   
   // Contexts
   const { currentUser } = useAuth();
-  const { currentPatient, setCurrentPatient, isLoading: isGlobalLoading } = useFHIRResource();
+  const { 
+    currentPatient, 
+    setCurrentPatient, 
+    isLoading: isGlobalLoading,
+    warmPatientCache,
+    isCacheWarm
+  } = useFHIRResource();
   
   // State
   const [activeTab, setActiveTab] = useState('summary');
@@ -204,15 +210,25 @@ const ClinicalWorkspaceV3 = () => {
   const [newOrderDialogOpen, setNewOrderDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
-  // Load patient data
+  // Load patient data with cache optimization
   useEffect(() => {
     const loadPatient = async () => {
       if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
         try {
           setLoadError(null);
-          await setCurrentPatient(patientId);
-        } catch (error) {
           
+          // Check if coming from summary page with warm cache
+          const cacheIsWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation']);
+          
+          if (cacheIsWarm) {
+            // Cache is already warm, proceed directly
+            await setCurrentPatient(patientId);
+          } else {
+            // Pre-warm cache for complete clinical workspace
+            await warmPatientCache(patientId, 'all');
+            await setCurrentPatient(patientId);
+          }
+        } catch (error) {
           setLoadError(error.message || 'Failed to load patient');
         } finally {
           setIsInitialLoad(false);
@@ -222,7 +238,7 @@ const ClinicalWorkspaceV3 = () => {
       }
     };
     loadPatient();
-  }, [patientId, currentPatient, setCurrentPatient]);
+  }, [patientId, currentPatient, setCurrentPatient, warmPatientCache, isCacheWarm]);
 
   // Handle URL parameters for tab
   useEffect(() => {
