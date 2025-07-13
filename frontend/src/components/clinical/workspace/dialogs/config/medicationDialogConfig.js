@@ -221,8 +221,8 @@ export const parseMedicationRequestResource = (medicationRequest) => {
   const dosage = dosageInstruction?.doseAndRate?.[0]?.doseQuantity?.value || 
                 dosageInstruction?.doseAndRate?.[0]?.doseRange?.low?.value || '';
   
-  // Extract route
-  const route = dosageInstruction?.route?.coding?.[0]?.code || 'oral';
+  // Extract route with whitespace trimming
+  const route = (dosageInstruction?.route?.coding?.[0]?.code || 'oral').trim();
   
   // Extract frequency - this is complex in FHIR, simplified for form
   const timing = dosageInstruction?.timing;
@@ -301,8 +301,8 @@ export const createMedicationRequestResource = (formData, patientId) => {
       route: {
         coding: [{
           system: 'http://snomed.info/sct',
-          code: ROUTES.find(r => r.value === formData.route)?.code || '',
-          display: ROUTES.find(r => r.value === formData.route)?.display || formData.route
+          code: (ROUTES.find(r => r.value === (formData.route || '').trim())?.code || '26643006').trim(),
+          display: ROUTES.find(r => r.value === (formData.route || '').trim())?.display || (formData.route || '').trim() || 'Oral'
         }]
       },
       doseAndRate: [{
@@ -396,8 +396,8 @@ export const updateMedicationRequestResource = (formData, existingResource) => {
       route: {
         coding: [{
           system: 'http://snomed.info/sct',
-          code: ROUTES.find(r => r.value === formData.route)?.code || '',
-          display: ROUTES.find(r => r.value === formData.route)?.display || formData.route
+          code: (ROUTES.find(r => r.value === (formData.route || '').trim())?.code || '26643006').trim(),
+          display: ROUTES.find(r => r.value === (formData.route || '').trim())?.display || (formData.route || '').trim() || 'Oral'
         }]
       },
       doseAndRate: [{
