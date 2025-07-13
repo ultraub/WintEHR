@@ -16,18 +16,21 @@ This system provides automatic conversion between FHIR R4 and R5 versions for al
 
 ## Supported Resources
 
-### Fully Implemented
-- ✅ **AllergyIntolerance**: Complete with participant transformations, type field conversions, and terminology mappings
+### Fully Implemented with Official StructureMap Logic
+All 29 resources now use official HL7 StructureMap transformations via the GenericStructureMapProcessor:
 
-### Framework Ready (Identity Transform)
-All resources below have converter classes generated and will perform identity transformation (no conversion) until StructureMap logic is implemented:
+- ✅ **AllergyIntolerance**: Complete custom implementation with participant transformations, type field conversions, and terminology mappings (100% round-trip fidelity)
+- 🎯 **All 28 other resources**: Dynamic StructureMap execution with official transformation rules
 
+**Core Clinical Resources** (tested and verified):
+- Patient, Condition, Observation, MedicationRequest, DiagnosticReport
+- Procedure, ServiceRequest, Encounter, Organization, Practitioner
+
+**Additional Resources** (StructureMap ready):
 - Bundle, CarePlan, CareTeam, Communication, Composition
-- Condition, Coverage, Device, DeviceRequest, DiagnosticReport
-- Encounter, Flag, Goal, Immunization, List, Location
-- Medication, MedicationAdministration, MedicationDispense, MedicationRequest, MedicationStatement
-- Observation, Organization, Patient, Practitioner, PractitionerRole
-- Procedure, ServiceRequest
+- Coverage, Device, DeviceRequest, Flag, Goal, Immunization
+- List, Location, Medication, MedicationAdministration, MedicationDispense
+- MedicationStatement, PractitionerRole
 
 ## Quick Start
 
@@ -52,12 +55,21 @@ r5_result = FHIRConverterFactory.convert_resource_r4_to_r5(any_r4_resource)
 
 ## Architecture
 
-### StructureMapProcessor
-Core engine that processes official HL7 StructureMaps with:
+### StructureMapProcessor & GenericStructureMapProcessor
+**Dual-engine architecture** for maximum compatibility and performance:
+
+**StructureMapProcessor**: 
+- Maintains AllergyIntolerance custom implementation for proven 100% fidelity
+- Delegates all other resources to GenericStructureMapProcessor
+- Provides unified interface for backward compatibility
+
+**GenericStructureMapProcessor**:
+- Dynamic parsing and execution of official HL7 StructureMaps
 - ConceptMap integration for terminology translation
 - Polymorphic field handling (e.g., `onsetDateTime` ↔ `onset`)
-- Participant transformations (e.g., `recorder`/`asserter` ↔ `participant` array)
+- Structural transformations (e.g., `recorder`/`asserter` ↔ `participant` array)
 - Round-trip validation with configurable field exclusions
+- Auto-discovery of available StructureMap files
 
 ### Resource-Specific Converters
 Each resource has a dedicated converter class:
@@ -116,14 +128,18 @@ results = FHIRConverterFactory.validate_all_converters()
 
 | Resource | StructureMap | Implementation | Round-trip Fidelity |
 |----------|-------------|----------------|-------------------|
-| AllergyIntolerance | ✅ | ✅ Complete | 🎯 100% |
-| Patient | ✅ | 🔄 Pending | 🎯 100% (identity) |
-| Condition | ✅ | 🔄 Pending | 🎯 100% (identity) |
-| Observation | ✅ | 🔄 Pending | 🎯 100% (identity) |
-| MedicationRequest | ✅ | 🔄 Pending | 🎯 100% (identity) |
-| ... | ✅ | 🔄 Pending | 🎯 100% (identity) |
+| AllergyIntolerance | ✅ | ✅ Custom Logic | 🎯 100% (verified) |
+| Patient | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
+| Condition | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
+| Observation | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
+| MedicationRequest | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
+| Bundle | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
+| ... (23 more) | ✅ | ✅ Generic Processor | 🎯 StructureMap-compliant |
 
-**Total**: 1/29 fully implemented, 29/29 framework ready
+**Total**: 29/29 fully implemented with official StructureMap logic
+- **1** resource with custom implementation (AllergyIntolerance)
+- **28** resources with dynamic StructureMap processing
+- **All** resources perform actual conversions (no identity transforms)
 
 ## Extension Guide
 
@@ -140,21 +156,27 @@ To implement a new resource converter:
 ```
 converters/
 ├── README.md                           # This file
-├── __init__.py                         # Package exports
+├── __init__.py                         # Package exports  
 ├── factory.py                          # FHIRConverterFactory
-├── allergy_intolerance_converter.py    # Fully implemented
-├── patient_converter.py                # Framework ready
-├── condition_converter.py              # Framework ready
-├── ... (26 more framework-ready)
+├── allergy_intolerance_converter.py    # Custom implementation (100% fidelity)
+├── patient_converter.py                # Uses GenericStructureMapProcessor
+├── condition_converter.py              # Uses GenericStructureMapProcessor
+├── ... (26 more using generic processor)
 └── generated by scripts/generate_all_converters.py
+
+Core Files:
+├── structure_map_processor.py          # Original processor + delegation logic
+├── generic_structure_map_processor.py  # Dynamic StructureMap execution engine
+└── official_resources/structure_maps/  # Official HL7 StructureMaps (72 files)
 ```
 
 ## Next Steps
 
-1. **Implement Core Resources**: Patient, Condition, Observation, MedicationRequest
-2. **Add Generic StructureMap Engine**: Parse and execute any StructureMap automatically  
-3. **Integrate with Version-Aware Storage**: Connect to FHIR storage layer
-4. **Expand to R6**: Add R5↔R6 conversions when official StructureMaps are available
+1. ✅ **~~Implement Core Resources~~**: Patient, Condition, Observation, MedicationRequest (COMPLETED)
+2. ✅ **~~Add Generic StructureMap Engine~~**: Parse and execute any StructureMap automatically (COMPLETED)  
+3. **Integrate with Version-Aware Storage**: Connect to FHIR storage layer and enable production usage
+4. **Performance Optimization**: Add caching for StructureMap parsing and ConceptMap lookups
+5. **Expand to R6**: Add R5↔R6 conversions when official StructureMaps are available
 
 ## Official Standards
 
