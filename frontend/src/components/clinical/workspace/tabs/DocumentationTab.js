@@ -979,7 +979,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       };
 
       // Save the addendum
-      const createdAddendum = await fhirClient.createDocumentReference(addendumResource);
+      const createdAddendum = await fhirClient.create('DocumentReference', addendumResource);
       
       // Publish DOCUMENTATION_CREATED event
       await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
