@@ -191,11 +191,20 @@ export const createConditionResource = (formData, patientId) => {
     }],
     code: formData.selectedProblem ? {
       coding: [{
-        system: formData.selectedProblem.system || 'http://snomed.info/sct',
-        code: formData.selectedProblem.code,
-        display: formData.selectedProblem.display
+        system: formData.selectedProblem.system || 
+                formData.selectedProblem.code?.coding?.[0]?.system || 
+                'http://snomed.info/sct',
+        code: String(formData.selectedProblem.code?.coding?.[0]?.code || 
+                     formData.selectedProblem.code || 
+                     formData.selectedProblem.id || 
+                     'unknown'),
+        display: formData.selectedProblem.display || 
+                 formData.selectedProblem.code?.text || 
+                 'Unknown condition'
       }],
-      text: formData.selectedProblem.display
+      text: formData.selectedProblem.display || 
+            formData.selectedProblem.code?.text || 
+            'Unknown condition'
     } : {
       text: formData.problemText
     },
@@ -257,11 +266,20 @@ export const updateConditionResource = (formData, existingResource) => {
     }],
     code: formData.selectedProblem ? {
       coding: [{
-        system: formData.selectedProblem.system || 'http://snomed.info/sct',
-        code: formData.selectedProblem.code,
-        display: formData.selectedProblem.display
+        system: formData.selectedProblem.system || 
+                formData.selectedProblem.code?.coding?.[0]?.system || 
+                'http://snomed.info/sct',
+        code: String(formData.selectedProblem.code?.coding?.[0]?.code || 
+                     formData.selectedProblem.code || 
+                     formData.selectedProblem.id || 
+                     'unknown'),
+        display: formData.selectedProblem.display || 
+                 formData.selectedProblem.code?.text || 
+                 'Unknown condition'
       }],
-      text: formData.selectedProblem.display
+      text: formData.selectedProblem.display || 
+            formData.selectedProblem.code?.text || 
+            'Unknown condition'
     } : {
       text: formData.problemText
     },
