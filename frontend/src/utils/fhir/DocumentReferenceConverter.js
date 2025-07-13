@@ -378,6 +378,40 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
    */
   extractDocumentContent(docRef) {
     if (!docRef.content?.[0]?.attachment?.data) {
+      // Check if content is stored differently (legacy format)
+      if (docRef.text?.div) {
+        return {
+          type: 'text',
+          content: docRef.text.div,
+          sections: null,
+          error: null
+        };
+      }
+      
+      if (docRef.text) {
+        return {
+          type: 'text',
+          content: typeof docRef.text === 'string' ? docRef.text : JSON.stringify(docRef.text),
+          sections: null,
+          error: null
+        };
+      }
+      
+      // Check if there's a content field with different structure
+      if (docRef.content && docRef.content.length > 0) {
+        const content = docRef.content[0];
+        
+        // Maybe the content is stored directly
+        if (typeof content === 'string') {
+          return {
+            type: 'text',
+            content: content,
+            sections: null,
+            error: null
+          };
+        }
+      }
+      
       return {
         type: 'text',
         content: '',

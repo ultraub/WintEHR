@@ -14,80 +14,110 @@ from .helpers import create_reference, create_codeable_concept
 
 
 def document_reference_to_fhir(doc_ref: DocumentReference) -> Dict[str, Any]:
-    """Convert DocumentReference model to FHIR format"""
-    if doc_ref.fhir_json:
-        return doc_ref.fhir_json
+    """Convert DocumentReference model to FHIR format using standardized converter"""
+    # Use the new DocumentReferenceConverter for proper FHIR compliance
+    from .document_reference import DocumentReferenceConverter
     
-    fhir_doc = {
-        "resourceType": "DocumentReference",
+    if doc_ref.fhir_json:
+        # If we have stored FHIR JSON, validate it has proper structure
+        fhir_data = doc_ref.fhir_json.copy()
+        
+        # Ensure it has the proper resource type and ID
+        fhir_data["resourceType"] = "DocumentReference"
+        fhir_data["id"] = doc_ref.synthea_id or doc_ref.id
+        
+        return fhir_data
+    
+    # Convert model fields to internal format for the new converter
+    internal_data = {
         "id": doc_ref.synthea_id or doc_ref.id,
-        "status": doc_ref.status or "current"
+        "status": doc_ref.status or "current",
+        "docStatus": doc_ref.doc_status or "preliminary",
+        "type": "progress",  # Default, will be extracted from type field if available
+        "patientId": doc_ref.patient_id,
+        "encounterId": doc_ref.encounter_id,
+        "authorId": doc_ref.authenticator_id,
+        "createdAt": doc_ref.date.isoformat() if doc_ref.date else None,
+        "description": doc_ref.description,
+        "contentType": "text",  # Default
+        "content": ""
     }
     
-    # Add identifiers
-    if doc_ref.identifier:
-        fhir_doc["identifier"] = doc_ref.identifier
-    elif doc_ref.master_identifier:
-        fhir_doc["masterIdentifier"] = {
-            "system": "urn:ietf:rfc:3986",
-            "value": doc_ref.master_identifier
-        }
+    # Extract type from FHIR type structure if available
+    if doc_ref.type and isinstance(doc_ref.type, dict):
+        if doc_ref.type.get("coding") and len(doc_ref.type["coding"]) > 0:
+            loinc_code = doc_ref.type["coding"][0].get("code")
+            # Map LOINC code back to note type
+            for note_type, type_info in DocumentReferenceConverter.NOTE_TYPE_CODES.items():
+                if type_info["code"] == loinc_code:
+                    internal_data["type"] = note_type
+                    break
     
-    # Add document status
-    if doc_ref.doc_status:
-        fhir_doc["docStatus"] = doc_ref.doc_status
-    
-    # Add type and category
-    if doc_ref.type:
-        fhir_doc["type"] = doc_ref.type
-    if doc_ref.category:
-        fhir_doc["category"] = doc_ref.category if isinstance(doc_ref.category, list) else [doc_ref.category]
-    
-    # Add subject reference
-    if doc_ref.patient_id:
-        fhir_doc["subject"] = create_reference("Patient", doc_ref.patient_id)
-    
-    # Add encounter reference
-    if doc_ref.encounter_id:
-        fhir_doc["context"] = {
-            "encounter": [create_reference("Encounter", doc_ref.encounter_id)]
-        }
-    
-    # Add date
-    if doc_ref.date:
-        fhir_doc["date"] = doc_ref.date.isoformat()
-    
-    # Add author
-    if doc_ref.author:
-        fhir_doc["author"] = doc_ref.author
-    
-    # Add authenticator
-    if doc_ref.authenticator_id:
-        fhir_doc["authenticator"] = create_reference("Practitioner", doc_ref.authenticator_id)
-    
-    # Add custodian
-    if doc_ref.custodian_id:
-        fhir_doc["custodian"] = create_reference("Organization", doc_ref.custodian_id)
-    
-    # Add content
+    # Extract content from various possible formats
     if doc_ref.content:
-        fhir_doc["content"] = doc_ref.content
+        if isinstance(doc_ref.content, list) and len(doc_ref.content) > 0:
+            content_item = doc_ref.content[0]
+            if isinstance(content_item, dict):
+                # Check for attachment with data (proper FHIR format)
+                attachment = content_item.get("attachment", {})
+                if attachment.get("data"):
+                    # Content is already in proper FHIR format, return it directly
+                    fhir_data = {
+                        "resourceType": "DocumentReference",
+                        "id": internal_data["id"],
+                        "status": internal_data["status"],
+                        "docStatus": internal_data["docStatus"],
+                        "content": doc_ref.content,
+                        "type": doc_ref.type,
+                        "category": doc_ref.category if isinstance(doc_ref.category, list) else [doc_ref.category] if doc_ref.category else [],
+                        "subject": {"reference": f"Patient/{doc_ref.patient_id}"} if doc_ref.patient_id else None,
+                        "date": internal_data["createdAt"],
+                        "description": internal_data["description"]
+                    }
+                    
+                    # Add context for encounter
+                    if doc_ref.encounter_id:
+                        fhir_data["context"] = [{"reference": f"Encounter/{doc_ref.encounter_id}"}]
+                    
+                    # Add author
+                    if doc_ref.authenticator_id:
+                        fhir_data["author"] = [{"reference": f"Practitioner/{doc_ref.authenticator_id}"}]
+                    
+                    # Remove None values
+                    return {k: v for k, v in fhir_data.items() if v is not None}
+                else:
+                    # Content might be stored as plain text/JSON
+                    internal_data["content"] = str(content_item)
+            else:
+                internal_data["content"] = str(doc_ref.content[0])
+        else:
+            internal_data["content"] = str(doc_ref.content)
     
-    # Add description
-    if doc_ref.description:
-        fhir_doc["description"] = doc_ref.description
-    
-    # Add security labels
-    if doc_ref.security_label:
-        fhir_doc["securityLabel"] = doc_ref.security_label
-    
-    # Add context details
-    if doc_ref.context:
-        if "context" not in fhir_doc:
-            fhir_doc["context"] = {}
-        fhir_doc["context"].update(doc_ref.context)
-    
-    return fhir_doc
+    # Use the new converter to create proper FHIR structure
+    try:
+        return DocumentReferenceConverter.to_fhir(internal_data).dict()
+    except Exception as e:
+        # Fallback to basic structure if conversion fails
+        return {
+            "resourceType": "DocumentReference", 
+            "id": internal_data["id"],
+            "status": internal_data["status"],
+            "subject": {"reference": f"Patient/{doc_ref.patient_id}"} if doc_ref.patient_id else None,
+            "content": [{
+                "attachment": {
+                    "contentType": "text/plain",
+                    "data": "",
+                    "title": "Document"
+                }
+            }],
+            "type": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "11506-3",
+                    "display": "Progress note"
+                }]
+            }
+        }
 
 
 def medication_to_fhir(medication: Medication) -> Dict[str, Any]:
