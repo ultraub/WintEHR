@@ -243,6 +243,11 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         ...(formData.reactions.length > 0 && {
           reaction: formData.reactions.map(reaction => ({
             manifestation: [{
+              coding: [{
+                system: 'http://snomed.info/sct',
+                code: 'unknown',
+                display: reaction
+              }],
               text: reaction
             }],
             severity: formData.reactionSeverity
@@ -339,6 +344,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedAllergen}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     handleSearchAllergens(value);
                   }}
