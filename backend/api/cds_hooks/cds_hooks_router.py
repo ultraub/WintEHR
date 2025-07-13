@@ -672,7 +672,10 @@ class CDSHookEngine:
                 WHERE resource_type = 'Observation' 
                 AND deleted = false
                 AND resource->'subject'->>'reference' = :patient_ref
-                AND resource->>'category' = 'laboratory'
+                AND (
+                    resource->'category'->0->'coding'->0->>'code' = 'laboratory'
+                    OR resource->'category' @> '[{"coding": [{"code": "laboratory"}]}]'
+                )
                 AND EXISTS (
                     SELECT 1 FROM jsonb_array_elements(resource->'code'->'coding') AS coding
                     WHERE coding->>'code' = :code

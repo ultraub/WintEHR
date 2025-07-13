@@ -401,11 +401,106 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
       if (docRef.content && docRef.content.length > 0) {
         const content = docRef.content[0];
         
-        // Maybe the content is stored directly
+        // Maybe the content is stored directly as string
         if (typeof content === 'string') {
+          // Check if it might be base64 encoded
+          try {
+            const decoded = atob(content);
+            return {
+              type: 'text',
+              content: decoded,
+              sections: null,
+              error: null
+            };
+          } catch (e) {
+            // Not base64, use as-is
+            return {
+              type: 'text',
+              content: content,
+              sections: null,
+              error: null
+            };
+          }
+        }
+        
+        // Check if attachment exists but without data field
+        if (content.attachment) {
+          const attachment = content.attachment;
+          
+          // Check for data field with different name or structure
+          if (attachment.content) {
+            try {
+              const decoded = atob(attachment.content);
+              return {
+                type: 'text',
+                content: decoded,
+                sections: null,
+                error: null
+              };
+            } catch (e) {
+              return {
+                type: 'text',
+                content: attachment.content,
+                sections: null,
+                error: null
+              };
+            }
+          }
+          
+          // Check if title or other field has content
+          if (attachment.title && attachment.title.length > 20) {
+            return {
+              type: 'text',
+              content: attachment.title,
+              sections: null,
+              error: null
+            };
+          }
+        }
+        
+        // Check if the content object has any text-like fields
+        const textFields = ['text', 'data', 'content', 'description', 'narrative'];
+        for (const field of textFields) {
+          if (content[field] && typeof content[field] === 'string') {
+            // Try to decode if it looks like base64
+            if (content[field].length > 20 && /^[A-Za-z0-9+/]+=*$/.test(content[field])) {
+              try {
+                const decoded = atob(content[field]);
+                return {
+                  type: 'text',
+                  content: decoded,
+                  sections: null,
+                  error: null
+                };
+              } catch (e) {
+                // Not valid base64, use as-is
+              }
+            }
+            
+            return {
+              type: 'text',
+              content: content[field],
+              sections: null,
+              error: null
+            };
+          }
+        }
+      }
+      
+      // Check if the entire docRef object has some encoded content in unexpected places
+      if (docRef.data && typeof docRef.data === 'string') {
+        try {
+          const decoded = atob(docRef.data);
           return {
             type: 'text',
-            content: content,
+            content: decoded,
+            sections: null,
+            error: null
+          };
+        } catch (e) {
+          return {
+            type: 'text',
+            content: docRef.data,
             sections: null,
             error: null
           };

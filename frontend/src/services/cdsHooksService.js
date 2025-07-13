@@ -150,13 +150,38 @@ class CDSHooksService {
         operator = backendToFrontendOperatorMap[operator] || operator;
       }
       
-      return {
+      const frontendCondition = {
         id: Date.now() + index,
         type: conditionType,
         operator: operator,
         value: condition.parameters.value || '',
         enabled: true
       };
+      
+      // Add type-specific fields
+      if (conditionType === 'lab_value') {
+        frontendCondition.labTest = condition.parameters.code || condition.parameters.labTest;
+        if (condition.parameters.timeframe) {
+          frontendCondition.timeframe = condition.parameters.timeframe;
+        }
+        if (condition.parameters.value2) {
+          frontendCondition.value2 = condition.parameters.value2;
+        }
+      } else if (conditionType === 'vital_sign') {
+        frontendCondition.vitalType = condition.parameters.type;
+        if (condition.parameters.component) {
+          frontendCondition.component = condition.parameters.component;
+        }
+      } else if (conditionType === 'condition') {
+        if (condition.parameters.codes) {
+          frontendCondition.codes = condition.parameters.codes;
+        }
+        if (condition.parameters.system) {
+          frontendCondition.system = condition.parameters.system;
+        }
+      }
+      
+      return frontendCondition;
     });
 
     return {
@@ -167,7 +192,13 @@ class CDSHooksService {
       enabled: backendConfig.enabled,
       conditions: conditions,
       cards: cards,
-      prefetch: backendConfig.prefetch || {}
+      prefetch: backendConfig.prefetch || {},
+      _meta: {
+        created: backendConfig.created_at ? new Date(backendConfig.created_at) : new Date(),
+        modified: backendConfig.updated_at ? new Date(backendConfig.updated_at) : new Date(),
+        version: 1,
+        author: 'System'
+      }
     };
   }
 

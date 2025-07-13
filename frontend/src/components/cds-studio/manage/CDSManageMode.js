@@ -119,10 +119,15 @@ const CDSManageMode = () => {
   const loadHooks = async () => {
     try {
       setLoading(true);
-      const customHooks = await cdsHooksService.getHooks();
-      setHooks(customHooks);
+      const response = await cdsHooksService.listCustomHooks();
+      setHooks(response.data || []);
     } catch (error) {
-      // Failed to load hooks
+      console.error('Failed to load hooks:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to load hooks: ${error.message}`,
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -165,8 +170,24 @@ const CDSManageMode = () => {
   };
 
   const handleEdit = (hook) => {
-    actions.setCurrentHook(hook);
-    // Switch to build mode would be handled by parent
+    // The hook should already be in frontend format from listCustomHooks
+    // But ensure it has the required _meta structure for editing
+    const editableHook = {
+      ...hook,
+      _meta: {
+        created: hook._meta?.created || (hook.created_at ? new Date(hook.created_at) : new Date()),
+        modified: hook._meta?.modified || (hook.updated_at ? new Date(hook.updated_at) : new Date()),
+        version: hook._meta?.version || 1,
+        author: hook._meta?.author || 'Current User'
+      }
+    };
+    
+    actions.setCurrentHook(editableHook);
+    
+    // Switch to build mode
+    if (actions.switchMode) {
+      actions.switchMode('build');
+    }
   };
 
   const handleDelete = async (hookId) => {
@@ -282,10 +303,10 @@ const CDSManageMode = () => {
 
   const exportHooksConfiguration = async () => {
     try {
-      const allHooks = await cdsHooksService.getHooks();
+      const response = await cdsHooksService.listCustomHooks();
       const config = {
         timestamp: new Date().toISOString(),
-        hooks: allHooks || [],
+        hooks: response.data || [],
         services: services,
         settings: serviceSettings
       };

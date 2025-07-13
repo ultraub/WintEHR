@@ -67,7 +67,7 @@ import { cdsHooksService } from '../services/cdsHooksService';
 export const CDSStudioContext = createContext();
 
 // Context provider component
-export const CDSStudioProvider = ({ children }) => {
+export const CDSStudioProvider = ({ children, onModeSwitch }) => {
   const [currentHook, setCurrentHook] = useState({
     id: '',
     title: '',
@@ -444,7 +444,8 @@ export const CDSStudioProvider = ({ children }) => {
       saveHook,
       setCurrentHook,
       setIsLoading,
-      setLoadingMessage
+      setLoadingMessage,
+      switchMode: onModeSwitch
     }
   };
 
@@ -540,6 +541,11 @@ const SaveButton = () => {
 function CDSHooksStudio() {
   const [currentMode, setCurrentMode] = useState('build'); // learn, build, manage
   const [showHelp, setShowHelp] = useState(false);
+
+  // Create a function to handle mode switching that can be passed to children
+  const handleModeSwitch = (mode) => {
+    setCurrentMode(mode);
+  };
   
   // Hook reset function for error recovery
   const resetCurrentHook = useCallback(() => {
@@ -569,7 +575,7 @@ function CDSHooksStudio() {
   };
 
   return (
-    <CDSStudioProvider>
+    <CDSStudioProvider onModeSwitch={handleModeSwitch}>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <Paper sx={{ p: 2, mb: 2 }}>
