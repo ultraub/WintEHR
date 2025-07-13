@@ -1516,8 +1516,9 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         open={cpoeDialogOpen}
         onClose={() => setCpoeDialogOpen(false)}
         patientId={patientId}
-        initialOrderType="medication"
-        onOrderCreated={handleCPOEOrdersCreated}
+        onSave={handleCPOEOrdersCreated}
+        patientConditions={[]} // TODO: Pass actual patient conditions
+        recentOrders={[]} // TODO: Pass actual recent orders
       />
 
       {/* Order Signing Dialog */}

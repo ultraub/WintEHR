@@ -137,16 +137,19 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
                 }}
               />
             )}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Stack>
-                  <Typography variant="body2">{option.display}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    RxNorm: {option.code} • {option.strength || 'No strength'} • {option.form || 'No form'} • Source: {option.source}
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Stack>
+                    <Typography variant="body2">{option.display}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      RxNorm: {option.code} • {option.strength || 'No strength'} • {option.form || 'No form'} • Source: {option.source}
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            }}
             noOptionsText={
               searchLoading ? "Searching..." : "No medications found"
             }

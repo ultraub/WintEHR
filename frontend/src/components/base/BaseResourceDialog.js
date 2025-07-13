@@ -54,6 +54,7 @@ const BaseResourceDialog = ({
   steps = [],
   showPreview = true,
   showCancel = true,
+  renderPreview, // Custom preview render function
   
   // Loading states
   loading = false,
@@ -282,9 +283,13 @@ const BaseResourceDialog = ({
               Review the information below before saving.
             </Alert>
             <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <pre style={{ fontSize: '0.875rem', fontFamily: 'monospace' }}>
-                {JSON.stringify(formData, null, 2)}
-              </pre>
+              {renderPreview ? (
+                renderPreview(formData)
+              ) : (
+                <pre style={{ fontSize: '0.875rem', fontFamily: 'monospace' }}>
+                  {JSON.stringify(formData, null, 2)}
+                </pre>
+              )}
             </Box>
           </Box>
         ) : (

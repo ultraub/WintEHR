@@ -119,16 +119,19 @@ const AllergyFormFields = ({ formData = {}, errors = {}, onChange, disabled }) =
                 }}
               />
             )}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Stack>
-                  <Typography variant="body2">{option.display}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {option.category} • {option.code} • Source: {option.source}
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Stack>
+                    <Typography variant="body2">{option.display}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {option.category} • {option.code} • Source: {option.source}
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            }}
             noOptionsText={
               searchLoading ? "Searching..." : "No allergens found"
             }
@@ -296,20 +299,23 @@ const AllergyFormFields = ({ formData = {}, errors = {}, onChange, disabled }) =
                 />
               ))
             }
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Stack>
-                  <Typography variant="body2">
-                    {typeof option === 'string' ? option : option.text || option.display}
-                  </Typography>
-                  {typeof option === 'object' && option.code && (
-                    <Typography variant="caption" color="text.secondary">
-                      SNOMED: {option.code} - {option.display}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Stack>
+                    <Typography variant="body2">
+                      {typeof option === 'string' ? option : option.text || option.display}
                     </Typography>
-                  )}
-                </Stack>
-              </Box>
-            )}
+                    {typeof option === 'object' && option.code && (
+                      <Typography variant="caption" color="text.secondary">
+                        SNOMED: {option.code} - {option.display}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Box>
+              );
+            }}
             renderInput={(params) => (
               <TextField
                 {...params}

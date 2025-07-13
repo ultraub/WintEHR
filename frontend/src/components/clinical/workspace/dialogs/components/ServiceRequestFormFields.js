@@ -64,7 +64,13 @@ const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabl
   // Update test options when category changes
   React.useEffect(() => {
     const categoryTests = getTestsForCategory(safeFormData.category);
-    setTestOptions(categoryTests);
+    // Sort options by category to prevent duplicated headers in groupBy
+    const sortedTests = categoryTests.sort((a, b) => {
+      const categoryA = a.category || '';
+      const categoryB = b.category || '';
+      return categoryA.localeCompare(categoryB);
+    });
+    setTestOptions(sortedTests);
     
     // Clear selected test if it doesn't match new category
     if (safeFormData.selectedTest && 
@@ -76,6 +82,7 @@ const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabl
   // Initialize options with existing test if in edit mode
   React.useEffect(() => {
     if (safeFormData.selectedTest && testOptions.length === 0) {
+      // Even for single option, ensure it's in an array for consistency
       setTestOptions([safeFormData.selectedTest]);
     }
   }, [safeFormData.selectedTest]);
@@ -175,16 +182,19 @@ const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabl
                 }}
               />
             )}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Stack>
-                  <Typography variant="body2">{option.display}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Code: {option.code} • Category: {option.category}
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Stack>
+                    <Typography variant="body2">{option.display}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Code: {option.code} • Category: {option.category}
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            }}
             noOptionsText="No tests found for this category"
           />
         </Grid>

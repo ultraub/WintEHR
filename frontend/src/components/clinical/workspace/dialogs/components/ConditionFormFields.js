@@ -120,16 +120,19 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
                 }}
               />
             )}
-            renderOption={(props, option) => (
-              <Box component="li" {...props}>
-                <Stack>
-                  <Typography variant="body2">{option.display}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    SNOMED: {option.code} • Frequency: {option.frequency_count || 0} • Source: {option.source}
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
+            renderOption={(props, option) => {
+              const { key, ...otherProps } = props;
+              return (
+                <Box component="li" key={key} {...otherProps}>
+                  <Stack>
+                    <Typography variant="body2">{option.display}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      SNOMED: {option.code} • Frequency: {option.frequency_count || 0} • Source: {option.source}
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            }}
             noOptionsText={
               searchLoading ? "Searching..." : "No conditions found"
             }
