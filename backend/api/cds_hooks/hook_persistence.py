@@ -35,6 +35,7 @@ class HookPersistenceManager:
             actions JSONB DEFAULT '[]'::jsonb,
             prefetch JSONB DEFAULT '{}'::jsonb,
             usage_requirements TEXT,
+            display_behavior JSONB DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_by VARCHAR(255),
@@ -52,6 +53,14 @@ class HookPersistenceManager:
             # Then create table
             await self.db.execute(text(create_table_sql))
             await self.db.commit()
+            
+            # Add display_behavior column if it doesn't exist (for existing tables)
+            try:
+                await self.db.execute(text("ALTER TABLE cds_hooks.hook_configurations ADD COLUMN IF NOT EXISTS display_behavior JSONB DEFAULT NULL"))
+                await self.db.commit()
+            except Exception as e:
+                logger.debug(f"Column display_behavior may already exist: {e}")
+                await self.db.rollback()
             
             # Then create indexes - one at a time to avoid multi-statement error
             await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_hook_type ON cds_hooks.hook_configurations(hook_type)"))
@@ -83,6 +92,7 @@ class HookPersistenceManager:
                         actions = :actions,
                         prefetch = :prefetch,
                         usage_requirements = :usage_requirements,
+                        display_behavior = :display_behavior,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = :user_id,
                         version = version + 1
@@ -100,6 +110,7 @@ class HookPersistenceManager:
                     'actions': json.dumps([a.dict() for a in hook_config.actions]),
                     'prefetch': json.dumps(hook_config.prefetch or {}),
                     'usage_requirements': hook_config.usageRequirements,
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
                     'user_id': user_id
                 })
             else:
@@ -107,9 +118,9 @@ class HookPersistenceManager:
                 insert_sql = text("""
                     INSERT INTO cds_hooks.hook_configurations 
                     (id, hook_type, title, description, enabled, conditions, actions, 
-                     prefetch, usage_requirements, created_by, updated_by)
+                     prefetch, usage_requirements, display_behavior, created_by, updated_by)
                     VALUES (:id, :hook_type, :title, :description, :enabled, :conditions, 
-                            :actions, :prefetch, :usage_requirements, :user_id, :user_id)
+                            :actions, :prefetch, :usage_requirements, :display_behavior, :user_id, :user_id)
                     RETURNING *
                 """)
                 
@@ -123,6 +134,7 @@ class HookPersistenceManager:
                     'actions': json.dumps([a.dict() for a in hook_config.actions]),
                     'prefetch': json.dumps(hook_config.prefetch or {}),
                     'usage_requirements': hook_config.usageRequirements,
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
                     'user_id': user_id
                 })
             
@@ -282,6 +294,9 @@ class HookPersistenceManager:
         conditions_data = row.conditions if isinstance(row.conditions, list) else json.loads(row.conditions or '[]')
         actions_data = row.actions if isinstance(row.actions, list) else json.loads(row.actions or '[]')
         prefetch_data = row.prefetch if isinstance(row.prefetch, dict) else json.loads(row.prefetch or '{}')
+        display_behavior_data = None
+        if hasattr(row, 'display_behavior') and row.display_behavior:
+            display_behavior_data = row.display_behavior if isinstance(row.display_behavior, dict) else json.loads(row.display_behavior)
         
         return HookConfiguration(
             id=row.id,
@@ -293,6 +308,7 @@ class HookPersistenceManager:
             actions=[HookAction(**action) for action in actions_data],
             prefetch=prefetch_data if prefetch_data else None,
             usageRequirements=row.usage_requirements,
+            displayBehavior=display_behavior_data,
             created_at=row.created_at,
             updated_at=row.updated_at
         )

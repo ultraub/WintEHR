@@ -57,6 +57,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { fhirClient } from '../../../../services/fhirClient';
 import { NOTE_TEMPLATES, noteAutoPopulationService } from '../../../../services/noteTemplatesService';
 import QualityMeasurePrompts from '../../quality/QualityMeasurePrompts';
+import { documentReferenceConverter } from '../../../../utils/fhir/DocumentReferenceConverter';
 
 // Template Selection Component
 const TemplateSelector = ({ selectedTemplate, onTemplateChange, onLoadTemplate, autoPopulateEnabled, onAutoPopulateToggle }) => {
@@ -499,20 +500,16 @@ const EnhancedNoteEditor = ({
     let templateId = 'progress';
 
     try {
-      if (note.content?.[0]?.attachment?.data) {
-        const decodedContent = atob(note.content[0].attachment.data);
-        
-        // Try to parse as JSON for sectioned notes
-        try {
-          const parsed = JSON.parse(decodedContent);
-          if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-            sections = parsed;
-          } else {
-            content = decodedContent;
-          }
-        } catch (e) {
-          content = decodedContent;
-        }
+      // Use standardized content extraction
+      const extractedContent = documentReferenceConverter.extractDocumentContent(note);
+      
+      if (extractedContent.error) {
+        console.warn('Error extracting note content:', extractedContent.error);
+        content = 'Failed to load note content';
+      } else if (extractedContent.type === 'soap' && extractedContent.sections) {
+        sections = extractedContent.sections;
+      } else {
+        content = extractedContent.content || '';
       }
 
       // Determine template type from LOINC code

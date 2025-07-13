@@ -2,7 +2,7 @@
  * MedicationFormFields Component
  * Specialized form fields for MedicationRequest resource management
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Grid,
   TextField,
@@ -41,8 +41,8 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
     minQueryLength: 2
   });
 
-  // Provide safe defaults for form data to prevent undefined values
-  const safeFormData = {
+  // Provide safe defaults for form data with useMemo to prevent recreation
+  const safeFormData = useMemo(() => ({
     selectedMedication: formData.selectedMedication || null,
     customMedication: formData.customMedication || '',
     dosage: formData.dosage || '',
@@ -60,7 +60,12 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
     intent: formData.intent || 'order',
     genericSubstitution: formData.genericSubstitution !== undefined ? formData.genericSubstitution : true,
     notes: formData.notes || ''
-  };
+  }), [formData]);
+
+  // Memoize onChange handlers to prevent recreation
+  const handleNotesChange = useCallback((e) => {
+    onChange('notes', e.target.value);
+  }, [onChange]);
 
   return (
     <Stack spacing={3}>
@@ -465,7 +470,7 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
             label="Additional Notes"
             value={safeFormData.notes}
             disabled={disabled}
-            onChange={(e) => onChange('notes', e.target.value)}
+            onChange={handleNotesChange}
             variant="outlined"
             multiline
             rows={3}
@@ -536,4 +541,4 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
   );
 };
 
-export default MedicationFormFields;
+export default React.memo(MedicationFormFields);

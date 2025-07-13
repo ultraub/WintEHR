@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
+import { documentReferenceConverter } from '../utils/fhir/DocumentReferenceConverter';
 
 const DocumentationContext = createContext(undefined);
 
@@ -28,43 +29,32 @@ export const DocumentationProvider = ({ children }) => {
 
   // Transform FHIR DocumentReference to internal format
   const transformFHIRDocument = (fhirDoc) => {
-    // Extract content from attachment
-    let content = '';
-    try {
-      content = fhirDoc.content?.[0]?.attachment?.data 
-        ? atob(fhirDoc.content[0].attachment.data) 
-        : '';
-    } catch (error) {
-      content = 'Error: Unable to decode document content';
-    }
+    // Use standardized content extraction
+    const extractedContent = documentReferenceConverter.extractDocumentContent(fhirDoc);
     
     // Parse content sections
     const sections = {};
     let isSOAPFormat = false;
+    let content = '';
     
-    if (content) {
-      try {
-        const parsed = JSON.parse(content);
-        // Check if it has SOAP structure
-        if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan ||
-            parsed.chiefComplaint || parsed.historyPresentIllness || parsed.reviewOfSystems || parsed.physicalExam) {
-          isSOAPFormat = true;
-          sections.subjective = parsed.subjective || '';
-          sections.objective = parsed.objective || '';
-          sections.assessment = parsed.assessment || '';
-          sections.plan = parsed.plan || '';
-          sections.chiefComplaint = parsed.chiefComplaint || '';
-          sections.historyPresentIllness = parsed.historyPresentIllness || '';
-          sections.reviewOfSystems = parsed.reviewOfSystems || '';
-          sections.physicalExam = parsed.physicalExam || '';
-        } else {
-          // JSON but not SOAP structure
-          sections.content = JSON.stringify(parsed, null, 2);
-        }
-      } catch (e) {
-        // If not JSON, treat as plain text
-        sections.content = content;
-      }
+    if (extractedContent.error) {
+      content = 'Error: Unable to decode document content';
+      sections.content = content;
+    } else if (extractedContent.type === 'soap' && extractedContent.sections) {
+      isSOAPFormat = true;
+      sections.subjective = extractedContent.sections.subjective || '';
+      sections.objective = extractedContent.sections.objective || '';
+      sections.assessment = extractedContent.sections.assessment || '';
+      sections.plan = extractedContent.sections.plan || '';
+      // Support additional fields that might be in the sections
+      sections.chiefComplaint = extractedContent.sections.chiefComplaint || '';
+      sections.historyPresentIllness = extractedContent.sections.historyPresentIllness || '';
+      sections.reviewOfSystems = extractedContent.sections.reviewOfSystems || '';
+      sections.physicalExam = extractedContent.sections.physicalExam || '';
+      content = extractedContent.content || '';
+    } else {
+      content = extractedContent.content || '';
+      sections.content = content;
     }
 
     // Extract note type from type coding and map LOINC code back to type

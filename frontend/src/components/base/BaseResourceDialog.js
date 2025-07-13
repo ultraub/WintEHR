@@ -2,7 +2,7 @@
  * BaseResourceDialog Component
  * Standardized dialog foundation for all FHIR resource management
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -93,39 +93,46 @@ const BaseResourceDialog = ({
     setJustSaved(false);
   }, [resource, mode, initialValues, open]);
 
-  // Track changes
+  // Debounced change tracking to reduce expensive JSON operations
   useEffect(() => {
     if (justSaved) {
       setHasChanges(false);
       return;
     }
-    const hasChanged = JSON.stringify(formData) !== JSON.stringify(initialValues);
-    setHasChanges(hasChanged);
+    
+    // Debounce the expensive change detection
+    const timeoutId = setTimeout(() => {
+      const hasChanged = JSON.stringify(formData) !== JSON.stringify(initialValues);
+      setHasChanges(hasChanged);
+    }, 150); // 150ms debounce for change detection
+    
+    return () => clearTimeout(timeoutId);
   }, [formData, initialValues, justSaved]);
 
-  // Handle form data change
-  const handleFieldChange = (fieldName, value) => {
+  // Handle form data change with useCallback to prevent recreation
+  const handleFieldChange = useCallback((fieldName, value) => {
     setFormData(prev => ({
       ...prev,
       [fieldName]: value
     }));
     
     // Clear field error when user starts typing
-    if (errors[fieldName]) {
-      setErrors(prev => ({
-        ...prev,
-        [fieldName]: null
-      }));
-    }
+    setErrors(prev => {
+      if (prev[fieldName]) {
+        return {
+          ...prev,
+          [fieldName]: null
+        };
+      }
+      return prev;
+    });
     
     // Clear save error when user makes changes
-    if (saveError) {
-      setSaveError(null);
-    }
-  };
+    setSaveError(null);
+  }, []); // Empty dependency array since we only need the function reference
 
-  // Validate form
-  const validateForm = () => {
+  // Validate form with useCallback to prevent recreation
+  const validateForm = useCallback(() => {
     const newErrors = {};
     let isValid = true;
 
@@ -168,7 +175,7 @@ const BaseResourceDialog = ({
 
     setErrors(newErrors);
     return isValid;
-  };
+  }, [formData, onValidate, validationRules]);
 
   // Handle save
   const handleSave = async () => {
@@ -238,10 +245,10 @@ const BaseResourceDialog = ({
     return title || `Add ${resourceType}`;
   };
 
-  // Check if save should be enabled
-  const canSave = () => {
+  // Check if save should be enabled with useMemo for performance
+  const canSave = useMemo(() => {
     return hasChanges && !loading && !saving && !isSubmitting && mode !== 'view';
-  };
+  }, [hasChanges, loading, saving, isSubmitting, mode]);
 
   return (
     <Dialog
@@ -385,7 +392,7 @@ const BaseResourceDialog = ({
               <Button
                 onClick={handleSave}
                 startIcon={(saving || isSubmitting) ? <CircularProgress size={20} /> : <SaveIcon />}
-                disabled={!canSave()}
+                disabled={!canSave}
                 variant="contained"
                 color="primary"
               >

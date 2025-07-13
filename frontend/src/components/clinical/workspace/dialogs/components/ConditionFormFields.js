@@ -2,7 +2,7 @@
  * ConditionFormFields Component
  * Specialized form fields for Condition resource management
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Grid,
   TextField,
@@ -35,8 +35,8 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
     minQueryLength: 2
   });
 
-  // Provide safe defaults for form data to prevent undefined values
-  const safeFormData = {
+  // Provide safe defaults for form data with useMemo to prevent recreation
+  const safeFormData = useMemo(() => ({
     selectedProblem: formData.selectedProblem || null,
     problemText: formData.problemText || '',
     clinicalStatus: formData.clinicalStatus || 'active',
@@ -45,7 +45,42 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
     onsetDate: formData.onsetDate || null,
     category: formData.category || 'problem-list-item',
     notes: formData.notes || ''
-  };
+  }), [formData]);
+
+  // Memoize onChange handlers to prevent recreation
+  const handleNotesChange = useCallback((e) => {
+    onChange('notes', e.target.value);
+  }, [onChange]);
+
+  const handleProblemTextChange = useCallback((e) => {
+    onChange('problemText', e.target.value);
+    onChange('selectedProblem', null);
+  }, [onChange]);
+
+  const handleClinicalStatusChange = useCallback((e) => {
+    onChange('clinicalStatus', e.target.value);
+  }, [onChange]);
+
+  const handleVerificationStatusChange = useCallback((e) => {
+    onChange('verificationStatus', e.target.value);
+  }, [onChange]);
+
+  const handleSeverityChange = useCallback((e) => {
+    onChange('severity', e.target.value);
+  }, [onChange]);
+
+  const handleCategoryChange = useCallback((e) => {
+    onChange('category', e.target.value);
+  }, [onChange]);
+
+  const handleOnsetDateChange = useCallback((date) => {
+    onChange('onsetDate', date);
+  }, [onChange]);
+
+  const handleSelectedProblemChange = useCallback((event, newValue) => {
+    onChange('selectedProblem', newValue);
+    onChange('problemText', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.problemText);
+  }, [onChange, safeFormData.problemText]);
 
   return (
     <Stack spacing={3}>
@@ -61,10 +96,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
             searchService={conditionSearch.searchService}
             resourceTypes={['Condition']}
             value={safeFormData.selectedProblem}
-            onChange={(event, newValue) => {
-              onChange('selectedProblem', newValue);
-              onChange('problemText', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.problemText);
-            }}
+            onChange={handleSelectedProblemChange}
             disabled={disabled}
             error={!!errors.selectedProblem}
             helperText={errors.selectedProblem || "Search conditions from dynamic clinical catalog"}
@@ -135,10 +167,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
             fullWidth
             label="Custom Problem Description"
             value={safeFormData.problemText}
-            onChange={(e) => {
-              onChange('problemText', e.target.value);
-              onChange('selectedProblem', null);
-            }}
+            onChange={handleProblemTextChange}
             variant="outlined"
             disabled={disabled}
             error={!!errors.problemText}
@@ -156,7 +185,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
               value={safeFormData.clinicalStatus}
               label="Clinical Status"
               disabled={disabled}
-              onChange={(e) => onChange('clinicalStatus', e.target.value)}
+              onChange={handleClinicalStatusChange}
             >
               {CLINICAL_STATUS_OPTIONS.map(status => (
                 <MenuItem key={status.value} value={status.value}>
@@ -182,7 +211,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
               value={safeFormData.verificationStatus}
               label="Verification Status"
               disabled={disabled}
-              onChange={(e) => onChange('verificationStatus', e.target.value)}
+              onChange={handleVerificationStatusChange}
             >
               {VERIFICATION_STATUS_OPTIONS.map(status => (
                 <MenuItem key={status.value} value={status.value}>
@@ -201,7 +230,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
               value={safeFormData.category}
               label="Category"
               disabled={disabled}
-              onChange={(e) => onChange('category', e.target.value)}
+              onChange={handleCategoryChange}
             >
               {CONDITION_CATEGORIES.map(category => (
                 <MenuItem key={category.value} value={category.value}>
@@ -219,7 +248,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
               value={safeFormData.severity}
               label="Severity"
               disabled={disabled}
-              onChange={(e) => onChange('severity', e.target.value)}
+              onChange={handleSeverityChange}
             >
               <MenuItem value="">
                 <em>Not specified</em>
@@ -239,7 +268,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
             label="Onset Date"
             value={safeFormData.onsetDate}
             disabled={disabled}
-            onChange={(newValue) => onChange('onsetDate', newValue)}
+            onChange={handleOnsetDateChange}
             slotProps={{
               textField: { 
                 fullWidth: true,
@@ -258,7 +287,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
             label="Additional Notes"
             value={safeFormData.notes}
             disabled={disabled}
-            onChange={(e) => onChange('notes', e.target.value)}
+            onChange={handleNotesChange}
             variant="outlined"
             multiline
             rows={3}
@@ -314,4 +343,4 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
   );
 };
 
-export default ConditionFormFields;
+export default React.memo(ConditionFormFields);

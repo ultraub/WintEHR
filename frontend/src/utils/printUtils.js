@@ -4,6 +4,7 @@
 
 import { format, parseISO } from 'date-fns';
 import { NOTE_TEMPLATES } from '../services/noteTemplatesService';
+import { documentReferenceConverter } from './fhir/DocumentReferenceConverter';
 
 /**
  * Create a print-friendly HTML document

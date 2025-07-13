@@ -90,7 +90,8 @@ class CDSHooksService {
         conditions: conditions,
         actions: actions,
         prefetch: (hookData.prefetch && typeof hookData.prefetch === 'object') ? hookData.prefetch : {},
-        usageRequirements: hookData.usageRequirements || null
+        usageRequirements: hookData.usageRequirements || null,
+        displayBehavior: (hookData.displayBehavior && typeof hookData.displayBehavior === 'object') ? hookData.displayBehavior : null
       };
 
       // Validate the final structure
@@ -119,7 +120,7 @@ class CDSHooksService {
   transformToFrontendFormat(backendConfig) {
     // Transform backend actions to frontend cards
     const cards = backendConfig.actions.map((action, index) => ({
-      id: Date.now() + index,
+      id: `card-${Date.now()}-${index}`,
       summary: action.parameters.summary || '',
       detail: action.parameters.detail || '',
       indicator: action.parameters.indicator || 'info',
@@ -151,7 +152,7 @@ class CDSHooksService {
       }
       
       const frontendCondition = {
-        id: Date.now() + index,
+        id: `condition-${Date.now()}-${index}`,
         type: conditionType,
         operator: operator,
         value: condition.parameters.value || '',
@@ -193,6 +194,7 @@ class CDSHooksService {
       conditions: conditions,
       cards: cards,
       prefetch: backendConfig.prefetch || {},
+      displayBehavior: backendConfig.displayBehavior || null,
       _meta: {
         created: backendConfig.created_at ? new Date(backendConfig.created_at) : new Date(),
         modified: backendConfig.updated_at ? new Date(backendConfig.updated_at) : new Date(),

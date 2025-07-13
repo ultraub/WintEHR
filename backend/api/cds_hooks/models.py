@@ -215,5 +215,6 @@ class HookConfiguration(BaseModel):
     actions: List[HookAction] = Field(default_factory=list, description="Hook actions")
     prefetch: Optional[Dict[str, str]] = Field(None, description="Prefetch templates")
     usageRequirements: Optional[str] = Field(None, description="Usage requirements")
+    displayBehavior: Optional[Dict[str, Any]] = Field(None, description="Display behavior configuration")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Update timestamp")
