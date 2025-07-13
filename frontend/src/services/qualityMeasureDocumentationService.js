@@ -23,7 +23,6 @@ export class QualityMeasureDocumentationService {
         this.qualityMeasures = await response.json();
       }
     } catch (error) {
-      console.error('Error loading quality measures:', error);
       // Fallback to built-in measures
       this.qualityMeasures = this.getBuiltInQualityMeasures();
     }
@@ -192,7 +191,6 @@ export class QualityMeasureDocumentationService {
       return qualityStatus;
 
     } catch (error) {
-      console.error('Error assessing patient quality status:', error);
       return {
         eligibleMeasures: [],
         documentationNeeded: [],
@@ -446,7 +444,6 @@ export class QualityMeasureDocumentationService {
       return prompts;
 
     } catch (error) {
-      console.error('Error generating quality documentation prompts:', error);
       return [];
     }
   }

@@ -140,7 +140,7 @@ const MedicationEffectivenessDialog = ({
       await onSubmitAssessment(assessmentData);
       onClose();
     } catch (error) {
-      console.error('Error submitting assessment:', error);
+      // Error submitting assessment - handle gracefully
     } finally {
       setLoading(false);
     }

@@ -407,7 +407,6 @@ const CDSHooksTab = ({ patientId }) => {
       localStorage.setItem('cds-execution-history', JSON.stringify(history));
     } catch (error) {
       // Failed to save to localStorage - non-critical error
-      console.warn('Failed to save execution history to localStorage:', error);
     }
   };
 

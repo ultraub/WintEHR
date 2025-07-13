@@ -526,7 +526,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
         onSuccess();
       }
     } catch (error) {
-      console.error('Failed to add care team member:', error);
+      // Failed to add care team member
       alert('Failed to add care team member: ' + error.message);
     }
   };
@@ -655,12 +655,12 @@ const fetchGoalRelatedObservations = async (goal) => {
       }
     } catch (err) {
       // Goal reference search might not be supported by all servers
-      console.debug('Goal reference search not supported:', err);
+      // This is expected behavior for some FHIR servers
     }
     
     return observations;
   } catch (error) {
-    console.error('Error fetching goal-related observations:', error);
+    // Error fetching goal-related observations
     return [];
   }
 };
@@ -701,7 +701,7 @@ const GoalProgressDialog = ({ open, onClose, goal, patientId }) => {
         setProgressData([]);
       }
     } catch (error) {
-      console.error('Failed to load goal progress data:', error);
+      // Failed to load goal progress data
       setProgressData([]);
     } finally {
       setLoading(false);
@@ -1232,8 +1232,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
         onClose();
       }
       // In production, this would show an error snackbar or dialog
-      console.error('Failed to save goal:', error);
-      // Would show error notification in production
+      // Failed to save goal - would show error notification in production
     }
   };
 

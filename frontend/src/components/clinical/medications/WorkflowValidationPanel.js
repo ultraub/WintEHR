@@ -116,7 +116,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
         });
       }
     } catch (error) {
-      console.error('Error running workflow validation:', error);
+      // Error running workflow validation - handle gracefully
     } finally {
       setLoading(false);
       // Remove from active requests
@@ -140,7 +140,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
         await onRefresh();
       }
     } catch (error) {
-      console.error('Error auto-fixing issues:', error);
+      // Error auto-fixing issues - handle gracefully
     } finally {
       setAutoFixing(false);
     }

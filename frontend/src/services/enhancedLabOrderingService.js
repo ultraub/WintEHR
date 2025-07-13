@@ -373,7 +373,6 @@ class EnhancedLabOrderingService {
             
             return { appropriate: true };
           } catch (error) {
-            console.error('Error checking duplicate orders:', error);
             return { appropriate: true, error: true };
           }
         }
@@ -657,7 +656,7 @@ class EnhancedLabOrderingService {
           }
         }
       } catch (error) {
-        console.error(`Error running appropriateness rule ${ruleName}:`, error);
+        // Silently continue if rule fails
       }
     }
 

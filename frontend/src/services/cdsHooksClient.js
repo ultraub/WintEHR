@@ -52,7 +52,7 @@ class CDSHooksClient {
         this.servicesCacheTime = now;
         return this.servicesCache;
       } catch (error) {
-        console.warn('⚠️ Failed to load CDS services:', error.message);
+        // Failed to load CDS services - error handled gracefully with fallback
         
         // Return cached data if available, even if expired
         if (this.servicesCache && this.servicesCache.length > 0) {
@@ -115,7 +115,7 @@ class CDSHooksClient {
         
         return response.data;
       } catch (error) {
-        console.warn(`⚠️ Failed to execute CDS hook ${hookId}:`, error.message);
+        // Failed to execute CDS hook - error handled gracefully with fallback
         
         // Check if we have cached data for this request
         const cached = this.requestCache.get(cacheKey);

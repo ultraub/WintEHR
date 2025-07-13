@@ -89,7 +89,6 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
           }
         }
       } catch (error) {
-        console.error('Error loading dynamic lab catalog:', error);
         setLabOptions([]);
       } finally {
         setSearching(false);
@@ -118,7 +117,6 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
         }));
         setLabOptions(formatted);
       } catch (error) {
-        console.error('Error loading dynamic lab catalog:', error);
         throw new Error(`Failed to load lab catalog: ${error.message}`);
       } finally {
         setSearching(false);
@@ -142,7 +140,6 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
       }));
       setLabOptions(formatted);
     } catch (error) {
-      console.error('Error searching dynamic lab catalog:', error);
       throw new Error(`Failed to search lab catalog: ${error.message}`);
     } finally {
       setSearching(false);

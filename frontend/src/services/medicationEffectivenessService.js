@@ -167,7 +167,6 @@ class MedicationEffectivenessService {
       return await fhirClient.create('CarePlan', monitoringPlan);
 
     } catch (error) {
-      console.error('Error creating monitoring plan:', error);
       throw error;
     }
   }
@@ -295,7 +294,6 @@ class MedicationEffectivenessService {
       return prompts;
 
     } catch (error) {
-      console.error('Error generating assessment prompts:', error);
       throw error;
     }
   }
@@ -402,7 +400,6 @@ class MedicationEffectivenessService {
       return savedObservation;
 
     } catch (error) {
-      console.error('Error recording assessment results:', error);
       throw error;
     }
   }
@@ -475,7 +472,6 @@ class MedicationEffectivenessService {
       return alerts;
 
     } catch (error) {
-      console.error('Error getting effectiveness alerts:', error);
       throw error;
     }
   }
@@ -611,7 +607,6 @@ class MedicationEffectivenessService {
         return medicationRef === `MedicationRequest/${medicationRequestId}`;
       });
     } catch (error) {
-      console.error('Error getting monitoring plan:', error);
       return null;
     }
   }
@@ -635,7 +630,6 @@ class MedicationEffectivenessService {
         return medicationRef === `MedicationRequest/${medicationRequestId}`;
       });
     } catch (error) {
-      console.error('Error getting last assessment:', error);
       return null;
     }
   }
@@ -659,7 +653,7 @@ class MedicationEffectivenessService {
 
       return await fhirClient.update('CarePlan', updatedPlan);
     } catch (error) {
-      console.error('Error updating monitoring plan:', error);
+      // Silently continue if plan update fails
     }
   }
 

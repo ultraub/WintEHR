@@ -154,7 +154,6 @@ const PrescriptionStatusDashboard = ({ patientId }) => {
       setStats(newStats);
 
     } catch (err) {
-      console.error('Error loading prescriptions:', err);
       setError('Failed to load prescriptions');
     } finally {
       setLoading(false);

@@ -97,7 +97,7 @@ const QualityMeasurePrompts = ({
       setPrompts(prompts);
       setQualityStatus(status);
     } catch (error) {
-      console.error('Error loading quality measure prompts:', error);
+      // Failed to load quality measure prompts
     } finally {
       setLoading(false);
     }
@@ -136,7 +136,7 @@ const QualityMeasurePrompts = ({
       await loadQualityPrompts();
       
     } catch (error) {
-      console.error('Error creating quality measure note:', error);
+      // Failed to create quality measure note
     } finally {
       setCreating(false);
     }

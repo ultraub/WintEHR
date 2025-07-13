@@ -90,7 +90,6 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
         }));
         setConditionOptions(formatted);
       } catch (error) {
-        console.error('Error loading dynamic condition catalog:', error);
         setConditionOptions([]);
       } finally {
         setSearching(false);
@@ -112,7 +111,6 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
 
       setConditionOptions(formatted);
     } catch (error) {
-      console.error('Error searching conditions:', error);
       setConditionOptions([]);
     } finally {
       setSearching(false);

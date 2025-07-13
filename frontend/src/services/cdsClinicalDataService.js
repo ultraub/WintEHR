@@ -54,8 +54,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching dynamic lab catalog:', error);
-      // Don't return empty array - throw error so caller knows something is wrong
+      // Error fetching dynamic lab catalog - re-throwing with context
       throw new Error(`Failed to fetch lab catalog: ${error.message}`);
     }
   }
@@ -84,7 +83,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching dynamic medication catalog:', error);
+      // Error fetching dynamic medication catalog - re-throwing with context
       throw new Error(`Failed to fetch medication catalog: ${error.message}`);
     }
   }
@@ -113,7 +112,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching dynamic condition catalog:', error);
+      // Error fetching dynamic condition catalog - re-throwing with context
       throw new Error(`Failed to fetch condition catalog: ${error.message}`);
     }
   }
@@ -139,7 +138,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error searching dynamic catalogs:', error);
+      // Error searching dynamic catalogs - re-throwing with context
       throw new Error(`Failed to search catalogs: ${error.message}`);
     }
   }
@@ -161,7 +160,7 @@ class CDSClinicalDataService {
       
       return response.data;
     } catch (error) {
-      console.error('Error refreshing dynamic catalogs:', error);
+      // Error refreshing dynamic catalogs - re-throwing with context
       throw new Error(`Failed to refresh catalogs: ${error.message}`);
     }
   }
@@ -175,7 +174,7 @@ class CDSClinicalDataService {
       const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/statistics`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching catalog statistics:', error);
+      // Error fetching catalog statistics - re-throwing with context
       throw new Error(`Failed to fetch catalog statistics: ${error.message}`);
     }
   }
@@ -199,7 +198,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching lab details:', error);
+      // Error fetching lab details - returning null for graceful degradation
       return null;
     }
   }
@@ -226,7 +225,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching vital sign references:', error);
+      // Error fetching vital sign references - returning empty array for graceful degradation
       return [];
     }
   }
@@ -250,7 +249,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching vital sign details:', error);
+      // Error fetching vital sign details - returning null for graceful degradation
       return null;
     }
   }
@@ -281,7 +280,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching condition catalog:', error);
+      // Error fetching condition catalog - returning empty array for graceful degradation
       return [];
     }
   }
@@ -305,7 +304,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching condition details:', error);
+      // Error fetching condition details - returning null for graceful degradation
       return null;
     }
   }
@@ -328,7 +327,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching lab categories:', error);
+      // Error fetching lab categories - returning empty array for graceful degradation
       return [];
     }
   }
@@ -351,7 +350,7 @@ class CDSClinicalDataService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error('Error fetching condition categories:', error);
+      // Error fetching condition categories - returning empty array for graceful degradation
       return [];
     }
   }

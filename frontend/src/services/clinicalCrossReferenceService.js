@@ -75,7 +75,6 @@ export class ClinicalCrossReferenceService {
       return crossRefs;
 
     } catch (error) {
-      console.error('Error creating cross-references:', error);
       return [];
     }
   }
@@ -132,7 +131,7 @@ export class ClinicalCrossReferenceService {
                   }
                 });
               } catch (err) {
-                console.warn(`Could not fetch document ${docId}:`, err);
+                // Document could not be fetched, skip it
               }
             }
           }
@@ -144,7 +143,6 @@ export class ClinicalCrossReferenceService {
       );
 
     } catch (error) {
-      console.error('Error getting linked notes:', error);
       return [];
     }
   }
@@ -246,7 +244,7 @@ export class ClinicalCrossReferenceService {
                     linkedData.other.push(enrichedResource);
                 }
               } catch (err) {
-                console.warn(`Could not fetch ${resourceType}/${resourceId}:`, err);
+                // Resource could not be fetched, skip it
               }
             }
           }
@@ -262,7 +260,6 @@ export class ClinicalCrossReferenceService {
       return linkedData;
 
     } catch (error) {
-      console.error('Error getting linked clinical data:', error);
       return {
         conditions: [],
         medications: [],
@@ -356,7 +353,6 @@ export class ClinicalCrossReferenceService {
       return reverseIndex;
 
     } catch (error) {
-      console.error('Error building reverse index:', error);
       return new Map();
     }
   }
@@ -402,7 +398,6 @@ export class ClinicalCrossReferenceService {
       return summary;
 
     } catch (error) {
-      console.error('Error getting cross-reference summary:', error);
       return {
         totalNotes: 0,
         notesByType: {},
@@ -455,7 +450,6 @@ export class ClinicalCrossReferenceService {
       };
 
     } catch (error) {
-      console.error('Error finding related clinical data:', error);
       return {
         relatedConditions: [],
         relatedMedications: [],
@@ -564,7 +558,6 @@ export class ClinicalCrossReferenceService {
       return toDelete.length;
 
     } catch (error) {
-      console.error('Error deleting cross-references:', error);
       return 0;
     }
   }

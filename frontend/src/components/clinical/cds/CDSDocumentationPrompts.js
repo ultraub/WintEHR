@@ -80,7 +80,7 @@ const CDSDocumentationPrompts = ({
       });
 
     } catch (error) {
-      console.error('Error generating documentation prompts:', error);
+      // Failed to generate documentation prompts
     }
   }, [cdsAlerts, patientId, encounterId]);
 
@@ -110,7 +110,7 @@ const CDSDocumentationPrompts = ({
       handleDismissPrompt(prompt.id);
 
     } catch (error) {
-      console.error('Error creating note from prompt:', error);
+      // Failed to create note from prompt
     }
   }, [onCreateNote, publish, patientId, encounterId]);
 

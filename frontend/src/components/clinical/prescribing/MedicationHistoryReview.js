@@ -167,7 +167,6 @@ const MedicationHistoryReview = ({
       setStats(newStats);
 
     } catch (err) {
-      console.error('Error loading medication history:', err);
       setError('Failed to load medication history');
     } finally {
       setLoading(false);

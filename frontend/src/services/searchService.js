@@ -47,7 +47,6 @@ class SearchService {
       this.setCache(cacheKey, formatted);
       return formatted;
     } catch (error) {
-      console.error('Error searching conditions:', error);
       return [];
     }
   }
@@ -79,7 +78,6 @@ class SearchService {
       this.setCache(cacheKey, formatted);
       return formatted;
     } catch (error) {
-      console.error('Error searching medications:', error);
       return [];
     }
   }
@@ -111,7 +109,6 @@ class SearchService {
       this.setCache(cacheKey, formatted);
       return formatted;
     } catch (error) {
-      console.error('Error searching lab tests:', error);
       return [];
     }
   }
@@ -191,7 +188,6 @@ class SearchService {
       this.setCache(cacheKey, results);
       return results;
     } catch (error) {
-      console.error('Error in universal search:', error);
       return {
         medications: [],
         labTests: [],
@@ -231,7 +227,6 @@ class SearchService {
       this.setCache(cacheKey, formatted);
       return formatted;
     } catch (error) {
-      console.error('Error searching procedures:', error);
       return [];
     }
   }

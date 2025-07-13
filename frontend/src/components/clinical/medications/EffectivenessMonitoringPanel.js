@@ -114,7 +114,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
               const prompts = await medicationEffectivenessService.generateAssessmentPrompts(medication.id);
               promptsMap.set(medication.id, prompts);
             } catch (error) {
-              console.error(`Error loading prompts for medication ${medication.id}:`, error);
+              // Skip failed medication prompt loading
             }
           })
       );
@@ -130,7 +130,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       }
 
     } catch (error) {
-      console.error('Error loading effectiveness data:', error);
+      // Failed to load effectiveness data
     } finally {
       setLoading(false);
       // Remove from active requests
@@ -147,7 +147,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       setSelectedPrompts(prompts);
       setAssessmentDialogOpen(true);
     } catch (error) {
-      console.error('Error starting assessment:', error);
+      // Failed to start assessment
     }
   };
 
@@ -165,7 +165,6 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       setSelectedMedication(null);
       setSelectedPrompts(null);
     } catch (error) {
-      console.error('Error submitting assessment:', error);
       throw error;
     }
   };

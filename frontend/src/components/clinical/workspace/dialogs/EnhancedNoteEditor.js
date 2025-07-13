@@ -205,7 +205,7 @@ const AutoPopulationPreview = ({ template, patientId, onApply }) => {
       const autoContent = await noteAutoPopulationService.generateTemplateContent(template.id, patientId);
       setPreviewData(autoContent);
     } catch (error) {
-      console.error('Error generating auto-population preview:', error);
+      // Auto-population preview failed silently
     } finally {
       setLoading(false);
     }
@@ -326,7 +326,7 @@ const NoteSharing = ({ note, onShare }) => {
       setShareWith([]);
       setShareMessage('');
     } catch (error) {
-      console.error('Error sharing note:', error);
+      // Note sharing failed silently
     } finally {
       setLoading(false);
     }
@@ -522,7 +522,7 @@ const EnhancedNoteEditor = ({
       ) || 'progress';
 
     } catch (error) {
-      console.error('Error extracting note data:', error);
+      // Note data extraction failed silently
     }
 
     return {

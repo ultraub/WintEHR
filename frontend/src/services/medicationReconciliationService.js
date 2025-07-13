@@ -70,7 +70,6 @@ class MedicationReconciliationService {
       };
 
     } catch (error) {
-      console.error('Error fetching medication reconciliation data:', error);
       throw error;
     }
   }
@@ -598,7 +597,6 @@ class MedicationReconciliationService {
 
       return null;
     } catch (error) {
-      console.error('Error fetching last reconciliation date:', error);
       return null;
     }
   }

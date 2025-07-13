@@ -103,7 +103,6 @@ const EnhancedMedicationSearch = ({
       });
       setSearchResults(results);
     } catch (error) {
-      console.error('Error searching medications:', error);
       setSearchResults([]);
     } finally {
       setLoading(false);

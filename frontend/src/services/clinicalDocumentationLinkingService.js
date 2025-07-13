@@ -55,7 +55,6 @@ export class ClinicalDocumentationLinkingService {
       return problemsWithDocs;
 
     } catch (error) {
-      console.error('Error getting active problems with documentation:', error);
       return [];
     }
   }
@@ -102,7 +101,6 @@ export class ClinicalDocumentationLinkingService {
       return medicationsWithDocs;
 
     } catch (error) {
-      console.error('Error getting active medications with documentation:', error);
       return [];
     }
   }
@@ -178,7 +176,6 @@ export class ClinicalDocumentationLinkingService {
       return created;
 
     } catch (error) {
-      console.error('Error creating problem-linked documentation:', error);
       throw error;
     }
   }
@@ -254,7 +251,6 @@ export class ClinicalDocumentationLinkingService {
       return created;
 
     } catch (error) {
-      console.error('Error creating medication-linked documentation:', error);
       throw error;
     }
   }
@@ -372,7 +368,6 @@ export class ClinicalDocumentationLinkingService {
       
       return response?.entry?.map(e => e.resource) || [];
     } catch (error) {
-      console.error('Error getting documentation for problem:', error);
       return [];
     }
   }
@@ -387,7 +382,6 @@ export class ClinicalDocumentationLinkingService {
       
       return response?.entry?.map(e => e.resource) || [];
     } catch (error) {
-      console.error('Error getting documentation for medication:', error);
       return [];
     }
   }
@@ -402,7 +396,6 @@ export class ClinicalDocumentationLinkingService {
       
       return response?.entry?.map(e => e.resource) || [];
     } catch (error) {
-      console.error('Error getting orders for problem:', error);
       return [];
     }
   }
@@ -417,7 +410,6 @@ export class ClinicalDocumentationLinkingService {
       
       return response?.entry?.map(e => e.resource) || [];
     } catch (error) {
-      console.error('Error getting results for problem:', error);
       return [];
     }
   }

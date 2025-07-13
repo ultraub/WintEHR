@@ -122,7 +122,7 @@ const CDSManageMode = () => {
       const customHooks = await cdsHooksService.getHooks();
       setHooks(customHooks);
     } catch (error) {
-      console.error('Error loading hooks:', error);
+      // Failed to load hooks
     } finally {
       setLoading(false);
     }
@@ -144,7 +144,6 @@ const CDSManageMode = () => {
       });
       setServiceSettings(settings);
     } catch (error) {
-      console.error('Failed to load CDS services:', error);
       setSnackbar({
         open: true,
         message: `Failed to load CDS services: ${error.message}`,

@@ -324,9 +324,6 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
           const apiStudies = response.data?.data || [];
           setStudies(apiStudies);
         } catch (error) {
-          if (error.response?.status !== 404) {
-            console.warn('Failed to load imaging studies from API:', error.message);
-          }
           // Failed to load from API - fall back to FHIR data (empty in this case)
           setStudies([]);
         }

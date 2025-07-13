@@ -460,7 +460,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       // Log success
       
     } catch (error) {
-      console.error('Error discontinuing medication:', error);
+      // Error during medication discontinuation
       throw error;
     }
   };
@@ -702,7 +702,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             
             return result;
           } catch (error) {
-            console.error('Error discontinuing medication:', error);
+            // Error during medication discontinuation
             throw error;
           }
         }}
@@ -1013,7 +1013,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       try {
         await medicationEffectivenessService.createMonitoringPlan(createdMedication);
       } catch (error) {
-        console.warn('Could not create monitoring plan for medication:', error);
         // Don't fail the prescription process if monitoring plan creation fails
       }
 

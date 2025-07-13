@@ -215,7 +215,7 @@ class MedicationSearchService {
           backendResults = await response.json();
         }
       } catch (error) {
-        console.warn('Backend medication search unavailable, using local database');
+        // Backend medication search unavailable, using local database
       }
 
       // Search local database
@@ -232,7 +232,6 @@ class MedicationSearchService {
       return combinedResults;
 
     } catch (error) {
-      console.error('Error searching medications:', error);
       return this.searchLocalMedications(query, { limit, category });
     }
   }

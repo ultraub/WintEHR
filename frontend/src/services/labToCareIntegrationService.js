@@ -170,7 +170,6 @@ class LabToCareIntegrationService {
       return this.deduplicateRecommendations(recommendations);
       
     } catch (error) {
-      console.error('Error generating care recommendations:', error);
       return [];
     }
   }
@@ -408,7 +407,6 @@ class LabToCareIntegrationService {
       
       return response.entry?.map(e => e.resource) || [];
     } catch (error) {
-      console.error('Error fetching patient conditions:', error);
       return [];
     }
   }
@@ -427,7 +425,6 @@ class LabToCareIntegrationService {
       
       return response.entry?.[0]?.resource;
     } catch (error) {
-      console.error('Error fetching last lab result:', error);
       return null;
     }
   }
@@ -463,7 +460,6 @@ class LabToCareIntegrationService {
         }))
       };
     } catch (error) {
-      console.error('Error calculating trend:', error);
       return { percentChange: null };
     }
   }
@@ -499,7 +495,6 @@ class LabToCareIntegrationService {
       // Use existing CDS hooks service to create the rule
       return await cdsHooksClient.createHook(cdsRule);
     } catch (error) {
-      console.error('Error creating lab-based CDS rule:', error);
       throw error;
     }
   }
@@ -542,7 +537,6 @@ class LabToCareIntegrationService {
       
       return await fhirClient.update('CarePlan', carePlanId, carePlan);
     } catch (error) {
-      console.error('Error updating care plan:', error);
       throw error;
     }
   }
@@ -583,7 +577,6 @@ class LabToCareIntegrationService {
       
       return effectiveness;
     } catch (error) {
-      console.error('Error tracking medication effectiveness:', error);
       throw error;
     }
   }
@@ -658,7 +651,6 @@ class LabToCareIntegrationService {
       
       return await fhirClient.create('Communication', communication);
     } catch (error) {
-      console.error('Error sharing lab results with care team:', error);
       throw error;
     }
   }

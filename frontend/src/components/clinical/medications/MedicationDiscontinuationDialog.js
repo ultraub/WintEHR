@@ -265,7 +265,7 @@ const MedicationDiscontinuationDialog = ({
       await onDiscontinue(discontinuationData);
       onClose();
     } catch (error) {
-      console.error('Error discontinuing medication:', error);
+      // Error discontinuing medication - handle gracefully
     } finally {
       setLoading(false);
     }

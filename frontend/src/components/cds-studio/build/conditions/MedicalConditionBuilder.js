@@ -115,7 +115,6 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
         }));
         setCommonConditions(formatted);
       } catch (error) {
-        console.error('Error loading dynamic condition catalog:', error);
         setCommonConditions([]);
       } finally {
         setLoadingCommon(false);
@@ -138,7 +137,6 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
         const results = await searchService.searchConditions(term, 20);
         setSearchResults(results);
       } catch (error) {
-        console.error('Error searching conditions:', error);
         setSearchResults([]);
       } finally {
         setIsSearching(false);

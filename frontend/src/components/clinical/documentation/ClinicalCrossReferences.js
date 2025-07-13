@@ -105,7 +105,7 @@ const ClinicalCrossReferences = ({
       setSummary(summaryData);
       setRelatedData(related);
     } catch (error) {
-      console.error('Error loading cross-references:', error);
+      // Error loading cross-references - component will handle gracefully
     } finally {
       setLoading(false);
     }

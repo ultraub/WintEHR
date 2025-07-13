@@ -48,7 +48,6 @@ export class ResultDocumentationService {
       };
 
     } catch (error) {
-      console.error('Error generating quick note from result:', error);
       throw error;
     }
   }
@@ -68,7 +67,6 @@ export class ResultDocumentationService {
         const note = await this.generateQuickNote(result, patientId, encounterId);
         notes.push(note);
       } catch (error) {
-        console.error(`Error generating note for result ${result.id}:`, error);
         // Continue with other results
       }
     }
@@ -151,7 +149,6 @@ export class ResultDocumentationService {
       return created;
 
     } catch (error) {
-      console.error('Error creating result documentation:', error);
       throw error;
     }
   }

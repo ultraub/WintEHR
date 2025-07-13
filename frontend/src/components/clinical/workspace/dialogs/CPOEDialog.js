@@ -242,7 +242,7 @@ const CPOEDialog = ({
         setPatientConditions(conditions);
       }
     } catch (error) {
-      console.error('Error initializing lab ordering data:', error);
+      // Error initializing lab ordering data
     }
   };
 
@@ -338,7 +338,7 @@ const CPOEDialog = ({
       
       setAppropriatenessAlerts(alerts);
     } catch (error) {
-      console.error('Error checking lab appropriateness:', error);
+      // Error checking lab appropriateness
     }
   };
 
@@ -717,14 +717,14 @@ const CPOEDialog = ({
               'Prescription created and sent to pharmacy'
             );
           } catch (error) {
-            console.error('Error initializing prescription status:', error);
+            // Error initializing prescription status
           }
           
           // Update medication lists automatically
           try {
             await medicationListManagementService.handleNewPrescription(order);
           } catch (error) {
-            console.error('Error updating medication lists:', error);
+            // Error updating medication lists
           }
         }
 

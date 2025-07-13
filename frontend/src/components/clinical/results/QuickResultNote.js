@@ -77,7 +77,6 @@ const QuickResultNote = ({
       setStep('preview');
       
     } catch (error) {
-      console.error('Error generating quick note:', error);
       setError('Failed to generate note. Please try again.');
     } finally {
       setIsGenerating(false);
@@ -136,7 +135,6 @@ const QuickResultNote = ({
       }, 1500);
 
     } catch (error) {
-      console.error('Error saving note:', error);
       setError('Failed to save note. Please try again.');
     } finally {
       setIsSaving(false);

@@ -128,7 +128,6 @@ const PrescriptionStatusTracker = ({
       setHistory(statusHistory);
 
     } catch (err) {
-      console.error('Error loading prescription status:', err);
       setError('Failed to load prescription status');
     } finally {
       setLoading(false);
@@ -198,7 +197,6 @@ const PrescriptionStatusTracker = ({
       setSelectedNewStatus('');
 
     } catch (err) {
-      console.error('Error updating prescription status:', err);
       setError(err.message || 'Failed to update prescription status');
     } finally {
       setUpdating(false);

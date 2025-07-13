@@ -78,7 +78,7 @@ const ProblemMedicationLinker = ({
       setMedications(medicationsData);
       setSummary(summaryData);
     } catch (error) {
-      console.error('Error loading clinical documentation data:', error);
+      // Error loading clinical documentation data - component will handle gracefully
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ const ProblemMedicationLinker = ({
       await loadClinicalData();
 
     } catch (error) {
-      console.error('Error creating problem documentation:', error);
+      // Error creating problem documentation - handled by parent components
     }
   }, [patientId, encounterId, publish, onCreateDocumentation, loadClinicalData]);
 
@@ -152,7 +152,7 @@ const ProblemMedicationLinker = ({
       await loadClinicalData();
 
     } catch (error) {
-      console.error('Error creating medication documentation:', error);
+      // Error creating medication documentation - handled by parent components
     }
   }, [patientId, encounterId, publish, onCreateDocumentation, loadClinicalData]);
 

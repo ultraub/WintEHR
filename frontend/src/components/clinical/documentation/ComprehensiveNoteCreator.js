@@ -145,7 +145,7 @@ const ComprehensiveNoteCreator = ({
       const data = await comprehensiveNoteTemplatesService.getComprehensivePatientData(patientId);
       setPatientData(data);
     } catch (error) {
-      console.error('Error loading patient data summary:', error);
+      // Error loading patient data - component will handle gracefully
     }
   }, [patientId]);
 
@@ -180,7 +180,6 @@ const ComprehensiveNoteCreator = ({
       }
       
     } catch (error) {
-      console.error('Error generating comprehensive note:', error);
       setError('Failed to generate note. Please try again.');
     } finally {
       setIsGenerating(false);
@@ -277,7 +276,6 @@ const ComprehensiveNoteCreator = ({
       }, 1500);
 
     } catch (error) {
-      console.error('Error saving comprehensive note:', error);
       setError('Failed to save note. Please try again.');
     } finally {
       setIsSaving(false);

@@ -99,7 +99,7 @@ export const WebSocketProvider = ({ children }) => {
               sendMessage({ type: 'pong' });
             }
           } catch (error) {
-            console.warn('WebSocket message parse error:', error);
+            // Message parse error handled silently
           }
         };
         
@@ -151,12 +151,11 @@ export const WebSocketProvider = ({ children }) => {
             sendMessage({ type: 'pong' });
           }
         } catch (error) {
-          
+          // Message parse error handled silently
         }
       };
 
       wsRef.current.onclose = () => {
-        
         setIsConnected(false);
         wsRef.current = null;
 
@@ -176,10 +175,10 @@ export const WebSocketProvider = ({ children }) => {
       };
 
       wsRef.current.onerror = (error) => {
-        
+        // WebSocket error handled silently
       };
     } catch (error) {
-      
+      // Connection error handled silently
     }
   }, [user, subscriptions, subscribe, sendMessage]);
 

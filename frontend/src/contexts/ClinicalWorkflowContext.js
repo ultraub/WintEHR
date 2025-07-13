@@ -94,7 +94,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
           try {
             await listener(data);
           } catch (error) {
-            console.warn('Error in event listener:', error);
+            // Error in event listener
           }
         }
         

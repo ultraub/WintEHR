@@ -111,7 +111,7 @@ const RefillRequestDialog = ({ open, onClose, medicationRequest, onSubmit }) => 
       });
       onClose();
     } catch (error) {
-      console.error('Error submitting refill request:', error);
+      // Failed to submit refill request
     } finally {
       setLoading(false);
     }
@@ -211,7 +211,7 @@ const RefillHistory = ({ medicationRequestId }) => {
         setHistory(historyData);
         setAdherence(adherenceData);
       } catch (error) {
-        console.error('Error fetching refill history:', error);
+        // Failed to fetch refill history
       } finally {
         setLoading(false);
       }
@@ -431,14 +431,14 @@ const RefillManagement = ({ patientId, medications = [], onRefresh }) => {
             const eligibility = await prescriptionRefillService.checkRefillEligibility(med.id);
             eligibilityMap.set(med.id, eligibility);
           } catch (error) {
-            console.error(`Error checking eligibility for ${med.id}:`, error);
+            // Skip failed eligibility check
           }
         })
       );
       setEligibilityData(eligibilityMap);
 
     } catch (error) {
-      console.error('Error loading refill data:', error);
+      // Failed to load refill data
     } finally {
       setLoading(false);
     }
@@ -474,7 +474,6 @@ const RefillManagement = ({ patientId, medications = [], onRefresh }) => {
       setSelectedMedication(null);
 
     } catch (error) {
-      console.error('Error creating refill request:', error);
       throw error;
     }
   };

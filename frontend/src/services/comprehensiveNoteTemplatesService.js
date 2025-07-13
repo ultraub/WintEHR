@@ -131,7 +131,6 @@ export class ComprehensiveNoteTemplatesService {
       return comprehensiveData;
 
     } catch (error) {
-      console.error('Error fetching comprehensive patient data:', error);
       return null;
     }
   }

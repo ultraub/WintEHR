@@ -89,7 +89,7 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
 
       setResults(filteredResults);
     } catch (error) {
-      console.error('Failed to load results:', error);
+      // Handle error silently or add proper error handling here
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
       // Reload results
       loadResults();
     } catch (error) {
-      console.error('Failed to acknowledge result:', error);
+      // Handle error silently or add proper error handling here
     }
   };
 
@@ -146,7 +146,7 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
       setSelectedResults([]);
       loadResults();
     } catch (error) {
-      console.error('Failed to batch acknowledge results:', error);
+      // Handle error silently or add proper error handling here
     } finally {
       setAcknowledgingBatch(false);
     }

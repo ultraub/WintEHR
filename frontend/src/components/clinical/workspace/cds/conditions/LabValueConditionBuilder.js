@@ -101,7 +101,6 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
         }));
         setLabOptions(formatted);
       } catch (error) {
-        console.error('Error loading dynamic lab catalog:', error);
         throw new Error(`Failed to load lab catalog: ${error.message}`);
       } finally {
         setSearching(false);
@@ -126,7 +125,6 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
 
       setLabOptions(formatted);
     } catch (error) {
-      console.error('Error searching lab tests:', error);
       throw new Error(`Failed to search lab tests: ${error.message}`);
     } finally {
       setSearching(false);

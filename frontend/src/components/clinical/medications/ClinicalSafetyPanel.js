@@ -121,7 +121,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
         });
       }
     } catch (error) {
-      console.error('Error running safety verification:', error);
+      // Error running safety verification - handle gracefully
     } finally {
       setLoading(false);
       // Remove from active requests
