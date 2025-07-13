@@ -65,90 +65,118 @@ class DocumentReferenceConverter:
         else:
             content_data = 'Empty document content'
         
-        # Prepare content string
+        # Prepare content string and detect format
         if isinstance(content_data, dict):
             content_str = json.dumps(content_data)
             attachment_content_type = "application/json"
         else:
             content_str = str(content_data)
-            attachment_content_type = "text/plain"
+            # Check if string content is actually JSON
+            try:
+                parsed_test = json.loads(content_str)
+                if isinstance(parsed_test, dict):
+                    attachment_content_type = "application/json"
+                else:
+                    attachment_content_type = "text/plain"
+            except (json.JSONDecodeError, ValueError):
+                attachment_content_type = "text/plain"
         
         # Base64 encode the content
         encoded_content = base64.b64encode(content_str.encode('utf-8')).decode('utf-8')
         
-        # Build DocumentReference with required fields
-        doc_ref = DocumentReference(
-            status=data.get('status', 'current'),
-            content=[DocumentReferenceContent(
-                attachment=Attachment(
-                    contentType=attachment_content_type,
-                    data=encoded_content,
-                    title=data.get('title', f"{note_type.replace('_', ' ').title()} Note"),
-                    creation=data.get('createdAt', datetime.now().isoformat())
-                )
-            )]
-        )
+        # Build DocumentReference with required fields using dict constructor
+        doc_ref_dict = {
+            "resourceType": "DocumentReference",
+            "status": data.get('status', 'current'),
+            "content": [
+                {
+                    "attachment": {
+                        "contentType": attachment_content_type,
+                        "data": encoded_content,
+                        "title": data.get('title', f"{note_type.replace('_', ' ').title()} Note"),
+                        "creation": data.get('createdAt', datetime.now().isoformat())
+                    }
+                }
+            ]
+        }
         
-        # Type
-        doc_ref.type = CodeableConcept(
-            coding=[Coding(
-                system="http://loinc.org",
-                code=type_info['code'],
-                display=type_info['display']
-            )]
-        )
+        # Add Type (required)
+        doc_ref_dict["type"] = {
+            "coding": [
+                {
+                    "system": "http://loinc.org",
+                    "code": type_info['code'],
+                    "display": type_info['display']
+                }
+            ]
+        }
         
-        # Category
-        doc_ref.category = [CodeableConcept(
-            coding=[Coding(
-                system="http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
-                code="clinical-note",
-                display="Clinical Note"
-            )]
-        )]
+        # Add Category (required for US Core)
+        doc_ref_dict["category"] = [
+            {
+                "coding": [
+                    {
+                        "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
+                        "code": "clinical-note",
+                        "display": "Clinical Note"
+                    }
+                ]
+            }
+        ]
         
         # Subject (Patient) - required field
         patient_id = data.get('patientId')
         if patient_id:
-            doc_ref.subject = Reference(reference=f"Patient/{patient_id}")
+            doc_ref_dict["subject"] = {"reference": f"Patient/{patient_id}"}
         else:
             # FHIR requires subject, use placeholder if not provided
-            doc_ref.subject = Reference(reference="Patient/unknown")
+            doc_ref_dict["subject"] = {"reference": "Patient/unknown"}
         
-        # Encounter
+        # Context (optional) - includes encounter references
         if data.get('encounterId'):
-            doc_ref.encounter = Reference(reference=f"Encounter/{data['encounterId']}")
+            doc_ref_dict["context"] = [{"reference": f"Encounter/{data['encounterId']}"}]
         
-        # Date
-        doc_ref.date = data.get('createdAt', datetime.now().isoformat())
+        # Date (required) - format as FHIR instant
+        created_at = data.get('createdAt')
+        if created_at:
+            # Ensure proper FHIR instant format
+            if isinstance(created_at, str):
+                doc_ref_dict["date"] = created_at
+            else:
+                doc_ref_dict["date"] = created_at.isoformat() + 'Z'
+        else:
+            doc_ref_dict["date"] = datetime.now().isoformat() + 'Z'
         
         # Author - handle both frontend 'authorId' and backend 'createdBy' fields
         author_id = data.get('authorId', data.get('createdBy'))
         if author_id:
-            doc_ref.author = [Reference(reference=f"Practitioner/{author_id}")]
-        
-        # Content was already set during DocumentReference creation
+            doc_ref_dict["author"] = [{"reference": f"Practitioner/{author_id}"}]
         
         # Identifiers
         if data.get('id'):
-            doc_ref.identifier = [Identifier()]
-            doc_ref.identifier[0].system = "http://medgenemr.com/documentreference"
-            doc_ref.identifier[0].value = str(data['id'])
+            doc_ref_dict["identifier"] = [
+                {
+                    "system": "http://medgenemr.com/documentreference",
+                    "value": str(data['id'])
+                }
+            ]
         
         # Document status - handle signNote from frontend
         if data.get('docStatus'):
-            doc_ref.docStatus = data['docStatus']
+            doc_ref_dict["docStatus"] = data['docStatus']
         elif data.get('signNote'):
-            doc_ref.docStatus = 'final'
+            doc_ref_dict["docStatus"] = 'final'
         elif data.get('status') == 'final':
-            doc_ref.docStatus = 'final'
+            doc_ref_dict["docStatus"] = 'final'
         else:
-            doc_ref.docStatus = 'preliminary'
+            doc_ref_dict["docStatus"] = 'preliminary'
         
         # Additional metadata
         if data.get('description'):
-            doc_ref.description = data['description']
+            doc_ref_dict["description"] = data['description']
         
+        # Create DocumentReference from complete dict
+        doc_ref = DocumentReference(**doc_ref_dict)
         return doc_ref
     
     @staticmethod
@@ -252,8 +280,11 @@ class DocumentReferenceConverter:
         if doc_ref.subject and doc_ref.subject.reference:
             data['patientId'] = doc_ref.subject.reference.split('/')[-1]
         
-        if doc_ref.encounter and doc_ref.encounter.reference:
-            data['encounterId'] = doc_ref.encounter.reference.split('/')[-1]
+        if doc_ref.context:
+            for context_ref in doc_ref.context:
+                if context_ref.reference and 'Encounter/' in context_ref.reference:
+                    data['encounterId'] = context_ref.reference.split('/')[-1]
+                    break
         
         if doc_ref.author and doc_ref.author[0].reference:
             author_id = doc_ref.author[0].reference.split('/')[-1]

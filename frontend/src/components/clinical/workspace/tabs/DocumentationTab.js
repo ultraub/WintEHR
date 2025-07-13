@@ -285,6 +285,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
     type: 'progress',
     title: '',
     content: '',
+    contentType: 'text', // 'text' or 'soap'
     sections: {
       subjective: '',
       objective: '',
@@ -304,6 +305,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
         type: formData.type,
         title: formData.title,
         content: formData.content,
+        contentType: formData.contentType,
         sections: formData.soapSections
       });
     } else if (!note && open) {
@@ -313,6 +315,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
         type: initialValues.type,
         title: initialValues.title,
         content: initialValues.content,
+        contentType: initialValues.contentType,
         sections: initialValues.soapSections
       });
     }
@@ -434,8 +437,30 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
             value={noteData.title}
             onChange={(e) => setNoteData({ ...noteData, title: e.target.value })}
           />
+          
+          <FormControl fullWidth>
+            <InputLabel>Content Format</InputLabel>
+            <Select
+              value={noteData.contentType}
+              onChange={(e) => setNoteData({ ...noteData, contentType: e.target.value })}
+              label="Content Format"
+            >
+              <MenuItem value="text">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <NoteIcon />
+                  <span>Plain Text</span>
+                </Stack>
+              </MenuItem>
+              <MenuItem value="soap">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SOAPIcon />
+                  <span>SOAP Format</span>
+                </Stack>
+              </MenuItem>
+            </Select>
+          </FormControl>
 
-          {noteData.type === 'soap' ? (
+          {noteData.contentType === 'soap' ? (
             <>
               <TextField
                 fullWidth

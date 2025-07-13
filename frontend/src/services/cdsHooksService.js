@@ -6,7 +6,10 @@ import axios from 'axios';
 
 class CDSHooksService {
   constructor() {
-    this.baseUrl = '/cds-hooks';
+    // Use the backend URL directly since the CDS Hooks API doesn't go through the frontend proxy
+    this.baseUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:8000/cds-hooks'
+      : '/api/cds-hooks';
   }
 
   /**
