@@ -26,7 +26,7 @@ import {
   SEVERITY_OPTIONS,
   getStatusColor,
   getProblemDisplay
-} from '../config/conditionDialogConfig';
+} from '../../../../utils/fhir/ConditionConverter';
 
 const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   // Use catalog-enhanced condition search hook
