@@ -2,7 +2,7 @@
  * Workflow Validation Panel
  * Displays medication workflow validation results and data consistency checks
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Card,
@@ -62,24 +62,57 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
   const [autoFixing, setAutoFixing] = useState(false);
   const [lastValidation, setLastValidation] = useState(null);
 
+  // Memoize medication IDs to prevent unnecessary re-validation when array reference changes
+  const medicationIds = useMemo(() => {
+    return medications?.map(med => med.id).sort().join(',') || '';
+  }, [medications]);
+
+  // Add validation cache to prevent repeated requests - using useRef to persist across React StrictMode
+  const validationCache = useRef(new Map());
+
   useEffect(() => {
     if (patientId && medications.length > 0) {
-      runValidation();
+      // Create cache key based on patient and medication IDs
+      const cacheKey = `${patientId}-${medicationIds}`;
+      
+      // Check if we already have recent validation for this combination
+      const cached = validationCache.current.get(cacheKey);
+      const now = Date.now();
+      const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+      
+      if (cached && (now - cached.timestamp < cacheTimeout)) {
+        setValidationReport(cached.report);
+        setLastValidation(cached.date);
+        return;
+      }
+      
+      runValidation(cacheKey);
     }
-  }, [patientId, medications]);
+  }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
-  const runValidation = async () => {
+  const runValidation = useCallback(async (cacheKey = null) => {
     setLoading(true);
     try {
       const report = await medicationWorkflowValidator.validatePatientMedicationWorkflow(patientId);
+      const validationDate = new Date();
+      
       setValidationReport(report);
-      setLastValidation(new Date());
+      setLastValidation(validationDate);
+      
+      // Cache the result if cache key provided
+      if (cacheKey) {
+        validationCache.current.set(cacheKey, {
+          report,
+          date: validationDate,
+          timestamp: Date.now()
+        });
+      }
     } catch (error) {
       console.error('Error running workflow validation:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId]);
 
   const handleAutoFix = async () => {
     if (!validationReport) return;
@@ -89,7 +122,6 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
       const fixResults = await medicationWorkflowValidator.autoFixConsistencyIssues(validationReport);
       
       // Show fix results and re-run validation
-      console.log('Auto-fix results:', fixResults);
       await runValidation();
       
       if (onRefresh) {

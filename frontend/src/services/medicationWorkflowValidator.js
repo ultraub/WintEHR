@@ -174,9 +174,11 @@ class MedicationWorkflowValidator {
 
   /**
    * Gather all medication-related data for a patient
+   * NOTE: Uses defensive programming to handle missing FHIR resource types
    */
   async gatherMedicationData(patientId) {
     try {
+
       const [
         medicationsResponse,
         dispensesResponse,

@@ -2,7 +2,7 @@
  * Effectiveness Monitoring Panel
  * Displays medication effectiveness alerts and assessment prompts
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Card,
@@ -58,13 +58,35 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
 
   const { getMedicationDisplay } = useMedicationResolver(medications?.filter(med => med != null) || []);
 
+  // Memoize medication IDs to prevent unnecessary re-loading when array reference changes
+  const medicationIds = useMemo(() => {
+    return medications?.map(med => med.id).sort().join(',') || '';
+  }, [medications]);
+
+  // Add effectiveness data cache to prevent repeated requests - using useRef to persist across React StrictMode
+  const effectivenessCache = useRef(new Map());
+
   useEffect(() => {
     if (patientId && medications.length > 0) {
-      loadEffectivenessData();
+      // Create cache key based on patient and medication IDs
+      const cacheKey = `${patientId}-${medicationIds}`;
+      
+      // Check if we already have recent effectiveness data for this combination
+      const cached = effectivenessCache.current.get(cacheKey);
+      const now = Date.now();
+      const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+      
+      if (cached && (now - cached.timestamp < cacheTimeout)) {
+        setAlerts(cached.alerts);
+        setEffectivenessPrompts(cached.prompts);
+        return;
+      }
+      
+      loadEffectivenessData(cacheKey);
     }
-  }, [patientId, medications]);
+  }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
-  const loadEffectivenessData = async () => {
+  const loadEffectivenessData = useCallback(async (cacheKey = null) => {
     setLoading(true);
     try {
       // Load effectiveness alerts
@@ -87,12 +109,21 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       );
       setEffectivenessPrompts(promptsMap);
 
+      // Cache the result if cache key provided
+      if (cacheKey) {
+        effectivenessCache.current.set(cacheKey, {
+          alerts: effectivenessAlerts,
+          prompts: promptsMap,
+          timestamp: Date.now()
+        });
+      }
+
     } catch (error) {
       console.error('Error loading effectiveness data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, medications]);
 
   const handleStartAssessment = async (medication) => {
     try {
@@ -223,14 +254,14 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                     <ListItemText
                       primary={alert.message}
                       secondary={
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
+                        <span>
+                          <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                             {alert.type === 'effectiveness-assessment-overdue' && 
                               `${alert.daysOverdue} days overdue • ${alert.overdueActivities} activities`}
                             {alert.type === 'effectiveness-assessment-stale' && 
                               `${alert.daysSinceLastAssessment} days since last assessment`}
-                          </Typography>
-                        </Box>
+                          </span>
+                        </span>
                       }
                     />
                     <ListItemSecondaryAction>
@@ -298,29 +329,37 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                             </Stack>
                           }
                           secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
+                            <span>
+                              <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                 {prompts.daysSinceStart} days since start • 
                                 {nextAssessment && (
                                   isOverdue ? 
                                     ` ${Math.abs(daysUntilDue)} days overdue` :
                                     ` Due in ${daysUntilDue} days (${format(nextAssessment, 'MMM d')})`
                                 )}
-                              </Typography>
+                              </span>
                               {prompts.targetConditions && (
-                                <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                                <span style={{ display: 'block', marginTop: '4px' }}>
                                   {prompts.targetConditions.map((condition, index) => (
-                                    <Chip 
+                                    <span 
                                       key={index}
-                                      label={condition}
-                                      variant="outlined"
-                                      size="small"
-                                      sx={{ fontSize: '0.7rem', height: 20 }}
-                                    />
+                                      style={{
+                                        display: 'inline-block',
+                                        fontSize: '0.7rem',
+                                        padding: '2px 6px',
+                                        margin: '0 2px',
+                                        border: '1px solid rgba(0, 0, 0, 0.23)',
+                                        borderRadius: '12px',
+                                        backgroundColor: 'transparent',
+                                        color: 'rgba(0, 0, 0, 0.6)'
+                                      }}
+                                    >
+                                      {condition}
+                                    </span>
                                   ))}
-                                </Stack>
+                                </span>
                               )}
-                            </Box>
+                            </span>
                           }
                         />
                         <ListItemSecondaryAction>
@@ -349,19 +388,13 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                               </Typography>
                             }
                             secondary={
-                              <List dense>
+                              <span>
                                 {prompts.recommendations.map((rec, index) => (
-                                  <ListItem key={index} sx={{ pl: 0, py: 0 }}>
-                                    <ListItemText
-                                      primary={
-                                        <Typography variant="caption">
-                                          • {rec}
-                                        </Typography>
-                                      }
-                                    />
-                                  </ListItem>
+                                  <span key={index} style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                                    • {rec}
+                                  </span>
                                 ))}
-                              </List>
+                              </span>
                             }
                           />
                         </ListItem>

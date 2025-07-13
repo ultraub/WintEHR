@@ -423,7 +423,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       setShowReconciliationDialog(false);
       
       // Log summary for debugging
-      console.log(`Medication reconciliation completed: ${successfulChanges.length} successful, ${failedChanges.length} failed`);
       
       // Medication reconciliation completed successfully
     } catch (error) {
@@ -457,7 +456,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       setSelectedMedication(null);
       
       // Log success
-      console.log(`Medication discontinued successfully: ${result.originalRequest.medicationCodeableConcept?.text}`);
       
     } catch (error) {
       console.error('Error discontinuing medication:', error);

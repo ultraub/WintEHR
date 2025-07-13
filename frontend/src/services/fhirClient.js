@@ -41,7 +41,6 @@ class FHIRClient {
     try {
       const response = await this.httpClient.get('/metadata');
       this.capabilities = response.data;
-      console.log('FHIR Capabilities discovered:', this.capabilities);
       return this.capabilities;
     } catch (error) {
       console.warn('Could not discover FHIR server capabilities:', error.message);
@@ -105,7 +104,6 @@ class FHIRClient {
       ];
       
       if (commonResources.includes(resourceType)) {
-        console.log(`Assuming common FHIR resource ${resourceType} is supported`);
         return true;
       }
     }
@@ -192,17 +190,34 @@ class FHIRClient {
    * Search for resources
    */
   async search(resourceType, params = {}) {
-    const response = await this.httpClient.get(`/${resourceType}`, { params });
-    
-    // Extract resources from bundle
-    const bundle = response.data;
-    const resources = bundle.entry?.map(entry => entry.resource) || [];
-    
-    return {
-      resources,
-      total: bundle.total || resources.length,
-      bundle
-    };
+    try {
+      const response = await this.httpClient.get(`/${resourceType}`, { params });
+      
+      // Extract resources from bundle
+      const bundle = response.data;
+      const resources = bundle.entry?.map(entry => entry.resource) || [];
+      
+      return {
+        resources,
+        total: bundle.total || resources.length,
+        bundle
+      };
+    } catch (error) {
+      // Handle 404 errors for known missing resource types gracefully
+      if (error.response?.status === 404) {
+        const missingResourceTypes = ['List', 'MedicationDispense', 'Basic'];
+        if (missingResourceTypes.includes(resourceType)) {
+          console.warn(`Resource type ${resourceType} not supported by server - using empty result`);
+          return {
+            resources: [],
+            total: 0,
+            bundle: { resourceType: 'Bundle', entry: [] }
+          };
+        }
+      }
+      // Re-throw the error for other resource types or non-404 errors
+      throw error;
+    }
   }
 
   /**

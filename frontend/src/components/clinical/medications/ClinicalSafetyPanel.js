@@ -2,7 +2,7 @@
  * Clinical Safety Panel
  * Displays comprehensive clinical safety verification results
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Card,
@@ -64,24 +64,57 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
   const [expanded, setExpanded] = useState(false);
   const [lastVerification, setLastVerification] = useState(null);
 
+  // Memoize medication IDs to prevent unnecessary re-verification when array reference changes
+  const medicationIds = useMemo(() => {
+    return medications?.map(med => med.id).sort().join(',') || '';
+  }, [medications]);
+
+  // Add verification cache to prevent repeated requests - using useRef to persist across React StrictMode
+  const verificationCache = useRef(new Map());
+
   useEffect(() => {
     if (patientId && medications.length > 0) {
-      runSafetyVerification();
+      // Create cache key based on patient and medication IDs
+      const cacheKey = `${patientId}-${medicationIds}`;
+      
+      // Check if we already have recent verification for this combination
+      const cached = verificationCache.current.get(cacheKey);
+      const now = Date.now();
+      const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+      
+      if (cached && (now - cached.timestamp < cacheTimeout)) {
+        setSafetyReport(cached.report);
+        setLastVerification(cached.date);
+        return;
+      }
+      
+      runSafetyVerification(cacheKey);
     }
-  }, [patientId, medications]);
+  }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
-  const runSafetyVerification = async () => {
+  const runSafetyVerification = useCallback(async (cacheKey = null) => {
     setLoading(true);
     try {
       const report = await clinicalSafetyVerifier.performSafetyVerification(patientId);
+      const verificationDate = new Date();
+      
       setSafetyReport(report);
-      setLastVerification(new Date());
+      setLastVerification(verificationDate);
+      
+      // Cache the result if cache key provided
+      if (cacheKey) {
+        verificationCache.current.set(cacheKey, {
+          report,
+          date: verificationDate,
+          timestamp: Date.now()
+        });
+      }
     } catch (error) {
       console.error('Error running safety verification:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId]);
 
   const getRiskLevelColor = (riskLevel) => {
     switch (riskLevel) {
@@ -403,16 +436,16 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                           <ListItemText
                             primary={issue.message}
                             secondary={
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">
+                              <span>
+                                <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                   Type: {issue.type}
-                                </Typography>
+                                </span>
                                 {issue.medicationName && (
-                                  <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)', marginLeft: '16px' }}>
                                     • Medication: {issue.medicationName}
-                                  </Typography>
+                                  </span>
                                 )}
-                              </Box>
+                              </span>
                             }
                           />
                           <ListItemSecondaryAction>

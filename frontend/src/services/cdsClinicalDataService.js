@@ -16,7 +16,6 @@ class CDSClinicalDataService {
       ? `${process.env.REACT_APP_BACKEND_URL}/api/clinical`
       : (process.env.NODE_ENV === 'development' ? `${backendHost}/api/clinical` : '/api/clinical');
     
-    console.log('🔧 CDSClinicalDataService initialized with baseUrl:', this.baseUrl);
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
     

@@ -771,7 +771,350 @@ class ClinicalSafetyVerifier {
     return Math.random() > 0.6; // Placeholder
   }
 
-  // Additional helper methods would be implemented based on specific clinical requirements
+  /**
+   * Check dosage safety for a medication and patient
+   * @param {Object} medication - FHIR MedicationRequest
+   * @param {Object} patient - FHIR Patient resource
+   * @returns {Object|null} Safety issue if found, null if safe
+   */
+  checkDosageSafety(medication, patient) {
+    if (!medication.dosageInstruction || medication.dosageInstruction.length === 0) {
+      return null;
+    }
+
+    const dosage = medication.dosageInstruction[0];
+    if (!dosage.doseAndRate || dosage.doseAndRate.length === 0) {
+      return null;
+    }
+
+    const dose = dosage.doseAndRate[0];
+    const medicationCode = medication.medicationCodeableConcept?.coding?.[0]?.code;
+    
+    // Calculate patient age for age-based dosing
+    const patientAge = patient.birthDate ? 
+      Math.floor((new Date() - new Date(patient.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+
+    // Define maximum safe doses for common medications (mg/kg/day or absolute max)
+    const maxSafeDoses = {
+      // Common pain medications
+      '161': { maxDaily: 4000, unit: 'mg', name: 'Acetaminophen' }, // Acetaminophen
+      '1191': { maxDaily: 3200, unit: 'mg', name: 'Aspirin' }, // Aspirin
+      '5640': { maxDaily: 800, maxSingle: 200, unit: 'mg', name: 'Ibuprofen' }, // Ibuprofen
+      
+      // Common antibiotics
+      '723': { maxDaily: 100, unit: 'mg/kg', name: 'Amoxicillin' }, // Amoxicillin
+      '2670': { maxDaily: 40, unit: 'mg/kg', name: 'Cephalexin' }, // Cephalexin
+      
+      // Cardiovascular medications
+      '18867': { maxDaily: 80, unit: 'mg', name: 'Atorvastatin' }, // Atorvastatin
+      '29046': { maxDaily: 40, unit: 'mg', name: 'Lisinopril' }, // Lisinopril
+      
+      // Default safety thresholds for unknown medications
+      'default': { maxDaily: 1000, unit: 'mg' }
+    };
+
+    const safetyProfile = maxSafeDoses[medicationCode] || maxSafeDoses['default'];
+    
+    // Extract dose quantity and frequency
+    let dailyDose = 0;
+    let singleDose = 0;
+    
+    if (dose.doseQuantity) {
+      singleDose = dose.doseQuantity.value || 0;
+      const frequency = dosage.timing?.repeat?.frequency || 1;
+      const period = dosage.timing?.repeat?.period || 1;
+      const periodUnit = dosage.timing?.repeat?.periodUnit || 'd';
+      
+      // Calculate daily dose
+      let dailyFrequency = frequency / period;
+      if (periodUnit === 'h') {
+        dailyFrequency = frequency * (24 / period);
+      } else if (periodUnit === 'wk') {
+        dailyFrequency = frequency / (period * 7);
+      }
+      
+      dailyDose = singleDose * dailyFrequency;
+    }
+
+    // Check maximum daily dose
+    if (safetyProfile.maxDaily && dailyDose > safetyProfile.maxDaily) {
+      return {
+        message: `Daily dose ${dailyDose}${safetyProfile.unit} exceeds maximum safe dose ${safetyProfile.maxDaily}${safetyProfile.unit} for ${safetyProfile.name}`,
+        risk: 'critical',
+        currentDose: dailyDose,
+        maxSafeDose: safetyProfile.maxDaily,
+        unit: safetyProfile.unit
+      };
+    }
+
+    // Check maximum single dose
+    if (safetyProfile.maxSingle && singleDose > safetyProfile.maxSingle) {
+      return {
+        message: `Single dose ${singleDose}${safetyProfile.unit} exceeds maximum safe single dose ${safetyProfile.maxSingle}${safetyProfile.unit} for ${safetyProfile.name}`,
+        risk: 'high',
+        currentDose: singleDose,
+        maxSafeDose: safetyProfile.maxSingle,
+        unit: safetyProfile.unit
+      };
+    }
+
+    // Age-specific dosing warnings
+    if (patientAge) {
+      if (patientAge >= 65 && ['5640', '1191'].includes(medicationCode)) {
+        // NSAIDs in elderly
+        return {
+          message: `${safetyProfile.name} requires caution in patients ≥65 years due to increased GI and CV risks`,
+          risk: 'medium',
+          ageRelated: true
+        };
+      }
+      
+      if (patientAge < 18 && medicationCode === '1191') {
+        // Aspirin in children (Reye's syndrome risk)
+        return {
+          message: 'Aspirin should be avoided in patients <18 years due to Reye\'s syndrome risk',
+          risk: 'critical',
+          ageRelated: true
+        };
+      }
+    }
+
+    return null; // Dose appears safe
+  }
+
+  /**
+   * Check if medication requires duration specification
+   * @param {Object} medication - FHIR MedicationRequest
+   * @returns {boolean} True if duration is required
+   */
+  requiresDuration(medication) {
+    const medicationCode = medication.medicationCodeableConcept?.coding?.[0]?.code;
+    
+    // Medications that require duration specification
+    const requiresDurationCodes = [
+      // Antibiotics (must have defined treatment duration)
+      '723', '2670', '7984', '18631', // Amoxicillin, Cephalexin, Azithromycin, Clindamycin
+      
+      // Corticosteroids (require tapering schedule)
+      '5492', '6918', '202991', // Prednisone, Prednisolone, Methylprednisolone
+      
+      // Controlled substances (must have defined duration)
+      '7052', '7804', '161', // Oxycodone, Tramadol, Acetaminophen w/ codeine
+      
+      // Anticoagulants (require monitoring duration)
+      '11289', '32968', // Warfarin, Rivaroxaban
+      
+      // Proton pump inhibitors (should not be indefinite without indication)
+      '7646', '40790', '54577' // Omeprazole, Pantoprazole, Esomeprazole
+    ];
+
+    return requiresDurationCodes.includes(medicationCode);
+  }
+
+  /**
+   * Get refill history for a medication
+   * @param {string} medicationId - FHIR MedicationRequest ID
+   * @returns {Object} Refill history data
+   */
+  async getRefillHistory(medicationId) {
+    try {
+      // This would typically query MedicationDispense resources
+      // Since MedicationDispense is not available, simulate based on MedicationRequest
+      const medication = await fhirClient.read('MedicationRequest', medicationId);
+      
+      if (!medication) {
+        return {
+          refillsUsed: 0,
+          refillsAllowed: medication?.dispenseRequest?.numberOfRepeatsAllowed || 0,
+          lastRefillDate: null,
+          adherenceEstimate: null
+        };
+      }
+
+      const refillsAllowed = medication.dispenseRequest?.numberOfRepeatsAllowed || 0;
+      const authoredDate = new Date(medication.authoredOn);
+      const daysSinceAuthor = Math.floor((new Date() - authoredDate) / (24 * 60 * 60 * 1000));
+      
+      // Estimate refills used based on days supply and time elapsed
+      const daysSupply = medication.dispenseRequest?.expectedSupplyDuration?.value || 30;
+      const estimatedRefillsUsed = Math.max(0, Math.floor(daysSinceAuthor / daysSupply) - 1);
+      
+      // Calculate adherence estimate (simplified)
+      const expectedRefills = Math.floor(daysSinceAuthor / daysSupply);
+      const adherenceEstimate = expectedRefills > 0 ? 
+        Math.min(1.0, estimatedRefillsUsed / expectedRefills) : 1.0;
+
+      return {
+        refillsUsed: Math.min(estimatedRefillsUsed, refillsAllowed),
+        refillsAllowed,
+        lastRefillDate: estimatedRefillsUsed > 0 ? 
+          new Date(authoredDate.getTime() + (estimatedRefillsUsed * daysSupply * 24 * 60 * 60 * 1000)).toISOString() : 
+          null,
+        adherenceEstimate,
+        daysSupply,
+        daysSinceAuthor
+      };
+    } catch (error) {
+      console.warn('Error getting refill history:', error);
+      return {
+        refillsUsed: 0,
+        refillsAllowed: 0,
+        lastRefillDate: null,
+        adherenceEstimate: null
+      };
+    }
+  }
+
+  /**
+   * Check if medication requires adverse effect monitoring
+   * @param {Object} medication - FHIR MedicationRequest
+   * @returns {boolean} True if monitoring is required
+   */
+  requiresAdverseEffectMonitoring(medication) {
+    const medicationCode = medication.medicationCodeableConcept?.coding?.[0]?.code;
+    
+    // Medications that require adverse effect monitoring
+    const monitoringRequiredCodes = [
+      // Cardiovascular medications
+      '18867', '36567', '83367', // Atorvastatin, Simvastatin, Rosuvastatin (liver function)
+      '29046', '50166', '18998', // Lisinopril, Enalapril, Captopril (kidney function, hyperkalemia)
+      '11289', '32968', '110942', // Warfarin, Rivaroxaban, Apixaban (bleeding)
+      
+      // Diabetes medications
+      '6809', '60548', '274783', // Metformin (lactic acidosis), Glyburide (hypoglycemia), Insulin
+      
+      // Psychiatric medications
+      '115698', '2556', '6929', // Sertraline, Fluoxetine, Lithium (mood, suicidality)
+      
+      // Antibiotics with serious adverse effects
+      '18631', '2551', '10395', // Clindamycin (C. diff), Fluoroquinolones (tendon rupture)
+      
+      // Chemotherapy and immunosuppressants
+      '6851', '42316', // Methotrexate, Azathioprine (bone marrow suppression)
+      
+      // Anticonvulsants
+      '28439', '25480', '2002', // Phenytoin, Carbamazepine, Valproic acid (hepatotoxicity)
+      
+      // Corticosteroids (long-term)
+      '5492', '6918', // Prednisone, Prednisolone (bone density, glucose, infections)
+      
+      // NSAIDs (long-term)
+      '5640', '3355', '4815' // Ibuprofen, Naproxen, Celecoxib (GI, renal, CV)
+    ];
+
+    return monitoringRequiredCodes.includes(medicationCode);
+  }
+
+  /**
+   * Check if duration is specified for a medication
+   * @param {Object} medication - FHIR MedicationRequest
+   * @returns {boolean} True if duration is specified
+   */
+  hasDurationSpecified(medication) {
+    return medication.dosageInstruction?.some(dosage => 
+      dosage.timing?.repeat?.boundsDuration ||
+      dosage.timing?.repeat?.boundsRange ||
+      dosage.timing?.repeat?.boundsPeriod ||
+      dosage.timing?.repeat?.count ||
+      dosage.timing?.repeat?.countMax
+    ) || false;
+  }
+
+  /**
+   * Check if patient has early refill pattern
+   */
+  hasEarlyRefillPattern(refillHistory) {
+    if (!refillHistory || !refillHistory.refills || refillHistory.refills.length < 3) {
+      return false;
+    }
+
+    // Look for pattern of refills requested before 75% of days supply is reached
+    let earlyRefillCount = 0;
+    for (const refill of refillHistory.refills) {
+      const daysSinceLastFill = refill.daysSinceLastFill || 0;
+      const expectedDays = refill.daysSupply || 30;
+      
+      if (daysSinceLastFill < (expectedDays * 0.75)) {
+        earlyRefillCount++;
+      }
+    }
+
+    // Flag if more than 50% of refills are early
+    return earlyRefillCount / refillHistory.refills.length > 0.5;
+  }
+
+  /**
+   * Check if medication requires follow-up after discontinuation
+   */
+  requiresFollowUpAfterDiscontinuation(medication, discontinuationData) {
+    const medicationName = medication.medicationCodeableConcept?.text?.toLowerCase() || '';
+    
+    // Medications that require post-discontinuation monitoring
+    const followUpRequired = [
+      'warfarin', 'coumadin', 'phenytoin', 'dilantin', 'lithium',
+      'digoxin', 'amiodarone', 'methotrexate', 'carbamazepine',
+      'valproic acid', 'tacrolimus', 'cyclosporine'
+    ];
+
+    const requiresFollowUp = followUpRequired.some(med => medicationName.includes(med));
+    
+    // Also check if discontinuation was due to adverse effects
+    const adverseDiscontinuation = discontinuationData?.reason?.toLowerCase().includes('adverse') ||
+                                 discontinuationData?.reason?.toLowerCase().includes('side effect');
+
+    return requiresFollowUp || adverseDiscontinuation;
+  }
+
+  /**
+   * Check if patient has post-discontinuation follow-up documented
+   */
+  async hasPostDiscontinuationFollowUp(medicationId) {
+    try {
+      // In a real implementation, this would check for follow-up appointments or lab orders
+      // For now, return false to indicate follow-up may be needed
+      return false;
+    } catch (error) {
+      console.warn('Error checking post-discontinuation follow-up:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if adverse effect tracking is documented for medication
+   */
+  async hasAdverseEffectTracking(medicationId) {
+    try {
+      // In a real implementation, this would check for documented adverse effect monitoring
+      // Check for Observation resources related to adverse effects
+      return false; // Conservative approach - assume no tracking unless documented
+    } catch (error) {
+      console.warn('Error checking adverse effect tracking:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if medication requires patient education
+   */
+  requiresPatientEducation(medication) {
+    const medicationName = medication.medicationCodeableConcept?.text?.toLowerCase() || '';
+    
+    // Medications that require specific patient education
+    const educationRequired = [
+      'warfarin', 'insulin', 'metformin', 'lithium', 'phenytoin',
+      'carbamazepine', 'valproic acid', 'amiodarone', 'digoxin',
+      'methotrexate', 'prednisone', 'prednisolone', 'inhaler',
+      'nitroglycerin', 'epinephrine', 'epipen'
+    ];
+
+    // Check if this is a controlled substance (also requires education)
+    const isControlled = this.isControlledSubstance(medication);
+    
+    // Check if medication name contains any education-required medications
+    const requiresEducation = educationRequired.some(med => medicationName.includes(med));
+    
+    return requiresEducation || isControlled;
+  }
 
   clearCache(patientId = null) {
     if (patientId) {

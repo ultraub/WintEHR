@@ -13,6 +13,7 @@ class MedicationListManagementService {
     this.autoUpdateEnabled = true;
   }
 
+
   /**
    * List types for medication management
    */

@@ -41,7 +41,6 @@ class CDSHooksClient {
     // Check if there's already an in-flight request for service discovery
     const inFlightKey = 'discover-services';
     if (this.inFlightRequests.has(inFlightKey)) {
-      console.log('♻️ CDS Services discovery already in progress, waiting...');
       return this.inFlightRequests.get(inFlightKey);
     }
 
@@ -51,20 +50,17 @@ class CDSHooksClient {
         const response = await this.httpClient.get('/cds-services');
         this.servicesCache = response.data.services || [];
         this.servicesCacheTime = now;
-        console.log(`✅ CDS Services loaded: ${this.servicesCache.length} services found`);
         return this.servicesCache;
       } catch (error) {
         console.warn('⚠️ Failed to load CDS services:', error.message);
         
         // Return cached data if available, even if expired
         if (this.servicesCache && this.servicesCache.length > 0) {
-          console.log(`📦 Using cached CDS services: ${this.servicesCache.length} services`);
           return this.servicesCache;
         }
         
         // Return empty array as fallback - don't log repeatedly
         if (!this.lastFailureLogged || Date.now() - this.lastFailureLogged > 60000) {
-          console.log('📭 No CDS services available (cache empty) - will retry in background');
           this.lastFailureLogged = Date.now();
         }
         return [];
@@ -96,7 +92,6 @@ class CDSHooksClient {
 
     // Check if there's already an in-flight request for this exact hook/context
     if (this.inFlightRequests.has(cacheKey)) {
-      console.log(`♻️ CDS Hook ${hookId} already executing, waiting...`);
       return this.inFlightRequests.get(cacheKey);
     }
 
@@ -118,7 +113,6 @@ class CDSHooksClient {
           }
         }
         
-        console.log(`✅ CDS Hook executed: ${hookId}, ${response.data.cards?.length || 0} cards returned`);
         return response.data;
       } catch (error) {
         console.warn(`⚠️ Failed to execute CDS hook ${hookId}:`, error.message);
@@ -126,7 +120,6 @@ class CDSHooksClient {
         // Check if we have cached data for this request
         const cached = this.requestCache.get(cacheKey);
         if (cached) {
-          console.log(`📦 Using cached CDS hook response for ${hookId}`);
           return cached.data;
         }
         

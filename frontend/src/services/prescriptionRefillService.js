@@ -281,7 +281,14 @@ class PrescriptionRefillService {
       const patientId = originalRequest.subject?.reference?.split('/')[1];
       
       if (!patientId) {
-        throw new Error('Patient ID not found in medication request');
+        console.warn(`Patient ID not found in medication request ${medicationRequestId} - returning empty history`);
+        return {
+          originalPrescription: originalRequest,
+          history: [],
+          totalRefillsAllowed: 0,
+          refillsUsed: 0,
+          lastRefillDate: null
+        };
       }
 
       // Get all refill requests for this medication
@@ -332,8 +339,15 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.error('Error getting refill history:', error);
-      throw error;
+      console.warn('Error getting refill history for medication', medicationRequestId, ':', error.message);
+      // Return empty history instead of throwing to prevent UI crashes
+      return {
+        originalPrescription: null,
+        history: [],
+        totalRefillsAllowed: 0,
+        refillsUsed: 0,
+        lastRefillDate: null
+      };
     }
   }
 
@@ -343,6 +357,18 @@ class PrescriptionRefillService {
   async calculateMedicationAdherence(medicationRequestId, days = 90) {
     try {
       const history = await this.getRefillHistory(medicationRequestId);
+      
+      // Handle case where history is null or empty
+      if (!history || !history.history) {
+        return {
+          adherenceRate: 0,
+          rating: 'insufficient-data',
+          daysSupply: 0,
+          daysCovered: 0,
+          gaps: []
+        };
+      }
+      
       const dispenseEvents = history.history.filter(h => h.type === 'dispense');
       
       if (dispenseEvents.length === 0) {
@@ -436,8 +462,15 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.error('Error calculating medication adherence:', error);
-      throw error;
+      console.warn('Error calculating medication adherence for medication', medicationRequestId, ':', error.message);
+      // Return default adherence data instead of throwing
+      return {
+        adherenceRate: 0,
+        rating: 'insufficient-data',
+        daysSupply: 0,
+        daysCovered: 0,
+        gaps: []
+      };
     }
   }
 
@@ -447,6 +480,16 @@ class PrescriptionRefillService {
   async checkRefillEligibility(medicationRequestId) {
     try {
       const history = await this.getRefillHistory(medicationRequestId);
+      
+      // Handle case where history is null or empty
+      if (!history) {
+        return {
+          eligible: false,
+          reason: 'Unable to determine eligibility - missing prescription data',
+          refillsRemaining: 0
+        };
+      }
+      
       const { originalPrescription, totalRefillsAllowed, refillsUsed } = history;
       
       // Check if any refills remain
@@ -487,8 +530,13 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.error('Error checking refill eligibility:', error);
-      throw error;
+      console.warn('Error checking refill eligibility for medication', medicationRequestId, ':', error.message);
+      // Return ineligible status instead of throwing
+      return {
+        eligible: false,
+        reason: 'Unable to determine eligibility due to data error',
+        refillsRemaining: 0
+      };
     }
   }
 

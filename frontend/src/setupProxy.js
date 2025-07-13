@@ -6,7 +6,6 @@ module.exports = function(app) {
   const backendTarget = process.env.REACT_APP_BACKEND_URL || 
                        (isInDocker ? 'http://backend:8000' : 'http://localhost:8000');
   
-  console.log('🔥 PROXY SETUP: Setting up simple proxy with target:', backendTarget);
   
   // Simple proxy configuration for all /api requests
   app.use('/api', createProxyMiddleware({
