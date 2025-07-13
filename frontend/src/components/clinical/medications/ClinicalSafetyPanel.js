@@ -69,8 +69,9 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
     return medications?.map(med => med.id).sort().join(',') || '';
   }, [medications]);
 
-  // Add verification cache to prevent repeated requests - using useRef to persist across React StrictMode
+  // Add verification cache and request tracking to prevent repeated requests - using useRef to persist across React StrictMode
   const verificationCache = useRef(new Map());
+  const activeRequests = useRef(new Set());
 
   useEffect(() => {
     if (patientId && medications.length > 0) {
@@ -88,11 +89,21 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
         return;
       }
       
+      // Check if we already have an active request for this cache key
+      if (activeRequests.current.has(cacheKey)) {
+        return;
+      }
+      
       runSafetyVerification(cacheKey);
     }
   }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
   const runSafetyVerification = useCallback(async (cacheKey = null) => {
+    // Mark this request as active to prevent duplicates
+    if (cacheKey) {
+      activeRequests.current.add(cacheKey);
+    }
+    
     setLoading(true);
     try {
       const report = await clinicalSafetyVerifier.performSafetyVerification(patientId);
@@ -113,6 +124,10 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
       console.error('Error running safety verification:', error);
     } finally {
       setLoading(false);
+      // Remove from active requests
+      if (cacheKey) {
+        activeRequests.current.delete(cacheKey);
+      }
     }
   }, [patientId]);
 

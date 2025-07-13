@@ -63,8 +63,9 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
     return medications?.map(med => med.id).sort().join(',') || '';
   }, [medications]);
 
-  // Add effectiveness data cache to prevent repeated requests - using useRef to persist across React StrictMode
+  // Add effectiveness data cache and request tracking to prevent repeated requests - using useRef to persist across React StrictMode
   const effectivenessCache = useRef(new Map());
+  const activeRequests = useRef(new Set());
 
   useEffect(() => {
     if (patientId && medications.length > 0) {
@@ -82,11 +83,21 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
         return;
       }
       
+      // Check if we already have an active request for this cache key
+      if (activeRequests.current.has(cacheKey)) {
+        return;
+      }
+      
       loadEffectivenessData(cacheKey);
     }
   }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
   const loadEffectivenessData = useCallback(async (cacheKey = null) => {
+    // Mark this request as active to prevent duplicates
+    if (cacheKey) {
+      activeRequests.current.add(cacheKey);
+    }
+    
     setLoading(true);
     try {
       // Load effectiveness alerts
@@ -122,6 +133,10 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       console.error('Error loading effectiveness data:', error);
     } finally {
       setLoading(false);
+      // Remove from active requests
+      if (cacheKey) {
+        activeRequests.current.delete(cacheKey);
+      }
     }
   }, [patientId, medications]);
 

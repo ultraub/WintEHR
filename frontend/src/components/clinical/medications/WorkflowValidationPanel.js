@@ -67,8 +67,9 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
     return medications?.map(med => med.id).sort().join(',') || '';
   }, [medications]);
 
-  // Add validation cache to prevent repeated requests - using useRef to persist across React StrictMode
+  // Add validation cache and request tracking to prevent repeated requests - using useRef to persist across React StrictMode
   const validationCache = useRef(new Map());
+  const activeRequests = useRef(new Set());
 
   useEffect(() => {
     if (patientId && medications.length > 0) {
@@ -86,11 +87,21 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
         return;
       }
       
+      // Check if we already have an active request for this cache key
+      if (activeRequests.current.has(cacheKey)) {
+        return;
+      }
+      
       runValidation(cacheKey);
     }
   }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
   const runValidation = useCallback(async (cacheKey = null) => {
+    // Mark this request as active to prevent duplicates
+    if (cacheKey) {
+      activeRequests.current.add(cacheKey);
+    }
+    
     setLoading(true);
     try {
       const report = await medicationWorkflowValidator.validatePatientMedicationWorkflow(patientId);
@@ -111,6 +122,10 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
       console.error('Error running workflow validation:', error);
     } finally {
       setLoading(false);
+      // Remove from active requests
+      if (cacheKey) {
+        activeRequests.current.delete(cacheKey);
+      }
     }
   }, [patientId]);
 
