@@ -470,3 +470,10 @@ export const useLabTestSearch = (options = {}) => {
     ...options
   });
 };
+
+export const useGoalSearch = (options = {}) => {
+  return useResourceSearch({
+    resourceTypes: ['Goal'],
+    ...options
+  });
+};
