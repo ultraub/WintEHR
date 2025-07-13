@@ -218,8 +218,22 @@ export const parseMedicationRequestResource = (medicationRequest) => {
 
   // Extract dosage information
   const dosageInstruction = medicationRequest.dosageInstruction?.[0];
-  const dosage = dosageInstruction?.doseAndRate?.[0]?.doseQuantity?.value || 
-                dosageInstruction?.doseAndRate?.[0]?.doseRange?.low?.value || '';
+  const doseAndRate = dosageInstruction?.doseAndRate?.[0];
+  let dosage = '';
+  
+  if (doseAndRate?.doseQuantity?.value) {
+    const value = doseAndRate.doseQuantity.value;
+    const unit = doseAndRate.doseQuantity.unit && doseAndRate.doseQuantity.unit !== 'dose' 
+      ? doseAndRate.doseQuantity.unit 
+      : '';
+    dosage = unit ? `${value} ${unit}` : value.toString();
+  } else if (doseAndRate?.doseRange?.low?.value) {
+    const value = doseAndRate.doseRange.low.value;
+    const unit = doseAndRate.doseRange.low.unit && doseAndRate.doseRange.low.unit !== 'dose'
+      ? doseAndRate.doseRange.low.unit
+      : '';
+    dosage = unit ? `${value} ${unit}` : value.toString();
+  }
   
   // Extract route with whitespace trimming
   const route = (dosageInstruction?.route?.coding?.[0]?.code || 'oral').trim();
@@ -313,10 +327,16 @@ export const createMedicationRequestResource = (formData, patientId) => {
             display: 'Ordered'
           }]
         },
-        doseQuantity: {
-          value: parseFloat(formData.dosage) || 0,
-          unit: 'dose'
-        }
+        doseQuantity: (() => {
+          const dosageStr = String(formData.dosage || '');
+          const match = dosageStr.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+          if (match) {
+            const value = parseFloat(match[1]) || 0;
+            const unit = match[2].trim() || 'dose';
+            return { value, unit };
+          }
+          return { value: parseFloat(formData.dosage) || 0, unit: 'dose' };
+        })()
       }]
     }],
     dispenseRequest: {
@@ -408,10 +428,16 @@ export const updateMedicationRequestResource = (formData, existingResource) => {
             display: 'Ordered'
           }]
         },
-        doseQuantity: {
-          value: parseFloat(formData.dosage) || 0,
-          unit: 'dose'
-        }
+        doseQuantity: (() => {
+          const dosageStr = String(formData.dosage || '');
+          const match = dosageStr.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+          if (match) {
+            const value = parseFloat(match[1]) || 0;
+            const unit = match[2].trim() || 'dose';
+            return { value, unit };
+          }
+          return { value: parseFloat(formData.dosage) || 0, unit: 'dose' };
+        })()
       }]
     }],
     dispenseRequest: {
