@@ -60,10 +60,23 @@ const REACTION_SEVERITIES = [
   { value: 'severe', display: 'Severe' }
 ];
 
+// Standard SNOMED CT codes for common allergy manifestations
 const COMMON_REACTIONS = [
-  'Rash', 'Hives', 'Itching', 'Swelling', 'Difficulty breathing', 
-  'Wheezing', 'Nausea', 'Vomiting', 'Diarrhea', 'Anaphylaxis',
-  'Runny nose', 'Sneezing', 'Watery eyes', 'Cough'
+  { code: '126485001', display: 'Urticaria', text: 'Hives' },
+  { code: '418363000', display: 'Itching of skin', text: 'Itching' },
+  { code: '271807003', display: 'Eruption of skin', text: 'Rash' },
+  { code: '41291007', display: 'Angioedema', text: 'Swelling' },
+  { code: '267036007', display: 'Dyspnea', text: 'Difficulty breathing' },
+  { code: '4386001', display: 'Bronchospasm', text: 'Wheezing' },
+  { code: '422587007', display: 'Nausea', text: 'Nausea' },
+  { code: '422400008', display: 'Vomiting', text: 'Vomiting' },
+  { code: '62315008', display: 'Diarrhea', text: 'Diarrhea' },
+  { code: '39579001', display: 'Anaphylaxis', text: 'Anaphylaxis' },
+  { code: '70076002', display: 'Rhinitis', text: 'Runny nose' },
+  { code: '76067001', display: 'Sneezing', text: 'Sneezing' },
+  { code: '9826008', display: 'Conjunctivitis', text: 'Watery eyes' },
+  { code: '49727002', display: 'Cough', text: 'Cough' },
+  { code: '24079001', display: 'Atopic dermatitis', text: 'Eczema' }
 ];
 
 const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance, patientId }) => {
@@ -112,13 +125,25 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         }
       }
 
-      // Extract reactions - ensure they are strings
+      // Extract reactions - handle both R4 and R5 formats
       const reactions = allergyIntolerance.reaction?.map(r => {
-        const manifestation = r.manifestation?.[0];
-        if (manifestation?.text) return manifestation.text;
-        if (manifestation?.coding?.[0]?.display) return manifestation.coding[0].display;
-        return null;
-      }).filter(reaction => reaction && typeof reaction === 'string') || [];
+        const manifestations = r.manifestation || [];
+        return manifestations.map(manifestation => {
+          // Handle R5 format: {concept: {text: ..., coding: [...]}}
+          if (manifestation?.concept) {
+            const concept = manifestation.concept;
+            return concept.text || concept.coding?.[0]?.display || null;
+          }
+          // Handle R4 format: {text: ..., coding: [...]}
+          else if (manifestation?.text) {
+            return manifestation.text;
+          }
+          else if (manifestation?.coding?.[0]?.display) {
+            return manifestation.coding[0].display;
+          }
+          return null;
+        }).filter(Boolean);
+      }).flat().filter(reaction => reaction && typeof reaction === 'string') || [];
       const reactionSeverity = allergyIntolerance.reaction?.[0]?.severity || 'mild';
       
       // Extract notes
@@ -241,17 +266,31 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
           onsetDateTime: formData.onsetDate.toISOString()
         }),
         ...(formData.reactions.length > 0 && {
-          reaction: formData.reactions.map(reaction => ({
-            manifestation: [{
-              coding: [{
+          reaction: formData.reactions.map(reaction => {
+            // Check if reaction is a SNOMED code object or just text
+            const reactionText = typeof reaction === 'string' ? reaction : reaction.text || reaction.display;
+            const reactionObj = typeof reaction === 'object' ? reaction : 
+              COMMON_REACTIONS.find(r => r.text === reaction || r.display === reaction);
+            
+            // Build manifestation in R4 format (backend will convert to R5)
+            const manifestation = {
+              text: reactionText
+            };
+            
+            // Add SNOMED coding if available
+            if (reactionObj && reactionObj.code) {
+              manifestation.coding = [{
                 system: 'http://snomed.info/sct',
-                code: 'unknown',
-                display: reaction
-              }],
-              text: reaction
-            }],
-            severity: formData.reactionSeverity
-          }))
+                code: reactionObj.code,
+                display: reactionObj.display
+              }];
+            }
+            
+            return {
+              manifestation: [manifestation],
+              severity: formData.reactionSeverity
+            };
+          })
         }),
         ...(formData.notes && {
           note: [{
@@ -344,7 +383,10 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedAllergen}
                   loading={searchLoading}
-                  isOptionEqualToValue={(option, value) => option.code === value.code}
+                  isOptionEqualToValue={(option, value) => {
+                    if (!option || !value) return false;
+                    return option.code === value.code && option.system === value.system;
+                  }}
                   onInputChange={(event, value) => {
                     handleSearchAllergens(value);
                   }}
@@ -550,6 +592,10 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   multiple
                   freeSolo
                   options={COMMON_REACTIONS}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option;
+                    return option.text || option.display || 'Unknown';
+                  }}
                   value={formData.reactions}
                   onChange={(event, newValue) => {
                     setFormData(prev => ({
@@ -567,6 +613,20 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                       />
                     ))
                   }
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Stack>
+                        <Typography variant="body2">
+                          {typeof option === 'string' ? option : option.text || option.display}
+                        </Typography>
+                        {typeof option === 'object' && option.code && (
+                          <Typography variant="caption" color="text.secondary">
+                            SNOMED: {option.code} - {option.display}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
