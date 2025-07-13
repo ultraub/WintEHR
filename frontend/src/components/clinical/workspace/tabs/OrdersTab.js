@@ -84,6 +84,7 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtil
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import CPOEDialog from '../dialogs/CPOEDialog';
+import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
 // Get order type icon
@@ -304,7 +305,9 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
   );
 };
 
-// Quick Order Dialog
+// Quick Order Dialog - Migrated to separate component file
+// Using: import QuickOrderDialog from '../dialogs/QuickOrderDialog';
+/*
 const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated }) => {
   const [orderData, setOrderData] = useState({
     medication: '',
@@ -480,6 +483,7 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
     </Dialog>
   );
 };
+*/
 
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
