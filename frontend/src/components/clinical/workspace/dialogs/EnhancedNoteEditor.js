@@ -479,20 +479,63 @@ const EnhancedNoteEditor = ({
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open && !note) {
-      // New note
-      setNoteData({
+      // New note - initialize with template data if provided
+      let initialData = {
         title: '',
         content: '',
         sections: {}
-      });
-      setSelectedTemplate(defaultTemplate);
+      };
+      
+      // Apply template wizard data if available
+      if (templateData) {
+        setSelectedTemplate(templateData.templateId);
+        
+        // Set title and content based on template data
+        const template = NOTE_TEMPLATES[templateData.templateId];
+        if (template) {
+          initialData.title = template.label;
+          
+          // Add chief complaint to appropriate section if provided
+          if (templateData.chiefComplaint) {
+            if (template.structure === 'sections') {
+              if (template.sections.chiefComplaint) {
+                initialData.sections.chiefComplaint = templateData.chiefComplaint;
+              } else if (template.sections.subjective) {
+                initialData.sections.subjective = `Chief Complaint: ${templateData.chiefComplaint}\n\n`;
+              }
+            } else {
+              initialData.content = `Chief Complaint: ${templateData.chiefComplaint}\n\n`;
+            }
+          }
+          
+          // Add visit type context if provided
+          if (templateData.visitType) {
+            const visitTypeText = `Visit Type: ${templateData.visitType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}\n`;
+            if (template.structure === 'sections' && template.sections.subjective) {
+              initialData.sections.subjective = visitTypeText + (initialData.sections.subjective || '');
+            } else if (template.structure !== 'sections') {
+              initialData.content = visitTypeText + initialData.content;
+            }
+          }
+        }
+        
+        // Enable auto-population if requested
+        if (templateData.autoPopulate && templateData.templateId) {
+          setAutoPopulateEnabled(true);
+          // Auto-load will be triggered by the template change
+        }
+      } else {
+        setSelectedTemplate(defaultTemplate);
+      }
+      
+      setNoteData(initialData);
     } else if (open && note) {
       // Editing existing note
       const extractedData = extractNoteData(note);
       setNoteData(extractedData);
       setSelectedTemplate(extractedData.templateId || 'progress');
     }
-  }, [open, note, defaultTemplate]);
+  }, [open, note, defaultTemplate, templateData]);
 
   // Extract data from existing FHIR DocumentReference
   const extractNoteData = (note) => {
@@ -555,11 +598,12 @@ const EnhancedNoteEditor = ({
             }
           }
         } else {
-          // Load template without auto-population
+          // Load template without auto-population - preserve existing content
           if (template.structure === 'sections') {
             const emptySections = {};
             Object.keys(template.sections).forEach(key => {
-              emptySections[key] = '';
+              // Preserve existing section content if available
+              emptySections[key] = noteData.sections[key] || '';
             });
             setNoteData(prev => ({
               ...prev,
@@ -568,7 +612,7 @@ const EnhancedNoteEditor = ({
           } else {
             setNoteData(prev => ({
               ...prev,
-              content: template.defaultContent || ''
+              content: prev.content || template.defaultContent || ''
             }));
           }
         }
@@ -591,6 +635,17 @@ const EnhancedNoteEditor = ({
       setLoading(false);
     }
   };
+
+  // Auto-load template when templateData is provided with auto-populate enabled
+  useEffect(() => {
+    if (open && templateData?.templateId && templateData.autoPopulate && patientId && !note) {
+      // Delay to ensure the template has been set
+      const timer = setTimeout(() => {
+        handleLoadTemplate(templateData.templateId);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [open, templateData, patientId, note]);
 
   // Handle template change
   const handleTemplateChange = (templateId) => {

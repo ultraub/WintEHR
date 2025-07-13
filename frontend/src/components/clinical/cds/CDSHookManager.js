@@ -95,7 +95,16 @@ const CDSHookManager = forwardRef(({
       });
       
       setHookConfigurations(configMap);
-      cdsLogger.debug(`Loaded ${hooks.length} hook configurations`);
+      cdsLogger.debug(`Loaded ${hooks.length} hook configurations:`, Object.keys(configMap));
+      
+      // Log each hook's display behavior for debugging
+      hooks.forEach(hook => {
+        if (hook.displayBehavior) {
+          cdsLogger.debug(`Hook ${hook.id} has display behavior:`, hook.displayBehavior);
+        } else {
+          cdsLogger.debug(`Hook ${hook.id} has no display behavior configured`);
+        }
+      });
     } catch (error) {
       cdsLogger.error('Failed to load hook configurations:', error);
     }
@@ -103,6 +112,7 @@ const CDSHookManager = forwardRef(({
 
   // Load configurations on mount
   useEffect(() => {
+    console.log('🔧 CDSHookManager: Loading hook configurations with display behavior support');
     loadHookConfigurations();
   }, [loadHookConfigurations]);
 
@@ -191,7 +201,12 @@ const CDSHookManager = forwardRef(({
 
       // Group alerts by presentation mode using hook-specific display behavior
       const alertsByMode = {};
+      
+      cdsLogger.debug(`Processing ${alerts.length} alerts for ${hookType}`);
+      cdsLogger.debug('Available hook configurations:', Object.keys(hookConfigurations));
+      
       alerts.forEach(alert => {
+        cdsLogger.debug(`Processing alert with serviceId: ${alert.serviceId}`, alert);
         // Try to find hook-specific configuration first
         let presentationMode = null;
         let acknowledgmentRequired = false;

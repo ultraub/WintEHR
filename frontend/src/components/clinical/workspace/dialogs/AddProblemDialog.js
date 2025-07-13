@@ -43,6 +43,9 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <BaseResourceDialog
+        // Force clean state for new additions
+        key={`add-condition-${open ? 'open' : 'closed'}`}
+        
         // Dialog props
         open={open}
         onClose={onClose}

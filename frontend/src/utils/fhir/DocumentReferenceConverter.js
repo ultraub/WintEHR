@@ -4,6 +4,7 @@
  * Fixes FHIR structure inconsistencies and content encoding issues
  */
 import { AbstractFHIRConverter } from './AbstractFHIRConverter.js';
+import { DocumentContentValidator } from '../documentContentValidator.js';
 
 // FHIR Value Sets for DocumentReference
 export const DOCUMENT_STATUS_OPTIONS = [
@@ -346,15 +347,54 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
   }
 
   /**
-   * Helper method to decode base64 content safely
+   * Helper method to decode base64 content safely with enhanced error handling
    * @param {string} encodedContent - Base64 encoded content
    * @returns {string} Decoded content
    */
   _decodeBase64Content(encodedContent) {
+    if (!encodedContent || typeof encodedContent !== 'string') {
+      throw new Error('Invalid base64 content: content is null or not a string');
+    }
+
+    // Clean up the input - remove any whitespace and newlines
+    const cleanedContent = encodedContent.replace(/\s+/g, '');
+    
+    // Validate base64 format
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    if (!base64Regex.test(cleanedContent)) {
+      throw new Error('Invalid base64 content: contains invalid characters');
+    }
+
+    // Check length - base64 should be multiple of 4
+    if (cleanedContent.length % 4 !== 0) {
+      throw new Error('Invalid base64 content: incorrect length');
+    }
+
     try {
-      return atob(encodedContent);
+      const decoded = atob(cleanedContent);
+      
+      // Validate that we got actual content
+      if (decoded.length === 0) {
+        throw new Error('Decoded content is empty');
+      }
+      
+      // Try to decode as UTF-8 to handle international characters
+      try {
+        return decodeURIComponent(escape(decoded));
+      } catch (utfError) {
+        // Fall back to raw decoded content if UTF-8 decoding fails
+        return decoded;
+      }
+      
     } catch (error) {
-      throw new Error('Failed to decode base64 content');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Base64 decoding failed', {
+          error: error.message,
+          contentLength: cleanedContent.length,
+          contentPreview: cleanedContent.substring(0, 50)
+        });
+      }
+      throw new Error(`Failed to decode base64 content: ${error.message}`);
     }
   }
 
@@ -377,21 +417,58 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
    * @returns {Object} Extracted content with type and data
    */
   extractDocumentContent(docRef) {
+    // Input validation
+    if (!docRef || typeof docRef !== 'object') {
+      return {
+        type: 'text',
+        content: '',
+        sections: null,
+        error: 'Invalid document reference provided'
+      };
+    }
+
+    // Log document structure for debugging (in development only)
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('DocumentReferenceConverter: Processing document', {
+        id: docRef.id,
+        hasContent: !!docRef.content,
+        contentLength: docRef.content?.length,
+        hasAttachment: !!docRef.content?.[0]?.attachment,
+        hasData: !!docRef.content?.[0]?.attachment?.data,
+        contentType: docRef.content?.[0]?.attachment?.contentType
+      });
+    }
+
     if (!docRef.content?.[0]?.attachment?.data) {
-      // Check if content is stored differently (legacy format)
+      // Enhanced fallback content extraction with better validation
+      
+      // Check narrative text (FHIR R4 standard)
       if (docRef.text?.div) {
+        // Strip HTML tags and decode entities for plain text
+        const cleanContent = docRef.text.div
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .trim();
+        
         return {
           type: 'text',
-          content: docRef.text.div,
+          content: cleanContent,
           sections: null,
           error: null
         };
       }
       
+      // Check for plain text content
       if (docRef.text) {
+        const textContent = typeof docRef.text === 'string' ? docRef.text : 
+                           docRef.text.status && docRef.text.div ? docRef.text.div :
+                           JSON.stringify(docRef.text);
         return {
           type: 'text',
-          content: typeof docRef.text === 'string' ? docRef.text : JSON.stringify(docRef.text),
+          content: textContent,
           sections: null,
           error: null
         };
@@ -516,68 +593,353 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
     }
 
     try {
-      const decodedContent = this._decodeBase64Content(docRef.content[0].attachment.data);
+      const attachmentData = docRef.content[0].attachment.data;
       const contentType = docRef.content[0].attachment.contentType;
-
-      // Try to parse as JSON for structured content
-      try {
-        const parsed = JSON.parse(decodedContent);
-        
-        // Check for SOAP format
-        if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
-          return {
-            type: 'soap',
-            content: decodedContent,
-            sections: parsed,
-            error: null
-          };
-        }
-        // Check for medical history format
-        else if (parsed.chiefComplaint || parsed.historyOfPresentIllness || parsed.pastMedicalHistory) {
-          // Convert medical history to readable text format
-          const sections = [];
-          if (parsed.chiefComplaint) sections.push(`Chief Complaint: ${parsed.chiefComplaint}`);
-          if (parsed.historyOfPresentIllness) sections.push(`History of Present Illness: ${parsed.historyOfPresentIllness}`);
-          if (parsed.pastMedicalHistory) sections.push(`Past Medical History: ${parsed.pastMedicalHistory}`);
-          if (parsed.medications) sections.push(`Medications: ${parsed.medications}`);
-          if (parsed.allergies) sections.push(`Allergies: ${parsed.allergies}`);
-          if (parsed.socialHistory) sections.push(`Social History: ${parsed.socialHistory}`);
-          if (parsed.familyHistory) sections.push(`Family History: ${parsed.familyHistory}`);
-          
-          return {
-            type: 'medical-history',
-            content: sections.join('\n\n'),
-            sections: null,
-            error: null
-          };
-        }
-        // Check for text wrapper
-        else if (parsed.text) {
-          return {
-            type: 'text',
-            content: parsed.text,
-            sections: null,
-            error: null
-          };
-        }
-      } catch (e) {
-        // Fall through to treat as text
+      
+      // Validate base64 data before decoding
+      if (!attachmentData || typeof attachmentData !== 'string') {
+        return {
+          type: 'text',
+          content: '',
+          sections: null,
+          error: 'Invalid attachment data format'
+        };
+      }
+      
+      // Check if data looks like valid base64
+      const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+      if (!base64Regex.test(attachmentData)) {
+        // Data might not be base64 encoded, try using as-is
+        return {
+          type: 'text',
+          content: attachmentData,
+          sections: null,
+          error: null
+        };
+      }
+      
+      const decodedContent = this._decodeBase64Content(attachmentData);
+      
+      // Validate decoded content
+      if (!decodedContent || decodedContent.trim().length === 0) {
+        return {
+          type: 'text',
+          content: '',
+          sections: null,
+          error: 'Decoded content is empty'
+        };
       }
 
+      // Enhanced JSON parsing with better error handling
+      if (contentType === 'application/json' || decodedContent.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(decodedContent);
+          
+          // Validate JSON structure
+          if (!parsed || typeof parsed !== 'object') {
+            throw new Error('Invalid JSON structure');
+          }
+          
+          // Check for SOAP format with validation
+          if (this._isSOAPFormat(parsed)) {
+            const cleanSections = this._validateAndCleanSOAPSections(parsed);
+            return {
+              type: 'soap',
+              content: decodedContent,
+              sections: cleanSections,
+              error: null
+            };
+          }
+          
+          // Check for medical history format with validation
+          else if (this._isMedicalHistoryFormat(parsed)) {
+            const formattedContent = this._formatMedicalHistory(parsed);
+            return {
+              type: 'medical-history',
+              content: formattedContent,
+              sections: null,
+              error: null
+            };
+          }
+          
+          // Check for text wrapper
+          else if (parsed.text && typeof parsed.text === 'string') {
+            return {
+              type: 'text',
+              content: parsed.text.trim(),
+              sections: null,
+              error: null
+            };
+          }
+          
+          // Unknown JSON structure - convert to readable format
+          else {
+            const readableContent = this._convertObjectToReadableText(parsed);
+            return {
+              type: 'text',
+              content: readableContent,
+              sections: null,
+              error: null
+            };
+          }
+          
+        } catch (jsonError) {
+          // Log JSON parsing error in development
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('DocumentReferenceConverter: JSON parsing failed', {
+              error: jsonError.message,
+              contentPreview: decodedContent.substring(0, 100)
+            });
+          }
+          
+          // Fall through to treat as plain text
+        }
+      }
+
+      // Return as plain text with content validation
+      const cleanContent = decodedContent.trim();
       return {
         type: 'text',
-        content: decodedContent,
+        content: cleanContent,
         sections: null,
         error: null
       };
+      
     } catch (error) {
+      // Enhanced error logging
+      if (process.env.NODE_ENV === 'development') {
+        console.error('DocumentReferenceConverter: Content extraction failed', {
+          error: error.message,
+          docRefId: docRef.id,
+          hasAttachment: !!docRef.content?.[0]?.attachment,
+          dataLength: docRef.content?.[0]?.attachment?.data?.length
+        });
+      }
+      
       return {
         type: 'text',
         content: '',
         sections: null,
-        error: 'Failed to decode content'
+        error: `Failed to decode content: ${error.message}`
       };
     }
+  }
+
+  /**
+   * Check if parsed JSON object is in SOAP format
+   * @param {Object} parsed - Parsed JSON object
+   * @returns {boolean} True if SOAP format
+   */
+  _isSOAPFormat(parsed) {
+    return !!(parsed.subjective || parsed.objective || parsed.assessment || parsed.plan);
+  }
+
+  /**
+   * Check if parsed JSON object is in medical history format
+   * @param {Object} parsed - Parsed JSON object
+   * @returns {boolean} True if medical history format
+   */
+  _isMedicalHistoryFormat(parsed) {
+    return !!(parsed.chiefComplaint || parsed.historyOfPresentIllness || 
+              parsed.pastMedicalHistory || parsed.historyPresentIllness);
+  }
+
+  /**
+   * Validate and clean SOAP sections
+   * @param {Object} parsed - Parsed SOAP data
+   * @returns {Object} Clean SOAP sections
+   */
+  _validateAndCleanSOAPSections(parsed) {
+    const cleanSections = {};
+    const soapFields = ['subjective', 'objective', 'assessment', 'plan'];
+    
+    soapFields.forEach(field => {
+      if (parsed[field] && typeof parsed[field] === 'string') {
+        cleanSections[field] = parsed[field].trim();
+      } else {
+        cleanSections[field] = '';
+      }
+    });
+
+    // Include additional fields that might be present
+    const additionalFields = ['chiefComplaint', 'historyPresentIllness', 'reviewOfSystems', 'physicalExam'];
+    additionalFields.forEach(field => {
+      if (parsed[field] && typeof parsed[field] === 'string') {
+        cleanSections[field] = parsed[field].trim();
+      }
+    });
+
+    return cleanSections;
+  }
+
+  /**
+   * Format medical history data into readable text
+   * @param {Object} parsed - Parsed medical history data
+   * @returns {string} Formatted text
+   */
+  _formatMedicalHistory(parsed) {
+    const sections = [];
+    const fieldMappings = {
+      chiefComplaint: 'Chief Complaint',
+      historyOfPresentIllness: 'History of Present Illness',
+      historyPresentIllness: 'History of Present Illness', // Alternative spelling
+      pastMedicalHistory: 'Past Medical History',
+      medications: 'Medications',
+      allergies: 'Allergies',
+      socialHistory: 'Social History',
+      familyHistory: 'Family History',
+      reviewOfSystems: 'Review of Systems',
+      physicalExam: 'Physical Examination'
+    };
+
+    Object.entries(fieldMappings).forEach(([field, label]) => {
+      if (parsed[field] && typeof parsed[field] === 'string' && parsed[field].trim()) {
+        sections.push(`${label}: ${parsed[field].trim()}`);
+      }
+    });
+
+    return sections.length > 0 ? sections.join('\n\n') : 'No content available';
+  }
+
+  /**
+   * Convert unknown JSON object to readable text
+   * @param {Object} obj - Object to convert
+   * @returns {string} Readable text representation
+   */
+  _convertObjectToReadableText(obj) {
+    const lines = [];
+    
+    const formatValue = (key, value, depth = 0) => {
+      const indent = '  '.repeat(depth);
+      
+      if (value === null || value === undefined) {
+        return `${indent}${key}: (empty)`;
+      }
+      
+      if (typeof value === 'string') {
+        return value.trim() ? `${indent}${key}: ${value.trim()}` : null;
+      }
+      
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return `${indent}${key}: ${value}`;
+      }
+      
+      if (Array.isArray(value)) {
+        if (value.length === 0) return null;
+        const items = value.map(item => 
+          typeof item === 'string' ? item.trim() : JSON.stringify(item)
+        ).filter(Boolean);
+        return items.length > 0 ? `${indent}${key}: ${items.join(', ')}` : null;
+      }
+      
+      if (typeof value === 'object') {
+        const subLines = [];
+        Object.entries(value).forEach(([subKey, subValue]) => {
+          const formattedSub = formatValue(subKey, subValue, depth + 1);
+          if (formattedSub) subLines.push(formattedSub);
+        });
+        
+        if (subLines.length > 0) {
+          return `${indent}${key}:\n${subLines.join('\n')}`;
+        }
+      }
+      
+      return null;
+    };
+
+    Object.entries(obj).forEach(([key, value]) => {
+      const formatted = formatValue(key, value);
+      if (formatted) lines.push(formatted);
+    });
+
+    return lines.length > 0 ? lines.join('\n\n') : 'No readable content available';
+  }
+
+  /**
+   * Validate DocumentReference and its content
+   * @param {Object} docRef - FHIR DocumentReference resource
+   * @returns {Object} Validation result with extracted content
+   */
+  validateDocumentContent(docRef) {
+    try {
+      // Extract content first
+      const extractedContent = this.extractDocumentContent(docRef);
+      
+      // Perform comprehensive validation
+      const validation = DocumentContentValidator.validateExtractedContent(docRef, extractedContent);
+      
+      // Add extraction metadata
+      validation.extraction = {
+        type: extractedContent.type,
+        hasContent: !!extractedContent.content,
+        contentLength: extractedContent.content?.length || 0,
+        hasSections: !!extractedContent.sections,
+        extractionError: extractedContent.error
+      };
+      
+      // Log validation results in development
+      if (process.env.NODE_ENV === 'development') {
+        if (!validation.overall.isValid || validation.overall.warnings.length > 0) {
+          console.info('DocumentReferenceConverter: Validation results', {
+            docId: docRef.id,
+            isValid: validation.overall.isValid,
+            errorCount: validation.overall.errors.length,
+            warningCount: validation.overall.warnings.length,
+            contentType: extractedContent.type,
+            errors: validation.overall.errors,
+            warnings: validation.overall.warnings
+          });
+        }
+      }
+      
+      return {
+        ...validation,
+        extractedContent
+      };
+      
+    } catch (error) {
+      return {
+        overall: {
+          isValid: false,
+          errors: [`Validation failed: ${error.message}`],
+          warnings: []
+        },
+        document: { isValid: false, errors: [error.message], warnings: [] },
+        content: null,
+        extraction: {
+          type: 'unknown',
+          hasContent: false,
+          contentLength: 0,
+          hasSections: false,
+          extractionError: error.message
+        },
+        extractedContent: {
+          type: 'text',
+          content: '',
+          sections: null,
+          error: error.message
+        }
+      };
+    }
+  }
+
+  /**
+   * Enhanced content extraction with validation
+   * @param {Object} docRef - FHIR DocumentReference
+   * @returns {Object} Extracted content with validation metadata
+   */
+  extractDocumentContentWithValidation(docRef) {
+    const validation = this.validateDocumentContent(docRef);
+    
+    return {
+      ...validation.extractedContent,
+      validation: {
+        isValid: validation.overall.isValid,
+        errors: validation.overall.errors,
+        warnings: validation.overall.warnings,
+        metadata: validation.extraction
+      }
+    };
   }
 }
 

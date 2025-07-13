@@ -2,7 +2,7 @@
  * Edit Problem Dialog Component (Migrated to BaseResourceDialog)
  * Uses the new BaseResourceDialog pattern for consistent UX
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Button } from '@mui/material';
@@ -17,8 +17,10 @@ import {
 
 const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patientId }) => {
   
-  // Parse existing resource into initial form values
-  const initialValues = condition ? parseConditionResource(condition) : {};
+  // Parse existing resource into initial form values - memoized to prevent recreation
+  const initialValues = useMemo(() => {
+    return condition ? parseConditionResource(condition) : {};
+  }, [condition?.id, condition?.meta?.versionId]); // Only recompute when condition ID or version changes
 
   // Custom validation function
   const handleValidate = (formData) => {
@@ -72,6 +74,9 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <BaseResourceDialog
+        // Force re-mount when condition changes to prevent state conflicts
+        key={`edit-condition-${condition?.id || 'new'}`}
+        
         // Dialog props
         open={open}
         onClose={onClose}

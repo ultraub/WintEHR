@@ -78,36 +78,39 @@ const BaseResourceDialog = ({
   const [saveError, setSaveError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize form data when resource changes
+  // Initialize form data only when dialog opens or mode changes, not when initialValues change
   useEffect(() => {
-    if (mode === 'edit') {
-      // In edit mode, use parsed initialValues instead of raw resource
+    if (open) {
+      // Only reset form data when dialog opens or changes mode
       setFormData(initialValues);
-    } else {
-      setFormData(initialValues);
+      setErrors({});
+      setActiveStep(0);
+      setShowPreviewMode(false);
+      setHasChanges(false);
+      setJustSaved(false);
     }
-    setErrors({});
-    setActiveStep(0);
-    setShowPreviewMode(false);
-    setHasChanges(false);
-    setJustSaved(false);
-  }, [resource, mode, initialValues, open]);
+  }, [open, mode, resource?.id]); // Only depend on dialog open state and resource ID
 
   // Debounced change tracking to reduce expensive JSON operations
   useEffect(() => {
-    if (justSaved) {
+    if (justSaved || !open) {
       setHasChanges(false);
       return;
     }
     
     // Debounce the expensive change detection
     const timeoutId = setTimeout(() => {
-      const hasChanged = JSON.stringify(formData) !== JSON.stringify(initialValues);
-      setHasChanges(hasChanged);
+      try {
+        const hasChanged = JSON.stringify(formData) !== JSON.stringify(initialValues);
+        setHasChanges(hasChanged);
+      } catch (error) {
+        // If JSON.stringify fails, assume changes exist
+        setHasChanges(true);
+      }
     }, 150); // 150ms debounce for change detection
     
     return () => clearTimeout(timeoutId);
-  }, [formData, initialValues, justSaved]);
+  }, [formData, justSaved, open]); // Remove initialValues from dependencies to prevent loops
 
   // Handle form data change with useCallback to prevent recreation
   const handleFieldChange = useCallback((fieldName, value) => {

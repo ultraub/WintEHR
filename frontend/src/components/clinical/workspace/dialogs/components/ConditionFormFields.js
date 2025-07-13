@@ -2,7 +2,7 @@
  * ConditionFormFields Component
  * Specialized form fields for Condition resource management
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Grid,
   TextField,
@@ -28,7 +28,61 @@ import {
   getProblemDisplay
 } from '../../../../../utils/fhir/ConditionConverter';
 
+// Buffered text input to prevent clearing during re-renders
+const BufferedTextField = ({ value, onChange, debounceMs = 300, ...props }) => {
+  const [localValue, setLocalValue] = useState(value || '');
+  const timeoutRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Update local value when external value changes (but only if user isn't actively typing)
+  useEffect(() => {
+    if (!timeoutRef.current && value !== localValue) {
+      setLocalValue(value || '');
+    }
+  }, [value, localValue]);
+
+  const handleChange = useCallback((e) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Set new timeout to commit value
+    timeoutRef.current = setTimeout(() => {
+      onChangeRef.current(newValue);
+      timeoutRef.current = null;
+    }, debounceMs);
+  }, [debounceMs]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        // Commit any pending changes immediately
+        onChangeRef.current(localValue);
+      }
+    };
+  }, [localValue]);
+
+  return (
+    <TextField
+      {...props}
+      value={localValue}
+      onChange={handleChange}
+    />
+  );
+};
+
 const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
+  // Store onChange in ref to prevent recreating callback functions
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   // Use catalog-enhanced condition search hook
   const conditionSearch = useCatalogConditionSearch({
     debounceMs: 300,
@@ -36,51 +90,63 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
   });
 
   // Provide safe defaults for form data with useMemo to prevent recreation
-  const safeFormData = useMemo(() => ({
-    selectedProblem: formData.selectedProblem || null,
-    problemText: formData.problemText || '',
-    clinicalStatus: formData.clinicalStatus || 'active',
-    verificationStatus: formData.verificationStatus || 'confirmed',
-    severity: formData.severity || '',
-    onsetDate: formData.onsetDate || null,
-    category: formData.category || 'problem-list-item',
-    notes: formData.notes || ''
-  }), [formData]);
+  const safeFormData = useMemo(() => {
+    // Create stable defaults that won't change unless actual data changes
+    return {
+      selectedProblem: formData.selectedProblem || null,
+      problemText: formData.problemText || '',
+      clinicalStatus: formData.clinicalStatus || 'active',
+      verificationStatus: formData.verificationStatus || 'confirmed',
+      severity: formData.severity || '',
+      onsetDate: formData.onsetDate || null,
+      category: formData.category || 'problem-list-item',
+      notes: formData.notes || ''
+    };
+  }, [
+    formData.selectedProblem,
+    formData.problemText,
+    formData.clinicalStatus,
+    formData.verificationStatus,
+    formData.severity,
+    formData.onsetDate,
+    formData.category,
+    formData.notes
+  ]);
 
-  // Memoize onChange handlers to prevent recreation
+  // Memoize onChange handlers to prevent recreation - use ref to avoid dependency issues
   const handleNotesChange = useCallback((e) => {
-    onChange('notes', e.target.value);
-  }, [onChange]);
+    onChangeRef.current('notes', e.target.value);
+  }, []); // Empty deps since we use ref
 
   const handleProblemTextChange = useCallback((e) => {
-    onChange('problemText', e.target.value);
-    onChange('selectedProblem', null);
-  }, [onChange]);
+    onChangeRef.current('problemText', e.target.value);
+    onChangeRef.current('selectedProblem', null);
+  }, []);
 
   const handleClinicalStatusChange = useCallback((e) => {
-    onChange('clinicalStatus', e.target.value);
-  }, [onChange]);
+    onChangeRef.current('clinicalStatus', e.target.value);
+  }, []);
 
   const handleVerificationStatusChange = useCallback((e) => {
-    onChange('verificationStatus', e.target.value);
-  }, [onChange]);
+    onChangeRef.current('verificationStatus', e.target.value);
+  }, []);
 
   const handleSeverityChange = useCallback((e) => {
-    onChange('severity', e.target.value);
-  }, [onChange]);
+    onChangeRef.current('severity', e.target.value);
+  }, []);
 
   const handleCategoryChange = useCallback((e) => {
-    onChange('category', e.target.value);
-  }, [onChange]);
+    onChangeRef.current('category', e.target.value);
+  }, []);
 
   const handleOnsetDateChange = useCallback((date) => {
-    onChange('onsetDate', date);
-  }, [onChange]);
+    onChangeRef.current('onsetDate', date);
+  }, []);
 
   const handleSelectedProblemChange = useCallback((event, newValue) => {
-    onChange('selectedProblem', newValue);
-    onChange('problemText', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.problemText);
-  }, [onChange, safeFormData.problemText]);
+    onChangeRef.current('selectedProblem', newValue);
+    onChangeRef.current('problemText', newValue ? (newValue.display || newValue.code?.text || '') : '');
+  }, []);
 
   return (
     <Stack spacing={3}>
@@ -163,17 +229,21 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
           <Typography variant="body2" color="text.secondary" gutterBottom>
             Or enter a custom problem description:
           </Typography>
-          <TextField
+          <BufferedTextField
             fullWidth
             label="Custom Problem Description"
             value={safeFormData.problemText}
-            onChange={handleProblemTextChange}
+            onChange={(value) => {
+              onChangeRef.current('problemText', value);
+              onChangeRef.current('selectedProblem', null);
+            }}
             variant="outlined"
             disabled={disabled}
             error={!!errors.problemText}
             helperText={errors.problemText || "Enter a problem not found in the search results"}
             multiline
             rows={2}
+            debounceMs={200}
           />
         </Grid>
 
@@ -282,18 +352,19 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
 
         {/* Additional Notes */}
         <Grid item xs={12}>
-          <TextField
+          <BufferedTextField
             fullWidth
             label="Additional Notes"
             value={safeFormData.notes}
             disabled={disabled}
-            onChange={handleNotesChange}
+            onChange={(value) => onChangeRef.current('notes', value)}
             variant="outlined"
             multiline
             rows={3}
             error={!!errors.notes}
             helperText={errors.notes || "Additional clinical notes about this condition"}
             placeholder="Clinical notes, context, or additional information..."
+            debounceMs={300}
           />
         </Grid>
       </Grid>
