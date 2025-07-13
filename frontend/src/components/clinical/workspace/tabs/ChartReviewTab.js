@@ -633,7 +633,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 key={med.id}
                 sx={{
                   borderRadius: 1,
-                  mb: 1,
+                  mb: 1.5,
+                  py: 1.5,
                   backgroundColor: med.status === 'active' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
                   '&:hover': { backgroundColor: 'action.hover' }
                 }}
@@ -644,20 +645,80 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 <ListItemText
                   primary={
                     <Box>
-                      <Typography variant="body1">
-                        {getMedicationDisplay(med)}
-                      </Typography>
-                      {med.status !== 'active' && (
-                        <Chip label={med.status} size="small" sx={{ ml: 1 }} />
-                      )}
+                      <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                        <Typography variant="body1" fontWeight="medium">
+                          {getMedicationDisplay(med)}
+                        </Typography>
+                        {med.status !== 'active' && (
+                          <Chip label={med.status} size="small" />
+                        )}
+                        {med.priority && med.priority !== 'routine' && (
+                          <Chip 
+                            label={med.priority.toUpperCase()} 
+                            size="small" 
+                            color={med.priority === 'stat' ? 'error' : med.priority === 'urgent' ? 'warning' : 'default'}
+                            variant="outlined"
+                          />
+                        )}
+                      </Stack>
                     </Box>
                   }
                   secondary={
-                    <>
-                      {med.dosageInstruction?.[0]?.text || 'No dosage information'}
-                      {' • '}
-                      Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
-                    </>
+                    <Box sx={{ mt: 0.5 }}>
+                      {/* Primary dosage line */}
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Dosage:</strong> {med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                        {(med.dosageInstruction?.[0]?.route?.text || med.dosageInstruction?.[0]?.route?.coding?.[0]?.display) && (
+                          <span> • <strong>Route:</strong> {
+                            med.dosageInstruction[0].route.text || 
+                            med.dosageInstruction[0].route.coding?.[0]?.display ||
+                            'Unknown'
+                          }</span>
+                        )}
+                      </Typography>
+                      
+                      {/* Indication and dates */}
+                      <Stack direction="row" spacing={1.5} flexWrap="wrap" sx={{ mt: 0.5, gap: 1 }}>
+                        {med.reasonCode?.[0]?.text && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>For:</strong> {med.reasonCode[0].text}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          <strong>Prescribed:</strong> {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                          {med.requester?.display && (
+                            <span> by {med.requester.display}</span>
+                          )}
+                        </Typography>
+                        {med.dispenseRequest?.expectedSupplyDuration?.value && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Duration:</strong> {med.dispenseRequest.expectedSupplyDuration.value} {med.dispenseRequest.expectedSupplyDuration.unit || 'days'}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.quantity?.value && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Qty:</strong> {med.dispenseRequest.quantity.value}{med.dispenseRequest.quantity.unit ? ` ${med.dispenseRequest.quantity.unit}` : ''}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.numberOfRepeatsAllowed !== undefined && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Refills:</strong> {med.dispenseRequest.numberOfRepeatsAllowed}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.validityPeriod?.end && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Valid until:</strong> {format(parseISO(med.dispenseRequest.validityPeriod.end), 'MMM d, yyyy')}
+                          </Typography>
+                        )}
+                      </Stack>
+
+                      {/* Notes if present */}
+                      {med.note?.[0]?.text && (
+                        <Typography variant="caption" sx={{ mt: 0.5, fontStyle: 'italic', display: 'block' }}>
+                          <strong>Notes:</strong> {med.note[0].text}
+                        </Typography>
+                      )}
+                    </Box>
                   }
                 />
                 <ListItemSecondaryAction>
