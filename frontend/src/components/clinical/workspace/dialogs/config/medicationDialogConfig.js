@@ -13,7 +13,7 @@ import {
   getStatusColor,
   getPriorityColor,
   getMedicationDisplay
-} from '../../../utils/fhir/MedicationConverter';
+} from '../../../../../utils/fhir/MedicationConverter';
 
 // Re-export from converter for backward compatibility
 export {

@@ -29,7 +29,7 @@ import {
   COMMON_REACTIONS,
   getCriticalityColor,
   getAllergenDisplay
-} from '../config/allergyDialogConfig';
+} from '../../../../../utils/fhir/AllergyConverter';
 
 const AllergyFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   const [searchLoading, setSearchLoading] = useState(false);
