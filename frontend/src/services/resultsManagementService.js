@@ -4,7 +4,7 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { format, isAfter, isBefore, differenceInDays } from 'date-fns';
+import { format } from 'date-fns';
 
 // Critical value definitions based on standard medical practice
 const CRITICAL_VALUES = {
@@ -497,7 +497,6 @@ class ResultsManagementService {
    */
   async getResultTrends(patientId, loincCode, months = 12) {
     try {
-      const endDate = new Date();
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - months);
 

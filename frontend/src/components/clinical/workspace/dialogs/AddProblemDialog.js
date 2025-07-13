@@ -34,7 +34,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
   const [error, setError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [conditionOptions, setConditionOptions] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     problemText: '',
     selectedProblem: null,
@@ -83,7 +82,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     });
     setError('');
     setConditionOptions([]);
-    setSearchQuery('');
   };
 
   const handleClose = () => {
@@ -205,7 +203,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
                   value={formData.selectedProblem}
                   loading={searchLoading}
                   onInputChange={(event, value) => {
-                    setSearchQuery(value);
                     handleSearchConditions(value);
                   }}
                   onChange={(event, newValue) => {
@@ -243,8 +240,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
                     </Box>
                   )}
                   noOptionsText={
-                    searchQuery.length < 2 ? 
-                    "Type at least 2 characters to search" : 
                     searchLoading ? "Searching..." : "No conditions found"
                   }
                 />

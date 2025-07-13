@@ -54,7 +54,6 @@ import {
   Assignment as ProblemIcon,
   LocalPharmacy as PharmacyIcon,
   Vaccines as ImmunizationIcon,
-  FamilyRestroom as FamilyIcon,
   SmokingRooms as SmokingIcon,
   LocalBar as AlcoholIcon,
   Add as AddIcon,
@@ -72,7 +71,6 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
 import EditProblemDialog from '../dialogs/EditProblemDialog';
@@ -99,7 +97,6 @@ import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDas
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,25 +168,58 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6" gutterBottom>Problem List</Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
                 color="primary" 
                 variant={filter === 'active' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('active')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show active problems only. ${activeCount} active problems found.`}
+                aria-pressed={filter === 'active'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('active');
+                  }
+                }}
               />
               <Chip 
                 label={`${resolvedCount} Resolved`} 
                 size="small" 
                 variant={filter === 'resolved' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('resolved')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show resolved problems only. ${resolvedCount} resolved problems found.`}
+                aria-pressed={filter === 'resolved'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('resolved');
+                  }
+                }}
               />
               <Chip 
                 label="All" 
                 size="small" 
                 variant={filter === 'all' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('all')}
+                component="button"
+                role="button"
+                aria-label={`Show all problems. ${conditions.length} total problems found.`}
+                aria-pressed={filter === 'all'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('all');
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -199,12 +229,16 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
+                aria-label="Add new problem to patient chart"
               >
                 <AddIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="View History">
-              <IconButton size="small">
+              <IconButton 
+                size="small"
+                aria-label="View problem history for this patient"
+              >
                 <HistoryIcon />
               </IconButton>
             </Tooltip>
@@ -212,6 +246,9 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                aria-label="Export problem list data"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
@@ -342,7 +379,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
 // Medication List Component
 const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
@@ -478,25 +514,58 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6" gutterBottom>Medications</Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} role="group" aria-label="Medication list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
                 color="primary" 
                 variant={filter === 'active' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('active')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show active medications only. ${activeCount} active medications found.`}
+                aria-pressed={filter === 'active'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('active');
+                  }
+                }}
               />
               <Chip 
                 label={`${stoppedCount} Stopped`} 
                 size="small" 
                 variant={filter === 'stopped' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('stopped')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show stopped medications only. ${stoppedCount} stopped medications found.`}
+                aria-pressed={filter === 'stopped'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('stopped');
+                  }
+                }}
               />
               <Chip 
                 label="All" 
                 size="small" 
                 variant={filter === 'all' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('all')}
+                component="button"
+                role="button"
+                aria-label={`Show all medications. ${medications.length} total medications found.`}
+                aria-pressed={filter === 'all'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('all');
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -730,7 +799,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
 // Allergy List Component
 const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);

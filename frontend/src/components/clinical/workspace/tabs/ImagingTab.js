@@ -341,7 +341,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     } finally {
       setLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, getPatientResources]);
 
   // Load imaging studies
   useEffect(() => {

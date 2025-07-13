@@ -23,7 +23,6 @@ import {
   DialogActions,
   Alert,
   Tooltip,
-  Badge
 } from '@mui/material';
 import {
   Description as DocumentIcon,
@@ -33,8 +32,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Close as CloseIcon,
-  NoteAdd as CreateNoteIcon,
-  Schedule as LaterIcon
+  NoteAdd as CreateNoteIcon
 } from '@mui/icons-material';
 import { cdsDocumentationService } from '../../../services/cdsDocumentationService';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
@@ -184,14 +182,12 @@ const CDSDocumentationPrompts = ({
             <Typography variant="h6" color="primary.main" sx={{ flexGrow: 1 }}>
               Documentation Prompts
             </Typography>
-            <Badge badgeContent={prompts.length} color="primary">
-              <Chip 
-                label={`${prompts.length} prompt${prompts.length !== 1 ? 's' : ''}`}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
-            </Badge>
+            <Chip 
+              label={`${prompts.length} prompt${prompts.length !== 1 ? 's' : ''}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
             <IconButton size="small" color="primary">
               {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             </IconButton>

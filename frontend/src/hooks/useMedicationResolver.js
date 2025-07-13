@@ -19,8 +19,9 @@ export const useMedicationResolver = (medicationRequests = []) => {
       return '';
     }
     return medicationRequests
-      .filter(req => req && req.id) // Filter out null/undefined requests and requests without IDs
-      .map(req => req.id)
+      .filter(req => req && typeof req === 'object' && req.id) // More robust null check
+      .map(req => req?.id) // Additional safety check with optional chaining
+      .filter(id => id) // Remove any undefined/null IDs
       .join(',');
   }, [medicationRequests]);
 
@@ -41,7 +42,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
         const medicationRefs = new Set();
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
-          if (!req || !req.id) return;
+          if (!req || typeof req !== 'object' || !req.id) return;
           
           // Handle different medication structures from Synthea
           if (req.medication?.reference?.reference) {
@@ -88,7 +89,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
         // Build resolved medications map AFTER all fetches complete
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
-          if (!req || !req.id) return;
+          if (!req || typeof req !== 'object' || !req.id) return;
           
           let medicationId = null;
           

@@ -67,7 +67,7 @@ SUPPORTED_RESOURCES = [
     "Composition", "Media", "SupplyDelivery", "Schedule",
     "Slot", "Communication", "CommunicationRequest",
     # Recently identified missing resources
-    "Provenance"
+    "Provenance", "List"
 ]
 
 

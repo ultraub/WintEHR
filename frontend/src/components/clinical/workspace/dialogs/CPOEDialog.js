@@ -2,7 +2,7 @@
  * CPOE (Computerized Physician Order Entry) Dialog
  * Comprehensive order entry system with clinical decision support
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -13,7 +13,6 @@ import {
   Box,
   Stack,
   Paper,
-  Divider,
   Chip,
   TextField,
   FormControl,
@@ -23,29 +22,15 @@ import {
   Select,
   MenuItem,
   Alert,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Stepper,
-  Step,
-  StepLabel,
   CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Collapse,
   Grid,
   Card,
   CardContent,
-  Autocomplete,
   IconButton,
-  Tooltip,
   useTheme,
-  alpha,
   Tabs,
-  Tab,
-  Avatar
+  Tab
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
@@ -1059,21 +1044,34 @@ const CPOEDialog = ({
       <DialogContent>
         {/* Order Type Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tabs 
+            value={activeTab} 
+            onChange={(e, newValue) => setActiveTab(newValue)}
+            aria-label="Order type selection"
+          >
             <Tab 
               icon={<MedicationIcon />} 
               label="Medications" 
               onClick={() => setOrderType('medication')}
+              aria-label="Create medication orders"
+              id="tab-medication"
+              aria-controls="tabpanel-medication"
             />
             <Tab 
               icon={<LabIcon />} 
               label="Laboratory" 
               onClick={() => setOrderType('lab')}
+              aria-label="Create laboratory orders"
+              id="tab-lab"
+              aria-controls="tabpanel-lab"
             />
             <Tab 
               icon={<ImagingIcon />} 
               label="Imaging" 
               onClick={() => setOrderType('imaging')}
+              aria-label="Create imaging orders"
+              id="tab-imaging"
+              aria-controls="tabpanel-imaging"
             />
           </Tabs>
         </Box>
@@ -1354,7 +1352,12 @@ const CPOEDialog = ({
 
         {/* Validation Errors */}
         {validationErrors.length > 0 && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ mt: 2 }}
+            role="alert"
+            aria-live="polite"
+          >
             <Typography variant="subtitle2">Please correct the following:</Typography>
             <ul>
               {validationErrors.map((error, idx) => (

@@ -230,19 +230,8 @@ export class ComponentErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <Alert 
-          severity="error" 
-          action={
-            <IconButton
-              color="inherit"
-              size="small"
-              onClick={() => this.setState({ hasError: false })}
-            >
-              <RefreshIcon fontSize="inherit" />
-            </IconButton>
-          }
-        >
-          {this.props.fallbackMessage || 'This component encountered an error. Click refresh to try again.'}
+        <Alert severity="error">
+          {this.props.fallbackMessage || 'This component encountered an error.'}
         </Alert>
       );
     }

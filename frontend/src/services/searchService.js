@@ -139,7 +139,6 @@ class SearchService {
       this.setCache(cacheKey, procedures);
       return procedures;
     } catch (error) {
-      
       return [];
     }
   }
@@ -257,7 +256,6 @@ class SearchService {
       this.setCache(cacheKey, documentTypes);
       return documentTypes;
     } catch (error) {
-      
       return [];
     }
   }
@@ -288,7 +286,6 @@ class SearchService {
       this.setCache(cacheKey, practitioners);
       return practitioners;
     } catch (error) {
-      
       return [];
     }
   }
@@ -319,7 +316,6 @@ class SearchService {
       this.setCache(cacheKey, organizations);
       return organizations;
     } catch (error) {
-      
       return [];
     }
   }
@@ -350,7 +346,6 @@ class SearchService {
       this.setCache(cacheKey, vaccines);
       return vaccines;
     } catch (error) {
-      
       return [];
     }
   }
@@ -380,7 +375,7 @@ class SearchService {
           source: 'medication_catalog'
         })));
       } catch (error) {
-        
+        // Silently ignore medication search errors
       }
     }
 

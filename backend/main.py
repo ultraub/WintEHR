@@ -180,6 +180,10 @@ app.include_router(cds_clinical_router, tags=["CDS Clinical Data"])
 from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
 app.include_router(dynamic_catalog_router, tags=["Dynamic Clinical Catalogs"])
 
+# Include Catalog Search API
+from api.clinical.catalog_search import router as catalog_search_router
+app.include_router(catalog_search_router, prefix="/api/clinical", tags=["Clinical Catalog Search"])
+
 # Include debug router (temporary)
 from api.debug_router import debug_router
 app.include_router(debug_router, tags=["Debug"])

@@ -35,7 +35,6 @@ import {
   Select,
   MenuItem,
   Tooltip,
-  Badge
 } from '@mui/material';
 import {
   TrendingUp as AdjustmentIcon,
@@ -51,8 +50,7 @@ import {
   Psychology as ReasoningIcon,
   MedicalServices as ProtocolIcon,
   Assessment as AssessmentIcon,
-  Close as CloseIcon,
-  Add as AddIcon
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
 import { fhirClient } from '../../../services/fhirClient';

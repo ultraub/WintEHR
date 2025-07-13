@@ -2,7 +2,7 @@
  * Medication Effectiveness Assessment Dialog
  * Comprehensive interface for assessing medication effectiveness and recording outcomes
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -96,7 +96,9 @@ const MedicationEffectivenessDialog = ({
   const [nextReviewDate, setNextReviewDate] = useState(addWeeks(new Date(), 4));
   const [recommendedActions, setRecommendedActions] = useState([]);
 
-  const { getMedicationDisplay } = useMedicationResolver(medicationRequest ? [medicationRequest] : []);
+  const { getMedicationDisplay } = useMedicationResolver(
+    (medicationRequest && typeof medicationRequest === 'object' && medicationRequest.id) ? [medicationRequest] : []
+  );
 
   useEffect(() => {
     if (assessmentPrompts?.assessmentQuestions) {

@@ -2,7 +2,7 @@
  * Medication Discontinuation Dialog Component
  * Comprehensive workflow for discontinuing medications with proper FHIR tracking
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -46,12 +46,10 @@ import {
   Medication as MedicationIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  CheckCircle as CheckIcon,
-  Cancel as CancelIcon,
-  EventNote as EventIcon
+  Cancel as CancelIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { format, addDays, parseISO } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
 
 // Discontinuation reason categories based on clinical guidelines
@@ -171,7 +169,7 @@ const MedicationDiscontinuationDialog = ({
   const [errors, setErrors] = useState({});
 
   const { getMedicationDisplay } = useMedicationResolver(
-    (medicationRequest && medicationRequest.id) ? [medicationRequest] : []
+    (medicationRequest && typeof medicationRequest === 'object' && medicationRequest.id) ? [medicationRequest] : []
   );
 
   useEffect(() => {

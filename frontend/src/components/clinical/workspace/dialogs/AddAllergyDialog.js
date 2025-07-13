@@ -22,7 +22,6 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Divider
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -58,7 +57,6 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
   const [error, setError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [allergenOptions, setAllergenOptions] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     selectedAllergen: null,
     customAllergen: '',
@@ -84,7 +82,6 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
       const results = await searchService.searchAllergens(query, category);
       setAllergenOptions(results);
     } catch (error) {
-      
       setAllergenOptions([]);
     } finally {
       setSearchLoading(false);
@@ -106,7 +103,6 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
     });
     setError('');
     setAllergenOptions([]);
-    setSearchQuery('');
   };
 
   const handleClose = () => {
@@ -143,7 +139,13 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
             display: formData.verificationStatus
           }]
         },
-        type: formData.allergyType,
+        type: {
+          coding: [{
+            system: 'http://hl7.org/fhir/allergy-intolerance-type',
+            code: formData.allergyType,
+            display: formData.allergyType === 'allergy' ? 'Allergy' : 'Intolerance'
+          }]
+        },
         criticality: formData.criticality,
         code: formData.selectedAllergen ? {
           coding: [{
@@ -225,7 +227,12 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
             {error && (
-              <Alert severity="error" onClose={() => setError('')}>
+              <Alert 
+                severity="error" 
+                onClose={() => setError('')}
+                role="alert"
+                aria-live="polite"
+              >
                 {error}
               </Alert>
             )}
@@ -242,7 +249,6 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
                   value={formData.selectedAllergen}
                   loading={searchLoading}
                   onInputChange={(event, value) => {
-                    setSearchQuery(value);
                     handleSearchAllergens(value);
                   }}
                   onChange={(event, newValue) => {
@@ -258,6 +264,7 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
                       label="Search for allergens"
                       placeholder="Type to search allergens..."
                       variant="outlined"
+                      aria-describedby={error ? "allergen-error" : undefined}
                       InputProps={{
                         ...params.InputProps,
                         endAdornment: (
@@ -280,8 +287,6 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
                     </Box>
                   )}
                   noOptionsText={
-                    searchQuery.length < 2 ? 
-                    "Type at least 2 characters to search" : 
                     searchLoading ? "Searching..." : "No allergens found"
                   }
                 />
@@ -301,6 +306,8 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
                     selectedAllergen: null
                   }))}
                   variant="outlined"
+                  aria-describedby={error ? "allergen-error" : undefined}
+                  helperText="Enter an allergen not found in the search results"
                 />
               </Grid>
 

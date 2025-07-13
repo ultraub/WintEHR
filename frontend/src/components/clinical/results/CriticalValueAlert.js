@@ -33,9 +33,6 @@ import {
 } from '@mui/material';
 import {
   Warning as CriticalIcon,
-  Phone as PhoneIcon,
-  Message as MessageIcon,
-  Email as EmailIcon,
   CheckCircle as AcknowledgeIcon,
   Close as CloseIcon,
   AccessTime as TimeIcon,

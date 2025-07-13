@@ -71,7 +71,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
   const [error, setError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [allergenOptions, setAllergenOptions] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     selectedAllergen: null,
     customAllergen: '',
@@ -147,7 +146,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       const results = await searchService.searchAllergens(query, category);
       setAllergenOptions(results);
     } catch (error) {
-      
       setAllergenOptions([]);
     } finally {
       setSearchLoading(false);
@@ -169,7 +167,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
     });
     setError('');
     setAllergenOptions([]);
-    setSearchQuery('');
   };
 
   const handleClose = () => {
@@ -177,21 +174,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
     onClose();
   };
 
-  const handleAddReaction = (reactionText) => {
-    if (reactionText && !formData.reactions.includes(reactionText)) {
-      setFormData(prev => ({
-        ...prev,
-        reactions: [...prev.reactions, reactionText]
-      }));
-    }
-  };
-
-  const handleRemoveReaction = (reactionToRemove) => {
-    setFormData(prev => ({
-      ...prev,
-      reactions: prev.reactions.filter(r => r !== reactionToRemove)
-    }));
-  };
 
   const handleSave = async () => {
     try {
@@ -229,7 +211,13 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
             display: VERIFICATION_STATUS.find(s => s.value === formData.verificationStatus)?.display
           }]
         },
-        type: formData.allergyType,
+        type: {
+          coding: [{
+            system: 'http://hl7.org/fhir/allergy-intolerance-type',
+            code: formData.allergyType,
+            display: formData.allergyType === 'allergy' ? 'Allergy' : 'Intolerance'
+          }]
+        },
         criticality: formData.criticality,
         code: formData.selectedAllergen ? {
           coding: [{
@@ -267,7 +255,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       await onSave(updatedAllergyIntolerance);
       handleClose();
     } catch (err) {
-      
       // Ensure we always set a string error message
       const errorMessage = typeof err === 'string' ? err : 
                           err?.message || 
@@ -287,7 +274,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         await onDelete(allergyIntolerance.id);
         handleClose();
       } catch (err) {
-        
         // Ensure we always set a string error message
         const errorMessage = typeof err === 'string' ? err : 
                             err?.message || 
@@ -349,7 +335,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   value={formData.selectedAllergen}
                   loading={searchLoading}
                   onInputChange={(event, value) => {
-                    setSearchQuery(value);
                     handleSearchAllergens(value);
                   }}
                   onChange={(event, newValue) => {
@@ -388,8 +373,6 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                     </Box>
                   )}
                   noOptionsText={
-                    searchQuery.length < 2 ? 
-                    "Type at least 2 characters to search" : 
                     searchLoading ? "Searching..." : "No allergens found"
                   }
                 />

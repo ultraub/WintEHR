@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { noteTemplatesService } from './noteTemplatesService';
 
 export class QualityMeasureDocumentationService {
   constructor() {

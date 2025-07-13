@@ -168,7 +168,11 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get('/api/clinical/inbox/', { params: filters });
       setInboxItems(response.data);
     } catch (error) {
-      
+      // Inbox endpoints not available - set empty state for graceful degradation
+      if (error.response?.status === 404) {
+        setInboxItems([]);
+        return;
+      }
       throw error;
     }
   };
@@ -178,7 +182,11 @@ export const TaskProvider = ({ children }) => {
       const response = await api.get('/api/clinical/inbox/stats');
       setInboxStats(response.data);
     } catch (error) {
-      
+      // Inbox stats endpoint not available - set empty state for graceful degradation
+      if (error.response?.status === 404) {
+        setInboxStats({ total: 0, unread: 0, urgent: 0 });
+        return;
+      }
       throw error;
     }
   };

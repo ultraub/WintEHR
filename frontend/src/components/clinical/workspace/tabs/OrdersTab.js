@@ -76,7 +76,6 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../../../services/fhirClient';
 import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -191,6 +190,9 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
               <Checkbox
                 checked={selected}
                 onChange={(e) => onSelect(order, e.target.checked)}
+                inputProps={{
+                  'aria-label': `Select order: ${getOrderTitle()}`
+                }}
               />
               {getOrderTypeIcon(order)}
               <Typography variant="h6">
@@ -481,7 +483,6 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
 
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
@@ -1322,6 +1323,11 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
                 checked={selectedOrders.size === sortedOrders.length && sortedOrders.length > 0}
                 indeterminate={selectedOrders.size > 0 && selectedOrders.size < sortedOrders.length}
                 onChange={handleSelectAll}
+                inputProps={{
+                  'aria-label': selectedOrders.size === sortedOrders.length && sortedOrders.length > 0 
+                    ? 'Deselect all orders' 
+                    : 'Select all orders'
+                }}
               />
             }
             label="Select All"
@@ -1379,6 +1385,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             key={action.name}
             icon={action.icon}
             tooltipTitle={action.name}
+            aria-label={`Create new ${action.name.toLowerCase()}`}
             onClick={() => {
               setSpeedDialOpen(false);
               action.onClick();

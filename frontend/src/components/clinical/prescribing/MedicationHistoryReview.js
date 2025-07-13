@@ -12,10 +12,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Stack,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
@@ -29,7 +27,6 @@ import {
   FormControlLabel,
   Checkbox,
   useTheme,
-  alpha,
   Grid
 } from '@mui/material';
 import {
@@ -47,12 +44,10 @@ import {
   FilterList as FilterIcon,
   Timeline as TimelineIcon,
   CalendarMonth as DateIcon,
-  LocalPharmacy as PharmacyIcon,
   Assignment as PrescriptionIcon
 } from '@mui/icons-material';
 import { format, parseISO, differenceInDays, subMonths } from 'date-fns';
 import { fhirClient } from '../../../services/fhirClient';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
 
 const MedicationHistoryReview = ({ 
@@ -64,7 +59,6 @@ const MedicationHistoryReview = ({
   compactView = false
 }) => {
   const theme = useTheme();
-  const { getPatientResources } = useFHIRResource();
   const { resolveMedication } = useMedicationResolver();
   
   const [medications, setMedications] = useState([]);
@@ -129,13 +123,13 @@ const MedicationHistoryReview = ({
             authoredOn: request.authoredOn,
             requester: request.requester?.display,
             dosageInstructions: request.dosageInstruction?.[0]?.text || 
-                              this.formatDosageInstructions(request.dosageInstruction?.[0]),
+                              formatDosageInstructions(request.dosageInstruction?.[0]),
             quantity: request.dispenseRequest?.quantity,
             refills: request.dispenseRequest?.numberOfRepeatsAllowed,
             reasonCode: request.reasonCode?.[0]?.text,
             note: request.note?.[0]?.text,
             // Calculate duration
-            duration: this.calculateDuration(request),
+            duration: calculateDuration(request),
             // Check if recently active
             isRecentlyActive: isRecentlyActive(request),
             // Determine display status

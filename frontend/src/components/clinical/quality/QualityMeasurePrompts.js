@@ -45,16 +45,14 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ClockIcon,
   Star as StarIcon,
-  TrendingUp as TrendIcon,
   Description as NoteIcon,
   Visibility as ViewIcon,
   Create as CreateIcon,
-  Timeline as TimelineIcon,
-  LocalHospital as MedicalIcon,
   MonitorHeart as ClinicalIcon,
   Security as SafetyIcon,
   Healing as PreventiveIcon,
-  Psychology as BehavioralIcon
+  Psychology as BehavioralIcon,
+  LocalHospital as MedicalIcon
 } from '@mui/icons-material';
 
 import { qualityMeasureDocumentationService } from '../../../services/qualityMeasureDocumentationService';

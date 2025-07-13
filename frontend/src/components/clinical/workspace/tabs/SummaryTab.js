@@ -50,18 +50,32 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
   const theme = useTheme();
   
+  const CardComponent = onClick ? 'button' : 'div';
+  
   return (
     <Card 
+      component={CardComponent}
       sx={{ 
         height: '100%', 
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.2s',
+        border: 'none',
+        background: 'transparent',
+        padding: 0,
+        textAlign: 'left',
         '&:hover': onClick ? {
           transform: 'translateY(-2px)',
           boxShadow: 3
+        } : {},
+        '&:focus': onClick ? {
+          outline: `2px solid ${theme.palette.primary.main}`,
+          outlineOffset: '2px'
         } : {}
       }}
       onClick={onClick}
+      tabIndex={onClick ? 0 : -1}
+      role={onClick ? 'button' : undefined}
+      aria-label={onClick ? `${title}: ${value}. Click for more details.` : undefined}
     >
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -112,13 +126,26 @@ const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, on
 // Recent Item Component
 const RecentItem = ({ primary, secondary, icon, status, onClick }) => (
   <ListItem 
-    button 
+    component="button"
     onClick={onClick}
     sx={{ 
       borderRadius: 1,
       mb: 1,
-      '&:hover': { backgroundColor: 'action.hover' }
+      '&:hover': { backgroundColor: 'action.hover' },
+      cursor: 'pointer',
+      border: 'none',
+      width: '100%',
+      textAlign: 'left',
+      background: 'transparent',
+      '&:focus': {
+        outline: '2px solid',
+        outlineColor: 'primary.main',
+        outlineOffset: '2px'
+      }
     }}
+    role="button"
+    tabIndex={0}
+    aria-label={`View details for ${primary}. ${secondary}${status ? `. Status: ${status}` : ''}`}
   >
     <ListItemIcon>{icon}</ListItemIcon>
     <ListItemText 
@@ -157,48 +184,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     overdueItems: 0
   });
 
-  // Load all patient data
-  useEffect(() => {
-    loadDashboardData();
-  }, [patientId]);
-
-  // Note: Removed problematic useEffect that was causing infinite loops
-  // Data refreshing is now handled only by the event system below
-
-  // Subscribe to clinical events to refresh summary when data changes
-  useEffect(() => {
-    const unsubscribers = [];
-
-    // Subscribe to events that should trigger a refresh
-    const eventsToWatch = [
-      CLINICAL_EVENTS.CONDITION_ADDED,
-      CLINICAL_EVENTS.CONDITION_UPDATED,
-      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
-      CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED,
-      CLINICAL_EVENTS.RESULT_RECEIVED,
-      CLINICAL_EVENTS.ENCOUNTER_CREATED,
-      CLINICAL_EVENTS.ALLERGY_ADDED,
-      CLINICAL_EVENTS.ALLERGY_UPDATED
-    ];
-
-    eventsToWatch.forEach(eventType => {
-      const unsubscribe = subscribe(eventType, (data) => {
-        // Only refresh if the event is for the current patient
-        if (data.patientId === patientId || data.resourceType) {
-          setRefreshing(true);
-          loadDashboardData();
-        }
-      });
-      unsubscribers.push(unsubscribe);
-    });
-
-    // Cleanup subscriptions on unmount
-    return () => {
-      unsubscribers.forEach(unsubscribe => unsubscribe());
-    };
-  }, [subscribe, patientId]);
-
-  const loadDashboardData = async () => {
+  // Define loadDashboardData function before it's used
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -286,13 +273,54 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [patientId, getPatientResources, onNotificationUpdate]);
+
+  // Load all patient data
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Note: Removed problematic useEffect that was causing infinite loops
+  // Data refreshing is now handled only by the event system below
+
+  // Subscribe to clinical events to refresh summary when data changes
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Subscribe to events that should trigger a refresh
+    const eventsToWatch = [
+      CLINICAL_EVENTS.CONDITION_ADDED,
+      CLINICAL_EVENTS.CONDITION_UPDATED,
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED,
+      CLINICAL_EVENTS.RESULT_RECEIVED,
+      CLINICAL_EVENTS.ENCOUNTER_CREATED,
+      CLINICAL_EVENTS.ALLERGY_ADDED,
+      CLINICAL_EVENTS.ALLERGY_UPDATED
+    ];
+
+    eventsToWatch.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (data) => {
+        // Only refresh if the event is for the current patient
+        if (data.patientId === patientId || data.resourceType) {
+          setRefreshing(true);
+          loadDashboardData();
+        }
+      });
+      unsubscribers.push(unsubscribe);
+    });
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe, patientId, loadDashboardData]);
 
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadDashboardData();
-  }, []);
+  }, [loadDashboardData]);
 
   const handlePrintSummary = () => {
     const patientInfo = {
@@ -410,10 +438,18 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           <Typography variant="caption" color="text.secondary">
             Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
           </Typography>
-          <IconButton onClick={handlePrintSummary} title="Print Summary">
+          <IconButton 
+            onClick={handlePrintSummary} 
+            title="Print Summary"
+            aria-label="Print clinical summary for this patient"
+          >
             <PrintIcon />
           </IconButton>
-          <IconButton onClick={handleRefresh} disabled={refreshing}>
+          <IconButton 
+            onClick={handleRefresh} 
+            disabled={refreshing}
+            aria-label={refreshing ? "Refreshing summary data..." : "Refresh summary data"}
+          >
             <RefreshIcon />
           </IconButton>
         </Box>

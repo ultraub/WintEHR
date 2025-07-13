@@ -117,13 +117,13 @@ const CDSHooksTab = ({ patientId }) => {
     loadCDSServices();
     loadExecutionHistory();
     loadCustomHooks();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (patientId && tabValue === 0) {
       executePatientViewHooks();
     }
-  }, [patientId, tabValue]);
+  }, [patientId, tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to CDS-relevant events
   useEffect(() => {
@@ -166,7 +166,7 @@ const CDSHooksTab = ({ patientId }) => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [patientId, services, serviceSettings, subscribe]);
+  }, [patientId, services, serviceSettings, subscribe]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadCDSServices = async () => {
     setLoading(true);
