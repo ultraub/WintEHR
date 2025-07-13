@@ -6,9 +6,8 @@
 import { fhirClient } from './fhirClient';
 import { medicationListManagementService } from './medicationListManagementService';
 import { prescriptionRefillService } from './prescriptionRefillService';
-import { medicationDiscontinuationService } from './medicationDiscontinuationService';
 import { medicationEffectivenessService } from './medicationEffectivenessService';
-import { differenceInDays, parseISO, format } from 'date-fns';
+import { differenceInDays, parseISO } from 'date-fns';
 
 class MedicationWorkflowValidator {
   constructor() {
@@ -479,7 +478,6 @@ class MedicationWorkflowValidator {
         // This medication has been updated - we should validate status transitions
         // In a real implementation, we'd track status history
         const currentStatus = medication.status;
-        const allowedTransitions = this.consistencyRules.statusTransitions[currentStatus] || [];
         
         // This is a simplified check - in practice, you'd need status history
         if (currentStatus === 'entered-in-error') {

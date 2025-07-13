@@ -4,9 +4,7 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { medicationWorkflowValidator } from './medicationWorkflowValidator';
-import { medicationEffectivenessService } from './medicationEffectivenessService';
-import { differenceInDays, parseISO, addDays, format } from 'date-fns';
+import { differenceInDays, parseISO, addDays } from 'date-fns';
 
 class ClinicalSafetyVerifier {
   constructor() {
@@ -421,7 +419,7 @@ class ClinicalSafetyVerifier {
     for (const [categoryName, categoryRules] of Object.entries(this.safetyRules)) {
       const categoryResult = { safe: true, issues: [] };
 
-      for (const [ruleName, rule] of Object.entries(categoryRules)) {
+      for (const [, rule] of Object.entries(categoryRules)) {
         try {
           const issues = await rule.check(patientData.medications, patientData);
           categoryResult.issues.push(...issues);
@@ -512,7 +510,6 @@ class ClinicalSafetyVerifier {
    * Calculate overall safety assessment
    */
   calculateOverallSafety(verificationReport) {
-    let totalIssues = 0;
     let criticalCount = 0;
     let highRiskCount = 0;
     let mediumRiskCount = 0;
@@ -520,7 +517,6 @@ class ClinicalSafetyVerifier {
 
     Object.values(verificationReport.categories).forEach(category => {
       category.issues.forEach(issue => {
-        totalIssues++;
         switch (issue.risk) {
           case 'critical':
             criticalCount++;
@@ -533,6 +529,9 @@ class ClinicalSafetyVerifier {
             break;
           case 'low':
             lowRiskCount++;
+            break;
+          default:
+            // Handle unknown risk levels
             break;
         }
       });
@@ -655,6 +654,9 @@ class ClinicalSafetyVerifier {
             medicationId: issue.medicationId,
             dueDate: addDays(new Date(), 3).toISOString()
           });
+          break;
+        default:
+          // Handle unknown issue types
           break;
       }
     });
@@ -1065,26 +1067,18 @@ class ClinicalSafetyVerifier {
    * Check if patient has post-discontinuation follow-up documented
    */
   async hasPostDiscontinuationFollowUp(medicationId) {
-    try {
-      // In a real implementation, this would check for follow-up appointments or lab orders
-      // For now, return false to indicate follow-up may be needed
-      return false;
-    } catch (error) {
-      return false;
-    }
+    // In a real implementation, this would check for follow-up appointments or lab orders
+    // For now, return false to indicate follow-up may be needed
+    return false;
   }
 
   /**
    * Check if adverse effect tracking is documented for medication
    */
   async hasAdverseEffectTracking(medicationId) {
-    try {
-      // In a real implementation, this would check for documented adverse effect monitoring
-      // Check for Observation resources related to adverse effects
-      return false; // Conservative approach - assume no tracking unless documented
-    } catch (error) {
-      return false;
-    }
+    // In a real implementation, this would check for documented adverse effect monitoring
+    // Check for Observation resources related to adverse effects
+    return false; // Conservative approach - assume no tracking unless documented
   }
 
   /**

@@ -4,7 +4,7 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { format, parseISO, addDays, isAfter, isBefore } from 'date-fns';
+import { parseISO, addDays, isAfter } from 'date-fns';
 
 class PrescriptionRefillService {
   constructor() {
@@ -508,7 +508,7 @@ class PrescriptionRefillService {
         };
       }
       
-      const { originalPrescription, totalRefillsAllowed, refillsUsed } = history;
+      const { totalRefillsAllowed, refillsUsed } = history;
       
       // Check if any refills remain
       if (refillsUsed >= totalRefillsAllowed) {
@@ -629,6 +629,9 @@ class PrescriptionRefillService {
           break;
         case 'urgent':
           info.urgent = ext.valueBoolean;
+          break;
+        default:
+          // Handle unknown extension types
           break;
       }
     });

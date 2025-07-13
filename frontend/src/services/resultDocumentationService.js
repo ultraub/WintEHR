@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { noteTemplatesService } from './noteTemplatesService';
 
 export class ResultDocumentationService {
   constructor() {
@@ -677,6 +676,9 @@ export class ResultDocumentationService {
           description: 'Counseling on diet and exercise modifications',
           priority: 'medium'
         });
+        break;
+      default:
+        // Handle unknown result types
         break;
     }
     

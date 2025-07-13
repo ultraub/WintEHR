@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 
 class PrescriptionStatusService {
   constructor() {
