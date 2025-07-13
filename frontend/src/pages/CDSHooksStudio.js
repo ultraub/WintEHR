@@ -56,6 +56,10 @@ import CDSBuildMode from '../components/cds-studio/build/CDSBuildMode';
 import CDSBuildModeImproved from '../components/cds-studio/build/CDSBuildModeImproved';
 import CDSManageMode from '../components/cds-studio/manage/CDSManageMode';
 
+// Import error boundary and loading states
+import CDSErrorBoundary from '../components/cds-studio/shared/CDSErrorBoundary';
+import { CDSSaveLoading, CDSLoadingOverlay } from '../components/cds-studio/shared/CDSLoadingStates';
+
 // Import services
 import { cdsHooksService } from '../services/cdsHooksService';
 
@@ -88,7 +92,11 @@ export const CDSStudioProvider = ({ children }) => {
 
   const [testResults, setTestResults] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveMessage, setSaveMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState({ open: false, message: '', severity: 'success' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   // Hook management functions
   const updateHook = useCallback((updates) => {
@@ -103,37 +111,91 @@ export const CDSStudioProvider = ({ children }) => {
   }, []);
 
   const validateHook = useCallback(() => {
-    const errors = [];
-    const warnings = [];
+    try {
+      const errors = [];
+      const warnings = [];
 
-    // Required fields validation
-    if (!currentHook.title) errors.push('Hook title is required');
-    if (!currentHook.hook) errors.push('Hook type is required');
-    if (currentHook.conditions.length === 0) warnings.push('No conditions defined - hook will always trigger');
-    if (currentHook.cards.length === 0) errors.push('At least one card is required');
-
-    // Condition validation
-    currentHook.conditions.forEach((condition, index) => {
-      if (!condition.field) errors.push(`Condition ${index + 1}: Field is required`);
-      if (!condition.operator) errors.push(`Condition ${index + 1}: Operator is required`);
-      if (condition.value === undefined || condition.value === '') {
-        errors.push(`Condition ${index + 1}: Value is required`);
+      // Safety check for currentHook
+      if (!currentHook || typeof currentHook !== 'object') {
+        errors.push('Invalid hook data');
+        const validationResult = { errors, warnings, isValid: false };
+        setValidation(validationResult);
+        return validationResult;
       }
-    });
 
-    // Card validation
-    currentHook.cards.forEach((card, index) => {
-      if (!card.summary) errors.push(`Card ${index + 1}: Summary is required`);
-      if (!card.indicator) warnings.push(`Card ${index + 1}: No severity indicator`);
-    });
+      // Required fields validation - make these more lenient for testing
+      if (!currentHook.id || !currentHook.id.trim()) {
+        errors.push('Hook ID is required');
+      }
+      if (!currentHook.title || !currentHook.title.trim()) {
+        errors.push('Hook title is required');
+      }
+      if (!currentHook.hook) {
+        errors.push('Hook type is required');
+      }
+      
+      // Cards validation - more lenient
+      if (!currentHook.cards || !Array.isArray(currentHook.cards) || currentHook.cards.length === 0) {
+        errors.push('At least one card is required');
+      } else {
+        // Validate each card
+        currentHook.cards.forEach((card, index) => {
+          if (!card || typeof card !== 'object') {
+            errors.push(`Card ${index + 1}: Invalid card data`);
+            return;
+          }
+          if (!card.summary || !card.summary.trim()) {
+            errors.push(`Card ${index + 1}: Summary is required`);
+          }
+          // Don't require indicator - just warn
+          if (!card.indicator) {
+            warnings.push(`Card ${index + 1}: No severity indicator specified (will default to 'info')`);
+          }
+        });
+      }
 
-    const isValid = errors.length === 0;
-    setValidation({ errors, warnings, isValid });
-    return isValid;
+      // Conditions validation - make completely optional and more lenient
+      if (currentHook.conditions && Array.isArray(currentHook.conditions) && currentHook.conditions.length > 0) {
+        currentHook.conditions.forEach((condition, index) => {
+          if (!condition || typeof condition !== 'object') {
+            errors.push(`Condition ${index + 1}: Invalid condition data`);
+            return;
+          }
+          
+          // Only validate if condition has data - be more lenient
+          if (condition.type || condition.operator || condition.value !== undefined) {
+            if (!condition.type) {
+              errors.push(`Condition ${index + 1}: Condition type is required`);
+            }
+            if (!condition.operator) {
+              errors.push(`Condition ${index + 1}: Operator is required`);
+            }
+            if (condition.value === undefined || condition.value === '' || condition.value === null) {
+              errors.push(`Condition ${index + 1}: Value is required`);
+            }
+          }
+        });
+      } else {
+        // Only warn if there are no conditions at all
+        warnings.push('No conditions defined - hook will always trigger');
+      }
+
+      const isValid = errors.length === 0;
+      const validationResult = { errors, warnings, isValid };
+      setValidation(validationResult);
+      
+      return validationResult;
+    } catch (error) {
+      console.error('Validation error:', error);
+      const validationResult = { errors: ['Validation failed due to internal error'], warnings: [], isValid: false };
+      setValidation(validationResult);
+      return validationResult;
+    }
   }, [currentHook]);
 
   const testHook = useCallback(async (patientId) => {
-    if (!validateHook()) {
+    const validationResult = validateHook();
+    if (!validationResult.isValid) {
       return { success: false, error: 'Validation failed' };
     }
 
@@ -142,47 +204,165 @@ export const CDSStudioProvider = ({ children }) => {
       setTestResults(result);
       return { success: true, result };
     } catch (error) {
-      
+      console.error('Test hook failed:', error);
       return { success: false, error: error.message };
     }
   }, [currentHook, validateHook]);
 
   const saveHook = useCallback(async () => {
-    if (!validateHook()) {
+    // console.log('Save hook called, current hook:', currentHook);
+    
+    // Run validation and get fresh results
+    const validationResult = validateHook();
+    
+    // console.log('Validation result:', validationResult);
+    
+    // Check validation results directly from the function return
+    if (!validationResult.isValid) {
+      const errorCount = validationResult.errors.length;
+      const warningCount = validationResult.warnings.length;
+      
+      // console.log('Validation failed with:', { errorCount, warningCount, errors: validationResult.errors, warnings: validationResult.warnings });
+      
+      let message;
+      if (errorCount > 0) {
+        message = `Cannot save: ${errorCount} error${errorCount !== 1 ? 's' : ''} found.`;
+        if (warningCount > 0) {
+          message += ` Also ${warningCount} warning${warningCount !== 1 ? 's' : ''} found.`;
+        }
+        message += '\n\nErrors:\n• ' + validationResult.errors.join('\n• ');
+      } else {
+        message = 'Cannot save: Validation failed but no specific errors found. Please check your hook data.';
+      }
+      
       setSaveStatus({
         open: true,
-        message: 'Please fix validation errors before saving',
+        message,
+        severity: 'error'
+      });
+      return false;
+    }
+
+    // Check for required fields with better error messages
+    if (!currentHook.id?.trim()) {
+      setSaveStatus({
+        open: true,
+        message: 'Hook ID is required and cannot be empty',
+        severity: 'error'
+      });
+      return false;
+    }
+
+    if (!currentHook.title?.trim()) {
+      setSaveStatus({
+        open: true,
+        message: 'Hook title is required and cannot be empty',
         severity: 'error'
       });
       return false;
     }
 
     setIsSaving(true);
+    setSaveProgress(0);
+    setSaveMessage('Preparing hook data...');
+    
     try {
+      // Step 1: Prepare data (20%)
+      setSaveProgress(20);
+      setSaveMessage('Validating hook data...');
+      // Create a safe copy of the hook data for saving
+      const hookDataToSave = {
+        ...currentHook,
+        // Ensure required fields have valid defaults
+        enabled: currentHook.enabled !== false, // Default to true if undefined
+        conditions: currentHook.conditions || [],
+        cards: currentHook.cards || [],
+        prefetch: currentHook.prefetch || {},
+        // Update metadata
+        _meta: {
+          ...currentHook._meta,
+          modified: new Date(),
+          version: (currentHook._meta?.version || 0) + 1
+        }
+      };
+
+      // Step 2: Send to server (50%)
+      setSaveProgress(50);
+      const isUpdate = currentHook.id && currentHook._meta?.created;
+      setSaveMessage(isUpdate ? 'Updating hook...' : 'Creating hook...');
+      
       let result;
-      if (currentHook.id) {
-        result = await cdsHooksService.updateHook(currentHook.id, currentHook);
+      
+      if (isUpdate) {
+        // console.log('Updating existing hook:', currentHook.id);
+        result = await cdsHooksService.updateHook(currentHook.id, hookDataToSave);
       } else {
-        result = await cdsHooksService.createHook(currentHook);
-        setCurrentHook(prev => ({ ...prev, id: result.id }));
+        // console.log('Creating new hook:', hookDataToSave.id);
+        result = await cdsHooksService.createHook(hookDataToSave);
       }
+
+      // Step 3: Process response (80%)
+      setSaveProgress(80);
+      setSaveMessage('Processing response...');
+      
+      // Update the current hook with the response data
+      if (result?.data && !isUpdate) {
+        setCurrentHook(prev => ({ 
+          ...prev, 
+          ...result.data,
+          _meta: {
+            ...prev._meta,
+            created: new Date(),
+            modified: new Date(),
+            version: 1
+          }
+        }));
+      }
+
+      // Step 4: Complete (100%)
+      setSaveProgress(100);
+      setSaveMessage('Save completed!');
 
       setSaveStatus({
         open: true,
-        message: 'Hook saved successfully!',
+        message: `Hook ${isUpdate ? 'updated' : 'created'} successfully!`,
         severity: 'success'
       });
+      
+      // console.log('Save successful:', result);
       return true;
+      
     } catch (error) {
+      console.error('Save failed:', error);
+      
+      // Enhanced error handling with specific error types
+      let errorMessage = 'Save failed: ';
+      
+      if (error.name === 'ValidationError' || error.message?.includes('Validation')) {
+        errorMessage += `Data validation error - ${error.message}`;
+      } else if (error.message?.includes('409') || error.message?.includes('already exists')) {
+        errorMessage += `Hook ID "${currentHook.id}" already exists. Please choose a different ID.`;
+      } else if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+        errorMessage += `Invalid data format - ${error.message}`;
+      } else if (error.message?.includes('404')) {
+        errorMessage += `Hook not found. It may have been deleted by another user.`;
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        errorMessage += 'Network error. Please check your connection and try again.';
+      } else {
+        errorMessage += error.message || 'Unknown error occurred';
+      }
       
       setSaveStatus({
         open: true,
-        message: `Save failed: ${error.message}`,
+        message: errorMessage,
         severity: 'error'
       });
+      
       return false;
     } finally {
       setIsSaving(false);
+      setSaveProgress(0);
+      setSaveMessage('');
     }
   }, [currentHook, validateHook]);
 
@@ -191,18 +371,39 @@ export const CDSStudioProvider = ({ children }) => {
     validation,
     testResults,
     isSaving,
+    saveProgress,
+    saveMessage,
+    isLoading,
+    loadingMessage,
     actions: {
       updateHook,
       validateHook,
       testHook,
       saveHook,
-      setCurrentHook
+      setCurrentHook,
+      setIsLoading,
+      setLoadingMessage
     }
   };
 
   return (
     <CDSStudioContext.Provider value={value}>
       {children}
+      
+      {/* Save Loading Indicator */}
+      <CDSSaveLoading 
+        isVisible={isSaving}
+        progress={saveProgress}
+        message={saveMessage}
+      />
+      
+      {/* General Loading Overlay */}
+      <CDSLoadingOverlay 
+        open={isLoading}
+        message={loadingMessage}
+      />
+      
+      {/* Save Status Snackbar */}
       <Snackbar
         open={saveStatus.open}
         autoHideDuration={6000}
@@ -225,6 +426,39 @@ export const useCDSStudio = () => {
   return context;
 };
 
+// Build Mode component with error handling
+const BuildModeWithErrorHandling = () => {
+  const { actions } = useCDSStudio();
+  
+  const handleReset = useCallback(() => {
+    actions.setCurrentHook({
+      id: '',
+      title: '',
+      description: '',
+      hook: 'patient-view',
+      conditions: [],
+      cards: [],
+      prefetch: {},
+      _meta: {
+        created: new Date(),
+        modified: new Date(),
+        version: 1,
+        author: 'Current User'
+      }
+    });
+  }, [actions]);
+
+  // Expose reset function globally for error boundary
+  useEffect(() => {
+    window.resetCDSBuildMode = handleReset;
+    return () => {
+      delete window.resetCDSBuildMode;
+    };
+  }, [handleReset]);
+
+  return <CDSBuildModeImproved />;
+};
+
 // Save Button component
 const SaveButton = () => {
   const { actions } = useCDSStudio();
@@ -244,6 +478,26 @@ const SaveButton = () => {
 function CDSHooksStudio() {
   const [currentMode, setCurrentMode] = useState('build'); // learn, build, manage
   const [showHelp, setShowHelp] = useState(false);
+  
+  // Hook reset function for error recovery
+  const resetCurrentHook = useCallback(() => {
+    // This will be passed to the provider
+    return {
+      id: '',
+      title: '',
+      description: '',
+      hook: 'patient-view',
+      conditions: [],
+      cards: [],
+      prefetch: {},
+      _meta: {
+        created: new Date(),
+        modified: new Date(),
+        version: 1,
+        author: 'Current User'
+      }
+    };
+  }, []);
 
   // Mode descriptions
   const modeDescriptions = {
@@ -320,11 +574,39 @@ function CDSHooksStudio() {
           </Alert>
         )}
 
-        {/* Content Area */}
+        {/* Content Area with Error Boundaries */}
         <Box sx={{ flexGrow: 1, overflow: 'auto', position: 'relative' }}>
-          {currentMode === 'learn' && <CDSLearnMode />}
-          {currentMode === 'build' && <CDSBuildModeImproved />}
-          {currentMode === 'manage' && <CDSManageMode />}
+          {currentMode === 'learn' && (
+            <CDSErrorBoundary 
+              componentName="Learn Mode"
+              onRetry={() => window.location.reload()}
+              onReset={() => setCurrentMode('build')}
+            >
+              <CDSLearnMode />
+            </CDSErrorBoundary>
+          )}
+          {currentMode === 'build' && (
+            <CDSErrorBoundary 
+              componentName="Build Mode"
+              onRetry={() => window.location.reload()}
+              onReset={() => {
+                if (window.resetCDSBuildMode) {
+                  window.resetCDSBuildMode();
+                }
+              }}
+            >
+              <BuildModeWithErrorHandling />
+            </CDSErrorBoundary>
+          )}
+          {currentMode === 'manage' && (
+            <CDSErrorBoundary 
+              componentName="Manage Mode"
+              onRetry={() => window.location.reload()}
+              onReset={() => setCurrentMode('build')}
+            >
+              <CDSManageMode />
+            </CDSErrorBoundary>
+          )}
         </Box>
       </Box>
     </CDSStudioProvider>
