@@ -1,168 +1,383 @@
 # CLAUDE.md - MedGenEMR Developer Guide
 
-**Status**: Production-Ready FHIR-Native EMR  
+**Production-Ready FHIR-Native EMR**  
+**Version**: 2025-07-12  
 **Stack**: React 18 + FastAPI + PostgreSQL + Docker  
-**Architecture**: Event-Driven with Real-Time Integration  
 **Standards**: FHIR R4, CDS Hooks 1.0, DICOM  
-**Data**: 20,115+ Synthea Resources, 10+ Patients  
-**Updated**: 2025-01-08
+**Data**: 20,115+ Synthea Resources, 10+ Patients
 
-## 🎯 What This System Is
+> **⚠️ CRITICAL**: Every task MUST start with research using `context7` and web searches to ensure alignment with current standards. See Task Management Protocol section.
 
-A **complete, production-ready EMR** with:
+## 🚀 Quick Start
+
+```bash
+# Start system with validation
+./start.sh
+
+# Fresh deployment with sample data
+./fresh-deploy.sh
+
+# Validate deployment
+python scripts/validate_deployment.py --verbose
+
+# View logs
+docker-compose logs backend -f
+
+# Common fixes
+docker-compose down -v          # Full reset
+cd frontend && npm install      # Fix dependencies
+```
+
+### Authentication Modes
+```bash
+export JWT_ENABLED=false  # Training mode (default users: demo/nurse/pharmacist/admin, password: password)
+export JWT_ENABLED=true   # Production JWT mode (requires registration)
+```
+
+## 📋 CRITICAL: Task Management Protocol
+
+**⚠️ EVERY task MUST follow this structure - NO EXCEPTIONS**
+
+### 1️⃣ Research First (MANDATORY)
+- Research affected modules in `docs/modules/`
+- Review all related documentation
+- Use `context7` for latest patterns/standards
+- Web search current best practices
+- Update any outdated docs BEFORE coding
+
+### 2️⃣ Implementation 
+- Break into logical subtasks using TodoWrite
+- Follow established patterns
+- Test with real Synthea data
+
+### 3️⃣ Final Review (MANDATORY)
+- Two-pass code review
+- Git commit and push
+- Update ALL affected documentation
+
+**See "Task Management Protocol" section for detailed breakdown**
+
+## 🎯 System Overview
+
+### What This System Is
+A **complete, production-ready EMR** featuring:
 - ✅ Full FHIR R4 implementation (38 resource types)
 - ✅ Complete clinical workflows (order-to-result, prescribe-to-dispense)
-- ✅ Real-time WebSocket updates and event-driven architecture
-- ✅ Sophisticated caching and progressive loading
-- ✅ Dual-mode authentication (training + JWT)
+- ✅ Real-time WebSocket updates with event-driven architecture
+- ✅ Dynamic clinical catalogs from actual patient data
+- ✅ Context7 MCP integration for real-time documentation
 - ✅ DICOM imaging with multi-slice viewer
 - ✅ CDS Hooks with 10+ clinical rules
 
-## 🚀 Quick Start Commands
+### Clinical Modules
+| Module | Features | Integration |
+|--------|----------|-------------|
+| **Chart Review** | Problems, medications, allergies, immunizations | CRUD + Export |
+| **Results** | Lab trends, reference ranges, abnormal alerts | Real-time updates |
+| **Orders** | Multi-category CPOE, status tracking | Workflow events |
+| **Pharmacy** | Queue management, dispensing, lot tracking | MedicationDispense |
+| **Imaging** | DICOM viewer, multi-slice navigation | Study generation |
+| **Encounters** | Summary views, clinical documentation | Timeline view |
 
-```bash
-# Start entire system with validation
-./start.sh
+## ⚠️ Critical Development Rules
 
-# Fresh deployment with comprehensive checks
-./fresh-deploy.sh
+### 0. Task Structure (ABSOLUTE REQUIREMENT)
+**EVERY task MUST**:
+- ✅ Start with research phase (modules, docs, context7, web search)
+- ✅ Be broken into clear subtasks using TodoWrite
+- ✅ End with two-pass review + git commit + doc updates
+- ✅ See "Task Management Protocol" section for mandatory structure
 
-# Validate deployment after startup
-python scripts/validate_deployment.py --verbose
-
-# Common troubleshooting
-docker-compose down -v          # Full reset if errors
-cd frontend && npm install      # Fix missing dependencies
-docker-compose logs backend -f  # View backend logs
-
-# Authentication modes
-export JWT_ENABLED=false  # Training mode (default)
-export JWT_ENABLED=true   # Production JWT mode
-
-# Data management
-cd backend && python scripts/synthea_master.py full --count 10
-```
-
-## ⛔ Critical Development Rules
-
-### 1. Data Requirements
+### 1. Data Standards
 **ALWAYS**:
-- ✅ Use ONLY Synthea-generated FHIR data (no mock data)
-- ✅ Test with multiple real patients from the database
+- ✅ Use ONLY Synthea-generated FHIR data
+- ✅ Test with multiple real patients from database
 - ✅ Handle missing/null data gracefully
 - ✅ Use `fhirService.js` for all FHIR operations
 
 **NEVER**:
-- ❌ Create test patients (John Doe, Jane Smith, etc.)
-- ❌ Hardcode resource IDs or mock data
+- ❌ Create mock patients (John Doe, Jane Smith)
+- ❌ Hardcode resource IDs
 - ❌ Use array indexes for data access
 - ❌ Skip validation or error handling
 
 ### 2. Implementation Standards
 **ALWAYS**:
-- ✅ Complete ALL features end-to-end (no TODOs)
+- ✅ Complete ALL features end-to-end
 - ✅ Implement loading states and error handling
-- ✅ Follow existing component patterns
 - ✅ Use Context + Reducer pattern for complex state
+- ✅ Follow event-driven architecture
 
 **NEVER**:
 - ❌ Leave console.log() statements
 - ❌ Create partial implementations
 - ❌ Skip cross-module integration
-- ❌ Ignore the event-driven architecture
+- ❌ Bypass the caching layer
 
 ### 3. Component Communication
 **ALWAYS**:
 - ✅ Use `ClinicalWorkflowContext` for cross-tab events
 - ✅ Implement pub/sub for workflow orchestration
-- ✅ Use `FHIRResourceContext` for data management
 - ✅ Follow progressive loading patterns
 
 **NEVER**:
 - ❌ Direct component coupling
-- ❌ Skip workflow notifications
-- ❌ Bypass the caching layer
 - ❌ Create redundant data fetching
 
-## 📊 System Components
+## 📋 Task Management Protocol
 
-### Clinical Modules (Complete)
-| Module | Features | Status |
-|--------|----------|--------|
-| **Chart Review** | Problems, medications, allergies, immunizations | ✅ CRUD + Export |
-| **Results** | Lab trends, reference ranges, abnormal alerts | ✅ Real-time |
-| **Orders** | Multi-category CPOE, status tracking | ✅ Workflow integration |
-| **Pharmacy** | Queue management, dispensing, lot tracking | ✅ MedicationDispense |
-| **Imaging** | DICOM viewer, multi-slice navigation | ✅ Study generation |
-| **Encounters** | Summary views, clinical documentation | ✅ Timeline view |
+### MANDATORY: Task Breakdown Structure
 
-### API Endpoints
-- `/fhir/R4/{resourceType}` - Complete FHIR R4 REST API
-- `/api/emr/clinical/` - Clinical services and catalogs
-- `/cds-hooks/` - Clinical decision support (10+ rules)
-- `/api/ws/` - WebSocket real-time updates
-- `/api/dicom/` - Medical imaging services
+**Every task MUST be broken into subtasks using TodoWrite following this pattern:**
 
-## 🏗️ Core Architecture Patterns
+#### Starting a Task
+```javascript
+// Use TodoWrite to create task structure
+TodoWrite([
+  { content: "Research Phase: Review module documentation", status: "pending" },
+  { content: "Research Phase: Check context7 for latest patterns", status: "pending" },
+  { content: "Research Phase: Update outdated documentation", status: "pending" },
+  { content: "Implementation: [specific subtask]", status: "pending" },
+  { content: "Review: First pass - check completeness", status: "pending" },
+  { content: "Review: Second pass - verify integration", status: "pending" },
+  { content: "Finalize: Git commit and push", status: "pending" },
+  { content: "Finalize: Update all documentation", status: "pending" }
+]);
+```
+
+#### 1. Research Phase (ALWAYS FIRST)
+```bash
+# For EVERY task, create these research subtasks:
+- [ ] Research affected modules in docs/modules/
+- [ ] Review related documentation files
+- [ ] Use context7 to check latest library patterns/standards
+- [ ] Web search for current best practices if needed
+- [ ] Document any discrepancies found
+- [ ] Update outdated documentation BEFORE coding
+```
+
+#### 2. Implementation Phase
+```bash
+# Break feature into logical subtasks:
+- [ ] Core functionality implementation
+- [ ] Integration with existing modules
+- [ ] Error handling and edge cases
+- [ ] Loading states and UI feedback
+- [ ] Event publishing/subscribing
+- [ ] Testing with multiple patients
+```
+
+#### 3. Review & Finalization (MANDATORY LAST SUBTASK)
+```bash
+# EVERY task MUST end with:
+- [ ] First code review pass:
+    - Check for incompletions (no TODOs)
+    - Verify module integrations
+    - Ensure consistent patterns
+    - Remove all console.log statements
+- [ ] Second code review pass:
+    - Validate FHIR compliance
+    - Check event handling
+    - Verify error handling
+    - Ensure code is clean and simple
+    - Refactor complex code for clarity
+    - Remove unnecessary abstractions
+- [ ] Git commit with descriptive message
+- [ ] Git push to repository
+- [ ] Update documentation:
+    - Current module docs
+    - Related/dependent module docs
+    - Add "Recent Updates" with date
+    - Update integration guides if needed
+```
+
+### Code Quality Standards
+**Clean and Simple Code**:
+- Prefer clarity over cleverness
+- Use descriptive variable names
+- Keep functions focused and small
+- Avoid premature optimization
+- Remove commented-out code
+- Consolidate duplicate logic
+
+**Review Focus Areas**:
+- ✅ No incomplete features (search for TODO, FIXME, XXX)
+- ✅ All edge cases handled
+- ✅ Consistent error messages
+- ✅ Proper loading and error states
+- ✅ Cross-browser compatibility
+- ✅ Mobile responsiveness considered
+- ✅ Accessibility requirements met
+
+### Git Commit Standards
+```bash
+# Use conventional commit format:
+feat: Add new feature
+fix: Fix bug
+docs: Update documentation
+refactor: Refactor code
+test: Add tests
+chore: Update dependencies
+
+# Examples:
+git commit -m "feat: Add medication interaction checking with CDS integration"
+git commit -m "fix: Handle null medication references in resolver"
+git commit -m "docs: Update pharmacy module with interaction patterns"
+```
+
+### Quick Task Template
+```markdown
+## Task: [Task Description]
+
+### 1. Research Phase
+- [ ] Research modules: _______________
+- [ ] Review docs: _______________
+- [ ] Context7 check: _______________
+- [ ] Web search: _______________
+- [ ] Update outdated docs
+
+### 2. Implementation
+- [ ] [Subtask 1]
+- [ ] [Subtask 2]
+- [ ] [Subtask 3]
+
+### 3. Review & Finalization
+- [ ] First review pass
+- [ ] Second review pass
+- [ ] Git commit: "type: description"
+- [ ] Git push
+- [ ] Update module docs
+- [ ] Update related docs
+```
+
+## 🔍 Research Standards
+
+### Use Context7 For:
+- Latest React patterns and hooks
+- TypeScript best practices
+- FHIR R4 implementation details
+- Library-specific documentation
+- Performance optimization techniques
+
+### Web Search For:
+- Current healthcare IT standards
+- FHIR community best practices
+- Security recommendations
+- Accessibility guidelines
+- Browser compatibility issues
+
+### Documentation Verification:
+```bash
+# Before coding, ALWAYS:
+1. Check if docs match current implementation
+2. Note any discrepancies in TodoWrite
+3. Update docs BEFORE implementing
+4. Reference updated docs during coding
+5. If docs are missing, create them first
+```
+
+**IMPORTANT**: Never code based on outdated documentation. Always update docs first to establish the correct implementation pattern.
+
+## 🏗️ Architecture Patterns
+
+**⚠️ IMPORTANT**: Always verify patterns with context7 and current React/TypeScript best practices before implementing.
 
 ### Frontend: Context + Events + Progressive Loading
 ```javascript
-// 1. State Management: Context + Reducer
+// State Management
 const { resources, loading } = useFHIRResource();
 
-// 2. Cross-Module Communication: Event System
+// Cross-Module Events
 const { publish, subscribe } = useClinicalWorkflow();
 await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
 
-// 3. Performance: Progressive Loading
-// Critical → Important → Optional
+// Progressive Loading
 await fetchPatientBundle(patientId, false, 'critical');
 ```
 
 ### Backend: Repository + Service + DI
 ```python
-# Repository Pattern for data access
+# Repository Pattern
 class FHIRStorageEngine:
     async def create_resource(self, resource_type: str, data: dict)
 
-# Service Layer for business logic  
+# Service Layer
 class PharmacyService:
     async def dispense_medication(self, data: dict)
 
-# Dependency Injection via FastAPI
+# Dependency Injection
 async def endpoint(storage: FHIRStorageEngine = Depends(get_storage)):
 ```
 
-## 🔧 Common Implementation Tasks
+### Caching Strategy
+```javascript
+// TTL Configuration
+resources: 10min | searches: 5min | bundles: 15min | computed: 30min
+
+// Loading Priority
+critical: ['Condition', 'MedicationRequest', 'AllergyIntolerance']
+important: ['Observation', 'Procedure', 'DiagnosticReport']
+optional: ['CarePlan', 'CareTeam', 'DocumentReference']
+```
+
+## 💻 Common Implementation Patterns
 
 ### Adding New Clinical Feature
 ```javascript
-// 1. Create component in appropriate location
+// 1. Create component
 src/components/clinical/workspace/tabs/NewFeatureTab.js
 
-// 2. Use FHIR hooks for data
+// 2. Use FHIR hooks
 const { resources, loading } = usePatientResources(patient?.id, 'ResourceType');
 
-// 3. Integrate with workflow context
+// 3. Integrate workflows
 const { publish, subscribe } = useClinicalWorkflow();
 useEffect(() => {
   const unsubscribe = subscribe(CLINICAL_EVENTS.RELEVANT_EVENT, handleEvent);
   return unsubscribe;
 }, []);
 
-// 4. Implement CRUD with fhirService
+// 4. Implement CRUD
 await fhirService.createResource('ResourceType', resourceData);
 await refreshPatientResources(patient.id);
 ```
 
-### Handling FHIR References
+### Dynamic Clinical Catalogs
 ```javascript
-// ✅ CORRECT - Handle both formats
+// Use dynamic catalogs from patient data
+import { cdsClinicalDataService } from '../services/cdsClinicalDataService';
+
+// Get conditions from real diagnoses with frequency
+const conditions = await cdsClinicalDataService.getDynamicConditionCatalog('diabetes', 20);
+
+// Get medications with usage patterns
+const medications = await cdsClinicalDataService.getDynamicMedicationCatalog('insulin', 20);
+
+// Get lab tests with calculated reference ranges
+const labTests = await cdsClinicalDataService.getLabCatalog('glucose', null, 20);
+
+// Search across all catalogs
+const allResults = await cdsClinicalDataService.searchAllDynamicCatalogs('blood pressure', 10);
+
+// Refresh after data changes
+await cdsClinicalDataService.refreshDynamicCatalogs(100);
+```
+
+**Dynamic Catalog Features**:
+- **Conditions**: 57 conditions with frequency counts from diagnoses
+- **Medications**: 27 medications with usage patterns and dosing
+- **Lab Tests**: 47 tests with 5th-95th percentile reference ranges
+- **Procedures**: 91 procedures with frequency from actual data
+- **Real-time**: Extracted from actual patient FHIR resources
+
+### FHIR Reference Handling
+```javascript
+// Handle both reference formats
 const patientRef = reference.startsWith('urn:uuid:') 
   ? reference.replace('urn:uuid:', '') 
   : reference.split('/')[1];
 
-// ✅ CORRECT - Safe navigation
+// Safe navigation
 const medicationDisplay = medication?.code?.text || 
                          medication?.code?.coding?.[0]?.display || 
                          'Unknown medication';
@@ -170,15 +385,14 @@ const medicationDisplay = medication?.code?.text ||
 
 ### Cross-Module Workflow
 ```javascript
-// ✅ CORRECT - Event-driven workflow
-// In Orders Tab
+// Publisher (Orders Tab)
 await publish(CLINICAL_EVENTS.ORDER_PLACED, {
   orderId: order.id,
   type: 'laboratory',
   patient: patient.id
 });
 
-// In Results Tab (subscribes to event)
+// Subscriber (Results Tab)
 subscribe(CLINICAL_EVENTS.ORDER_PLACED, async (data) => {
   if (data.type === 'laboratory') {
     await createPendingResultPlaceholder(data);
@@ -186,205 +400,99 @@ subscribe(CLINICAL_EVENTS.ORDER_PLACED, async (data) => {
 });
 ```
 
-### WebSocket Real-time Updates
+### WebSocket Integration
 ```javascript
-// ✅ CORRECT - Subscribe to resource updates
 import { useWebSocket } from '../contexts/WebSocketContext';
 
 const { subscribe, unsubscribe, lastMessage } = useWebSocket();
 
-// Subscribe to patient-specific updates
 useEffect(() => {
   subscribe('patient-updates', ['Observation', 'Condition'], [patientId]);
   return () => unsubscribe('patient-updates');
 }, [patientId]);
-
-// Handle incoming messages
-useEffect(() => {
-  if (lastMessage?.data) {
-    const message = JSON.parse(lastMessage.data);
-    handleResourceUpdate(message);
-  }
-}, [lastMessage]);
 ```
 
-### Export Clinical Data
-```javascript
-// ✅ CORRECT - Export data in multiple formats
-import { exportClinicalData, EXPORT_COLUMNS } from '../utils/exportUtils';
+## 🔗 Context7 MCP Integration
 
-exportClinicalData({
-  patient: currentPatient,
-  data: conditions,
-  columns: EXPORT_COLUMNS.conditions,
-  format: 'csv', // or 'json', 'pdf'
-  title: 'Problem List',
-  formatForPrint: formatConditionsForPrint
-});
-```
+**Context7 enhances all development with real-time documentation and pattern access**
 
-### Print Clinical Documents
-```javascript
-// ✅ CORRECT - Print formatted clinical documents
-import { printDocument, formatLabResultsForPrint } from '../utils/printUtils';
-
-printDocument({
-  title: 'Lab Results Report',
-  patient: patientInfo,
-  content: formatLabResultsForPrint(labResults),
-  footer: 'Printed from MedGenEMR'
-});
-```
-
-### Data Migration
-```javascript
-// ✅ CORRECT - Run FHIR data migrations
-import { MigrationManager } from '../utils/migrations';
-
-const migrationManager = new MigrationManager();
-const result = await migrationManager.migrateResource(resource);
-if (result.success && result.changed) {
-  // Handle migrated resource
-  await fhirService.updateResource(resourceType, resource.id, result.resource);
-}
-```
-
-### Clinical Catalog Search
-```javascript
-// ✅ CORRECT - Search clinical catalogs with caching
-import { searchService } from '../services/searchService';
-
-// Search for conditions
-const conditions = await searchService.searchConditions('diabetes', 10);
-
-// Search with allergen categories
-const foodAllergies = await searchService.searchAllergens('peanut', 10, 'food');
-
-// Universal search across all catalogs
-const results = await searchService.searchAll('aspirin', 5);
-```
-
-### CDS Hooks Management
-```javascript
-// ✅ CORRECT - Create and manage custom CDS hooks
-import { cdsHooksService } from '../services/cdsHooksService';
-
-// Create new hook
-const hookData = {
-  id: 'custom-diabetes-check',
-  title: 'Diabetes Screening Alert',
-  hook: 'patient-view',
-  conditions: [{type: 'age', operator: 'greater_than', value: 45}],
-  cards: [{summary: 'Consider diabetes screening', indicator: 'warning'}]
-};
-await cdsHooksService.createHook(hookData);
-
-// Test hook with patient context
-const testResult = await cdsHooksService.testHook(hookData, {patientId});
-```
-
-## 🐛 Error Solutions
-
-| Error | Solution |
-|-------|----------|
-| `export 'X' not found` | Import from `@mui/icons-material` not `@mui/material` |
-| `Objects are not valid as React child` | Use `obj?.text \|\| obj?.coding?.[0]?.display` |
-| `TypeError: Cannot read property of undefined` | Add optional chaining: `resource?.property?.value` |
-| Medications show "Unknown" | Use `useMedicationResolver` hook |
-| Missing patient data | Check `resources` not `result.entry` |
-| CORS errors | Backend running? Check `docker-compose ps` |
-| WebSocket connection fails | Check auth token validity, ensure JWT_ENABLED matches backend |
-| Export fails with large datasets | Implement pagination or chunking for large exports |
-| Print layout issues | Check print CSS media queries in printUtils.js |
-| CDS hook validation errors | Ensure all required fields, check hook ID uniqueness |
-| Migration fails | Check resource validation, ensure proper FHIR structure |
-| Search service timeout | Check cache (5-min timeout), increase limit parameter |
-
-## 📁 Critical Files to Know
-
-### Frontend Core
-```
-src/services/fhirService.js          # FHIR CRUD operations
-src/contexts/FHIRResourceContext.js  # Resource state management
-src/contexts/ClinicalWorkflowContext.js # Cross-module events
-src/hooks/useFHIRResources.js        # Data fetching hooks
-src/hooks/useMedicationResolver.js   # Medication display logic
-```
-
-### Backend Core
-```
-backend/core/fhir/storage.py         # FHIR storage engine
-backend/api/fhir/fhir_router.py      # FHIR R4 endpoints
-backend/core/fhir/search.py          # Search implementation
-backend/api/auth_enhanced.py         # Dual-mode auth
-backend/scripts/synthea_master.py    # Data management
-```
-
-### Clinical Components
-```
-src/components/clinical/workspace/tabs/ChartReviewTab.js  # Problems/meds
-src/components/clinical/workspace/tabs/ResultsTab.js      # Lab results
-src/components/clinical/workspace/tabs/OrdersTab.js       # Order entry
-src/components/clinical/workspace/tabs/PharmacyTab.js     # Dispensing
-src/components/clinical/imaging/DICOMViewer.js           # Image viewer
-```
-
-### Utility Services
-```
-src/utils/printUtils.js              # Clinical document printing
-src/utils/exportUtils.js             # Multi-format data export (CSV/JSON/PDF)
-src/utils/migrations.js              # FHIR data migration framework
-src/utils/fhirFormatters.js          # Resource display formatting
-src/utils/fhirValidation.js          # Resource validation utilities
-src/utils/intelligentCache.js        # Multi-level caching system
-```
-
-### Real-time & Integration Services
-```
-src/services/searchService.js        # Clinical catalog search with caching
-src/services/websocket.js            # Raw WebSocket operations
-src/contexts/WebSocketContext.js     # WebSocket React integration
-src/services/cdsHooksClient.js       # CDS Hooks integration client
-src/services/cdsHooksService.js      # Custom CDS hooks CRUD
-src/services/providerService.js      # Provider management
-src/services/vitalSignsService.js    # Vital signs operations
-```
-
-### CDS Components
-```
-src/components/clinical/cds/CDSHookManager.js    # Hook presentation modes
-src/components/clinical/cds/CDSAlertsPanel.js    # Alert display
-src/components/clinical/cds/CDSTestingPanel.js   # Hook testing UI
-```
-
-## 🧪 Testing Status
-
-- **Backend**: ✅ Complete test coverage (pytest)
-- **Frontend**: ✅ Test infrastructure setup (Jest + React Testing Library)
-  - Custom render with all providers
-  - Mock data generators
-  - ErrorBoundary test coverage
-- **E2E**: ❌ No integration tests (critical gap)
-
+### Setup and Configuration
 ```bash
-# Run backend tests
-docker exec emr-backend pytest tests/ -v
+# Context7 MCP via HTTP transport
+claude mcp add --transport http context7 https://mcp.context7.com/mcp
 
-# Run frontend tests
-cd frontend && npm test
-cd frontend && npm run test:coverage
+# Verify setup
+claude mcp list
+# Should show: context7: https://mcp.context7.com/mcp (HTTP)
 ```
 
-## 🚀 Deployment Options
+### Integration Features
+- **Pre-task Hooks**: Automatically warm Context7 cache with relevant patterns
+- **Agent Enhancement**: All agents query Context7 for latest standards
+- **Post-task Hooks**: Update Context7 knowledge base with discoveries
+- **Error Context**: Context7 provides debugging guidance
+- **Cross-session Persistence**: Context and learnings persist
 
+### Context7 Usage
+```python
+# Direct usage in agents
+from context7_integration import Context7Client
+
+client = Context7Client()
+context = client.get_context("FHIR R5 validation patterns")
+agent_context = client.get_agent_context("fhir-checker", "task")
+client.update_knowledge("validation_pattern", data, "fhir-checker")
+```
+
+### Command Line Usage
 ```bash
-# Local Development
-./start.sh              # Start all services
-./fresh-deploy.sh       # Clean start with sample data
+# Cache warmup
+python .claude/utils/context7_integration.py --cache-warmup
 
-# AWS Production
-./deploy.sh             # Automated deployment (EC2, RDS, ALB)
+# Direct queries
+python .claude/utils/context7_integration.py --query "React patterns"
+
+# Agent context
+python .claude/utils/context7_integration.py --agent-context fhir-checker
+
+# Knowledge updates
+python .claude/utils/context7_integration.py --update-knowledge
 ```
+
+## 🤖 Agent System with Context7
+
+### Integration with Task Protocol
+The agent system supports the mandatory task structure:
+1. **Research Phase**: Use `feature-analyzer.py` with Context7
+2. **Implementation**: Use `feature-scaffold.py` for boilerplate
+3. **Review Phase**: Use `qa-agent.py` and `integration-validator.py`
+
+### Master Feature Workflow
+```bash
+# Complete feature development with Context7
+python .claude/agents/feature-workflow.py "Add medication allergy checking"
+
+# Quick analysis only
+python .claude/agents/feature-workflow.py "New lab viewer" --check-only
+```
+
+### Individual Agents (Context7 Enhanced)
+
+| Agent | Purpose | Context7 Integration |
+|-------|---------|---------------------|
+| **feature-scaffold.py** | Generate boilerplate | Queries latest MedGenEMR patterns |
+| **fhir-integration-checker.py** | Validate FHIR compliance | Real-time R5 standards validation |
+| **integration-validator.py** | Check cross-module patterns | Current integration patterns |
+| **qa-agent.py** | Code quality & cleanup | Latest React/FastAPI practices |
+| **feature-analyzer.py** | Analyze & create todos | Context-aware analysis |
+
+### Quality Gates
+- ❌ No console.log statements (auto-fixed)
+- ✅ FHIR compliance validated
+- ✅ Cross-module integration verified
+- ✅ Error handling implemented
+- ✅ Documentation updated
+- ✅ Context7 knowledge updated
 
 ## 📊 Data Management
 
@@ -399,67 +507,130 @@ python scripts/synthea_master.py validate             # Validate data
 
 ### DICOM Generation
 ```bash
-python scripts/generate_dicom_for_studies.py  # Create DICOM studies
-# Generates multi-slice CT/MR studies linked to ImagingStudy resources
+python scripts/generate_dicom_for_studies.py  # Multi-slice CT/MR studies
 ```
 
-## 🔄 Workflow Patterns
+## 🐛 Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| Export 'X' not found | Import from `@mui/icons-material` not `@mui/material` |
+| Objects not valid as React child | Use `obj?.text \|\| obj?.coding?.[0]?.display` |
+| Medications show "Unknown" | Use `useMedicationResolver` hook |
+| Missing patient data | Check `resources` not `result.entry` |
+| CORS errors | Ensure backend running: `docker-compose ps` |
+| WebSocket fails | Check auth token, ensure JWT_ENABLED matches |
+| Export fails (large data) | Implement pagination or chunking |
+| CDS hook validation | Check hook ID uniqueness |
+| Dynamic catalog 404 | Service bypasses proxy, uses direct backend connection |
+
+## 📁 Critical Files Reference
+
+### Frontend Core
+```
+src/services/fhirService.js              # FHIR CRUD operations
+src/services/cdsClinicalDataService.js   # Dynamic clinical catalogs
+src/contexts/FHIRResourceContext.js      # Resource state management
+src/contexts/ClinicalWorkflowContext.js  # Cross-module events
+src/hooks/useFHIRResources.js           # Data fetching hooks
+src/hooks/useMedicationResolver.js      # Medication display logic
+```
+
+### Backend Core
+```
+backend/core/fhir/storage.py                    # FHIR storage engine
+backend/api/fhir/fhir_router.py                 # FHIR R4 endpoints
+backend/api/clinical/dynamic_catalog_router.py  # Dynamic catalogs API
+backend/services/dynamic_catalog_service.py     # Catalog extraction logic
+backend/api/auth_enhanced.py                    # Dual-mode auth
+backend/scripts/synthea_master.py               # Data management
+```
+
+### Context7 Integration
+```
+.claude/utils/context7_integration.py    # Context7 client and utilities
+.claude/agents/*                         # All agents Context7-enhanced
+.claude/settings.json                    # Hook configuration
+```
+
+## 🔄 Clinical Workflows
 
 ### Order-to-Result Flow
 1. **Order**: Create ServiceRequest → Publish ORDER_PLACED
-2. **Lab System**: Create Observation → Link to order
-3. **Results**: Check reference ranges → Publish RESULT_RECEIVED
-4. **Alerts**: Abnormal detection → Create critical alerts
+2. **Lab**: Create Observation → Link to order
+3. **Results**: Check ranges → Publish RESULT_RECEIVED
+4. **Alerts**: Detect abnormals → Create alerts
 5. **Response**: Suggest follow-up → Update care plan
 
 ### Prescription-to-Dispense Flow
 1. **Prescribe**: Create MedicationRequest → Notify pharmacy
-2. **Queue**: PharmacyTab loads pending → Verify prescription
+2. **Queue**: Load pending → Verify prescription
 3. **Dispense**: Create MedicationDispense → Update status
 4. **Notify**: Publish MEDICATION_DISPENSED → Update chart
 
-## 💡 Performance & Caching
+## 🧪 Testing
 
-```javascript
-// Multi-level caching with TTL
-resources: 10min | searches: 5min | bundles: 15min | computed: 30min
+```bash
+# Backend tests
+docker exec emr-backend pytest tests/ -v
 
-// Progressive loading priority
-critical: ['Condition', 'MedicationRequest', 'AllergyIntolerance']
-important: ['Observation', 'Procedure', 'DiagnosticReport']
-optional: ['CarePlan', 'CareTeam', 'DocumentReference']
+# Frontend tests
+cd frontend && npm test
+cd frontend && npm run test:coverage
 ```
 
-## 🔒 Authentication
+## 📚 Documentation System
 
-| Mode | Setting | Users | Features |
-|------|---------|-------|----------|
-| **Training** | `JWT_ENABLED=false` | demo/nurse/pharmacist/admin (all: password) | Simple auth |
-| **Production** | `JWT_ENABLED=true` | Requires registration | JWT + bcrypt |
+### Automatic Documentation Tracking
+1. **Pre/Post Implementation Hooks** in `.claude/hooks/`
+2. **Documentation Tracker** analyzes changes
+3. **Documentation Rules** in `.claude/DOCUMENTATION_RULES.md`
+4. **Settings Configuration** in `.claude/settings.json`
 
-## 📋 Pre-Session Checklist
+### Documentation Workflow
+```bash
+# Check what needs updating
+python .claude/hooks/documentation-tracker.py
 
-**Before ANY work**:
+# Find module docs
+find docs/modules -name "*.md" | grep -i "module-name"
+
+# Check uncommitted docs
+git status docs/ --porcelain
+```
+
+### Key Documentation Locations
+- **System Architecture**: `docs/architecture/overview.md`
+- **Module Docs**: `docs/modules/[frontend|backend|standalone]/`
+- **API Reference**: `docs/API_ENDPOINTS.md`
+- **Integration Guide**: `docs/modules/integration/cross-module-integration.md`
+
+## 📋 Session Checklist
+
+**Pre-Session**:
 - [ ] System running: `docker-compose ps`
 - [ ] Auth mode correct: `curl http://localhost:8000/api/auth/config`
 - [ ] Data loaded: Check Patient count in UI
-- [ ] No console errors in browser
+- [ ] Context7 connected: `claude mcp list`
 
-**During development**:
-- [ ] Using Synthea data only
-- [ ] Following event-driven patterns
-- [ ] Implementing complete features
+**During Development**:
+- [ ] EVERY task broken into subtasks
+- [ ] Research phase completed first
+- [ ] Using context7/web search for standards
+- [ ] Documentation updated continuously
+- [ ] Following event patterns
 - [ ] Testing with multiple patients
 
-**Before completion**:
+**Post-Implementation**:
+- [ ] Two-pass code review completed
+- [ ] Git commit and push done
+- [ ] All documentation updated
 - [ ] No console.log() statements
-- [ ] All CRUD operations work
-- [ ] Cross-module events fire
-- [ ] Error states handled
+- [ ] Integration points verified
 
 ## 🎯 Known Gaps & Priorities
 
-**Critical**: Frontend testing, E2E tests, Load testing  
+**Critical**: Frontend E2E tests, Load testing  
 **Medium**: Analytics dashboard, Mobile support  
 **Future**: SMART on FHIR, AI integration
 
@@ -467,616 +638,26 @@ optional: ['CarePlan', 'CareTeam', 'DocumentReference']
 
 **Remember**: This is a production EMR. Patient safety and data integrity are paramount.
 
-## 🤖 Automatic Documentation Protocol
-
-### MANDATORY DOCUMENTATION WORKFLOW
-
-**BEFORE ANY CODE CHANGE:**
-1. Use TodoWrite to create task list including "Update documentation for [module]"
-2. Search for ALL related documentation files:
-   - Module-specific docs in `docs/modules/`
-   - Component-level .md files near the code
-   - API documentation if endpoints are affected
-   - Integration guides if cross-module changes
-3. Read identified documentation files
-4. Note current state and planned changes
-
-**DURING IMPLEMENTATION:**
-1. Keep documentation task in "pending" status
-2. Track all changes that affect:
-   - Public APIs or interfaces
-   - User-facing features
-   - Integration points
-   - Configuration options
-   - Performance characteristics
-
-**AFTER CODE CHANGES:**
-1. Mark documentation task as "in_progress"
-2. Update ALL affected documentation:
-   - Feature descriptions
-   - Code examples
-   - Integration points
-   - Configuration changes
-   - Breaking changes
-   - New capabilities
-3. Add "Recent Updates" section with date
-4. Update cross-references in related docs
-5. Mark documentation task as "completed"
-
-**DOCUMENTATION SEARCH PATTERN:**
-```bash
-# When working on a component:
-Glob: **/*ComponentName*.md
-Glob: **/ComponentDirectory/*.md
-Grep: "ComponentName" in docs/
-
-# When working on a feature:
-Glob: docs/modules/**/*feature*.md
-Grep: "feature" in docs/
-```
-
-Documentation Locations:
-
-### Architecture & Analysis
-- System Architecture → `docs/architecture/overview.md`
-- Gap Analysis → `docs/analysis/gap-analysis.md`
-- Development Patterns → `docs/development/patterns.md`
-- Current State Analysis → `docs/analysis/current-state.md`
-
-### Module Documentation
-- **Frontend Modules** → `docs/modules/frontend/`
-  - Clinical Workspace → `clinical-workspace-module.md`
-  - Services Layer → `services-module.md`
-  - State Management → `contexts-module.md`
-  - React Hooks → `hooks-module.md`
-  - UI Components → `common-components-module.md`
-- **Backend Modules** → `docs/modules/backend/`
-  - FHIR API → `fhir-api-module.md`
-  - Clinical Services → `clinical-services-module.md`
-  - Authentication → `authentication-module.md`
-  - Data Management → `data-management-module.md`
-  - Core Infrastructure → `core-infrastructure-module.md`
-- **Standalone Modules** → `docs/modules/standalone/`
-  - CDS Hooks → `cds-hooks-module.md`
-  - FHIR Explorer → `fhir-explorer-module.md`
-- **Integration Guide** → `docs/modules/integration/cross-module-integration.md`
-
-### API Documentation
-- FHIR Endpoints → `docs/API_ENDPOINTS.md`
-- Clinical Workflows → `docs/CLINICAL_WORKSPACE_BUTTON_INTEGRATION_PLAN.md`
-
-### System Documentation
-- System Architecture → `docs/SYSTEM_ARCHITECTURE.md`
-- Frontend Redesign → `docs/FRONTEND_REDESIGN_TRACKER.md`
-- Workspace Plan → `docs/WORKSPACE_REDESIGN_PLAN.md`
-- Deployment Guide → `DEPLOYMENT.md`
-
-### Component-Level Docs
-- Clinical Tabs → Individual .md files in respective component directories
-- Key Services → Individual README.md in service directories
-
-
-## Session Management
-
-### Session Start Checklist
-1. Review this CLAUDE.md file
-2. Run system checks: `docker-compose ps`
-3. Check for uncommitted documentation: `git status docs/`
-4. Create session todo list with documentation tasks
-
-### During Session
-1. Follow established patterns
-2. Update docs in real-time (not at end)
-3. Use TodoWrite to track documentation tasks
-4. Cross-reference related documentation
-
-### Session End Checklist
-1. Verify all documentation tasks completed
-2. Check for consistency across docs
-3. Update CLAUDE.md if new patterns established
-4. Commit documentation changes
-
-## 🤖 Claude Code Agent System with Context7 MCP Integration
-
-**MedGenEMR includes a comprehensive agent system enhanced with Context7 MCP for reliable feature development with real-time documentation access**
-
-### 🚀 Master Feature Workflow
-
-**Primary Command**: `python .claude/agents/feature-workflow.py 'feature request'`
-
-The master workflow orchestrates all agents with Context7 integration for complete feature development:
-1. ✅ **Context Gathering** - Context7 queries for real-time patterns and documentation
-2. ✅ **Analysis** - Feature analyzer creates comprehensive todo lists with Context7 insights
-3. ✅ **Scaffolding** - Generate boilerplate following latest patterns from Context7  
-4. ✅ **Validation** - FHIR compliance and integration checks with real-time standards
-5. ✅ **Quality** - Code cleanup and error detection using current best practices
-6. ✅ **Documentation** - Automatic doc updates and knowledge base integration
-7. ✅ **Knowledge Update** - Context7 knowledge base updated with new discoveries
-
-```bash
-# Complete feature development workflow
-python .claude/agents/feature-workflow.py "Add medication allergy checking"
-
-# Quick analysis and scaffolding only
-python .claude/agents/feature-workflow.py "New lab result viewer" --check-only
-
-# Run with all agents for comprehensive validation
-python .claude/agents/feature-workflow.py "Patient timeline view" --auto
-```
-
-### 🛠️ Individual Agents
-
-#### Feature Scaffold Agent
-**File**: `.claude/agents/feature-scaffold.py`  
-**Purpose**: Generate boilerplate code following MedGenEMR patterns
-
-```bash
-# Generate complete feature scaffolding
-python .claude/agents/feature-scaffold.py "Patient medication history tab"
-
-# Output includes:
-# - Clinical tab component with Context integration
-# - Service layer with FHIR operations
-# - Dialog components with validation
-# - Event integration code
-# - API endpoint templates (if needed)
-```
-
-**Generated Components**:
-- ✅ Clinical tabs with proper Context usage
-- ✅ FHIR service integration
-- ✅ Dialog components with form validation
-- ✅ Event-driven workflow integration
-- ✅ Error handling and loading states
-
-#### FHIR Integration Checker
-**File**: `.claude/agents/fhir-integration-checker.py`  
-**Purpose**: Validate FHIR resource usage and compliance
-
-```bash
-# Check entire codebase for FHIR compliance
-python .claude/agents/fhir-integration-checker.py
-
-# Check specific file
-python .claude/agents/fhir-integration-checker.py src/components/clinical/NewComponent.js
-
-# Generate compliance report
-python .claude/agents/fhir-integration-checker.py --report
-```
-
-**Validation Rules**:
-- ❌ No hardcoded resource IDs
-- ❌ No mock data (John Doe, etc.)
-- ✅ Proper fhirService usage
-- ✅ Correct reference handling
-- ✅ Resource validation
-
-#### Integration Validator
-**File**: `.claude/agents/integration-validator.py`  
-**Purpose**: Validate cross-module integration patterns
-
-```bash
-# Validate integration patterns
-python .claude/agents/integration-validator.py
-
-# Get integration suggestions for new component
-python .claude/agents/integration-validator.py --suggest PatientTimelineTab
-
-# Generate integration report
-python .claude/agents/integration-validator.py --report
-```
-
-**Integration Checks**:
-- ✅ Context usage (FHIRResourceContext, ClinicalWorkflowContext)
-- ✅ Event subscription patterns
-- ✅ Progressive loading implementation
-- ✅ WebSocket integration
-- ✅ Cross-tab communication
-
-#### Quality Assurance Agent
-**File**: `.claude/agents/qa-agent.py`  
-**Purpose**: Code quality and cleanup
-
-```bash
-# Run QA checks with auto-fix
-python .claude/agents/qa-agent.py --fix
-
-# Generate quality report
-python .claude/agents/qa-agent.py --report
-
-# Check specific severity level
-python .claude/agents/qa-agent.py --severity error
-```
-
-**Quality Checks**:
-- ❌ Remove console.log statements (auto-fixable)
-- ✅ Error handling validation
-- ✅ Loading state implementation
-- ✅ React best practices
-- ✅ TypeScript compliance
-
-#### Feature Analyzer
-**File**: `.claude/agents/feature-analyzer.py`  
-**Purpose**: Analyze feature requests and generate todo lists
-
-```bash
-# Analyze feature and generate todo list
-python .claude/agents/feature-analyzer.py "Add drug interaction checking" --output todo
-
-# Generate analysis report
-python .claude/agents/feature-analyzer.py "Patient search enhancement" --output report
-
-# Export as JSON for integration
-python .claude/agents/feature-analyzer.py "Allergy management" --output json
-```
-
-**Analysis Output**:
-- ✅ Comprehensive todo list with priorities
-- ✅ Integration point identification
-- ✅ Component suggestions
-- ✅ FHIR resource requirements
-- ✅ Testing recommendations
-
-### 🔧 Agent Integration in .claude/settings.json
-
-**Full configuration with automated hooks:**
-
-```json
-{
-  "hooks": {
-    "pre-task": [
-      "python .claude/agents/fhir-integration-checker.py --quiet",
-      "python .claude/hooks/documentation-tracker.py"
-    ],
-    "post-task": [
-      "python .claude/agents/qa-agent.py --severity error",
-      "python .claude/agents/integration-validator.py --quick"
-    ],
-    "feature-request": [
-      "python .claude/agents/feature-analyzer.py \"$1\" --output todo"
-    ]
-  },
-  "workflows": {
-    "new-feature": [
-      "python .claude/agents/feature-workflow.py '{feature_request}'",
-      "Review generated todo list and scaffolding",
-      "Implement feature following MedGenEMR patterns",
-      "Run post-implementation validation"
-    ]
-  }
-}
-```
-
-### 🎯 Quality Gates & Enforcement
-
-**Mandatory Before Completion**:
-- ❌ No console.log statements (qa-agent auto-fixes)
-- ✅ FHIR compliance validated (fhir-integration-checker)
-- ✅ Cross-module integration verified (integration-validator)
-- ✅ Error handling implemented
-- ✅ Loading states present
-- ✅ Event integration working
-- ✅ Documentation updated
-
-**Agent Workflow Integration**:
-```bash
-# 1. Feature Analysis (creates TodoWrite list)
-python .claude/agents/feature-analyzer.py "Feature request"
-
-# 2. Generate Scaffolding
-python .claude/agents/feature-scaffold.py "Feature request"
-
-# 3. Development (manual implementation)
-
-# 4. Continuous Validation
-python .claude/agents/fhir-integration-checker.py [file]
-python .claude/agents/integration-validator.py --suggest ComponentName
-
-# 5. Final Quality Check
-python .claude/agents/qa-agent.py --fix
-```
-
-### 📋 Common Agent Workflows
-
-#### New Clinical Feature
-```bash
-# Complete workflow with all agents
-python .claude/agents/feature-workflow.py "Add patient vital signs monitoring"
-```
-
-#### Quick Component Addition
-```bash
-# Analysis + Scaffolding
-python .claude/agents/feature-analyzer.py "New dialog component" --output todo
-python .claude/agents/feature-scaffold.py "New dialog component"
-```
-
-#### Code Quality Check
-```bash
-# Comprehensive quality validation
-python .claude/agents/qa-agent.py --fix
-python .claude/agents/fhir-integration-checker.py --report
-python .claude/agents/integration-validator.py --report
-```
-
-#### Debug Integration Issues
-```bash
-# Integration troubleshooting
-python .claude/agents/integration-validator.py --suggest ExistingComponent
-python .claude/agents/fhir-integration-checker.py src/problematic/file.js
-```
-
-### 🚨 Agent Triggers in Claude Code
-
-**Agents are automatically triggered by:**
-- **Pre-task hooks** - FHIR compliance and documentation checks
-- **Post-task hooks** - Quality assurance and integration validation  
-- **Feature requests** - Automatic analysis and todo generation
-- **Error conditions** - Diagnostic agent execution
-- **Code changes** - Quality gates enforcement
-
-**Manual Agent Usage**:
-- Use individual agents during development for targeted validation
-- Run master workflow for complete feature development
-- Integrate agents into CI/CD for automated quality gates
-
-## 🔗 Context7 MCP Integration
-
-**Context7 enhances all agents with real-time documentation and pattern access**
-
-### Setup and Configuration
-```bash
-# Context7 MCP is configured via HTTP transport
-claude mcp add --transport http context7 https://mcp.context7.com/mcp
-
-# Verify setup
-claude mcp list
-# Should show: context7: https://mcp.context7.com/mcp (HTTP)
-```
-
-### Integration Features
-- **Pre-task Hooks**: Automatically warm Context7 cache with relevant patterns
-- **Agent Enhancement**: All agents query Context7 for latest standards and best practices
-- **Post-task Hooks**: Update Context7 knowledge base with new discoveries
-- **Error Context**: Context7 provides debugging guidance during error conditions
-- **Cross-session Persistence**: Context and learnings persist across development sessions
-
-### Context7 Integration Module
-**File**: `.claude/utils/context7_integration.py`
-
-```python
-# Direct usage in agents
-from context7_integration import Context7Client, get_agent_context
-
-client = Context7Client()
-context = client.get_context("FHIR R5 validation patterns")
-agent_context = client.get_agent_context("fhir-checker", "Validating Patient component")
-client.update_knowledge("validation_pattern", pattern_data, "fhir-checker")
-```
-
-### Command Line Usage
-```bash
-# Cache warmup (used by pre-task hooks)
-python .claude/utils/context7_integration.py --cache-warmup
-
-# Direct queries
-python .claude/utils/context7_integration.py --query "React component patterns"
-
-# Agent-specific context
-python .claude/utils/context7_integration.py --agent-context fhir-checker --task-context "validating new component"
-
-# Knowledge base updates (used by post-task hooks)
-python .claude/utils/context7_integration.py --update-knowledge
-
-# Error debugging context
-python .claude/utils/context7_integration.py --error-context
-```
-
-### Enhanced Workflows with Context7
-All workflows now include Context7 integration:
-- **new-feature**: Context7 queries for implementation patterns
-- **quick-feature**: Context7 for rapid pattern access
-- **quality-check**: Context7 for latest best practices
-- **debug-feature**: Context7 for error debugging guidance
-- **ui-composer**: Context7 for React component patterns
-
-### Agent Enhancements
-All agents are enhanced with Context7:
-- **feature-scaffold.py**: Queries latest MedGenEMR patterns (Context7 enhanced)
-- **fhir-integration-checker.py**: Real-time FHIR R5 standards validation (Context7 enhanced)
-- **qa-agent.py**: Current React/FastAPI best practices (Context7 enhanced)
-- **integration-validator.py**: Latest integration patterns (Context7 enhanced)
-- **feature-analyzer.py**: Context-aware feature analysis (Context7 enhanced)
-
-### Benefits
-- **Real-time Documentation**: Always current standards and patterns
-- **Enhanced Analysis**: Context7-powered feature analysis and scaffolding
-- **Knowledge Persistence**: Cross-session learning and context preservation
-- **Error Guidance**: Context7 debugging assistance for common issues
-- **Pattern Discovery**: Automatic knowledge base updates with new patterns
-
-## 📚 Enhanced Documentation System
-
-### Automatic Documentation Tracking
-
-**Claude Code now includes:**
-1. **Pre/Post Implementation Hooks** in `.claude/hooks/`
-2. **Documentation Tracker** - Python script that analyzes changes
-3. **Documentation Rules** in `.claude/DOCUMENTATION_RULES.md`
-4. **Settings Configuration** in `.claude/settings.json`
-
-### How It Works
-
-**1. Before Any Task:**
-```bash
-# Claude automatically runs:
-python .claude/hooks/documentation-tracker.py
-# This identifies which docs need updating
-```
-
-**2. Task Creation:**
-```javascript
-// TodoWrite automatically includes doc tasks:
-[
-  { content: "Implement feature X", status: "pending" },
-  { content: "Update module documentation", status: "pending" },
-  { content: "Update API documentation", status: "pending" }
-]
-```
-
-**3. Documentation Search:**
-```bash
-# For component work:
-Glob: **/*ComponentName*.md
-Glob: docs/modules/**/*feature*.md
-
-# For API work:
-Grep: "endpoint" docs/API_ENDPOINTS.md
-```
-
-**4. After Implementation:**
-- Check `.claude/documentation-checklist.md`
-- Update all identified documentation
-- Add "Recent Updates" sections
-- Verify code examples work
-
-### Documentation Standards
-
-**Every documentation update MUST include:**
-1. **Recent Updates section** with date
-2. **Working code examples**
-3. **Integration points** if cross-module
-4. **Migration notes** for breaking changes
-
-### Quick Commands
-
-```bash
-# Check what docs need updating
-python .claude/hooks/documentation-tracker.py
-
-# Find all module docs
-find docs/modules -name "*.md" | grep -i "module-name"
-
-# Check for uncommitted docs
-git status docs/ --porcelain
-```
-
-### Enforcement
-
-**Documentation is enforced through:**
-1. TodoWrite tasks (mandatory doc tasks)
-2. Git hooks (warn on missing docs)
-3. Session reminders in Claude Code
-4. Documentation checklist generation
-
-### Recent Updates - 2025-01-08
-
-**🤖 Agent System Implementation**
-- ✅ Created comprehensive agent system for feature development
-- ✅ Implemented master feature workflow orchestrator
-- ✅ Added 5 specialized agents: feature-scaffold, fhir-checker, integration-validator, qa-agent, feature-analyzer
-- ✅ Enhanced .claude/settings.json with automated hooks and workflows
-- ✅ Integrated TodoWrite for task management throughout agent workflows
-- ✅ Added quality gates and enforcement mechanisms
-- ✅ Created agent trigger system for automatic validation
-
-**Key Agent Features**:
-- **feature-workflow.py**: Master orchestrator for complete feature development lifecycle
-- **feature-scaffold.py**: Generates boilerplate code following MedGenEMR patterns
-- **fhir-integration-checker.py**: Validates FHIR compliance and prevents mock data usage
-- **integration-validator.py**: Ensures proper cross-module integration patterns
-- **qa-agent.py**: Code quality assurance with auto-fix capabilities
-- **feature-analyzer.py**: Analyzes feature requests and creates comprehensive todo lists
-
-**Workflow Integration**:
-- Pre-task hooks run FHIR compliance and documentation checks
-- Post-task hooks ensure quality assurance and integration validation
-- Feature-request hooks automatically analyze requirements and generate todos
-- Error conditions trigger diagnostic agent execution
-
-**Quality Gates Established**:
-- Mandatory FHIR compliance validation
-- Automatic console.log removal
-- Cross-module event integration verification
-- Documentation update enforcement
-- Error handling and loading state validation
-
-This agent system ensures reliable, consistent feature development following MedGenEMR patterns and maintains code quality standards automatically.
-
-### Recent Updates - 2025-01-10
-
-**🔗 Context7 MCP Integration Complete**
-- ✅ Successfully integrated Context7 MCP server via HTTP transport
-- ✅ Created comprehensive Context7 integration module (.claude/utils/context7_integration.py)
-- ✅ Enhanced all existing agents with Context7 real-time context capabilities
-- ✅ Updated hook system for automatic Context7 cache warming and knowledge updates
-- ✅ Enhanced all workflows to include Context7 pattern queries and guidance
-- ✅ Added agent-specific context and cross-session knowledge persistence
-- ✅ Implemented CLI support for direct Context7 queries and debugging
-
-**Context7 Agent Enhancements**:
-- **feature-scaffold.py**: Now queries Context7 for latest MedGenEMR patterns during scaffolding
-- **fhir-integration-checker.py**: Real-time FHIR R5 standards validation with current documentation
-- **qa-agent.py**: Enhanced with latest React/FastAPI best practices from Context7
-- **integration-validator.py**: Uses Context7 for current integration patterns
-- **feature-analyzer.py**: Context-aware feature analysis with real-time insights
-
-**Hook System Integration**:
-- Pre-task hooks automatically warm Context7 cache with relevant patterns
-- Post-task hooks update Context7 knowledge base with new discoveries
-- Error hooks provide Context7 debugging guidance
-- Feature-request hooks include Context7 pattern queries
-
-**Workflow Enhancements**:
-- All workflows now include Context7 queries for real-time pattern access
-- Enhanced scaffolding with Context7 insights
-- Context7-powered quality checks and debugging
-- Knowledge base updates after successful implementations
-
-**Benefits Realized**:
-- Real-time access to current documentation and standards
-- Cross-session context persistence and learning
-- Enhanced pattern recognition and code generation
-- Automatic knowledge base updates with new discoveries
-- Error debugging assistance with current best practices
-
-### Recent Updates - 2025-01-08 (Part 2)
-
-**🔧 Code Quality Improvements**
-- ✅ Removed all console.log statements (328 occurrences) from frontend code
-- ✅ Replaced all print statements (832 occurrences) with proper logging in backend
-- ✅ Created automated scripts for code cleanup: `remove_console_logs.py`, `remove_print_statements.py`
-
-**🔒 Security Enhancements**
-- ✅ Fixed WebSocket authentication to use secure handshake instead of URL parameters
-- ✅ Verified JWT_SECRET_KEY properly uses environment variables
-- ✅ Created `.env.example` file documenting all required environment variables
-
-**🏗️ Architecture Improvements**
-- ✅ Added React ErrorBoundary components for crash prevention and user-friendly error displays
-- ✅ Consolidated 12+ nested context providers into single `AppProviders` component
-- ✅ Migrated from duplicate `fhirService.js` to unified `fhirClient.js` service
-- ✅ Implemented proper error recovery mechanisms throughout the application
-
-**🧪 Frontend Testing Infrastructure**
-- ✅ Set up Jest and React Testing Library configuration
-- ✅ Created custom render function with all providers in `test-utils.js`
-- ✅ Added mock data generators for FHIR resources
-- ✅ Implemented ErrorBoundary test with 100% coverage
-- ✅ Added testing scripts: `npm test`, `npm run test:coverage`
-
-**📊 Performance Enhancements**
-- ✅ Implemented pagination for patient list (25 patients per page by default)
-- ✅ Added configurable page sizes: [10, 25, 50, 100]
-- ✅ Implemented debounced search with 500ms delay
-- ✅ Added proper loading states and indicators
-- ✅ Fixed "All Patients" tab to use server-side pagination
-
-**🎯 Key Fixes Applied**
-- WebSocket now authenticates after connection: `{ type: 'authenticate', token: token }`
-- Patient list uses FHIR `_count` and `_offset` for efficient pagination
-- ErrorBoundary provides fallback UI and recovery options
-- All debug logging removed for production readiness
-- Provider pyramid eliminated for better maintainability
-
-**Remember: No code is complete without documentation!**
+## 📅 Recent Updates
+
+### 2025-07-12
+- Fixed dynamic clinical catalog 404 errors
+- Resolved frontend proxy configuration conflicts
+- Implemented direct backend connection for development
+- Verified all dynamic catalog endpoints working
+- Confirmed autocomplete search functionality
+
+### 2025-01-10
+- Integrated Context7 MCP server via HTTP transport
+- Enhanced all agents with Context7 real-time capabilities
+- Updated hook system for automatic Context7 integration
+- Added cross-session knowledge persistence
+- Implemented CLI support for direct Context7 queries
+
+### 2025-01-08
+- Implemented comprehensive agent system
+- Added automated quality gates
+- Removed all console.log/print statements
+- Enhanced security and testing infrastructure
+- Improved error handling with ErrorBoundary
+- Added pagination and performance enhancements

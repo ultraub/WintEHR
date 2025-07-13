@@ -29,9 +29,14 @@ export const DocumentationProvider = ({ children }) => {
   // Transform FHIR DocumentReference to internal format
   const transformFHIRDocument = (fhirDoc) => {
     // Extract content from attachment
-    const content = fhirDoc.content?.[0]?.attachment?.data 
-      ? atob(fhirDoc.content[0].attachment.data) 
-      : '';
+    let content = '';
+    try {
+      content = fhirDoc.content?.[0]?.attachment?.data 
+        ? atob(fhirDoc.content[0].attachment.data) 
+        : '';
+    } catch (error) {
+      content = 'Error: Unable to decode document content';
+    }
     
     // Parse content sections
     const sections = {};

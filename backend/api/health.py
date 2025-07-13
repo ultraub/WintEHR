@@ -18,7 +18,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "MedFlow EMR API",
+        "service": "MedGenEMR FHIR API - Hot Reload Test",
         "version": os.getenv("VERSION", "1.0.0")
     }
 

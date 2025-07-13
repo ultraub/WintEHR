@@ -27,14 +27,13 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format } from 'date-fns';
-import { searchService } from '../../../../services/searchService';
+import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
 
 const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [conditionOptions, setConditionOptions] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     problemText: '',
     selectedProblem: null,
@@ -46,7 +45,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     notes: ''
   });
 
-  // Search for conditions as user types
+  // Search for conditions as user types using dynamic catalog
   const handleSearchConditions = async (query) => {
     if (!query || query.length < 2) {
       setConditionOptions([]);
@@ -55,10 +54,15 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
 
     setSearchLoading(true);
     try {
-      const results = await searchService.searchConditions(query, 20);
-      setConditionOptions(results.map(searchService.formatCondition));
+      const results = await cdsClinicalDataService.getDynamicConditionCatalog(query, 20);
+      setConditionOptions(results.map(cond => ({
+        code: cond.code,
+        display: cond.display,
+        system: 'http://snomed.info/sct', // Most conditions are SNOMED
+        frequency_count: cond.frequency_count,
+        source: 'dynamic'
+      })));
     } catch (error) {
-      
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);
@@ -78,7 +82,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
     });
     setError('');
     setConditionOptions([]);
-    setSearchQuery('');
   };
 
   const handleClose = () => {
@@ -179,9 +182,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
           sx: { minHeight: '600px' }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6">Add New Problem</Typography>
-        </DialogTitle>
+        <DialogTitle>Add New Problem</DialogTitle>
         
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
@@ -202,7 +203,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
                   value={formData.selectedProblem}
                   loading={searchLoading}
                   onInputChange={(event, value) => {
-                    setSearchQuery(value);
                     handleSearchConditions(value);
                   }}
                   onChange={(event, newValue) => {
@@ -240,8 +240,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
                     </Box>
                   )}
                   noOptionsText={
-                    searchQuery.length < 2 ? 
-                    "Type at least 2 characters to search" : 
                     searchLoading ? "Searching..." : "No conditions found"
                   }
                 />
@@ -333,9 +331,9 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
                     ...prev,
                     onsetDate: newValue
                   }))}
-                  renderInput={(params) => (
-                    <TextField {...params} fullWidth />
-                  )}
+                  slotProps={{
+                    textField: { fullWidth: true }
+                  }}
                   maxDate={new Date()}
                 />
               </Grid>

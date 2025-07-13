@@ -65,12 +65,17 @@ import {
   Add as AddIcon,
   Cancel as CancelIcon,
   Done as DoneIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  CheckCircle as ApprovedIcon,
+  History as HistoryIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
 import { fhirClient } from '../../../../services/fhirClient';
+import { medicationListManagementService } from '../../../../services/medicationListManagementService';
+import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Medication status definitions
@@ -295,6 +300,168 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
   );
 };
 
+// Refill Request Card Component
+const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails }) => {
+  const theme = useTheme();
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const getMedicationName = () => {
+    return refillRequest.medicationCodeableConcept?.text ||
+           refillRequest.medicationCodeableConcept?.coding?.[0]?.display ||
+           refillRequest.medicationReference?.display ||
+           'Unknown Medication';
+  };
+
+  const getPatientName = () => {
+    if (refillRequest.patient) {
+      const patient = refillRequest.patient;
+      return `${patient.name?.[0]?.given?.join(' ') || ''} ${patient.name?.[0]?.family || ''}`.trim();
+    }
+    return 'Unknown Patient';
+  };
+
+  const getRefillInfo = () => {
+    return refillRequest.refillInfo || {};
+  };
+
+  const refillInfo = getRefillInfo();
+
+  return (
+    <Card sx={{ mb: 2, border: refillInfo.urgent ? `2px solid ${theme.palette.error.main}` : undefined }}>
+      <CardHeader
+        avatar={<RefreshIcon color="warning" />}
+        title={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6" component="div">
+              {getMedicationName()}
+            </Typography>
+            {refillInfo.urgent && (
+              <Chip label="URGENT" color="error" size="small" />
+            )}
+          </Stack>
+        }
+        subheader={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip 
+              label={`Refill #${refillInfo.refillNumber || 'N/A'}`} 
+              size="small" 
+              color="info"
+            />
+            <Typography variant="caption" color="text.secondary">
+              via {refillInfo.requestMethod || 'unknown'}
+            </Typography>
+          </Stack>
+        }
+        action={
+          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
+            <MoreIcon />
+          </IconButton>
+        }
+      />
+      
+      <CardContent>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">
+              Patient
+            </Typography>
+            <Typography variant="body2">
+              {getPatientName()}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">
+              Original Prescription
+            </Typography>
+            <Typography variant="body2">
+              {refillRequest.originalPrescription ? 
+                format(parseISO(refillRequest.originalPrescription.authoredOn), 'MMM d, yyyy') : 
+                'Unknown'}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">
+              Request Date
+            </Typography>
+            <Typography variant="body2">
+              {format(parseISO(refillRequest.authoredOn), 'MMM d, yyyy h:mm a')}
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Typography variant="caption" color="text.secondary">
+              Requested By
+            </Typography>
+            <Typography variant="body2">
+              {refillInfo.requestedBy || 'Unknown'}
+            </Typography>
+          </Grid>
+          
+          {refillRequest.note && refillRequest.note.some(note => note.text.includes('Patient notes:')) && (
+            <Grid item xs={12}>
+              <Typography variant="caption" color="text.secondary">
+                Patient Notes
+              </Typography>
+              <Typography variant="body2">
+                {refillRequest.note.find(note => note.text.includes('Patient notes:'))?.text.replace('Patient notes: ', '')}
+              </Typography>
+            </Grid>
+          )}
+        </Grid>
+      </CardContent>
+      
+      <CardActions>
+        <Button 
+          size="small" 
+          startIcon={<ApprovedIcon />}
+          onClick={() => onApprove(refillRequest.id)}
+          color="success"
+        >
+          Approve
+        </Button>
+        
+        <Button 
+          size="small" 
+          startIcon={<CancelIcon />}
+          onClick={() => onReject(refillRequest.id)}
+          color="error"
+        >
+          Reject
+        </Button>
+        
+        <Button 
+          size="small" 
+          startIcon={<InfoIcon />}
+          onClick={() => onViewDetails(refillRequest)}
+        >
+          Details
+        </Button>
+      </CardActions>
+      
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+      >
+        <MenuItem onClick={() => setAnchorEl(null)}>
+          <EditIcon sx={{ mr: 1 }} />
+          Edit Request
+        </MenuItem>
+        <MenuItem onClick={() => setAnchorEl(null)}>
+          <HistoryIcon sx={{ mr: 1 }} />
+          View History
+        </MenuItem>
+        <MenuItem onClick={() => setAnchorEl(null)}>
+          <PrintIcon sx={{ mr: 1 }} />
+          Print Request
+        </MenuItem>
+      </Menu>
+    </Card>
+  );
+};
+
 // Dispense Dialog Component
 const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   const [quantity, setQuantity] = useState('');
@@ -426,6 +593,33 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [refillRequests, setRefillRequests] = useState([]);
+  const [pendingRefills, setPendingRefills] = useState([]);
+
+  // Load refill requests when component mounts or patient changes
+  useEffect(() => {
+    const loadRefillData = async () => {
+      if (!patientId) return;
+      
+      try {
+        // Load patient-specific refill requests
+        const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
+        setRefillRequests(patientRefills);
+        
+        // Load pending refill requests for pharmacy (across all patients when filter is 'all')
+        if (patientFilter === 'all') {
+          const pending = await prescriptionRefillService.getPendingRefillRequests();
+          setPendingRefills(pending);
+        } else {
+          setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+        }
+      } catch (error) {
+        // Handle error silently to prevent console clutter
+      }
+    };
+
+    loadRefillData();
+  }, [patientId, patientFilter]);
 
   // Get medication requests based on patient filter
   const medicationRequests = useMemo(() => {
@@ -519,6 +713,8 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         throw new Error('Medication request not found');
       }
 
+      const oldStatus = currentRequest.status;
+
       // Update the medication request status
       const updatedRequest = {
         ...currentRequest,
@@ -527,6 +723,17 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
 
       await fhirClient.update('MedicationRequest', requestId, updatedRequest);
       
+      // Update medication lists based on status change
+      try {
+        await medicationListManagementService.handlePrescriptionStatusUpdate(
+          requestId, 
+          newStatus, 
+          oldStatus
+        );
+      } catch (error) {
+        // Error updating medication lists - handle silently
+      }
+      
       // Refresh the medication requests
       await refreshPatientResources(patientId);
 
@@ -534,6 +741,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
         resourceId: requestId,
         newStatus: newStatus,
+        oldStatus: oldStatus,
         resourceType: 'MedicationRequest'
       });
       
@@ -543,7 +751,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Failed to update medication request status:', error);
+      // Failed to update medication request status - handle silently
       setSnackbar({
         open: true,
         message: 'Failed to update medication request status',
@@ -577,7 +785,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       };
       
       // Create the MedicationDispense resource
-      const createdDispense = await fhirClient.createResource('MedicationDispense', dispenseResource);
+      const createdDispense = await fhirClient.create('MedicationDispense', dispenseResource);
       
       // Get the current medication request to update it
       const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);
@@ -640,6 +848,89 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [onNotificationUpdate, patientId, medicationRequests, publish]);
 
+  // Handle refill request approval
+  const handleApproveRefill = useCallback(async (refillRequestId, approvalData) => {
+    try {
+      await prescriptionRefillService.approveRefillRequest(refillRequestId, {
+        approvedBy: 'Current Pharmacist', // In real app, get from auth context
+        notes: approvalData?.notes || '',
+        ...approvalData
+      });
+
+      // Refresh refill data
+      const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
+      setRefillRequests(patientRefills);
+      setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+
+      // Publish workflow event
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'refill-approval',
+        step: 'approved',
+        data: {
+          refillRequestId,
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      setSnackbar({
+        open: true,
+        message: 'Refill request approved successfully',
+        severity: 'success'
+      });
+
+    } catch (error) {
+      // Error approving refill request - handle silently
+      setSnackbar({
+        open: true,
+        message: 'Failed to approve refill request',
+        severity: 'error'
+      });
+    }
+  }, [patientId, publish]);
+
+  // Handle refill request rejection
+  const handleRejectRefill = useCallback(async (refillRequestId, rejectionData) => {
+    try {
+      await prescriptionRefillService.rejectRefillRequest(refillRequestId, {
+        rejectedBy: 'Current Pharmacist', // In real app, get from auth context
+        reason: rejectionData?.reason || 'Not specified',
+        ...rejectionData
+      });
+
+      // Refresh refill data
+      const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
+      setRefillRequests(patientRefills);
+      setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+
+      // Publish workflow event
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'refill-approval',
+        step: 'rejected',
+        data: {
+          refillRequestId,
+          reason: rejectionData?.reason,
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      setSnackbar({
+        open: true,
+        message: 'Refill request rejected',
+        severity: 'info'
+      });
+
+    } catch (error) {
+      // Error rejecting refill request - handle silently
+      setSnackbar({
+        open: true,
+        message: 'Failed to reject refill request',
+        severity: 'error'
+      });
+    }
+  }, [patientId, publish]);
+
   // Handle opening dispense dialog
   const handleOpenDispenseDialog = useCallback((medicationRequest) => {
     setSelectedRequest(medicationRequest);
@@ -658,6 +949,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       case 1: return categorizedRequests.verified;
       case 2: return categorizedRequests.dispensed;
       case 3: return categorizedRequests.completed;
+      case 4: return pendingRefills; // Refill requests tab
       default: return filteredRequests;
     }
   };
@@ -666,7 +958,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   
   // Handle print queue
   const handlePrintQueue = useCallback(() => {
-    const tabNames = ['Pending Review', 'Verified', 'Ready for Pickup', 'Completed'];
+    const tabNames = ['Pending Review', 'Verified', 'Ready for Pickup', 'Completed', 'Refill Requests'];
     const currentTabName = tabNames[tabValue] || 'All';
     
     const content = `
@@ -873,6 +1165,15 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             }
             iconPosition="start"
           />
+          <Tab 
+            label="Refill Requests" 
+            icon={
+              <Badge badgeContent={pendingRefills.length} color="warning">
+                <RefreshIcon />
+              </Badge>
+            }
+            iconPosition="start"
+          />
         </Tabs>
       </Paper>
 
@@ -945,21 +1246,35 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       {currentRequests.length === 0 ? (
         <Alert severity="info">
           {patientFilter === 'current' && currentPatient
-            ? `No medication requests in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
-            : 'No medication requests in this category'
+            ? `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
+            : `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category`
           }
         </Alert>
       ) : (
         <Box>
-          {currentRequests.map((request) => (
-            <MedicationRequestCard
-              key={request.id}
-              medicationRequest={request}
-              onStatusChange={handleStatusChange}
-              onDispense={handleOpenDispenseDialog}
-              onViewDetails={handleViewDetails}
-            />
-          ))}
+          {tabValue === 4 ? (
+            // Render refill requests
+            currentRequests.map((refillRequest) => (
+              <RefillRequestCard
+                key={refillRequest.id}
+                refillRequest={refillRequest}
+                onApprove={handleApproveRefill}
+                onReject={handleRejectRefill}
+                onViewDetails={handleViewDetails}
+              />
+            ))
+          ) : (
+            // Render regular medication requests
+            currentRequests.map((request) => (
+              <MedicationRequestCard
+                key={request.id}
+                medicationRequest={request}
+                onStatusChange={handleStatusChange}
+                onDispense={handleOpenDispenseDialog}
+                onViewDetails={handleViewDetails}
+              />
+            ))
+          )}
         </Box>
       )}
 
@@ -970,6 +1285,71 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         medicationRequest={selectedRequest}
         onDispense={handleDispense}
       />
+
+      {/* Details Dialog */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Medication Request Details</DialogTitle>
+        <DialogContent>
+          {selectedRequest && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Medication</Typography>
+                  <Typography variant="body1">{selectedRequest.medicationCodeableConcept?.text || 'Unknown medication'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Typography variant="body1">{selectedRequest.status || 'Unknown'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Priority</Typography>
+                  <Typography variant="body1">{selectedRequest.priority || 'routine'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Authored Date</Typography>
+                  <Typography variant="body1">
+                    {selectedRequest.authoredOn ? format(parseISO(selectedRequest.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                {selectedRequest.dosageInstruction?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
+                    <Typography variant="body1">{selectedRequest.dosageInstruction[0].text || 'See prescription'}</Typography>
+                  </Grid>
+                )}
+                {selectedRequest.dispenseRequest && (
+                  <>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" color="text.secondary">Quantity</Typography>
+                      <Typography variant="body1">
+                        {selectedRequest.dispenseRequest.quantity?.value || 'Not specified'} {selectedRequest.dispenseRequest.quantity?.unit || ''}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" color="text.secondary">Refills Allowed</Typography>
+                      <Typography variant="body1">{selectedRequest.dispenseRequest.numberOfRepeatsAllowed || 0}</Typography>
+                    </Grid>
+                  </>
+                )}
+                {selectedRequest.reasonCode?.[0] && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Reason</Typography>
+                    <Typography variant="body1">{selectedRequest.reasonCode[0].text || 'Not specified'}</Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar

@@ -27,7 +27,9 @@ import {
   AccordionDetails,
   IconButton,
   Tooltip,
-  Paper
+  Paper,
+  CircularProgress,
+  LinearProgress
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -37,142 +39,65 @@ import {
   Add as AddIcon,
   Remove as RemoveIcon,
   Edit as EditIcon,
-  Visibility as ReviewIcon
+  Visibility as ReviewIcon,
+  Refresh as RefreshIcon,
+  Assessment as AnalysisIcon
 } from '@mui/icons-material';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
+import { medicationReconciliationService } from '../../../../services/medicationReconciliationService';
+import { format, parseISO } from 'date-fns';
 
 const MedicationReconciliationDialog = ({ 
   open, 
   onClose, 
   patientId, 
   currentMedications = [],
+  encounterId = null,
   onReconcile 
 }) => {
   const [loading, setLoading] = useState(false);
-  const [reconciliationChanges, setReconciliationChanges] = useState([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [reconciliationData, setReconciliationData] = useState(null);
   const [selectedChanges, setSelectedChanges] = useState(new Set());
-  
-  // Mock external medication sources (in real implementation, these would come from APIs)
-  const [externalSources] = useState([
-    {
-      source: 'Hospital Discharge Summary',
-      date: '2024-01-15',
-      medications: [
-        {
-          id: 'ext-1',
-          name: 'Lisinopril 10mg',
-          dosage: 'Take 1 tablet by mouth daily',
-          status: 'active',
-          source: 'discharge'
-        },
-        {
-          id: 'ext-2', 
-          name: 'Metformin 500mg',
-          dosage: 'Take 1 tablet by mouth twice daily with meals',
-          status: 'active',
-          source: 'discharge'
-        }
-      ]
-    },
-    {
-      source: 'Pharmacy Records',
-      date: '2024-01-20',
-      medications: [
-        {
-          id: 'ext-3',
-          name: 'Atorvastatin 20mg',
-          dosage: 'Take 1 tablet by mouth at bedtime',
-          status: 'active',
-          source: 'pharmacy'
-        },
-        {
-          id: 'ext-4',
-          name: 'Lisinopril 10mg',
-          dosage: 'Take 1 tablet by mouth daily',
-          status: 'discontinued',
-          source: 'pharmacy'
-        }
-      ]
-    }
-  ]);
+  const [error, setError] = useState(null);
 
   const { getMedicationDisplay } = useMedicationResolver(currentMedications);
 
   useEffect(() => {
-    if (open) {
-      analyzeDiscrepancies();
+    if (open && patientId) {
+      fetchReconciliationData();
     }
-  }, [open, currentMedications]);
+  }, [open, patientId, encounterId]);
 
-  const analyzeDiscrepancies = () => {
-    const changes = [];
-    const currentMedNames = new Set(
-      currentMedications.map(med => 
-        getMedicationDisplay(med).toLowerCase()
-      )
-    );
+  const fetchReconciliationData = async () => {
+    setAnalyzing(true);
+    setError(null);
+    setReconciliationData(null);
+    
+    try {
+      const data = await medicationReconciliationService.getMedicationReconciliationData(
+        patientId, 
+        encounterId
+      );
+      setReconciliationData(data);
+      
+      // Auto-select high priority recommendations
+      const highPriorityChanges = data.analysis.recommendations
+        .filter(rec => rec.priority === 'high')
+        .map(rec => rec.id);
+      setSelectedChanges(new Set(highPriorityChanges));
+      
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
-    // Find medications in external sources not in current list
-    externalSources.forEach(source => {
-      source.medications.forEach(extMed => {
-        const medName = extMed.name.toLowerCase();
-        if (!currentMedNames.has(medName) && extMed.status === 'active') {
-          changes.push({
-            id: `add-${extMed.id}`,
-            type: 'add',
-            medication: extMed,
-            reason: `Found in ${source.source} but not in current medications`,
-            source: source.source
-          });
-        }
-      });
-    });
-
-    // Find medications that should be discontinued
-    externalSources.forEach(source => {
-      source.medications.forEach(extMed => {
-        if (extMed.status === 'discontinued') {
-          const currentMed = currentMedications.find(med => 
-            getMedicationDisplay(med).toLowerCase().includes(extMed.name.toLowerCase())
-          );
-          if (currentMed && currentMed.status === 'active') {
-            changes.push({
-              id: `discontinue-${currentMed.id}`,
-              type: 'discontinue',
-              medication: currentMed,
-              reason: `Marked as discontinued in ${source.source}`,
-              source: source.source
-            });
-          }
-        }
-      });
-    });
-
-    // Find potential duplicates or dosage changes
-    currentMedications.forEach(currentMed => {
-      externalSources.forEach(source => {
-        source.medications.forEach(extMed => {
-          const currentName = getMedicationDisplay(currentMed).toLowerCase();
-          const extName = extMed.name.toLowerCase();
-          
-          if (currentName.includes(extName.split(' ')[0]) || extName.includes(currentName.split(' ')[0])) {
-            const currentDosage = currentMed.dosageInstruction?.[0]?.text || '';
-            if (currentDosage !== extMed.dosage && extMed.status === 'active') {
-              changes.push({
-                id: `modify-${currentMed.id}`,
-                type: 'modify',
-                medication: currentMed,
-                newDosage: extMed.dosage,
-                reason: `Dosage discrepancy with ${source.source}`,
-                source: source.source
-              });
-            }
-          }
-        });
-      });
-    });
-
-    setReconciliationChanges(changes);
+  const refreshAnalysis = () => {
+    // Clear cache and refetch
+    medicationReconciliationService.clearCache(patientId);
+    fetchReconciliationData();
   };
 
   const handleToggleChange = (changeId) => {
@@ -188,43 +113,62 @@ const MedicationReconciliationDialog = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedChanges.size === reconciliationChanges.length) {
+    if (!reconciliationData?.analysis?.recommendations) return;
+    
+    if (selectedChanges.size === reconciliationData.analysis.recommendations.length) {
       setSelectedChanges(new Set());
     } else {
-      setSelectedChanges(new Set(reconciliationChanges.map(c => c.id)));
+      setSelectedChanges(new Set(reconciliationData.analysis.recommendations.map(c => c.id)));
     }
   };
 
   const handleReconcile = async () => {
+    if (!reconciliationData?.analysis?.recommendations) return;
+    
     setLoading(true);
     try {
-      const changesToApply = reconciliationChanges.filter(change => 
+      const changesToApply = reconciliationData.analysis.recommendations.filter(change => 
         selectedChanges.has(change.id)
       );
       
-      await onReconcile(changesToApply);
+      // Execute reconciliation through the service
+      const results = await medicationReconciliationService.executeReconciliation(
+        patientId, 
+        changesToApply, 
+        encounterId
+      );
+      
+      // Call the parent's onReconcile callback with the results
+      if (onReconcile) {
+        await onReconcile(results);
+      }
+      
       onClose();
     } catch (error) {
-      
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getChangeIcon = (type) => {
-    switch (type) {
+  const getChangeIcon = (action) => {
+    switch (action) {
       case 'add': return <AddIcon color="success" />;
       case 'discontinue': return <RemoveIcon color="error" />;
       case 'modify': return <EditIcon color="warning" />;
+      case 'continue': return <CheckIcon color="info" />;
+      case 'hold': return <WarningIcon color="warning" />;
       default: return <ReviewIcon />;
     }
   };
 
-  const getChangeColor = (type) => {
-    switch (type) {
+  const getChangeColor = (action) => {
+    switch (action) {
       case 'add': return 'success';
       case 'discontinue': return 'error';
       case 'modify': return 'warning';
+      case 'continue': return 'info';
+      case 'hold': return 'warning';
       default: return 'info';
     }
   };
@@ -240,17 +184,61 @@ const MedicationReconciliationDialog = ({
       }}
     >
       <DialogTitle>
-        <Typography variant="h6">Medication Reconciliation</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Review and reconcile medications from multiple sources
-        </Typography>
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h6" component="div">Medication Reconciliation</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Review and reconcile medications from multiple sources
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <IconButton 
+                onClick={refreshAnalysis} 
+                disabled={analyzing}
+                size="small"
+              >
+                <RefreshIcon />
+              </IconButton>
+              {reconciliationData?.lastReconciled && (
+                <Tooltip title={`Last reconciled: ${format(parseISO(reconciliationData.lastReconciled), 'MMM d, yyyy h:mm a')}`}>
+                  <IconButton size="small">
+                    <AnalysisIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+          </Stack>
+        </Box>
       </DialogTitle>
       
       <DialogContent>
+        {analyzing && (
+          <Box sx={{ mb: 2 }}>
+            <LinearProgress />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Analyzing medication sources and generating reconciliation recommendations...
+            </Typography>
+          </Box>
+        )}
+        
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
         <Stack spacing={3}>
           <Alert severity="info">
             Medication reconciliation helps ensure accuracy by comparing current medications 
             with external sources like discharge summaries and pharmacy records.
+            {reconciliationData?.analysis && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  Found {reconciliationData.analysis.totalDiscrepancies} discrepancies requiring review.
+                </Typography>
+              </Box>
+            )}
           </Alert>
 
           {/* Current Medications Summary */}
@@ -283,38 +271,56 @@ const MedicationReconciliationDialog = ({
           </Accordion>
 
           {/* External Sources */}
-          {externalSources.map((source, index) => (
-            <Accordion key={index}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="h6">
-                  {source.source} ({source.medications.length} medications)
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-                  {source.date}
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <List dense>
-                  {source.medications.map((med) => (
-                    <ListItem key={med.id}>
-                      <ListItemIcon>
-                        <MedicationIcon color={med.status === 'active' ? 'primary' : 'disabled'} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={med.name}
-                        secondary={med.dosage}
-                      />
-                      <Chip 
-                        label={med.status} 
-                        size="small" 
-                        color={med.status === 'active' ? 'success' : 'default'}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </AccordionDetails>
-            </Accordion>
-          ))}
+          {reconciliationData && Object.entries(reconciliationData.medications).map(([sourceType, medications]) => {
+            if (medications.length === 0) return null;
+            
+            const sourceLabels = {
+              home: 'Home Medications',
+              hospital: 'Hospital Medications', 
+              discharge: 'Discharge Summary',
+              pharmacy: 'Pharmacy Records',
+              external: 'External Sources'
+            };
+            
+            return (
+              <Accordion key={sourceType}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="h6">
+                    {sourceLabels[sourceType]} ({medications.length} medications)
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <List dense>
+                    {medications.map((med) => (
+                      <ListItem key={med.id}>
+                        <ListItemIcon>
+                          <MedicationIcon color={med.status === 'active' ? 'primary' : 'disabled'} />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={med.medicationDisplay}
+                          secondary={
+                            <Box>
+                              <Typography variant="body2">
+                                {med.dosageDisplay}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Source: {med.sourceType} | {med.source}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                        <Chip 
+                          label={med.status} 
+                          size="small" 
+                          color={med.status === 'active' ? 'success' : 'default'}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </AccordionDetails>
+              </Accordion>
+            );
+          })}
 
           <Divider />
 
@@ -322,26 +328,27 @@ const MedicationReconciliationDialog = ({
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
               <Typography variant="h6">
-                Recommended Changes ({reconciliationChanges.length})
+                Recommended Changes ({reconciliationData?.analysis?.recommendations?.length || 0})
               </Typography>
               <Button 
                 onClick={handleSelectAll}
                 size="small"
                 variant="outlined"
+                disabled={!reconciliationData?.analysis?.recommendations?.length}
               >
-                {selectedChanges.size === reconciliationChanges.length ? 'Deselect All' : 'Select All'}
+                {selectedChanges.size === (reconciliationData?.analysis?.recommendations?.length || 0) ? 'Deselect All' : 'Select All'}
               </Button>
             </Stack>
 
-            {reconciliationChanges.length === 0 ? (
+            {(!reconciliationData?.analysis?.recommendations?.length) ? (
               <Alert severity="success" icon={<CheckIcon />}>
-                No discrepancies found. Current medications are reconciled with external sources.
+                {analyzing ? 'Analyzing...' : 'No discrepancies found. Current medications are reconciled with external sources.'}
               </Alert>
             ) : (
               <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
                 <List>
-                  {reconciliationChanges.map((change, index) => (
-                    <ListItem key={change.id} divider={index < reconciliationChanges.length - 1}>
+                  {reconciliationData.analysis.recommendations.map((change, index) => (
+                    <ListItem key={change.id} divider={index < reconciliationData.analysis.recommendations.length - 1}>
                       <ListItemIcon>
                         <FormControlLabel
                           control={
@@ -354,20 +361,26 @@ const MedicationReconciliationDialog = ({
                         />
                       </ListItemIcon>
                       <ListItemIcon>
-                        {getChangeIcon(change.type)}
+                        {getChangeIcon(change.action)}
                       </ListItemIcon>
                       <ListItemText
                         primary={
                           <Stack direction="row" spacing={1} alignItems="center">
                             <Typography variant="body1">
-                              {change.type === 'add' && `Add: ${change.medication.name}`}
-                              {change.type === 'discontinue' && `Discontinue: ${getMedicationDisplay(change.medication)}`}
-                              {change.type === 'modify' && `Modify: ${getMedicationDisplay(change.medication)}`}
+                              {change.action === 'add' && `Add: ${change.medication.medicationDisplay}`}
+                              {change.action === 'discontinue' && `Discontinue: ${change.medication.medicationDisplay}`}
+                              {change.action === 'modify' && `Modify: ${change.medication.medicationDisplay}`}
                             </Typography>
                             <Chip 
-                              label={change.type.toUpperCase()} 
+                              label={change.action.toUpperCase()} 
                               size="small" 
-                              color={getChangeColor(change.type)}
+                              color={getChangeColor(change.action)}
+                            />
+                            <Chip 
+                              label={change.priority.toUpperCase()} 
+                              size="small" 
+                              variant="outlined"
+                              color={change.priority === 'high' ? 'error' : change.priority === 'medium' ? 'warning' : 'default'}
                             />
                           </Stack>
                         }
@@ -376,14 +389,14 @@ const MedicationReconciliationDialog = ({
                             <Typography variant="body2" color="text.secondary">
                               {change.reason}
                             </Typography>
-                            {change.type === 'modify' && (
+                            {change.action === 'modify' && change.newDosage && (
                               <Typography variant="body2" color="warning.main">
                                 New dosage: {change.newDosage}
                               </Typography>
                             )}
-                            {change.type === 'add' && (
+                            {change.action === 'add' && (
                               <Typography variant="body2" color="success.main">
-                                Dosage: {change.medication.dosage}
+                                Dosage: {change.medication.dosageDisplay}
                               </Typography>
                             )}
                             <Typography variant="caption" color="text.secondary">
@@ -397,18 +410,44 @@ const MedicationReconciliationDialog = ({
                 </List>
               </Paper>
             )}
+            
+            {/* Duplicates and Conflicts */}
+            {reconciliationData?.analysis?.duplicates?.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity="warning" icon={<WarningIcon />}>
+                  <Typography variant="subtitle2">
+                    {reconciliationData.analysis.duplicates.length} potential duplicate medications found
+                  </Typography>
+                  {reconciliationData.analysis.duplicates.map((duplicate, index) => (
+                    <Typography key={index} variant="body2" sx={{ mt: 0.5 }}>
+                      • {duplicate.medicationName} ({duplicate.count} entries from: {duplicate.sources.join(', ')})
+                    </Typography>
+                  ))}
+                </Alert>
+              </Box>
+            )}
+            
+            {reconciliationData?.analysis?.conflicts?.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity="error">
+                  <Typography variant="subtitle2">
+                    {reconciliationData.analysis.conflicts.length} medication conflicts detected
+                  </Typography>
+                </Alert>
+              </Box>
+            )}
           </Box>
         </Stack>
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={loading}>
+        <Button onClick={onClose} disabled={loading || analyzing}>
           Cancel
         </Button>
         <Button 
           onClick={handleReconcile} 
           variant="contained" 
-          disabled={loading || selectedChanges.size === 0}
+          disabled={loading || analyzing || selectedChanges.size === 0 || !reconciliationData?.analysis?.recommendations?.length}
         >
           {loading ? 'Applying Changes...' : `Apply ${selectedChanges.size} Changes`}
         </Button>

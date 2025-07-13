@@ -118,12 +118,14 @@ app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
 
 # Add new API routers for missing functionality
 from routers.catalogs import router as catalogs_router
+from routers.catalog_extraction import router as catalog_extraction_router
 from routers.clinical_tasks import router as clinical_tasks_router
 from routers.clinical_alerts import router as clinical_alerts_router
 from routers.quality_measures import router as quality_measures_router
 from routers.imaging_studies import router as imaging_studies_router
 
 app.include_router(catalogs_router, tags=["Clinical Catalogs"])
+app.include_router(catalog_extraction_router, tags=["Catalog Extraction"])
 app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
 app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
 app.include_router(quality_measures_router, tags=["Quality Measures"])
@@ -169,6 +171,18 @@ app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
 # Include DICOM service API
 from api.dicom.dicom_service import router as dicom_router
 app.include_router(dicom_router, tags=["DICOM Services"])
+
+# Include CDS Clinical Data API
+from api.clinical.cds_clinical_data import router as cds_clinical_router
+app.include_router(cds_clinical_router, tags=["CDS Clinical Data"])
+
+# Include Dynamic Catalog API
+from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
+app.include_router(dynamic_catalog_router, tags=["Dynamic Clinical Catalogs"])
+
+# Include Catalog Search API
+from api.clinical.catalog_search import router as catalog_search_router
+app.include_router(catalog_search_router, prefix="/api/clinical", tags=["Clinical Catalog Search"])
 
 # Include debug router (temporary)
 from api.debug_router import debug_router

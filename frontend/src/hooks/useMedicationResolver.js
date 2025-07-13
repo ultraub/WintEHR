@@ -14,14 +14,20 @@ export const useMedicationResolver = (medicationRequests = []) => {
   const [error, setError] = useState(null);
   
   // Memoize the medication requests array based on IDs to prevent unnecessary re-renders
-  const medicationRequestIds = useMemo(() => 
-    medicationRequests.map(req => req.id).join(','), 
-    [medicationRequests]
-  );
+  const medicationRequestIds = useMemo(() => {
+    if (!medicationRequests || !Array.isArray(medicationRequests)) {
+      return '';
+    }
+    return medicationRequests
+      .filter(req => req && typeof req === 'object' && req.id) // More robust null check
+      .map(req => req?.id) // Additional safety check with optional chaining
+      .filter(id => id) // Remove any undefined/null IDs
+      .join(',');
+  }, [medicationRequests]);
 
   useEffect(() => {
     const resolveMedications = async () => {
-      if (!medicationRequests || medicationRequests.length === 0) {
+      if (!medicationRequests || !Array.isArray(medicationRequests) || medicationRequests.length === 0) {
         setResolvedMedications({});
         setLoading(false);
         return;
@@ -35,6 +41,9 @@ export const useMedicationResolver = (medicationRequests = []) => {
         // Extract unique medication references
         const medicationRefs = new Set();
         medicationRequests.forEach(req => {
+          // Skip null/undefined requests or requests without IDs
+          if (!req || typeof req !== 'object' || !req.id) return;
+          
           // Handle different medication structures from Synthea
           if (req.medication?.reference?.reference) {
             // Handle nested reference structure from Synthea
@@ -79,6 +88,9 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
         // Build resolved medications map AFTER all fetches complete
         medicationRequests.forEach(req => {
+          // Skip null/undefined requests or requests without IDs
+          if (!req || typeof req !== 'object' || !req.id) return;
+          
           let medicationId = null;
           
           // Handle reference-based medications

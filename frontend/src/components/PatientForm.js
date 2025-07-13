@@ -107,7 +107,9 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Date of Birth"
                 value={formData.date_of_birth}
                 onChange={handleDateChange}
-                renderInput={(params) => <TextField {...params} fullWidth required />}
+                slotProps={{
+                  textField: { fullWidth: true, required: true }
+                }}
                 maxDate={new Date()}
               />
             </Grid>

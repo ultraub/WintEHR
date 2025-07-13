@@ -2,7 +2,7 @@
  * Prescribe Medication Dialog Component
  * Allows prescribing new medications to patient
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -77,6 +77,17 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
     genericSubstitution: true,
     notes: ''
   });
+
+  // Trigger CDS hooks when medication selection changes
+  useEffect(() => {
+    if (formData.selectedMedication) {
+      checkCDSHooks(formData.selectedMedication);
+    } else if (formData.customMedication && formData.customMedication.length > 2) {
+      checkCDSHooks({ display: formData.customMedication, name: formData.customMedication });
+    } else {
+      setCdsAlerts([]);
+    }
+  }, [formData.selectedMedication, formData.customMedication, patientId]);
 
   // Search for medications as user types
   const handleSearchMedications = async (query) => {
@@ -204,6 +215,21 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
         return;
       }
 
+      // Trigger final CDS hooks check before creating prescription
+      await checkCDSHooks(formData.selectedMedication || { display: formData.customMedication, name: formData.customMedication });
+
+      // Check for critical alerts that should block prescription
+      const criticalAlerts = cdsAlerts.filter(alert => alert.indicator === 'critical');
+      if (criticalAlerts.length > 0) {
+        const shouldProceed = window.confirm(
+          `⚠️ Critical Safety Alert!\n\n${criticalAlerts.map(alert => alert.summary).join('\n\n')}\n\nDo you want to proceed with this prescription anyway?`
+        );
+        if (!shouldProceed) {
+          setLoading(false);
+          return;
+        }
+      }
+
       // Create FHIR MedicationRequest resource
       const medicationRequest = {
         resourceType: 'MedicationRequest',
@@ -309,9 +335,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
           sx: { minHeight: '700px' }
         }}
       >
-        <DialogTitle>
-          <Typography variant="h6">Prescribe Medication</Typography>
-        </DialogTitle>
+        <DialogTitle>Prescribe Medication</DialogTitle>
         
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
@@ -332,6 +356,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedMedication}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     setSearchQuery(value);
                     handleSearchMedications(value);

@@ -6,7 +6,8 @@ import axios from 'axios';
 
 class SearchService {
   constructor() {
-    this.baseUrl = '/api/emr/clinical/catalog';
+    this.baseUrl = '/api/clinical/dynamic-catalog';
+    this.cdsUrl = '/api/clinical';
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     
@@ -20,7 +21,7 @@ class SearchService {
   }
 
   /**
-   * Search for conditions/problems
+   * Search for conditions/problems using dynamic catalog
    * @param {string} query - Search term
    * @param {number} limit - Maximum results
    * @returns {Promise<Array>} Array of condition objects
@@ -37,21 +38,21 @@ class SearchService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/conditions/search`, {
-        params: { query, limit }
+      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, {
+        params: { search: query, limit }
       });
       
-      const conditions = response.data?.conditions || [];
-      this.setCache(cacheKey, conditions);
-      return conditions;
+      const conditions = response.data || [];
+      const formatted = conditions.map(this.formatCondition);
+      this.setCache(cacheKey, formatted);
+      return formatted;
     } catch (error) {
-      
       return [];
     }
   }
 
   /**
-   * Search for medications
+   * Search for medications using dynamic catalog
    * @param {string} query - Search term
    * @param {number} limit - Maximum results
    * @returns {Promise<Array>} Array of medication objects
@@ -68,21 +69,21 @@ class SearchService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/medications/search`, {
-        params: { query, limit }
+      const response = await this.httpClient.get(`${this.baseUrl}/medications`, {
+        params: { search: query, limit }
       });
       
-      const medications = response.data?.medications || [];
-      this.setCache(cacheKey, medications);
-      return medications;
+      const medications = response.data || [];
+      const formatted = medications.map(this.formatMedication);
+      this.setCache(cacheKey, formatted);
+      return formatted;
     } catch (error) {
-      
       return [];
     }
   }
 
   /**
-   * Search for lab tests
+   * Search for lab tests using dynamic catalog
    * @param {string} query - Search term
    * @param {number} limit - Maximum results
    * @returns {Promise<Array>} Array of lab test objects
@@ -99,15 +100,15 @@ class SearchService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests/search`, {
-        params: { query, limit }
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests`, {
+        params: { search: query, limit }
       });
       
-      const labTests = response.data?.labTests || [];
-      this.setCache(cacheKey, labTests);
-      return labTests;
+      const labTests = response.data || [];
+      const formatted = labTests.map(this.formatLabTest);
+      this.setCache(cacheKey, formatted);
+      return formatted;
     } catch (error) {
-      
       return [];
     }
   }
@@ -138,13 +139,12 @@ class SearchService {
       this.setCache(cacheKey, procedures);
       return procedures;
     } catch (error) {
-      
       return [];
     }
   }
 
   /**
-   * Universal search across all catalogs
+   * Universal search across all dynamic catalogs
    * @param {string} query - Search term
    * @param {number} limit - Maximum results per category
    * @returns {Promise<Object>} Object with results from all categories
@@ -154,7 +154,6 @@ class SearchService {
       return {
         medications: [],
         labTests: [],
-        imagingProcedures: [],
         conditions: [],
         procedures: [],
         documentTypes: [],
@@ -170,29 +169,27 @@ class SearchService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/all/search`, {
+      const response = await this.httpClient.get(`${this.baseUrl}/search`, {
         params: { query, limit }
       });
       
-      const results = response.data?.results || {
-        medications: [],
-        labTests: [],
-        imagingProcedures: [],
-        conditions: [],
-        procedures: [],
-        documentTypes: [],
-        practitioners: [],
-        vaccines: []
+      const data = response.data || {};
+      const results = {
+        medications: (data.medications || []).map(this.formatMedication),
+        labTests: (data.lab_tests || []).map(this.formatLabTest),
+        conditions: (data.conditions || []).map(this.formatCondition),
+        procedures: (data.procedures || []).map(this.formatProcedure),
+        documentTypes: [], // Not implemented in dynamic catalog yet
+        practitioners: [], // Not implemented in dynamic catalog yet
+        vaccines: [] // Not implemented in dynamic catalog yet
       };
       
       this.setCache(cacheKey, results);
       return results;
     } catch (error) {
-      
       return {
         medications: [],
         labTests: [],
-        imagingProcedures: [],
         conditions: [],
         procedures: [],
         documentTypes: [],
@@ -203,7 +200,7 @@ class SearchService {
   }
 
   /**
-   * Search for procedures
+   * Search for procedures using dynamic catalog
    * @param {string} query - Search term
    * @param {number} limit - Maximum results
    * @returns {Promise<Array>} Array of procedure objects
@@ -220,15 +217,15 @@ class SearchService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/procedures/search`, {
-        params: { query, limit }
+      const response = await this.httpClient.get(`${this.baseUrl}/procedures`, {
+        params: { search: query, limit }
       });
       
-      const procedures = response.data?.procedures || [];
-      this.setCache(cacheKey, procedures);
-      return procedures;
+      const procedures = response.data || [];
+      const formatted = procedures.map(this.formatProcedure);
+      this.setCache(cacheKey, formatted);
+      return formatted;
     } catch (error) {
-      
       return [];
     }
   }
@@ -259,7 +256,6 @@ class SearchService {
       this.setCache(cacheKey, documentTypes);
       return documentTypes;
     } catch (error) {
-      
       return [];
     }
   }
@@ -290,7 +286,6 @@ class SearchService {
       this.setCache(cacheKey, practitioners);
       return practitioners;
     } catch (error) {
-      
       return [];
     }
   }
@@ -321,7 +316,6 @@ class SearchService {
       this.setCache(cacheKey, organizations);
       return organizations;
     } catch (error) {
-      
       return [];
     }
   }
@@ -352,7 +346,6 @@ class SearchService {
       this.setCache(cacheKey, vaccines);
       return vaccines;
     } catch (error) {
-      
       return [];
     }
   }
@@ -382,7 +375,7 @@ class SearchService {
           source: 'medication_catalog'
         })));
       } catch (error) {
-        
+        // Silently ignore medication search errors
       }
     }
 
@@ -457,24 +450,24 @@ class SearchService {
 
   /**
    * Format medication for display
-   * @param {Object} medication - Medication object from API
+   * @param {Object} medication - Medication object from dynamic catalog
    * @returns {Object} Formatted medication
    */
   formatMedication(medication) {
     return {
       id: medication.id,
-      display: medication.name || medication.display || 'Unknown medication',
+      name: medication.display || 'Unknown medication',
+      display: medication.display || 'Unknown medication',
       code: medication.code,
       system: medication.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-      form: medication.form,
-      status: medication.status || 'active',
-      route: medication.route || 'oral'
+      frequency_count: medication.frequency_count || 0,
+      source: 'dynamic'
     };
   }
 
   /**
    * Format condition for display
-   * @param {Object} condition - Condition object from API
+   * @param {Object} condition - Condition object from dynamic catalog
    * @returns {Object} Formatted condition
    */
   formatCondition(condition) {
@@ -482,27 +475,31 @@ class SearchService {
       code: condition.code,
       display: condition.display || 'Unknown condition',
       system: condition.system || 'http://snomed.info/sct',
-      source: condition.source || 'catalog'
+      frequency_count: condition.frequency_count || 0,
+      source: 'dynamic'
     };
   }
 
   /**
    * Format lab test for display
-   * @param {Object} labTest - Lab test object from API
+   * @param {Object} labTest - Lab test object from dynamic catalog
    * @returns {Object} Formatted lab test
    */
   formatLabTest(labTest) {
     return {
-      code: labTest.code,
+      code: labTest.loinc_code || labTest.code,
       display: labTest.display || 'Unknown test',
-      system: labTest.system || 'http://loinc.org',
-      type: 'laboratory'
+      system: 'http://loinc.org',
+      type: 'laboratory',
+      frequency_count: labTest.frequency_count || 0,
+      reference_range: labTest.reference_range,
+      source: 'dynamic'
     };
   }
 
   /**
    * Format procedure for display
-   * @param {Object} procedure - Procedure object from API
+   * @param {Object} procedure - Procedure object from dynamic catalog
    * @returns {Object} Formatted procedure
    */
   formatProcedure(procedure) {
@@ -510,7 +507,9 @@ class SearchService {
       code: procedure.code,
       display: procedure.display || 'Unknown procedure',
       system: procedure.system || 'http://snomed.info/sct',
-      category: procedure.category || 'procedure'
+      category: procedure.category || 'procedure',
+      frequency_count: procedure.frequency_count || 0,
+      source: 'dynamic'
     };
   }
 

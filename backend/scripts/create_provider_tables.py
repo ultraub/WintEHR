@@ -4,6 +4,7 @@ Create the Provider and related tables needed for authentication
 """
 
 import asyncio
+import os
 import asyncpg
 import os
 from dotenv import load_dotenv

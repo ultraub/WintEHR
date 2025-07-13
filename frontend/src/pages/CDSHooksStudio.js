@@ -53,6 +53,7 @@ import {
 // Import child components (to be created)
 import CDSLearnMode from '../components/cds-studio/learn/CDSLearnMode';
 import CDSBuildMode from '../components/cds-studio/build/CDSBuildMode';
+import CDSBuildModeImproved from '../components/cds-studio/build/CDSBuildModeImproved';
 import CDSManageMode from '../components/cds-studio/manage/CDSManageMode';
 
 // Import services
@@ -322,12 +323,9 @@ function CDSHooksStudio() {
         {/* Content Area */}
         <Box sx={{ flexGrow: 1, overflow: 'auto', position: 'relative' }}>
           {currentMode === 'learn' && <CDSLearnMode />}
-          {currentMode === 'build' && <CDSBuildMode />}
+          {currentMode === 'build' && <CDSBuildModeImproved />}
           {currentMode === 'manage' && <CDSManageMode />}
         </Box>
-
-        {/* Floating Action Button for Quick Actions */}
-        {currentMode === 'build' && <SaveButton />}
       </Box>
     </CDSStudioProvider>
   );

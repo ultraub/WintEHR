@@ -294,16 +294,16 @@ const CareTeamCard = ({ careTeam, onAddMember, onViewAll }) => {
               <ListItemText
                 primary={participant.member?.display || 'Team Member'}
                 secondary={
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="caption">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Typography variant="caption" component="span">
                       {participant.role?.[0]?.text || participant.role?.[0]?.coding?.[0]?.display || 'Role not specified'}
                     </Typography>
                     {participant.period?.start && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" component="span">
                         • Since {format(parseISO(participant.period.start), 'MMM yyyy')}
                       </Typography>
                     )}
-                  </Stack>
+                  </span>
                 }
               />
             </ListItem>
@@ -383,18 +383,18 @@ const InterventionList = ({ activities, onEdit, onAddIntervention }) => {
                       </Stack>
                     }
                     secondary={
-                      <Box>
+                      <span>
                         {activity.detail?.scheduledTiming?.repeat?.frequency && (
-                          <Typography variant="caption">
+                          <span style={{ fontSize: '0.75rem' }}>
                             Frequency: {activity.detail.scheduledTiming.repeat.frequency} times per {activity.detail.scheduledTiming.repeat.period} {activity.detail.scheduledTiming.repeat.periodUnit}
-                          </Typography>
+                          </span>
                         )}
                         {activity.detail?.location && (
-                          <Typography variant="caption" display="block">
+                          <span style={{ fontSize: '0.75rem', display: 'block' }}>
                             Location: {activity.detail.location.display}
-                          </Typography>
+                          </span>
                         )}
-                      </Box>
+                      </span>
                     }
                   />
                   <ListItemSecondaryAction>
@@ -526,7 +526,7 @@ const AddCareTeamMemberDialog = ({ open, onClose, careTeam, patientId, onSuccess
         onSuccess();
       }
     } catch (error) {
-      console.error('Failed to add care team member:', error);
+      // Failed to add care team member
       alert('Failed to add care team member: ' + error.message);
     }
   };
@@ -655,12 +655,12 @@ const fetchGoalRelatedObservations = async (goal) => {
       }
     } catch (err) {
       // Goal reference search might not be supported by all servers
-      console.debug('Goal reference search not supported:', err);
+      // This is expected behavior for some FHIR servers
     }
     
     return observations;
   } catch (error) {
-    console.error('Error fetching goal-related observations:', error);
+    // Error fetching goal-related observations
     return [];
   }
 };
@@ -701,7 +701,7 @@ const GoalProgressDialog = ({ open, onClose, goal, patientId }) => {
         setProgressData([]);
       }
     } catch (error) {
-      console.error('Failed to load goal progress data:', error);
+      // Failed to load goal progress data
       setProgressData([]);
     } finally {
       setLoading(false);
@@ -1232,8 +1232,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
         onClose();
       }
       // In production, this would show an error snackbar or dialog
-      console.error('Failed to save goal:', error);
-      // Would show error notification in production
+      // Failed to save goal - would show error notification in production
     }
   };
 
@@ -1934,16 +1933,16 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
                   <ListItemText
                     primary={member.member?.display || 'Unknown Member'}
                     secondary={
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">
+                      <span>
+                        <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                           Role: {member.role?.[0]?.text || 'Not specified'}
-                        </Typography>
+                        </span>
                         {member.period?.start && (
-                          <Typography variant="caption" color="text.secondary">
+                          <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)', display: 'block' }}>
                             Since: {format(parseISO(member.period.start), 'MMM d, yyyy')}
-                          </Typography>
+                          </span>
                         )}
-                      </Box>
+                      </span>
                     }
                   />
                   <ListItemSecondaryAction>
@@ -2035,4 +2034,4 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default CarePlanTab;
+export default React.memo(CarePlanTab);

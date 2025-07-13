@@ -27,7 +27,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, parseISO } from 'date-fns';
-import { searchService } from '../../../../services/searchService';
+import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
 
 const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patientId }) => {
   const [loading, setLoading] = useState(false);
@@ -123,10 +123,15 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
 
     setSearchLoading(true);
     try {
-      const results = await searchService.searchConditions(query, 20);
-      setConditionOptions(results.map(searchService.formatCondition));
+      const results = await cdsClinicalDataService.getDynamicConditionCatalog(query, 20);
+      setConditionOptions(results.map(cond => ({
+        code: cond.code,
+        display: cond.display,
+        system: 'http://snomed.info/sct', // Most conditions are SNOMED
+        frequency_count: cond.frequency_count,
+        source: 'dynamic'
+      })));
     } catch (error) {
-      
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);

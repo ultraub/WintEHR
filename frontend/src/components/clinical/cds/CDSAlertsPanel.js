@@ -42,7 +42,9 @@ import {
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import CDSHookManager, { WORKFLOW_TRIGGERS } from './CDSHookManager';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
+import CDSDocumentationPrompts from './CDSDocumentationPrompts';
 import { cdsLogger } from '../../../config/logging';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 
 const CDSAlertsPanel = ({ 
   patientId, 
@@ -75,16 +77,24 @@ const CDSAlertsPanel = ({
     // Only persist acknowledged alerts for the current browser session, not across sessions
     return new Set();
   });
+  const [showDocumentationPrompts, setShowDocumentationPrompts] = useState(true);
+  const { publish } = useClinicalWorkflow();
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef(null);
   const contextRef = useRef(context);
   const lastPatientIdRef = useRef(patientId);
   const compactRef = useRef(null);
+  const dismissedAlertsRef = useRef(dismissedAlerts);
 
   // Update context ref when context changes
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
+
+  // Update dismissedAlerts ref when it changes
+  useEffect(() => {
+    dismissedAlertsRef.current = dismissedAlerts;
+  }, [dismissedAlerts]);
 
   const loadCDSAlerts = useCallback(async () => {
     if (!patientId) {
@@ -120,11 +130,11 @@ const CDSAlertsPanel = ({
         const alertKey = `${serviceId}-${alert.summary}`;
         
         cdsLogger.debug(`Processing alert: ${alertKey}`, { 
-          dismissed: dismissedAlerts.has(alertKey), 
+          dismissed: dismissedAlertsRef.current.has(alertKey), 
           seen: seenKeys.has(alertKey) 
         });
         
-        if (!dismissedAlerts.has(alertKey) && !seenKeys.has(alertKey)) {
+        if (!dismissedAlertsRef.current.has(alertKey) && !seenKeys.has(alertKey)) {
           seenKeys.add(alertKey);
           // Ensure alert has required fields for display
           const processedAlert = {
@@ -150,7 +160,7 @@ const CDSAlertsPanel = ({
       setLoading(false);
       cdsLogger.debug('CDS alert loading complete');
     }
-  }, [patientId, hook, dismissedAlerts]);
+  }, [patientId, hook]); // Removed dismissedAlerts to prevent re-creation
 
   // Load CDS alerts on mount and when dependencies change
   useEffect(() => {
@@ -175,7 +185,7 @@ const CDSAlertsPanel = ({
       setLoading(false);
       setAlerts([]);
     }
-  }, [patientId, hook]); // Removed loadCDSAlerts to prevent infinite re-creation
+  }, [patientId, hook, loadCDSAlerts]);
 
   // Auto-refresh if enabled
   useEffect(() => {
@@ -209,6 +219,29 @@ const CDSAlertsPanel = ({
       isMountedRef.current = false;
     };
   }, []);
+
+  const handleCreateNoteFromPrompt = useCallback(async (noteData) => {
+    try {
+      // Publish workflow event for note creation
+      await publish('CDS_DOCUMENTATION_NOTE_REQUESTED', {
+        patientId,
+        template: noteData.template,
+        content: noteData.content,
+        title: noteData.title,
+        linkedAlerts: noteData.linkedAlerts,
+        context: noteData.context,
+        source: 'cds-alert'
+      });
+      
+      cdsLogger.info('CDS documentation note creation requested', { 
+        patientId, 
+        template: noteData.template,
+        linkedAlerts: noteData.linkedAlerts 
+      });
+    } catch (error) {
+      cdsLogger.error('Error creating note from CDS prompt:', error);
+    }
+  }, [patientId, publish]);
 
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
@@ -259,8 +292,10 @@ const CDSAlertsPanel = ({
       // Don't remove the alert, just mark it as acknowledged
     } else if (action === 'accept' && suggestion) {
       cdsLogger.info('Accepting CDS suggestion:', { suggestionId: suggestion.uuid, label: suggestion.label });
-      // TODO: Implement suggestion action execution
-      // This would typically create/update FHIR resources based on suggestion.actions
+      // Future Enhancement: CDS Suggestion Action Execution
+      // This would require implementing FHIR resource creation/updates based on suggestion.actions
+      // Currently, suggestions are accepted by user acknowledgment for audit trail purposes
+      // Implementation would involve parsing suggestion.actions array and executing create/update operations
     } else if (action === 'reject' && suggestion) {
       cdsLogger.info('Rejecting CDS suggestion:', { suggestionId: suggestion.uuid, label: suggestion.label });
     }
@@ -527,6 +562,18 @@ const CDSAlertsPanel = ({
               </Alert>
             ))}
 
+            {/* Documentation Prompts Section */}
+            {showDocumentationPrompts && alerts.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <CDSDocumentationPrompts
+                  cdsAlerts={alerts}
+                  patientId={patientId}
+                  encounterId={context.encounterId}
+                  onCreateNote={handleCreateNoteFromPrompt}
+                />
+              </Box>
+            )}
+
             <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
               {alerts.length > maxAlerts && (
                 <Button 
@@ -548,6 +595,13 @@ const CDSAlertsPanel = ({
                   Clear Acknowledged
                 </Button>
               )}
+              <Button 
+                variant="text" 
+                size="small" 
+                onClick={() => setShowDocumentationPrompts(!showDocumentationPrompts)}
+              >
+                {showDocumentationPrompts ? 'Hide' : 'Show'} Documentation Prompts
+              </Button>
             </Stack>
           </Box>
         </Collapse>

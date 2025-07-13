@@ -2,7 +2,7 @@
  * Chart Review Tab Component
  * Comprehensive view of patient's problems, medications, and allergies
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -39,7 +39,13 @@ import {
   useTheme,
   alpha,
   Snackbar,
-  Backdrop
+  Backdrop,
+  Skeleton,
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -48,7 +54,6 @@ import {
   Assignment as ProblemIcon,
   LocalPharmacy as PharmacyIcon,
   Vaccines as ImmunizationIcon,
-  FamilyRestroom as FamilyIcon,
   SmokingRooms as SmokingIcon,
   LocalBar as AlcoholIcon,
   Add as AddIcon,
@@ -60,11 +65,12 @@ import {
   Timeline as TimelineIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
-  ErrorOutline as SeverityIcon
+  ErrorOutline as SeverityIcon,
+  Refresh as RefreshIcon,
+  Cancel as CancelIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
 import EditProblemDialog from '../dialogs/EditProblemDialog';
@@ -73,16 +79,24 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
+import RefillManagement from '../../medications/RefillManagement';
+import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
+import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
+import WorkflowValidationPanel from '../../medications/WorkflowValidationPanel';
+import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
 import { fhirClient } from '../../../../services/fhirClient';
+import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
+import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
 import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
+import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,25 +168,58 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6" gutterBottom>Problem List</Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
                 color="primary" 
                 variant={filter === 'active' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('active')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show active problems only. ${activeCount} active problems found.`}
+                aria-pressed={filter === 'active'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('active');
+                  }
+                }}
               />
               <Chip 
                 label={`${resolvedCount} Resolved`} 
                 size="small" 
                 variant={filter === 'resolved' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('resolved')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show resolved problems only. ${resolvedCount} resolved problems found.`}
+                aria-pressed={filter === 'resolved'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('resolved');
+                  }
+                }}
               />
               <Chip 
                 label="All" 
                 size="small" 
                 variant={filter === 'all' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('all')}
+                component="button"
+                role="button"
+                aria-label={`Show all problems. ${conditions.length} total problems found.`}
+                aria-pressed={filter === 'all'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('all');
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -182,12 +229,16 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
+                aria-label="Add new problem to patient chart"
               >
                 <AddIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="View History">
-              <IconButton size="small">
+              <IconButton 
+                size="small"
+                aria-label="View problem history for this patient"
+              >
                 <HistoryIcon />
               </IconButton>
             </Tooltip>
@@ -195,6 +246,9 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                aria-label="Export problem list data"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
@@ -325,17 +379,26 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
 // Medication List Component
 const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
+  const [showRefillDialog, setShowRefillDialog] = useState(false);
+  const [showDiscontinuationDialog, setShowDiscontinuationDialog] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
   // Resolve medication references
-  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
+  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(
+    medications?.filter(med => med && med.id) || []
+  );
+  
+  // Clinical workflow context for events
+  const { publish } = useClinicalWorkflow();
+  
+  // FHIR resource context for refreshing data
+  const { refreshPatientResources } = useFHIRResource();
 
   const handleEditMedication = (medication) => {
     // Ensure we're setting a fresh copy of the medication
@@ -369,68 +432,71 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     }
   };
 
-  const handleReconciliation = async (reconciliationChanges) => {
+  const handleReconciliation = async (reconciliationResults) => {
     try {
-      // Apply each reconciliation change
-      for (const change of reconciliationChanges) {
-        if (change.type === 'add') {
-          // Create new medication request from external source
-          const newMedRequest = {
-            resourceType: 'MedicationRequest',
-            status: 'active',
-            intent: 'order',
-            priority: 'routine',
-            medicationCodeableConcept: {
-              text: change.medication.name
-            },
-            subject: {
-              reference: `Patient/${patientId}`
-            },
-            authoredOn: new Date().toISOString(),
-            dosageInstruction: [{
-              text: change.medication.dosage
-            }],
-            note: [{
-              text: `Added via medication reconciliation from ${change.source}`
-            }]
-          };
-          await onPrescribeMedication(newMedRequest);
-        } else if (change.type === 'discontinue') {
-          // Mark medication as stopped
-          const updatedMed = {
-            ...change.medication,
-            status: 'stopped',
-            note: [
-              ...(change.medication.note || []),
-              {
-                text: `Discontinued via medication reconciliation from ${change.source}`,
-                time: new Date().toISOString()
-              }
-            ]
-          };
-          await onEditMedication(updatedMed);
-        } else if (change.type === 'modify') {
-          // Update dosage
-          const updatedMed = {
-            ...change.medication,
-            dosageInstruction: [{
-              text: change.newDosage
-            }],
-            note: [
-              ...(change.medication.note || []),
-              {
-                text: `Dosage updated via medication reconciliation from ${change.source}`,
-                time: new Date().toISOString()
-              }
-            ]
-          };
-          await onEditMedication(updatedMed);
-        }
+      // The reconciliation service has already applied the changes
+      // reconciliationResults contains the results of each change
+      
+      const successfulChanges = reconciliationResults.filter(result => result.result.success);
+      const failedChanges = reconciliationResults.filter(result => !result.result.success);
+      
+      // Refresh the medication list to reflect changes
+      await refreshPatientResources(patientId);
+      
+      // Publish workflow event for successful reconciliation
+      if (successfulChanges.length > 0) {
+        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+          workflowType: 'medication-reconciliation',
+          step: 'completed',
+          data: {
+            patientId,
+            changesApplied: successfulChanges.length,
+            changesFailed: failedChanges.length,
+            timestamp: new Date().toISOString()
+          }
+        });
       }
+      
+      // Close the dialog
+      setShowReconciliationDialog(false);
+      
+      // Log summary for debugging
       
       // Medication reconciliation completed successfully
     } catch (error) {
       // Error during medication reconciliation
+      throw error;
+    }
+  };
+
+  const handleDiscontinuation = async (discontinuationData) => {
+    try {
+      const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
+      
+      // Refresh the medication list to reflect changes
+      await refreshPatientResources(patientId);
+      
+      // Publish workflow event for medication discontinuation
+      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        workflowType: 'medication-discontinuation',
+        step: 'completed',
+        data: {
+          medicationName: result.originalRequest.medicationCodeableConcept?.text || 'Unknown medication',
+          reason: discontinuationData.reason.display,
+          discontinuationType: discontinuationData.discontinuationType,
+          patientId,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Close the dialog
+      setShowDiscontinuationDialog(false);
+      setSelectedMedication(null);
+      
+      // Log success
+      
+    } catch (error) {
+      // Error during medication discontinuation
       throw error;
     }
   };
@@ -448,25 +514,58 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6" gutterBottom>Medications</Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} role="group" aria-label="Medication list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
                 color="primary" 
                 variant={filter === 'active' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('active')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show active medications only. ${activeCount} active medications found.`}
+                aria-pressed={filter === 'active'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('active');
+                  }
+                }}
               />
               <Chip 
                 label={`${stoppedCount} Stopped`} 
                 size="small" 
                 variant={filter === 'stopped' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('stopped')}
+                component="button"
+                role="button"
+                aria-label={`Filter to show stopped medications only. ${stoppedCount} stopped medications found.`}
+                aria-pressed={filter === 'stopped'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('stopped');
+                  }
+                }}
               />
               <Chip 
                 label="All" 
                 size="small" 
                 variant={filter === 'all' ? 'filled' : 'outlined'}
                 onClick={() => setFilter('all')}
+                component="button"
+                role="button"
+                aria-label={`Show all medications. ${medications.length} total medications found.`}
+                aria-pressed={filter === 'all'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFilter('all');
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -486,6 +585,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 onClick={() => setShowReconciliationDialog(true)}
               >
                 <PharmacyIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Refill Management">
+              <IconButton 
+                size="small" 
+                onClick={() => setShowRefillDialog(true)}
+              >
+                <RefreshIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export">
@@ -554,15 +661,30 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   }
                 />
                 <ListItemSecondaryAction>
-                  <Tooltip title="Edit Medication">
-                    <IconButton 
-                      edge="end" 
-                      size="small"
-                      onClick={() => handleEditMedication(med)}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  <Stack direction="row" spacing={0.5}>
+                    <Tooltip title="Edit Medication">
+                      <IconButton 
+                        size="small"
+                        onClick={() => handleEditMedication(med)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {med.status === 'active' && (
+                      <Tooltip title="Discontinue Medication">
+                        <IconButton 
+                          size="small"
+                          onClick={() => {
+                            setSelectedMedication(med);
+                            setShowDiscontinuationDialog(true);
+                          }}
+                          color="error"
+                        >
+                          <CancelIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
                 </ListItemSecondaryAction>
               </ListItem>
             ))
@@ -595,6 +717,66 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         onReconcile={handleReconciliation}
       />
       
+      <Dialog
+        open={showRefillDialog}
+        onClose={() => setShowRefillDialog(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { minHeight: '80vh' }
+        }}
+      >
+        <DialogTitle>
+          Medication Refill Management
+        </DialogTitle>
+        <DialogContent>
+          <RefillManagement
+            patientId={patientId}
+            medications={medications}
+            onRefresh={() => {
+              // Refresh patient resources when refills are processed
+              window.location.reload(); // Simple refresh for now
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowRefillDialog(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      <MedicationDiscontinuationDialog
+        open={showDiscontinuationDialog}
+        onClose={() => {
+          setShowDiscontinuationDialog(false);
+          setSelectedMedication(null);
+        }}
+        medicationRequest={selectedMedication}
+        onDiscontinue={async (discontinuationData) => {
+          try {
+            const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
+            
+            // Publish workflow event
+            await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
+              medicationId: selectedMedication.id,
+              patientId,
+              status: 'discontinued',
+              reason: discontinuationData.reason.display,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Refresh patient resources to show updated medication status
+            await refreshPatientResources(patientId);
+            
+            return result;
+          } catch (error) {
+            // Error during medication discontinuation
+            throw error;
+          }
+        }}
+      />
+      
       <Menu
         anchorEl={exportAnchorEl}
         open={Boolean(exportAnchorEl)}
@@ -617,7 +799,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
 // Allergy List Component
 const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);
@@ -846,6 +1027,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     currentPatient 
   } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
@@ -853,10 +1037,22 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   // Removed refreshKey - now using unified resource system
 
+  // Use centralized CDS alerts
+  const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
+
   useEffect(() => {
     // Data is already loaded by FHIRResourceContext
     setLoading(false);
   }, []);
+
+  // Handle CDS alerts notification count
+  useEffect(() => {
+    if (cdsAlerts.length > 0 && onNotificationUpdate) {
+      // Pass critical alert count to match what ClinicalWorkspaceV3 expects
+      const criticalCount = cdsAlerts.filter(alert => alert.indicator === 'critical').length;
+      onNotificationUpdate(criticalCount || cdsAlerts.length);
+    }
+  }, [cdsAlerts, onNotificationUpdate]);
 
   const handleAddProblem = async (condition) => {
     try {
@@ -875,9 +1071,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
+      // Note: CDS hooks for medication prescribing are handled in PrescribeMedicationDialog
+      // This provides real-time checking during the prescription creation process
+
       const result = await fhirClient.create('MedicationRequest', medicationRequest);
       const createdMedication = result.resource || medicationRequest;
       
+      // Create effectiveness monitoring plan for new medication
+      try {
+        await medicationEffectivenessService.createMonitoringPlan(createdMedication);
+      } catch (error) {
+        // Don't fail the prescription process if monitoring plan creation fails
+      }
+
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'prescription-dispense',
@@ -1192,6 +1398,42 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     );
   }
 
+  // Show skeleton loading while data is loading
+  if (isLoading || loading) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Grid container spacing={isMobile ? 2 : 3}>
+          {/* Skeleton for each section */}
+          {[1, 2, 3, 4].map((item) => (
+            <Grid item xs={12} md={6} key={item}>
+              <Card>
+                <CardContent>
+                  <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
+                  <Stack spacing={1}>
+                    {[1, 2, 3].map((i) => (
+                      <Box key={i}>
+                        <Skeleton variant="text" width="100%" height={24} />
+                        <Skeleton variant="text" width="80%" height={20} />
+                      </Box>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Skeleton variant="text" width="40%" height={32} />
+                <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3, position: 'relative' }}>
       {/* Save Progress Overlay */}
@@ -1228,9 +1470,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           {saveError || 'Failed to save changes'}
         </Alert>
       </Snackbar>
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {/* Problem List */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <ProblemList 
             conditions={conditions} 
             patientId={patientId} 
@@ -1242,7 +1484,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Medications */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <MedicationList 
             medications={medications} 
             patientId={patientId} 
@@ -1254,7 +1496,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Allergies */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <AllergyList 
             allergies={allergies} 
             patientId={patientId} 
@@ -1266,7 +1508,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
 
         {/* Social History */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12} md={6}>
           <SocialHistory observations={observations} patientId={patientId} />
         </Grid>
 
@@ -1299,9 +1541,51 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Prescription Status Dashboard */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <PrescriptionStatusDashboard patientId={patientId} />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Medication Effectiveness Monitoring */}
+        <Grid item xs={12}>
+          <EffectivenessMonitoringPanel
+            patientId={patientId}
+            medications={medications}
+            onRefresh={async () => {
+              await refreshPatientResources(patientId);
+            }}
+          />
+        </Grid>
+
+        {/* Medication Workflow Validation */}
+        <Grid item xs={12}>
+          <WorkflowValidationPanel
+            patientId={patientId}
+            medications={medications}
+            onRefresh={async () => {
+              await refreshPatientResources(patientId);
+            }}
+          />
+        </Grid>
+
+        {/* Clinical Safety Verification */}
+        <Grid item xs={12}>
+          <ClinicalSafetyPanel
+            patientId={patientId}
+            medications={medications}
+            onRefresh={async () => {
+              await refreshPatientResources(patientId);
+            }}
+          />
+        </Grid>
       </Grid>
     </Box>
   );
 };
 
-export default ChartReviewTab;
+export default React.memo(ChartReviewTab);

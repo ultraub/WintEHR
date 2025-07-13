@@ -37,7 +37,9 @@ export const ClinicalProvider = ({ children }) => {
   // Initialize WebSocket connection
   useEffect(() => {
     if (token) {
-      websocketClient.connect(token).catch(console.error);
+      websocketClient.connect(token).catch(() => {
+        // WebSocket connection error handled silently
+      });
     }
     return () => {
       if (!token) {
@@ -254,11 +256,9 @@ export const ClinicalProvider = ({ children }) => {
       localStorage.setItem('selectedPatientId', patientId);
       
     } catch (error) {
-      
       // Add more detailed error handling
       if (error.response?.status === 404) {
         const errorMessage = 'Patient not found';
-        
         localStorage.removeItem('selectedPatientId');
         throw new Error(errorMessage);
       }
@@ -283,7 +283,6 @@ export const ClinicalProvider = ({ children }) => {
         await loadPatient(patientId);
       }
     } catch (error) {
-      
       throw error;
     } finally {
       setIsLoading(false);
@@ -343,7 +342,6 @@ export const ClinicalProvider = ({ children }) => {
       setCurrentEncounter(newEncounter);
       return newEncounter;
     } catch (error) {
-      
       throw error;
     }
   };
@@ -376,7 +374,6 @@ export const ClinicalProvider = ({ children }) => {
     const selectedPatientId = localStorage.getItem('selectedPatientId');
     if (selectedPatientId && !currentPatient && user) {
       loadPatient(selectedPatientId).catch(error => {
-        
         localStorage.removeItem('selectedPatientId');
       });
     }
@@ -390,10 +387,8 @@ export const ClinicalProvider = ({ children }) => {
       // Refresh specific data based on update type
       if (lastUpdate.resourceType === 'Observation' && currentPatient) {
         // Could trigger a refresh of observations here
-        // New observation received
       } else if (lastUpdate.resourceType === 'DiagnosticReport' && currentPatient) {
         // Could trigger a refresh of lab results here
-        // New diagnostic report received
       }
     }
   }, [lastUpdate, currentPatient]);

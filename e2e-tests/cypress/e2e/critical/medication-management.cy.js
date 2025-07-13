@@ -6,14 +6,18 @@ describe('Comprehensive Medication Management', () => {
   
   beforeEach(() => {
     cy.login();
-    cy.visit('/');
+    cy.visit('/patients');
+    cy.wait(2000);
     
     // Get the first patient for testing
-    cy.get('[data-testid="patient-list-item"]').first().then($el => {
-      testPatientId = $el.attr('data-patient-id');
+    cy.get('.MuiDataGrid-row', { timeout: 15000 }).should('have.length.greaterThan', 0);
+    cy.get('.MuiDataGrid-row').first().then($el => {
+      // Try to extract patient ID from the row data
+      testPatientId = $el.attr('data-id') || 'test-patient-id';
     });
     
-    cy.get('[data-testid="patient-list-item"]').first().click();
+    cy.get('.MuiDataGrid-row').first().click();
+    cy.wait(2000);
   });
 
   describe('Medication Ordering Workflow', () => {

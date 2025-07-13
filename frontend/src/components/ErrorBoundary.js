@@ -221,25 +221,17 @@ export class ComponentErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error(`Error in ${this.props.name || 'Component'}:`, error, errorInfo);
+    // Log only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`Error in ${this.props.name || 'Component'}:`, error, errorInfo);
+    }
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <Alert 
-          severity="error" 
-          action={
-            <IconButton
-              color="inherit"
-              size="small"
-              onClick={() => this.setState({ hasError: false })}
-            >
-              <RefreshIcon fontSize="inherit" />
-            </IconButton>
-          }
-        >
-          {this.props.fallbackMessage || 'This component encountered an error. Click refresh to try again.'}
+        <Alert severity="error">
+          {this.props.fallbackMessage || 'This component encountered an error.'}
         </Alert>
       );
     }

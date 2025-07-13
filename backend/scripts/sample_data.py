@@ -12,6 +12,7 @@ This script consolidates functionality from multiple separate scripts.
 """
 
 import argparse
+import os
 import json
 import os
 import sys

@@ -5,6 +5,7 @@ This is a subset of reset_and_init_database.py that only creates FHIR tables
 """
 
 import asyncio
+import os
 import sys
 import os
 from pathlib import Path

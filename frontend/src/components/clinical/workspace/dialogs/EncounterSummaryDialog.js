@@ -33,6 +33,7 @@ import {
   MedicalServices as ProcedureIcon,
   Medication as MedicationIcon,
   Assignment as DiagnosisIcon,
+  Description as DocumentIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Print as PrintIcon,
@@ -65,7 +66,8 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
     observations: false,
     procedures: false,
     medications: false,
-    diagnoses: false
+    diagnoses: false,
+    documents: false
   });
 
   // Get all related resources for this encounter
@@ -210,6 +212,17 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition',
           `Status: ${condition.clinicalStatus?.coding?.[0]?.code || 'unknown'} - ${condition.onsetDateTime ? 
             format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'No onset date'}`
+        ])
+      });
+    }
+
+    if (relatedResources.documents?.length > 0) {
+      printContent.sections.push({
+        title: 'Clinical Notes & Documents',
+        items: relatedResources.documents.map(doc => [
+          doc.type?.text || doc.type?.coding?.[0]?.display || 'Clinical Note',
+          `Status: ${doc.docStatus || doc.status || 'draft'} - ${doc.date ? 
+            format(parseISO(doc.date), 'MMM d, h:mm a') : 'No date'}${doc.authenticator ? ` - Signed by: ${doc.authenticator.display || 'Provider'}` : ''}`
         ])
       });
     }
@@ -953,6 +966,139 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </CardContent>
             </Collapse>
           </Card>
+
+          {/* Clinical Notes & Documents */}
+          <Card sx={{ 
+            mt: 2,
+            borderRadius: 2,
+            overflow: 'hidden',
+            boxShadow: theme.shadows[2],
+            '&:hover': {
+              boxShadow: theme.shadows[4]
+            },
+            transition: 'box-shadow 0.3s ease'
+          }}>
+            <CardHeader
+              sx={{
+                background: theme.palette.mode === 'dark'
+                  ? theme.palette.background.paper
+                  : theme.palette.grey[100],
+                borderBottom: `1px solid ${theme.palette.divider}`
+              }}
+              title={
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box sx={{ 
+                    p: 1, 
+                    borderRadius: 1.5,
+                    bgcolor: theme.palette.info.main + '20',
+                    color: theme.palette.info.main,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <DocumentIcon />
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="600">
+                      Clinical Notes & Documents
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip 
+                        label={`${relatedResources.documents?.length || 0} items`} 
+                        size="small" 
+                        color={relatedResources.documents?.length > 0 ? 'info' : 'default'}
+                        sx={{ fontWeight: 'medium' }}
+                      />
+                      {relatedResources.documents?.length > 0 && (
+                        <Typography variant="caption" color="text.secondary">
+                          Click to {expandedSections.documents ? 'collapse' : 'expand'}
+                        </Typography>
+                      )}
+                    </Stack>
+                  </Box>
+                </Stack>
+              }
+              action={
+                relatedResources.documents?.length > 0 && (
+                  <IconButton 
+                    onClick={() => toggleSection('documents')}
+                    sx={{
+                      bgcolor: theme.palette.action.hover,
+                      '&:hover': {
+                        bgcolor: theme.palette.action.selected
+                      }
+                    }}
+                  >
+                    {expandedSections.documents ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                )
+              }
+            />
+          <Collapse in={expandedSections.documents}>
+            <CardContent>
+              {relatedResources.documents?.length > 0 ? (
+                <List sx={{ py: 0 }}>
+                  {relatedResources.documents.map((doc, index) => (
+                    <ListItem 
+                      key={doc.id}
+                      sx={{
+                        borderBottom: index < relatedResources.documents.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                        '&:hover': {
+                          bgcolor: theme.palette.action.hover
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Typography variant="body1" fontWeight="500">
+                            {doc.type?.text || 
+                             doc.type?.coding?.[0]?.display || 
+                             'Clinical Note'}
+                          </Typography>
+                        }
+                        secondary={
+                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+                            <Chip
+                              label={doc.docStatus || doc.status || 'draft'}
+                              size="small"
+                              color={doc.docStatus === 'final' ? 'success' : 
+                                     doc.docStatus === 'preliminary' ? 'warning' : 'default'}
+                              variant="outlined"
+                              sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
+                            />
+                            {doc.authenticator && (
+                              <Typography variant="caption" color="text.secondary">
+                                Signed by: {doc.authenticator.display || 'Provider'}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary">
+                              {doc.date ? 
+                                format(parseISO(doc.date), 'MMM d, h:mm a') : 'No date'}
+                            </Typography>
+                          </Stack>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ 
+                  p: 4, 
+                  textAlign: 'center',
+                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                  borderRadius: 1
+                }}>
+                  <DocumentIcon sx={{ fontSize: 48, color: theme.palette.text.disabled, mb: 2 }} />
+                  <Typography variant="body1" color="text.secondary">
+                    No notes or documents recorded
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled">
+                    Clinical notes created during this encounter will appear here
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Collapse>
+        </Card>
           </Box>
         </Box>
       </DialogContent>

@@ -306,8 +306,8 @@ generate.demographics.default_state = Massachusetts
             return False
     
     async def wipe_database(self) -> bool:
-        """Wipe all FHIR data from the database."""
-        self.log("🗑️  Wiping FHIR database")
+        """Wipe all FHIR data from the database (preserving schema)."""
+        self.log("🗑️  Wiping FHIR database data (preserving schema)")
         self.log("=" * 60)
         
         try:
@@ -315,59 +315,29 @@ generate.demographics.default_state = Massachusetts
                 self.engine = create_async_engine(DATABASE_URL, echo=False)
             
             async with AsyncSession(self.engine) as session:
-                # Wipe FHIR schema
-                await session.execute(text("DROP SCHEMA IF EXISTS fhir CASCADE"))
-                await session.execute(text("CREATE SCHEMA fhir"))
-                
-                # Recreate tables
-                await session.execute(text("""
-                    CREATE TABLE fhir.resources (
-                        id SERIAL PRIMARY KEY,
-                        resource_type VARCHAR(255) NOT NULL,
-                        fhir_id VARCHAR(255) NOT NULL,
-                        version_id INTEGER NOT NULL DEFAULT 1,
-                        last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                        deleted BOOLEAN DEFAULT FALSE,
-                        resource JSONB NOT NULL,
-                        UNIQUE(resource_type, fhir_id)
+                # Check if proper schema exists
+                schema_check = await session.execute(text("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'fhir' 
+                        AND table_name = 'resource_history'
                     )
                 """))
+                has_proper_schema = schema_check.scalar()
                 
-                await session.execute(text("""
-                    CREATE TABLE fhir.search_params (
-                        id SERIAL PRIMARY KEY,
-                        resource_id INTEGER REFERENCES fhir.resources(id) ON DELETE CASCADE,
-                        param_name VARCHAR(255) NOT NULL,
-                        param_type VARCHAR(50) NOT NULL,
-                        value_string TEXT,
-                        value_number DECIMAL,
-                        value_date DATE,
-                        value_token_system VARCHAR(255),
-                        value_token_code VARCHAR(255),
-                        value_reference VARCHAR(255)
-                    )
-                """))
+                if not has_proper_schema:
+                    self.log("❌ Proper FHIR schema not found. Please run init_database_definitive.py first", "ERROR")
+                    return False
                 
-                # Create indexes (split into separate statements)
-                indexes = [
-                    "CREATE INDEX idx_resources_type_id ON fhir.resources(resource_type, fhir_id)",
-                    "CREATE INDEX idx_resources_type ON fhir.resources(resource_type)",
-                    "CREATE INDEX idx_resources_updated ON fhir.resources(last_updated)",
-                    "CREATE INDEX idx_search_params_resource ON fhir.search_params(resource_id)",
-                    "CREATE INDEX idx_search_params_name_type ON fhir.search_params(param_name, param_type)",
-                    "CREATE INDEX idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL",
-                    "CREATE INDEX idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL",
-                    "CREATE INDEX idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL",
-                    "CREATE INDEX idx_search_params_token ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL",
-                    "CREATE INDEX idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL"
-                ]
-                
-                for index_sql in indexes:
-                    await session.execute(text(index_sql))
+                # Clear data only, preserve schema structure
+                await session.execute(text("TRUNCATE fhir.references CASCADE"))
+                await session.execute(text("TRUNCATE fhir.resource_history CASCADE"))
+                await session.execute(text("TRUNCATE fhir.search_params CASCADE"))
+                await session.execute(text("TRUNCATE fhir.resources CASCADE"))
                 
                 await session.commit()
             
-            self.log("✅ Database wiped and reinitialized", "SUCCESS")
+            self.log("✅ Database data cleared (schema preserved)", "SUCCESS")
             return True
             
         except Exception as e:
@@ -509,8 +479,11 @@ generate.demographics.default_state = Massachusetts
                 stats['resources_failed'] += 1
                 error_key = f"{resource_type}: {type(e).__name__}"
                 stats['errors_by_type'][error_key] += 1
-                if self.verbose:
+                # Always log the first few errors for debugging
+                if stats['resources_failed'] <= 5 or self.verbose:
                     self.log(f"Failed to import {resource_type}/{resource_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
     
     async def _store_resource(self, session, resource_type, resource_id, resource_data):
         """Store a resource in the database."""
@@ -559,7 +532,7 @@ generate.demographics.default_state = Massachusetts
         """Extract and store basic search parameters."""
         # Always index the resource ID
         await self._add_search_param(
-            session, resource_id, '_id', 'token', 
+            session, resource_id, resource_type, '_id', 'token', 
             value_string=resource_data.get('id')
         )
         
@@ -570,20 +543,20 @@ generate.demographics.default_state = Massachusetts
                 for name in resource_data['name']:
                     if 'family' in name:
                         await self._add_search_param(
-                            session, resource_id, 'family', 'string',
+                            session, resource_id, resource_type, 'family', 'string',
                             value_string=name['family']
                         )
                     if 'given' in name:
                         for given in name['given']:
                             await self._add_search_param(
-                                session, resource_id, 'given', 'string',
+                                session, resource_id, resource_type, 'given', 'string',
                                 value_string=given
                             )
             
             # Gender
             if 'gender' in resource_data:
                 await self._add_search_param(
-                    session, resource_id, 'gender', 'token',
+                    session, resource_id, resource_type, 'gender', 'token',
                     value_string=resource_data['gender']
                 )
         
@@ -601,19 +574,19 @@ generate.demographics.default_state = Massachusetts
                 
                 if patient_id:
                     await self._add_search_param(
-                        session, resource_id, 'patient', 'reference',
+                        session, resource_id, resource_type, 'patient', 'reference',
                         value_reference=patient_id
                     )
     
-    async def _add_search_param(self, session, resource_id, param_name, param_type, **values):
+    async def _add_search_param(self, session, resource_id, resource_type, param_name, param_type, **values):
         """Add a search parameter to the database."""
         query = text("""
             INSERT INTO fhir.search_params (
-                resource_id, param_name, param_type,
+                resource_id, resource_type, param_name, param_type,
                 value_string, value_number, value_date,
                 value_token_system, value_token_code, value_reference
             ) VALUES (
-                :resource_id, :param_name, :param_type,
+                :resource_id, :resource_type, :param_name, :param_type,
                 :value_string, :value_number, :value_date,
                 :value_token_system, :value_token_code, :value_reference
             )
@@ -622,6 +595,7 @@ generate.demographics.default_state = Massachusetts
         
         await session.execute(query, {
             'resource_id': resource_id,
+            'resource_type': resource_type,
             'param_name': param_name,
             'param_type': param_type,
             'value_string': values.get('value_string'),

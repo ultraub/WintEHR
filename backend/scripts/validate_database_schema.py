@@ -14,6 +14,7 @@ Options:
 """
 
 import asyncio
+import os
 import asyncpg
 import argparse
 import sys

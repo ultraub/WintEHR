@@ -80,8 +80,11 @@ import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMo
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
-import { printDocument, formatClinicalNoteForPrint } from '../../../../utils/printUtils';
+import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
+import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
+import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
 
 // Note type configuration
 const noteTypes = {
@@ -99,7 +102,7 @@ const noteTypes = {
 };
 
 // Note Card Component
-const NoteCard = ({ note, onEdit, onView, onSign }) => {
+const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -107,7 +110,7 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
   const typeConfig = noteTypes[noteType] || noteTypes.other;
   const author = note.author?.[0]?.display || 'Unknown';
   const date = note.date || note.meta?.lastUpdated;
-  const isSigned = note.status === 'final';
+  const isSigned = note.docStatus === 'final';
   
   // Ensure typeConfig has required properties
   if (!typeConfig || !typeConfig.color) {
@@ -131,12 +134,19 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
               <Typography variant="h6">
                 {typeConfig.label}
               </Typography>
-              {isSigned ? (
+              {note.docStatus === 'final' ? (
                 <Chip 
                   icon={<SignedIcon />} 
                   label="Signed" 
                   size="small" 
                   color="success"
+                />
+              ) : note.docStatus === 'preliminary' ? (
+                <Chip 
+                  icon={<UnsignedIcon />} 
+                  label="Ready for Review" 
+                  size="small" 
+                  color="info"
                 />
               ) : (
                 <Chip 
@@ -209,6 +219,12 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
                 <EditIcon />
               </IconButton>
             )}
+            <IconButton size="small" onClick={() => onPrint(note)}>
+              <PrintIcon />
+            </IconButton>
+            <IconButton size="small" onClick={() => onExport(note)}>
+              <ShareIcon />
+            </IconButton>
           </Stack>
         </Stack>
       </CardContent>
@@ -226,13 +242,23 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
           </Button>
         )}
         {isSigned && (
-          <Button 
-            size="small" 
-            startIcon={<AddIcon />}
-            onClick={() => onEdit && onEdit({ ...note, isAddendum: true })}
-          >
-            Addendum
-          </Button>
+          <>
+            <Button 
+              size="small" 
+              startIcon={<AddIcon />}
+              onClick={() => onEdit && onEdit({ ...note, isAddendum: true })}
+            >
+              Addendum
+            </Button>
+            <Button 
+              size="small" 
+              startIcon={<EditIcon />}
+              onClick={() => onEdit && onEdit({ ...note, isAmendment: true })}
+              color="warning"
+            >
+              Amend
+            </Button>
+          </>
         )}
         <Button size="small" startIcon={<ShareIcon />}>
           Share
@@ -243,8 +269,9 @@ const NoteCard = ({ note, onEdit, onView, onSign }) => {
 };
 
 // Note Editor Component
-const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) => {
+const NoteEditor = ({ open, onClose, note, patientId }) => {
   const { publish } = useClinicalWorkflow();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
@@ -366,30 +393,27 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
       let response;
       if (note && note.id) {
         // Update existing note
-        response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...note,
-            ...documentReference,
-            id: note.id
-          })
-        });
+        // Only include valid FHIR fields, exclude text and context if they're invalid
+        const updatePayload = {
+          ...documentReference,
+          id: note.id,
+          resourceType: 'DocumentReference'
+        };
+        
+        // Remove invalid fields that might exist in the note
+        delete updatePayload.text;
+        delete updatePayload.context;
+        
+        const updatedResource = await fhirClient.update('DocumentReference', note.id, updatePayload);
+        response = { ok: true, data: updatedResource };
       } else {
         // Create new note
-        response = await fetch('/fhir/R4/DocumentReference', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(documentReference)
-        });
+        const createdResource = await fhirClient.create('DocumentReference', documentReference);
+        response = { ok: true, data: createdResource };
       }
 
       if (response.ok) {
-        const savedNote = await response.json();
+        const savedNote = response.data;
         
         // Publish DOCUMENTATION_CREATED event
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
@@ -423,13 +447,11 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
         throw new Error(`Failed to save note: ${response.statusText}`);
       }
     } catch (error) {
-      // Handle error appropriately
-      if (onNotificationUpdate) {
-        onNotificationUpdate({
-          type: 'error',
-          message: 'Failed to save note. Please try again.'
-        });
-      }
+      setSnackbar({
+        open: true,
+        message: 'Failed to save note. Please try again.',
+        severity: 'error'
+      });
     }
   };
 
@@ -566,6 +588,22 @@ const NoteEditor = ({ open, onClose, note, patientId, onNotificationUpdate }) =>
           Save & Sign
         </Button>
       </DialogActions>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 };
@@ -646,7 +684,14 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editorOpen, setEditorOpen] = useState(false);
+  const [enhancedEditorOpen, setEnhancedEditorOpen] = useState(false);
+  const [templateWizardOpen, setTemplateWizardOpen] = useState(false);
+  const [amendmentMode, setAmendmentMode] = useState(false);
+  const [originalNoteForAmendment, setOriginalNoteForAmendment] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [viewNoteDialogOpen, setViewNoteDialogOpen] = useState(false);
+  const [selectedNoteForView, setSelectedNoteForView] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
   const [selectedNoteForAddendum, setSelectedNoteForAddendum] = useState(null);
 
@@ -773,9 +818,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const draftCount = allDocuments.filter(d => d.status === 'draft').length;
   const signedCount = allDocuments.filter(d => d.status === 'final').length;
 
+  // Get patient conditions for template wizard
+  const conditions = getPatientResources(patientId, 'Condition') || [];
+  const patientConditions = conditions
+    .filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active')
+    .map(c => c.code?.text || c.code?.coding?.[0]?.display || 'Unknown condition')
+    .slice(0, 10);
+
   const handleNewNote = () => {
     setSelectedNote(null);
-    setEditorOpen(true);
+    setSelectedTemplate(null);
+    setTemplateWizardOpen(true);
+  };
+
+  const handleTemplateSelected = (templateData) => {
+    setSelectedTemplate(templateData.templateId);
+    setTemplateWizardOpen(false);
+    setEnhancedEditorOpen(true);
+  };
+
+  const handleNewNoteWithTemplate = (templateId = null) => {
+    setSelectedNote(null);
+    setSelectedTemplate(templateId);
+    setEnhancedEditorOpen(true);
   };
 
   const handleEditNote = (note) => {
@@ -783,16 +848,25 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       // This is from the addendum button in NoteCard
       setSelectedNoteForAddendum(note);
       setAddendumDialogOpen(true);
+    } else if (note.isAmendment) {
+      // This is from the amend button in NoteCard
+      setSelectedNote(null); // Clear selected note for new amendment
+      setSelectedTemplate(null);
+      setAmendmentMode(true);
+      setOriginalNoteForAmendment(note);
+      setEnhancedEditorOpen(true);
     } else {
-      // Regular edit
+      // Regular edit - use enhanced editor
       setSelectedNote(note);
-      setEditorOpen(true);
+      setSelectedTemplate(null);
+      setEnhancedEditorOpen(true);
     }
   };
 
   const handleViewNote = (note) => {
     // Show note details in a modal or expanded view
-    setSelectedNote(note);
+    setSelectedNoteForView(note);
+    setViewNoteDialogOpen(true);
     // You could also open a dialog here if needed
   };
 
@@ -805,15 +879,9 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         docStatus: 'final'
       };
       
-      const response = await fetch(`/fhir/R4/DocumentReference/${note.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedNote)
-      });
+      const updatedResource = await fhirClient.update('DocumentReference', note.id, updatedNote);
       
-      if (response.ok) {
+      if (updatedResource) {
         // Publish DOCUMENTATION_CREATED event (for signed note)
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
           ...updatedNote,
@@ -848,12 +916,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           severity: 'success'
         });
       } else {
-        throw new Error(`Failed to sign note: ${response.statusText}`);
-        setSnackbar({
-          open: true,
-          message: 'Failed to sign note',
-          severity: 'error'
-        });
+        throw new Error('Failed to sign note');
       }
     } catch (error) {
       // Handle error
@@ -916,7 +979,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       };
 
       // Save the addendum
-      const createdAddendum = await fhirClient.createDocumentReference(addendumResource);
+      const createdAddendum = await fhirClient.create('DocumentReference', addendumResource);
       
       // Publish DOCUMENTATION_CREATED event
       await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
@@ -979,7 +1042,9 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
     let content = '';
     sortedDocuments.forEach((doc, index) => {
       if (index > 0) content += '<div class="page-break"></div>';
-      content += formatClinicalNoteForPrint(doc);
+      const template = getTemplateForNote(doc);
+      const printOptions = formatClinicalNoteForPrint(doc, patientInfo, template);
+      content += printOptions.content;
     });
     
     printDocument({
@@ -987,6 +1052,77 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
       patient: patientInfo,
       content
     });
+  };
+
+  // Helper function to get template for a note
+  const getTemplateForNote = (note) => {
+    const loincCode = note.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+    const templateId = Object.keys(NOTE_TEMPLATES).find(key => 
+      NOTE_TEMPLATES[key].code === loincCode
+    ) || 'progress';
+    return NOTE_TEMPLATES[templateId];
+  };
+
+  // Handle individual note print
+  const handlePrintNote = (note) => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender
+    };
+
+    const template = getTemplateForNote(note);
+    const printOptions = formatClinicalNoteForPrint(note, patientInfo, template);
+    printDocument(printOptions);
+  };
+
+  // Handle individual note export
+  const handleExportNote = async (note) => {
+    const patientInfo = {
+      name: currentPatient ? 
+        `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      id: currentPatient?.id
+    };
+
+    const template = getTemplateForNote(note);
+    
+    // Show format selection dialog or default to text
+    try {
+      const blob = await exportClinicalNote({
+        note,
+        patient: patientInfo,
+        template,
+        format: 'txt'
+      });
+
+      // Create download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${template.label}_${patientInfo.name?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'Note exported successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Error exporting note: ' + error.message,
+        severity: 'error'
+      });
+    }
   };
   
   useEffect(() => {
@@ -996,10 +1132,10 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   }, [newNoteDialogOpen]);
   
   useEffect(() => {
-    if (!editorOpen && onNewNoteDialogClose) {
+    if (!enhancedEditorOpen && !templateWizardOpen && onNewNoteDialogClose) {
       onNewNoteDialogClose();
     }
-  }, [editorOpen, onNewNoteDialogClose]);
+  }, [enhancedEditorOpen, templateWizardOpen, onNewNoteDialogClose]);
 
   if (loading) {
     return (
@@ -1016,13 +1152,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         <Typography variant="h5" fontWeight="bold">
           Clinical Documentation
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleNewNote}
-        >
-          New Note
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => handleNewNoteWithTemplate('progress')}
+          >
+            Progress Note
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => handleNewNoteWithTemplate('soap')}
+          >
+            SOAP Note
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleNewNote}
+          >
+            New Note
+          </Button>
+        </Stack>
       </Stack>
 
       {/* Summary Stats */}
@@ -1130,22 +1282,42 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
               onEdit={handleEditNote}
               onView={handleViewNote}
               onSign={handleSignNote}
+              onPrint={handlePrintNote}
+              onExport={handleExportNote}
             />
           ))}
         </Box>
       )}
 
-      {/* Note Editor Dialog */}
+      {/* Template Wizard Dialog */}
+      <NoteTemplateWizard
+        open={templateWizardOpen}
+        onClose={() => setTemplateWizardOpen(false)}
+        onTemplateSelected={handleTemplateSelected}
+        patientConditions={patientConditions}
+      />
+
+      {/* Enhanced Note Editor Dialog */}
+      <EnhancedNoteEditor
+        open={enhancedEditorOpen}
+        onClose={() => {
+          setEnhancedEditorOpen(false);
+          setAmendmentMode(false);
+          setOriginalNoteForAmendment(null);
+        }}
+        note={selectedNote}
+        patientId={patientId}
+        defaultTemplate={selectedTemplate}
+        amendmentMode={amendmentMode}
+        originalNote={originalNoteForAmendment}
+      />
+
+      {/* Legacy Note Editor Dialog (keeping for compatibility) */}
       <NoteEditor
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         note={selectedNote}
         patientId={patientId}
-        onNotificationUpdate={(notification) => setSnackbar({
-          open: true,
-          message: notification.message,
-          severity: notification.type === 'error' ? 'error' : 'success'
-        })}
       />
       
       {/* Addendum Dialog */}
@@ -1158,6 +1330,119 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
         note={selectedNoteForAddendum}
         onSave={handleSaveAddendum}
       />
+
+      {/* View Note Dialog */}
+      <Dialog
+        open={viewNoteDialogOpen}
+        onClose={() => {
+          setViewNoteDialogOpen(false);
+          setSelectedNoteForView(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>View Note</DialogTitle>
+        <DialogContent>
+          {selectedNoteForView && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Title</Typography>
+                  <Typography variant="body1">{selectedNoteForView.title || 'Untitled Note'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Type</Typography>
+                  <Typography variant="body1">{selectedNoteForView.type?.coding?.[0]?.display || 'Unknown'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Typography variant="body1">{selectedNoteForView.status || 'current'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Date</Typography>
+                  <Typography variant="body1">
+                    {selectedNoteForView.date ? format(parseISO(selectedNoteForView.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">Content</Typography>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
+                    {(() => {
+                      // Try to decode base64 content
+                      let content = 'No content available';
+                      if (selectedNoteForView.content?.[0]?.attachment?.data) {
+                        try {
+                          const decodedContent = atob(selectedNoteForView.content[0].attachment.data);
+                          try {
+                            // Try to parse as JSON for structured content
+                            const parsed = JSON.parse(decodedContent);
+                            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+                              return (
+                                <Box>
+                                  {parsed.subjective && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Subjective</Typography>
+                                      <Typography variant="body2">{parsed.subjective}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.objective && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Objective</Typography>
+                                      <Typography variant="body2">{parsed.objective}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.assessment && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Assessment</Typography>
+                                      <Typography variant="body2">{parsed.assessment}</Typography>
+                                    </Box>
+                                  )}
+                                  {parsed.plan && (
+                                    <Box sx={{ mb: 2 }}>
+                                      <Typography variant="subtitle2" color="text.secondary">Plan</Typography>
+                                      <Typography variant="body2">{parsed.plan}</Typography>
+                                    </Box>
+                                  )}
+                                </Box>
+                              );
+                            } else {
+                              content = decodedContent;
+                            }
+                          } catch (e) {
+                            content = decodedContent;
+                          }
+                        } catch (e) {
+                          content = 'Error decoding note content';
+                        }
+                      }
+                      return <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{content}</Typography>;
+                    })()}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setViewNoteDialogOpen(false);
+            setSelectedNoteForView(null);
+          }}>
+            Close
+          </Button>
+          {selectedNoteForView && (
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                setViewNoteDialogOpen(false);
+                handleEditNote(selectedNoteForView);
+              }}
+            >
+              Edit Note
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar
@@ -1178,4 +1463,4 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   );
 };
 
-export default DocumentationTab;
+export default React.memo(DocumentationTab);

@@ -126,6 +126,25 @@ async def init_database_definitive():
                     REFERENCES fhir.resources(id) 
                     ON DELETE CASCADE
             );
+            
+            -- Create CDS Hooks configuration table
+            CREATE TABLE cds_hooks.hook_configurations (
+                id VARCHAR(255) PRIMARY KEY,
+                hook_type VARCHAR(100) NOT NULL,
+                title VARCHAR(255),
+                description TEXT,
+                enabled BOOLEAN DEFAULT true,
+                conditions JSONB DEFAULT '[]'::jsonb,
+                actions JSONB DEFAULT '[]'::jsonb,
+                prefetch JSONB DEFAULT '{}'::jsonb,
+                usage_requirements TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by VARCHAR(255),
+                updated_by VARCHAR(255),
+                version INTEGER DEFAULT 1,
+                tags JSONB DEFAULT '[]'::jsonb
+            );
         """)
         
         logging.info("✅ Tables created successfully")
@@ -158,6 +177,12 @@ async def init_database_definitive():
             CREATE INDEX idx_references_source ON fhir.references(source_id, source_type);
             CREATE INDEX idx_references_target ON fhir.references(target_type, target_id);
             CREATE INDEX idx_references_path ON fhir.references(reference_path);
+            
+            -- CDS Hooks indexes
+            CREATE INDEX idx_hook_configurations_type ON cds_hooks.hook_configurations(hook_type);
+            CREATE INDEX idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
+            CREATE INDEX idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
+            CREATE INDEX idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
         """)
         
         logging.info("✅ Indexes created successfully")
@@ -169,23 +194,39 @@ async def init_database_definitive():
                 (SELECT COUNT(*) FROM fhir.resources WHERE deleted = FALSE OR deleted IS NULL) as resource_count,
                 (SELECT COUNT(*) FROM fhir.search_params) as search_param_count,
                 (SELECT COUNT(*) FROM fhir.resource_history) as history_count,
-                (SELECT COUNT(*) FROM fhir.references) as reference_count
+                (SELECT COUNT(*) FROM fhir.references) as reference_count,
+                (SELECT COUNT(*) FROM cds_hooks.hook_configurations) as cds_hooks_count
         """)
         
-        # Check schema structure
-        tables = await conn.fetch("""
+        # Check FHIR schema structure
+        fhir_tables = await conn.fetch("""
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'fhir'
             ORDER BY table_name
         """)
         
-        table_names = [row['table_name'] for row in tables]
-        expected_tables = ['resources', 'search_params', 'resource_history', 'references']
+        fhir_table_names = [row['table_name'] for row in fhir_tables]
+        expected_fhir_tables = ['resources', 'search_params', 'resource_history', 'references']
         
-        missing_tables = set(expected_tables) - set(table_names)
-        if missing_tables:
-            raise Exception(f"Missing tables: {missing_tables}")
+        missing_fhir_tables = set(expected_fhir_tables) - set(fhir_table_names)
+        if missing_fhir_tables:
+            raise Exception(f"Missing FHIR tables: {missing_fhir_tables}")
+        
+        # Check CDS Hooks schema structure
+        cds_tables = await conn.fetch("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'cds_hooks'
+            ORDER BY table_name
+        """)
+        
+        cds_table_names = [row['table_name'] for row in cds_tables]
+        expected_cds_tables = ['hook_configurations']
+        
+        missing_cds_tables = set(expected_cds_tables) - set(cds_table_names)
+        if missing_cds_tables:
+            raise Exception(f"Missing CDS Hooks tables: {missing_cds_tables}")
         
         # Check critical columns exist
         search_params_columns = await conn.fetch("""
@@ -208,14 +249,18 @@ async def init_database_definitive():
         
         logging.info(f"✅ Schema validation passed")
         logging.info(f"📊 Definitive Schema Summary:")
-        logging.info(f"   - Tables created: {len(table_names)}")
-        logging.info(f"   - Expected tables: {', '.join(expected_tables)}")
-        logging.info(f"   - Actual tables: {', '.join(table_names)}")
+        logging.info(f"   - FHIR tables created: {len(fhir_table_names)}")
+        logging.info(f"   - Expected FHIR tables: {', '.join(expected_fhir_tables)}")
+        logging.info(f"   - Actual FHIR tables: {', '.join(fhir_table_names)}")
+        logging.info(f"   - CDS Hooks tables created: {len(cds_table_names)}")
+        logging.info(f"   - Expected CDS tables: {', '.join(expected_cds_tables)}")
+        logging.info(f"   - Actual CDS tables: {', '.join(cds_table_names)}")
         logging.info(f"   - Search params columns: {len(search_columns)}")
         logging.info(f"   - Resources: {result['resource_count']:,}")
         logging.info(f"   - Search params: {result['search_param_count']:,}")
         logging.info(f"   - History records: {result['history_count']:,}")
         logging.info(f"   - References: {result['reference_count']:,}")
+        logging.info(f"   - CDS Hooks: {result['cds_hooks_count']:,}")
         await conn.close()
         return True
         

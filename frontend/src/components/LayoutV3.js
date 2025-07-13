@@ -112,8 +112,7 @@ const navigationConfig = {
     items: [
       { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Browse FHIR resources', badge: 'Enhanced' },
       { text: 'UI Composer', icon: <DashboardCustomizeIcon />, path: '/ui-composer', description: 'Dynamic UI generation', badge: 'Experimental' },
-      { text: 'CDS Hooks', icon: <WebhookIcon />, path: '/cds-hooks', description: 'Clinical decision support' },
-      { text: 'CDS Studio', icon: <LightbulbIcon />, path: '/cds-studio', description: 'Visual CDS builder', badge: 'New' },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-hooks', description: 'Clinical decision support studio', badge: 'Enhanced' },
       { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }
     ]
   },

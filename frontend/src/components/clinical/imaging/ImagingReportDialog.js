@@ -171,10 +171,10 @@ const ImagingReportDialog = ({ open, onClose, study, patientId }) => {
       if (report) {
         // Update existing report
         reportData.id = report.id;
-        await fhirClient.updateResource('DiagnosticReport', report.id, reportData);
+        await fhirClient.update('DiagnosticReport', report.id, reportData);
       } else {
         // Create new report
-        await fhirClient.createResource('DiagnosticReport', reportData);
+        await fhirClient.create('DiagnosticReport', reportData);
       }
 
       // Refresh resources to get the updated report

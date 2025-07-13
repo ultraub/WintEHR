@@ -63,13 +63,36 @@ class CDSHooksService {
     }));
 
     // Transform backend conditions to frontend conditions
-    const conditions = backendConfig.conditions.map((condition, index) => ({
-      id: Date.now() + index,
-      type: this.mapBackendConditionType(condition.type),
-      operator: condition.parameters.operator || 'equals',
-      value: condition.parameters.value || '',
-      enabled: true
-    }));
+    const conditions = backendConfig.conditions.map((condition, index) => {
+      const conditionType = this.mapBackendConditionType(condition.type);
+      let operator = condition.parameters.operator || 'equals';
+      
+      // Map backend operators back to frontend format
+      if (conditionType === 'age') {
+        const backendToFrontendOperatorMap = {
+          'gt': 'greater_than',
+          'ge': 'greater_than_or_equal', 
+          'lt': 'less_than',
+          'le': 'less_than_or_equal',
+          'eq': 'equals',
+          'between': 'between',
+          'not_between': 'not_between',
+          // Handle legacy mappings
+          '>=': 'greater_than_or_equal',
+          '<=': 'less_than_or_equal',
+          '==': 'equals'
+        };
+        operator = backendToFrontendOperatorMap[operator] || operator;
+      }
+      
+      return {
+        id: Date.now() + index,
+        type: conditionType,
+        operator: operator,
+        value: condition.parameters.value || '',
+        enabled: true
+      };
+    });
 
     return {
       id: backendConfig.id,
@@ -124,13 +147,62 @@ class CDSHooksService {
 
     // Add type-specific parameters
     if (condition.type === 'age') {
-      // Convert operator for age conditions
-      if (condition.operator === 'greater_than') {
-        parameters.operator = '>=';
-      } else if (condition.operator === 'less_than') {
-        parameters.operator = '<=';
-      } else if (condition.operator === 'equals') {
-        parameters.operator = '==';
+      // Map frontend operators to backend format for age conditions
+      const ageOperatorMap = {
+        'greater_than': 'gt',
+        'greater_than_or_equal': 'ge',
+        'less_than': 'lt',
+        'less_than_or_equal': 'le',
+        'equals': 'eq',
+        'between': 'between',
+        'not_between': 'not_between'
+      };
+      parameters.operator = ageOperatorMap[condition.operator] || condition.operator;
+    } else if (condition.type === 'lab_value') {
+      // Lab value specific parameters
+      parameters.code = condition.labTest;
+      parameters.labTest = condition.labTest; // For backward compatibility
+      if (condition.value2) {
+        parameters.value2 = condition.value2;
+      }
+      if (condition.timeframe) {
+        parameters.timeframe = condition.timeframe;
+      }
+      if (condition.trendMinResults) {
+        parameters.trendMinResults = condition.trendMinResults;
+      }
+      // Map frontend operators to backend format
+      const operatorMap = {
+        'gt': 'gt',
+        'gte': 'ge',
+        'lt': 'lt',
+        'lte': 'le',
+        'eq': 'eq',
+        'between': 'between',
+        'not_between': 'not_between',
+        'abnormal': 'abnormal',
+        'critical': 'critical',
+        'trending_up': 'trending_up',
+        'trending_down': 'trending_down',
+        'missing': 'missing'
+      };
+      parameters.operator = operatorMap[condition.operator] || condition.operator;
+    } else if (condition.type === 'vital_sign') {
+      // Vital sign specific parameters
+      parameters.type = condition.vitalType;
+      if (condition.component) {
+        parameters.component = condition.component;
+      }
+      if (condition.timeframe) {
+        parameters.timeframe = condition.timeframe;
+      }
+    } else if (condition.type === 'condition') {
+      // Medical condition specific parameters
+      if (condition.codes) {
+        parameters.codes = condition.codes;
+      }
+      if (condition.system) {
+        parameters.system = condition.system;
       }
     }
 
@@ -327,8 +399,21 @@ class CDSHooksService {
    */
   async testHook(hookData, testContext = {}) {
     try {
-      // Transform to backend format
-      const backendConfig = this.transformToBackendFormat(hookData);
+      // First, we need to create/update the hook to ensure it exists
+      let hookExists = false;
+      try {
+        await this.getHook(hookData.id);
+        hookExists = true;
+      } catch (e) {
+        // Hook doesn't exist yet
+      }
+
+      // Save the hook first
+      if (hookExists) {
+        await this.updateHook(hookData.id, hookData);
+      } else {
+        await this.createHook(hookData);
+      }
 
       // Create test request
       const testRequest = {
@@ -341,9 +426,8 @@ class CDSHooksService {
         }
       };
 
-      // For now, simulate a test by calling the hook execution endpoint
-      // In a real implementation, this would be a dedicated test endpoint
-      const response = await axios.post(`${this.baseUrl}/cds-services/${backendConfig.id}`, testRequest);
+      // Now test it by calling the CDS service execution endpoint
+      const response = await axios.post(`${this.baseUrl}/cds-services/${hookData.id}`, testRequest);
       
       return {
         success: true,

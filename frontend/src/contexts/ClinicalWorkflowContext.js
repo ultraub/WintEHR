@@ -19,6 +19,8 @@ export const CLINICAL_EVENTS = {
   ENCOUNTER_CREATED: 'encounter.created',
   ENCOUNTER_UPDATED: 'encounter.updated',
   DOCUMENTATION_CREATED: 'documentation.created',
+  DOCUMENTATION_SHARED: 'documentation.shared',
+  QUALITY_DOCUMENTATION_INITIATED: 'quality.documentation.initiated',
   PROBLEM_ADDED: 'problem.added',
   PROBLEM_RESOLVED: 'problem.resolved',
   CRITICAL_ALERT: 'alert.critical',
@@ -49,7 +51,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     recentResults: [],
     activeEncounter: null,
     careGoals: [],
-    alerts: []
+    alerts: [],
+    activeQualityMeasures: []
   });
   
   // Event listeners and notifications
@@ -91,7 +94,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
           try {
             await listener(data);
           } catch (error) {
-            console.warn('Error in event listener:', error);
+            // Error in event listener
           }
         }
         
@@ -120,6 +123,9 @@ export const ClinicalWorkflowProvider = ({ children }) => {
         break;
       case CLINICAL_EVENTS.PROBLEM_ADDED:
         await handleProblemAdded(data);
+        break;
+      case CLINICAL_EVENTS.QUALITY_DOCUMENTATION_INITIATED:
+        await handleQualityDocumentationInitiated(data);
         break;
       default:
         break;
@@ -242,6 +248,46 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     });
   };
 
+  const handleQualityDocumentationInitiated = async (qualityData) => {
+    // Update clinical context with quality measure tracking
+    updateClinicalContext(prev => ({
+      ...prev,
+      activeQualityMeasures: [
+        ...(prev.activeQualityMeasures || []),
+        {
+          measureId: qualityData.measureId,
+          measureName: qualityData.measureName,
+          priority: qualityData.priority,
+          patientId: qualityData.patientId,
+          encounterId: qualityData.encounterId,
+          initiatedAt: qualityData.timestamp,
+          status: 'documentation_initiated'
+        }
+      ]
+    }));
+
+    // Create workflow notification for quality improvement
+    await createWorkflowNotification('quality_documentation', 'initiated', {
+      measureId: qualityData.measureId,
+      measureName: qualityData.measureName,
+      priority: qualityData.priority,
+      patientId: qualityData.patientId,
+      encounterId: qualityData.encounterId
+    });
+
+    // Notify relevant tabs about quality measure documentation
+    publish(CLINICAL_EVENTS.TAB_UPDATE, {
+      targetTabs: ['documentation', 'encounters', 'chart'],
+      updateType: 'quality_documentation_initiated',
+      data: qualityData
+    });
+
+    // If high priority, create a workflow reminder
+    if (qualityData.priority === 'high') {
+      await scheduleQualityFollowUp(qualityData);
+    }
+  };
+
   // Clinical decision support functions
   const checkForAbnormalResults = (resultData) => {
     const abnormal = [];
@@ -311,6 +357,10 @@ export const ClinicalWorkflowProvider = ({ children }) => {
         return step === 'completed' ?
           `Medication dispensed: ${data.medicationName}` :
           `Prescription sent to pharmacy: ${data.medicationName}`;
+      case 'quality_documentation':
+        return step === 'initiated' ?
+          `Quality measure documentation started: ${data.measureName}` :
+          `Quality measure documentation updated: ${data.measureName}`;
       default:
         return `Workflow update: ${workflowType} - ${step}`;
     }
@@ -421,6 +471,31 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   const suggestOrderSets = async (problemData) => {
     // This would suggest relevant order sets for the problem
+  };
+
+  const scheduleQualityFollowUp = async (qualityData) => {
+    // Schedule follow-up reminder for high-priority quality measures
+    const followUpNotification = {
+      id: `quality-followup-${qualityData.measureId}-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      patientId: qualityData.patientId,
+      type: 'quality_followup',
+      priority: 'high',
+      measureId: qualityData.measureId,
+      measureName: qualityData.measureName,
+      message: `High-priority quality measure documentation requires follow-up: ${qualityData.measureName}`,
+      scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+      actions: [
+        { label: 'Complete Documentation', action: 'navigate', target: 'documentation' },
+        { label: 'Review Quality Status', action: 'navigate', target: 'quality' }
+      ]
+    };
+
+    // Add to notifications for follow-up tracking
+    setNotifications(prev => [followUpNotification, ...prev]);
+    
+    // Publish follow-up event
+    publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, followUpNotification);
   };
 
   const suggestFollowUpOrders = async (abnormalResults) => {

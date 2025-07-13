@@ -228,7 +228,9 @@ const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }
               label="From Date"
               value={filters.dateFrom}
               onChange={(value) => handleFilterChange('dateFrom', value)}
-              renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+              slotProps={{
+                textField: { fullWidth: true, size: "small" }
+              }}
             />
           </LocalizationProvider>
         </Grid>
@@ -239,7 +241,9 @@ const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }
               label="To Date"
               value={filters.dateTo}
               onChange={(value) => handleFilterChange('dateTo', value)}
-              renderInput={(params) => <TextField {...params} fullWidth size="small" />}
+              slotProps={{
+                textField: { fullWidth: true, size: "small" }
+              }}
             />
           </LocalizationProvider>
         </Grid>

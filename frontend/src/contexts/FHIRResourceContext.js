@@ -705,6 +705,9 @@ export function FHIRResourceProvider({ children }) {
       const cacheKey = `patient_bundle_${patientId}`;
       dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'bundles', key: cacheKey } });
       
+      // Clear the relationships for this patient to ensure fresh data
+      dispatch({ type: FHIR_ACTIONS.SET_RELATIONSHIPS, payload: { patientId, relationships: {} } });
+      
       // Clear related search caches
       const resourceTypes = [
         'Encounter', 'Condition', 'Observation', 'MedicationRequest', 

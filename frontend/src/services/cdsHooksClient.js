@@ -6,10 +6,12 @@ import axios from 'axios';
 
 class CDSHooksClient {
   constructor() {
-    // Use relative URL for production compatibility
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/cds-hooks';
+    // Use backend URL directly in development, relative URL in production
+    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || 
+                   (process.env.NODE_ENV === 'development' ? 'http://localhost:8000/cds-hooks' : '/cds-hooks');
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
+      timeout: 10000, // 10 second timeout
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -20,6 +22,10 @@ class CDSHooksClient {
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
     this.requestCache = new Map();
     this.requestCacheTimeout = 30 * 1000; // 30 seconds cache for individual requests
+    this.lastFailureLogged = null;
+    
+    // Promise deduplication for in-flight requests
+    this.inFlightRequests = new Map();
   }
 
   /**
@@ -32,16 +38,42 @@ class CDSHooksClient {
       return this.servicesCache;
     }
 
-    try {
-      const response = await this.httpClient.get('/cds-services');
-      this.servicesCache = response.data.services || [];
-      this.servicesCacheTime = now;
-      return this.servicesCache;
-    } catch (error) {
-      
-      // Return cached data if available, even if expired
-      return this.servicesCache || [];
+    // Check if there's already an in-flight request for service discovery
+    const inFlightKey = 'discover-services';
+    if (this.inFlightRequests.has(inFlightKey)) {
+      return this.inFlightRequests.get(inFlightKey);
     }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        const response = await this.httpClient.get('/cds-services');
+        this.servicesCache = response.data.services || [];
+        this.servicesCacheTime = now;
+        return this.servicesCache;
+      } catch (error) {
+        // Failed to load CDS services - error handled gracefully with fallback
+        
+        // Return cached data if available, even if expired
+        if (this.servicesCache && this.servicesCache.length > 0) {
+          return this.servicesCache;
+        }
+        
+        // Return empty array as fallback - don't log repeatedly
+        if (!this.lastFailureLogged || Date.now() - this.lastFailureLogged > 60000) {
+          this.lastFailureLogged = Date.now();
+        }
+        return [];
+      } finally {
+        // Clean up the in-flight request
+        this.inFlightRequests.delete(inFlightKey);
+      }
+    })();
+
+    // Store the promise for deduplication
+    this.inFlightRequests.set(inFlightKey, requestPromise);
+    
+    return requestPromise;
   }
 
   /**
@@ -58,27 +90,50 @@ class CDSHooksClient {
       return cached.data;
     }
 
-    try {
-      const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
-      
-      // Cache the response
-      this.requestCache.set(cacheKey, {
-        data: response.data,
-        time: now
-      });
-      
-      // Clean old cache entries
-      for (const [key, value] of this.requestCache.entries()) {
-        if (now - value.time > this.requestCacheTimeout) {
-          this.requestCache.delete(key);
-        }
-      }
-      
-      return response.data;
-    } catch (error) {
-      
-      return { cards: [] };
+    // Check if there's already an in-flight request for this exact hook/context
+    if (this.inFlightRequests.has(cacheKey)) {
+      return this.inFlightRequests.get(cacheKey);
     }
+
+    // Create a new request promise
+    const requestPromise = (async () => {
+      try {
+        const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
+        
+        // Cache the response
+        this.requestCache.set(cacheKey, {
+          data: response.data,
+          time: now
+        });
+        
+        // Clean old cache entries
+        for (const [key, value] of this.requestCache.entries()) {
+          if (now - value.time > this.requestCacheTimeout) {
+            this.requestCache.delete(key);
+          }
+        }
+        
+        return response.data;
+      } catch (error) {
+        // Failed to execute CDS hook - error handled gracefully with fallback
+        
+        // Check if we have cached data for this request
+        const cached = this.requestCache.get(cacheKey);
+        if (cached) {
+          return cached.data;
+        }
+        
+        return { cards: [] };
+      } finally {
+        // Clean up the in-flight request
+        this.inFlightRequests.delete(cacheKey);
+      }
+    })();
+
+    // Store the promise for deduplication
+    this.inFlightRequests.set(cacheKey, requestPromise);
+    
+    return requestPromise;
   }
 
   /**

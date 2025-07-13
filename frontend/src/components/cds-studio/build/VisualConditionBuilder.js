@@ -43,6 +43,8 @@ import {
 } from '@mui/icons-material';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { v4 as uuidv4 } from 'uuid';
+import LabValueConditionBuilder from './conditions/LabValueConditionBuilder';
+import VitalSignConditionBuilder from './conditions/VitalSignConditionBuilder';
 
 // Condition field definitions
 const CONDITION_FIELDS = {
@@ -98,6 +100,7 @@ const CONDITION_FIELDS = {
     icon: <VitalIcon />,
     color: '#F44336',
     fields: [
+      { id: 'vital_sign', label: 'Vital Sign', type: 'vital_sign', operators: ['gt', 'lt', 'between', 'abnormal'] },
       { id: 'blood_pressure_systolic', label: 'Systolic BP (mmHg)', type: 'number', operators: ['=', '!=', '>', '<', '>=', '<='] },
       { id: 'blood_pressure_diastolic', label: 'Diastolic BP (mmHg)', type: 'number', operators: ['=', '!=', '>', '<', '>=', '<='] },
       { id: 'heart_rate', label: 'Heart Rate (bpm)', type: 'number', operators: ['=', '!=', '>', '<', '>=', '<='] },
@@ -183,6 +186,46 @@ const ConditionItem = ({ condition, index, onChange, onDelete, onDuplicate }) =>
               <MenuItem key={option} value={option}>{option}</MenuItem>
             ))}
           </Select>
+        );
+      
+      case 'lab_value':
+        // Use the enhanced Lab Value condition builder for lab results
+        return (
+          <Box sx={{ mt: 2, width: '100%' }}>
+            <LabValueConditionBuilder
+              condition={{
+                ...condition,
+                type: 'lab_value',
+                operator: condition.operator || 'gt',
+                value: condition.value || '',
+                timeframe: condition.timeframe || 90
+              }}
+              onChange={(updates) => {
+                onChange({ ...condition, ...updates });
+              }}
+              onRemove={() => onDelete()}
+            />
+          </Box>
+        );
+      
+      case 'vital_sign':
+        // Use the enhanced Vital Sign condition builder
+        return (
+          <Box sx={{ mt: 2, width: '100%' }}>
+            <VitalSignConditionBuilder
+              condition={{
+                ...condition,
+                type: 'vital_sign',
+                operator: condition.operator || 'gt',
+                value: condition.value || '',
+                timeframe: condition.timeframe || 24
+              }}
+              onChange={(updates) => {
+                onChange({ ...condition, ...updates });
+              }}
+              onRemove={() => onDelete()}
+            />
+          </Box>
         );
       
       case 'condition_search':

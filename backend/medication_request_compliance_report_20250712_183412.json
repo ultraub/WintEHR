@@ -1,0 +1,764 @@
+{
+  "timestamp": "2025-07-12T18:34:12.477010",
+  "summary": {
+    "total_resources": 94,
+    "valid": 94,
+    "invalid": 0,
+    "with_warnings": 44
+  },
+  "details": [
+    {
+      "id": "424",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1997",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2022",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2105",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2122",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2213",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2284",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2424",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3382",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3395",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3786",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "14",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "17",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "117",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "171",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "276",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "279",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "311",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "320",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "348",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "351",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "354",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "393",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "396",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "399",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "427",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "664",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1125",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "DosageInstruction[0] should have text description"
+      ],
+      "info": []
+    },
+    {
+      "id": "1128",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1166",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1300",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1350",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1372",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1632",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1698",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1701",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1724",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1727",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1888",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1891",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1919",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1949",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1952",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "1975",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1991",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "1994",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2025",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2046",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "2067",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "2102",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2119",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2170",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2173",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2210",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2281",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2427",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2489",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "2514",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2517",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2528",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "2559",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2562",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2576",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "2606",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2609",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2691",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2718",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "2721",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3392",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3464",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3474",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3571",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3579",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3654",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3673",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3685",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3697",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3778",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3820",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3916",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "3926",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3929",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "3982",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "4097",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "4425",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "4615",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "4717",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "4772",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "5094",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "5105",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "5257",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [
+        "No dosageInstruction provided"
+      ],
+      "info": []
+    },
+    {
+      "id": "5478",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "5481",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    },
+    {
+      "id": "5607",
+      "is_valid": true,
+      "errors": [],
+      "warnings": [],
+      "info": []
+    }
+  ],
+  "common_issues": {
+    "errors": {},
+    "warnings": {
+      "No dosageInstruction provided": 32,
+      "DosageInstruction[0] should have text description": 12
+    }
+  }
+}

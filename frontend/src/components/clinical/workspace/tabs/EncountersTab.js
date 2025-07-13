@@ -58,12 +58,16 @@ import {
   Print as PrintIcon,
   CalendarMonth as CalendarIcon,
   AccessTime as TimeIcon,
-  Person as ProviderIcon
+  Person as ProviderIcon,
+  Draw as SignIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
+import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
+import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
+import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -98,7 +102,7 @@ const getEncounterTypeLabel = (encounter) => {
 };
 
 // Encounter Card Component
-const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
+const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -203,6 +207,25 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit }) => {
         >
           Edit
         </Button>
+        <Button 
+          size="small" 
+          startIcon={<NotesIcon />}
+          onClick={() => onAddNote && onAddNote(encounter)}
+          color="secondary"
+        >
+          Add Note
+        </Button>
+        {encounter.status === 'in-progress' && (
+          <Button 
+            size="small" 
+            variant="contained"
+            color="primary"
+            startIcon={<SignIcon />}
+            onClick={onSign}
+          >
+            Sign & Close
+          </Button>
+        )}
       </CardActions>
 
     </Card>
@@ -223,8 +246,14 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [signingDialogOpen, setSigningDialogOpen] = useState(false);
   const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
+  const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
+  const [editEncounterDialogOpen, setEditEncounterDialogOpen] = useState(false);
+  const [selectedEncounterForEdit, setSelectedEncounterForEdit] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [selectedEncounterForNote, setSelectedEncounterForNote] = useState(null);
   const [newEncounterData, setNewEncounterData] = useState({
     type: 'AMB',
     reasonForVisit: '',
@@ -281,8 +310,67 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
     setSelectedEncounter(null);
   };
 
+  const handleSignEncounter = (encounter) => {
+    setSelectedEncounter(encounter);
+    setSigningDialogOpen(true);
+  };
+
+  const handleCloseSigningDialog = () => {
+    setSigningDialogOpen(false);
+    setSelectedEncounter(null);
+  };
+
+  const handleEncounterSigned = (signedEncounter) => {
+    setSnackbar({
+      open: true,
+      message: 'Encounter signed successfully',
+      severity: 'success'
+    });
+    
+    // Refresh encounter data
+    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+      detail: { patientId } 
+    }));
+  };
+
+  // Handle adding note to encounter
+  const handleAddNoteToEncounter = (encounter) => {
+    setSelectedEncounterForNote(encounter);
+    setNoteEditorOpen(true);
+  };
+
+  // Handle closing note editor
+  const handleCloseNoteEditor = () => {
+    setNoteEditorOpen(false);
+    setSelectedEncounterForNote(null);
+  };
+
+  // Handle edit encounter
+  const handleEditEncounter = (encounter) => {
+    setSelectedEncounterForEdit(encounter);
+    setEditEncounterDialogOpen(true);
+  };
+
+  const handleCloseEditEncounter = () => {
+    setEditEncounterDialogOpen(false);
+    setSelectedEncounterForEdit(null);
+  };
+
   const handleNewEncounter = () => {
-    setNewEncounterDialogOpen(true);
+    setEncounterCreationDialogOpen(true);
+  };
+
+  const handleEncounterCreated = (newEncounter) => {
+    setSnackbar({
+      open: true,
+      message: 'Encounter created successfully',
+      severity: 'success'
+    });
+    
+    // Refresh encounter data
+    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+      detail: { patientId } 
+    }));
   };
 
   const handlePrintEncounters = () => {
@@ -606,7 +694,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
               key={encounter.id}
               encounter={encounter}
               onViewDetails={() => handleViewEncounterDetails(encounter)}
-              onEdit={() => {}}
+              onEdit={() => handleEditEncounter(encounter)}
+              onSign={() => handleSignEncounter(encounter)}
+              onAddNote={handleAddNoteToEncounter}
             />
           ))}
         </Box>
@@ -674,6 +764,33 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         onClose={handleCloseSummaryDialog}
         encounter={selectedEncounter}
         patientId={patientId}
+      />
+
+      {/* Encounter Signing Dialog */}
+      <EncounterSigningDialog
+        open={signingDialogOpen}
+        onClose={handleCloseSigningDialog}
+        encounter={selectedEncounter}
+        patientId={patientId}
+        onEncounterSigned={handleEncounterSigned}
+      />
+
+      {/* Enhanced Encounter Creation Dialog */}
+      <EncounterCreationDialog
+        open={encounterCreationDialogOpen}
+        onClose={() => setEncounterCreationDialogOpen(false)}
+        patientId={patientId}
+        onEncounterCreated={handleEncounterCreated}
+      />
+
+      {/* Enhanced Note Editor for Encounter Notes */}
+      <EnhancedNoteEditor
+        open={noteEditorOpen}
+        onClose={handleCloseNoteEditor}
+        note={null}
+        patientId={patientId}
+        encounter={selectedEncounterForNote}
+        defaultTemplate={null}
       />
 
       {/* New Encounter Dialog */}
@@ -744,6 +861,50 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         </DialogActions>
       </Dialog>
 
+      {/* Edit Encounter Dialog */}
+      <Dialog
+        open={editEncounterDialogOpen}
+        onClose={handleCloseEditEncounter}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Encounter</DialogTitle>
+        <DialogContent>
+          {selectedEncounterForEdit && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Encounter editing functionality is being enhanced. For now, encounter details can be viewed but not directly edited.
+              </Typography>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Status: {selectedEncounterForEdit.status}
+              </Typography>
+              {selectedEncounterForEdit.period?.start && (
+                <Typography variant="body2" color="text.secondary">
+                  Date: {format(parseISO(selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditEncounter}>
+            Close
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              handleCloseEditEncounter();
+              setEncounterCreationDialogOpen(true);
+            }}
+          >
+            Create New Encounter
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
@@ -763,4 +924,4 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default EncountersTab;
+export default React.memo(EncountersTab);

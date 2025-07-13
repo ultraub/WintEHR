@@ -41,6 +41,7 @@ import {
   Alert,
   Divider,
   Tooltip,
+  CircularProgress,
   useTheme
 } from '@mui/material';
 import {
@@ -61,6 +62,16 @@ import {
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
+import LabValueConditionBuilder from './conditions/LabValueConditionBuilder';
+import VitalSignConditionBuilder from './conditions/VitalSignConditionBuilder';
+import MedicalConditionBuilder from './conditions/MedicalConditionBuilder';
+import AgeConditionBuilder from './conditions/AgeConditionBuilder';
+import GenderConditionBuilder from './conditions/GenderConditionBuilder';
+import MedicationConditionBuilder from './conditions/MedicationConditionBuilder';
+import CardBuilder from './CardBuilder';
+import SuggestionBuilder from './SuggestionBuilder';
+import DisplayBehaviorConfig from './DisplayBehaviorConfig';
+import PrefetchQueryBuilder from './PrefetchQueryBuilder';
 
 const HOOK_TYPES = [
   { value: 'patient-view', label: 'Patient View', description: 'Fired when user is viewing a patient' },
@@ -95,7 +106,13 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     enabled: true,
     conditions: [],
     cards: [],
-    prefetch: {}
+    prefetch: {},
+    displayBehavior: {
+      displayMode: 'immediate',
+      position: 'top',
+      maxCards: 10,
+      priority: 'critical-first'
+    }
   });
   const [testResults, setTestResults] = useState(null);
   const [testing, setTesting] = useState(false);
@@ -103,7 +120,22 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   // Initialize with editing data
   useEffect(() => {
     if (editingHook) {
-      setHookData(editingHook);
+      setHookData({
+        id: editingHook.id || '',
+        title: editingHook.title || '',
+        description: editingHook.description || '',
+        hook: editingHook.hook || 'patient-view',
+        enabled: editingHook.enabled !== undefined ? editingHook.enabled : true,
+        conditions: editingHook.conditions || [],
+        cards: editingHook.cards || [],
+        prefetch: editingHook.prefetch || {},
+        displayBehavior: editingHook.displayBehavior || {
+          displayMode: 'immediate',
+          position: 'top',
+          maxCards: 10,
+          priority: 'critical-first'
+        }
+      });
     }
   }, [editingHook]);
 
@@ -117,8 +149,16 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
       description: 'Set triggering conditions'
     },
     {
-      label: 'Cards',
+      label: 'Cards & Suggestions',
       description: 'Design response cards'
+    },
+    {
+      label: 'Prefetch Queries',
+      description: 'Configure data prefetching'
+    },
+    {
+      label: 'Display Behavior',
+      description: 'Configure display options'
     },
     {
       label: 'Test & Save',
@@ -138,7 +178,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     const newCondition = {
       id: Date.now(),
       type: 'age',
-      operator: 'greater_than',
+      operator: 'gt',
       value: '',
       enabled: true
     };
@@ -331,7 +371,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           </Button>
         </Stack>
         
-        {hookData.conditions.length === 0 ? (
+        {(!hookData.conditions || hookData.conditions.length === 0) ? (
           <Alert severity="info">
             No conditions defined. This hook will trigger for all patients.
           </Alert>
@@ -339,71 +379,127 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           hookData.conditions.map((condition) => (
             <Card key={condition.id} variant="outlined">
               <CardContent>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Condition Type</InputLabel>
-                      <Select
-                        value={condition.type}
-                        label="Condition Type"
-                        onChange={(e) => updateCondition(condition.id, { type: e.target.value })}
-                      >
-                        {CONDITION_TYPES.map(type => (
-                          <MenuItem key={type.value} value={type.value}>
-                            {type.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Operator</InputLabel>
-                      <Select
-                        value={condition.operator}
-                        label="Operator"
-                        onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
-                      >
-                        <MenuItem value="equals">Equals</MenuItem>
-                        <MenuItem value="greater_than">Greater Than</MenuItem>
-                        <MenuItem value="less_than">Less Than</MenuItem>
-                        <MenuItem value="contains">Contains</MenuItem>
-                        <MenuItem value="exists">Exists</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Value"
-                      value={condition.value}
-                      onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
-                      placeholder="Enter condition value"
+                <Stack spacing={2}>
+                  {/* Condition Type Selector */}
+                  <FormControl fullWidth>
+                    <InputLabel>Condition Type</InputLabel>
+                    <Select
+                      value={condition.type}
+                      label="Condition Type"
+                      onChange={(e) => updateCondition(condition.id, { type: e.target.value })}
+                      data-testid="condition-type-select"
+                    >
+                      {CONDITION_TYPES.map(type => (
+                        <MenuItem key={type.value} value={type.value}>
+                          <Stack>
+                            <Typography>{type.label}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {type.description}
+                            </Typography>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Dynamic Condition Builder based on type */}
+                  {condition.type === 'lab_value' && (
+                    <LabValueConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
                     />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <Stack direction="row" spacing={1}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            size="small"
-                            checked={condition.enabled}
-                            onChange={(e) => updateCondition(condition.id, { enabled: e.target.checked })}
-                          />
-                        }
-                        label="Enabled"
-                      />
-                      <IconButton 
-                        size="small" 
-                        color="error"
-                        onClick={() => removeCondition(condition.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Stack>
-                  </Grid>
-                </Grid>
+                  )}
+                  
+                  {condition.type === 'vital_sign' && (
+                    <VitalSignConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
+                    />
+                  )}
+                  
+                  {condition.type === 'condition' && (
+                    <MedicalConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                      onRemove={() => removeCondition(condition.id)}
+                    />
+                  )}
+                  
+                  {condition.type === 'age' && (
+                    <AgeConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                    />
+                  )}
+                  
+                  {condition.type === 'gender' && (
+                    <GenderConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                    />
+                  )}
+                  
+                  {condition.type === 'medication' && (
+                    <MedicationConditionBuilder
+                      condition={condition}
+                      onChange={(updates) => updateCondition(condition.id, updates)}
+                    />
+                  )}
+                  
+                  {/* Default builder for other condition types */}
+                  {!['lab_value', 'vital_sign', 'condition', 'age', 'gender', 'medication'].includes(condition.type) && (
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth>
+                          <InputLabel>Operator</InputLabel>
+                          <Select
+                            value={condition.operator}
+                            label="Operator"
+                            onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
+                            data-testid="operator-select"
+                          >
+                            <MenuItem value="equals">Equals</MenuItem>
+                            <MenuItem value="greater_than">Greater Than</MenuItem>
+                            <MenuItem value="less_than">Less Than</MenuItem>
+                            <MenuItem value="contains">Contains</MenuItem>
+                            <MenuItem value="exists">Exists</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="Value"
+                          value={condition.value}
+                          onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
+                          placeholder="Enter condition value"
+                        />
+                      </Grid>
+                    </Grid>
+                  )}
+
+                  {/* Common controls for all condition types */}
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={condition.enabled}
+                          onChange={(e) => updateCondition(condition.id, { enabled: e.target.checked })}
+                        />
+                      }
+                      label="Enabled"
+                    />
+                    <IconButton 
+                      color="error"
+                      onClick={() => removeCondition(condition.id)}
+                      aria-label="Remove condition"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Stack>
+                </Stack>
               </CardContent>
             </Card>
           ))
@@ -412,96 +508,70 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     </Box>
   );
 
-  const renderCards = () => (
+  const renderCardsAndSuggestions = () => (
     <Box sx={{ mt: 2 }}>
-      <Stack spacing={2}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6">Response Cards</Typography>
-          <Button startIcon={<AddIcon />} onClick={addCard}>
-            Add Card
-          </Button>
-        </Stack>
-        
-        {hookData.cards.length === 0 ? (
-          <Alert severity="warning">
-            At least one card must be defined for the hook to provide feedback.
-          </Alert>
-        ) : (
-          hookData.cards.map((card) => (
-            <Accordion key={card.id}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  {CARD_INDICATORS.find(i => i.value === card.indicator)?.icon}
-                  <Typography variant="subtitle1">
-                    {card.summary || 'Untitled Card'}
-                  </Typography>
-                  <Chip 
-                    label={card.indicator} 
-                    color={CARD_INDICATORS.find(i => i.value === card.indicator)?.color}
-                    size="small"
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Card Summary"
-                      value={card.summary}
-                      onChange={(e) => updateCard(card.id, { summary: e.target.value })}
-                      placeholder="Brief summary of the alert"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={3}
-                      label="Card Details"
-                      value={card.detail}
-                      onChange={(e) => updateCard(card.id, { detail: e.target.value })}
-                      placeholder="Detailed explanation and recommendations"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Indicator</InputLabel>
-                      <Select
-                        value={card.indicator}
-                        label="Indicator"
-                        onChange={(e) => updateCard(card.id, { indicator: e.target.value })}
-                      >
-                        {CARD_INDICATORS.map(indicator => (
-                          <MenuItem key={indicator.value} value={indicator.value}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              {indicator.icon}
-                              <Typography>{indicator.label}</Typography>
-                            </Stack>
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        color="error"
-                        onClick={() => removeCard(card.id)}
-                      >
-                        Delete Card
-                      </Button>
-                    </Stack>
-                  </Grid>
-                </Grid>
-              </AccordionDetails>
-            </Accordion>
-          ))
-        )}
+      <Stack spacing={3}>
+        <Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="h6">Response Cards</Typography>
+            <Button startIcon={<AddIcon />} onClick={addCard}>
+              Add Card
+            </Button>
+          </Stack>
+          
+          {hookData.cards.length === 0 ? (
+            <Alert severity="warning">
+              At least one card must be defined for the hook to provide feedback.
+            </Alert>
+          ) : (
+            hookData.cards.map((card) => (
+              <CardBuilder
+                key={card.id}
+                card={card}
+                onChange={(updates) => updateCard(card.id, updates)}
+                onRemove={() => removeCard(card.id)}
+              />
+            ))
+          )}
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Suggestions
+          </Typography>
+          <SuggestionBuilder
+            suggestions={(hookData.cards || []).reduce((acc, card) => {
+              return [...acc, ...(card.suggestions || [])];
+            }, [])}
+            onChange={(suggestions) => {
+              // Distribute suggestions across cards
+              if (hookData.cards && hookData.cards.length > 0) {
+                updateCard(hookData.cards[0].id, { suggestions });
+              }
+            }}
+          />
+        </Box>
       </Stack>
+    </Box>
+  );
+
+  const renderPrefetchQueries = () => (
+    <Box sx={{ mt: 2 }}>
+      <PrefetchQueryBuilder
+        queries={hookData.prefetch}
+        onChange={(prefetch) => setHookData({ ...hookData, prefetch })}
+      />
+    </Box>
+  );
+
+  const renderDisplayBehavior = () => (
+    <Box sx={{ mt: 2 }}>
+      <DisplayBehaviorConfig
+        config={hookData.displayBehavior}
+        onChange={(displayBehavior) => setHookData({ ...hookData, displayBehavior })}
+      />
     </Box>
   );
 
@@ -525,11 +595,11 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Conditions:</Typography>
-                <Typography variant="body1">{hookData.conditions.length} defined</Typography>
+                <Typography variant="body1">{hookData.conditions?.length || 0} defined</Typography>
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Cards:</Typography>
-                <Typography variant="body1">{hookData.cards.length} defined</Typography>
+                <Typography variant="body1">{hookData.cards?.length || 0} defined</Typography>
               </Grid>
             </Grid>
           </CardContent>
@@ -582,10 +652,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         <Stack direction="row" spacing={2}>
           <Button
             variant="outlined"
-            startIcon={<TestIcon />}
+            startIcon={testing ? <CircularProgress size={20} /> : <TestIcon />}
             onClick={testHook}
             disabled={testing || !hookData.id || hookData.cards.length === 0}
-            loading={testing}
           >
             {testing ? 'Testing...' : 'Test Hook'}
           </Button>
@@ -623,8 +692,10 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             <StepContent>
               {index === 0 && renderBasicInfo()}
               {index === 1 && renderConditions()}
-              {index === 2 && renderCards()}
-              {index === 3 && renderTestAndSave()}
+              {index === 2 && renderCardsAndSuggestions()}
+              {index === 3 && renderPrefetchQueries()}
+              {index === 4 && renderDisplayBehavior()}
+              {index === 5 && renderTestAndSave()}
               
               <Box sx={{ mb: 2, mt: 2 }}>
                 <div>
