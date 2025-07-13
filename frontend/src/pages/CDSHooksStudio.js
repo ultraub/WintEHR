@@ -77,9 +77,9 @@ export const CDSStudioProvider = ({ children }) => {
     cards: [],
     prefetch: {},
     _meta: {
-      created: new Date(),
+      created: null, // null means this is a new hook
       modified: new Date(),
-      version: 1,
+      version: 0, // 0 means this is a new hook
       author: 'Current User'
     }
   });
@@ -331,15 +331,20 @@ export const CDSStudioProvider = ({ children }) => {
 
       // Step 2: Send to server (50%)
       setSaveProgress(50);
-      const isUpdate = currentHook.id && currentHook._meta?.created;
-      setSaveMessage(isUpdate ? 'Updating hook...' : 'Creating hook...');
+      
+      // Determine if this is an update or create based on metadata, not just ID existence
+      // A hook is considered existing if it has both an ID and a created timestamp
+      const isExistingHook = currentHook._meta?.created && currentHook._meta?.version > 0;
+      setSaveMessage(isExistingHook ? 'Updating hook...' : 'Creating hook...');
       
       let result;
       
-      if (isUpdate) {
+      if (isExistingHook) {
+        // This is an existing hook being updated
         // console.log('Updating existing hook:', currentHook.id);
         result = await cdsHooksService.updateHook(currentHook.id, hookDataToSave);
       } else {
+        // This is a new hook being created (even if it has an auto-generated ID)
         // console.log('Creating new hook:', hookDataToSave.id);
         result = await cdsHooksService.createHook(hookDataToSave);
       }
@@ -349,17 +354,31 @@ export const CDSStudioProvider = ({ children }) => {
       setSaveMessage('Processing response...');
       
       // Update the current hook with the response data
-      if (result?.data && !isUpdate) {
-        setCurrentHook(prev => ({ 
-          ...prev, 
-          ...result.data,
-          _meta: {
-            ...prev._meta,
-            created: new Date(),
-            modified: new Date(),
-            version: 1
-          }
-        }));
+      if (result?.data) {
+        if (!isExistingHook) {
+          // This was a create operation - mark as created
+          setCurrentHook(prev => ({ 
+            ...prev, 
+            ...result.data,
+            _meta: {
+              ...prev._meta,
+              created: new Date(),
+              modified: new Date(),
+              version: 1
+            }
+          }));
+        } else {
+          // This was an update operation - just update modified time and version
+          setCurrentHook(prev => ({ 
+            ...prev, 
+            ...result.data,
+            _meta: {
+              ...prev._meta,
+              modified: new Date(),
+              version: (prev._meta?.version || 0) + 1
+            }
+          }));
+        }
       }
 
       // Step 4: Complete (100%)
@@ -368,7 +387,7 @@ export const CDSStudioProvider = ({ children }) => {
 
       setSaveStatus({
         open: true,
-        message: `Hook ${isUpdate ? 'updated' : 'created'} successfully!`,
+        message: `Hook ${isExistingHook ? 'updated' : 'created'} successfully!`,
         severity: 'success'
       });
       
@@ -483,9 +502,9 @@ const BuildModeWithErrorHandling = () => {
       cards: [],
       prefetch: {},
       _meta: {
-        created: new Date(),
+        created: null, // null means this is a new hook
         modified: new Date(),
-        version: 1,
+        version: 0, // 0 means this is a new hook
         author: 'Current User'
       }
     });
@@ -534,9 +553,9 @@ function CDSHooksStudio() {
       cards: [],
       prefetch: {},
       _meta: {
-        created: new Date(),
+        created: null, // null means this is a new hook
         modified: new Date(),
-        version: 1,
+        version: 0, // 0 means this is a new hook
         author: 'Current User'
       }
     };
