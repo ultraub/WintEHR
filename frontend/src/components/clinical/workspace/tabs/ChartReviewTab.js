@@ -91,7 +91,7 @@ import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -482,7 +482,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         workflowType: 'medication-discontinuation',
         step: 'completed',
         data: {
-          medicationName: result.originalRequest.medicationCodeableConcept?.text || 'Unknown medication',
+          medicationName: getMedicationName(result.originalRequest),
           reason: discontinuationData.reason.display,
           discontinuationType: discontinuationData.discontinuationType,
           patientId,
@@ -1172,9 +1172,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         step: 'created',
         data: {
           ...createdMedication,
-          medicationName: createdMedication.medicationCodeableConcept?.text ||
-                         createdMedication.medicationCodeableConcept?.coding?.[0]?.display ||
-                         'Unknown medication',
+          medicationName: getMedicationName(createdMedication),
           patientId
         }
       });
@@ -1424,7 +1422,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         data.forEach(med => {
           html += `
             <div class="section">
-              <h3>${med.medicationCodeableConcept?.text || med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown'}</h3>
+              <h3>${getMedicationName(med)}</h3>
               <p><strong>Status:</strong> ${med.status}</p>
               ${med.dosageInstruction?.[0]?.text ? `<p><strong>Dosage:</strong> ${med.dosageInstruction[0].text}</p>` : ''}
               <p><strong>Prescribed:</strong> ${med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}</p>

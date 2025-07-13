@@ -4,6 +4,34 @@
  */
 
 /**
+ * Gets medication name from either R4 (medicationCodeableConcept) or R5 (medication.concept) format
+ * @param {Object} medicationRequest - FHIR MedicationRequest object
+ * @returns {string} - Medication name
+ */
+export const getMedicationName = (medicationRequest) => {
+  if (!medicationRequest) return 'Unknown medication';
+  
+  // R5 format: medication.concept
+  if (medicationRequest.medication?.concept) {
+    const concept = medicationRequest.medication.concept;
+    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+  }
+  
+  // R4 format: medicationCodeableConcept (legacy support)
+  if (medicationRequest.medicationCodeableConcept) {
+    const concept = medicationRequest.medicationCodeableConcept;
+    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+  }
+  
+  // Reference format (fallback)
+  if (medicationRequest.medicationReference) {
+    return 'Medication (reference)';
+  }
+  
+  return 'Unknown medication';
+};
+
+/**
  * Formats structured dosage information from FHIR dosageInstruction
  * @param {Object} dosageInstruction - FHIR dosageInstruction object
  * @returns {string|null} - Formatted dosage string or null if no structured data

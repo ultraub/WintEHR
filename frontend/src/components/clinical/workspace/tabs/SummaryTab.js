@@ -276,10 +276,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId, getPatientResources, onNotificationUpdate]);
 
-  // Load all patient data
+  // Load all patient data - only when patientId changes
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    if (patientId) {
+      loadDashboardData();
+    }
+  }, [patientId]); // Only depend on patientId, not the function itself
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -315,7 +317,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [subscribe, patientId, loadDashboardData]);
+  }, [subscribe, patientId]); // Removed loadDashboardData dependency to prevent loops
 
 
   const handleRefresh = useCallback(() => {

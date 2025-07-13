@@ -73,7 +73,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { printDocument } from '../../../../utils/printUtils';
-import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationName, getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Event type configuration
@@ -212,9 +212,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
       case 'Encounter':
         return event.type?.[0]?.text || event.type?.[0]?.coding?.[0]?.display || 'Encounter';
       case 'MedicationRequest':
-        return event.medicationCodeableConcept?.text || 
-               event.medicationCodeableConcept?.coding?.[0]?.display ||
-               'Medication';
+        return getMedicationName(event);
       case 'Observation':
         return event.code?.text || event.code?.coding?.[0]?.display || 'Observation';
       case 'Condition':
@@ -555,8 +553,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       event.code?.coding?.[0]?.display,
       event.type?.[0]?.text,
       event.type?.[0]?.coding?.[0]?.display,
-      event.medicationCodeableConcept?.text,
-      event.medicationCodeableConcept?.coding?.[0]?.display,
+      getMedicationName(event),
       event.vaccineCode?.text,
       event.vaccineCode?.coding?.[0]?.display,
       event.description,
@@ -690,7 +687,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             details = event.participant?.find(p => p.type?.[0]?.coding?.[0]?.code === 'ATND')?.individual?.display || '';
             break;
           case 'MedicationRequest':
-            title = event.medicationCodeableConcept?.text || event.medicationCodeableConcept?.coding?.[0]?.display || 'Medication';
+            title = getMedicationName(event);
             details = event.dosageInstruction?.[0]?.text || '';
             break;
           case 'Observation':
@@ -975,8 +972,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
                 case 'Encounter':
                   return event.type?.[0]?.text || event.type?.[0]?.coding?.[0]?.display || 'Encounter';
                 case 'MedicationRequest':
-                  return event.medicationCodeableConcept?.text || 
-                         event.medicationCodeableConcept?.coding?.[0]?.display || 'Medication';
+                  return getMedicationName(event);
                 case 'Observation':
                   return event.code?.text || event.code?.coding?.[0]?.display || 'Observation';
                 case 'Condition':

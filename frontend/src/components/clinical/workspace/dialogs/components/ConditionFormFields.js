@@ -13,13 +13,12 @@ import {
   Typography,
   Chip,
   Stack,
-  Autocomplete,
-  Box,
-  CircularProgress
+  Box
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
-import { cdsClinicalDataService } from '../../../../../services/cdsClinicalDataService';
+import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocomplete';
+import { useCatalogConditionSearch } from '../../../../../hooks/useResourceSearch';
 import {
   CLINICAL_STATUS_OPTIONS,
   VERIFICATION_STATUS_OPTIONS,
@@ -30,8 +29,11 @@ import {
 } from '../config/conditionDialogConfig';
 
 const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [conditionOptions, setConditionOptions] = useState([]);
+  // Use catalog-enhanced condition search hook
+  const conditionSearch = useCatalogConditionSearch({
+    debounceMs: 300,
+    minQueryLength: 2
+  });
 
   // Provide safe defaults for form data to prevent undefined values
   const safeFormData = {
@@ -45,37 +47,6 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
     notes: formData.notes || ''
   };
 
-  // Initialize options with existing problem if in edit mode
-  React.useEffect(() => {
-    if (safeFormData.selectedProblem && conditionOptions.length === 0) {
-      setConditionOptions([safeFormData.selectedProblem]);
-    }
-  }, [safeFormData.selectedProblem]);
-
-  // Search for conditions as user types using dynamic catalog
-  const handleSearchConditions = async (query) => {
-    if (!query || query.length < 2) {
-      setConditionOptions([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const results = await cdsClinicalDataService.getDynamicConditionCatalog(query, 20);
-      setConditionOptions(results.map(cond => ({
-        code: cond.code,
-        display: cond.display,
-        system: 'http://snomed.info/sct', // Most conditions are SNOMED
-        frequency_count: cond.frequency_count,
-        source: 'dynamic'
-      })));
-    } catch (error) {
-      setConditionOptions([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
   return (
     <Stack spacing={3}>
       <Grid container spacing={2}>
@@ -84,58 +55,74 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
           <Typography variant="subtitle2" gutterBottom>
             Problem/Condition
           </Typography>
-          <Autocomplete
-            options={conditionOptions}
-            getOptionLabel={(option) => option.display}
+          <ResourceSearchAutocomplete
+            label="Search for conditions"
+            placeholder="Type to search conditions from dynamic catalog..."
+            searchService={conditionSearch.searchService}
+            resourceTypes={['Condition']}
             value={safeFormData.selectedProblem}
-            loading={searchLoading}
-            disabled={disabled}
-            isOptionEqualToValue={(option, value) => {
-              if (!option || !value) return false;
-              return option.code === value.code && option.system === value.system;
-            }}
-            onInputChange={(event, value) => {
-              handleSearchConditions(value);
-            }}
             onChange={(event, newValue) => {
               onChange('selectedProblem', newValue);
-              onChange('problemText', newValue ? newValue.display : safeFormData.problemText);
+              onChange('problemText', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.problemText);
             }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Search for conditions"
-                placeholder="Type to search conditions..."
-                variant="outlined"
-                error={!!errors.selectedProblem}
-                helperText={errors.selectedProblem}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {searchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
-            )}
+            disabled={disabled}
+            error={!!errors.selectedProblem}
+            helperText={errors.selectedProblem || "Search conditions from dynamic clinical catalog"}
+            freeSolo={false}
+            showCacheStatus={true}
+            enableCache={true}
+            cacheTTL={10}
+            debounceMs={300}
+            minQueryLength={2}
+            getOptionLabel={(option) => {
+              if (typeof option === 'string') return option;
+              return option.display || option.code?.text || option.id || 'Unknown condition';
+            }}
+            getOptionKey={(option) => {
+              if (typeof option === 'string') return option;
+              return `condition-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+            }}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
+              const display = option.display || option.code?.text || 'Unknown condition';
+              const code = option.code?.coding?.[0]?.code || option.id;
+              const frequency = option.frequency || 0;
+              const source = option.searchSource || 'catalog';
+              
               return (
                 <Box component="li" key={key} {...otherProps}>
-                  <Stack>
-                    <Typography variant="body2">{option.display}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      SNOMED: {option.code} • Frequency: {option.frequency_count || 0} • Source: {option.source}
+                  <Stack sx={{ width: '100%' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {display}
                     </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {code && (
+                        <Chip 
+                          label={`SNOMED: ${code}`} 
+                          size="small" 
+                          variant="outlined"
+                          color="primary"
+                        />
+                      )}
+                      {frequency > 0 && (
+                        <Chip 
+                          label={`Freq: ${frequency}`} 
+                          size="small" 
+                          variant="outlined"
+                          color="secondary"
+                        />
+                      )}
+                      <Chip 
+                        label={source} 
+                        size="small" 
+                        variant="outlined"
+                        color={source === 'catalog' ? 'success' : 'default'}
+                      />
+                    </Stack>
                   </Stack>
                 </Box>
               );
             }}
-            noOptionsText={
-              searchLoading ? "Searching..." : "No conditions found"
-            }
           />
         </Grid>
 

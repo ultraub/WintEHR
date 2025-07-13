@@ -13,9 +13,7 @@ import {
   Typography,
   Chip,
   Stack,
-  Autocomplete,
   Box,
-  CircularProgress,
   FormControlLabel,
   Checkbox,
   Divider,
@@ -23,7 +21,8 @@ import {
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
-import { searchService } from '../../../../../services/searchService';
+import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocomplete';
+import { useCatalogMedicationSearch } from '../../../../../hooks/useResourceSearch';
 import {
   MEDICATION_STATUS_OPTIONS,
   MEDICATION_PRIORITY_OPTIONS,
@@ -36,8 +35,11 @@ import {
 } from '../config/medicationDialogConfig';
 
 const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [medicationOptions, setMedicationOptions] = useState([]);
+  // Use catalog-enhanced medication search hook
+  const medicationSearch = useCatalogMedicationSearch({
+    debounceMs: 300,
+    minQueryLength: 2
+  });
 
   // Provide safe defaults for form data to prevent undefined values
   const safeFormData = {
@@ -60,38 +62,6 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
     notes: formData.notes || ''
   };
 
-  // Initialize options with existing medication if in edit mode
-  React.useEffect(() => {
-    if (safeFormData.selectedMedication && medicationOptions.length === 0) {
-      setMedicationOptions([safeFormData.selectedMedication]);
-    }
-  }, [safeFormData.selectedMedication]);
-
-  // Search for medications as user types
-  const handleSearchMedications = async (query) => {
-    if (!query || query.length < 2) {
-      setMedicationOptions([]);
-      return;
-    }
-
-    setSearchLoading(true);
-    try {
-      const results = await searchService.searchMedications(query);
-      setMedicationOptions(results.map(med => ({
-        code: med.code,
-        display: med.display,
-        system: med.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-        strength: med.strength,
-        form: med.form,
-        source: med.source || 'rxnorm'
-      })));
-    } catch (error) {
-      setMedicationOptions([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
   return (
     <Stack spacing={3}>
       <Grid container spacing={2}>
@@ -100,59 +70,93 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
           <Typography variant="subtitle2" gutterBottom>
             Medication
           </Typography>
-          <Autocomplete
-            options={medicationOptions}
-            getOptionLabel={(option) => option.display}
-            groupBy={(option) => option.source}
+          <ResourceSearchAutocomplete
+            label="Search for medications"
+            placeholder="Type to search medications from dynamic catalog..."
+            searchService={medicationSearch.searchService}
+            resourceTypes={['Medication']}
             value={safeFormData.selectedMedication}
-            loading={searchLoading}
-            disabled={disabled}
-            isOptionEqualToValue={(option, value) => {
-              if (!option || !value) return false;
-              return option.code === value.code && option.system === value.system;
-            }}
-            onInputChange={(event, value) => {
-              handleSearchMedications(value);
-            }}
             onChange={(event, newValue) => {
               onChange('selectedMedication', newValue);
-              onChange('customMedication', newValue ? newValue.display : safeFormData.customMedication);
+              onChange('customMedication', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.customMedication);
             }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Search for medications"
-                placeholder="Type to search medications..."
-                variant="outlined"
-                error={!!errors.selectedMedication}
-                helperText={errors.selectedMedication}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {searchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
-            )}
+            disabled={disabled}
+            error={!!errors.selectedMedication}
+            helperText={errors.selectedMedication || "Search medications from dynamic clinical catalog"}
+            freeSolo={false}
+            showCacheStatus={true}
+            enableCache={true}
+            cacheTTL={10}
+            debounceMs={300}
+            minQueryLength={2}
+            groupBy={(option) => option.searchSource || 'catalog'}
+            getOptionLabel={(option) => {
+              if (typeof option === 'string') return option;
+              return option.display || option.code?.text || option.id || 'Unknown medication';
+            }}
+            getOptionKey={(option) => {
+              if (typeof option === 'string') return option;
+              return `medication-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+            }}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
+              const display = option.display || option.code?.text || 'Unknown medication';
+              const code = option.code?.coding?.[0]?.code || option.id;
+              const frequency = option.frequency || 0;
+              const source = option.searchSource || 'catalog';
+              const strength = option.strength || '';
+              const form = option.form || '';
+              
               return (
                 <Box component="li" key={key} {...otherProps}>
-                  <Stack>
-                    <Typography variant="body2">{option.display}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      RxNorm: {option.code} • {option.strength || 'No strength'} • {option.form || 'No form'} • Source: {option.source}
+                  <Stack sx={{ width: '100%' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {display}
                     </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                      {code && (
+                        <Chip 
+                          label={`RxNorm: ${code}`} 
+                          size="small" 
+                          variant="outlined"
+                          color="primary"
+                        />
+                      )}
+                      {strength && (
+                        <Chip 
+                          label={strength} 
+                          size="small" 
+                          variant="outlined"
+                          color="secondary"
+                        />
+                      )}
+                      {form && (
+                        <Chip 
+                          label={form} 
+                          size="small" 
+                          variant="outlined"
+                          color="info"
+                        />
+                      )}
+                      {frequency > 0 && (
+                        <Chip 
+                          label={`Freq: ${frequency}`} 
+                          size="small" 
+                          variant="outlined"
+                          color="warning"
+                        />
+                      )}
+                      <Chip 
+                        label={source} 
+                        size="small" 
+                        variant="outlined"
+                        color={source === 'catalog' ? 'success' : 'default'}
+                      />
+                    </Stack>
                   </Stack>
                 </Box>
               );
             }}
-            noOptionsText={
-              searchLoading ? "Searching..." : "No medications found"
-            }
           />
         </Grid>
 

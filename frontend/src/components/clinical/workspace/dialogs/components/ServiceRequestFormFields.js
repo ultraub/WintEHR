@@ -13,9 +13,7 @@ import {
   Typography,
   Chip,
   Stack,
-  Autocomplete,
   Box,
-  CircularProgress,
   FormControlLabel,
   Checkbox,
   Divider,
@@ -25,6 +23,8 @@ import {
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { format } from 'date-fns';
+import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocomplete';
+import { useLabTestSearch, useHybridSearch } from '../../../../../hooks/useResourceSearch';
 import {
   SERVICE_REQUEST_STATUS_OPTIONS,
   SERVICE_REQUEST_INTENT_OPTIONS,
@@ -41,9 +41,19 @@ import {
 } from '../config/serviceRequestDialogConfig';
 
 const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabled, patientConditions = [], recentOrders = [] }) => {
-  const [searchLoading, setSearchLoading] = useState(false);
   const [testOptions, setTestOptions] = useState([]);
   const [clinicalWarnings, setClinicalWarnings] = useState([]);
+
+  // Initialize search hooks for different types of orders
+  const labTestSearch = useLabTestSearch({
+    debounceMs: 300,
+    minQueryLength: 2
+  });
+
+  const hybridSearch = useHybridSearch(['ServiceRequest', 'Observation'], {
+    debounceMs: 300,
+    minQueryLength: 2
+  });
 
   // Provide safe defaults for form data to prevent undefined values
   const safeFormData = {
@@ -151,52 +161,154 @@ const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabl
              safeFormData.category === 'imaging' ? 'Imaging Study' : 
              'Test/Procedure'}
           </Typography>
-          <Autocomplete
-            options={testOptions}
-            getOptionLabel={(option) => option.display}
-            groupBy={(option) => option.category}
-            value={safeFormData.selectedTest}
-            loading={searchLoading}
-            disabled={disabled}
-            isOptionEqualToValue={(option, value) => {
-              if (!option || !value) return false;
-              return option.code === value.code && option.system === value.system;
-            }}
-            onChange={(event, newValue) => handleTestSelection(newValue)}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label={`Search ${safeFormData.category} tests`}
-                placeholder="Type to search or select from common tests..."
-                variant="outlined"
-                error={!!errors.selectedTest}
-                helperText={errors.selectedTest}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {searchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
-            )}
-            renderOption={(props, option) => {
-              const { key, ...otherProps } = props;
-              return (
-                <Box component="li" key={key} {...otherProps}>
-                  <Stack>
-                    <Typography variant="body2">{option.display}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Code: {option.code} • Category: {option.category}
-                    </Typography>
-                  </Stack>
-                </Box>
-              );
-            }}
-            noOptionsText="No tests found for this category"
-          />
+          
+          {safeFormData.category === 'laboratory' ? (
+            // Use dynamic lab catalog for laboratory tests
+            <ResourceSearchAutocomplete
+              label="Search Laboratory Tests"
+              placeholder="Type to search lab tests from dynamic catalog..."
+              searchService={labTestSearch.searchService}
+              resourceTypes={['Observation']}
+              value={safeFormData.selectedTest}
+              onChange={(event, newValue) => {
+                handleTestSelection(newValue);
+              }}
+              disabled={disabled}
+              error={!!errors.selectedTest}
+              helperText={errors.selectedTest || "Search lab tests from dynamic clinical catalog with reference ranges"}
+              freeSolo={false}
+              showCacheStatus={true}
+              enableCache={true}
+              cacheTTL={15}
+              debounceMs={300}
+              minQueryLength={2}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                return option.display || option.code?.text || option.id || 'Unknown test';
+              }}
+              getOptionKey={(option) => {
+                if (typeof option === 'string') return option;
+                return `lab-test-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+              }}
+              renderOption={(props, option) => {
+                const { key, ...otherProps } = props;
+                const display = option.display || option.code?.text || 'Unknown test';
+                const code = option.code?.coding?.[0]?.code || option.id;
+                const category = option.category || 'lab';
+                const source = option.searchSource || 'catalog';
+                const referenceRange = option.referenceRange;
+                
+                return (
+                  <Box component="li" key={key} {...otherProps}>
+                    <Stack sx={{ width: '100%' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {display}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        {code && (
+                          <Chip 
+                            label={`LOINC: ${code}`} 
+                            size="small" 
+                            variant="outlined"
+                            color="primary"
+                          />
+                        )}
+                        <Chip 
+                          label={category} 
+                          size="small" 
+                          variant="outlined"
+                          color="secondary"
+                        />
+                        {referenceRange && (
+                          <Chip 
+                            label="Ref Range" 
+                            size="small" 
+                            variant="outlined"
+                            color="info"
+                          />
+                        )}
+                        <Chip 
+                          label={source} 
+                          size="small" 
+                          variant="outlined"
+                          color={source === 'catalog' ? 'success' : 'default'}
+                        />
+                      </Stack>
+                    </Stack>
+                  </Box>
+                );
+              }}
+            />
+          ) : (
+            // Use hybrid search for other categories (includes static options + dynamic search)
+            <ResourceSearchAutocomplete
+              label={`Search ${safeFormData.category} tests`}
+              placeholder="Type to search or select from available tests..."
+              searchService={hybridSearch.searchService}
+              resourceTypes={['ServiceRequest']}
+              value={safeFormData.selectedTest}
+              onChange={(event, newValue) => {
+                handleTestSelection(newValue);
+              }}
+              disabled={disabled}
+              error={!!errors.selectedTest}
+              helperText={errors.selectedTest || `Search ${safeFormData.category} tests from dynamic catalog and static options`}
+              freeSolo={false}
+              showCacheStatus={true}
+              enableCache={true}
+              cacheTTL={10}
+              debounceMs={300}
+              minQueryLength={2}
+              groupBy={(option) => option.category || 'Other'}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                return option.display || option.code?.text || option.id || 'Unknown test';
+              }}
+              getOptionKey={(option) => {
+                if (typeof option === 'string') return option;
+                return `test-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+              }}
+              renderOption={(props, option) => {
+                const { key, ...otherProps } = props;
+                const display = option.display || option.code?.text || 'Unknown test';
+                const code = option.code?.coding?.[0]?.code || option.id;
+                const category = option.category || 'other';
+                const source = option.searchSource || 'static';
+                
+                return (
+                  <Box component="li" key={key} {...otherProps}>
+                    <Stack sx={{ width: '100%' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {display}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        {code && (
+                          <Chip 
+                            label={`Code: ${code}`} 
+                            size="small" 
+                            variant="outlined"
+                            color="primary"
+                          />
+                        )}
+                        <Chip 
+                          label={category} 
+                          size="small" 
+                          variant="outlined"
+                          color="secondary"
+                        />
+                        <Chip 
+                          label={source} 
+                          size="small" 
+                          variant="outlined"
+                          color={source === 'catalog' ? 'success' : 'default'}
+                        />
+                      </Stack>
+                    </Stack>
+                  </Box>
+                );
+              }}
+            />
+          )}
         </Grid>
 
         {/* Custom Test/Procedure */}

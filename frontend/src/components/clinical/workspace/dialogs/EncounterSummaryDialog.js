@@ -213,8 +213,8 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       printContent.sections.push({
         title: 'Medications',
         items: relatedResources.medications.map(med => [
-          med.medicationCodeableConcept?.text || 
-          med.medicationCodeableConcept?.coding?.[0]?.display || 
+          med.medication?.concept?.text || 
+          med.medication?.concept?.coding?.[0]?.display || 
           'Unknown medication',
           `Status: ${med.status} - ${med.authoredOn ? 
             format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}`
@@ -804,8 +804,8 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                         <ListItemText
                           primary={
                             <Typography variant="body1" fontWeight="500">
-                              {med.medicationCodeableConcept?.text || 
-                               med.medicationCodeableConcept?.coding?.[0]?.display || 
+                              {med.medication?.concept?.text || 
+                               med.medication?.concept?.coding?.[0]?.display || 
                                'Unknown medication'}
                             </Typography>
                           }
