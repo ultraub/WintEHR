@@ -79,7 +79,12 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounterClass) => {
-  switch (encounterClass?.code) {
+  // Handle both array format (R5) and object format (R4)
+  const classCode = Array.isArray(encounterClass) 
+    ? encounterClass[0]?.coding?.[0]?.code 
+    : encounterClass?.code;
+    
+  switch (classCode) {
     case 'IMP':
     case 'ACUTE':
       return <HospitalIcon color="error" />;
@@ -97,6 +102,7 @@ const getEncounterIcon = (encounterClass) => {
 const getEncounterTypeLabel = (encounter) => {
   return encounter.type?.[0]?.text || 
          encounter.type?.[0]?.coding?.[0]?.display || 
+         encounter.class?.[0]?.coding?.[0]?.display ||
          encounter.class?.display ||
          'Encounter';
 };
@@ -119,7 +125,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
     }
   };
 
-  const period = encounter.period || {};
+  const period = encounter.actualPeriod || encounter.period || {};
   const startDate = period.start ? parseISO(period.start) : null;
   const endDate = period.end ? parseISO(period.end) : null;
 
@@ -160,22 +166,28 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
                   <ProviderIcon fontSize="small" color="action" />
                   <Typography variant="body2" color="text.secondary">
                     {encounter.participant.find(p => 
-                      p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                      p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                    )?.actor?.display || 
+                    encounter.participant.find(p => 
+                      p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
                     )?.individual?.display || 'No provider recorded'}
                   </Typography>
                 </Stack>
               )}
 
-              {encounter.reasonCode && (
+              {(encounter.reasonCode || encounter.reason) && (
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     Reason for visit:
                   </Typography>
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                    {encounter.reasonCode.map((reason, idx) => (
+                    {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
                       <Chip 
                         key={idx}
-                        label={reason.text || reason.coding?.[0]?.display} 
+                        label={reason.text || 
+                               reason.coding?.[0]?.display || 
+                               reason.use?.[0]?.coding?.[0]?.display ||
+                               'Encounter'} 
                         size="small"
                         variant="outlined"
                       />
