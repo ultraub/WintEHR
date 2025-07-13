@@ -98,17 +98,39 @@ export const CDSStudioProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
 
+  // Generate hook ID from title
+  const generateHookId = useCallback((title) => {
+    if (!title || typeof title !== 'string') return '';
+    
+    // Convert title to kebab-case ID
+    return title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+  }, []);
+
   // Hook management functions
   const updateHook = useCallback((updates) => {
-    setCurrentHook(prev => ({
-      ...prev,
-      ...updates,
-      _meta: {
-        ...prev._meta,
-        modified: new Date()
+    setCurrentHook(prev => {
+      const updated = { ...prev, ...updates };
+      
+      // Auto-generate ID from title if title changed and no existing ID
+      if (updates.title && (!prev.id || prev.id === generateHookId(prev.title))) {
+        updated.id = generateHookId(updates.title);
       }
-    }));
-  }, []);
+      
+      return {
+        ...updated,
+        _meta: {
+          ...prev._meta,
+          modified: new Date()
+        }
+      };
+    });
+  }, [generateHookId]);
 
   const validateHook = useCallback(() => {
     try {
@@ -123,9 +145,15 @@ export const CDSStudioProvider = ({ children }) => {
         return validationResult;
       }
 
-      // Required fields validation - make these more lenient for testing
-      if (!currentHook.id || !currentHook.id.trim()) {
-        errors.push('Hook ID is required');
+      // Check if we can auto-generate ID from title
+      let hookId = currentHook.id;
+      if ((!hookId || !hookId.trim()) && currentHook.title) {
+        hookId = generateHookId(currentHook.title);
+      }
+      
+      // Required fields validation - ID will be auto-generated from title
+      if (!hookId || !hookId.trim()) {
+        errors.push('Hook title is required (used to generate Hook ID)');
       }
       if (!currentHook.title || !currentHook.title.trim()) {
         errors.push('Hook title is required');
@@ -191,7 +219,7 @@ export const CDSStudioProvider = ({ children }) => {
       setValidation(validationResult);
       return validationResult;
     }
-  }, [currentHook]);
+  }, [currentHook, generateHookId]);
 
   const testHook = useCallback(async (patientId) => {
     const validationResult = validateHook();
@@ -269,10 +297,25 @@ export const CDSStudioProvider = ({ children }) => {
     try {
       // Step 1: Prepare data (20%)
       setSaveProgress(20);
+      setSaveMessage('Preparing hook data...');
+      
+      // Auto-generate ID if missing
+      let hookId = currentHook.id;
+      if (!hookId || !hookId.trim()) {
+        if (currentHook.title) {
+          hookId = generateHookId(currentHook.title);
+          // Update the current hook with the generated ID
+          setCurrentHook(prev => ({ ...prev, id: hookId }));
+        }
+      }
+      
       setSaveMessage('Validating hook data...');
+      
       // Create a safe copy of the hook data for saving
       const hookDataToSave = {
         ...currentHook,
+        // Ensure ID is set
+        id: hookId,
         // Ensure required fields have valid defaults
         enabled: currentHook.enabled !== false, // Default to true if undefined
         conditions: currentHook.conditions || [],

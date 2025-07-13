@@ -3,7 +3,7 @@
  * Extends AbstractFHIRConverter to provide DocumentReference-specific conversion logic
  * Fixes FHIR structure inconsistencies and content encoding issues
  */
-import { AbstractFHIRConverter } from './AbstractFHIRConverter';
+import { AbstractFHIRConverter } from './AbstractFHIRConverter.js';
 
 // FHIR Value Sets for DocumentReference
 export const DOCUMENT_STATUS_OPTIONS = [

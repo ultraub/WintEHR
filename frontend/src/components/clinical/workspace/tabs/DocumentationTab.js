@@ -576,8 +576,8 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
               <Typography variant="subtitle2" gutterBottom>
                 Original Note:
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {note.text || 'No content'}
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                {note.displayContent || note.text || 'No content'}
               </Typography>
               <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                 Signed by {note.author?.[0]?.display} on {note.date ? format(parseISO(note.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
