@@ -363,8 +363,14 @@ class SearchService {
 
     const results = [];
 
-    // Search medications if no category filter or medication category
-    if (!category || category === 'medication') {
+    // Common environmental allergen terms that shouldn't trigger medication search
+    const environmentalTerms = ['dust', 'mites', 'pollen', 'dander', 'mold', 'latex', 'bee', 'wasp'];
+    const isEnvironmentalQuery = environmentalTerms.some(term => 
+      query.toLowerCase().includes(term.toLowerCase())
+    );
+
+    // Search medications if no category filter or medication category, and not obviously environmental
+    if (!isEnvironmentalQuery && (!category || category === 'medication')) {
       try {
         const medications = await this.searchMedications(query, 10);
         results.push(...medications.map(med => ({
@@ -375,7 +381,7 @@ class SearchService {
           source: 'medication_catalog'
         })));
       } catch (error) {
-        // Silently ignore medication search errors
+        // Silently ignore medication search errors (e.g., 404 from missing endpoint)
       }
     }
 
