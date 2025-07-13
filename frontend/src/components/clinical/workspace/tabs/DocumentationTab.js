@@ -826,19 +826,54 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
 
   const handleSignNote = async (note) => {
     try {
-      // Update the note status to final
-      const updatedNote = {
-        ...note,
-        status: 'current',
+      console.log('Attempting to sign note:', { id: note.id, resourceType: note.resourceType });
+      
+      // First, fetch the current DocumentReference to get the proper FHIR structure
+      let currentResource;
+      try {
+        currentResource = await fhirClient.read('DocumentReference', note.id);
+        console.log('Successfully fetched DocumentReference for signing:', currentResource.id);
+      } catch (error) {
+        console.error('Error fetching DocumentReference for signing:', {
+          error: error.message,
+          noteId: note.id,
+          noteObject: note
+        });
+        
+        // Check if we need to try with a different ID format
+        let alternativeId = null;
+        if (note.synthea_id && note.synthea_id !== note.id) {
+          alternativeId = note.synthea_id;
+        } else if (note.resourceId && note.resourceId !== note.id) {
+          alternativeId = note.resourceId;
+        }
+        
+        if (alternativeId) {
+          console.log('Trying alternative ID:', alternativeId);
+          try {
+            currentResource = await fhirClient.read('DocumentReference', alternativeId);
+            console.log('Successfully fetched DocumentReference with alternative ID:', currentResource.id);
+          } catch (altError) {
+            console.error('Alternative ID also failed:', altError.message);
+            throw new Error(`Could not find DocumentReference with ID: ${note.id} or alternative ID: ${alternativeId}`);
+          }
+        } else {
+          throw new Error(`Could not find DocumentReference with ID: ${note.id}`);
+        }
+      }
+
+      // Update only the docStatus to sign the note
+      const updatedResource = {
+        ...currentResource,
         docStatus: 'final'
       };
       
-      const updatedResource = await fhirClient.update('DocumentReference', note.id, updatedNote);
+      const result = await fhirClient.update('DocumentReference', note.id, updatedResource);
       
-      if (updatedResource) {
+      if (result) {
         // Publish DOCUMENTATION_CREATED event (for signed note)
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
-          ...updatedNote,
+          ...updatedResource,
           noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
           isUpdate: true,
           isSigned: true,
