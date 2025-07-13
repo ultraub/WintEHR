@@ -398,6 +398,36 @@ class SyntheaFHIRValidator(FHIRValidator):
                             if k in allowed_repeat_fields
                         }
         
+        # Fix datetime field issues (authoredOn parsing errors)
+        if 'authoredOn' in data:
+            if isinstance(data['authoredOn'], str):
+                # Clean up timezone format for FHIR compliance
+                import re
+                # Remove timezone offset that might cause parsing issues
+                data['authoredOn'] = re.sub(r'\+00:00$', 'Z', data['authoredOn'])
+                # Remove microseconds that might cause issues
+                data['authoredOn'] = re.sub(r'\.\d+', '', data['authoredOn'])
+        
+        # Clean all coding fields to prevent regex validation errors
+        def clean_coding_fields(obj):
+            """Recursively clean all coding fields to ensure FHIR compliance."""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if key == 'code' and isinstance(value, str):
+                        # Clean code values: trim whitespace and ensure no double spaces
+                        obj[key] = ' '.join(value.strip().split())
+                    elif key == 'display' and isinstance(value, str):
+                        # Clean display values: trim whitespace and ensure no double spaces
+                        obj[key] = ' '.join(value.strip().split())
+                    elif isinstance(value, (dict, list)):
+                        clean_coding_fields(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    clean_coding_fields(item)
+        
+        # Apply coding cleanup to the entire resource
+        clean_coding_fields(data)
+        
         return data
     
     def _preprocess_allergy_intolerance(self, data: Dict[str, Any]) -> Dict[str, Any]:

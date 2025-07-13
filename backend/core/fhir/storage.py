@@ -1428,16 +1428,27 @@ class FHIRStorageEngine:
             # Authored on date
             if 'authoredOn' in resource_data:
                 try:
-                    authored_date = datetime.fromisoformat(
-                        resource_data['authoredOn'].replace('Z', '+00:00')
-                    )
+                    authored_on_str = resource_data['authoredOn']
+                    if isinstance(authored_on_str, str):
+                        # Handle multiple datetime formats
+                        if authored_on_str.endswith('Z'):
+                            authored_date = datetime.fromisoformat(authored_on_str.replace('Z', '+00:00'))
+                        elif '+' in authored_on_str or authored_on_str.endswith('00:00'):
+                            authored_date = datetime.fromisoformat(authored_on_str)
+                        else:
+                            # Assume UTC if no timezone info
+                            authored_date = datetime.fromisoformat(authored_on_str + '+00:00')
+                    else:
+                        # Handle case where it's already a datetime object
+                        authored_date = authored_on_str if isinstance(authored_on_str, datetime) else datetime.fromisoformat(str(authored_on_str))
+                    
                     params_to_extract.append({
                         'param_name': 'authoredon',
                         'param_type': 'date',
                         'value_date': authored_date
                     })
                 except (ValueError, TypeError) as e:
-                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
+                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} (type: {type(resource_data.get('authoredOn'))}) - {e}")
         elif resource_type == 'Encounter':
             # Status
             if 'status' in resource_data:
