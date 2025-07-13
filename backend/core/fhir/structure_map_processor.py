@@ -428,7 +428,7 @@ class StructureMapProcessor:
                          source_version: str = "4.0", 
                          target_version: str = "5.0") -> Dict[str, Any]:
         """
-        Transform a FHIR resource between versions
+        Transform a FHIR resource between versions using StructureMap
         
         Args:
             source_resource: Input FHIR resource as dict
@@ -441,6 +441,7 @@ class StructureMapProcessor:
         resource_type = source_resource.get("resourceType")
         
         if resource_type == "AllergyIntolerance":
+            # Use the original AllergyIntolerance implementation for backward compatibility
             if source_version == "4.0" and target_version == "5.0":
                 return self.convert_allergy_r4_to_r5(source_resource)
             elif source_version == "5.0" and target_version == "4.0":
@@ -448,8 +449,13 @@ class StructureMapProcessor:
             else:
                 raise ValueError(f"Unsupported conversion: {source_version} → {target_version}")
         else:
-            # For now, other resources will need to be implemented
-            # This is a placeholder for the general StructureMap processor
-            logger.warning(f"Generic StructureMap processing not yet implemented for {resource_type}")
-            logger.warning(f"Falling back to identity transformation (no conversion)")
-            return source_resource.copy()  # Return unchanged for now
+            # Use generic processor for all other resources
+            from .generic_structure_map_processor import GenericStructureMapProcessor
+            
+            # Initialize generic processor with the same maps directory
+            generic_processor = GenericStructureMapProcessor(str(self.maps_dir))
+            
+            # Delegate to generic processor
+            return generic_processor.transform_resource(
+                source_resource, source_version, target_version
+            )
