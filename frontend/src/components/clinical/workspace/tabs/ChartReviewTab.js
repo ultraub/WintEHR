@@ -354,7 +354,9 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
   // Resolve medication references
-  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
+  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(
+    medications?.filter(med => med && med.id) || []
+  );
   
   // Clinical workflow context for events
   const { publish } = useClinicalWorkflow();

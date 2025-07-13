@@ -66,7 +66,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
 
   // Memoize medication IDs to prevent unnecessary re-verification when array reference changes
   const medicationIds = useMemo(() => {
-    return medications?.map(med => med.id).sort().join(',') || '';
+    return medications?.filter(med => med?.id).map(med => med.id).sort().join(',') || '';
   }, [medications]);
 
   // Add verification cache and request tracking to prevent repeated requests - using useRef to persist across React StrictMode

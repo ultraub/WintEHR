@@ -14,17 +14,19 @@ export const useMedicationResolver = (medicationRequests = []) => {
   const [error, setError] = useState(null);
   
   // Memoize the medication requests array based on IDs to prevent unnecessary re-renders
-  const medicationRequestIds = useMemo(() => 
-    medicationRequests
-      .filter(req => req && req.id) // Filter out null/undefined requests
+  const medicationRequestIds = useMemo(() => {
+    if (!medicationRequests || !Array.isArray(medicationRequests)) {
+      return '';
+    }
+    return medicationRequests
+      .filter(req => req && req.id) // Filter out null/undefined requests and requests without IDs
       .map(req => req.id)
-      .join(','), 
-    [medicationRequests]
-  );
+      .join(',');
+  }, [medicationRequests]);
 
   useEffect(() => {
     const resolveMedications = async () => {
-      if (!medicationRequests || medicationRequests.length === 0) {
+      if (!medicationRequests || !Array.isArray(medicationRequests) || medicationRequests.length === 0) {
         setResolvedMedications({});
         setLoading(false);
         return;
@@ -38,8 +40,8 @@ export const useMedicationResolver = (medicationRequests = []) => {
         // Extract unique medication references
         const medicationRefs = new Set();
         medicationRequests.forEach(req => {
-          // Skip null/undefined requests
-          if (!req) return;
+          // Skip null/undefined requests or requests without IDs
+          if (!req || !req.id) return;
           
           // Handle different medication structures from Synthea
           if (req.medication?.reference?.reference) {
@@ -85,7 +87,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
         // Build resolved medications map AFTER all fetches complete
         medicationRequests.forEach(req => {
-          // Skip null/undefined requests
+          // Skip null/undefined requests or requests without IDs
           if (!req || !req.id) return;
           
           let medicationId = null;

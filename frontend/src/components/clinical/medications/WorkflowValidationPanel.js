@@ -64,7 +64,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
 
   // Memoize medication IDs to prevent unnecessary re-validation when array reference changes
   const medicationIds = useMemo(() => {
-    return medications?.map(med => med.id).sort().join(',') || '';
+    return medications?.filter(med => med?.id).map(med => med.id).sort().join(',') || '';
   }, [medications]);
 
   // Add validation cache and request tracking to prevent repeated requests - using useRef to persist across React StrictMode
@@ -92,16 +92,13 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
         return;
       }
       
+      // Mark request as active IMMEDIATELY before calling runValidation
+      activeRequests.current.add(cacheKey);
       runValidation(cacheKey);
     }
   }, [patientId, medicationIds]); // Only depend on patientId and medicationIds, not the full medications array
 
   const runValidation = useCallback(async (cacheKey = null) => {
-    // Mark this request as active to prevent duplicates
-    if (cacheKey) {
-      activeRequests.current.add(cacheKey);
-    }
-    
     setLoading(true);
     try {
       const report = await medicationWorkflowValidator.validatePatientMedicationWorkflow(patientId);

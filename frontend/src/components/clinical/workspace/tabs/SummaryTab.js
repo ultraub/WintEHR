@@ -355,7 +355,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
   
   // Resolve medication references
-  const { getMedicationDisplay } = useMedicationResolver(medications);
+  const { getMedicationDisplay } = useMedicationResolver(
+    medications?.filter(med => med && med.id) || []
+  );
 
   // Memoized data processing to prevent recalculation on every render
   const processedData = useMemo(() => {
