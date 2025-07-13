@@ -184,9 +184,8 @@ export const updateResource = (encounter = {}, formData, patientId) => {
   const scheduledDateTime = `${formData.scheduledDate}T${formData.scheduledTime}:00.000Z`;
   const endDateTime = new Date(new Date(scheduledDateTime).getTime() + (formData.duration * 60000)).toISOString();
 
-  return {
+  const resource = {
     resourceType: 'Encounter',
-    id: encounter.id,
     meta: {
       lastUpdated: now,
       versionId: encounter.meta?.versionId ? String(parseInt(encounter.meta.versionId) + 1) : '1',
@@ -260,6 +259,13 @@ export const updateResource = (encounter = {}, formData, patientId) => {
       }] : [])
     ]
   };
+
+  // Add id only for existing encounters (edit mode)
+  if (encounter.id) {
+    resource.id = encounter.id;
+  }
+
+  return resource;
 };
 
 /**
