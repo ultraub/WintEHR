@@ -139,6 +139,24 @@ const ResourceSearchAutocomplete = ({
     [enableCache, cacheTTL]
   );
 
+  // Use refs to store current values and prevent recreation
+  const searchServiceRef = useRef(searchService);
+  const resourceTypesRef = useRef(resourceTypes);
+  const searchOptionsRef = useRef(searchOptions);
+
+  // Update refs when props change
+  useEffect(() => {
+    searchServiceRef.current = searchService;
+  }, [searchService]);
+
+  useEffect(() => {
+    resourceTypesRef.current = resourceTypes;
+  }, [resourceTypes]);
+
+  useEffect(() => {
+    searchOptionsRef.current = searchOptions;
+  }, [searchOptions]);
+
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -153,7 +171,7 @@ const ResourceSearchAutocomplete = ({
     };
   }, []);
 
-  // Generate cache key
+  // Generate cache key - memoized to prevent recreation
   const generateCacheKey = useCallback((query, resTypes, options) => {
     return `${cacheKey}:${query}:${resTypes.join(',')}:${JSON.stringify(options)}`;
   }, [cacheKey]);
@@ -211,13 +229,13 @@ const ResourceSearchAutocomplete = ({
 
   // Search function with caching and error handling
   const performSearch = useCallback(async (query) => {
-    if (!query || query.length < minQueryLength || !searchService) {
+    if (!query || query.length < minQueryLength || !searchServiceRef.current) {
       setOptions([]);
       return;
     }
 
     // Check cache first
-    const searchCacheKey = generateCacheKey(query, resourceTypes, searchOptions);
+    const searchCacheKey = generateCacheKey(query, resourceTypesRef.current, searchOptionsRef.current);
     
     if (enableCache) {
       const cachedResult = localCache?.get(searchCacheKey) || globalSearchCache.get(searchCacheKey);
@@ -241,10 +259,10 @@ const ResourceSearchAutocomplete = ({
     onSearchStart?.(query);
 
     try {
-      const results = await searchService(query, {
-        resourceTypes,
+      const results = await searchServiceRef.current(query, {
+        resourceTypes: resourceTypesRef.current,
         signal: searchController.current.signal,
-        ...searchOptions
+        ...searchOptionsRef.current
       });
 
       // Validate results
@@ -277,9 +295,6 @@ const ResourceSearchAutocomplete = ({
       searchController.current = null;
     }
   }, [
-    searchService, 
-    resourceTypes, 
-    searchOptions, 
     minQueryLength,
     enableCache,
     localCache,
