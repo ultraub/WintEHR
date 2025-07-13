@@ -86,37 +86,43 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
     const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
 
     // Filter resources related to this encounter
+    // Handle both reference formats: "Encounter/id" and "urn:uuid:id"
     const encounterRef = `Encounter/${encounter.id}`;
+    const encounterUrnRef = `urn:uuid:${encounter.id}`;
+    
+    const isEncounterMatch = (ref) => {
+      return ref === encounterRef || ref === encounterUrnRef;
+    };
     
     return {
       observations: observations.filter(obs => 
-        obs.encounter?.reference === encounterRef
+        isEncounterMatch(obs.encounter?.reference)
       ),
       procedures: procedures.filter(proc => 
-        proc.encounter?.reference === encounterRef
+        isEncounterMatch(proc.encounter?.reference)
       ),
       medications: medications.filter(med => 
-        med.encounter?.reference === encounterRef
+        isEncounterMatch(med.encounter?.reference)
       ),
       conditions: conditions.filter(cond => {
         // Check if encounter is an array
         if (Array.isArray(cond.encounter)) {
-          return cond.encounter.some(enc => enc.reference === encounterRef);
+          return cond.encounter.some(enc => isEncounterMatch(enc.reference));
         }
         // Check if encounter is a single reference object
         if (cond.encounter?.reference) {
-          return cond.encounter.reference === encounterRef;
+          return isEncounterMatch(cond.encounter.reference);
         }
         return false;
       }),
       documents: documentReferences.filter(doc => {
         // Check if context.encounter is an array
         if (Array.isArray(doc.context?.encounter)) {
-          return doc.context.encounter.some(enc => enc.reference === encounterRef);
+          return doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
         }
         // Check if context.encounter is a single reference object
         if (doc.context?.encounter?.reference) {
-          return doc.context.encounter.reference === encounterRef;
+          return isEncounterMatch(doc.context.encounter.reference);
         }
         return false;
       })

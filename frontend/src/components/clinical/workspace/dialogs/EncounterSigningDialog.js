@@ -156,8 +156,15 @@ const EncounterSigningDialog = ({
       
       // Load existing diagnoses (Conditions)
       const conditions = getPatientResources(patientId, 'Condition') || [];
+      const encounterRef = `Encounter/${encounter.id}`;
+      const encounterUrnRef = `urn:uuid:${encounter.id}`;
+      
+      const isEncounterMatch = (ref) => {
+        return ref === encounterRef || ref === encounterUrnRef;
+      };
+      
       const encounterConditions = conditions.filter(c => 
-        c.encounter?.reference?.includes(encounter.id)
+        isEncounterMatch(c.encounter?.reference)
       );
       
       setDiagnosesData(encounterConditions);
@@ -196,9 +203,24 @@ const EncounterSigningDialog = ({
 
     // Check for missing documentation
     const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
-    const encounterDocs = documentReferences.filter(doc => 
-      doc.context?.encounter?.reference?.includes(encounter.id)
-    );
+    const encounterRef = `Encounter/${encounter.id}`;
+    const encounterUrnRef = `urn:uuid:${encounter.id}`;
+    
+    const isEncounterMatch = (ref) => {
+      return ref === encounterRef || ref === encounterUrnRef;
+    };
+    
+    const encounterDocs = documentReferences.filter(doc => {
+      // Check if context.encounter is an array
+      if (Array.isArray(doc.context?.encounter)) {
+        return doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
+      }
+      // Check if context.encounter is a single reference object
+      if (doc.context?.encounter?.reference) {
+        return isEncounterMatch(doc.context.encounter.reference);
+      }
+      return false;
+    });
     
     if (encounterDocs.length === 0) {
       newWarnings.push('No clinical documentation found for this encounter');
@@ -210,7 +232,7 @@ const EncounterSigningDialog = ({
       ...(getPatientResources(patientId, 'ServiceRequest') || [])
     ];
     const encounterOrders = orders.filter(order => 
-      order.encounter?.reference?.includes(encounter.id)
+      isEncounterMatch(order.encounter?.reference)
     );
     const unsignedOrders = encounterOrders.filter(order => 
       order.status === 'draft' || !order.requester
