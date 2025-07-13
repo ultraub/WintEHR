@@ -73,6 +73,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { printDocument } from '../../../../utils/printUtils';
+import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Event type configuration
@@ -261,7 +262,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
         )?.individual?.display;
         return provider || event.status;
       case 'MedicationRequest':
-        return event.dosageInstruction?.[0]?.text || event.status;
+        return getMedicationDosageDisplay(event);
       case 'Observation':
         return event.valueQuantity ? 
           `${event.valueQuantity.value} ${event.valueQuantity.unit}` :

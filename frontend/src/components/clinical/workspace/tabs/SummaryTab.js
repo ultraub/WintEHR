@@ -45,6 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -574,7 +575,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                     <RecentItem
                       key={med.id}
                       primary={getMedicationDisplay(med)}
-                      secondary={med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                      secondary={getMedicationDosageDisplay(med)}
                       icon={<MedicationIcon color="primary" />}
                       onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />

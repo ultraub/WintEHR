@@ -91,6 +91,7 @@ import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -667,19 +668,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     <Box sx={{ mt: 0.5 }}>
                       {/* Primary dosage line */}
                       <Typography variant="body2" sx={{ mb: 0.5 }}>
-                        <strong>Dosage:</strong> {(() => {
-                          const structuredDosage = formatStructuredDosage(med.dosageInstruction?.[0]);
-                          const textDosage = med.dosageInstruction?.[0]?.text;
-                          
-                          // Use structured dosage if available, otherwise fall back to text
-                          if (structuredDosage) {
-                            return structuredDosage;
-                          } else if (textDosage) {
-                            return textDosage;
-                          } else {
-                            return 'No dosage information';
-                          }
-                        })()}
+                        <strong>Dosage:</strong> {getMedicationDosageDisplay(med)}
                         {(med.dosageInstruction?.[0]?.route?.text || med.dosageInstruction?.[0]?.route?.coding?.[0]?.display) && (
                           <span> • <strong>Route:</strong> {
                             med.dosageInstruction[0].route.text || 
@@ -726,14 +715,11 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
 
                       {/* Special instructions if different from structured dosage */}
                       {(() => {
-                        const structuredDosage = formatStructuredDosage(med.dosageInstruction?.[0]);
-                        const textDosage = med.dosageInstruction?.[0]?.text;
-                        
-                        // Show text instructions if they exist and are different from structured dosage
-                        if (textDosage && structuredDosage && textDosage !== structuredDosage) {
+                        const specialInstructions = getMedicationSpecialInstructions(med);
+                        if (specialInstructions) {
                           return (
                             <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary' }}>
-                              <strong>Instructions:</strong> {textDosage}
+                              <strong>Instructions:</strong> {specialInstructions}
                             </Typography>
                           );
                         }
@@ -885,60 +871,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   );
 };
 
-// Helper function to format structured dosage information
-const formatStructuredDosage = (dosageInstruction) => {
-  if (!dosageInstruction) return null;
-  
-  const parts = [];
-  
-  // Extract dose amount
-  const doseAndRate = dosageInstruction.doseAndRate?.[0];
-  if (doseAndRate?.doseQuantity?.value) {
-    const value = doseAndRate.doseQuantity.value;
-    const unit = doseAndRate.doseQuantity.unit && doseAndRate.doseQuantity.unit !== 'dose' 
-      ? doseAndRate.doseQuantity.unit 
-      : '';
-    parts.push(unit ? `${value} ${unit}` : value.toString());
-  } else if (doseAndRate?.doseRange?.low?.value) {
-    const lowValue = doseAndRate.doseRange.low.value;
-    const highValue = doseAndRate.doseRange.high?.value;
-    const unit = doseAndRate.doseRange.low.unit && doseAndRate.doseRange.low.unit !== 'dose'
-      ? doseAndRate.doseRange.low.unit
-      : '';
-    if (highValue) {
-      parts.push(unit ? `${lowValue}-${highValue} ${unit}` : `${lowValue}-${highValue}`);
-    } else {
-      parts.push(unit ? `${lowValue} ${unit}` : lowValue.toString());
-    }
-  }
-  
-  // Extract frequency from timing
-  const timing = dosageInstruction.timing;
-  if (timing?.repeat) {
-    const repeat = timing.repeat;
-    if (repeat.frequency && repeat.period && repeat.periodUnit) {
-      if (repeat.frequency === 1 && repeat.period === 1) {
-        switch (repeat.periodUnit) {
-          case 'd': parts.push('once daily'); break;
-          case 'h': parts.push(`every ${repeat.period} hours`); break;
-          case 'wk': parts.push('weekly'); break;
-          default: parts.push(`every ${repeat.period} ${repeat.periodUnit}`);
-        }
-      } else if (repeat.period === 1 && repeat.periodUnit === 'd') {
-        switch (repeat.frequency) {
-          case 2: parts.push('twice daily'); break;
-          case 3: parts.push('three times daily'); break;
-          case 4: parts.push('four times daily'); break;
-          default: parts.push(`${repeat.frequency} times daily`);
-        }
-      } else {
-        parts.push(`${repeat.frequency} times every ${repeat.period} ${repeat.periodUnit}`);
-      }
-    }
-  }
-  
-  return parts.length > 0 ? parts.join(', ') : null;
-};
 
 // Allergy List Component
 const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {

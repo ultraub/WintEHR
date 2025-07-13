@@ -73,6 +73,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
+import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
@@ -1319,7 +1320,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
                 {selectedRequest.dosageInstruction?.[0] && (
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
-                    <Typography variant="body1">{selectedRequest.dosageInstruction[0].text || 'See prescription'}</Typography>
+                    <Typography variant="body1">{getMedicationDosageDisplay(selectedRequest)}</Typography>
                   </Grid>
                 )}
                 {selectedRequest.dispenseRequest && (

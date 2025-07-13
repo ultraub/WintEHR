@@ -42,6 +42,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
+import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../utils/medicationDisplayUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {
@@ -819,11 +820,13 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                                 variant="outlined"
                                 sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
                               />
-                              {med.dosageInstruction?.[0]?.text && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {med.dosageInstruction[0].text}
-                                </Typography>
-                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                {getMedicationDosageDisplay(med)}
+                                {(() => {
+                                  const route = getMedicationRoute(med);
+                                  return route ? ` • Route: ${route}` : '';
+                                })()}
+                              </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {med.authoredOn ? 
                                   format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}
