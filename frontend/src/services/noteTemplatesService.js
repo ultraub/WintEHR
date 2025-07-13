@@ -290,7 +290,6 @@ export class NoteAutoPopulationService {
 
       return this.patientData;
     } catch (error) {
-      console.error('Error initializing patient data for auto-population:', error);
       this.patientData = null;
       return null;
     }

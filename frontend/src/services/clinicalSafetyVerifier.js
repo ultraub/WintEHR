@@ -376,7 +376,6 @@ class ClinicalSafetyVerifier {
       return verificationReport;
 
     } catch (error) {
-      console.error('Error performing safety verification:', error);
       throw error;
     }
   }
@@ -411,7 +410,6 @@ class ClinicalSafetyVerifier {
         carePlans: carePlansResponse.resources || []
       };
     } catch (error) {
-      console.error('Error gathering patient safety data:', error);
       throw error;
     }
   }
@@ -432,7 +430,6 @@ class ClinicalSafetyVerifier {
             categoryResult.safe = false;
           }
         } catch (error) {
-          console.error(`Error running safety rule ${ruleName}:`, error);
           categoryResult.issues.push({
             type: 'verification_error',
             message: `Safety check failed: ${rule.description}`,
@@ -955,7 +952,6 @@ class ClinicalSafetyVerifier {
         daysSinceAuthor
       };
     } catch (error) {
-      console.warn('Error getting refill history:', error);
       return {
         refillsUsed: 0,
         refillsAllowed: 0,
@@ -1074,7 +1070,6 @@ class ClinicalSafetyVerifier {
       // For now, return false to indicate follow-up may be needed
       return false;
     } catch (error) {
-      console.warn('Error checking post-discontinuation follow-up:', error);
       return false;
     }
   }
@@ -1088,7 +1083,6 @@ class ClinicalSafetyVerifier {
       // Check for Observation resources related to adverse effects
       return false; // Conservative approach - assume no tracking unless documented
     } catch (error) {
-      console.warn('Error checking adverse effect tracking:', error);
       return false;
     }
   }

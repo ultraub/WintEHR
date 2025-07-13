@@ -112,7 +112,7 @@ class MedicationWorkflowValidator {
                 return { valid: false, issue: 'Active medication missing monitoring plan' };
               }
             } catch (error) {
-              console.warn('Error checking monitoring plan:', error);
+              // Monitoring plan check failed - continue with validation
             }
           }
 
@@ -167,7 +167,6 @@ class MedicationWorkflowValidator {
       return validationReport;
 
     } catch (error) {
-      console.error('Error validating medication workflow:', error);
       throw error;
     }
   }
@@ -212,7 +211,6 @@ class MedicationWorkflowValidator {
         )
       };
     } catch (error) {
-      console.error('Error gathering medication data:', error);
       throw error;
     }
   }
@@ -352,7 +350,7 @@ class MedicationWorkflowValidator {
         }
       }
     } catch (error) {
-      console.warn('Error validating refill workflow:', error);
+      // Refill workflow validation failed - continue
     }
   }
 
@@ -472,7 +470,7 @@ class MedicationWorkflowValidator {
         }
       }
     } catch (error) {
-      console.warn('Error validating medication lists:', error);
+      // Medication list validation failed - continue
     }
 
     // Check status transition validity
@@ -635,7 +633,6 @@ class MedicationWorkflowValidator {
         });
       } catch (error) {
         fixResults.failed++;
-        console.error('Error fixing list inconsistency:', error);
       }
     }
 
@@ -658,7 +655,6 @@ class MedicationWorkflowValidator {
         });
       } catch (error) {
         fixResults.failed++;
-        console.error('Error creating monitoring plan:', error);
       }
     }
 

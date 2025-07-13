@@ -266,7 +266,6 @@ class ResultsManagementService {
       const response = await fhirClient.create('Communication', notification);
       return response;
     } catch (error) {
-      console.error('Failed to create critical value notification:', error);
       throw error;
     }
   }
@@ -321,7 +320,6 @@ class ResultsManagementService {
       const response = await fhirClient.create('Task', task);
       return response;
     } catch (error) {
-      console.error('Failed to create result review task:', error);
       throw error;
     }
   }
@@ -388,7 +386,6 @@ class ResultsManagementService {
       const response = await fhirClient.create('Provenance', acknowledgment);
       return response;
     } catch (error) {
-      console.error('Failed to acknowledge result:', error);
       throw error;
     }
   }
@@ -437,7 +434,6 @@ class ResultsManagementService {
         criticalCheck: this.checkCriticalValue(obs)
       }));
     } catch (error) {
-      console.error('Failed to get unacknowledged results:', error);
       throw error;
     }
   }
@@ -492,7 +488,6 @@ class ResultsManagementService {
       const response = await fhirClient.create('Communication', communication);
       return response;
     } catch (error) {
-      console.error('Failed to create patient notification:', error);
       throw error;
     }
   }
@@ -525,7 +520,6 @@ class ResultsManagementService {
           id: obs.id
         }));
     } catch (error) {
-      console.error('Failed to get result trends:', error);
       throw error;
     }
   }
@@ -557,7 +551,6 @@ class ResultsManagementService {
         );
       });
     } catch (error) {
-      console.error('Failed to get results requiring follow-up:', error);
       throw error;
     }
   }
