@@ -129,14 +129,9 @@ const BaseResourceDialog = ({
     const newErrors = {};
     let isValid = true;
 
-    console.log('BaseResourceDialog: validateForm - formData:', formData);
-    console.log('BaseResourceDialog: validateForm - validationRules:', validationRules);
-
     // Run custom validation if provided
     if (onValidate) {
-      console.log('BaseResourceDialog: running custom validation');
       const customErrors = onValidate(formData);
-      console.log('BaseResourceDialog: custom validation errors:', customErrors);
       if (customErrors && Object.keys(customErrors).length > 0) {
         Object.assign(newErrors, customErrors);
         isValid = false;
@@ -146,70 +141,53 @@ const BaseResourceDialog = ({
     // Run built-in validation rules
     Object.entries(validationRules).forEach(([fieldName, rules]) => {
       const value = formData[fieldName];
-      console.log(`BaseResourceDialog: validating field '${fieldName}' with value:`, value, 'rules:', rules);
       
       if (rules.required && (!value || value === '')) {
-        const errorMsg = `${rules.label || fieldName} is required`;
-        console.log(`BaseResourceDialog: Required field error for '${fieldName}':`, errorMsg);
-        newErrors[fieldName] = errorMsg;
+        newErrors[fieldName] = `${rules.label || fieldName} is required`;
         isValid = false;
       }
       
       if (rules.minLength && value && value.length < rules.minLength) {
-        const errorMsg = `${rules.label || fieldName} must be at least ${rules.minLength} characters`;
-        console.log(`BaseResourceDialog: MinLength error for '${fieldName}':`, errorMsg);
-        newErrors[fieldName] = errorMsg;
+        newErrors[fieldName] = `${rules.label || fieldName} must be at least ${rules.minLength} characters`;
         isValid = false;
       }
       
       if (rules.pattern && value && !rules.pattern.test(value)) {
-        const errorMsg = rules.patternMessage || `${rules.label || fieldName} format is invalid`;
-        console.log(`BaseResourceDialog: Pattern error for '${fieldName}':`, errorMsg);
-        newErrors[fieldName] = errorMsg;
+        newErrors[fieldName] = rules.patternMessage || `${rules.label || fieldName} format is invalid`;
         isValid = false;
       }
 
       if (rules.custom) {
-        console.log(`BaseResourceDialog: running custom validation for '${fieldName}'`);
         const customError = rules.custom(value, formData);
         if (customError) {
-          console.log(`BaseResourceDialog: Custom validation error for '${fieldName}':`, customError);
           newErrors[fieldName] = customError;
           isValid = false;
         }
       }
     });
 
-    console.log('BaseResourceDialog: final validation errors:', newErrors);
-    console.log('BaseResourceDialog: final validation result:', isValid);
     setErrors(newErrors);
     return isValid;
   };
 
   // Handle save
   const handleSave = async () => {
-    console.log('BaseResourceDialog: handleSave called');
-    
     const isValid = validateForm();
     
     if (!isValid) {
-      console.log('BaseResourceDialog: validation failed, not saving');
       return;
     }
 
-    console.log('BaseResourceDialog: starting save...');
     setIsSubmitting(true);
     setSaveError(null);
 
     try {
-      console.log('BaseResourceDialog: calling onSave with:', formData, mode);
       await onSave(formData, mode);
-      console.log('BaseResourceDialog: save successful');
       // Mark as just saved to bypass unsaved changes check
       setJustSaved(true);
       handleClose(true); // Bypass unsaved check
     } catch (error) {
-      console.error('BaseResourceDialog: save error:', error);
+      console.error('Save error:', error);
       setSaveError(error.message || 'An error occurred while saving');
     } finally {
       setIsSubmitting(false);

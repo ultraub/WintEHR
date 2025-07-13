@@ -59,8 +59,11 @@ const EncounterCreationDialog = ({
     }
 
     const scheduledDateTime = new Date(`${formData.scheduledDate}T${formData.scheduledTime}`);
-    if (scheduledDateTime < new Date() && mode === 'add') {
-      errors.scheduledDate = 'Cannot schedule encounters in the past';
+    const now = new Date();
+    // Allow scheduling up to 15 minutes in the past (for flexibility)
+    const cutoffTime = new Date(now.getTime() - 15 * 60 * 1000);
+    if (scheduledDateTime < cutoffTime && mode === 'add') {
+      errors.scheduledDate = 'Cannot schedule encounters more than 15 minutes in the past';
     }
 
     return errors;
@@ -68,28 +71,18 @@ const EncounterCreationDialog = ({
 
   // Save handler
   const handleSave = async (formData, saveMode) => {
-    console.log('EncounterCreationDialog: handleSave called');
-    console.log('EncounterCreationDialog: formData:', formData);
-    console.log('EncounterCreationDialog: saveMode:', saveMode);
-    console.log('EncounterCreationDialog: patientId:', patientId);
-    
     try {
       let savedEncounter;
 
       if (saveMode === 'edit') {
         // Update existing encounter
-        console.log('EncounterCreationDialog: updating existing encounter');
         const updatedEncounter = updateResource(encounter, formData, patientId);
-        console.log('EncounterCreationDialog: updatedEncounter:', updatedEncounter);
         const response = await api.put(`/fhir/R4/Encounter/${encounter.id}`, updatedEncounter);
         savedEncounter = response.data;
       } else {
         // Create new encounter
-        console.log('EncounterCreationDialog: creating new encounter');
         const newEncounter = createEncounterResource(formData, patientId);
-        console.log('EncounterCreationDialog: newEncounter:', newEncounter);
         const response = await api.post('/fhir/R4/Encounter', newEncounter);
-        console.log('EncounterCreationDialog: API response:', response);
         savedEncounter = response.data;
       }
 
