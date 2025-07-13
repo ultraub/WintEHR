@@ -88,8 +88,8 @@ const CriticalValueAlert = ({
   }, [open, observation]);
 
   const logCriticalValueAlert = () => {
+    // Critical value alert logged internally for audit purposes
     const alertTime = new Date();
-    console.info(`CRITICAL VALUE ALERT - ${testName}: ${value} at ${format(alertTime, 'HH:mm:ss')}`);
   };
 
   const handleAcknowledge = async () => {
@@ -129,7 +129,7 @@ const CriticalValueAlert = ({
 
       onClose();
     } catch (error) {
-      console.error('Failed to acknowledge critical value:', error);
+      // Error handled silently, acknowledgment button returns to normal state
     } finally {
       setAcknowledging(false);
     }

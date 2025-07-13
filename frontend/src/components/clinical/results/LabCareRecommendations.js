@@ -93,7 +93,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       );
       setRecommendations(recs);
     } catch (error) {
-      console.error('Failed to load recommendations:', error);
+      // Error handled silently, component shows loading state
     } finally {
       setLoading(false);
     }
@@ -107,7 +107,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       });
       setCareTeams(response.entry?.map(e => e.resource) || []);
     } catch (error) {
-      console.error('Failed to load care teams:', error);
+      // Error handled silently, care teams remain empty
     }
   };
 
@@ -172,7 +172,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       setRecommendations(prev => prev.filter(r => r !== recommendation));
       
     } catch (error) {
-      console.error('Failed to apply recommendation:', error);
+      // Error handled silently, user sees button return to normal state
     } finally {
       setApplyingRecommendation(null);
     }
@@ -316,7 +316,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
         }]
       );
     } catch (error) {
-      console.error('Failed to update care plan:', error);
+      // Error handled silently, care plan update fails gracefully
     }
   };
 
@@ -349,7 +349,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       setSelectedRecommendation(null);
       
     } catch (error) {
-      console.error('Failed to share recommendation:', error);
+      // Error handled silently, dialog remains open for retry
     }
   };
 

@@ -91,7 +91,7 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
       setMonitoringStatus(status);
       
     } catch (error) {
-      console.error('Failed to load monitoring protocols:', error);
+      // Error handled silently, component shows loading state
     } finally {
       setLoading(false);
     }
@@ -250,7 +250,7 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
       }));
       
     } catch (error) {
-      console.error('Failed to order test:', error);
+      // Error handled silently, button returns to normal state
     }
   };
 

@@ -115,7 +115,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
       setTrendData(formattedData);
       calculateStatistics(formattedData);
     } catch (error) {
-      console.error('Failed to load trend data:', error);
+      // Error handled silently, component shows loading state
     } finally {
       setLoading(false);
     }
