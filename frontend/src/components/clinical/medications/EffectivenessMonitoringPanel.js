@@ -56,7 +56,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
   const [selectedPrompts, setSelectedPrompts] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
-  const { getMedicationDisplay } = useMedicationResolver(medications);
+  const { getMedicationDisplay } = useMedicationResolver(medications?.filter(med => med != null) || []);
 
   useEffect(() => {
     if (patientId && medications.length > 0) {

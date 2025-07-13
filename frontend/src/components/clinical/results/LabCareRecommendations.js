@@ -40,6 +40,7 @@ import {
 import {
   TrendingUp as AdjustmentIcon,
   Science as DiagnosticIcon,
+  Science,
   Warning as CriticalIcon,
   Schedule as MonitoringIcon,
   ExpandMore as ExpandMoreIcon,

@@ -494,7 +494,7 @@ const RefillManagement = ({ patientId, medications = [], onRefresh }) => {
     });
   }, [medications, eligibilityData]);
 
-  const { getMedicationDisplay } = useMedicationResolver(medications);
+  const { getMedicationDisplay } = useMedicationResolver(medications?.filter(med => med != null) || []);
 
   return (
     <Box>

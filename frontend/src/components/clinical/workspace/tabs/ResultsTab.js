@@ -73,7 +73,8 @@ import {
   Remove as NormalRangeIcon,
   Assessment as AssessmentIcon,
   Close as CloseIcon,
-  CheckCircle
+  CheckCircle,
+  Timeline as TimelineIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -90,6 +91,7 @@ import LabCareRecommendations from '../../results/LabCareRecommendations';
 import LabMonitoringDashboard from '../../results/LabMonitoringDashboard';
 import { resultsManagementService } from '../../../../services/resultsManagementService';
 import { labToCareIntegrationService } from '../../../../services/labToCareIntegrationService';
+import { fhirClient } from '../../../../services/fhirClient';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
