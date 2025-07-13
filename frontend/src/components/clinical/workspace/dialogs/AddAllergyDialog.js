@@ -21,7 +21,7 @@ const AddAllergyDialog = ({ open, onClose, onAdd, patientId }) => {
     
     // Check allergen requirement
     if (!formData.selectedAllergen && !formData.customAllergen) {
-      errors.allergen = 'Please specify an allergen or select from the list';
+      errors.selectedAllergen = 'Please specify an allergen or select from the list';
     }
     
     return errors;

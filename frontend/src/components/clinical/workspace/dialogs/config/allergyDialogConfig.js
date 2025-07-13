@@ -70,8 +70,8 @@ export const initialValues = {
 
 // Validation rules for form fields
 export const validationRules = {
-  allergen: {
-    required: true,
+  selectedAllergen: {
+    required: false, // Custom validation below
     label: 'Allergen',
     custom: (value, formData) => {
       if (!formData.selectedAllergen && !formData.customAllergen) {
@@ -79,6 +79,10 @@ export const validationRules = {
       }
       return null;
     }
+  },
+  customAllergen: {
+    required: false, // Custom validation above
+    label: 'Custom Allergen'
   },
   allergyType: {
     required: true,

@@ -31,9 +31,30 @@ import {
   getAllergenDisplay
 } from '../config/allergyDialogConfig';
 
-const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
+const AllergyFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [allergenOptions, setAllergenOptions] = useState([]);
+
+  // Provide safe defaults for form data to prevent undefined values
+  const safeFormData = {
+    selectedAllergen: formData.selectedAllergen || null,
+    customAllergen: formData.customAllergen || '',
+    allergyType: formData.allergyType || 'allergy',
+    criticality: formData.criticality || 'unable-to-assess',
+    clinicalStatus: formData.clinicalStatus || 'active',
+    verificationStatus: formData.verificationStatus || 'confirmed',
+    onsetDate: formData.onsetDate || null,
+    reactions: formData.reactions || [],
+    reactionSeverity: formData.reactionSeverity || 'mild',
+    notes: formData.notes || ''
+  };
+
+  // Initialize options with existing allergen if in edit mode
+  React.useEffect(() => {
+    if (safeFormData.selectedAllergen && allergenOptions.length === 0) {
+      setAllergenOptions([safeFormData.selectedAllergen]);
+    }
+  }, [safeFormData.selectedAllergen]);
 
   // Search for allergens as user types
   const handleSearchAllergens = async (query, category = null) => {
@@ -65,15 +86,19 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
             options={allergenOptions}
             getOptionLabel={(option) => option.display}
             groupBy={(option) => option.category}
-            value={formData.selectedAllergen}
+            value={safeFormData.selectedAllergen}
             loading={searchLoading}
             disabled={disabled}
+            isOptionEqualToValue={(option, value) => {
+              if (!option || !value) return false;
+              return option.code === value.code && option.system === value.system;
+            }}
             onInputChange={(event, value) => {
               handleSearchAllergens(value);
             }}
             onChange={(event, newValue) => {
               onChange('selectedAllergen', newValue);
-              onChange('customAllergen', newValue ? newValue.display : formData.customAllergen);
+              onChange('customAllergen', newValue ? newValue.display : safeFormData.customAllergen);
             }}
             renderInput={(params) => (
               <TextField
@@ -81,8 +106,8 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
                 label="Search for allergens"
                 placeholder="Type to search allergens..."
                 variant="outlined"
-                error={!!errors.allergen}
-                helperText={errors.allergen}
+                error={!!errors.selectedAllergen}
+                helperText={errors.selectedAllergen}
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
@@ -118,15 +143,15 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <TextField
             fullWidth
             label="Custom Allergen"
-            value={formData.customAllergen}
+            value={safeFormData.customAllergen}
             onChange={(e) => {
               onChange('customAllergen', e.target.value);
               onChange('selectedAllergen', null);
             }}
             variant="outlined"
             disabled={disabled}
-            error={!!errors.allergen}
-            helperText={errors.allergen || "Enter an allergen not found in the search results"}
+            error={!!errors.customAllergen}
+            helperText={errors.customAllergen || "Enter an allergen not found in the search results"}
           />
         </Grid>
 
@@ -135,7 +160,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <FormControl fullWidth error={!!errors.allergyType}>
             <InputLabel>Type</InputLabel>
             <Select
-              value={formData.allergyType}
+              value={safeFormData.allergyType}
               label="Type"
               disabled={disabled}
               onChange={(e) => onChange('allergyType', e.target.value)}
@@ -153,7 +178,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <FormControl fullWidth error={!!errors.criticality}>
             <InputLabel>Criticality</InputLabel>
             <Select
-              value={formData.criticality}
+              value={safeFormData.criticality}
               label="Criticality"
               disabled={disabled}
               onChange={(e) => onChange('criticality', e.target.value)}
@@ -177,7 +202,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <FormControl fullWidth error={!!errors.clinicalStatus}>
             <InputLabel>Clinical Status</InputLabel>
             <Select
-              value={formData.clinicalStatus}
+              value={safeFormData.clinicalStatus}
               label="Clinical Status"
               disabled={disabled}
               onChange={(e) => onChange('clinicalStatus', e.target.value)}
@@ -195,7 +220,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <FormControl fullWidth error={!!errors.verificationStatus}>
             <InputLabel>Verification Status</InputLabel>
             <Select
-              value={formData.verificationStatus}
+              value={safeFormData.verificationStatus}
               label="Verification Status"
               disabled={disabled}
               onChange={(e) => onChange('verificationStatus', e.target.value)}
@@ -213,7 +238,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
         <Grid item xs={6}>
           <DatePicker
             label="Onset Date"
-            value={formData.onsetDate}
+            value={safeFormData.onsetDate}
             disabled={disabled}
             onChange={(newValue) => onChange('onsetDate', newValue)}
             slotProps={{
@@ -231,7 +256,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <FormControl fullWidth error={!!errors.reactionSeverity}>
             <InputLabel>Reaction Severity</InputLabel>
             <Select
-              value={formData.reactionSeverity}
+              value={safeFormData.reactionSeverity}
               label="Reaction Severity"
               disabled={disabled}
               onChange={(e) => onChange('reactionSeverity', e.target.value)}
@@ -259,7 +284,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
               if (typeof option === 'string') return option;
               return option.text || option.display || 'Unknown';
             }}
-            value={formData.reactions}
+            value={safeFormData.reactions}
             onChange={(event, newValue) => onChange('reactions', newValue)}
             renderTags={(value, getTagProps) =>
               value.map((option, index) => (
@@ -303,7 +328,7 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
           <TextField
             fullWidth
             label="Additional Notes"
-            value={formData.notes}
+            value={safeFormData.notes}
             disabled={disabled}
             onChange={(e) => onChange('notes', e.target.value)}
             variant="outlined"
@@ -317,37 +342,37 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
       </Grid>
 
       {/* Preview */}
-      {(formData.selectedAllergen || formData.customAllergen) && (
+      {(safeFormData.selectedAllergen || safeFormData.customAllergen) && (
         <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
           <Typography variant="subtitle2" gutterBottom>
             Preview:
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-              {getAllergenDisplay(formData)}
+              {getAllergenDisplay(safeFormData)}
             </Typography>
             <Chip 
-              label={formData.allergyType} 
+              label={safeFormData.allergyType} 
               size="small" 
               variant="outlined"
             />
             <Chip 
-              label={formData.criticality} 
+              label={safeFormData.criticality} 
               size="small" 
-              color={getCriticalityColor(formData.criticality)}
+              color={getCriticalityColor(safeFormData.criticality)}
             />
             <Chip 
-              label={formData.clinicalStatus} 
+              label={safeFormData.clinicalStatus} 
               size="small" 
-              color={formData.clinicalStatus === 'active' ? 'warning' : 'default'}
+              color={safeFormData.clinicalStatus === 'active' ? 'warning' : 'default'}
             />
           </Stack>
-          {formData.reactions.length > 0 && (
+          {safeFormData.reactions.length > 0 && (
             <Stack direction="row" spacing={0.5} sx={{ mb: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
                 Reactions:
               </Typography>
-              {formData.reactions.map((reaction, index) => (
+              {safeFormData.reactions.map((reaction, index) => (
                 <Chip 
                   key={index} 
                   label={typeof reaction === 'string' ? reaction : reaction?.text || reaction?.display || 'Unknown'} 
@@ -357,9 +382,9 @@ const AllergyFormFields = ({ formData, errors, onChange, disabled }) => {
               ))}
             </Stack>
           )}
-          {formData.onsetDate && (
+          {safeFormData.onsetDate && (
             <Typography variant="caption" color="text.secondary">
-              Onset: {format(formData.onsetDate, 'MMM d, yyyy')}
+              Onset: {format(safeFormData.onsetDate, 'MMM d, yyyy')}
             </Typography>
           )}
         </Box>

@@ -914,14 +914,18 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                   }
                   secondary={
                     <Box>
-                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => (
-                        <Chip 
-                          key={idx}
-                          label={m.text || m.coding?.[0]?.display} 
-                          size="small" 
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                        />
-                      ))}
+                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => {
+                        // Handle both R4 and R5 formats
+                        const manifestationText = m?.concept?.text || m?.text || m?.concept?.coding?.[0]?.display || m?.coding?.[0]?.display;
+                        return manifestationText ? (
+                          <Chip 
+                            key={idx}
+                            label={manifestationText} 
+                            size="small" 
+                            sx={{ mr: 0.5, mb: 0.5 }}
+                          />
+                        ) : null;
+                      })}
                       <Typography variant="caption" color="text.secondary" display="block">
                         Recorded: {allergy.recordedDate ? format(parseISO(allergy.recordedDate), 'MMM d, yyyy') : 'Unknown'}
                       </Typography>

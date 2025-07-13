@@ -99,6 +99,8 @@ class SyntheaFHIRValidator(FHIRValidator):
             processed = self._preprocess_encounter(processed)
         elif resource_type == 'MedicationRequest':
             processed = self._preprocess_medication_request(processed)
+        elif resource_type == 'AllergyIntolerance':
+            processed = self._preprocess_allergy_intolerance(processed)
         elif resource_type == 'Procedure':
             processed = self._preprocess_procedure(processed)
         elif resource_type == 'Organization':
@@ -396,6 +398,116 @@ class SyntheaFHIRValidator(FHIRValidator):
                             if k in allowed_repeat_fields
                         }
         
+        return data
+    
+    def _preprocess_allergy_intolerance(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix AllergyIntolerance-specific format issues and handle R4/R5 conversion."""
+        # Convert R4 manifestation format to R5 CodeableReference format
+        # R4: manifestation: [CodeableConcept, ...]
+        # R5: manifestation: [{concept: CodeableConcept}, ...]
+        
+        resource_id = data.get('id', 'unknown')
+        logging.debug(f"DEBUG: Preprocessing AllergyIntolerance {resource_id} - checking reaction format")
+        
+        if 'reaction' in data and isinstance(data['reaction'], list):
+            for i, reaction in enumerate(data['reaction']):
+                if 'manifestation' in reaction and isinstance(reaction['manifestation'], list):
+                    converted_manifestations = []
+                    
+                    for manifestation in reaction['manifestation']:
+                        if isinstance(manifestation, dict):
+                            # Check if it's already R5 format (has 'concept' wrapper)
+                            if 'concept' in manifestation:
+                                # Already R5 format - clean the concept
+                                allowed_concept_fields = {'id', 'extension', 'coding', 'text'}
+                                cleaned_concept = {
+                                    k: v for k, v in manifestation['concept'].items()
+                                    if k in allowed_concept_fields
+                                }
+                                
+                                # Clean nested coding if present
+                                if 'coding' in cleaned_concept and isinstance(cleaned_concept['coding'], list):
+                                    cleaned_codings = []
+                                    for coding in cleaned_concept['coding']:
+                                        allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                                        cleaned_codings.append({
+                                            k: v for k, v in coding.items()
+                                            if k in allowed_coding_fields
+                                        })
+                                    cleaned_concept['coding'] = cleaned_codings
+                                
+                                converted_manifestations.append({
+                                    'concept': cleaned_concept
+                                })
+                                logging.debug(f"DEBUG: Kept R5 manifestation format for reaction {i} in {resource_id}")
+                            
+                            # Check if it's R4 format (direct CodeableConcept)
+                            elif 'coding' in manifestation or 'text' in manifestation:
+                                # R4 format - wrap in concept and clean
+                                allowed_concept_fields = {'id', 'extension', 'coding', 'text'}
+                                cleaned_concept = {
+                                    k: v for k, v in manifestation.items()
+                                    if k in allowed_concept_fields
+                                }
+                                
+                                # Clean nested coding if present
+                                if 'coding' in cleaned_concept and isinstance(cleaned_concept['coding'], list):
+                                    cleaned_codings = []
+                                    for coding in cleaned_concept['coding']:
+                                        allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                                        cleaned_codings.append({
+                                            k: v for k, v in coding.items()
+                                            if k in allowed_coding_fields
+                                        })
+                                    cleaned_concept['coding'] = cleaned_codings
+                                
+                                converted_manifestations.append({
+                                    'concept': cleaned_concept
+                                })
+                                logging.debug(f"DEBUG: Converted R4→R5 manifestation format for reaction {i} in {resource_id}")
+                            
+                            else:
+                                # Unknown format - skip with warning
+                                logging.warning(f"WARNING: Unknown manifestation format in reaction {i} of {resource_id}: {manifestation}")
+                    
+                    # Update the manifestation array
+                    if converted_manifestations:
+                        data['reaction'][i]['manifestation'] = converted_manifestations
+                        logging.debug(f"DEBUG: Updated {len(converted_manifestations)} manifestations for reaction {i} in {resource_id}")
+                    else:
+                        # Remove empty manifestation array
+                        if 'manifestation' in data['reaction'][i]:
+                            del data['reaction'][i]['manifestation']
+                        logging.warning(f"WARNING: Removed empty manifestation array from reaction {i} in {resource_id}")
+                
+                # Clean other reaction fields
+                allowed_reaction_fields = {
+                    'id', 'extension', 'modifierExtension', 'substance', 'manifestation',
+                    'description', 'onset', 'severity', 'exposureRoute', 'note'
+                }
+                cleaned_reaction = {
+                    k: v for k, v in reaction.items()
+                    if k in allowed_reaction_fields
+                }
+                data['reaction'][i] = cleaned_reaction
+        
+        # Clean main allergy fields
+        allowed_allergy_fields = {
+            'id', 'meta', 'implicitRules', 'language', 'text', 'contained',
+            'extension', 'modifierExtension', 'identifier', 'clinicalStatus',
+            'verificationStatus', 'type', 'category', 'criticality', 'code',
+            'patient', 'encounter', 'onsetDateTime', 'onsetAge', 'onsetPeriod',
+            'onsetRange', 'onsetString', 'recordedDate', 'recorder', 'asserter',
+            'lastOccurrence', 'note', 'reaction'
+        }
+        
+        # Remove any extra fields
+        keys_to_remove = [k for k in data.keys() if k not in allowed_allergy_fields]
+        for key in keys_to_remove:
+            logging.debug(f"DEBUG: Removing extra field '{key}' from AllergyIntolerance {resource_id}")
+            del data[key]
+        
+        logging.debug(f"DEBUG: AllergyIntolerance {resource_id} preprocessing complete")
         return data
     
     def _preprocess_procedure(self, data: Dict[str, Any]) -> Dict[str, Any]:
