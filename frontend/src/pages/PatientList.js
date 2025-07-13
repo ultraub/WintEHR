@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -122,21 +122,26 @@ function PatientList() {
     },
   ];
 
+  // Track if initial load is complete to prevent loops
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
   // Initial load effect
   useEffect(() => {
-    if (activeTab === 0) {
-      fetchMyPatients();
-    } else {
-      fetchAllPatients(0, pageSize, '');
+    if (!initialLoadComplete) {
+      if (activeTab === 0) {
+        fetchMyPatients().finally(() => setInitialLoadComplete(true));
+      } else {
+        fetchAllPatients(0, pageSize, '').finally(() => setInitialLoadComplete(true));
+      }
     }
-  }, [activeTab]);
+  }, [activeTab]); // Keep minimal dependencies
   
-  // Separate effect for handling page/pageSize changes
+  // Separate effect for handling page/pageSize changes (only for All Patients tab)
   useEffect(() => {
-    if (activeTab === 1) {
+    if (activeTab === 1 && initialLoadComplete) {
       fetchAllPatients(page, pageSize, searchTerm);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, initialLoadComplete]); // Add initialLoadComplete guard
 
   const fetchMyPatients = async () => {
     try {
@@ -307,20 +312,21 @@ function PatientList() {
     }
   };
 
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((term) => {
+  // Debounced search function - use ref to avoid recreating
+  const debouncedSearchRef = useRef(null);
+  
+  if (!debouncedSearchRef.current) {
+    debouncedSearchRef.current = debounce((term) => {
       setPage(0); // Reset to first page on new search
       fetchAllPatients(0, pageSize, term);
-    }, 500),
-    [pageSize]
-  );
+    }, 500);
+  }
 
   const handleSearchChange = (event) => {
     const value = event.target.value;
     setSearchTerm(value);
     setSearchLoading(true);
-    debouncedSearch(value);
+    debouncedSearchRef.current(value);
   };
 
   const handlePageChange = (event, newPage) => {
@@ -339,6 +345,7 @@ function PatientList() {
     setActiveTab(newValue);
     setSearchTerm(''); // Clear search when switching tabs
     setPage(0); // Reset pagination
+    setInitialLoadComplete(false); // Allow new tab to load
   };
 
   const currentPatients = activeTab === 0 ? patients : allPatients;

@@ -224,6 +224,19 @@ class FHIRStorageEngine:
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
             fhir_resource = construct_fhir_element(resource_type, resource_data)
+            
+            # Apply DocumentReference-specific validation
+            if resource_type == 'DocumentReference':
+                from services.document_validation_service import DocumentValidationService
+                try:
+                    fhir_resource = DocumentValidationService.validate_before_save(
+                        fhir_resource, auto_fix=True
+                    )
+                    logging.info(f"DocumentReference validation passed for resource {fhir_resource.id}")
+                except Exception as validation_error:
+                    logging.error(f"DocumentReference validation failed: {validation_error}")
+                    raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
+            
             resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
@@ -430,6 +443,18 @@ class FHIRStorageEngine:
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
             fhir_resource = construct_fhir_element(resource_type, resource_data)
+            
+            # Apply DocumentReference-specific validation for updates
+            if resource_type == 'DocumentReference':
+                from services.document_validation_service import DocumentValidationService
+                try:
+                    fhir_resource = DocumentValidationService.validate_before_save(
+                        fhir_resource, auto_fix=True
+                    )
+                    logging.info(f"DocumentReference update validation passed for resource {fhir_resource.id}")
+                except Exception as validation_error:
+                    logging.error(f"DocumentReference update validation failed: {validation_error}")
+                    raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
             resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict

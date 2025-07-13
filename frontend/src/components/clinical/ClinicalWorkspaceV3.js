@@ -107,7 +107,7 @@ const TabLoadingFallback = () => (
   </Box>
 );
 
-// CDS Alerts Display Component
+// CDS Alerts Display Component with Display Behavior Support
 const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
   const { alerts, loading } = usePatientCDSAlerts(patientId);
   const [dismissed, setDismissed] = useState(new Set());
@@ -124,41 +124,75 @@ const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
   const handleDismiss = (alertId) => {
     setDismissed(prev => new Set([...prev, alertId]));
   };
-  
+
+  // Group alerts by presentation mode
+  const alertsByMode = {};
+  visibleAlerts.forEach(alert => {
+    const mode = alert.displayBehavior?.presentationMode || 'popup';
+    console.log('🎯 Alert display mode:', mode, 'for alert:', alert.summary, 'displayBehavior:', alert.displayBehavior);
+    
+    if (!alertsByMode[mode]) {
+      alertsByMode[mode] = [];
+    }
+    alertsByMode[mode].push(alert);
+  });
+
+  // Import CDSPresentation - check if it exists
+  const CDSPresentation = React.lazy(() => import('./cds/CDSPresentation').catch(() => ({ default: () => null })));
+
   return (
-    <Box sx={{ px: 2, pt: 1, pb: compact ? 0.5 : 1, flexShrink: 0 }}>
-      <Stack spacing={1}>
-        {visibleAlerts.map((alert) => (
-          <Alert
-            key={alert.uuid}
-            severity={
-              alert.indicator === 'critical' ? 'error' :
-              alert.indicator === 'warning' ? 'warning' : 'info'
-            }
-            onClose={() => handleDismiss(alert.uuid)}
-            sx={{
-              '& .MuiAlert-message': {
-                width: '100%'
-              }
-            }}
-          >
-            <AlertTitle sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
-              {alert.summary}
-            </AlertTitle>
-            {!compact && alert.detail && (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                {alert.detail}
-              </Typography>
-            )}
-            {alert.source?.label && (
-              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
-                Source: {alert.source.label}
-              </Typography>
-            )}
-          </Alert>
-        ))}
-      </Stack>
-    </Box>
+    <>
+      {/* Render alerts by their configured presentation mode */}
+      {Object.entries(alertsByMode).map(([mode, modeAlerts]) => (
+        <React.Suspense key={mode} fallback={<div>Loading alerts...</div>}>
+          <CDSPresentation
+            alerts={modeAlerts}
+            mode={mode}
+            onAlertAction={handleDismiss}
+            autoHide={false}
+            allowInteraction={true}
+            patientId={patientId}
+          />
+        </React.Suspense>
+      ))}
+
+      {/* Fallback for any alerts without displayBehavior - render as simple alerts */}
+      {visibleAlerts.filter(alert => !alert.displayBehavior).length > 0 && (
+        <Box sx={{ px: 2, pt: 1, pb: compact ? 0.5 : 1, flexShrink: 0 }}>
+          <Stack spacing={1}>
+            {visibleAlerts.filter(alert => !alert.displayBehavior).map((alert) => (
+              <Alert
+                key={alert.uuid}
+                severity={
+                  alert.indicator === 'critical' ? 'error' :
+                  alert.indicator === 'warning' ? 'warning' : 'info'
+                }
+                onClose={() => handleDismiss(alert.uuid)}
+                sx={{
+                  '& .MuiAlert-message': {
+                    width: '100%'
+                  }
+                }}
+              >
+                <AlertTitle sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
+                  {alert.summary}
+                </AlertTitle>
+                {!compact && alert.detail && (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    {alert.detail}
+                  </Typography>
+                )}
+                {alert.source?.label && (
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
+                    Source: {alert.source.label}
+                  </Typography>
+                )}
+              </Alert>
+            ))}
+          </Stack>
+        </Box>
+      )}
+    </>
   );
 };
 

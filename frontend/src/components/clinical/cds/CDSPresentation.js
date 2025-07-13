@@ -76,6 +76,36 @@ const CDSPresentation = ({
     }
   });
 
+  // Modal mode state hooks - must be at top level
+  const [acknowledgmentReason, setAcknowledgmentReason] = useState('');
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [currentAlertForAck, setCurrentAlertForAck] = useState(null);
+
+  // Handle alert dismissal
+  const handleDismissAlert = (alert, reason = '') => {
+    const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+    setDismissedAlerts(prev => {
+      const newDismissed = new Set([...prev, alertId]);
+      
+      // Persist to sessionStorage
+      if (patientId) {
+        const sessionKey = `cds-dismissed-alerts-${patientId}`;
+        try {
+          sessionStorage.setItem(sessionKey, JSON.stringify([...newDismissed]));
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      
+      return newDismissed;
+    });
+    
+    // Call parent onAlertAction callback
+    if (onAlertAction) {
+      onAlertAction(alertId, 'dismiss', reason);
+    }
+  };
+
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
       case 'critical': return <ErrorIcon color="error" />;
@@ -284,10 +314,6 @@ const CDSPresentation = ({
 
   // Modal mode - Hard-stop blocking modal with acknowledgment
   if (mode === PRESENTATION_MODES.MODAL) {
-    const [acknowledgmentReason, setAcknowledgmentReason] = useState('');
-    const [showReasonDialog, setShowReasonDialog] = useState(false);
-    const [currentAlertForAck, setCurrentAlertForAck] = useState(null);
-
     const handleAcknowledge = (alert) => {
       if (alert.displayBehavior?.acknowledgmentRequired) {
         setCurrentAlertForAck(alert);
