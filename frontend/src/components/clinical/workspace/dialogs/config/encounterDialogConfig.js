@@ -181,17 +181,16 @@ export const parseResource = (encounter) => {
  */
 export const updateResource = (encounter = {}, formData, patientId) => {
   const now = new Date().toISOString();
-  const scheduledDateTime = `${formData.scheduledDate}T${formData.scheduledTime}:00.000Z`;
+  const scheduledDateTime = `${formData.scheduledDate}T${formData.scheduledTime}:00Z`;
   const endDateTime = new Date(new Date(scheduledDateTime).getTime() + (formData.duration * 60000)).toISOString();
 
   const resource = {
     resourceType: 'Encounter',
     meta: {
       lastUpdated: now,
-      versionId: encounter.meta?.versionId ? String(parseInt(encounter.meta.versionId) + 1) : '1',
-      ...(encounter.meta || {})
+      versionId: encounter.meta?.versionId ? String(parseInt(encounter.meta.versionId) + 1) : '1'
     },
-    status: formData.status,
+    status: formData.status || 'planned',
     class: {
       system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
       code: formData.type,
@@ -205,18 +204,28 @@ export const updateResource = (encounter = {}, formData, patientId) => {
       }],
       text: ENCOUNTER_TYPES.find(t => t.value === formData.type)?.display || 'Ambulatory'
     }],
-    priority: {
+    subject: {
+      reference: `Patient/${patientId}`
+    },
+    period: {
+      start: scheduledDateTime,
+      end: endDateTime
+    }
+  };
+
+  // Add optional fields only if they have values
+  if (formData.priority && formData.priority !== 'routine') {
+    resource.priority = {
       coding: [{
         system: 'http://terminology.hl7.org/CodeSystem/v3-ActPriority',
         code: formData.priority,
         display: PRIORITY_LEVELS.find(p => p.value === formData.priority)?.display || 'Routine'
       }]
-    },
-    subject: {
-      reference: `Patient/${patientId}`,
-      type: 'Patient'
-    },
-    participant: formData.provider ? [{
+    };
+  }
+
+  if (formData.provider) {
+    resource.participant = [{
       type: [{
         coding: [{
           system: 'http://terminology.hl7.org/CodeSystem/v3-ParticipationType',
@@ -225,40 +234,50 @@ export const updateResource = (encounter = {}, formData, patientId) => {
         }]
       }],
       individual: {
+        reference: 'Practitioner/current-provider',
         display: formData.provider
       }
-    }] : [],
-    period: {
-      start: scheduledDateTime,
-      end: endDateTime
-    },
-    reasonCode: formData.reasonForVisit ? [{
-      text: formData.reasonForVisit,
-      coding: formData.chiefComplaint ? [{
-        display: formData.chiefComplaint
-      }] : []
-    }] : [],
-    location: [{
+    }];
+  }
+
+  if (formData.reasonForVisit) {
+    resource.reasonCode = [{
+      text: formData.reasonForVisit
+    }];
+  }
+
+  if (formData.location) {
+    resource.location = [{
       location: {
         display: ENCOUNTER_LOCATIONS.find(l => l.value === formData.location)?.display || 'Main Clinic',
         reference: `Location/${formData.location}`
       }
-    }],
-    extension: [
-      ...(formData.checklist.length > 0 ? [{
-        url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-checklist',
-        valueString: formData.checklist.join(',')
-      }] : []),
-      ...(formData.expectedOrders.length > 0 ? [{
-        url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-expected-orders',
-        valueString: formData.expectedOrders.join(',')
-      }] : []),
-      ...(formData.notes ? [{
-        url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-notes',
-        valueString: formData.notes
-      }] : [])
-    ]
-  };
+    }];
+  }
+
+  // Add extensions only if we have content
+  const extensions = [];
+  if (formData.checklist && formData.checklist.length > 0) {
+    extensions.push({
+      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-checklist',
+      valueString: formData.checklist.join(',')
+    });
+  }
+  if (formData.expectedOrders && formData.expectedOrders.length > 0) {
+    extensions.push({
+      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-expected-orders',
+      valueString: formData.expectedOrders.join(',')
+    });
+  }
+  if (formData.notes) {
+    extensions.push({
+      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-notes',
+      valueString: formData.notes
+    });
+  }
+  if (extensions.length > 0) {
+    resource.extension = extensions;
+  }
 
   // Add id only for existing encounters (edit mode)
   if (encounter.id) {
@@ -302,7 +321,7 @@ export const validationRules = {
   duration: {
     required: true,
     label: 'Duration',
-    custom: (value, formData) => {
+    custom: (value) => {
       const duration = parseInt(value);
       if (isNaN(duration) || duration < 5 || duration > 480) {
         return 'Duration must be between 5 and 480 minutes';
