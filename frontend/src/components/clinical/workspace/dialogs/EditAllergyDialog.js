@@ -27,7 +27,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { searchService } from '../../../../services/searchService';
 
 const ALLERGY_TYPES = [
@@ -90,7 +90,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       const clinicalStatus = allergyIntolerance.clinicalStatus?.coding?.[0]?.code || 'active';
       const verificationStatus = allergyIntolerance.verificationStatus?.coding?.[0]?.code || 'confirmed';
       const criticality = allergyIntolerance.criticality || 'unable-to-assess';
-      const type = allergyIntolerance.type || 'allergy';
+      const type = allergyIntolerance.type?.coding?.[0]?.code || allergyIntolerance.type || 'allergy';
       const onsetDate = allergyIntolerance.onsetDateTime ? parseISO(allergyIntolerance.onsetDateTime) : null;
       
       // Extract allergen information
@@ -112,8 +112,13 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         }
       }
 
-      // Extract reactions
-      const reactions = allergyIntolerance.reaction?.map(r => r.manifestation?.[0]?.text || r.manifestation?.[0]?.coding?.[0]?.display).filter(Boolean) || [];
+      // Extract reactions - ensure they are strings
+      const reactions = allergyIntolerance.reaction?.map(r => {
+        const manifestation = r.manifestation?.[0];
+        if (manifestation?.text) return manifestation.text;
+        if (manifestation?.coding?.[0]?.display) return manifestation.coding[0].display;
+        return null;
+      }).filter(reaction => reaction && typeof reaction === 'string') || [];
       const reactionSeverity = allergyIntolerance.reaction?.[0]?.severity || 'mild';
       
       // Extract notes
@@ -122,10 +127,10 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
       setFormData({
         selectedAllergen,
         customAllergen,
-        allergyType: type,
-        criticality,
-        clinicalStatus,
-        verificationStatus,
+        allergyType: typeof type === 'string' ? type : 'allergy',
+        criticality: typeof criticality === 'string' ? criticality : 'unable-to-assess',
+        clinicalStatus: typeof clinicalStatus === 'string' ? clinicalStatus : 'active',
+        verificationStatus: typeof verificationStatus === 'string' ? verificationStatus : 'confirmed',
         onsetDate,
         reactions,
         reactionSeverity,
@@ -238,6 +243,11 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         ...(formData.reactions.length > 0 && {
           reaction: formData.reactions.map(reaction => ({
             manifestation: [{
+              coding: [{
+                system: 'http://snomed.info/sct',
+                code: 'unknown',
+                display: reaction
+              }],
               text: reaction
             }],
             severity: formData.reactionSeverity
@@ -311,7 +321,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         <DialogTitle>
           Edit Allergy/Intolerance
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Allergy ID: {allergyIntolerance.id}
+            Allergy ID: {allergyIntolerance.id ? String(allergyIntolerance.id) : 'Unknown'}
           </Typography>
         </DialogTitle>
         
@@ -334,6 +344,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   getOptionLabel={(option) => option.display}
                   value={formData.selectedAllergen}
                   loading={searchLoading}
+                  isOptionEqualToValue={(option, value) => option.code === value.code}
                   onInputChange={(event, value) => {
                     handleSearchAllergens(value);
                   }}
@@ -439,12 +450,12 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                   >
                     {CRITICALITY_LEVELS.map(level => (
                       <MenuItem key={level.value} value={level.value}>
-                        <Box>
+                        <Stack>
                           <Typography variant="body2">{level.display}</Typography>
                           <Typography variant="caption" color="text.secondary">
                             {level.description}
                           </Typography>
-                        </Box>
+                        </Stack>
                       </MenuItem>
                     ))}
                   </Select>
@@ -550,7 +561,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
                     value.map((option, index) => (
                       <Chip
                         variant="outlined"
-                        label={option}
+                        label={typeof option === 'string' ? option : option?.text || option?.display || 'Unknown'}
                         {...getTagProps({ index })}
                         key={index}
                       />

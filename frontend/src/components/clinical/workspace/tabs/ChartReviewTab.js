@@ -927,6 +927,8 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                       </Typography>
                     </Box>
                   }
+                  primaryTypographyProps={{ component: 'div' }}
+                  secondaryTypographyProps={{ component: 'div' }}
                 />
                 <ListItemSecondaryAction>
                   <Tooltip title="Edit Allergy">
