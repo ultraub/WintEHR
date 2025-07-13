@@ -86,7 +86,10 @@ import QuickResultNote from '../../results/QuickResultNote';
 import CriticalValueAlert from '../../results/CriticalValueAlert';
 import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';
 import ResultTrendAnalysis from '../../results/ResultTrendAnalysis';
+import LabCareRecommendations from '../../results/LabCareRecommendations';
+import LabMonitoringDashboard from '../../results/LabMonitoringDashboard';
 import { resultsManagementService } from '../../../../services/resultsManagementService';
+import { labToCareIntegrationService } from '../../../../services/labToCareIntegrationService';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -412,6 +415,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [showTrendAnalysis, setShowTrendAnalysis] = useState(false);
   const [selectedTestForTrend, setSelectedTestForTrend] = useState(null);
   const [unacknowledgedCount, setUnacknowledgedCount] = useState(0);
+  const [showCareRecommendations, setShowCareRecommendations] = useState(false);
+  const [showMonitoringDashboard, setShowMonitoringDashboard] = useState(false);
+  const [patientConditions, setPatientConditions] = useState([]);
+  const [carePlanId, setCarePlanId] = useState(null);
 
   // Get observations and diagnostic reports early for monitoring
   const observations = getPatientResources(patientId, 'Observation') || [];
@@ -698,6 +705,38 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId, observations]);
 
+  // Load patient conditions and care plan for lab-to-care integration
+  useEffect(() => {
+    const loadPatientContext = async () => {
+      try {
+        // Load active conditions
+        const conditionsResponse = await fhirClient.search('Condition', {
+          patient: patientId,
+          'clinical-status': 'active',
+          _count: 100
+        });
+        setPatientConditions(conditionsResponse.entry?.map(e => e.resource) || []);
+        
+        // Load active care plan
+        const carePlanResponse = await fhirClient.search('CarePlan', {
+          patient: patientId,
+          status: 'active',
+          _sort: '-date',
+          _count: 1
+        });
+        if (carePlanResponse.entry?.[0]) {
+          setCarePlanId(carePlanResponse.entry[0].resource.id);
+        }
+      } catch (error) {
+        // Handle error silently
+      }
+    };
+    
+    if (patientId) {
+      loadPatientContext();
+    }
+  }, [patientId]);
+
   // Memoized categorization to prevent recalculation on every render
   const categorizedObservations = useMemo(() => {
     const labResults = [];
@@ -818,6 +857,23 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
+          {/* Care Integration Buttons */}
+          <Button
+            variant={showCareRecommendations ? "contained" : "outlined"}
+            onClick={() => setShowCareRecommendations(!showCareRecommendations)}
+            startIcon={<AssessmentIcon />}
+          >
+            Care Recommendations
+          </Button>
+          
+          <Button
+            variant={showMonitoringDashboard ? "contained" : "outlined"}
+            onClick={() => setShowMonitoringDashboard(!showMonitoringDashboard)}
+            startIcon={<TimelineIcon />}
+          >
+            Monitoring
+          </Button>
+          
           {/* Acknowledgment Panel Toggle */}
           <Badge badgeContent={unacknowledgedCount} color="warning">
             <Button
@@ -967,6 +1023,34 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           </Button>
         </Stack>
       </Paper>
+
+      {/* Care Recommendations */}
+      {showCareRecommendations && (
+        <Box sx={{ mb: 3 }}>
+          <LabCareRecommendations
+            patientId={patientId}
+            observations={labResults}
+            carePlanId={carePlanId}
+            onRecommendationApplied={(recommendation, result) => {
+              setSnackbar({
+                open: true,
+                message: `Recommendation applied: ${recommendation.action}`,
+                severity: 'success'
+              });
+            }}
+          />
+        </Box>
+      )}
+
+      {/* Monitoring Dashboard */}
+      {showMonitoringDashboard && (
+        <Box sx={{ mb: 3 }}>
+          <LabMonitoringDashboard
+            patientId={patientId}
+            patientConditions={patientConditions}
+          />
+        </Box>
+      )}
 
       {/* Acknowledgment Panel */}
       {showAcknowledgmentPanel && (
