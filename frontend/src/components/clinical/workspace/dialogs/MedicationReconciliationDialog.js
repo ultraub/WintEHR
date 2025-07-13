@@ -88,7 +88,6 @@ const MedicationReconciliationDialog = ({
       setSelectedChanges(new Set(highPriorityChanges));
       
     } catch (error) {
-      console.error('Error fetching reconciliation data:', error);
       setError(error.message);
     } finally {
       setAnalyzing(false);
@@ -146,7 +145,6 @@ const MedicationReconciliationDialog = ({
       
       onClose();
     } catch (error) {
-      console.error('Error executing reconciliation:', error);
       setError(error.message);
     } finally {
       setLoading(false);

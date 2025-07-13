@@ -118,7 +118,6 @@ class PrescriptionStatusService {
       return status;
 
     } catch (error) {
-      console.error('Error getting prescription status:', error);
       return {
         status: 'UNKNOWN',
         statusCode: 'unknown',
@@ -310,7 +309,6 @@ class PrescriptionStatusService {
       return updated;
 
     } catch (error) {
-      console.error('Error updating prescription status:', error);
       throw error;
     }
   }
@@ -363,7 +361,6 @@ class PrescriptionStatusService {
       return history;
 
     } catch (error) {
-      console.error('Error getting prescription history:', error);
       return [];
     }
   }
@@ -416,7 +413,6 @@ class PrescriptionStatusService {
       return statuses;
 
     } catch (error) {
-      console.error('Error getting patient prescription statuses:', error);
       return [];
     }
   }
@@ -452,7 +448,7 @@ class PrescriptionStatusService {
         try {
           callback(status);
         } catch (error) {
-          console.error('Error in status update callback:', error);
+          // Skip failed callback
         }
       });
     }

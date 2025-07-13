@@ -77,7 +77,7 @@ class MedicationDiscontinuationService {
           originalRequest.status
         );
       } catch (error) {
-        console.error('Error updating medication lists:', error);
+        // Error updating medication lists - continue with rest of process
       }
 
       // Create follow-up appointments if required
@@ -112,7 +112,6 @@ class MedicationDiscontinuationService {
       };
 
     } catch (error) {
-      console.error('Error discontinuing medication:', error);
       throw error;
     }
   }
@@ -183,7 +182,6 @@ class MedicationDiscontinuationService {
       return await fhirClient.create('Basic', discontinuationResource);
 
     } catch (error) {
-      console.error('Error creating discontinuation tracking:', error);
       throw error;
     }
   }
@@ -228,7 +226,6 @@ class MedicationDiscontinuationService {
       return await fhirClient.create('CarePlan', carePlan);
 
     } catch (error) {
-      console.error('Error creating tapering plan:', error);
       throw error;
     }
   }
@@ -337,7 +334,6 @@ class MedicationDiscontinuationService {
       return await fhirClient.create('Appointment', appointment);
 
     } catch (error) {
-      console.error('Error creating follow-up appointment:', error);
       throw error;
     }
   }
@@ -402,7 +398,6 @@ class MedicationDiscontinuationService {
       return await fhirClient.create('CarePlan', monitoringPlan);
 
     } catch (error) {
-      console.error('Error creating monitoring plan:', error);
       throw error;
     }
   }
@@ -446,7 +441,6 @@ class MedicationDiscontinuationService {
               relatedCarePlans
             };
           } catch (error) {
-            console.error('Error enriching discontinuation history:', error);
             return disc;
           }
         })
@@ -460,7 +454,6 @@ class MedicationDiscontinuationService {
       };
 
     } catch (error) {
-      console.error('Error getting discontinuation history:', error);
       throw error;
     }
   }
@@ -523,7 +516,6 @@ class MedicationDiscontinuationService {
       return updatedDiscontinuation;
 
     } catch (error) {
-      console.error('Error cancelling discontinuation:', error);
       throw error;
     }
   }

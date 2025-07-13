@@ -64,7 +64,6 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         source: 'dynamic'
       })));
     } catch (error) {
-      console.error('Error searching conditions:', error);
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);

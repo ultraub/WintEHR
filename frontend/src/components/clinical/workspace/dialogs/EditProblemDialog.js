@@ -132,7 +132,6 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         source: 'dynamic'
       })));
     } catch (error) {
-      console.error('Error searching conditions:', error);
       setConditionOptions([]);
     } finally {
       setSearchLoading(false);

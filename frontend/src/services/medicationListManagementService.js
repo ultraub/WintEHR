@@ -55,7 +55,6 @@ class MedicationListManagementService {
       };
 
     } catch (error) {
-      console.error('Error initializing medication lists:', error);
       throw error;
     }
   }
@@ -103,7 +102,6 @@ class MedicationListManagementService {
       return await fhirClient.create('List', newList);
 
     } catch (error) {
-      console.error('Error ensuring medication list:', error);
       throw error;
     }
   }
@@ -138,7 +136,7 @@ class MedicationListManagementService {
       this.notifyListUpdated(patientId, this.LIST_TYPES.ACTIVE_PRESCRIPTIONS, 'add', medicationRequest);
 
     } catch (error) {
-      console.error('Error handling new prescription:', error);
+      // Error handling for prescription workflow
     }
   }
 
@@ -169,7 +167,7 @@ class MedicationListManagementService {
       }
 
     } catch (error) {
-      console.error('Error handling prescription status update:', error);
+      // Error handling for status update
     }
   }
 
@@ -281,7 +279,6 @@ class MedicationListManagementService {
       this.medicationLists.set(`${patientId}-${listType}`, updatedList);
 
     } catch (error) {
-      console.error('Error adding medication to list:', error);
       throw error;
     }
   }
@@ -316,7 +313,6 @@ class MedicationListManagementService {
       this.medicationLists.set(`${patientId}-${listType}`, updatedList);
 
     } catch (error) {
-      console.error('Error removing medication from list:', error);
       throw error;
     }
   }
@@ -351,7 +347,6 @@ class MedicationListManagementService {
       this.medicationLists.set(`${patientId}-${listType}`, updatedList);
 
     } catch (error) {
-      console.error('Error updating medication in list:', error);
       throw error;
     }
   }
@@ -411,7 +406,6 @@ class MedicationListManagementService {
       return false;
 
     } catch (error) {
-      console.error('Error checking for duplicate medication:', error);
       return false;
     }
   }
@@ -487,7 +481,6 @@ class MedicationListManagementService {
       return summary;
 
     } catch (error) {
-      console.error('Error getting medication summary:', error);
       throw error;
     }
   }
@@ -515,7 +508,7 @@ class MedicationListManagementService {
         });
 
       } catch (error) {
-        console.error('Error fetching medication from list:', error);
+        // Skip invalid medication entry
       }
     }
 
@@ -587,7 +580,7 @@ class MedicationListManagementService {
         try {
           callback(update);
         } catch (error) {
-          console.error('Error in list update callback:', error);
+          // Skip failed callback
         }
       });
     }
