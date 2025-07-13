@@ -137,15 +137,15 @@ const MedicationHistoryReview = ({
             // Calculate duration
             duration: this.calculateDuration(request),
             // Check if recently active
-            isRecentlyActive: this.isRecentlyActive(request),
+            isRecentlyActive: isRecentlyActive(request),
             // Determine display status
-            displayStatus: this.getDisplayStatus(request)
+            displayStatus: getDisplayStatus(request)
           };
         })
       );
 
       // Analyze for duplicates/similar medications
-      const analyzedMedications = this.analyzeDuplicates(processedMedications);
+      const analyzedMedications = analyzeDuplicates(processedMedications);
 
       // Sort by date, with active medications first
       analyzedMedications.sort((a, b) => {

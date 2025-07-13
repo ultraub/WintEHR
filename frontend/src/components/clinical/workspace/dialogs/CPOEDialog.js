@@ -782,7 +782,7 @@ const CPOEDialog = ({
               <FormControl fullWidth>
                 <InputLabel>Route</InputLabel>
                 <Select
-                  value={order.route}
+                  value={order.route || 'oral'}
                   onChange={(e) => updateOrder(order.id, 'route', e.target.value)}
                 >
                   <MenuItem value="oral">Oral</MenuItem>
