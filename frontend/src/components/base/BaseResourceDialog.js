@@ -75,6 +75,8 @@ const BaseResourceDialog = ({
   const [showPreviewMode, setShowPreviewMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize form data when resource changes
   useEffect(() => {
@@ -115,6 +117,11 @@ const BaseResourceDialog = ({
         [fieldName]: null
       }));
     }
+    
+    // Clear save error when user makes changes
+    if (saveError) {
+      setSaveError(null);
+    }
   };
 
   // Validate form
@@ -150,7 +157,7 @@ const BaseResourceDialog = ({
         isValid = false;
       }
 
-      if (rules.custom && value) {
+      if (rules.custom) {
         const customError = rules.custom(value, formData);
         if (customError) {
           newErrors[fieldName] = customError;
@@ -165,18 +172,35 @@ const BaseResourceDialog = ({
 
   // Handle save
   const handleSave = async () => {
-    if (!validateForm()) {
+    console.log('BaseResourceDialog: handleSave called');
+    console.log('BaseResourceDialog: formData:', formData);
+    console.log('BaseResourceDialog: validationRules:', validationRules);
+    
+    const isValid = validateForm();
+    console.log('BaseResourceDialog: validation result:', isValid);
+    console.log('BaseResourceDialog: validation errors:', errors);
+    
+    if (!isValid) {
+      console.log('BaseResourceDialog: validation failed, not saving');
       return;
     }
 
+    console.log('BaseResourceDialog: starting save...');
+    setIsSubmitting(true);
+    setSaveError(null);
+
     try {
+      console.log('BaseResourceDialog: calling onSave with:', formData, mode);
       await onSave(formData, mode);
+      console.log('BaseResourceDialog: save successful');
       // Mark as just saved to bypass unsaved changes check
       setJustSaved(true);
       handleClose(true); // Bypass unsaved check
     } catch (error) {
-      console.error('Save error:', error);
-      // Error will be displayed from parent component
+      console.error('BaseResourceDialog: save error:', error);
+      setSaveError(error.message || 'An error occurred while saving');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -226,7 +250,7 @@ const BaseResourceDialog = ({
 
   // Check if save should be enabled
   const canSave = () => {
-    return hasChanges && !loading && !saving && mode !== 'view';
+    return hasChanges && !loading && !saving && !isSubmitting && mode !== 'view';
   };
 
   return (
@@ -265,9 +289,9 @@ const BaseResourceDialog = ({
       {/* Dialog Content */}
       <DialogContent dividers>
         {/* Error Display */}
-        {error && (
+        {(error || saveError) && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            {error || saveError}
           </Alert>
         )}
 
@@ -370,12 +394,12 @@ const BaseResourceDialog = ({
             {mode !== 'view' && (!showStepper || activeStep === steps.length - 1) && (
               <Button
                 onClick={handleSave}
-                startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                startIcon={(saving || isSubmitting) ? <CircularProgress size={20} /> : <SaveIcon />}
                 disabled={!canSave()}
                 variant="contained"
                 color="primary"
               >
-                {saving ? 'Saving...' : 'Save'}
+                {(saving || isSubmitting) ? 'Saving...' : 'Save'}
               </Button>
             )}
           </Box>

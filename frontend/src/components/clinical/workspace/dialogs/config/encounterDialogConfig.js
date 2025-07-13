@@ -281,29 +281,34 @@ export const createEncounterResource = (formData, patientId) => {
 export const validationRules = {
   type: {
     required: true,
-    message: 'Encounter type is required'
+    label: 'Encounter type'
   },
   reasonForVisit: {
     required: true,
-    message: 'Reason for visit is required'
+    label: 'Reason for visit'
   },
   provider: {
     required: true,
-    message: 'Provider is required'
+    label: 'Provider'
   },
   scheduledDate: {
     required: true,
-    message: 'Scheduled date is required'
+    label: 'Scheduled date'
   },
   scheduledTime: {
     required: true,
-    message: 'Scheduled time is required'
+    label: 'Scheduled time'
   },
   duration: {
     required: true,
-    min: 5,
-    max: 480,
-    message: 'Duration must be between 5 and 480 minutes'
+    label: 'Duration',
+    custom: (value, formData) => {
+      const duration = parseInt(value);
+      if (isNaN(duration) || duration < 5 || duration > 480) {
+        return 'Duration must be between 5 and 480 minutes';
+      }
+      return null;
+    }
   }
 };
 
