@@ -1,0 +1,121 @@
+{
+  "resource_type": "AllergyIntolerance",
+  "versions_compared": [
+    "R4",
+    "R5"
+  ],
+  "total_differences": 7,
+  "differences": [
+    {
+      "field": "type",
+      "change_type": "type_changed",
+      "r4_value": "allergy",
+      "r5_value": {
+        "coding": [
+          {
+            "system": "http://hl7.org/fhir/allergy-intolerance-type",
+            "code": "allergy",
+            "display": "Allergy"
+          }
+        ]
+      },
+      "notes": "Value changed from str to dict"
+    },
+    {
+      "field": "recorder",
+      "change_type": "removed",
+      "r4_value": {
+        "reference": "Practitioner/example"
+      },
+      "r5_value": null,
+      "notes": "Field removed in R5"
+    },
+    {
+      "field": "reaction[0].manifestation[0].concept",
+      "change_type": "added",
+      "r4_value": null,
+      "r5_value": {
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "39579001",
+            "display": "Anaphylactic reaction"
+          }
+        ]
+      },
+      "notes": "New field in R5"
+    },
+    {
+      "field": "reaction[0].manifestation[0].coding",
+      "change_type": "removed",
+      "r4_value": [
+        {
+          "system": "http://snomed.info/sct",
+          "code": "39579001",
+          "display": "Anaphylactic reaction"
+        }
+      ],
+      "r5_value": null,
+      "notes": "Field removed in R5"
+    },
+    {
+      "field": "text.div",
+      "change_type": "modified",
+      "r4_value": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Generated Narrative with Details</b></p><p><b>id</b>: example</p><p><b>identifier</b>: 49476534</p><p><b>clinicalStatus</b>: Active <span>(Details : {http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical code 'active' = 'Active', given as 'Active'})</span></p><p><b>verificationStatus</b>: Confirmed <span>(Details : {http://terminology.hl7.org/CodeSystem/allergyintolerance-verification code 'confirmed' = 'Confirmed', given as 'Confirmed'})</span></p><p><b>type</b>: allergy</p><p><b>category</b>: food</p><p><b>criticality</b>: high</p><p><b>code</b>: Cashew nuts <span>(Details : {SNOMED CT code '227493005' = 'Cashew nuts', given as 'Cashew nuts'})</span></p><p><b>patient</b>: <a>Patient/example</a></p><p><b>onset</b>: 01/01/2004</p><p><b>recordedDate</b>: 09/10/2014 2:58:00 PM</p><p><b>recorder</b>: <a>Practitioner/example</a></p><p><b>asserter</b>: <a>Patient/example</a></p><p><b>lastOccurrence</b>: 01/06/2012</p><p><b>note</b>: The criticality is high becasue of the observed anaphylactic reaction when challenged with cashew extract.</p><blockquote><p><b>reaction</b></p><p><b>substance</b>: cashew nut allergenic extract Injectable Product <span>(Details : {RxNorm code '1160593' = 'cashew nut allergenic extract Injectable Product', given as 'cashew nut allergenic extract Injectable Product'})</span></p><p><b>manifestation</b>: Anaphylactic reaction <span>(Details : {SNOMED CT code '39579001' = 'Anaphylaxis', given as 'Anaphylactic reaction'})</span></p><p><b>description</b>: Challenge Protocol. Severe reaction to subcutaneous cashew extract. Epinephrine administered</p><p><b>onset</b>: 12/06/2012</p><p><b>severity</b>: severe</p><p><b>exposureRoute</b>: Subcutaneous route <span>(Details : {SNOMED CT code '34206005' = 'Subcutaneous route', given as 'Subcutaneous route'})</span></p></blockquote><blockquote><p><b>reaction</b></p><p><b>manifestation</b>: Urticaria <span>(Details : {SNOMED CT code '64305001' = 'Urticaria', given as 'Urticaria'})</span></p><p><b>onset</b>: 01/01/2004</p><p><b>severity</b>: moderate</p><p><b>note</b>: The patient reports that the onset of urticaria was within 15 minutes of eating cashews.</p></blockquote></div>",
+      "r5_value": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><b>Generated Narrative: AllergyIntolerance</b><a name=\"example\"> </a></p><div style=\"display: inline-block; background-color: #d9e0e7; padding: 6px; margin: 4px; border: 1px solid #8da1b4; border-radius: 5px; line-height: 60%\"><p style=\"margin-bottom: 0px\">Resource AllergyIntolerance &quot;example&quot; </p></div><p><b>identifier</b>: <span title=\"  an identifier used for this allergic propensity (adverse reaction risk)  \">id:\u00a049476534</span></p><p><b>clinicalStatus</b>: <span title=\"  this individual has had several reactions  \">Active <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"http://terminology.hl7.org/5.1.0/CodeSystem-allergyintolerance-clinical.html\">AllergyIntolerance Clinical Status Codes</a>#active)</span></span></p><p><b>verificationStatus</b>: Confirmed <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"http://terminology.hl7.org/5.1.0/CodeSystem-allergyintolerance-verification.html\">AllergyIntolerance Verification Status</a>#confirmed)</span></p><p><b>type</b>: <span title=\"  note: it's often unknown whether an allergy is mediated by an immune response, and not as significant as once thought  \">Allergy <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"codesystem-allergy-intolerance-type.html\">Allergy Intolerance Type</a>#allergy)</span></span></p><p><b>category</b>: <span title=\"  this categorization is implied by &quot;cashew nut&quot; and therefore basically \n    redundant, but many systems collect this field anyway, since it's either \n    useful when the substance is not coded, or it's quicker to sort/filter on\n    than using terminology based reasoning  \">food</span></p><p><b>criticality</b>: <span title=\"  there is no question that the allergy is real and serious  \">high</span></p><p><b>code</b>: <span title=\"  Allergy or intolerance code (substance, product, condition or negated/excluded statement) or text. A few times, \n    there's a full description of a complex substance/product - in these caes, use the\n    extension [url] to refer to a Substance resource.  \">Cashew nuts <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"https://browser.ihtsdotools.org/\">SNOMED CT</a>#227493005)</span></span></p><p><b>patient</b>: <span title=\"  the patient that actually has the risk of adverse reaction  \"><a href=\"patient-example.html\">Patient/example</a> &quot;Peter CHALMERS&quot;</span></p><p><b>onset</b>: <span title=\"  when the allergy was first noted (in this case the same as reaction.onset of the first occurrence)  \">2004</span></p><p><b>recordedDate</b>: <span title=\"  the date that this entry was recorded  \">2014-10-09T14:58:00+11:00</span></p><blockquote><p><b>participant</b></p><p><b>function</b>: Author <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"http://terminology.hl7.org/5.1.0/CodeSystem-provenance-participant-type.html\">Provenance participant type</a>#author)</span></p><p><b>actor</b>: <a href=\"practitioner-example.html\">Practitioner/example</a> &quot;Adam CAREFUL&quot;</p></blockquote><blockquote><p><b>participant</b></p><p><b>function</b>: Informant <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"http://terminology.hl7.org/5.1.0/CodeSystem-provenance-participant-type.html\">Provenance participant type</a>#informant)</span></p><p><b>actor</b>: <a href=\"patient-example.html\">Patient/example</a> &quot;Peter CHALMERS&quot;</p></blockquote><p><b>lastOccurrence</b>: <span title=\"  last happened June 2012. Typically, systems either track lastOccurrence,\n     or a list of events.  \">2012-06</span></p><p><b>note</b>: <span title=\"  an additional note about the allergy propensity by the recorder  \">The criticality is high becasue of the observed anaphylactic reaction when challenged with cashew extract.</span></p><blockquote><p><b>reaction</b></p><p><b>substance</b>: <span title=\"  \n      It's possible to list specific things to which the patient responded,\n      e.g. chocolate (that happened to contain cashew nuts). This event has\n      such a specific substance. Note that systems should ensure that what\n      goes in here does not conflict with the substance above, and systems\n      processing the data can be sure that what is here does not contravene\n      the substance above\n     \">cashew nut allergenic extract Injectable Product <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"http://terminology.hl7.org/5.1.0/CodeSystem-v3-rxNorm.html\">RxNorm</a>#1160593)</span></span></p><h3>Manifestations</h3><table class=\"grid\"><tr><td>-</td><td><b>Concept</b></td></tr><tr><td>*</td><td>Anaphylactic reaction <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"https://browser.ihtsdotools.org/\">SNOMED CT</a>#39579001)</span></td></tr></table><p><b>description</b>: Challenge Protocol. Severe reaction to subcutaneous cashew extract. Epinephrine administered</p><p><b>onset</b>: 2012-06-12</p><p><b>severity</b>: severe</p><p><b>exposureRoute</b>: Subcutaneous route <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"https://browser.ihtsdotools.org/\">SNOMED CT</a>#34206005)</span></p></blockquote><blockquote><p><b>reaction</b></p><h3>Manifestations</h3><table class=\"grid\"><tr><td>-</td><td><b>Concept</b></td></tr><tr><td>*</td><td>Urticaria <span style=\"background: LightGoldenRodYellow; margin: 4px; border: 1px solid khaki\"> (<a href=\"https://browser.ihtsdotools.org/\">SNOMED CT</a>#64305001)</span></td></tr></table><p><b>onset</b>: 2004</p><p><b>severity</b>: moderate</p><p><b>note</b>: <span title=\"  an additional note about the reaction by the recorder  \">The patient reports that the onset of urticaria was within 15 minutes of eating cashews.</span></p></blockquote></div>",
+      "notes": "Value modified"
+    },
+    {
+      "field": "participant",
+      "change_type": "added",
+      "r4_value": null,
+      "r5_value": [
+        {
+          "function": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+                "code": "author",
+                "display": "Author"
+              }
+            ]
+          },
+          "actor": {
+            "reference": "Practitioner/example"
+          }
+        },
+        {
+          "function": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+                "code": "informant",
+                "display": "Informant"
+              }
+            ]
+          },
+          "actor": {
+            "reference": "Patient/example"
+          }
+        }
+      ],
+      "notes": "New field in R5"
+    },
+    {
+      "field": "asserter",
+      "change_type": "removed",
+      "r4_value": {
+        "reference": "Patient/example"
+      },
+      "r5_value": null,
+      "notes": "Field removed in R5"
+    }
+  ],
+  "key_findings": [
+    "MAJOR: 'type' field changed from string to CodeableConcept",
+    "REMOVAL: recorder field removed (replaced by participant)",
+    "CHANGE: manifestation structure modified to use 'concept' wrapper",
+    "NEW: participant structure added in R5",
+    "REMOVAL: asserter field removed (replaced by participant)"
+  ]
+}
