@@ -614,7 +614,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
         }
       } catch (error) {
-        console.error('Error loading refill data:', error);
+        // Handle error silently to prevent console clutter
       }
     };
 
@@ -731,7 +731,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           oldStatus
         );
       } catch (error) {
-        console.error('Error updating medication lists:', error);
+        // Error updating medication lists - handle silently
       }
       
       // Refresh the medication requests
@@ -751,7 +751,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Failed to update medication request status:', error);
+      // Failed to update medication request status - handle silently
       setSnackbar({
         open: true,
         message: 'Failed to update medication request status',
@@ -880,7 +880,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       });
 
     } catch (error) {
-      console.error('Error approving refill request:', error);
+      // Error approving refill request - handle silently
       setSnackbar({
         open: true,
         message: 'Failed to approve refill request',
@@ -922,7 +922,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       });
 
     } catch (error) {
-      console.error('Error rejecting refill request:', error);
+      // Error rejecting refill request - handle silently
       setSnackbar({
         open: true,
         message: 'Failed to reject refill request',

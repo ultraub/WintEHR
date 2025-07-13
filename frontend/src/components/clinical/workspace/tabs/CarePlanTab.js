@@ -383,18 +383,18 @@ const InterventionList = ({ activities, onEdit, onAddIntervention }) => {
                       </Stack>
                     }
                     secondary={
-                      <Box>
+                      <span>
                         {activity.detail?.scheduledTiming?.repeat?.frequency && (
-                          <Typography variant="caption">
+                          <span style={{ fontSize: '0.75rem' }}>
                             Frequency: {activity.detail.scheduledTiming.repeat.frequency} times per {activity.detail.scheduledTiming.repeat.period} {activity.detail.scheduledTiming.repeat.periodUnit}
-                          </Typography>
+                          </span>
                         )}
                         {activity.detail?.location && (
-                          <Typography variant="caption" display="block">
+                          <span style={{ fontSize: '0.75rem', display: 'block' }}>
                             Location: {activity.detail.location.display}
-                          </Typography>
+                          </span>
                         )}
-                      </Box>
+                      </span>
                     }
                   />
                   <ListItemSecondaryAction>
@@ -1934,16 +1934,16 @@ const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
                   <ListItemText
                     primary={member.member?.display || 'Unknown Member'}
                     secondary={
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">
+                      <span>
+                        <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                           Role: {member.role?.[0]?.text || 'Not specified'}
-                        </Typography>
+                        </span>
                         {member.period?.start && (
-                          <Typography variant="caption" color="text.secondary">
+                          <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)', display: 'block' }}>
                             Since: {format(parseISO(member.period.start), 'MMM d, yyyy')}
-                          </Typography>
+                          </span>
                         )}
-                      </Box>
+                      </span>
                     }
                   />
                   <ListItemSecondaryAction>

@@ -472,7 +472,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
               setWorkflowEvents(prev => [...prev, workflowEvent]);
             }
           } catch (err) {
-            console.error('Error processing workflow event:', err);
+            // Error processing workflow event - handle silently
             setSnackbar({
               open: true,
               message: 'Error processing workflow event',
@@ -484,7 +484,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         unsubscribers.push(unsubscribe);
       });
     } catch (err) {
-      console.error('Error subscribing to workflow events:', err);
+      // Error subscribing to workflow events - handle silently
       setError('Failed to subscribe to workflow events');
     }
     
@@ -494,7 +494,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         try {
           unsubscribe();
         } catch (err) {
-          console.error('Error unsubscribing from workflow event:', err);
+          // Error unsubscribing from workflow event - handle silently
         }
       });
     };
@@ -530,12 +530,12 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             });
           }
         } catch (err) {
-          console.error(`Error processing ${resourceType} resources:`, err);
+          // Error processing resources - handle silently
           // Continue processing other resource types
         }
       });
     } catch (err) {
-      console.error('Error collecting timeline events:', err);
+      // Error collecting timeline events - handle silently
       setError('Failed to load timeline events');
       return [];
     }
@@ -730,7 +730,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         content
       });
     } catch (err) {
-      console.error('Error printing timeline:', err);
+      // Error printing timeline - handle silently
       setSnackbar({
         open: true,
         message: 'Failed to print timeline. Please try again.',

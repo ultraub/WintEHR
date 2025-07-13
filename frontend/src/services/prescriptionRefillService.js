@@ -128,7 +128,6 @@ class PrescriptionRefillService {
       return createdRequest;
 
     } catch (error) {
-      console.error('Error creating refill request:', error);
       throw error;
     }
   }
@@ -171,7 +170,6 @@ class PrescriptionRefillService {
               refillInfo: this.extractRefillInfo(request)
             };
           } catch (error) {
-            console.error('Error enriching refill request:', error);
             return request;
           }
         })
@@ -180,7 +178,6 @@ class PrescriptionRefillService {
       return enrichedRequests;
 
     } catch (error) {
-      console.error('Error fetching refill requests:', error);
       throw error;
     }
   }
@@ -232,7 +229,6 @@ class PrescriptionRefillService {
       return result;
 
     } catch (error) {
-      console.error('Error approving refill request:', error);
       throw error;
     }
   }
@@ -267,7 +263,6 @@ class PrescriptionRefillService {
       return result;
 
     } catch (error) {
-      console.error('Error rejecting refill request:', error);
       throw error;
     }
   }
@@ -278,10 +273,35 @@ class PrescriptionRefillService {
   async getRefillHistory(medicationRequestId) {
     try {
       const originalRequest = await fhirClient.read('MedicationRequest', medicationRequestId);
-      const patientId = originalRequest.subject?.reference?.split('/')[1];
+      
+      // Enhanced patient ID resolution with multiple fallback strategies
+      let patientId = null;
+      
+      // Strategy 1: Extract from subject.reference
+      if (originalRequest.subject?.reference) {
+        if (originalRequest.subject.reference.startsWith('urn:uuid:')) {
+          patientId = originalRequest.subject.reference.replace('urn:uuid:', '');
+        } else {
+          patientId = originalRequest.subject.reference.split('/')[1];
+        }
+      }
+      
+      // Strategy 2: Check for direct subject.id
+      if (!patientId && originalRequest.subject?.id) {
+        patientId = originalRequest.subject.id;
+      }
+      
+      // Strategy 3: Look for patient extension
+      if (!patientId) {
+        const patientExtension = originalRequest.extension?.find(
+          ext => ext.url && ext.url.includes('patient')
+        );
+        if (patientExtension?.valueReference?.reference) {
+          patientId = patientExtension.valueReference.reference.split('/')[1];
+        }
+      }
       
       if (!patientId) {
-        console.warn(`Patient ID not found in medication request ${medicationRequestId} - returning empty history`);
         return {
           originalPrescription: originalRequest,
           history: [],
@@ -339,7 +359,6 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.warn('Error getting refill history for medication', medicationRequestId, ':', error.message);
       // Return empty history instead of throwing to prevent UI crashes
       return {
         originalPrescription: null,
@@ -462,7 +481,6 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.warn('Error calculating medication adherence for medication', medicationRequestId, ':', error.message);
       // Return default adherence data instead of throwing
       return {
         adherenceRate: 0,
@@ -530,7 +548,6 @@ class PrescriptionRefillService {
       };
 
     } catch (error) {
-      console.warn('Error checking refill eligibility for medication', medicationRequestId, ':', error.message);
       // Return ineligible status instead of throwing
       return {
         eligible: false,
@@ -574,7 +591,6 @@ class PrescriptionRefillService {
               refillInfo: this.extractRefillInfo(request)
             };
           } catch (error) {
-            console.error('Error enriching pending refill request:', error);
             return request;
           }
         })
@@ -583,7 +599,6 @@ class PrescriptionRefillService {
       return enrichedRequests;
 
     } catch (error) {
-      console.error('Error getting pending refill requests:', error);
       throw error;
     }
   }
@@ -635,7 +650,6 @@ class PrescriptionRefillService {
       return (dispenseResponse.resources || []).length;
 
     } catch (error) {
-      console.error('Error getting refills used:', error);
       return 0;
     }
   }

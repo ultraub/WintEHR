@@ -2,7 +2,7 @@
  * Medication Discontinuation Dialog Component
  * Comprehensive workflow for discontinuing medications with proper FHIR tracking
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -679,4 +679,4 @@ const MedicationDiscontinuationDialog = ({
   );
 };
 
-export default MedicationDiscontinuationDialog;
+export default React.memo(MedicationDiscontinuationDialog);

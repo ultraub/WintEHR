@@ -2,7 +2,7 @@
  * CPOE (Computerized Physician Order Entry) Dialog
  * Comprehensive order entry system with clinical decision support
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -1389,4 +1389,4 @@ const CPOEDialog = ({
   );
 };
 
-export default CPOEDialog;
+export default React.memo(CPOEDialog);

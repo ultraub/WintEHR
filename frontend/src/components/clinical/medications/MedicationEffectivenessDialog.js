@@ -2,7 +2,7 @@
  * Medication Effectiveness Assessment Dialog
  * Comprehensive interface for assessing medication effectiveness and recording outcomes
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -648,4 +648,4 @@ const MedicationEffectivenessDialog = ({
   );
 };
 
-export default MedicationEffectivenessDialog;
+export default React.memo(MedicationEffectivenessDialog);

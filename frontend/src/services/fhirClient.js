@@ -43,7 +43,7 @@ class FHIRClient {
       this.capabilities = response.data;
       return this.capabilities;
     } catch (error) {
-      console.warn('Could not discover FHIR server capabilities:', error.message);
+      // Could not discover FHIR server capabilities - using defaults
       // Create default capabilities for common FHIR resources
       this.capabilities = this.getDefaultCapabilities();
       return this.capabilities;
@@ -86,7 +86,7 @@ class FHIRClient {
    */
   supportsResource(resourceType) {
     if (!this.capabilities) {
-      console.warn(`No capabilities available, assuming ${resourceType} is supported`);
+      // No capabilities available, assuming resource is supported
       return true; // Assume support if no capabilities
     }
     
@@ -94,7 +94,7 @@ class FHIRClient {
     const isSupported = resources.some(r => r.type === resourceType);
     
     if (!isSupported) {
-      console.warn(`Resource type ${resourceType} not found in server capabilities`);
+      // Resource type not found in server capabilities
       // For common FHIR R4 resources, assume support even if not in capabilities
       const commonResources = [
         'Patient', 'Observation', 'Condition', 'MedicationRequest', 
@@ -129,7 +129,7 @@ class FHIRClient {
    */
   async create(resourceType, resource) {
     if (!this.supportsResource(resourceType)) {
-      console.warn(`Server capabilities indicate ${resourceType} may not be supported, attempting anyway...`);
+      // Server capabilities indicate resource may not be supported, attempting anyway
     }
 
     try {
@@ -143,13 +143,13 @@ class FHIRClient {
     } catch (error) {
       // Provide more helpful error messages
       if (error.response?.status === 400) {
-        console.error(`FHIR Validation Error creating ${resourceType}:`, error.response.data);
+        // FHIR Validation Error creating resource
         throw new Error(`Invalid ${resourceType} resource: ${error.response.data?.detail || error.message}`);
       } else if (error.response?.status === 404) {
-        console.error(`${resourceType} endpoint not found`);
+        // Resource endpoint not found
         throw new Error(`Server does not support ${resourceType} resources`);
       } else {
-        console.error(`Error creating ${resourceType}:`, error);
+        // Error creating resource
         throw error;
       }
     }
@@ -207,7 +207,7 @@ class FHIRClient {
       if (error.response?.status === 404) {
         const missingResourceTypes = ['List', 'MedicationDispense', 'Basic'];
         if (missingResourceTypes.includes(resourceType)) {
-          console.warn(`Resource type ${resourceType} not supported by server - using empty result`);
+          // Resource type not supported by server - using empty result
           return {
             resources: [],
             total: 0,
