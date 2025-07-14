@@ -15,9 +15,9 @@ from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-from fhir.resources import construct_fhir_element
-from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
-from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
+from .resources_r4b import construct_fhir_element
+from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
+from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
 from .synthea_validator import SyntheaFHIRValidator
 from .reference_utils import ReferenceUtils
