@@ -2,7 +2,7 @@
  * PatientSummaryV4 Component
  * Beautiful, modern patient summary with clinical workspace integration
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -52,76 +52,54 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { fhirClient } from '../../../services/fhirClient';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import { useInitializationGuard } from '../../../hooks/useStableReferences';
 
 const PatientSummaryV4 = ({ patientId }) => {
   
   const theme = useTheme();
   const navigate = useNavigate();
-  const { searchResources } = useFHIRResource();
+  const { 
+    currentPatient, 
+    setCurrentPatient, 
+    getPatientResources, 
+    isLoading, 
+    getError,
+    warmPatientCache,
+    isCacheWarm
+  } = useFHIRResource();
   
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [cdsLoading, setCdsLoading] = useState(false);
-  const [patientData, setPatientData] = useState({
-    patient: null,
-    conditions: [],
-    medications: [],
-    observations: [],
-    encounters: [],
-    allergies: []
-  });
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Initialization guard to prevent multiple loads
+  const { isInitialized, isInitializing, markInitialized, markInitializing } = useInitializationGuard();
 
-  // Load patient data
+  // Load patient data using centralized FHIRResourceContext - prevent infinite loops
   useEffect(() => {
     const loadPatientData = async () => {
-      if (!patientId) return;
+      if (!patientId || isInitializing) return;
       
       try {
-        setLoading(true);
-        setError(null);
-
-        const [
-          patientResult,
-          conditionsResult,
-          medicationsResult,
-          observationsResult,
-          encountersResult,
-          allergiesResult
-        ] = await Promise.allSettled([
-          // Use direct read for patient instead of search
-          fhirClient.read('Patient', patientId).then(patient => ({ resources: [patient] })),
-          searchResources('Condition', { patient: patientId, _count: 10, _sort: '-onset-date' }),
-          searchResources('MedicationRequest', { patient: patientId, _count: 10, _sort: '-date' }),
-          searchResources('Observation', { patient: patientId, _count: 20, _sort: '-date' }),
-          searchResources('Encounter', { patient: patientId, _count: 5, _sort: '-date' }),
-          searchResources('AllergyIntolerance', { patient: patientId, _count: 10 })
-        ]);
-
-        // Process medications - skip reference resolution since they return 404s
-        const medications = medicationsResult.status === 'fulfilled' ? medicationsResult.value.resources || [] : [];
-
-        setPatientData({
-          patient: patientResult.status === 'fulfilled' ? patientResult.value.resources?.[0] : null,
-          conditions: conditionsResult.status === 'fulfilled' ? conditionsResult.value.resources || [] : [],
-          medications: medications,
-          observations: observationsResult.status === 'fulfilled' ? observationsResult.value.resources || [] : [],
-          encounters: encountersResult.status === 'fulfilled' ? encountersResult.value.resources || [] : [],
-          allergies: allergiesResult.status === 'fulfilled' ? allergiesResult.value.resources || [] : []
-        });
-
+        markInitializing();
+        // Only set current patient if it's different
+        if (!currentPatient || currentPatient.id !== patientId) {
+          await setCurrentPatient(patientId);
+        }
+        setIsInitialLoad(false);
+        markInitialized();
       } catch (err) {
-        
-        setError('Failed to load patient data');
-      } finally {
-        setLoading(false);
+        setIsInitialLoad(false);
+        markInitialized();
       }
     };
 
-    loadPatientData();
-  }, [patientId]);
+    // Only load if not already initialized for this patient
+    if (!isInitialized || currentPatient?.id !== patientId) {
+      loadPatientData();
+    }
+  }, [patientId]); // Minimal dependencies - no functions
 
   // Load CDS alerts for patient-view hooks
   const loadCDSAlerts = async () => {
@@ -168,16 +146,23 @@ const PatientSummaryV4 = ({ patientId }) => {
 
   // Load CDS alerts after patient data is loaded
   useEffect(() => {
-    if (patientData.patient && !loading) {
+    if (currentPatient && !isInitialLoad) {
       loadCDSAlerts();
     }
-  }, [patientData.patient, loading]);
+  }, [currentPatient, isInitialLoad]);
+
+  // Get patient resources using centralized context - no function dependencies
+  const conditions = useMemo(() => getPatientResources(patientId, 'Condition'), [patientId]);
+  const medications = useMemo(() => getPatientResources(patientId, 'MedicationRequest'), [patientId]);
+  const observations = useMemo(() => getPatientResources(patientId, 'Observation'), [patientId]);
+  const encounters = useMemo(() => getPatientResources(patientId, 'Encounter'), [patientId]);
+  const allergies = useMemo(() => getPatientResources(patientId, 'AllergyIntolerance'), [patientId]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {
-    if (!patientData.patient) return null;
+    if (!currentPatient) return null;
     
-    const patient = patientData.patient;
+    const patient = currentPatient;
     const name = patient.name?.[0];
     const fullName = name ? `${name.given?.join(' ') || ''} ${name.family || ''}`.trim() : 'Unknown Patient';
     const age = patient.birthDate ? differenceInYears(new Date(), new Date(patient.birthDate)) : null;
@@ -197,55 +182,55 @@ const PatientSummaryV4 = ({ patientId }) => {
       email,
       address: address ? `${address.line?.join(' ') || ''}, ${address.city || ''}, ${address.state || ''} ${address.postalCode || ''}`.trim() : null
     };
-  }, [patientData.patient]);
+  }, [currentPatient]);
 
   // Active conditions
   const activeConditions = useMemo(() => {
-    return patientData.conditions
+    return conditions
       .filter(condition => 
         condition.clinicalStatus?.coding?.[0]?.code === 'active' ||
         !condition.clinicalStatus
       )
       .slice(0, 5);
-  }, [patientData.conditions]);
+  }, [conditions]);
 
   // Current medications
   const currentMedications = useMemo(() => {
-    return patientData.medications
+    return medications
       .filter(med => 
         med.status === 'active' || 
         med.status === 'completed' ||
         !med.status
       )
       .slice(0, 5);
-  }, [patientData.medications]);
+  }, [medications]);
 
   // Recent vitals
   const recentVitals = useMemo(() => {
     const vitalsCodes = ['8480-6', '8462-4', '8310-5', '39156-5', '3141-9', '29463-7'];
-    return patientData.observations
+    return observations
       .filter(obs => 
         obs.category?.[0]?.coding?.[0]?.code === 'vital-signs' ||
         vitalsCodes.some(code => obs.code?.coding?.[0]?.code === code)
       )
       .slice(0, 4);
-  }, [patientData.observations]);
+  }, [observations]);
 
   // Active allergies
   const activeAllergies = useMemo(() => {
-    return patientData.allergies
+    return allergies
       .filter(allergy => 
         allergy.clinicalStatus?.coding?.[0]?.code === 'active' ||
         !allergy.clinicalStatus
       )
       .slice(0, 3);
-  }, [patientData.allergies]);
+  }, [allergies]);
 
   const handleLaunchWorkspace = () => {
     navigate(`/patients/${patientId}/clinical`);
   };
 
-  if (loading) {
+  if (isInitialLoad || isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
@@ -253,6 +238,7 @@ const PatientSummaryV4 = ({ patientId }) => {
     );
   }
 
+  const error = getError('Patient');
   if (error || !patientInfo) {
     return (
       <Alert severity="error" sx={{ m: 3 }}>
@@ -544,7 +530,7 @@ const PatientSummaryV4 = ({ patientId }) => {
                 <Button 
                   size="small" 
                   variant="outlined"
-                  onClick={() => window.open('/cds-hooks', '_blank')}
+                  onClick={() => window.open('/cds-studio', '_blank')}
                 >
                   View Details
                 </Button>

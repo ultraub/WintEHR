@@ -149,7 +149,7 @@ const ConditionItem = ({ condition, index, onChange, onDelete, onDuplicate }) =>
   };
 
   return (
-    <Draggable draggableId={condition.id} index={index}>
+    <Draggable draggableId={String(condition.id)} index={index}>
       {(provided, snapshot) => (
         <Card
           ref={provided.innerRef}

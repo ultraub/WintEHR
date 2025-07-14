@@ -142,11 +142,9 @@ class FHIRTransformer:
                 data['performed'] = data.pop('performedPeriod')
         
         elif resource_type == 'MedicationRequest':
-            # Handle medication[x] - must be either medicationCodeableConcept or medicationReference
-            if 'medicationCodeableConcept' in data:
-                data['medication'] = data.pop('medicationCodeableConcept')
-            elif 'medicationReference' in data:
-                data['medication'] = data.pop('medicationReference')
+            # Handle medication[x] - R4B expects the field names to be exactly medicationCodeableConcept or medicationReference
+            # Do NOT transform to just 'medication' as that's not valid in R4B
+            pass
             
             # Fix dosageInstruction
             if 'dosageInstruction' in data:

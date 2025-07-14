@@ -45,6 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -275,10 +276,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId, getPatientResources, onNotificationUpdate]);
 
-  // Load all patient data
+  // Load all patient data - only when patientId changes
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    if (patientId) {
+      loadDashboardData();
+    }
+  }, [patientId]); // Only depend on patientId, not the function itself
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -314,7 +317,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [subscribe, patientId, loadDashboardData]);
+  }, [subscribe, patientId]); // Removed loadDashboardData dependency to prevent loops
 
 
   const handleRefresh = useCallback(() => {
@@ -574,7 +577,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                     <RecentItem
                       key={med.id}
                       primary={getMedicationDisplay(med)}
-                      secondary={med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                      secondary={getMedicationDosageDisplay(med)}
                       icon={<MedicationIcon color="primary" />}
                       onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
@@ -652,8 +655,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       key={encounter.id}
                       primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
                       secondary={
-                        encounter.period?.start ? 
-                          format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 
+                        (encounter.actualPeriod || encounter.period)?.start ? 
+                          format(parseISO((encounter.actualPeriod || encounter.period).start), 'MMM d, yyyy h:mm a') : 
                           'Date unknown'
                       }
                       icon={<EncounterIcon color="secondary" />}

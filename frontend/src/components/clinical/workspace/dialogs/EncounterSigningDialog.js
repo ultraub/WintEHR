@@ -156,8 +156,15 @@ const EncounterSigningDialog = ({
       
       // Load existing diagnoses (Conditions)
       const conditions = getPatientResources(patientId, 'Condition') || [];
+      const encounterRef = `Encounter/${encounter.id}`;
+      const encounterUrnRef = `urn:uuid:${encounter.id}`;
+      
+      const isEncounterMatch = (ref) => {
+        return ref === encounterRef || ref === encounterUrnRef;
+      };
+      
       const encounterConditions = conditions.filter(c => 
-        c.encounter?.reference?.includes(encounter.id)
+        isEncounterMatch(c.encounter?.reference)
       );
       
       setDiagnosesData(encounterConditions);
@@ -186,7 +193,7 @@ const EncounterSigningDialog = ({
     const newWarnings = [];
 
     // Check required fields
-    if (!encounter.reasonCode || encounter.reasonCode.length === 0) {
+    if ((!encounter.reasonCode || encounter.reasonCode.length === 0) && (!encounter.reason || encounter.reason.length === 0)) {
       newErrors.push('Chief complaint/reason for visit is required');
     }
 
@@ -196,9 +203,24 @@ const EncounterSigningDialog = ({
 
     // Check for missing documentation
     const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
-    const encounterDocs = documentReferences.filter(doc => 
-      doc.context?.encounter?.reference?.includes(encounter.id)
-    );
+    const encounterRef = `Encounter/${encounter.id}`;
+    const encounterUrnRef = `urn:uuid:${encounter.id}`;
+    
+    const isEncounterMatch = (ref) => {
+      return ref === encounterRef || ref === encounterUrnRef;
+    };
+    
+    const encounterDocs = documentReferences.filter(doc => {
+      // Check if context.encounter is an array
+      if (Array.isArray(doc.context?.encounter)) {
+        return doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
+      }
+      // Check if context.encounter is a single reference object
+      if (doc.context?.encounter?.reference) {
+        return isEncounterMatch(doc.context.encounter.reference);
+      }
+      return false;
+    });
     
     if (encounterDocs.length === 0) {
       newWarnings.push('No clinical documentation found for this encounter');
@@ -210,7 +232,7 @@ const EncounterSigningDialog = ({
       ...(getPatientResources(patientId, 'ServiceRequest') || [])
     ];
     const encounterOrders = orders.filter(order => 
-      order.encounter?.reference?.includes(encounter.id)
+      isEncounterMatch(order.encounter?.reference)
     );
     const unsignedOrders = encounterOrders.filter(order => 
       order.status === 'draft' || !order.requester
@@ -336,7 +358,7 @@ const EncounterSigningDialog = ({
         ...encounter,
         status: 'finished',
         period: {
-          ...encounter.period,
+          ...(encounter.actualPeriod || encounter.period),
           end: new Date().toISOString()
         }
       };
@@ -623,7 +645,7 @@ const EncounterSigningDialog = ({
             <Typography variant="h6">Sign Encounter</Typography>
             <Typography variant="body2" color="text.secondary">
               {encounter.type?.[0]?.text || 'Clinical Encounter'} - {
-                encounter.period?.start && format(parseISO(encounter.period.start), 'PPP')
+                (encounter.actualPeriod || encounter.period)?.start && format(parseISO((encounter.actualPeriod || encounter.period).start), 'PPP')
               }
             </Typography>
           </Box>

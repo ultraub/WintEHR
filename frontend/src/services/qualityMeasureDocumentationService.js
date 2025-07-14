@@ -17,7 +17,7 @@ export class QualityMeasureDocumentationService {
    */
   async initializeQualityMeasures() {
     try {
-      const response = await fetch('/api/quality/measures');
+      const response = await fetch('/api/quality/measures/');
       if (response.ok) {
         this.qualityMeasures = await response.json();
       }

@@ -70,6 +70,19 @@ import HookTestingPanel from './HookTestingPanel';
 // Import context
 import { useCDSStudio } from '../../../pages/CDSHooksStudio';
 
+// Helper function for generating hook ID
+const generateHookId = (title) => {
+  if (!title || typeof title !== 'string') return '';
+  
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+};
+
 // Hook types with better descriptions
 const HOOK_TYPES = [
   { 
@@ -218,6 +231,20 @@ const CDSBuildModeImproved = () => {
             helperText="A clear, descriptive name for your clinical decision support hook"
           />
         </Grid>
+
+        {/* Show generated Hook ID */}
+        {currentHook.title && (
+          <Grid item xs={12}>
+            <Alert severity="info" sx={{ bgcolor: 'primary.50' }}>
+              <Typography variant="body2">
+                <strong>Hook ID (auto-generated):</strong> {currentHook.id || generateHookId(currentHook.title)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                This unique identifier will be used by the CDS Hooks service
+              </Typography>
+            </Alert>
+          </Grid>
+        )}
 
         <Grid item xs={12}>
           <FormControl fullWidth required>

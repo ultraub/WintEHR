@@ -640,6 +640,15 @@ git status docs/ --porcelain
 
 ## 📅 Recent Updates
 
+### 2025-07-14
+- Fixed DocumentReference validation "integer is required" errors
+- Resolved dict() to json() conversion for preserving data types
+- Simplified document validation to avoid reconstruction issues
+- Fixed encounterId null issue using activeEncounter from context
+- Removed console.warn statements from EnhancedNoteEditor
+- Integrated noteTemplatesService replacing hardcoded templates
+- Enhanced smart phrase expansion with date/time macros
+
 ### 2025-07-12
 - Fixed dynamic clinical catalog 404 errors
 - Resolved frontend proxy configuration conflicts

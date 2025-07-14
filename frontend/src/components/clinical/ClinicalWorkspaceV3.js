@@ -2,7 +2,7 @@
  * ClinicalWorkspaceV3 Component
  * Modern tab-based clinical workspace with customizable layouts
  */
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, useMemo, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -60,6 +60,7 @@ import { usePatientCDSAlerts } from '../../contexts/CDSContext';
 
 // Lazy-loaded Components
 const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
+const CDSPresentation = React.lazy(() => import('./cds/CDSPresentation'));
 
 // Tab Components - Lazy Loaded for Performance
 const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
@@ -107,58 +108,114 @@ const TabLoadingFallback = () => (
   </Box>
 );
 
-// CDS Alerts Display Component
+// CDS Alerts Display Component with Display Behavior Support
 const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
   const { alerts, loading } = usePatientCDSAlerts(patientId);
   const [dismissed, setDismissed] = useState(new Set());
+  const prevVisibleCountRef = useRef(0);
   
-  // Filter out dismissed alerts and limit to maxAlerts
-  const visibleAlerts = alerts
-    .filter(alert => !dismissed.has(alert.uuid))
-    .slice(0, maxAlerts);
+  // Filter out dismissed alerts and limit to maxAlerts - MUST be before early returns
+  const visibleAlerts = useMemo(() => {
+    return alerts
+      .filter(alert => !dismissed.has(alert.uuid))
+      .slice(0, maxAlerts);
+  }, [alerts, dismissed, maxAlerts]);
+
+  // Group alerts by presentation mode - MUST be before early returns
+  const alertsByMode = useMemo(() => {
+    const grouped = {};
+    visibleAlerts.forEach(alert => {
+      const mode = alert.displayBehavior?.presentationMode || 'popup';
+      
+      if (!grouped[mode]) {
+        grouped[mode] = [];
+      }
+      grouped[mode].push(alert);
+    });
+    
+    // Log the grouped alerts for debugging only when grouping changes
+    if (Object.keys(grouped).length > 0) {
+      console.log(`🎭 CDSAlertsDisplay: Alerts grouped by mode:`, Object.fromEntries(
+        Object.entries(grouped).map(([mode, alerts]) => [mode, alerts.map(a => a.summary)])
+      ));
+    }
+    
+    return grouped;
+  }, [visibleAlerts]);
   
-  if (loading || visibleAlerts.length === 0) {
-    return null;
+  // Only log when visible alerts count changes
+  if (visibleAlerts.length !== prevVisibleCountRef.current) {
+    console.log(`🖥️ CDSAlertsDisplay: Alert count changed from ${prevVisibleCountRef.current} to ${visibleAlerts.length} for patient ${patientId}`);
+    prevVisibleCountRef.current = visibleAlerts.length;
   }
   
   const handleDismiss = (alertId) => {
     setDismissed(prev => new Set([...prev, alertId]));
   };
   
+  // Early returns AFTER all hooks
+  if (loading) {
+    return null;
+  }
+  
+  if (visibleAlerts.length === 0) {
+    return null;
+  }
+
+
   return (
-    <Box sx={{ px: 2, pt: 1, pb: compact ? 0.5 : 1, flexShrink: 0 }}>
-      <Stack spacing={1}>
-        {visibleAlerts.map((alert) => (
-          <Alert
-            key={alert.uuid}
-            severity={
-              alert.indicator === 'critical' ? 'error' :
-              alert.indicator === 'warning' ? 'warning' : 'info'
-            }
-            onClose={() => handleDismiss(alert.uuid)}
-            sx={{
-              '& .MuiAlert-message': {
-                width: '100%'
-              }
-            }}
-          >
-            <AlertTitle sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
-              {alert.summary}
-            </AlertTitle>
-            {!compact && alert.detail && (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                {alert.detail}
-              </Typography>
-            )}
-            {alert.source?.label && (
-              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
-                Source: {alert.source.label}
-              </Typography>
-            )}
-          </Alert>
-        ))}
-      </Stack>
-    </Box>
+    <>
+      {/* Render alerts by their configured presentation mode */}
+      {Object.entries(alertsByMode).map(([mode, modeAlerts]) => (
+        <React.Suspense key={mode} fallback={<div>Loading alerts...</div>}>
+          <CDSPresentation
+            alerts={modeAlerts}
+            mode={mode}
+            onAlertAction={handleDismiss}
+            autoHide={false}
+            allowInteraction={true}
+            patientId={patientId}
+          />
+        </React.Suspense>
+      ))}
+
+      {/* Fallback for any alerts without displayBehavior - render as simple alerts */}
+      {visibleAlerts.filter(alert => !alert.displayBehavior).length > 0 && (
+        <Box sx={{ px: 2, pt: 1, pb: compact ? 0.5 : 1, flexShrink: 0 }}>
+          <Stack spacing={1}>
+            {visibleAlerts.filter(alert => !alert.displayBehavior).map((alert) => (
+              <Alert
+                key={alert.uuid}
+                severity={
+                  alert.indicator === 'critical' ? 'error' :
+                  alert.indicator === 'warning' ? 'warning' : 'info'
+                }
+                onClose={() => handleDismiss(alert.uuid)}
+                sx={{
+                  '& .MuiAlert-message': {
+                    width: '100%'
+                  }
+                }}
+              >
+                <AlertTitle sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
+                  {alert.summary}
+                </AlertTitle>
+                {!compact && alert.detail && (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    {alert.detail}
+                  </Typography>
+                )}
+                {alert.source?.label && (
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
+                    Source: {alert.source.label}
+                  </Typography>
+                )}
+              </Alert>
+            ))}
+          </Stack>
+        </Box>
+      )}
+    </>
   );
 };
 
@@ -189,7 +246,13 @@ const ClinicalWorkspaceV3 = () => {
   
   // Contexts
   const { currentUser } = useAuth();
-  const { currentPatient, setCurrentPatient, isLoading: isGlobalLoading } = useFHIRResource();
+  const { 
+    currentPatient, 
+    setCurrentPatient, 
+    isLoading: isGlobalLoading,
+    warmPatientCache,
+    isCacheWarm
+  } = useFHIRResource();
   
   // State
   const [activeTab, setActiveTab] = useState('summary');
@@ -212,7 +275,6 @@ const ClinicalWorkspaceV3 = () => {
           setLoadError(null);
           await setCurrentPatient(patientId);
         } catch (error) {
-          
           setLoadError(error.message || 'Failed to load patient');
         } finally {
           setIsInitialLoad(false);
@@ -222,7 +284,7 @@ const ClinicalWorkspaceV3 = () => {
       }
     };
     loadPatient();
-  }, [patientId, currentPatient, setCurrentPatient]);
+  }, [patientId, currentPatient?.id]); // Remove setCurrentPatient from dependencies to prevent loops
 
   // Handle URL parameters for tab
   useEffect(() => {

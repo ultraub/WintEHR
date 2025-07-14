@@ -15,9 +15,9 @@ from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-from fhir.resources import construct_fhir_element
-from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
-from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
+from .resources_r4b import construct_fhir_element
+from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
+from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
 from .synthea_validator import SyntheaFHIRValidator
 from .reference_utils import ReferenceUtils
@@ -223,8 +223,71 @@ class FHIRStorageEngine:
             # Preprocess with SyntheaFHIRValidator before validation
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
-            resource_dict = fhir_resource.dict(exclude_none=True)
+            logging.info(f"Attempting to construct FHIR element for {resource_type}")
+            logging.debug(f"Resource data: {json.dumps(resource_data, indent=2, default=str)}")
+            
+            try:
+                # Special handling for DocumentReference to check for integer issues
+                if resource_type == 'DocumentReference':
+                    # Remove resourceType before construction as it's not a field
+                    resource_data_for_construction = resource_data.copy()
+                    resource_data_for_construction.pop('resourceType', None)
+                    
+                    # Check for numeric strings in the data
+                    def check_and_fix_integers(data, path=''):
+                        if isinstance(data, dict):
+                            for key, value in data.items():
+                                new_path = f"{path}.{key}" if path else key
+                                if isinstance(value, str) and value.isdigit():
+                                    logging.warning(f"Found numeric string at {new_path}: '{value}'")
+                                    # Convert known integer fields
+                                    if key in ['size', 'height', 'width', 'pages', 'frames']:
+                                        data[key] = int(value)
+                                        logging.info(f"Converted {new_path} from string '{value}' to int {data[key]}")
+                                elif isinstance(value, (dict, list)):
+                                    check_and_fix_integers(value, new_path)
+                        elif isinstance(data, list):
+                            for i, item in enumerate(data):
+                                check_and_fix_integers(item, f"{path}[{i}]")
+                    
+                    check_and_fix_integers(resource_data_for_construction)
+                    fhir_resource = construct_fhir_element(resource_type, resource_data_for_construction)
+                else:
+                    fhir_resource = construct_fhir_element(resource_type, resource_data)
+                    
+                logging.info(f"Successfully constructed FHIR element for {resource_type}")
+            except Exception as construction_error:
+                logging.error(f"Failed to construct FHIR element: {construction_error}")
+                logging.error(f"Error type: {type(construction_error).__name__}")
+                if hasattr(construction_error, 'errors') and callable(construction_error.errors):
+                    try:
+                        errors = construction_error.errors()
+                        logging.error(f"Validation errors: {json.dumps(errors, indent=2, default=str)}")
+                    except:
+                        pass
+                logging.error(f"Resource data that failed construction: {json.dumps(resource_data, indent=2, default=str)}")
+                raise ValueError(f"Failed to construct {resource_type}: {str(construction_error)}")
+            
+            # Apply DocumentReference-specific validation
+            if resource_type == 'DocumentReference':
+                logging.info("=== DOCUMENTREFERENCE VALIDATION START ===")
+                from services.document_validation_service import DocumentValidationService
+                try:
+                    fhir_resource = DocumentValidationService.validate_before_save(
+                        fhir_resource, auto_fix=True
+                    )
+                    logging.info(f"DocumentReference validation passed for resource {fhir_resource.id}")
+                except Exception as validation_error:
+                    logging.error(f"DocumentReference validation failed: {validation_error}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
+                    raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
+            
+            # For DocumentReference, use json() method instead of dict() to preserve data types
+            if resource_type == 'DocumentReference':
+                import json as json_module
+                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+            else:
+                resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -429,8 +492,58 @@ class FHIRStorageEngine:
             # Preprocess with SyntheaFHIRValidator before validation
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
-            resource_dict = fhir_resource.dict(exclude_none=True)
+            try:
+                # Special handling for DocumentReference to check for integer issues
+                if resource_type == 'DocumentReference':
+                    # Remove resourceType before construction as it's not a field
+                    resource_data_for_construction = resource_data.copy()
+                    resource_data_for_construction.pop('resourceType', None)
+                    
+                    # Check for numeric strings in the data
+                    def check_and_fix_integers(data, path=''):
+                        if isinstance(data, dict):
+                            for key, value in data.items():
+                                new_path = f"{path}.{key}" if path else key
+                                if isinstance(value, str) and value.isdigit():
+                                    logging.warning(f"Found numeric string at {new_path}: '{value}'")
+                                    # Convert known integer fields
+                                    if key in ['size', 'height', 'width', 'pages', 'frames']:
+                                        data[key] = int(value)
+                                        logging.info(f"Converted {new_path} from string '{value}' to int {data[key]}")
+                                elif isinstance(value, (dict, list)):
+                                    check_and_fix_integers(value, new_path)
+                        elif isinstance(data, list):
+                            for i, item in enumerate(data):
+                                check_and_fix_integers(item, f"{path}[{i}]")
+                    
+                    check_and_fix_integers(resource_data_for_construction)
+                    fhir_resource = construct_fhir_element(resource_type, resource_data_for_construction)
+                else:
+                    fhir_resource = construct_fhir_element(resource_type, resource_data)
+            except Exception as construction_error:
+                logging.error(f"Failed to construct FHIR element for update: {construction_error}")
+                logging.error(f"Resource data that failed construction: {json.dumps(resource_data, indent=2, default=str)}")
+                raise ValueError(f"Failed to construct {resource_type}: {str(construction_error)}")
+            
+            # Apply DocumentReference-specific validation for updates
+            if resource_type == 'DocumentReference':
+                from services.document_validation_service import DocumentValidationService
+                try:
+                    fhir_resource = DocumentValidationService.validate_before_save(
+                        fhir_resource, auto_fix=True
+                    )
+                    logging.info(f"DocumentReference update validation passed for resource {fhir_resource.id}")
+                except Exception as validation_error:
+                    logging.error(f"DocumentReference update validation failed: {validation_error}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
+                    raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
+            
+            # For DocumentReference, use json() method instead of dict() to preserve data types
+            if resource_type == 'DocumentReference':
+                import json as json_module
+                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+            else:
+                resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -1428,16 +1541,27 @@ class FHIRStorageEngine:
             # Authored on date
             if 'authoredOn' in resource_data:
                 try:
-                    authored_date = datetime.fromisoformat(
-                        resource_data['authoredOn'].replace('Z', '+00:00')
-                    )
+                    authored_on_str = resource_data['authoredOn']
+                    if isinstance(authored_on_str, str):
+                        # Handle multiple datetime formats
+                        if authored_on_str.endswith('Z'):
+                            authored_date = datetime.fromisoformat(authored_on_str.replace('Z', '+00:00'))
+                        elif '+' in authored_on_str or authored_on_str.endswith('00:00'):
+                            authored_date = datetime.fromisoformat(authored_on_str)
+                        else:
+                            # Assume UTC if no timezone info
+                            authored_date = datetime.fromisoformat(authored_on_str + '+00:00')
+                    else:
+                        # Handle case where it's already a datetime object
+                        authored_date = authored_on_str if isinstance(authored_on_str, datetime) else datetime.fromisoformat(str(authored_on_str))
+                    
                     params_to_extract.append({
                         'param_name': 'authoredon',
                         'param_type': 'date',
                         'value_date': authored_date
                     })
                 except (ValueError, TypeError) as e:
-                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
+                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} (type: {type(resource_data.get('authoredOn'))}) - {e}")
         elif resource_type == 'Encounter':
             # Status
             if 'status' in resource_data:

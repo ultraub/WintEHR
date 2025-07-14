@@ -1,0 +1,14 @@
+{
+  "resourceType": "DeviceRequest",
+  "id": "example",
+  "status": "completed",
+  "intent": "original-order",
+  "code": {
+    "reference": {
+      "reference": "Device/example"
+    }
+  },
+  "subject": {
+    "reference": "Patient/example"
+  }
+}

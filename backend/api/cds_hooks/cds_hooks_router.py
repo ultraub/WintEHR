@@ -662,17 +662,31 @@ class CDSHookEngine:
             timeframe = int(parameters.get('timeframe', 90))  # days
             
             if not code:
+                logger.debug(f"No lab code provided in parameters: {parameters}")
                 return False
+            
+            # Handle negative timeframe values (means unlimited lookback)
+            if timeframe < 0:
+                timeframe = 36500  # 100 years - effectively unlimited
             
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
             
+            logger.debug(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days")
+            
+            # Try both reference formats: urn:uuid: and Patient/
             query = text("""
                 SELECT resource
                 FROM fhir.resources 
                 WHERE resource_type = 'Observation' 
                 AND deleted = false
-                AND resource->'subject'->>'reference' = :patient_ref
-                AND resource->>'category' = 'laboratory'
+                AND (
+                    resource->'subject'->>'reference' = :patient_ref_fhir
+                    OR resource->'subject'->>'reference' = :patient_ref_uuid
+                )
+                AND (
+                    resource->'category'->0->'coding'->0->>'code' = 'laboratory'
+                    OR resource->'category' @> '[{"coding": [{"code": "laboratory"}]}]'
+                )
                 AND EXISTS (
                     SELECT 1 FROM jsonb_array_elements(resource->'code'->'coding') AS coding
                     WHERE coding->>'code' = :code
@@ -683,38 +697,46 @@ class CDSHookEngine:
             """)
             
             result = await self.db.execute(query, {
-                'patient_ref': f'Patient/{patient_id}',
+                'patient_ref_fhir': f'Patient/{patient_id}',
+                'patient_ref_uuid': f'urn:uuid:{patient_id}',
                 'code': code,
                 'cutoff_date': cutoff_date
             })
             
             row = result.first()
             if not row:
+                logger.debug(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
                 return operator == 'missing'
             
             obs_dict = row.resource
             value_quantity = obs_dict.get('valueQuantity')
             
             if not value_quantity or 'value' not in value_quantity:
+                logger.debug(f"No valueQuantity found in observation for patient {patient_id}")
                 return False
             
             lab_value = float(value_quantity['value'])
             
-            if operator == 'gt':
-                return lab_value > value
-            elif operator == 'ge':
-                return lab_value >= value
-            elif operator == 'lt':
-                return lab_value < value
-            elif operator == 'le':
-                return lab_value <= value
-            elif operator == 'eq':
-                return abs(lab_value - value) < 0.01
+            logger.debug(f"Lab value comparison: {lab_value} {operator} {value}")
             
-            return False
+            if operator == 'gt':
+                result = lab_value > value
+            elif operator == 'ge':
+                result = lab_value >= value
+            elif operator == 'lt':
+                result = lab_value < value
+            elif operator == 'le':
+                result = lab_value <= value
+            elif operator == 'eq':
+                result = abs(lab_value - value) < 0.01
+            else:
+                result = False
+            
+            logger.debug(f"Lab value check result: {result} (lab_value={lab_value}, operator={operator}, threshold={value})")
+            return result
             
         except Exception as e:
-            logger.error(f"Error checking lab values: {e}")
+            logger.error(f"Error checking lab values for patient {patient_id}: {e}")
             return False
     
     async def _check_vital_sign(self, patient_id: str, parameters: Dict[str, Any]) -> bool:

@@ -3,10 +3,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from fhir.resources.imagingstudy import ImagingStudy
 from fhir.resources.imagingstudy import ImagingStudySeries, ImagingStudySeriesInstance
-from fhir.resources.reference import Reference
-from fhir.resources.identifier import Identifier
-from fhir.resources.coding import Coding
-from fhir.resources.codeableconcept import CodeableConcept
+from core.fhir.resources_r4b import Reference, Identifier, Coding, CodeableConcept
 from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance
 
 

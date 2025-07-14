@@ -49,6 +49,8 @@ frontend/build/
 frontend/node_modules/
 backend/dist/
 *.egg-info/
+synthea/build/
+.gradle/
 
 # Lock files (can cause issues with large changes)
 frontend/package-lock.json
@@ -130,6 +132,23 @@ import_log.txt
 synthea_import_report.py
 validate_synthea_import.py
 analyze_synthea_resources.py
+
+# Temporary test files (should not be committed)
+test_*.py
+test_*.js
+test_*.html
+test-*.sh
+test-*.html
+
+# Generated component files
+generated_*.js
+generated_*.html
+generated_*.json
+
+# Deprecated service files
+*.deprecated
+*_old.py
+*_old.js
 
 # Validation and check files
 validation_errors_report.json

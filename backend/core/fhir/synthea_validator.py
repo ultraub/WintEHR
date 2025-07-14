@@ -5,8 +5,8 @@ Extends the base validator to handle Synthea-specific formats and references.
 """
 
 from typing import Dict, List, Optional, Any
-from fhir.resources import construct_fhir_element
-from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
+from .resources_r4b import construct_fhir_element
+from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 from pydantic import ValidationError
 import re
 import logging
@@ -99,6 +99,8 @@ class SyntheaFHIRValidator(FHIRValidator):
             processed = self._preprocess_encounter(processed)
         elif resource_type == 'MedicationRequest':
             processed = self._preprocess_medication_request(processed)
+        elif resource_type == 'AllergyIntolerance':
+            processed = self._preprocess_allergy_intolerance(processed)
         elif resource_type == 'Procedure':
             processed = self._preprocess_procedure(processed)
         elif resource_type == 'Organization':
@@ -264,40 +266,45 @@ class SyntheaFHIRValidator(FHIRValidator):
                     if k in allowed_ref_fields
                 }
         
-        # Enhanced R4/R5 format tolerance - convert to proper R5 structure
-        # Handle R4 format: medicationCodeableConcept -> medication.concept
-        if 'medicationCodeableConcept' in data:
-            logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
-            medication_concept = data.pop('medicationCodeableConcept')
-            # Ensure proper R5 structure with concept wrapper
-            data['medication'] = {
-                'concept': medication_concept
-            }
-        # Handle R4 format: medicationReference -> medication.reference  
-        elif 'medicationReference' in data:
-            logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
-            medication_ref = data.pop('medicationReference')
-            data['medication'] = {
-                'reference': medication_ref
-            }
-        # Handle existing R5 format or ensure proper nesting
-        elif 'medication' in data and isinstance(data['medication'], dict):
-            # If medication exists but doesn't have concept/reference wrapper, fix it
-            medication = data['medication']
-            
-            # Check if it's already properly structured (has concept or reference)
-            if 'concept' not in medication and 'reference' not in medication:
-                # Check if it looks like a CodeableConcept (has coding or text)
-                if 'coding' in medication or 'text' in medication:
-                    logging.debug(f"DEBUG: Wrapping loose medication CodeableConcept in R5 structure for {resource_id}")
-                    # Wrap in concept structure for R5
-                    data['medication'] = {
-                        'concept': medication
-                    }
-                else:
-                    logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
-            else:
-                logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+        # DISABLED: R4/R5 conversion - we're using R4B which expects medicationCodeableConcept/medicationReference
+        # The fhir.resources R4B library expects the field names to be exactly medicationCodeableConcept or medicationReference
+        # NOT medication.concept or medication.reference
+        
+        # # Enhanced R4/R5 format tolerance - convert to proper R5 structure
+        # # Handle R4 format: medicationCodeableConcept -> medication.concept
+        # if 'medicationCodeableConcept' in data:
+        #     logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
+        #     medication_concept = data.pop('medicationCodeableConcept')
+        #     # Ensure proper R5 structure with concept wrapper
+        #     data['medication'] = {
+        #         'concept': medication_concept
+        #     }
+        # # Handle R4 format: medicationReference -> medication.reference  
+        # elif 'medicationReference' in data:
+        #     logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
+        #     medication_ref = data.pop('medicationReference')
+        #     data['medication'] = {
+        #         'reference': medication_ref
+        #     }
+        # DISABLED: Handle existing R5 format - we're using R4B
+        # # Handle existing R5 format or ensure proper nesting
+        # elif 'medication' in data and isinstance(data['medication'], dict):
+        #     # If medication exists but doesn't have concept/reference wrapper, fix it
+        #     medication = data['medication']
+        #     
+        #     # Check if it's already properly structured (has concept or reference)
+        #     if 'concept' not in medication and 'reference' not in medication:
+        #         # Check if it looks like a CodeableConcept (has coding or text)
+        #         if 'coding' in medication or 'text' in medication:
+        #             logging.debug(f"DEBUG: Wrapping loose medication CodeableConcept in R5 structure for {resource_id}")
+        #             # Wrap in concept structure for R5
+        #             data['medication'] = {
+        #                 'concept': medication
+        #             }
+        #         else:
+        #             logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+        #     else:
+        #         logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
         
         logging.debug(f"DEBUG: MedicationRequest {resource_id} preprocessing complete")
         
@@ -396,6 +403,146 @@ class SyntheaFHIRValidator(FHIRValidator):
                             if k in allowed_repeat_fields
                         }
         
+        # Fix datetime field issues (authoredOn parsing errors)
+        if 'authoredOn' in data:
+            if isinstance(data['authoredOn'], str):
+                # Clean up timezone format for FHIR compliance
+                import re
+                # Remove timezone offset that might cause parsing issues
+                data['authoredOn'] = re.sub(r'\+00:00$', 'Z', data['authoredOn'])
+                # Remove microseconds that might cause issues
+                data['authoredOn'] = re.sub(r'\.\d+', '', data['authoredOn'])
+        
+        # Clean all coding fields to prevent regex validation errors
+        def clean_coding_fields(obj):
+            """Recursively clean all coding fields to ensure FHIR compliance."""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if key == 'code' and isinstance(value, str):
+                        # Clean code values: trim whitespace and ensure no double spaces
+                        obj[key] = ' '.join(value.strip().split())
+                    elif key == 'display' and isinstance(value, str):
+                        # Clean display values: trim whitespace and ensure no double spaces
+                        obj[key] = ' '.join(value.strip().split())
+                    elif isinstance(value, (dict, list)):
+                        clean_coding_fields(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    clean_coding_fields(item)
+        
+        # Apply coding cleanup to the entire resource
+        clean_coding_fields(data)
+        
+        return data
+    
+    def _preprocess_allergy_intolerance(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix AllergyIntolerance-specific format issues and handle R4/R5 conversion."""
+        # Convert R4 manifestation format to R5 CodeableReference format
+        # R4: manifestation: [CodeableConcept, ...]
+        # R5: manifestation: [{concept: CodeableConcept}, ...]
+        
+        resource_id = data.get('id', 'unknown')
+        logging.debug(f"DEBUG: Preprocessing AllergyIntolerance {resource_id} - checking reaction format")
+        
+        if 'reaction' in data and isinstance(data['reaction'], list):
+            for i, reaction in enumerate(data['reaction']):
+                if 'manifestation' in reaction and isinstance(reaction['manifestation'], list):
+                    converted_manifestations = []
+                    
+                    for manifestation in reaction['manifestation']:
+                        if isinstance(manifestation, dict):
+                            # Check if it's already R5 format (has 'concept' wrapper)
+                            if 'concept' in manifestation:
+                                # Already R5 format - clean the concept
+                                allowed_concept_fields = {'id', 'extension', 'coding', 'text'}
+                                cleaned_concept = {
+                                    k: v for k, v in manifestation['concept'].items()
+                                    if k in allowed_concept_fields
+                                }
+                                
+                                # Clean nested coding if present
+                                if 'coding' in cleaned_concept and isinstance(cleaned_concept['coding'], list):
+                                    cleaned_codings = []
+                                    for coding in cleaned_concept['coding']:
+                                        allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                                        cleaned_codings.append({
+                                            k: v for k, v in coding.items()
+                                            if k in allowed_coding_fields
+                                        })
+                                    cleaned_concept['coding'] = cleaned_codings
+                                
+                                converted_manifestations.append({
+                                    'concept': cleaned_concept
+                                })
+                                logging.debug(f"DEBUG: Kept R5 manifestation format for reaction {i} in {resource_id}")
+                            
+                            # Check if it's R4 format (direct CodeableConcept)
+                            elif 'coding' in manifestation or 'text' in manifestation:
+                                # R4 format - wrap in concept and clean
+                                allowed_concept_fields = {'id', 'extension', 'coding', 'text'}
+                                cleaned_concept = {
+                                    k: v for k, v in manifestation.items()
+                                    if k in allowed_concept_fields
+                                }
+                                
+                                # Clean nested coding if present
+                                if 'coding' in cleaned_concept and isinstance(cleaned_concept['coding'], list):
+                                    cleaned_codings = []
+                                    for coding in cleaned_concept['coding']:
+                                        allowed_coding_fields = {'id', 'extension', 'system', 'version', 'code', 'display', 'userSelected'}
+                                        cleaned_codings.append({
+                                            k: v for k, v in coding.items()
+                                            if k in allowed_coding_fields
+                                        })
+                                    cleaned_concept['coding'] = cleaned_codings
+                                
+                                converted_manifestations.append({
+                                    'concept': cleaned_concept
+                                })
+                                logging.debug(f"DEBUG: Converted R4→R5 manifestation format for reaction {i} in {resource_id}")
+                            
+                            else:
+                                # Unknown format - skip with warning
+                                logging.warning(f"WARNING: Unknown manifestation format in reaction {i} of {resource_id}: {manifestation}")
+                    
+                    # Update the manifestation array
+                    if converted_manifestations:
+                        data['reaction'][i]['manifestation'] = converted_manifestations
+                        logging.debug(f"DEBUG: Updated {len(converted_manifestations)} manifestations for reaction {i} in {resource_id}")
+                    else:
+                        # Remove empty manifestation array
+                        if 'manifestation' in data['reaction'][i]:
+                            del data['reaction'][i]['manifestation']
+                        logging.warning(f"WARNING: Removed empty manifestation array from reaction {i} in {resource_id}")
+                
+                # Clean other reaction fields
+                allowed_reaction_fields = {
+                    'id', 'extension', 'modifierExtension', 'substance', 'manifestation',
+                    'description', 'onset', 'severity', 'exposureRoute', 'note'
+                }
+                cleaned_reaction = {
+                    k: v for k, v in reaction.items()
+                    if k in allowed_reaction_fields
+                }
+                data['reaction'][i] = cleaned_reaction
+        
+        # Clean main allergy fields
+        allowed_allergy_fields = {
+            'id', 'meta', 'implicitRules', 'language', 'text', 'contained',
+            'extension', 'modifierExtension', 'identifier', 'clinicalStatus',
+            'verificationStatus', 'type', 'category', 'criticality', 'code',
+            'patient', 'encounter', 'onsetDateTime', 'onsetAge', 'onsetPeriod',
+            'onsetRange', 'onsetString', 'recordedDate', 'recorder', 'asserter',
+            'lastOccurrence', 'note', 'reaction'
+        }
+        
+        # Remove any extra fields
+        keys_to_remove = [k for k in data.keys() if k not in allowed_allergy_fields]
+        for key in keys_to_remove:
+            logging.debug(f"DEBUG: Removing extra field '{key}' from AllergyIntolerance {resource_id}")
+            del data[key]
+        
+        logging.debug(f"DEBUG: AllergyIntolerance {resource_id} preprocessing complete")
         return data
     
     def _preprocess_procedure(self, data: Dict[str, Any]) -> Dict[str, Any]:

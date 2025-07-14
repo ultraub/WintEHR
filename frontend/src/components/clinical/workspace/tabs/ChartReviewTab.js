@@ -82,7 +82,6 @@ import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationD
 import RefillManagement from '../../medications/RefillManagement';
 import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
 import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
-import WorkflowValidationPanel from '../../medications/WorkflowValidationPanel';
 import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
@@ -91,6 +90,7 @@ import { intelligentCache } from '../../../../utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -481,7 +481,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         workflowType: 'medication-discontinuation',
         step: 'completed',
         data: {
-          medicationName: result.originalRequest.medicationCodeableConcept?.text || 'Unknown medication',
+          medicationName: getMedicationName(result.originalRequest),
           reason: discontinuationData.reason.display,
           discontinuationType: discontinuationData.discontinuationType,
           patientId,
@@ -633,7 +633,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 key={med.id}
                 sx={{
                   borderRadius: 1,
-                  mb: 1,
+                  mb: 1.5,
+                  py: 1.5,
                   backgroundColor: med.status === 'active' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
                   '&:hover': { backgroundColor: 'action.hover' }
                 }}
@@ -644,20 +645,93 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 <ListItemText
                   primary={
                     <Box>
-                      <Typography variant="body1">
-                        {getMedicationDisplay(med)}
-                      </Typography>
-                      {med.status !== 'active' && (
-                        <Chip label={med.status} size="small" sx={{ ml: 1 }} />
-                      )}
+                      <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                        <Typography variant="body1" fontWeight="medium">
+                          {getMedicationDisplay(med)}
+                        </Typography>
+                        {med.status !== 'active' && (
+                          <Chip label={med.status} size="small" />
+                        )}
+                        {med.priority && med.priority !== 'routine' && (
+                          <Chip 
+                            label={med.priority.toUpperCase()} 
+                            size="small" 
+                            color={med.priority === 'stat' ? 'error' : med.priority === 'urgent' ? 'warning' : 'default'}
+                            variant="outlined"
+                          />
+                        )}
+                      </Stack>
                     </Box>
                   }
                   secondary={
-                    <>
-                      {med.dosageInstruction?.[0]?.text || 'No dosage information'}
-                      {' • '}
-                      Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
-                    </>
+                    <Box sx={{ mt: 0.5 }}>
+                      {/* Primary dosage line */}
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Dosage:</strong> {getMedicationDosageDisplay(med)}
+                        {(med.dosageInstruction?.[0]?.route?.text || med.dosageInstruction?.[0]?.route?.coding?.[0]?.display) && (
+                          <span> • <strong>Route:</strong> {
+                            med.dosageInstruction[0].route.text || 
+                            med.dosageInstruction[0].route.coding?.[0]?.display ||
+                            'Unknown'
+                          }</span>
+                        )}
+                      </Typography>
+                      
+                      {/* Indication and dates */}
+                      <Stack direction="row" spacing={1.5} flexWrap="wrap" sx={{ mt: 0.5, gap: 1 }}>
+                        {med.reasonCode?.[0]?.text && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>For:</strong> {med.reasonCode[0].text}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          <strong>Prescribed:</strong> {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                          {med.requester?.display && (
+                            <span> by {med.requester.display}</span>
+                          )}
+                        </Typography>
+                        {med.dispenseRequest?.expectedSupplyDuration?.value && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Duration:</strong> {med.dispenseRequest.expectedSupplyDuration.value} {med.dispenseRequest.expectedSupplyDuration.unit || 'days'}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.quantity?.value && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Qty:</strong> {med.dispenseRequest.quantity.value}{med.dispenseRequest.quantity.unit ? ` ${med.dispenseRequest.quantity.unit}` : ''}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.numberOfRepeatsAllowed !== undefined && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Refills:</strong> {med.dispenseRequest.numberOfRepeatsAllowed}
+                          </Typography>
+                        )}
+                        {med.dispenseRequest?.validityPeriod?.end && (
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>Valid until:</strong> {format(parseISO(med.dispenseRequest.validityPeriod.end), 'MMM d, yyyy')}
+                          </Typography>
+                        )}
+                      </Stack>
+
+                      {/* Special instructions if different from structured dosage */}
+                      {(() => {
+                        const specialInstructions = getMedicationSpecialInstructions(med);
+                        if (specialInstructions) {
+                          return (
+                            <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary' }}>
+                              <strong>Instructions:</strong> {specialInstructions}
+                            </Typography>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* Notes if present */}
+                      {med.note?.[0]?.text && (
+                        <Typography variant="caption" sx={{ mt: 0.5, fontStyle: 'italic', display: 'block' }}>
+                          <strong>Notes:</strong> {med.note[0].text}
+                        </Typography>
+                      )}
+                    </Box>
                   }
                 />
                 <ListItemSecondaryAction>
@@ -796,6 +870,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   );
 };
 
+
 // Allergy List Component
 const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
@@ -914,14 +989,18 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                   }
                   secondary={
                     <Box>
-                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => (
-                        <Chip 
-                          key={idx}
-                          label={m.text || m.coding?.[0]?.display} 
-                          size="small" 
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                        />
-                      ))}
+                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => {
+                        // Handle both R4 and R5 formats
+                        const manifestationText = m?.concept?.text || m?.text || m?.concept?.coding?.[0]?.display || m?.coding?.[0]?.display;
+                        return manifestationText ? (
+                          <Chip 
+                            key={idx}
+                            label={manifestationText} 
+                            size="small" 
+                            sx={{ mr: 0.5, mb: 0.5 }}
+                          />
+                        ) : null;
+                      })}
                       <Typography variant="caption" color="text.secondary" display="block">
                         Recorded: {allergy.recordedDate ? format(parseISO(allergy.recordedDate), 'MMM d, yyyy') : 'Unknown'}
                       </Typography>
@@ -1092,9 +1171,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         step: 'created',
         data: {
           ...createdMedication,
-          medicationName: createdMedication.medicationCodeableConcept?.text ||
-                         createdMedication.medicationCodeableConcept?.coding?.[0]?.display ||
-                         'Unknown medication',
+          medicationName: getMedicationName(createdMedication),
           patientId
         }
       });
@@ -1344,7 +1421,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         data.forEach(med => {
           html += `
             <div class="section">
-              <h3>${med.medicationCodeableConcept?.text || med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown'}</h3>
+              <h3>${getMedicationName(med)}</h3>
               <p><strong>Status:</strong> ${med.status}</p>
               ${med.dosageInstruction?.[0]?.text ? `<p><strong>Dosage:</strong> ${med.dosageInstruction[0].text}</p>` : ''}
               <p><strong>Prescribed:</strong> ${med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}</p>
@@ -1564,16 +1641,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           />
         </Grid>
 
-        {/* Medication Workflow Validation */}
-        <Grid item xs={12}>
-          <WorkflowValidationPanel
-            patientId={patientId}
-            medications={medications}
-            onRefresh={async () => {
-              await refreshPatientResources(patientId);
-            }}
-          />
-        </Grid>
 
         {/* Clinical Safety Verification */}
         <Grid item xs={12}>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
+import { useStableCallback, useStateGuard } from '../hooks/useStableReferences';
 
 // Action Types
 const FHIR_ACTIONS = {
@@ -631,8 +632,8 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [searchResources, getCachedData, setCachedData]);
 
-  // Patient Context Management
-  const setCurrentPatient = useCallback(async (patientId) => {
+  // Patient Context Management - using stable callback to prevent infinite loops
+  const setCurrentPatient = useStableCallback(async (patientId) => {
     // Prevent duplicate calls for the same patient
     if (state.currentPatient?.id === patientId) {
       return state.currentPatient;
@@ -641,31 +642,41 @@ export function FHIRResourceProvider({ children }) {
     dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
     
     try {
-      const patient = await fetchResource('Patient', patientId);
+      // Check if patient is already cached in resources
+      let patient = state.resources.Patient?.[patientId];
+      
+      if (!patient) {
+        patient = await fetchResource('Patient', patientId);
+      }
+      
       dispatch({ type: FHIR_ACTIONS.SET_CURRENT_PATIENT, payload: patient });
       
-      // Progressive loading: Load critical resources first, then important ones in background
-      await fetchPatientBundle(patientId, false, 'critical');
+      // Check if we already have critical resources cached
+      const hasExistingData = state.relationships[patientId] && 
+        Object.keys(state.relationships[patientId]).length > 0;
+      
+      if (!hasExistingData) {
+        // Progressive loading: Load critical resources first, then important ones in background
+        await fetchPatientBundle(patientId, false, 'critical');
+        
+        // Load important resources in background
+        setTimeout(() => {
+          fetchPatientBundle(patientId, false, 'important');
+        }, 100);
+        
+        // Load optional resources after a delay
+        setTimeout(() => {
+          fetchPatientBundle(patientId, false, 'all');
+        }, 2000);
+      }
       
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
-      
-      // Load important resources in background
-      setTimeout(() => {
-        fetchPatientBundle(patientId, false, 'important');
-      }, 100);
-      
-      // Load optional resources after a delay
-      setTimeout(() => {
-        fetchPatientBundle(patientId, false, 'all');
-      }, 2000);
-      
       return patient;
     } catch (error) {
-      
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
       throw error;
     }
-  }, [fetchResource, fetchPatientBundle]);
+  });
 
   const setCurrentEncounter = useCallback(async (encounterId) => {
     try {
@@ -677,6 +688,41 @@ export function FHIRResourceProvider({ children }) {
       throw error;
     }
   }, [fetchResource]);
+
+  // Cache coordination utilities
+  const warmPatientCache = useCallback(async (patientId, priority = 'critical') => {
+    // Pre-warm cache for faster subsequent loads
+    try {
+      if (priority === 'all') {
+        // Warm all data types
+        await fetchPatientBundle(patientId, false, 'all');
+      } else if (priority === 'summary') {
+        // Warm only summary view data (conditions, meds, vitals, allergies)
+        const summaryTypes = ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'];
+        await Promise.all(summaryTypes.map(type => 
+          searchResources(type, { 
+            patient: patientId, 
+            _count: type === 'Observation' ? 20 : 10,
+            _sort: type === 'Observation' ? '-date' : '-recorded-date'
+          })
+        ));
+      } else {
+        // Default critical priority
+        await fetchPatientBundle(patientId, false, 'critical');
+      }
+    } catch (error) {
+      // Silent fail for cache warming
+    }
+  }, [fetchPatientBundle, searchResources]);
+
+  const isCacheWarm = useCallback((patientId, resourceTypes = ['Condition', 'MedicationRequest']) => {
+    if (!state.relationships[patientId]) return false;
+    
+    return resourceTypes.every(type => 
+      state.relationships[patientId][type] && 
+      state.relationships[patientId][type].length > 0
+    );
+  }, [state.relationships]);
 
   // Utility Functions
   const isResourceLoading = useCallback((resourceType) => {
@@ -698,7 +744,7 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [state.cache]);
 
-  const refreshPatientResources = useCallback(async (patientId) => {
+  const refreshPatientResources = useStableCallback(async (patientId) => {
     try {
       
       // Clear the patient bundle cache
@@ -766,9 +812,9 @@ export function FHIRResourceProvider({ children }) {
       
       throw error;
     }
-  }, [fetchPatientBundle]);
+  });
 
-  // Listen for refresh events from fhirService
+  // Listen for refresh events from fhirService - no function dependencies
   useEffect(() => {
     const handleResourcesUpdated = (event) => {
       const { patientId } = event.detail;
@@ -781,7 +827,7 @@ export function FHIRResourceProvider({ children }) {
     return () => {
       window.removeEventListener('fhir-resources-updated', handleResourcesUpdated);
     };
-  }, [refreshPatientResources, state.currentPatient]);
+  }, [state.currentPatient?.id]); // Only depend on patient ID, not the function
 
   // Context Value
   const contextValue = {
@@ -812,7 +858,11 @@ export function FHIRResourceProvider({ children }) {
     getError,
     clearCache,
     getCachedData,
-    setCachedData
+    setCachedData,
+    
+    // Cache coordination
+    warmPatientCache,
+    isCacheWarm
   };
 
   return (

@@ -7,13 +7,12 @@ Used for clinical tasks, reminders, and workflow items.
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from fhir.resources.task import Task, TaskRestriction
-from fhir.resources.codeableconcept import CodeableConcept
-from fhir.resources.coding import Coding
-from fhir.resources.reference import Reference
-from fhir.resources.identifier import Identifier
-from fhir.resources.annotation import Annotation
-from fhir.resources.period import Period
+from core.fhir.resources_r4b import (
+    Task, CodeableConcept, Coding, Reference,
+    Identifier, Annotation
+)
+from fhir.resources.R4B.task import TaskRestriction
+from fhir.resources.R4B.period import Period
 
 
 class TaskConverter:

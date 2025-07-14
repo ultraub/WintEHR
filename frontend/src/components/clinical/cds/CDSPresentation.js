@@ -23,7 +23,8 @@ import {
   Tooltip,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  TextField
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -43,6 +44,7 @@ export const PRESENTATION_MODES = {
   SIDEBAR: 'sidebar',         // Side panel
   INLINE: 'inline',           // Inline with content
   POPUP: 'popup',            // Modal dialog
+  MODAL: 'modal',            // Hard-stop modal (blocking)
   TOAST: 'toast',            // Toast notification
   CARD: 'card',              // Card format
   COMPACT: 'compact',        // Minimal icon
@@ -73,6 +75,36 @@ const CDSPresentation = ({
       return new Set();
     }
   });
+
+  // Modal mode state hooks - must be at top level
+  const [acknowledgmentReason, setAcknowledgmentReason] = useState('');
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [currentAlertForAck, setCurrentAlertForAck] = useState(null);
+
+  // Handle alert dismissal
+  const handleDismissAlert = (alert, reason = '') => {
+    const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+    setDismissedAlerts(prev => {
+      const newDismissed = new Set([...prev, alertId]);
+      
+      // Persist to sessionStorage
+      if (patientId) {
+        const sessionKey = `cds-dismissed-alerts-${patientId}`;
+        try {
+          sessionStorage.setItem(sessionKey, JSON.stringify([...newDismissed]));
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      
+      return newDismissed;
+    });
+    
+    // Call parent onAlertAction callback
+    if (onAlertAction) {
+      onAlertAction(alertId, 'dismiss', reason);
+    }
+  };
 
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
@@ -277,6 +309,111 @@ const CDSPresentation = ({
           <Button onClick={() => setOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+    );
+  }
+
+  // Modal mode - Hard-stop blocking modal with acknowledgment
+  if (mode === PRESENTATION_MODES.MODAL) {
+    const handleAcknowledge = (alert) => {
+      if (alert.displayBehavior?.acknowledgmentRequired) {
+        setCurrentAlertForAck(alert);
+        setShowReasonDialog(true);
+      } else {
+        handleDismissAlert(alert);
+      }
+    };
+
+    const handleConfirmAcknowledgment = () => {
+      if (currentAlertForAck) {
+        handleDismissAlert(currentAlertForAck, acknowledgmentReason);
+        setCurrentAlertForAck(null);
+        setAcknowledgmentReason('');
+        setShowReasonDialog(false);
+      }
+    };
+
+    return (
+      <>
+        <Dialog 
+          open={open} 
+          onClose={null} // No close on click outside - hard stop
+          maxWidth="md" 
+          fullWidth
+          disableEscapeKeyDown // Prevent ESC key closing
+        >
+          <DialogTitle sx={{ bgcolor: 'error.main', color: 'white' }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <ErrorIcon />
+              <Typography variant="h6">Critical Alert - Action Required</Typography>
+            </Stack>
+          </DialogTitle>
+          <DialogContent>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              This is a critical alert that requires your immediate attention before continuing.
+            </Alert>
+            <Stack spacing={2}>
+              {visibleAlerts.map((alert, index) => {
+                const { content, actions } = renderAlert(alert);
+                return (
+                  <Card key={index} variant="outlined" sx={{ border: '2px solid', borderColor: 'error.main' }}>
+                    <CardContent>
+                      <Stack direction="row" spacing={1} alignItems="flex-start">
+                        {getSeverityIcon(alert.indicator)}
+                        <Box sx={{ flex: 1 }}>
+                          {content}
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                    {actions && <CardActions>{actions}</CardActions>}
+                  </Card>
+                );
+              })}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            {visibleAlerts.map((alert, index) => (
+              <Button 
+                key={index}
+                variant="contained" 
+                color="primary"
+                onClick={() => handleAcknowledge(alert)}
+              >
+                Acknowledge & Continue
+              </Button>
+            ))}
+          </DialogActions>
+        </Dialog>
+
+        {/* Acknowledgment Reason Dialog */}
+        <Dialog open={showReasonDialog} onClose={null} maxWidth="sm" fullWidth>
+          <DialogTitle>Acknowledgment Required</DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" gutterBottom>
+              Please provide a reason for overriding this alert:
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              value={acknowledgmentReason}
+              onChange={(e) => setAcknowledgmentReason(e.target.value)}
+              placeholder="Enter reason for override..."
+              variant="outlined"
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowReasonDialog(false)}>Cancel</Button>
+            <Button 
+              variant="contained" 
+              onClick={handleConfirmAcknowledgment}
+              disabled={!acknowledgmentReason.trim()}
+            >
+              Confirm Override
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </>
     );
   }
 

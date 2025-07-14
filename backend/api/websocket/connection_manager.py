@@ -200,7 +200,8 @@ class ConnectionManager:
         if client_id in self.active_connections:
             try:
                 websocket = self.active_connections[client_id]
-                await websocket.send_json(message.dict())
+                # Use json() method to properly serialize datetime objects
+                await websocket.send_text(message.json())
             except Exception as e:
                 logger.error(f"Error sending message to client {client_id}: {e}")
                 # Queue message for retry

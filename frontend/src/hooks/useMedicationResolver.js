@@ -15,13 +15,12 @@ export const useMedicationResolver = (medicationRequests = []) => {
   
   // Memoize the medication requests array based on IDs to prevent unnecessary re-renders
   const medicationRequestIds = useMemo(() => {
-    if (!medicationRequests || !Array.isArray(medicationRequests)) {
+    if (!medicationRequests || !Array.isArray(medicationRequests) || medicationRequests.length === 0) {
       return '';
     }
     return medicationRequests
       .filter(req => req && typeof req === 'object' && req.id) // More robust null check
-      .map(req => req?.id) // Additional safety check with optional chaining
-      .filter(id => id) // Remove any undefined/null IDs
+      .map(req => req.id) // Remove optional chaining since filter already ensures req.id exists
       .join(',');
   }, [medicationRequests]);
 

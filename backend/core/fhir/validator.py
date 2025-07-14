@@ -6,9 +6,9 @@ Supports profile validation and custom business rules.
 """
 
 from typing import Dict, List, Optional, Any, Type
-from fhir.resources import FHIRAbstractModel, construct_fhir_element
-from fhir.resources.fhirtypes import Id
-from fhir.resources.operationoutcome import OperationOutcome, OperationOutcomeIssue
+from fhir.resources.R4B import FHIRAbstractModel
+from .resources_r4b import construct_fhir_element, Id
+from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 from pydantic import ValidationError
 import json
 

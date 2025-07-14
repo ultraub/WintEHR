@@ -1,0 +1,1577 @@
+{
+  "download_summary": {
+    "total_attempts": 130,
+    "successful": 14,
+    "failed": 0,
+    "not_found": 116
+  },
+  "by_pattern": {
+    "4to5": {
+      "downloaded": 0,
+      "resources": [],
+      "description": "FHIR R4 to R5 conversions"
+    },
+    "5to4": {
+      "downloaded": 0,
+      "resources": [],
+      "description": "FHIR R5 to R4 conversions"
+    },
+    "5to6": {
+      "downloaded": 0,
+      "resources": [],
+      "description": "FHIR R5 to R6 conversions"
+    },
+    "6to5": {
+      "downloaded": 0,
+      "resources": [],
+      "description": "FHIR R6 to R5 conversions"
+    }
+  },
+  "by_resource": {
+    "AllergyIntolerance": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Condition": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Patient": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Practitioner": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "PractitionerRole": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Organization": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Location": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Encounter": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Observation": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "DiagnosticReport": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Medication": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "MedicationRequest": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "MedicationDispense": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "MedicationAdministration": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "MedicationStatement": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "ServiceRequest": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Procedure": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Immunization": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "CarePlan": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "CareTeam": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Goal": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Coverage": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Device": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "DeviceRequest": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Communication": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Flag": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "List": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Composition": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    },
+    "Bundle": {
+      "conversion_patterns": [],
+      "total_patterns": 0
+    }
+  },
+  "available_conversions": [],
+  "results": {
+    "successful": [
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Bundle4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Bundle4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Bundle4to5.json",
+        "structure_map_id": "Bundle4to5",
+        "name": "Bundle4to5",
+        "description": "BundleTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "StructureMap5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-StructureMap5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/StructureMap5to4.json",
+        "structure_map_id": "StructureMap5to4",
+        "name": "StructureMap5to4",
+        "description": "StructureMapTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "StructureMap4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-StructureMap4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/StructureMap4to5.json",
+        "structure_map_id": "StructureMap4to5",
+        "name": "StructureMap4to5",
+        "description": "StructureMapTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Bundle5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Bundle5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Bundle5to4.json",
+        "structure_map_id": "Bundle5to4",
+        "name": "Bundle5to4",
+        "description": "BundleTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Period4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Period4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Period4to5.json",
+        "structure_map_id": "Period4to5",
+        "name": "Period4to5",
+        "description": "PeriodTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Period5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Period5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Period5to4.json",
+        "structure_map_id": "Period5to4",
+        "name": "Period5to4",
+        "description": "PeriodTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Address4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Address4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Address4to5.json",
+        "structure_map_id": "Address4to5",
+        "name": "Address4to5",
+        "description": "AddressTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "ContactPoint5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-ContactPoint5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/ContactPoint5to4.json",
+        "structure_map_id": "ContactPoint5to4",
+        "name": "ContactPoint5to4",
+        "description": "ContactPointTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "ContactPoint4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-ContactPoint4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/ContactPoint4to5.json",
+        "structure_map_id": "ContactPoint4to5",
+        "name": "ContactPoint4to5",
+        "description": "ContactPointTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "HumanName4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-HumanName4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/HumanName4to5.json",
+        "structure_map_id": "HumanName4to5",
+        "name": "HumanName4to5",
+        "description": "HumanNameTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Address5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Address5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Address5to4.json",
+        "structure_map_id": "Address5to4",
+        "name": "Address5to4",
+        "description": "AddressTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "HumanName5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-HumanName5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/HumanName5to4.json",
+        "structure_map_id": "HumanName5to4",
+        "name": "HumanName5to4",
+        "description": "HumanNameTransformsR5toR4"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Identifier4to5",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Identifier4to5.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Identifier4to5.json",
+        "structure_map_id": "Identifier4to5",
+        "name": "Identifier4to5",
+        "description": "IdentifierTransformsR4toR5"
+      },
+      {
+        "source": "cross_version_pack",
+        "structure_map": "Identifier5to4",
+        "url": "https://build.fhir.org/ig/HL7/fhir-cross-version/StructureMap-Identifier5to4.json",
+        "file": "backend/core/fhir/official_resources/structure_maps/cross_version/Identifier5to4.json",
+        "structure_map_id": "Identifier5to4",
+        "name": "Identifier5to4",
+        "description": "IdentifierTransformsR5toR4"
+      }
+    ],
+    "failed": [],
+    "not_found": [
+      {
+        "source": "r4_extensions",
+        "resource": "AllergyIntolerance",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/AllergyIntolerance4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-allergyintolerance4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-AllergyIntolerance4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/allergyintolerance-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "AllergyIntolerance",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/AllergyIntolerance5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-allergyintolerance5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-AllergyIntolerance5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/allergyintolerance-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Condition",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Condition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-condition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Condition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/condition-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Condition",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Condition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-condition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Condition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/condition-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Patient",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Patient4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-patient4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Patient4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/patient-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Patient",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Patient5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-patient5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Patient5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/patient-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Practitioner",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Practitioner4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-practitioner4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Practitioner4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/practitioner-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Practitioner",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Practitioner5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-practitioner5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Practitioner5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/practitioner-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "PractitionerRole",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/PractitionerRole4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-practitionerrole4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-PractitionerRole4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/practitionerrole-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "PractitionerRole",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/PractitionerRole5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-practitionerrole5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-PractitionerRole5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/practitionerrole-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Organization",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Organization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-organization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Organization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/organization-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Organization",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Organization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-organization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Organization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/organization-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Location",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Location4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-location4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Location4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/location-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Location",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Location5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-location5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Location5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/location-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Encounter",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Encounter4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-encounter4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Encounter4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/encounter-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Encounter",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Encounter5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-encounter5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Encounter5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/encounter-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Observation",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Observation4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-observation4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Observation4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/observation-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Observation",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Observation5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-observation5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Observation5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/observation-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "DiagnosticReport",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/DiagnosticReport4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-diagnosticreport4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-DiagnosticReport4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/diagnosticreport-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "DiagnosticReport",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/DiagnosticReport5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-diagnosticreport5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-DiagnosticReport5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/diagnosticreport-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Medication",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Medication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Medication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medication-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Medication",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Medication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Medication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medication-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationRequest",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationrequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationrequest-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationRequest",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationrequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationrequest-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationDispense",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationDispense5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationdispense5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationDispense5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationdispense-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationDispense",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationDispense4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationdispense4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationDispense4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationdispense-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationAdministration",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationAdministration4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationadministration4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationAdministration4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationadministration-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationAdministration",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationAdministration5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationadministration5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationAdministration5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationadministration-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationStatement",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationStatement4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationstatement4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationStatement4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationstatement-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "MedicationStatement",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/MedicationStatement5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-medicationstatement5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-MedicationStatement5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/medicationstatement-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "ServiceRequest",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/ServiceRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-servicerequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-ServiceRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/servicerequest-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "ServiceRequest",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/ServiceRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-servicerequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-ServiceRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/servicerequest-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Procedure",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Procedure4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-procedure4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Procedure4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/procedure-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Procedure",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Procedure5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-procedure5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Procedure5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/procedure-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Immunization",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Immunization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-immunization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Immunization4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/immunization-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Immunization",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Immunization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-immunization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Immunization5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/immunization-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "CarePlan",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/CarePlan4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-careplan4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-CarePlan4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/careplan-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "CarePlan",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/CarePlan5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-careplan5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-CarePlan5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/careplan-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "CareTeam",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/CareTeam4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-careteam4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-CareTeam4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/careteam-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "CareTeam",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/CareTeam5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-careteam5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-CareTeam5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/careteam-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Goal",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Goal4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-goal4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Goal4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/goal-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Goal",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Goal5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-goal5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Goal5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/goal-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Coverage",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Coverage4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-coverage4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Coverage4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/coverage-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Coverage",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Coverage5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-coverage5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Coverage5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/coverage-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Device",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Device4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-device4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Device4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/device-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Device",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Device5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-device5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Device5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/device-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "DeviceRequest",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/DeviceRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-devicerequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-DeviceRequest4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/devicerequest-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "DeviceRequest",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/DeviceRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-devicerequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-DeviceRequest5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/devicerequest-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Communication",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Communication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-communication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Communication4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/communication-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Communication",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Communication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-communication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Communication5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/communication-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Flag",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Flag4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-flag4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Flag4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/flag-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Flag",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Flag5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-flag5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Flag5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/flag-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "List",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/List4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-list4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-List4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/list-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "List",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/List5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-list5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-List5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/list-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Composition",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Composition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-composition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Composition4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/composition-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Composition",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Composition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-composition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Composition5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/composition-5to4.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Bundle",
+        "pattern": "4to5",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Bundle4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-bundle4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Bundle4to5.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/bundle-4to5.json"
+        ]
+      },
+      {
+        "source": "r4_extensions",
+        "resource": "Bundle",
+        "pattern": "5to4",
+        "attempted_urls": [
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap/Bundle5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/structuremap-bundle5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/StructureMap-Bundle5to4.json",
+          "https://hl7.org/fhir/extensions/5.1.0-ballot/bundle-5to4.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "AllergyIntolerance",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/AllergyIntolerance5to6.json",
+          "https://build.fhir.org/structuremap-allergyintolerance5to6.json",
+          "https://build.fhir.org/StructureMap-AllergyIntolerance5to6.json",
+          "https://build.fhir.org/allergyintolerance-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "AllergyIntolerance",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/AllergyIntolerance6to5.json",
+          "https://build.fhir.org/structuremap-allergyintolerance6to5.json",
+          "https://build.fhir.org/StructureMap-AllergyIntolerance6to5.json",
+          "https://build.fhir.org/allergyintolerance-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Condition",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Condition5to6.json",
+          "https://build.fhir.org/structuremap-condition5to6.json",
+          "https://build.fhir.org/StructureMap-Condition5to6.json",
+          "https://build.fhir.org/condition-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Condition",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Condition6to5.json",
+          "https://build.fhir.org/structuremap-condition6to5.json",
+          "https://build.fhir.org/StructureMap-Condition6to5.json",
+          "https://build.fhir.org/condition-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Patient",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Patient5to6.json",
+          "https://build.fhir.org/structuremap-patient5to6.json",
+          "https://build.fhir.org/StructureMap-Patient5to6.json",
+          "https://build.fhir.org/patient-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Patient",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Patient6to5.json",
+          "https://build.fhir.org/structuremap-patient6to5.json",
+          "https://build.fhir.org/StructureMap-Patient6to5.json",
+          "https://build.fhir.org/patient-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Practitioner",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Practitioner5to6.json",
+          "https://build.fhir.org/structuremap-practitioner5to6.json",
+          "https://build.fhir.org/StructureMap-Practitioner5to6.json",
+          "https://build.fhir.org/practitioner-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Practitioner",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Practitioner6to5.json",
+          "https://build.fhir.org/structuremap-practitioner6to5.json",
+          "https://build.fhir.org/StructureMap-Practitioner6to5.json",
+          "https://build.fhir.org/practitioner-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "PractitionerRole",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/PractitionerRole5to6.json",
+          "https://build.fhir.org/structuremap-practitionerrole5to6.json",
+          "https://build.fhir.org/StructureMap-PractitionerRole5to6.json",
+          "https://build.fhir.org/practitionerrole-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "PractitionerRole",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/PractitionerRole6to5.json",
+          "https://build.fhir.org/structuremap-practitionerrole6to5.json",
+          "https://build.fhir.org/StructureMap-PractitionerRole6to5.json",
+          "https://build.fhir.org/practitionerrole-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Organization",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Organization5to6.json",
+          "https://build.fhir.org/structuremap-organization5to6.json",
+          "https://build.fhir.org/StructureMap-Organization5to6.json",
+          "https://build.fhir.org/organization-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Organization",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Organization6to5.json",
+          "https://build.fhir.org/structuremap-organization6to5.json",
+          "https://build.fhir.org/StructureMap-Organization6to5.json",
+          "https://build.fhir.org/organization-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Location",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Location5to6.json",
+          "https://build.fhir.org/structuremap-location5to6.json",
+          "https://build.fhir.org/StructureMap-Location5to6.json",
+          "https://build.fhir.org/location-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Location",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Location6to5.json",
+          "https://build.fhir.org/structuremap-location6to5.json",
+          "https://build.fhir.org/StructureMap-Location6to5.json",
+          "https://build.fhir.org/location-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Encounter",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Encounter6to5.json",
+          "https://build.fhir.org/structuremap-encounter6to5.json",
+          "https://build.fhir.org/StructureMap-Encounter6to5.json",
+          "https://build.fhir.org/encounter-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Encounter",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Encounter5to6.json",
+          "https://build.fhir.org/structuremap-encounter5to6.json",
+          "https://build.fhir.org/StructureMap-Encounter5to6.json",
+          "https://build.fhir.org/encounter-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Observation",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Observation5to6.json",
+          "https://build.fhir.org/structuremap-observation5to6.json",
+          "https://build.fhir.org/StructureMap-Observation5to6.json",
+          "https://build.fhir.org/observation-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Observation",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Observation6to5.json",
+          "https://build.fhir.org/structuremap-observation6to5.json",
+          "https://build.fhir.org/StructureMap-Observation6to5.json",
+          "https://build.fhir.org/observation-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "DiagnosticReport",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/DiagnosticReport5to6.json",
+          "https://build.fhir.org/structuremap-diagnosticreport5to6.json",
+          "https://build.fhir.org/StructureMap-DiagnosticReport5to6.json",
+          "https://build.fhir.org/diagnosticreport-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "DiagnosticReport",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/DiagnosticReport6to5.json",
+          "https://build.fhir.org/structuremap-diagnosticreport6to5.json",
+          "https://build.fhir.org/StructureMap-DiagnosticReport6to5.json",
+          "https://build.fhir.org/diagnosticreport-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Medication",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Medication5to6.json",
+          "https://build.fhir.org/structuremap-medication5to6.json",
+          "https://build.fhir.org/StructureMap-Medication5to6.json",
+          "https://build.fhir.org/medication-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Medication",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Medication6to5.json",
+          "https://build.fhir.org/structuremap-medication6to5.json",
+          "https://build.fhir.org/StructureMap-Medication6to5.json",
+          "https://build.fhir.org/medication-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationRequest",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationRequest5to6.json",
+          "https://build.fhir.org/structuremap-medicationrequest5to6.json",
+          "https://build.fhir.org/StructureMap-MedicationRequest5to6.json",
+          "https://build.fhir.org/medicationrequest-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationRequest",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationRequest6to5.json",
+          "https://build.fhir.org/structuremap-medicationrequest6to5.json",
+          "https://build.fhir.org/StructureMap-MedicationRequest6to5.json",
+          "https://build.fhir.org/medicationrequest-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationDispense",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationDispense5to6.json",
+          "https://build.fhir.org/structuremap-medicationdispense5to6.json",
+          "https://build.fhir.org/StructureMap-MedicationDispense5to6.json",
+          "https://build.fhir.org/medicationdispense-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationDispense",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationDispense6to5.json",
+          "https://build.fhir.org/structuremap-medicationdispense6to5.json",
+          "https://build.fhir.org/StructureMap-MedicationDispense6to5.json",
+          "https://build.fhir.org/medicationdispense-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationAdministration",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationAdministration5to6.json",
+          "https://build.fhir.org/structuremap-medicationadministration5to6.json",
+          "https://build.fhir.org/StructureMap-MedicationAdministration5to6.json",
+          "https://build.fhir.org/medicationadministration-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationAdministration",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationAdministration6to5.json",
+          "https://build.fhir.org/structuremap-medicationadministration6to5.json",
+          "https://build.fhir.org/StructureMap-MedicationAdministration6to5.json",
+          "https://build.fhir.org/medicationadministration-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationStatement",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationStatement5to6.json",
+          "https://build.fhir.org/structuremap-medicationstatement5to6.json",
+          "https://build.fhir.org/StructureMap-MedicationStatement5to6.json",
+          "https://build.fhir.org/medicationstatement-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "MedicationStatement",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/MedicationStatement6to5.json",
+          "https://build.fhir.org/structuremap-medicationstatement6to5.json",
+          "https://build.fhir.org/StructureMap-MedicationStatement6to5.json",
+          "https://build.fhir.org/medicationstatement-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "ServiceRequest",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/ServiceRequest5to6.json",
+          "https://build.fhir.org/structuremap-servicerequest5to6.json",
+          "https://build.fhir.org/StructureMap-ServiceRequest5to6.json",
+          "https://build.fhir.org/servicerequest-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "ServiceRequest",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/ServiceRequest6to5.json",
+          "https://build.fhir.org/structuremap-servicerequest6to5.json",
+          "https://build.fhir.org/StructureMap-ServiceRequest6to5.json",
+          "https://build.fhir.org/servicerequest-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Procedure",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Procedure5to6.json",
+          "https://build.fhir.org/structuremap-procedure5to6.json",
+          "https://build.fhir.org/StructureMap-Procedure5to6.json",
+          "https://build.fhir.org/procedure-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Procedure",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Procedure6to5.json",
+          "https://build.fhir.org/structuremap-procedure6to5.json",
+          "https://build.fhir.org/StructureMap-Procedure6to5.json",
+          "https://build.fhir.org/procedure-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Immunization",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Immunization5to6.json",
+          "https://build.fhir.org/structuremap-immunization5to6.json",
+          "https://build.fhir.org/StructureMap-Immunization5to6.json",
+          "https://build.fhir.org/immunization-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Immunization",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Immunization6to5.json",
+          "https://build.fhir.org/structuremap-immunization6to5.json",
+          "https://build.fhir.org/StructureMap-Immunization6to5.json",
+          "https://build.fhir.org/immunization-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "CarePlan",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/CarePlan5to6.json",
+          "https://build.fhir.org/structuremap-careplan5to6.json",
+          "https://build.fhir.org/StructureMap-CarePlan5to6.json",
+          "https://build.fhir.org/careplan-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "CarePlan",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/CarePlan6to5.json",
+          "https://build.fhir.org/structuremap-careplan6to5.json",
+          "https://build.fhir.org/StructureMap-CarePlan6to5.json",
+          "https://build.fhir.org/careplan-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "CareTeam",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/CareTeam5to6.json",
+          "https://build.fhir.org/structuremap-careteam5to6.json",
+          "https://build.fhir.org/StructureMap-CareTeam5to6.json",
+          "https://build.fhir.org/careteam-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "CareTeam",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/CareTeam6to5.json",
+          "https://build.fhir.org/structuremap-careteam6to5.json",
+          "https://build.fhir.org/StructureMap-CareTeam6to5.json",
+          "https://build.fhir.org/careteam-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Goal",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Goal5to6.json",
+          "https://build.fhir.org/structuremap-goal5to6.json",
+          "https://build.fhir.org/StructureMap-Goal5to6.json",
+          "https://build.fhir.org/goal-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Goal",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Goal6to5.json",
+          "https://build.fhir.org/structuremap-goal6to5.json",
+          "https://build.fhir.org/StructureMap-Goal6to5.json",
+          "https://build.fhir.org/goal-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Coverage",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Coverage5to6.json",
+          "https://build.fhir.org/structuremap-coverage5to6.json",
+          "https://build.fhir.org/StructureMap-Coverage5to6.json",
+          "https://build.fhir.org/coverage-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Coverage",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Coverage6to5.json",
+          "https://build.fhir.org/structuremap-coverage6to5.json",
+          "https://build.fhir.org/StructureMap-Coverage6to5.json",
+          "https://build.fhir.org/coverage-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Device",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Device5to6.json",
+          "https://build.fhir.org/structuremap-device5to6.json",
+          "https://build.fhir.org/StructureMap-Device5to6.json",
+          "https://build.fhir.org/device-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Device",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Device6to5.json",
+          "https://build.fhir.org/structuremap-device6to5.json",
+          "https://build.fhir.org/StructureMap-Device6to5.json",
+          "https://build.fhir.org/device-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "DeviceRequest",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/DeviceRequest5to6.json",
+          "https://build.fhir.org/structuremap-devicerequest5to6.json",
+          "https://build.fhir.org/StructureMap-DeviceRequest5to6.json",
+          "https://build.fhir.org/devicerequest-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "DeviceRequest",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/DeviceRequest6to5.json",
+          "https://build.fhir.org/structuremap-devicerequest6to5.json",
+          "https://build.fhir.org/StructureMap-DeviceRequest6to5.json",
+          "https://build.fhir.org/devicerequest-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Communication",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Communication5to6.json",
+          "https://build.fhir.org/structuremap-communication5to6.json",
+          "https://build.fhir.org/StructureMap-Communication5to6.json",
+          "https://build.fhir.org/communication-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Communication",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Communication6to5.json",
+          "https://build.fhir.org/structuremap-communication6to5.json",
+          "https://build.fhir.org/StructureMap-Communication6to5.json",
+          "https://build.fhir.org/communication-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Flag",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Flag5to6.json",
+          "https://build.fhir.org/structuremap-flag5to6.json",
+          "https://build.fhir.org/StructureMap-Flag5to6.json",
+          "https://build.fhir.org/flag-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Flag",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Flag6to5.json",
+          "https://build.fhir.org/structuremap-flag6to5.json",
+          "https://build.fhir.org/StructureMap-Flag6to5.json",
+          "https://build.fhir.org/flag-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "List",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/List5to6.json",
+          "https://build.fhir.org/structuremap-list5to6.json",
+          "https://build.fhir.org/StructureMap-List5to6.json",
+          "https://build.fhir.org/list-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "List",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/List6to5.json",
+          "https://build.fhir.org/structuremap-list6to5.json",
+          "https://build.fhir.org/StructureMap-List6to5.json",
+          "https://build.fhir.org/list-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Composition",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Composition5to6.json",
+          "https://build.fhir.org/structuremap-composition5to6.json",
+          "https://build.fhir.org/StructureMap-Composition5to6.json",
+          "https://build.fhir.org/composition-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Composition",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Composition6to5.json",
+          "https://build.fhir.org/structuremap-composition6to5.json",
+          "https://build.fhir.org/StructureMap-Composition6to5.json",
+          "https://build.fhir.org/composition-6to5.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Bundle",
+        "pattern": "5to6",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Bundle5to6.json",
+          "https://build.fhir.org/structuremap-bundle5to6.json",
+          "https://build.fhir.org/StructureMap-Bundle5to6.json",
+          "https://build.fhir.org/bundle-5to6.json"
+        ]
+      },
+      {
+        "source": "r6_build",
+        "resource": "Bundle",
+        "pattern": "6to5",
+        "attempted_urls": [
+          "https://build.fhir.org/StructureMap/Bundle6to5.json",
+          "https://build.fhir.org/structuremap-bundle6to5.json",
+          "https://build.fhir.org/StructureMap-Bundle6to5.json",
+          "https://build.fhir.org/bundle-6to5.json"
+        ]
+      }
+    ]
+  },
+  "cross_version_maps": {
+    "total": 14,
+    "maps": [
+      "Bundle4to5",
+      "StructureMap5to4",
+      "StructureMap4to5",
+      "Bundle5to4",
+      "Period4to5",
+      "Period5to4",
+      "Address4to5",
+      "ContactPoint5to4",
+      "ContactPoint4to5",
+      "HumanName4to5",
+      "Address5to4",
+      "HumanName5to4",
+      "Identifier4to5",
+      "Identifier5to4"
+    ]
+  }
+}

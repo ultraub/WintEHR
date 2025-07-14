@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import { cdsHooksService } from '../../../services/cdsHooksService';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
 import { cdsLogger } from '../../../config/logging';
 
@@ -79,8 +80,41 @@ const CDSHookManager = forwardRef(({
   const [activeAlerts, setActiveAlerts] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hookConfigurations, setHookConfigurations] = useState({});
   const lastContextRef = useRef(null);
   const hookTimeoutRef = useRef(null);
+
+  // Load hook configurations with display behavior
+  const loadHookConfigurations = useCallback(async () => {
+    try {
+      const hooks = await cdsHooksService.listCustomHooks();
+      const configMap = {};
+      
+      hooks.forEach(hook => {
+        configMap[hook.id] = hook;
+      });
+      
+      setHookConfigurations(configMap);
+      cdsLogger.debug(`Loaded ${hooks.length} hook configurations:`, Object.keys(configMap));
+      
+      // Log each hook's display behavior for debugging
+      hooks.forEach(hook => {
+        if (hook.displayBehavior) {
+          cdsLogger.debug(`Hook ${hook.id} has display behavior:`, hook.displayBehavior);
+        } else {
+          cdsLogger.debug(`Hook ${hook.id} has no display behavior configured`);
+        }
+      });
+    } catch (error) {
+      cdsLogger.error('Failed to load hook configurations:', error);
+    }
+  }, []);
+
+  // Load configurations on mount
+  useEffect(() => {
+    console.log('🔧 CDSHookManager: Loading hook configurations with display behavior support');
+    loadHookConfigurations();
+  }, [loadHookConfigurations]);
 
   const fireHooks = useCallback(async (hookType, hookContext = {}) => {
     if (disabled || !patientId) {
@@ -165,16 +199,72 @@ const CDSHookManager = forwardRef(({
       cdsLogger.info(`Received ${alerts.length} CDS alerts for ${hookType}`);
       cdsLogger.debug('CDS alerts details:', alerts);
 
-      // Group alerts by presentation mode
+      // Group alerts by presentation mode using hook-specific display behavior
       const alertsByMode = {};
+      
+      cdsLogger.debug(`Processing ${alerts.length} alerts for ${hookType}`);
+      cdsLogger.debug('Available hook configurations:', Object.keys(hookConfigurations));
+      
       alerts.forEach(alert => {
-        const config = HOOK_PRESENTATION_CONFIG[hookType] || HOOK_PRESENTATION_CONFIG['patient-view'];
-        const mode = config.mode;
+        cdsLogger.debug(`Processing alert with serviceId: ${alert.serviceId}`, alert);
+        // Try to find hook-specific configuration first
+        let presentationMode = null;
+        let acknowledgmentRequired = false;
+        let snoozeEnabled = false;
         
-        if (!alertsByMode[mode]) {
-          alertsByMode[mode] = [];
+        // Check if this alert has a serviceId that matches a hook configuration
+        if (alert.serviceId && hookConfigurations[alert.serviceId]) {
+          const hookConfig = hookConfigurations[alert.serviceId];
+          const displayBehavior = hookConfig.displayBehavior;
+          
+          if (displayBehavior) {
+            // Map display behavior to presentation modes
+            const modeMapping = {
+              'hard-stop': PRESENTATION_MODES.MODAL,
+              'popup': PRESENTATION_MODES.POPUP,
+              'sidebar': PRESENTATION_MODES.SIDEBAR,
+              'inline': PRESENTATION_MODES.INLINE
+            };
+            
+            // Check for indicator-based overrides
+            const cardIndicator = alert.indicator || 'info';
+            const indicatorOverride = displayBehavior.indicatorOverrides?.[cardIndicator];
+            const configuredMode = indicatorOverride || displayBehavior.defaultMode || 'popup';
+            
+            presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
+            acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
+            snoozeEnabled = displayBehavior.snooze?.enabled || false;
+            
+            cdsLogger.debug(`Using configured display behavior for ${alert.serviceId}:`, {
+              configuredMode,
+              presentationMode,
+              acknowledgmentRequired,
+              snoozeEnabled
+            });
+          }
         }
-        alertsByMode[mode].push(alert);
+        
+        // Fallback to hardcoded configuration if no hook-specific config found
+        if (!presentationMode) {
+          const fallbackConfig = HOOK_PRESENTATION_CONFIG[hookType] || HOOK_PRESENTATION_CONFIG['patient-view'];
+          presentationMode = fallbackConfig.mode;
+          cdsLogger.debug(`Using fallback presentation mode for ${hookType}: ${presentationMode}`);
+        }
+        
+        // Enhance alert with display behavior metadata
+        const enhancedAlert = {
+          ...alert,
+          displayBehavior: {
+            presentationMode,
+            acknowledgmentRequired,
+            snoozeEnabled
+          }
+        };
+        
+        if (!alertsByMode[presentationMode]) {
+          alertsByMode[presentationMode] = [];
+        }
+        alertsByMode[presentationMode].push(enhancedAlert);
       });
 
       setActiveAlerts(prev => ({
@@ -192,7 +282,7 @@ const CDSHookManager = forwardRef(({
     } finally {
       setLoading(false);
     }
-  }, [patientId, userId, encounterId, disabled, onHookFired]);
+  }, [patientId, userId, encounterId, disabled, onHookFired, hookConfigurations]);
 
   // Debounced hook firing to prevent excessive calls
   const fireHooksDebounced = useCallback(async (hookType, hookContext, delay = 500) => {

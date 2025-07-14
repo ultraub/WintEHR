@@ -4,6 +4,7 @@
 
 import { format, parseISO } from 'date-fns';
 import { NOTE_TEMPLATES } from '../services/noteTemplatesService';
+import { documentReferenceConverter } from './fhir/DocumentReferenceConverter';
 
 /**
  * Create a print-friendly HTML document
@@ -403,23 +404,26 @@ export const formatClinicalNoteForPrint = (note, patient, template) => {
     };
   }
 
-  // Extract note content
+  // Extract note content using standardized converter
   let content = '';
   try {
-    if (note.content?.[0]?.attachment?.data) {
-      const decodedContent = atob(note.content[0].attachment.data);
-      
-      // Handle sectioned vs freeform notes
-      if (template?.structure === 'sections') {
-        try {
-          const sections = JSON.parse(decodedContent);
-          content = formatSectionedNoteForPrint(sections, template);
-        } catch (e) {
-          content = `<div class="note-box">${formatPlainTextNote(decodedContent)}</div>`;
-        }
-      } else {
-        content = `<div class="note-box">${formatPlainTextNote(decodedContent)}</div>`;
+    const extractedContent = documentReferenceConverter.extractDocumentContent(note);
+    
+    if (extractedContent.error) {
+      content = '<p>Error loading note content.</p>';
+    } else if (extractedContent.type === 'soap' && extractedContent.sections) {
+      // Handle SOAP format
+      content = formatSectionedNoteForPrint(extractedContent.sections, template);
+    } else if (template?.structure === 'sections' && extractedContent.content) {
+      // Try to parse as sections if template expects sections
+      try {
+        const sections = JSON.parse(extractedContent.content);
+        content = formatSectionedNoteForPrint(sections, template);
+      } catch (e) {
+        content = `<div class="note-box">${formatPlainTextNote(extractedContent.content)}</div>`;
       }
+    } else {
+      content = `<div class="note-box">${formatPlainTextNote(extractedContent.content || '')}</div>`;
     }
   } catch (error) {
     content = '<p>Error loading note content.</p>';
@@ -538,8 +542,10 @@ const exportNoteAsJSON = (note, patient, template) => {
       status: note.docStatus,
       content: (() => {
         try {
-          return note.content?.[0]?.attachment?.data ? 
-            atob(note.content[0].attachment.data) : '';
+          const extractedContent = documentReferenceConverter.extractDocumentContent(note);
+          return extractedContent.error ? 
+            'Error: Unable to decode note content' : 
+            extractedContent.content || '';
         } catch (error) {
           return 'Error: Unable to decode note content';
         }
@@ -566,26 +572,36 @@ const exportNoteAsText = (note, patient, template) => {
   
   let content = '';
   try {
-    if (note.content?.[0]?.attachment?.data) {
-      const decodedContent = atob(note.content[0].attachment.data);
-      
-      if (template?.structure === 'sections') {
-        try {
-          const sections = JSON.parse(decodedContent);
-          Object.entries(template.sections || {}).forEach(([sectionKey, sectionConfig]) => {
-            const sectionContent = sections[sectionKey] || '';
-            if (sectionContent.trim()) {
-              content += `\n${sectionConfig.label.toUpperCase()}\n`;
-              content += '='.repeat(sectionConfig.label.length) + '\n';
-              content += sectionContent + '\n';
-            }
-          });
-        } catch (e) {
-          content = decodedContent;
+    const extractedContent = documentReferenceConverter.extractDocumentContent(note);
+    
+    if (extractedContent.error) {
+      content = 'Error loading note content.';
+    } else if (extractedContent.type === 'soap' && extractedContent.sections) {
+      // Handle SOAP format
+      Object.entries(extractedContent.sections).forEach(([sectionKey, sectionContent]) => {
+        if (sectionContent && sectionContent.trim()) {
+          content += `\n${sectionKey.toUpperCase()}\n`;
+          content += '='.repeat(sectionKey.length) + '\n';
+          content += sectionContent + '\n';
         }
-      } else {
-        content = decodedContent;
+      });
+    } else if (template?.structure === 'sections' && extractedContent.content) {
+      // Try to parse as sections if template expects sections
+      try {
+        const sections = JSON.parse(extractedContent.content);
+        Object.entries(template.sections || {}).forEach(([sectionKey, sectionConfig]) => {
+          const sectionContent = sections[sectionKey] || '';
+          if (sectionContent.trim()) {
+            content += `\n${sectionConfig.label.toUpperCase()}\n`;
+            content += '='.repeat(sectionConfig.label.length) + '\n';
+            content += sectionContent + '\n';
+          }
+        });
+      } catch (e) {
+        content = extractedContent.content || '';
       }
+    } else {
+      content = extractedContent.content || '';
     }
   } catch (error) {
     content = 'Error loading note content.';

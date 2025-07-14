@@ -37,7 +37,7 @@ from .converters import (
     appointment_to_fhir, document_reference_to_fhir, medication_to_fhir,
     medication_administration_to_fhir, care_team_to_fhir, practitioner_role_to_fhir,
     coverage_to_fhir, claim_to_fhir, explanation_of_benefit_to_fhir,
-    supply_delivery_to_fhir, provenance_to_fhir
+    supply_delivery_to_fhir, provenance_to_fhir, service_request_to_fhir
 )
 from .query_builder import FHIRQueryBuilder
 from .optimized_queries import get_optimized_queries
@@ -471,6 +471,33 @@ RESOURCE_MAPPINGS = {
         "search_params": [
             "target", "patient", "location", "agent", "agent-type", "agent-role",
             "recorded", "activity", "signature", "_id", "_lastUpdated"
+        ]
+    },
+    "ServiceRequest": {
+        "model": ServiceRequest,
+        "search_params": [
+            "identifier", "status", "intent", "category", "priority", "code",
+            "subject", "patient", "encounter", "requester", "performer", 
+            "authored", "occurrence", "requisition", "instantiates-canonical",
+            "based-on", "replaces", "_id", "_lastUpdated"
+        ]
+    },
+    "Task": {
+        "model": FHIRResource,  # Stored as JSONB
+        "search_params": [
+            "identifier", "status", "intent", "priority", "code", "subject",
+            "patient", "encounter", "requester", "owner", "performer",
+            "focus", "for", "part-of", "authored-on", "period", 
+            "business-status", "group-identifier", "_id", "_lastUpdated"
+        ]
+    },
+    "MedicationDispense": {
+        "model": FHIRResource,  # Stored as JSONB
+        "search_params": [
+            "identifier", "status", "patient", "subject", "context", "encounter",
+            "medication", "code", "performer", "receiver", "destination",
+            "responsibleparty", "prescription", "type", "whenhandedover",
+            "whenprepared", "_id", "_lastUpdated"
         ]
     }
 }
@@ -2120,7 +2147,8 @@ async def search_resources(
         "Claim": claim_to_fhir,
         "ExplanationOfBenefit": explanation_of_benefit_to_fhir,
         "SupplyDelivery": supply_delivery_to_fhir,
-        "Provenance": provenance_to_fhir
+        "Provenance": provenance_to_fhir,
+        "ServiceRequest": service_request_to_fhir
     }
     
     converter = converter_map.get(resource_type)
@@ -2261,7 +2289,8 @@ async def get_resource(
         "Claim": claim_to_fhir,
         "ExplanationOfBenefit": explanation_of_benefit_to_fhir,
         "SupplyDelivery": supply_delivery_to_fhir,
-        "Provenance": provenance_to_fhir
+        "Provenance": provenance_to_fhir,
+        "ServiceRequest": service_request_to_fhir
     }
     
     # Handle JSONB resources differently

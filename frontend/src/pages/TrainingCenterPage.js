@@ -125,7 +125,7 @@ function TrainingCenterPage() {
         'Real-time clinical alerts'
       ],
       isExternal: true,
-      externalUrl: '/cds-hooks'
+      externalUrl: '/cds-studio'
     }
   ];
 

@@ -19,6 +19,7 @@ from .converter_modules.extended_converters import (
     claim_to_fhir, explanation_of_benefit_to_fhir, supply_delivery_to_fhir,
     provenance_to_fhir
 )
+from .converter_modules.service_request_dict import service_request_to_fhir_dict
 
 
 # Import helper functions
@@ -921,3 +922,7 @@ def imaging_study_to_fhir(imaging_study: ImagingStudy) -> Dict[str, Any]:
     }]
     
     return resource
+
+def service_request_to_fhir(service_request) -> Dict[str, Any]:
+    """Convert ServiceRequest model to FHIR ServiceRequest resource"""
+    return service_request_to_fhir_dict(service_request)

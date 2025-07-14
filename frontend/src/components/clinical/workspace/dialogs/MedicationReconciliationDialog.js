@@ -46,6 +46,7 @@ import {
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { medicationReconciliationService } from '../../../../services/medicationReconciliationService';
 import { format, parseISO } from 'date-fns';
+import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 
 const MedicationReconciliationDialog = ({ 
   open, 
@@ -257,7 +258,7 @@ const MedicationReconciliationDialog = ({
                     </ListItemIcon>
                     <ListItemText
                       primary={getMedicationDisplay(med)}
-                      secondary={med.dosageInstruction?.[0]?.text || 'No dosage information'}
+                      secondary={getMedicationDosageDisplay(med)}
                     />
                     <Chip 
                       label={med.status} 

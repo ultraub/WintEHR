@@ -73,6 +73,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
+import { getMedicationDosageDisplay, getMedicationName } from '../../../../utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
@@ -104,11 +105,8 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   
-  const getMedicationName = () => {
-    return medicationRequest.medicationCodeableConcept?.text ||
-           medicationRequest.medicationCodeableConcept?.coding?.[0]?.display ||
-           medicationRequest.medicationReference?.display ||
-           'Unknown Medication';
+  const getMedicationNameLocal = () => {
+    return getMedicationName(medicationRequest);
   };
 
   const getDosageInstruction = () => {
@@ -160,7 +158,7 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
         avatar={<PharmacyIcon color="primary" />}
         title={
           <Typography variant="h6" component="div">
-            {getMedicationName()}
+            {getMedicationNameLocal()}
           </Typography>
         }
         subheader={
@@ -305,11 +303,8 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails }
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
 
-  const getMedicationName = () => {
-    return refillRequest.medicationCodeableConcept?.text ||
-           refillRequest.medicationCodeableConcept?.coding?.[0]?.display ||
-           refillRequest.medicationReference?.display ||
-           'Unknown Medication';
+  const getMedicationNameLocal = () => {
+    return getMedicationName(refillRequest);
   };
 
   const getPatientName = () => {
@@ -333,7 +328,7 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails }
         title={
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="h6" component="div">
-              {getMedicationName()}
+              {getMedicationNameLocal()}
             </Typography>
             {refillInfo.urgent && (
               <Chip label="URGENT" color="error" size="small" />
@@ -502,9 +497,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
       <DialogContent>
         <Box sx={{ mt: 2 }}>
           <Typography variant="h6" gutterBottom>
-            {medicationRequest.medicationCodeableConcept?.text ||
-             medicationRequest.medicationCodeableConcept?.coding?.[0]?.display ||
-             'Unknown Medication'}
+            {getMedicationName(medicationRequest)}
           </Typography>
           
           <Grid container spacing={2}>
@@ -690,8 +683,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     // Filter by search term
     if (searchTerm) {
       requests = requests.filter(req => {
-        const medName = req.medicationCodeableConcept?.text || 
-                        req.medicationCodeableConcept?.coding?.[0]?.display || '';
+        const medName = getMedicationName(req);
         return medName.toLowerCase().includes(searchTerm.toLowerCase());
       });
     }
@@ -981,10 +973,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         </thead>
         <tbody>
           ${currentRequests.map(request => {
-            const medicationName = request.medicationCodeableConcept?.text ||
-              request.medicationCodeableConcept?.coding?.[0]?.display ||
-              request.medicationReference?.display ||
-              'Unknown Medication';
+            const medicationName = getMedicationName(request);
             
             const dosage = request.dosageInstruction?.[0];
             const dosageText = dosage?.text || 
@@ -1300,7 +1289,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">Medication</Typography>
-                  <Typography variant="body1">{selectedRequest.medicationCodeableConcept?.text || 'Unknown medication'}</Typography>
+                  <Typography variant="body1">{getMedicationName(selectedRequest)}</Typography>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">Status</Typography>
@@ -1319,7 +1308,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
                 {selectedRequest.dosageInstruction?.[0] && (
                   <Grid item xs={12}>
                     <Typography variant="subtitle2" color="text.secondary">Dosage Instructions</Typography>
-                    <Typography variant="body1">{selectedRequest.dosageInstruction[0].text || 'See prescription'}</Typography>
+                    <Typography variant="body1">{getMedicationDosageDisplay(selectedRequest)}</Typography>
                   </Grid>
                 )}
                 {selectedRequest.dispenseRequest && (

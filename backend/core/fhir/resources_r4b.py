@@ -32,11 +32,23 @@ from fhir.resources.R4B.imagingstudy import ImagingStudy
 from fhir.resources.R4B.media import Media
 from fhir.resources.R4B.provenance import Provenance
 from fhir.resources.R4B.supplydelivery import SupplyDelivery
-from fhir.resources.R4B.bundle import Bundle
-from fhir.resources.R4B.operationoutcome import OperationOutcome
+from fhir.resources.R4B.servicerequest import ServiceRequest
+from fhir.resources.R4B.task import Task
+from fhir.resources.R4B.medicationdispense import MedicationDispense
+from fhir.resources.R4B.parameters import Parameters
+from fhir.resources.R4B.communication import Communication
+from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
+from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 from fhir.resources.R4B.resource import Resource
 from fhir.resources.R4B.domainresource import DomainResource
 from fhir.resources.R4B.fhirtypes import Id
+from fhir.resources.R4B.codeableconcept import CodeableConcept
+from fhir.resources.R4B.coding import Coding
+from fhir.resources.R4B.identifier import Identifier
+from fhir.resources.R4B.reference import Reference
+from fhir.resources.R4B.attachment import Attachment
+from fhir.resources.R4B.extension import Extension
+from fhir.resources.R4B.annotation import Annotation
 from fhir.resources.R4B import construct_fhir_element
 
 # Export all resources
@@ -46,6 +58,10 @@ __all__ = [
     'DocumentReference', 'Immunization', 'AllergyIntolerance', 'CareTeam',
     'CarePlan', 'Goal', 'Organization', 'Practitioner', 'PractitionerRole',
     'Location', 'Device', 'Claim', 'ExplanationOfBenefit', 'Coverage',
-    'ImagingStudy', 'Media', 'Provenance', 'SupplyDelivery', 'Bundle',
-    'OperationOutcome', 'Resource', 'DomainResource', 'Id', 'construct_fhir_element'
+    'ImagingStudy', 'Media', 'Provenance', 'SupplyDelivery', 'ServiceRequest',
+    'Task', 'MedicationDispense', 'Parameters', 'Communication', 'Bundle',
+    'BundleEntry', 'BundleEntryRequest', 'BundleEntryResponse', 'OperationOutcome',
+    'OperationOutcomeIssue', 'Resource', 'DomainResource', 'Id', 'CodeableConcept',
+    'Coding', 'Identifier', 'Reference', 'Attachment', 'Extension', 'Annotation',
+    'construct_fhir_element'
 ]

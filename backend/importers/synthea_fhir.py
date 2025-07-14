@@ -18,8 +18,7 @@ from core.fhir.validator import FHIRValidator
 from core.fhir.profile_transformer import ProfileAwareFHIRTransformer
 from services.search_indexer import SearchParameterIndexer
 from database import DATABASE_URL
-from fhir.resources.bundle import Bundle
-from fhir.resources import construct_fhir_element
+from core.fhir.resources_r4b import Bundle, construct_fhir_element
 import logging
 
 

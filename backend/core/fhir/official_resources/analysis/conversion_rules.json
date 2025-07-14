@@ -1,0 +1,38 @@
+{
+  "r4_to_r5": {
+    "field_mappings": {},
+    "transformations": [
+      {
+        "action": "convert_type_to_codeable_concept",
+        "field": "type",
+        "description": "Convert string type to CodeableConcept"
+      },
+      {
+        "action": "create_participant_from_recorder_asserter",
+        "description": "Convert recorder/asserter fields to participant structure"
+      }
+    ],
+    "additions": [
+      "reaction[0].manifestation[0].concept"
+    ],
+    "removals": []
+  },
+  "r5_to_r4": {
+    "field_mappings": {},
+    "transformations": [
+      {
+        "action": "extract_code_from_codeable_concept",
+        "field": "type",
+        "description": "Extract code from CodeableConcept"
+      },
+      {
+        "action": "extract_recorder_asserter_from_participant",
+        "description": "Convert participant structure back to recorder/asserter"
+      }
+    ],
+    "additions": [],
+    "removals": [
+      "reaction[0].manifestation[0].concept"
+    ]
+  }
+}

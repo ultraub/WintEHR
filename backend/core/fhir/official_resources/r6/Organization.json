@@ -1,0 +1,17 @@
+{
+  "resourceType": "Organization",
+  "id": "example",
+  "text": {
+    "status": "generated",
+    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">\n      ACME Health - generic example\n    </div>"
+  },
+  "name": "ACME Health",
+  "alias": [
+    "Example Health Org"
+  ],
+  "endpoint": [
+    {
+      "reference": "Endpoint/example"
+    }
+  ]
+}

@@ -81,9 +81,11 @@ import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { getMedicationName } from '../../../../utils/medicationDisplayUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import CPOEDialog from '../dialogs/CPOEDialog';
+import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
 // Get order type icon
@@ -150,8 +152,8 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
 
   const getOrderTitle = () => {
     if (order.resourceType === 'MedicationRequest') {
-      return order.medicationCodeableConcept?.text || 
-             order.medicationCodeableConcept?.coding?.[0]?.display ||
+      return order.medication?.concept?.text || 
+             order.medication?.concept?.coding?.[0]?.display ||
              'Medication Order';
     } else if (order.resourceType === 'ServiceRequest') {
       return order.code?.text || 
@@ -304,7 +306,9 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
   );
 };
 
-// Quick Order Dialog
+// Quick Order Dialog - Migrated to separate component file
+// Using: import QuickOrderDialog from '../dialogs/QuickOrderDialog';
+/*
 const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated }) => {
   const [orderData, setOrderData] = useState({
     medication: '',
@@ -480,6 +484,7 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
     </Dialog>
   );
 };
+*/
 
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
@@ -569,8 +574,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       // Search filter
       if (searchTerm) {
         const searchableText = [
-          order.medicationCodeableConcept?.text,
-          order.medicationCodeableConcept?.coding?.[0]?.display,
+          getMedicationName(order),
           order.code?.text,
           order.code?.coding?.[0]?.display
         ].filter(Boolean).join(' ').toLowerCase();
@@ -653,9 +657,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         step: 'sent-to-pharmacy',
         data: {
           ...order,
-          medicationName: order.medicationCodeableConcept?.text || 
-                         order.medicationCodeableConcept?.coding?.[0]?.display || 
-                         'Unknown medication',
+          medicationName: getMedicationName(order),
           patientId,
           timestamp: new Date().toISOString()
         }
@@ -663,7 +665,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
 
       setSnackbar({
         open: true,
-        message: `${order.medicationCodeableConcept?.text || 'Medication'} sent to pharmacy queue`,
+        message: `${getMedicationName(order)} sent to pharmacy queue`,
         severity: 'success'
       });
     } catch (error) {
@@ -1104,7 +1106,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       ...order,
       code: {
         text: order.resourceType === 'MedicationRequest' 
-          ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display)
+          ? getMedicationName(order)
           : (order.code?.text || order.code?.coding?.[0]?.display)
       }
     }));
@@ -1119,7 +1121,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         let html = '<h2>Orders & Prescriptions</h2>';
         data.forEach(order => {
           const orderName = order.resourceType === 'MedicationRequest' 
-            ? (order.medicationCodeableConcept?.text || order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown')
+            ? getMedicationName(order)
             : (order.code?.text || order.code?.coding?.[0]?.display || 'Unknown');
           
           html += `
@@ -1421,7 +1423,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <Box sx={{ mt: 2 }}>
               <Typography variant="h6" gutterBottom>
                 {viewOrderDialog.order.resourceType === 'MedicationRequest' 
-                  ? (viewOrderDialog.order.medicationCodeableConcept?.text || viewOrderDialog.order.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown Medication')
+                  ? getMedicationName(viewOrderDialog.order)
                   : (viewOrderDialog.order.code?.text || viewOrderDialog.order.code?.coding?.[0]?.display || 'Unknown Order')}
               </Typography>
               <Grid container spacing={2}>
@@ -1512,8 +1514,9 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         open={cpoeDialogOpen}
         onClose={() => setCpoeDialogOpen(false)}
         patientId={patientId}
-        initialOrderType="medication"
-        onOrderCreated={handleCPOEOrdersCreated}
+        onSave={handleCPOEOrdersCreated}
+        patientConditions={[]} // TODO: Pass actual patient conditions
+        recentOrders={[]} // TODO: Pass actual recent orders
       />
 
       {/* Order Signing Dialog */}
@@ -1541,7 +1544,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
                 Current Order: {editOrderDialog.order.resourceType === 'MedicationRequest' 
-                  ? editOrderDialog.order.medicationCodeableConcept?.text 
+                  ? getMedicationName(editOrderDialog.order) 
                   : editOrderDialog.order.code?.text || 'Unknown'}
               </Typography>
             </Box>

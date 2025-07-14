@@ -12,14 +12,15 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import exc
 
-from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location
+from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location, DocumentReference
 from models.fhir_resource import FHIRResource, Condition
 from models.clinical.orders import MedicationOrder as Medication
 from .converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir, 
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
-    organization_to_fhir, location_to_fhir
+    organization_to_fhir, location_to_fhir, document_reference_to_fhir
 )
+from .converter_modules.document_reference import DocumentReferenceConverter
 
 
 class BatchEntry:
@@ -270,7 +271,8 @@ class BatchProcessor:
             "MedicationRequest": (Medication, medication_request_to_fhir),
             "Practitioner": (Provider, practitioner_to_fhir),
             "Organization": (Organization, organization_to_fhir),
-            "Location": (Location, location_to_fhir)
+            "Location": (Location, location_to_fhir),
+            "DocumentReference": (DocumentReference, document_reference_to_fhir)
         }
         
         if resource_type not in mapping:
@@ -341,6 +343,50 @@ class BatchProcessor:
             
             return obs
             
+        elif resource_type == "DocumentReference":
+            # Use the enhanced DocumentReferenceConverter for proper handling
+            doc_ref_data = DocumentReferenceConverter.from_fhir(
+                DocumentReferenceConverter.to_fhir(fhir_resource)
+            )
+            
+            doc_ref = DocumentReference()
+            doc_ref.id = fhir_resource.get("id", str(uuid.uuid4()))
+            
+            # Extract patient reference
+            if fhir_resource.get("subject"):
+                ref = fhir_resource["subject"].get("reference", "")
+                doc_ref.patient_id = ref.replace("Patient/", "")
+                doc_ref.subject_id = doc_ref.patient_id
+                
+            # Extract encounter reference  
+            if fhir_resource.get("encounter"):
+                ref = fhir_resource["encounter"].get("reference", "")
+                doc_ref.encounter_id = ref.replace("Encounter/", "")
+                
+            # Extract author reference
+            if fhir_resource.get("author") and fhir_resource["author"]:
+                ref = fhir_resource["author"][0].get("reference", "")
+                if ref.startswith("Practitioner/"):
+                    doc_ref.authenticator_id = ref.replace("Practitioner/", "")
+                    
+            # Set basic fields
+            doc_ref.status = fhir_resource.get("status", "current")
+            doc_ref.doc_status = fhir_resource.get("docStatus", "preliminary")
+            doc_ref.date = datetime.utcnow()
+            doc_ref.description = fhir_resource.get("description")
+            
+            # Set type and category as JSON
+            doc_ref.type = fhir_resource.get("type")
+            doc_ref.category = fhir_resource.get("category")
+            
+            # Set content as JSON
+            doc_ref.content = fhir_resource.get("content")
+            
+            # Store full FHIR JSON for consistency
+            doc_ref.fhir_json = fhir_resource
+            
+            return doc_ref
+            
         # Add more resource type conversions as needed
         else:
             raise NotImplementedError(f"FHIR to model conversion not implemented for {resource_type}")
@@ -356,6 +402,32 @@ class BatchProcessor:
                 
             if fhir_resource.get("gender"):
                 model_instance.gender = "M" if fhir_resource["gender"] == "male" else "F"
+                
+        elif resource_type == "DocumentReference":
+            # Update DocumentReference fields
+            model_instance.status = fhir_resource.get("status", model_instance.status)
+            model_instance.doc_status = fhir_resource.get("docStatus", model_instance.doc_status)
+            model_instance.description = fhir_resource.get("description", model_instance.description)
+            
+            # Update type and category as JSON
+            if fhir_resource.get("type"):
+                model_instance.type = fhir_resource["type"]
+            if fhir_resource.get("category"):
+                model_instance.category = fhir_resource["category"]
+                
+            # Update content as JSON
+            if fhir_resource.get("content"):
+                model_instance.content = fhir_resource["content"]
+                
+            # Update author reference
+            if fhir_resource.get("author") and fhir_resource["author"]:
+                ref = fhir_resource["author"][0].get("reference", "")
+                if ref.startswith("Practitioner/"):
+                    model_instance.authenticator_id = ref.replace("Practitioner/", "")
+                    
+            # Update full FHIR JSON
+            model_instance.fhir_json = fhir_resource
+            model_instance.updated_at = datetime.utcnow()
                 
         # Add more update logic as needed
         

@@ -42,10 +42,16 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
+import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../utils/medicationDisplayUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {
-  switch (encounterClass?.code) {
+  // Handle both array format (R5) and object format (R4)
+  const classCode = Array.isArray(encounterClass) 
+    ? encounterClass[0]?.coding?.[0]?.code 
+    : encounterClass?.code;
+    
+  switch (classCode) {
     case 'IMP':
     case 'ACUTE':
       return { icon: <ProviderIcon />, color: 'error' };
@@ -81,37 +87,43 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
     const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
 
     // Filter resources related to this encounter
+    // Handle both reference formats: "Encounter/id" and "urn:uuid:id"
     const encounterRef = `Encounter/${encounter.id}`;
+    const encounterUrnRef = `urn:uuid:${encounter.id}`;
+    
+    const isEncounterMatch = (ref) => {
+      return ref === encounterRef || ref === encounterUrnRef;
+    };
     
     return {
       observations: observations.filter(obs => 
-        obs.encounter?.reference === encounterRef
+        isEncounterMatch(obs.encounter?.reference)
       ),
       procedures: procedures.filter(proc => 
-        proc.encounter?.reference === encounterRef
+        isEncounterMatch(proc.encounter?.reference)
       ),
       medications: medications.filter(med => 
-        med.encounter?.reference === encounterRef
+        isEncounterMatch(med.encounter?.reference)
       ),
       conditions: conditions.filter(cond => {
         // Check if encounter is an array
         if (Array.isArray(cond.encounter)) {
-          return cond.encounter.some(enc => enc.reference === encounterRef);
+          return cond.encounter.some(enc => isEncounterMatch(enc.reference));
         }
         // Check if encounter is a single reference object
         if (cond.encounter?.reference) {
-          return cond.encounter.reference === encounterRef;
+          return isEncounterMatch(cond.encounter.reference);
         }
         return false;
       }),
       documents: documentReferences.filter(doc => {
         // Check if context.encounter is an array
         if (Array.isArray(doc.context?.encounter)) {
-          return doc.context.encounter.some(enc => enc.reference === encounterRef);
+          return doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
         }
         // Check if context.encounter is a single reference object
         if (doc.context?.encounter?.reference) {
-          return doc.context.encounter.reference === encounterRef;
+          return isEncounterMatch(doc.context.encounter.reference);
         }
         return false;
       })
@@ -127,7 +139,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
 
   if (!encounter) return null;
 
-  const period = encounter.period || {};
+  const period = encounter.actualPeriod || encounter.period || {};
   const startDate = period.start ? parseISO(period.start) : null;
   const endDate = period.end ? parseISO(period.end) : null;
   const iconInfo = getEncounterIcon(encounter.class);
@@ -149,22 +161,27 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           title: 'Encounter Information',
           items: [
             ['Status', encounter.status?.toUpperCase()],
-            ['Class', encounter.class?.display || encounter.class?.code || 'Unknown'],
+            ['Class', (Array.isArray(encounter.class) 
+              ? encounter.class[0]?.coding?.[0]?.display 
+              : encounter.class?.display) || encounter.class?.code || 'Unknown'],
             ['Type', encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Not specified'],
             ['Start Date', startDate ? format(startDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
             ['End Date', endDate ? format(endDate, 'MMM d, yyyy h:mm a') : 'Not recorded'],
             ['Provider', encounter.participant?.find(p => 
-              p.type?.[0]?.coding?.[0]?.code === 'ATND'
+              p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
+            )?.actor?.display || encounter.participant?.find(p => 
+              p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
             )?.individual?.display || 'No provider recorded']
           ]
         }
       ]
     };
 
-    if (encounter.reasonCode && encounter.reasonCode.length > 0) {
+    if ((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) {
+      const reasons = encounter.reasonCode || encounter.reason || [];
       printContent.sections.push({
         title: 'Reason for Visit',
-        content: encounter.reasonCode.map(r => r.text || r.coding?.[0]?.display).join(', ')
+        content: reasons.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
       });
     }
 
@@ -196,8 +213,8 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       printContent.sections.push({
         title: 'Medications',
         items: relatedResources.medications.map(med => [
-          med.medicationCodeableConcept?.text || 
-          med.medicationCodeableConcept?.coding?.[0]?.display || 
+          med.medication?.concept?.text || 
+          med.medication?.concept?.coding?.[0]?.display || 
           'Unknown medication',
           `Status: ${med.status} - ${med.authoredOn ? 
             format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}`
@@ -334,7 +351,9 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                       Class
                     </Typography>
                     <Typography variant="body1" fontWeight="500">
-                      {encounter.class?.display || encounter.class?.code || 'Unknown'}
+                      {(Array.isArray(encounter.class) 
+                        ? encounter.class[0]?.coding?.[0]?.display 
+                        : encounter.class?.display) || encounter.class?.code || 'Unknown'}
                     </Typography>
                   </Box>
 
@@ -390,7 +409,9 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                     </Typography>
                     <Typography variant="body1" fontWeight="500">
                       {encounter.participant?.find(p => 
-                        p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                        p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
+                      )?.actor?.display || encounter.participant?.find(p => 
+                        p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
                       )?.individual?.display || 'No provider recorded'}
                     </Typography>
                   </Box>
@@ -398,7 +419,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </Grid>
             </Grid>
 
-            {encounter.reasonCode && encounter.reasonCode.length > 0 && (
+            {((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) && (
               <Box sx={{ 
                 mt: 3, 
                 pt: 3,
@@ -408,10 +429,10 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   Reason for Visit
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                  {encounter.reasonCode.map((reason, idx) => (
+                  {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
                     <Chip 
                       key={idx}
-                      label={reason.text || reason.coding?.[0]?.display} 
+                      label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
                       variant="filled"
                       sx={{ 
                         bgcolor: theme.palette.primary.main + '15',
@@ -783,8 +804,8 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                         <ListItemText
                           primary={
                             <Typography variant="body1" fontWeight="500">
-                              {med.medicationCodeableConcept?.text || 
-                               med.medicationCodeableConcept?.coding?.[0]?.display || 
+                              {med.medication?.concept?.text || 
+                               med.medication?.concept?.coding?.[0]?.display || 
                                'Unknown medication'}
                             </Typography>
                           }
@@ -799,11 +820,13 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                                 variant="outlined"
                                 sx={{ fontWeight: 'medium', textTransform: 'capitalize' }}
                               />
-                              {med.dosageInstruction?.[0]?.text && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {med.dosageInstruction[0].text}
-                                </Typography>
-                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                {getMedicationDosageDisplay(med)}
+                                {(() => {
+                                  const route = getMedicationRoute(med);
+                                  return route ? ` • Route: ${route}` : '';
+                                })()}
+                              </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {med.authoredOn ? 
                                   format(parseISO(med.authoredOn), 'MMM d, h:mm a') : 'No date'}

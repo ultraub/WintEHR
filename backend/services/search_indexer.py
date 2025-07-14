@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import uuid
 
-from fhir.resources import construct_fhir_element
+from core.fhir.resources_r4b import construct_fhir_element
 
 
 class SearchParameterIndexer:

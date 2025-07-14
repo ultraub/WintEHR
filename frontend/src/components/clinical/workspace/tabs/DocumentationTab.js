@@ -85,6 +85,15 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
+import { documentReferenceConverter } from '../../../../utils/fhir/DocumentReferenceConverter';
+import { 
+  extractDocumentContent, 
+  formatDocumentForDisplay, 
+  createDocumentReferencePayload,
+  updateDocumentReferencePayload,
+  processDocumentForDisplay,
+  validateDocumentData
+} from '../../../../utils/documentUtils';
 
 // Note type configuration
 const noteTypes = {
@@ -184,10 +193,10 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
                 display: '-webkit-box',
                 WebkitLineClamp: expanded ? 'unset' : 3,
                 WebkitBoxOrient: 'vertical',
-                whiteSpace: 'pre-wrap'
+                whiteSpace: 'pre-line'
               }}
             >
-              {note.text?.div || note.text || 'No content available'}
+              {note.displayContent || note.text?.div || note.text || 'No content available'}
             </Typography>
 
             {note.section && (
@@ -270,12 +279,13 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
 
 // Note Editor Component
 const NoteEditor = ({ open, onClose, note, patientId }) => {
-  const { publish } = useClinicalWorkflow();
+  const { publish, clinicalContext } = useClinicalWorkflow();
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [noteData, setNoteData] = useState({
     type: 'progress',
     title: '',
     content: '',
+    contentType: 'text', // 'text' or 'soap'
     sections: {
       subjective: '',
       objective: '',
@@ -288,126 +298,60 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
   // Extract content from FHIR DocumentReference when editing existing note
   useEffect(() => {
     if (note && open) {
-      // Extract content from FHIR DocumentReference
-      let extractedContent = '';
-      let extractedSections = {
-        subjective: '',
-        objective: '',
-        assessment: '',
-        plan: ''
-      };
-
-      // Try to decode base64 content
-      if (note.content?.[0]?.attachment?.data) {
-        try {
-          const decodedContent = atob(note.content[0].attachment.data);
-          extractedContent = decodedContent;
-          
-          // Try to parse as JSON for SOAP sections
-          try {
-            const parsed = JSON.parse(decodedContent);
-            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
-              extractedSections = {
-                subjective: parsed.subjective || '',
-                objective: parsed.objective || '',
-                assessment: parsed.assessment || '',
-                plan: parsed.plan || ''
-              };
-              extractedContent = ''; // Use sections instead of plain content
-            }
-          } catch (e) {
-            // Not JSON, use as plain content
-          }
-        } catch (e) {
-          // Failed to decode - will return original base64 string
-        }
-      }
-
+      // Use standardized converter to extract form data
+      const formData = documentReferenceConverter.parseToForm(note);
+      
       setNoteData({
-        type: note.type?.coding?.[0]?.code || 'progress',
-        title: note.title || '',
-        content: extractedContent,
-        sections: extractedSections
+        type: formData.type,
+        title: formData.title,
+        content: formData.content,
+        contentType: formData.contentType,
+        sections: formData.soapSections
       });
     } else if (!note && open) {
-      // Reset for new note
+      // Reset for new note using converter defaults
+      const initialValues = documentReferenceConverter.getInitialValues();
       setNoteData({
-        type: 'progress',
-        title: '',
-        content: '',
-        sections: {
-          subjective: '',
-          objective: '',
-          assessment: '',
-          plan: ''
-        }
+        type: initialValues.type,
+        title: initialValues.title,
+        content: initialValues.content,
+        contentType: initialValues.contentType,
+        sections: initialValues.soapSections
       });
     }
   }, [note, open]);
 
   const handleSave = async (signNote = false) => {
     try {
-      // Prepare content based on note type
-      let content = '';
-      if (noteData.type === 'soap') {
-        // Format SOAP sections
-        content = JSON.stringify({
-          subjective: noteData.sections.subjective,
-          objective: noteData.sections.objective,
-          assessment: noteData.sections.assessment,
-          plan: noteData.sections.plan
-        });
-      } else {
-        content = noteData.content;
+      // Validate note data before processing
+      const validation = validateDocumentData(noteData);
+      if (!validation.isValid) {
+        throw new Error(Object.values(validation.errors).join(', '));
       }
-
-      // Create FHIR DocumentReference
-      const documentReference = {
-        resourceType: 'DocumentReference',
-        status: signNote ? 'current' : 'preliminary',
-        docStatus: signNote ? 'final' : 'preliminary',
-        type: {
-          coding: [{
-            system: 'http://loinc.org',
-            code: noteData.type === '34117-2' || noteData.type === '51847-2' ? noteData.type : '11488-4',
-            display: noteTypes[noteData.type]?.label || 'Clinical Note'
-          }]
-        },
-        subject: {
-          reference: `Patient/${patientId}`
-        },
-        date: new Date().toISOString(),
-        author: [{
-          display: 'Current User' // This would come from auth context
-        }],
-        description: noteData.title || noteTypes[noteData.type]?.label || 'Clinical Note',
-        content: [{
-          attachment: {
-            contentType: 'text/plain',
-            data: btoa(content), // Base64 encode the content
-            title: noteData.title || 'Clinical Note'
-          }
-        }]
-      };
 
       let response;
       if (note && note.id) {
-        // Update existing note
-        // Only include valid FHIR fields, exclude text and context if they're invalid
-        const updatePayload = {
-          ...documentReference,
-          id: note.id,
-          resourceType: 'DocumentReference'
-        };
-        
-        // Remove invalid fields that might exist in the note
-        delete updatePayload.text;
-        delete updatePayload.context;
+        // Update existing note using standardized converter
+        const updatePayload = updateDocumentReferencePayload(
+          noteData, 
+          note, 
+          { signNote, userId: 'current-user' }
+        );
         
         const updatedResource = await fhirClient.update('DocumentReference', note.id, updatePayload);
         response = { ok: true, data: updatedResource };
       } else {
-        // Create new note
+        // Create new note using standardized converter
+        const documentReference = createDocumentReferencePayload(
+          noteData,
+          { 
+            patientId, 
+            encounterId: clinicalContext?.activeEncounter?.id || null, 
+            userId: 'current-user', 
+            signNote 
+          }
+        );
+        
         const createdResource = await fhirClient.create('DocumentReference', documentReference);
         response = { ok: true, data: createdResource };
       }
@@ -493,8 +437,30 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
             value={noteData.title}
             onChange={(e) => setNoteData({ ...noteData, title: e.target.value })}
           />
+          
+          <FormControl fullWidth>
+            <InputLabel>Content Format</InputLabel>
+            <Select
+              value={noteData.contentType}
+              onChange={(e) => setNoteData({ ...noteData, contentType: e.target.value })}
+              label="Content Format"
+            >
+              <MenuItem value="text">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <NoteIcon />
+                  <span>Plain Text</span>
+                </Stack>
+              </MenuItem>
+              <MenuItem value="soap">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SOAPIcon />
+                  <span>SOAP Format</span>
+                </Stack>
+              </MenuItem>
+            </Select>
+          </FormControl>
 
-          {noteData.type === 'soap' ? (
+          {noteData.contentType === 'soap' ? (
             <>
               <TextField
                 fullWidth
@@ -635,8 +601,8 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
               <Typography variant="subtitle2" gutterBottom>
                 Original Note:
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {note.text || 'No content'}
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                {note.displayContent || note.text || 'No content'}
               </Typography>
               <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                 Signed by {note.author?.[0]?.display} on {note.date ? format(parseISO(note.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
@@ -690,6 +656,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const [originalNoteForAmendment, setOriginalNoteForAmendment] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateData, setTemplateData] = useState(null);
   const [viewNoteDialogOpen, setViewNoteDialogOpen] = useState(false);
   const [selectedNoteForView, setSelectedNoteForView] = useState(null);
   const [addendumDialogOpen, setAddendumDialogOpen] = useState(false);
@@ -705,47 +672,35 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   const clinicalImpressions = getPatientResources(patientId, 'ClinicalImpression') || [];
   const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
   
-  // Helper function to decode base64 content
-  const decodeBase64Content = (content) => {
-    try {
-      if (content?.data) {
-        return atob(content.data);
-      }
-      return null;
-    } catch (error) {
-      // Failed to decode - return original content
-      return null;
-    }
-  };
-  
-  // Process DocumentReference resources to extract notes
+  // Process DocumentReference resources using standardized utilities
   const processedDocumentReferences = documentReferences.map(doc => {
-    const decodedContent = doc.content?.[0]?.attachment ? 
-      decodeBase64Content(doc.content[0].attachment) : null;
-    
-    return {
-      ...doc,
-      type: doc.type || { coding: [{ code: 'other' }] },
-      status: doc.status || 'final',
-      date: doc.date || doc.content?.[0]?.attachment?.creation,
-      author: doc.author || [{ display: 'Unknown' }],
-      text: decodedContent || doc.description || 'No content available'
-    };
+    return processDocumentForDisplay(doc);
   });
   
-  // Process DiagnosticReport resources to extract notes
+  // Process DiagnosticReport resources to extract notes  
   const processedDiagnosticReports = diagnosticReports.map(report => {
-    const decodedContent = report.presentedForm?.[0] ? 
-      decodeBase64Content(report.presentedForm[0]) : null;
+    // Extract content using standardized utility
+    const extractedContent = extractDocumentContent({
+      content: report.presentedForm || []
+    });
     
     return {
       ...report,
       resourceType: 'DocumentReference', // Treat as document for display
-      type: { coding: [{ code: 'assessment' }] },
+      noteType: 'assessment',
+      typeDisplay: 'Assessment Report',
+      type: { coding: [{ code: 'assessment', display: 'Assessment' }] },
       status: report.status || 'final',
+      docStatus: 'final',
+      isSigned: true,
       date: report.issued || report.effectiveDateTime,
-      author: report.performer || [{ display: 'System' }],
-      text: decodedContent || report.conclusion || 'No content available'
+      author: report.performer?.[0]?.display || 'System',
+      title: 'Diagnostic Report',
+      displayContent: extractedContent.content || report.conclusion || 'No content available',
+      contentType: extractedContent.type,
+      sections: extractedContent.sections,
+      hasContent: !!extractedContent.content,
+      text: extractedContent.content || report.conclusion || 'No content available'
     };
   });
 
@@ -831,8 +786,15 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
     setTemplateWizardOpen(true);
   };
 
-  const handleTemplateSelected = (templateData) => {
-    setSelectedTemplate(templateData.templateId);
+  const handleTemplateSelected = (templateWizardData) => {
+    // Store both the template ID and the full template data from wizard
+    setSelectedTemplate(templateWizardData.templateId);
+    setTemplateData({
+      templateId: templateWizardData.templateId,
+      visitType: templateWizardData.visitType,
+      chiefComplaint: templateWizardData.chiefComplaint,
+      autoPopulate: templateWizardData.autoPopulate || false
+    });
     setTemplateWizardOpen(false);
     setEnhancedEditorOpen(true);
   };
@@ -872,19 +834,42 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
 
   const handleSignNote = async (note) => {
     try {
-      // Update the note status to final
-      const updatedNote = {
-        ...note,
-        status: 'current',
+      // First, fetch the current DocumentReference to get the proper FHIR structure
+      let currentResource;
+      try {
+        currentResource = await fhirClient.read('DocumentReference', note.id);
+      } catch (error) {
+        // Check if we need to try with a different ID format
+        let alternativeId = null;
+        if (note.synthea_id && note.synthea_id !== note.id) {
+          alternativeId = note.synthea_id;
+        } else if (note.resourceId && note.resourceId !== note.id) {
+          alternativeId = note.resourceId;
+        }
+        
+        if (alternativeId) {
+          try {
+            currentResource = await fhirClient.read('DocumentReference', alternativeId);
+          } catch (altError) {
+            throw new Error(`Could not find DocumentReference with ID: ${note.id}`);
+          }
+        } else {
+          throw new Error(`Could not find DocumentReference with ID: ${note.id}`);
+        }
+      }
+
+      // Update only the docStatus to sign the note
+      const updatedResource = {
+        ...currentResource,
         docStatus: 'final'
       };
       
-      const updatedResource = await fhirClient.update('DocumentReference', note.id, updatedNote);
+      const result = await fhirClient.update('DocumentReference', note.id, updatedResource);
       
-      if (updatedResource) {
+      if (result) {
         // Publish DOCUMENTATION_CREATED event (for signed note)
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
-          ...updatedNote,
+          ...updatedResource,
           noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
           isUpdate: true,
           isSigned: true,
@@ -1304,10 +1289,12 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
           setEnhancedEditorOpen(false);
           setAmendmentMode(false);
           setOriginalNoteForAmendment(null);
+          setTemplateData(null); // Clear template data when closing
         }}
         note={selectedNote}
         patientId={patientId}
         defaultTemplate={selectedTemplate}
+        templateData={templateData}
         amendmentMode={amendmentMode}
         originalNote={originalNoteForAmendment}
       />
@@ -1368,54 +1355,67 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
                   <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
                     {(() => {
-                      // Try to decode base64 content
-                      let content = 'No content available';
-                      if (selectedNoteForView.content?.[0]?.attachment?.data) {
-                        try {
-                          const decodedContent = atob(selectedNoteForView.content[0].attachment.data);
-                          try {
-                            // Try to parse as JSON for structured content
-                            const parsed = JSON.parse(decodedContent);
-                            if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
-                              return (
-                                <Box>
-                                  {parsed.subjective && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="subtitle2" color="text.secondary">Subjective</Typography>
-                                      <Typography variant="body2">{parsed.subjective}</Typography>
-                                    </Box>
-                                  )}
-                                  {parsed.objective && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="subtitle2" color="text.secondary">Objective</Typography>
-                                      <Typography variant="body2">{parsed.objective}</Typography>
-                                    </Box>
-                                  )}
-                                  {parsed.assessment && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="subtitle2" color="text.secondary">Assessment</Typography>
-                                      <Typography variant="body2">{parsed.assessment}</Typography>
-                                    </Box>
-                                  )}
-                                  {parsed.plan && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="subtitle2" color="text.secondary">Plan</Typography>
-                                      <Typography variant="body2">{parsed.plan}</Typography>
-                                    </Box>
-                                  )}
-                                </Box>
-                              );
-                            } else {
-                              content = decodedContent;
-                            }
-                          } catch (e) {
-                            content = decodedContent;
-                          }
-                        } catch (e) {
-                          content = 'Error decoding note content';
-                        }
+                      // Use standardized content formatting
+                      const formattedContent = formatDocumentForDisplay(selectedNoteForView);
+                      
+                      if (formattedContent.type === 'error') {
+                        return (
+                          <Typography variant="body2" color="error">
+                            {formattedContent.displayContent}
+                          </Typography>
+                        );
                       }
-                      return <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{content}</Typography>;
+                      
+                      if (formattedContent.type === 'soap' && formattedContent.sections) {
+                        return (
+                          <Box>
+                            {formattedContent.sections.subjective && (
+                              <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" color="text.secondary">Subjective</Typography>
+                                <Typography variant="body2">{formattedContent.sections.subjective}</Typography>
+                              </Box>
+                            )}
+                            {formattedContent.sections.objective && (
+                              <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" color="text.secondary">Objective</Typography>
+                                <Typography variant="body2">{formattedContent.sections.objective}</Typography>
+                              </Box>
+                            )}
+                            {formattedContent.sections.assessment && (
+                              <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" color="text.secondary">Assessment</Typography>
+                                <Typography variant="body2">{formattedContent.sections.assessment}</Typography>
+                              </Box>
+                            )}
+                            {formattedContent.sections.plan && (
+                              <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" color="text.secondary">Plan</Typography>
+                                <Typography variant="body2">{formattedContent.sections.plan}</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        );
+                      }
+                      
+                      if (formattedContent.type === 'medical-history') {
+                        return (
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              whiteSpace: 'pre-line',
+                              '& > *:not(:last-child)': { mb: 1 }
+                            }}
+                          >
+                            {formattedContent.displayContent}
+                          </Typography>
+                        );
+                      }
+                      
+                      return (
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {formattedContent.displayContent}
+                        </Typography>
+                      );
                     })()}
                   </Box>
                 </Grid>
