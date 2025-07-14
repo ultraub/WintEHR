@@ -53,6 +53,7 @@ import {
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import { useInitializationGuard } from '../../../hooks/useStableReferences';
 
 const PatientSummaryV4 = ({ patientId }) => {
   
@@ -71,25 +72,34 @@ const PatientSummaryV4 = ({ patientId }) => {
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [cdsLoading, setCdsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Initialization guard to prevent multiple loads
+  const { isInitialized, isInitializing, markInitialized, markInitializing } = useInitializationGuard();
 
-  // Load patient data using centralized FHIRResourceContext
+  // Load patient data using centralized FHIRResourceContext - prevent infinite loops
   useEffect(() => {
     const loadPatientData = async () => {
-      if (!patientId) return;
+      if (!patientId || isInitializing) return;
       
       try {
+        markInitializing();
         // Only set current patient if it's different
         if (!currentPatient || currentPatient.id !== patientId) {
           await setCurrentPatient(patientId);
         }
         setIsInitialLoad(false);
+        markInitialized();
       } catch (err) {
         setIsInitialLoad(false);
+        markInitialized();
       }
     };
 
-    loadPatientData();
-  }, [patientId, currentPatient?.id]); // Remove setCurrentPatient from dependencies to prevent loops
+    // Only load if not already initialized for this patient
+    if (!isInitialized || currentPatient?.id !== patientId) {
+      loadPatientData();
+    }
+  }, [patientId]); // Minimal dependencies - no functions
 
   // Load CDS alerts for patient-view hooks
   const loadCDSAlerts = async () => {
@@ -141,12 +151,12 @@ const PatientSummaryV4 = ({ patientId }) => {
     }
   }, [currentPatient, isInitialLoad]);
 
-  // Get patient resources using centralized context
-  const conditions = useMemo(() => getPatientResources(patientId, 'Condition'), [patientId, getPatientResources]);
-  const medications = useMemo(() => getPatientResources(patientId, 'MedicationRequest'), [patientId, getPatientResources]);
-  const observations = useMemo(() => getPatientResources(patientId, 'Observation'), [patientId, getPatientResources]);
-  const encounters = useMemo(() => getPatientResources(patientId, 'Encounter'), [patientId, getPatientResources]);
-  const allergies = useMemo(() => getPatientResources(patientId, 'AllergyIntolerance'), [patientId, getPatientResources]);
+  // Get patient resources using centralized context - no function dependencies
+  const conditions = useMemo(() => getPatientResources(patientId, 'Condition'), [patientId]);
+  const medications = useMemo(() => getPatientResources(patientId, 'MedicationRequest'), [patientId]);
+  const observations = useMemo(() => getPatientResources(patientId, 'Observation'), [patientId]);
+  const encounters = useMemo(() => getPatientResources(patientId, 'Encounter'), [patientId]);
+  const allergies = useMemo(() => getPatientResources(patientId, 'AllergyIntolerance'), [patientId]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {

@@ -684,10 +684,15 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
           }
           
         } catch (jsonError) {
-          // Log JSON parsing error in development
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('DocumentReferenceConverter: JSON parsing failed', {
+          // Log JSON parsing error in development only for actual JSON content types
+          if (process.env.NODE_ENV === 'development' && 
+              contentType === 'application/json' && 
+              decodedContent.trim().startsWith('{')) {
+            console.debug('DocumentReferenceConverter: JSON parsing failed for structured content', {
+              docId: docRef?.id,
               error: jsonError.message,
+              contentType,
+              contentLength: decodedContent.length,
               contentPreview: decodedContent.substring(0, 100)
             });
           }

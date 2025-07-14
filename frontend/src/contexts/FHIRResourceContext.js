@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
+import { useStableCallback, useStateGuard } from '../hooks/useStableReferences';
 
 // Action Types
 const FHIR_ACTIONS = {
@@ -631,8 +632,8 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [searchResources, getCachedData, setCachedData]);
 
-  // Patient Context Management
-  const setCurrentPatient = useCallback(async (patientId) => {
+  // Patient Context Management - using stable callback to prevent infinite loops
+  const setCurrentPatient = useStableCallback(async (patientId) => {
     // Prevent duplicate calls for the same patient
     if (state.currentPatient?.id === patientId) {
       return state.currentPatient;
@@ -675,7 +676,7 @@ export function FHIRResourceProvider({ children }) {
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
       throw error;
     }
-  }, [fetchResource, fetchPatientBundle, state.currentPatient, state.resources.Patient, state.relationships]);
+  });
 
   const setCurrentEncounter = useCallback(async (encounterId) => {
     try {
@@ -743,7 +744,7 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [state.cache]);
 
-  const refreshPatientResources = useCallback(async (patientId) => {
+  const refreshPatientResources = useStableCallback(async (patientId) => {
     try {
       
       // Clear the patient bundle cache
@@ -811,9 +812,9 @@ export function FHIRResourceProvider({ children }) {
       
       throw error;
     }
-  }, [fetchPatientBundle]);
+  });
 
-  // Listen for refresh events from fhirService
+  // Listen for refresh events from fhirService - no function dependencies
   useEffect(() => {
     const handleResourcesUpdated = (event) => {
       const { patientId } = event.detail;
@@ -826,7 +827,7 @@ export function FHIRResourceProvider({ children }) {
     return () => {
       window.removeEventListener('fhir-resources-updated', handleResourcesUpdated);
     };
-  }, [refreshPatientResources, state.currentPatient]);
+  }, [state.currentPatient?.id]); // Only depend on patient ID, not the function
 
   // Context Value
   const contextValue = {

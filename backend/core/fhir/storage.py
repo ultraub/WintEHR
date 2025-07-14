@@ -235,6 +235,7 @@ class FHIRStorageEngine:
                     logging.info(f"DocumentReference validation passed for resource {fhir_resource.id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference validation failed: {validation_error}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_dict, indent=2, default=str)}")
                     raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
             
             resource_dict = fhir_resource.dict(exclude_none=True)
@@ -454,6 +455,7 @@ class FHIRStorageEngine:
                     logging.info(f"DocumentReference update validation passed for resource {fhir_resource.id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference update validation failed: {validation_error}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_dict, indent=2, default=str)}")
                     raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
             resource_dict = fhir_resource.dict(exclude_none=True)
             

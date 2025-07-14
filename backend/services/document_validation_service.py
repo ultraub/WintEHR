@@ -422,11 +422,39 @@ class DocumentValidationService:
                             'fix': 'Set to text/plain (fallback)',
                             'value': 'text/plain'
                         })
+                
+                # Fix integer fields that might be passed as strings
+                attachment = content.get('attachment', {})
+                for int_field in ['size', 'height', 'width', 'pages', 'frames']:
+                    if int_field in attachment and isinstance(attachment[int_field], str):
+                        old_value = attachment[int_field]
+                        try:
+                            # Try to convert string to integer
+                            int_value = int(old_value)
+                            attachment[int_field] = int_value
+                            fixes_applied.append({
+                                'field': f'content[{i}].attachment.{int_field}',
+                                'fix': f'Converted string to integer',
+                                'old_value': old_value,
+                                'new_value': int_value
+                            })
+                        except ValueError:
+                            # If conversion fails, remove the field
+                            del attachment[int_field]
+                            fixes_applied.append({
+                                'field': f'content[{i}].attachment.{int_field}',
+                                'fix': 'Removed invalid integer field',
+                                'old_value': old_value
+                            })
         
         # Create fixed DocumentReference
         try:
             fixed_doc_ref = DocumentReference(**doc_data)
         except Exception as e:
+            # Log detailed error information for debugging
+            logger.error(f"Failed to create DocumentReference: {e}")
+            logger.error(f"Document data causing error: {json.dumps(doc_data, indent=2, default=str)}")
+            
             # If creation fails, return original with error
             return doc_ref, [{
                 'field': 'document',

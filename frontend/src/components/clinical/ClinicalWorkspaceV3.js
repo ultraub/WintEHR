@@ -2,7 +2,7 @@
  * ClinicalWorkspaceV3 Component
  * Modern tab-based clinical workspace with customizable layouts
  */
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, useMemo, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -111,31 +111,55 @@ const TabLoadingFallback = () => (
 const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
   const { alerts, loading } = usePatientCDSAlerts(patientId);
   const [dismissed, setDismissed] = useState(new Set());
+  const prevVisibleCountRef = useRef(0);
   
-  // Filter out dismissed alerts and limit to maxAlerts
-  const visibleAlerts = alerts
-    .filter(alert => !dismissed.has(alert.uuid))
-    .slice(0, maxAlerts);
+  // Filter out dismissed alerts and limit to maxAlerts - MUST be before early returns
+  const visibleAlerts = useMemo(() => {
+    return alerts
+      .filter(alert => !dismissed.has(alert.uuid))
+      .slice(0, maxAlerts);
+  }, [alerts, dismissed, maxAlerts]);
+
+  // Group alerts by presentation mode - MUST be before early returns
+  const alertsByMode = useMemo(() => {
+    const grouped = {};
+    visibleAlerts.forEach(alert => {
+      const mode = alert.displayBehavior?.presentationMode || 'popup';
+      
+      if (!grouped[mode]) {
+        grouped[mode] = [];
+      }
+      grouped[mode].push(alert);
+    });
+    
+    // Log the grouped alerts for debugging only when grouping changes
+    if (Object.keys(grouped).length > 0) {
+      console.log(`🎭 CDSAlertsDisplay: Alerts grouped by mode:`, Object.fromEntries(
+        Object.entries(grouped).map(([mode, alerts]) => [mode, alerts.map(a => a.summary)])
+      ));
+    }
+    
+    return grouped;
+  }, [visibleAlerts]);
   
-  if (loading || visibleAlerts.length === 0) {
-    return null;
+  // Only log when visible alerts count changes
+  if (visibleAlerts.length !== prevVisibleCountRef.current) {
+    console.log(`🖥️ CDSAlertsDisplay: Alert count changed from ${prevVisibleCountRef.current} to ${visibleAlerts.length} for patient ${patientId}`);
+    prevVisibleCountRef.current = visibleAlerts.length;
   }
   
   const handleDismiss = (alertId) => {
     setDismissed(prev => new Set([...prev, alertId]));
   };
-
-  // Group alerts by presentation mode
-  const alertsByMode = {};
-  visibleAlerts.forEach(alert => {
-    const mode = alert.displayBehavior?.presentationMode || 'popup';
-    console.log('🎯 Alert display mode:', mode, 'for alert:', alert.summary, 'displayBehavior:', alert.displayBehavior);
-    
-    if (!alertsByMode[mode]) {
-      alertsByMode[mode] = [];
-    }
-    alertsByMode[mode].push(alert);
-  });
+  
+  // Early returns AFTER all hooks
+  if (loading) {
+    return null;
+  }
+  
+  if (visibleAlerts.length === 0) {
+    return null;
+  }
 
   // Import CDSPresentation - check if it exists
   const CDSPresentation = React.lazy(() => import('./cds/CDSPresentation').catch(() => ({ default: () => null })));
