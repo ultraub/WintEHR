@@ -371,23 +371,23 @@ class DocumentValidationService:
         """
         logger.info("Starting validate_and_fix for DocumentReference")
         
-        # Apply fixes directly to the DocumentReference object without dict conversion
-        # This avoids the integer type conversion issues
-        fixes_applied = []
-        
         try:
+            # Convert to dict for modification
+            doc_data = json.loads(doc_ref.json(exclude_none=True))
+            fixes_applied = []
+            
             # Fix missing date
-            if not doc_ref.date:
-                doc_ref.date = datetime.now().isoformat() + 'Z'
+            if not doc_data.get('date'):
+                doc_data['date'] = datetime.now().isoformat() + 'Z'
                 fixes_applied.append({
                     'field': 'date',
                     'fix': 'Set to current timestamp',
-                    'value': doc_ref.date
+                    'value': doc_data['date']
                 })
             
             # Fix missing docStatus
-            if not doc_ref.docStatus:
-                doc_ref.docStatus = 'preliminary'
+            if not doc_data.get('docStatus'):
+                doc_data['docStatus'] = 'preliminary'
                 fixes_applied.append({
                     'field': 'docStatus',
                     'fix': 'Set to preliminary',
@@ -395,37 +395,65 @@ class DocumentValidationService:
                 })
             
             # Fix content type if missing
-            if doc_ref.content:
-                for i, content in enumerate(doc_ref.content):
-                    if (content.attachment and 
-                        content.attachment.data and 
-                        not content.attachment.contentType):
+            if doc_data.get('content'):
+                for i, content in enumerate(doc_data['content']):
+                    if (content.get('attachment') and 
+                        content['attachment'].get('data') and 
+                        not content['attachment'].get('contentType')):
                         
                         # Try to detect content type from data
                         try:
-                            decoded = base64.b64decode(content.attachment.data).decode('utf-8')
+                            decoded = base64.b64decode(content['attachment']['data']).decode('utf-8')
                             try:
                                 json.loads(decoded)
                                 content_type = 'application/json'
                             except json.JSONDecodeError:
                                 content_type = 'text/plain'
                             
-                            content.attachment.contentType = content_type
+                            content['attachment']['contentType'] = content_type
                             fixes_applied.append({
                                 'field': f'content[{i}].attachment.contentType',
                                 'fix': f'Detected and set to {content_type}',
                                 'value': content_type
                             })
                         except Exception:
-                            content.attachment.contentType = 'text/plain'
+                            content['attachment']['contentType'] = 'text/plain'
                             fixes_applied.append({
                                 'field': f'content[{i}].attachment.contentType',
                                 'fix': 'Set to text/plain (fallback)',
                                 'value': 'text/plain'
                             })
             
+            # Ensure resourceType is present
+            doc_data['resourceType'] = 'DocumentReference'
+            
+            # Check for any string fields that should be integers
+            def check_integer_fields(data, path=''):
+                if isinstance(data, dict):
+                    for key, value in data.items():
+                        new_path = f"{path}.{key}" if path else key
+                        if isinstance(value, str) and value.isdigit():
+                            logger.warning(f"Found numeric string at {new_path}: '{value}'")
+                        elif isinstance(value, (dict, list)):
+                            check_integer_fields(value, new_path)
+                elif isinstance(data, list):
+                    for i, item in enumerate(data):
+                        check_integer_fields(item, f"{path}[{i}]")
+            
+            check_integer_fields(doc_data)
+            
+            # Remove resourceType before creating the object
+            doc_data_for_creation = doc_data.copy()
+            doc_data_for_creation.pop('resourceType', None)
+            
+            # Log the data before creating DocumentReference
+            logger.info(f"Creating DocumentReference with data keys: {list(doc_data_for_creation.keys())}")
+            
+            # Create new DocumentReference from modified data
+            fixed_doc_ref = DocumentReference(**doc_data_for_creation)
+            
             # Validate the document
-            is_valid, remaining_issues = cls.validate_document_reference(doc_ref)
+            is_valid, remaining_issues = cls.validate_document_reference(fixed_doc_ref)
             
             # Add fix information to issues
             for issue in remaining_issues:
@@ -434,10 +462,15 @@ class DocumentValidationService:
             if fixes_applied:
                 logger.info(f"Applied {len(fixes_applied)} automatic fixes to DocumentReference")
             
-            return doc_ref, remaining_issues
+            return fixed_doc_ref, remaining_issues
             
         except Exception as e:
             logger.error(f"Error in validate_and_fix: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+            if hasattr(e, '__traceback__'):
+                import traceback
+                logger.error(f"Traceback: {''.join(traceback.format_tb(e.__traceback__))}")
+            
             # Return original with error
             return doc_ref, [{
                 'field': 'document',

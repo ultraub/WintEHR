@@ -227,10 +227,44 @@ class FHIRStorageEngine:
             logging.debug(f"Resource data: {json.dumps(resource_data, indent=2, default=str)}")
             
             try:
-                fhir_resource = construct_fhir_element(resource_type, resource_data)
+                # Special handling for DocumentReference to check for integer issues
+                if resource_type == 'DocumentReference':
+                    # Remove resourceType before construction as it's not a field
+                    resource_data_for_construction = resource_data.copy()
+                    resource_data_for_construction.pop('resourceType', None)
+                    
+                    # Check for numeric strings in the data
+                    def check_and_fix_integers(data, path=''):
+                        if isinstance(data, dict):
+                            for key, value in data.items():
+                                new_path = f"{path}.{key}" if path else key
+                                if isinstance(value, str) and value.isdigit():
+                                    logging.warning(f"Found numeric string at {new_path}: '{value}'")
+                                    # Convert known integer fields
+                                    if key in ['size', 'height', 'width', 'pages', 'frames']:
+                                        data[key] = int(value)
+                                        logging.info(f"Converted {new_path} from string '{value}' to int {data[key]}")
+                                elif isinstance(value, (dict, list)):
+                                    check_and_fix_integers(value, new_path)
+                        elif isinstance(data, list):
+                            for i, item in enumerate(data):
+                                check_and_fix_integers(item, f"{path}[{i}]")
+                    
+                    check_and_fix_integers(resource_data_for_construction)
+                    fhir_resource = construct_fhir_element(resource_type, resource_data_for_construction)
+                else:
+                    fhir_resource = construct_fhir_element(resource_type, resource_data)
+                    
                 logging.info(f"Successfully constructed FHIR element for {resource_type}")
             except Exception as construction_error:
                 logging.error(f"Failed to construct FHIR element: {construction_error}")
+                logging.error(f"Error type: {type(construction_error).__name__}")
+                if hasattr(construction_error, 'errors') and callable(construction_error.errors):
+                    try:
+                        errors = construction_error.errors()
+                        logging.error(f"Validation errors: {json.dumps(errors, indent=2, default=str)}")
+                    except:
+                        pass
                 logging.error(f"Resource data that failed construction: {json.dumps(resource_data, indent=2, default=str)}")
                 raise ValueError(f"Failed to construct {resource_type}: {str(construction_error)}")
             
@@ -458,7 +492,38 @@ class FHIRStorageEngine:
             # Preprocess with SyntheaFHIRValidator before validation
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
+            try:
+                # Special handling for DocumentReference to check for integer issues
+                if resource_type == 'DocumentReference':
+                    # Remove resourceType before construction as it's not a field
+                    resource_data_for_construction = resource_data.copy()
+                    resource_data_for_construction.pop('resourceType', None)
+                    
+                    # Check for numeric strings in the data
+                    def check_and_fix_integers(data, path=''):
+                        if isinstance(data, dict):
+                            for key, value in data.items():
+                                new_path = f"{path}.{key}" if path else key
+                                if isinstance(value, str) and value.isdigit():
+                                    logging.warning(f"Found numeric string at {new_path}: '{value}'")
+                                    # Convert known integer fields
+                                    if key in ['size', 'height', 'width', 'pages', 'frames']:
+                                        data[key] = int(value)
+                                        logging.info(f"Converted {new_path} from string '{value}' to int {data[key]}")
+                                elif isinstance(value, (dict, list)):
+                                    check_and_fix_integers(value, new_path)
+                        elif isinstance(data, list):
+                            for i, item in enumerate(data):
+                                check_and_fix_integers(item, f"{path}[{i}]")
+                    
+                    check_and_fix_integers(resource_data_for_construction)
+                    fhir_resource = construct_fhir_element(resource_type, resource_data_for_construction)
+                else:
+                    fhir_resource = construct_fhir_element(resource_type, resource_data)
+            except Exception as construction_error:
+                logging.error(f"Failed to construct FHIR element for update: {construction_error}")
+                logging.error(f"Resource data that failed construction: {json.dumps(resource_data, indent=2, default=str)}")
+                raise ValueError(f"Failed to construct {resource_type}: {str(construction_error)}")
             
             # Apply DocumentReference-specific validation for updates
             if resource_type == 'DocumentReference':
