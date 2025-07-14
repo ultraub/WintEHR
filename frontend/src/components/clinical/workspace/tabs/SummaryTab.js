@@ -188,14 +188,28 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const { subscribe, publish } = useClinicalWorkflow();
   
   // Try using the usePatientResources hook as an alternative
-  const { resources: hookResources, loading: hookLoading } = usePatientResources(patientId);
+  // const { resources: hookResources, loading: hookLoading } = usePatientResources(patientId);
   
-  // Get recent items - only if we have relationships
-  const conditions = (relationships[patientId] && getPatientResources(patientId, 'Condition')) || [];
-  const medications = (relationships[patientId] && getPatientResources(patientId, 'MedicationRequest')) || [];
-  const observations = (relationships[patientId] && getPatientResources(patientId, 'Observation')) || [];
-  const encounters = (relationships[patientId] && getPatientResources(patientId, 'Encounter')) || [];
-  const allergies = (relationships[patientId] && getPatientResources(patientId, 'AllergyIntolerance')) || [];
+  // Get recent items - memoized to prevent excessive calls
+  const conditions = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Condition') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const medications = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'MedicationRequest') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const observations = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Observation') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const encounters = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Encounter') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const allergies = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'AllergyIntolerance') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
 
   // DEBUG: Log component props and context
   console.log('DEBUG SummaryTab - Component rendered with:', {
@@ -203,8 +217,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     currentPatient: currentPatient?.id,
     hasRelationships: !!relationships[patientId],
     relationshipKeys: relationships[patientId] ? Object.keys(relationships[patientId]) : [],
-    hookResourcesCount: hookResources?.length || 0,
-    hookLoading,
+    // hookResourcesCount: hookResources?.length || 0,
+    // hookLoading,
     allRelationships: Object.keys(relationships),
     conditionsInState: conditions.length,
     medicationsInState: medications.length,
@@ -224,16 +238,22 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
   // Define loadDashboardData function before it's used
   const loadDashboardData = useCallback(async () => {
+    // Prevent recursive calls if already loading
+    if (loading) {
+      console.log('DEBUG SummaryTab - Already loading, skipping loadDashboardData');
+      return;
+    }
+    
     try {
       setLoading(true);
       
       // DEBUG: Track patient ID and relationships
       console.log('DEBUG SummaryTab - loadDashboardData called with patientId:', patientId);
-      console.log('DEBUG SummaryTab - Relationships available:', !!relationships[patientId]);
       
-      // Check if we have relationships first
-      if (!relationships[patientId]) {
-        console.log('DEBUG SummaryTab - No relationships available for patient:', patientId);
+      // Check if we have relationships by calling getPatientResources with a test resource type
+      const testResources = getPatientResources(patientId, 'Patient');
+      if (!testResources || testResources.length === 0) {
+        console.log('DEBUG SummaryTab - No patient data available for patient:', patientId);
         setStats({
           activeProblems: 0,
           activeMedications: 0,
@@ -329,22 +349,22 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [patientId, getPatientResources, onNotificationUpdate, relationships]);
+  }, [patientId, getPatientResources, onNotificationUpdate, loading]);
 
   // Load all patient data - only when patientId changes or when patient data becomes available
   useEffect(() => {
-    if (patientId && currentPatient && currentPatient.id === patientId) {
+    if (patientId && currentPatient && currentPatient.id === patientId && !loading) {
       console.log('DEBUG SummaryTab - Loading dashboard data for patient:', patientId);
       console.log('DEBUG SummaryTab - Relationships available:', !!relationships[patientId]);
       
       // Always call loadDashboardData - it will handle the case where no relationships exist
       loadDashboardData();
-    } else if (patientId) {
+    } else if (patientId && !loading) {
       console.log('DEBUG SummaryTab - Waiting for patient data to load. CurrentPatient:', currentPatient?.id, 'PatientId:', patientId);
       // If we don't have the current patient yet, keep loading state
       setLoading(true);
     }
-  }, [patientId, currentPatient?.id, relationships, loadDashboardData]); // Depend on patientId, currentPatient, relationships, and loadDashboardData
+  }, [patientId, currentPatient?.id, loading]); // Add loading to prevent loops
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -370,7 +390,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         // Only refresh if the event is for the current patient
         if (data.patientId === patientId || data.resourceType) {
           setRefreshing(true);
-          loadDashboardData();
+          // Use a timeout to prevent rapid successive calls
+          setTimeout(() => loadDashboardData(), 100);
         }
       });
       unsubscribers.push(unsubscribe);
