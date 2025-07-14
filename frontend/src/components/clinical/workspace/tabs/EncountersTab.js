@@ -461,6 +461,11 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           start: `${newEncounterData.startDate}T${newEncounterData.startTime}:00`
         },
         reason: newEncounterData.reasonForVisit ? [{
+          coding: [{
+            system: 'http://snomed.info/sct',
+            code: '439401001',
+            display: 'Diagnosis'
+          }],
           text: newEncounterData.reasonForVisit
         }] : [],
         participant: newEncounterData.provider ? [{

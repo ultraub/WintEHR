@@ -244,8 +244,13 @@ export const updateResource = (encounter = {}, formData, patientId) => {
   }
 
   if (formData.reasonForVisit) {
-    // Use 'reason' instead of 'reasonCode' for FHIR R4 Encounter
+    // Use 'reason' with proper CodeableConcept structure for FHIR R4 Encounter
     resource.reason = [{
+      coding: [{
+        system: 'http://snomed.info/sct',
+        code: '439401001',
+        display: 'Diagnosis'
+      }],
       text: formData.reasonForVisit
     }];
   }
