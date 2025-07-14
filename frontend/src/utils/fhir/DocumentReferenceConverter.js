@@ -170,7 +170,7 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
     }
     
     // Extract references
-    const encounterId = this.extractReferenceId(docRef.encounter);
+    const encounterId = this.extractReferenceId(docRef.context?.encounter?.[0]);
     const authorId = this.extractReferenceId(docRef.author?.[0]);
     
     // Extract notes
@@ -227,10 +227,12 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
       resource.description = formData.description;
     }
 
-    // Add encounter reference
+    // Add encounter reference via context
     if (formData.encounterId) {
-      resource.encounter = {
-        reference: `Encounter/${formData.encounterId}`
+      resource.context = {
+        encounter: [{
+          reference: `Encounter/${formData.encounterId}`
+        }]
       };
     }
 

@@ -91,6 +91,15 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtil
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
+import { 
+  getConditionStatus, 
+  getMedicationStatus, 
+  isConditionActive, 
+  isMedicationActive, 
+  getResourceDisplayText, 
+  getCodeableConceptDisplay, 
+  FHIR_STATUS_VALUES 
+} from '../../../../utils/fhirFieldUtils';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -149,18 +158,20 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   };
 
   const filteredConditions = conditions.filter(condition => {
+    const conditionStatus = getConditionStatus(condition);
     const matchesFilter = filter === 'all' || 
-      (filter === 'active' && condition.clinicalStatus?.coding?.[0]?.code === 'active') ||
-      (filter === 'resolved' && condition.clinicalStatus?.coding?.[0]?.code === 'resolved');
+      (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
+      (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
     
+    const conditionDisplay = getResourceDisplayText(condition);
     const matchesSearch = !searchTerm || 
-      (condition.code?.text || condition.code?.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase());
+      conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesFilter && matchesSearch;
   });
 
-  const activeCount = conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active').length;
-  const resolvedCount = conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'resolved').length;
+  const activeCount = conditions.filter(c => isConditionActive(c)).length;
+  const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -289,19 +300,19 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 }}
               >
                 <ListItemIcon>
-                  <ProblemIcon color={condition.clinicalStatus?.coding?.[0]?.code === 'active' ? 'warning' : 'action'} />
+                  <ProblemIcon color={isConditionActive(condition) ? 'warning' : 'action'} />
                 </ListItemIcon>
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
-                        {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown'}
+                        {getResourceDisplayText(condition)}
                       </Typography>
                       {condition.severity && (
                         <Chip 
-                          label={condition.severity.text || condition.severity.coding?.[0]?.display} 
+                          label={getCodeableConceptDisplay(condition.severity)} 
                           size="small" 
-                          color={getSeverityColor(condition.severity.text)}
+                          color={getSeverityColor(getCodeableConceptDisplay(condition.severity))}
                         />
                       )}
                     </Box>
@@ -502,11 +513,15 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   };
 
   const filteredMedications = medications.filter(med => {
-    return filter === 'all' || med.status === filter;
+    const medicationStatus = getMedicationStatus(med);
+    return filter === 'all' || medicationStatus === filter;
   });
 
-  const activeCount = medications.filter(m => m.status === 'active').length;
-  const stoppedCount = medications.filter(m => m.status === 'stopped' || m.status === 'completed').length;
+  const activeCount = medications.filter(m => isMedicationActive(m)).length;
+  const stoppedCount = medications.filter(m => {
+    const status = getMedicationStatus(m);
+    return status === FHIR_STATUS_VALUES.MEDICATION.STOPPED || status === FHIR_STATUS_VALUES.MEDICATION.COMPLETED;
+  }).length;
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -635,12 +650,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   borderRadius: 1,
                   mb: 1.5,
                   py: 1.5,
-                  backgroundColor: med.status === 'active' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                  backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
                   '&:hover': { backgroundColor: 'action.hover' }
                 }}
               >
                 <ListItemIcon>
-                  <MedicationIcon color={med.status === 'active' ? 'primary' : 'action'} />
+                  <MedicationIcon color={isMedicationActive(med) ? 'primary' : 'action'} />
                 </ListItemIcon>
                 <ListItemText
                   primary={
@@ -649,8 +664,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                         <Typography variant="body1" fontWeight="medium">
                           {getMedicationDisplay(med)}
                         </Typography>
-                        {med.status !== 'active' && (
-                          <Chip label={med.status} size="small" />
+                        {!isMedicationActive(med) && (
+                          <Chip label={getMedicationStatus(med)} size="small" />
                         )}
                         {med.priority && med.priority !== 'routine' && (
                           <Chip 
@@ -744,7 +759,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    {med.status === 'active' && (
+                    {isMedicationActive(med) && (
                       <Tooltip title="Discontinue Medication">
                         <IconButton 
                           size="small"
@@ -917,7 +932,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
     }
   };
 
-  const activeAllergies = allergies.filter(a => a.clinicalStatus?.coding?.[0]?.code === 'active');
+  const activeAllergies = allergies.filter(a => getConditionStatus(a) === FHIR_STATUS_VALUES.CONDITION.ACTIVE);
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -976,7 +991,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
-                        {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'}
+                        {getResourceDisplayText(allergy)}
                       </Typography>
                       {allergy.criticality && (
                         <Chip 
@@ -1396,9 +1411,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         data.forEach(condition => {
           html += `
             <div class="section">
-              <h3>${condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown'}</h3>
-              <p><strong>Status:</strong> ${condition.clinicalStatus?.coding?.[0]?.code || 'Unknown'}</p>
-              ${condition.severity ? `<p><strong>Severity:</strong> ${condition.severity.text}</p>` : ''}
+              <h3>${getResourceDisplayText(condition)}</h3>
+              <p><strong>Status:</strong> ${getConditionStatus(condition) || 'Unknown'}</p>
+              ${condition.severity ? `<p><strong>Severity:</strong> ${getCodeableConceptDisplay(condition.severity)}</p>` : ''}
               <p><strong>Onset:</strong> ${condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'Unknown'}</p>
               ${condition.note?.[0]?.text ? `<p><strong>Notes:</strong> ${condition.note[0].text}</p>` : ''}
             </div>
@@ -1422,7 +1437,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           html += `
             <div class="section">
               <h3>${getMedicationName(med)}</h3>
-              <p><strong>Status:</strong> ${med.status}</p>
+              <p><strong>Status:</strong> ${getMedicationStatus(med)}</p>
               ${med.dosageInstruction?.[0]?.text ? `<p><strong>Dosage:</strong> ${med.dosageInstruction[0].text}</p>` : ''}
               <p><strong>Prescribed:</strong> ${med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}</p>
               ${med.requester?.display ? `<p><strong>Prescriber:</strong> ${med.requester.display}</p>` : ''}
@@ -1446,7 +1461,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         data.forEach(allergy => {
           html += `
             <div class="section">
-              <h3>${allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'}</h3>
+              <h3>${getResourceDisplayText(allergy)}</h3>
               <p><strong>Type:</strong> ${allergy.type || 'Unknown'}</p>
               <p><strong>Criticality:</strong> ${allergy.criticality || 'Unknown'}</p>
               ${allergy.reaction?.[0]?.manifestation?.[0]?.text ? 

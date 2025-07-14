@@ -76,13 +76,12 @@ import { printDocument, formatEncountersForPrint } from '../../../../utils/print
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../utils/fhirFieldUtils';
 
 // Get encounter icon based on class
-const getEncounterIcon = (encounterClass) => {
-  // Handle both array format (R5) and object format (R4)
-  const classCode = Array.isArray(encounterClass) 
-    ? encounterClass[0]?.coding?.[0]?.code 
-    : encounterClass?.code;
+const getEncounterIcon = (encounter) => {
+  // Use resilient utility to get encounter class
+  const classCode = getEncounterClass(encounter);
     
   switch (classCode) {
     case 'IMP':
@@ -100,11 +99,21 @@ const getEncounterIcon = (encounterClass) => {
 
 // Get encounter type label
 const getEncounterTypeLabel = (encounter) => {
-  return encounter.type?.[0]?.text || 
-         encounter.type?.[0]?.coding?.[0]?.display || 
-         encounter.class?.[0]?.coding?.[0]?.display ||
-         encounter.class?.display ||
-         'Encounter';
+  // Try to get type first, then fallback to class
+  const typeDisplay = encounter.type?.[0] ? getCodeableConceptDisplay(encounter.type[0]) : null;
+  if (typeDisplay && typeDisplay !== 'Unknown') {
+    return typeDisplay;
+  }
+  
+  // Fallback to class display
+  const classCode = getEncounterClass(encounter);
+  switch (classCode) {
+    case 'AMB': return 'Ambulatory';
+    case 'IMP': return 'Inpatient';
+    case 'EMER': return 'Emergency';
+    case 'HH': return 'Home Health';
+    default: return 'Encounter';
+  }
 };
 
 // Encounter Card Component
@@ -135,14 +144,14 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box sx={{ flex: 1 }}>
             <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-              {getEncounterIcon(encounter.class)}
+              {getEncounterIcon(encounter)}
               <Typography variant="h6">
                 {getEncounterTypeLabel(encounter)}
               </Typography>
               <Chip 
-                label={encounter.status} 
+                label={getEncounterStatus(encounter)} 
                 size="small" 
-                color={getStatusColor(encounter.status)}
+                color={getStatusColor(getEncounterStatus(encounter))}
               />
             </Stack>
 
@@ -227,7 +236,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
         >
           Add Note
         </Button>
-        {encounter.status === 'in-progress' && (
+        {getEncounterStatus(encounter) === 'in-progress' && (
           <Button 
             size="small" 
             variant="contained"
@@ -421,7 +430,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           html += `
             <div class="section">
               <h3>${getEncounterTypeLabel(encounter)}</h3>
-              <p><strong>Status:</strong> ${encounter.status}</p>
+              <p><strong>Status:</strong> ${getEncounterStatus(encounter)}</p>
               <p><strong>Start:</strong> ${startDate}</p>
               <p><strong>End:</strong> ${endDate}</p>
               ${encounter.participant?.[0]?.individual?.display ? 
@@ -540,9 +549,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
 
   // Filter encounters
   const filteredEncounters = encounters.filter(encounter => {
-    // Type filter
+    // Type filter - use resilient utility
     const matchesType = filterType === 'all' || 
-      encounter.class?.code === filterType;
+      getEncounterClass(encounter) === filterType;
 
     // Period filter
     let matchesPeriod = true;
@@ -685,11 +694,11 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           color="primary" 
         />
         <Chip 
-          label={`${encounters.filter(e => e.status === 'finished').length} Completed`} 
+          label={`${encounters.filter(e => getEncounterStatus(e) === 'finished').length} Completed`} 
           color="success" 
         />
         <Chip 
-          label={`${encounters.filter(e => e.status === 'in-progress').length} In Progress`} 
+          label={`${encounters.filter(e => getEncounterStatus(e) === 'in-progress').length} In Progress`} 
           color="warning" 
         />
       </Stack>
@@ -722,8 +731,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
                 }
               </TimelineOppositeContent>
               <TimelineSeparator>
-                <TimelineDot color={encounter.status === 'finished' ? 'success' : 'warning'}>
-                  {getEncounterIcon(encounter.class)}
+                <TimelineDot color={getEncounterStatus(encounter) === 'finished' ? 'success' : 'warning'}>
+                  {getEncounterIcon(encounter)}
                 </TimelineDot>
                 {index < sortedEncounters.length - 1 && <TimelineConnector />}
               </TimelineSeparator>
@@ -891,7 +900,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
                 Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Status: {selectedEncounterForEdit.status}
+                Status: {getEncounterStatus(selectedEncounterForEdit)}
               </Typography>
               {selectedEncounterForEdit.period?.start && (
                 <Typography variant="body2" color="text.secondary">

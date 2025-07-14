@@ -131,7 +131,9 @@ class DocumentReferenceConverter:
         
         # Context (optional) - includes encounter references
         if data.get('encounterId'):
-            doc_ref_dict["context"] = [{"reference": f"Encounter/{data['encounterId']}"}]
+            doc_ref_dict["context"] = {
+                "encounter": [{"reference": f"Encounter/{data['encounterId']}"}]
+            }
         
         # Date (required) - format as FHIR instant
         created_at = data.get('createdAt')
@@ -277,10 +279,10 @@ class DocumentReferenceConverter:
         if doc_ref.subject and doc_ref.subject.reference:
             data['patientId'] = doc_ref.subject.reference.split('/')[-1]
         
-        if doc_ref.context:
-            for context_ref in doc_ref.context:
-                if context_ref.reference and 'Encounter/' in context_ref.reference:
-                    data['encounterId'] = context_ref.reference.split('/')[-1]
+        if doc_ref.context and doc_ref.context.encounter:
+            for encounter_ref in doc_ref.context.encounter:
+                if encounter_ref.reference and 'Encounter/' in encounter_ref.reference:
+                    data['encounterId'] = encounter_ref.reference.split('/')[-1]
                     break
         
         if doc_ref.author and doc_ref.author[0].reference:

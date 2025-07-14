@@ -83,6 +83,15 @@ import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { 
+  getObservationCategory, 
+  getObservationInterpretation, 
+  getObservationInterpretationDisplay,
+  isObservationLaboratory,
+  getResourceDisplayText,
+  getCodeableConceptDisplay,
+  getReferenceId 
+} from '../../../../utils/fhirFieldUtils';
 import QuickResultNote from '../../results/QuickResultNote';
 import CriticalValueAlert from '../../results/CriticalValueAlert';
 import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';
@@ -135,8 +144,8 @@ const getResultStatus = (observation) => {
   
   switch (observation.status) {
     case 'final':
-      // First check for explicit interpretation
-      const interpretation = observation.interpretation?.[0]?.coding?.[0]?.code;
+      // First check for explicit interpretation using resilient utility
+      const interpretation = getObservationInterpretation(observation);
       if (interpretation === 'H' || interpretation === 'HH') {
         return { icon: <HighIcon />, color: 'error', label: 'High' };
       } else if (interpretation === 'L' || interpretation === 'LL') {
@@ -203,8 +212,7 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected,
     } else if (observation.valueString) {
       return observation.valueString;
     } else if (observation.valueCodeableConcept) {
-      return observation.valueCodeableConcept.text || 
-             observation.valueCodeableConcept.coding?.[0]?.display;
+      return getCodeableConceptDisplay(observation.valueCodeableConcept);
     }
     return 'Result pending';
   };
@@ -241,7 +249,7 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected,
         <Stack direction="row" spacing={1} alignItems="center">
           {status.icon}
           <Typography variant="body2">
-            {observation.code?.text || observation.code?.coding?.[0]?.display || 'Unknown test'}
+            {getResourceDisplayText(observation)}
           </Typography>
         </Stack>
       </TableCell>
@@ -274,7 +282,7 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected,
         <Stack direction="row" spacing={1}>
           <QuickResultNote
             result={observation}
-            patientId={observation.subject?.reference?.split('/')[1]}
+            patientId={getReferenceId(observation.subject?.reference)}
             variant="button"
             onNoteCreated={(data) => {
               // Could add refresh logic here
@@ -324,7 +332,7 @@ const ResultCard = ({ observation, onClick }) => {
             <Stack direction="row" spacing={1} alignItems="center" mb={1}>
               {status.icon}
               <Typography variant="h6">
-                {observation.code?.text || observation.code?.coding?.[0]?.display || 'Unknown test'}
+                {getResourceDisplayText(observation)}
               </Typography>
               {status.label && (
                 <Chip 
@@ -377,7 +385,7 @@ const ResultCard = ({ observation, onClick }) => {
         <Button size="small" startIcon={<ViewIcon />} onClick={(e) => { e.stopPropagation(); onClick(); }}>View Details</Button>
         <QuickResultNote
           result={observation}
-          patientId={observation.subject?.reference?.split('/')[1]}
+          patientId={getReferenceId(observation.subject?.reference)}
           variant="inline"
           onNoteCreated={(data) => {
             // Refresh data or show success message
@@ -468,7 +476,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         
         recentAbnormalResults.forEach(async (result) => {
           const status = getResultStatus(result);
-          const testName = result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test';
+          const testName = getResourceDisplayText(result);
           const value = result.valueQuantity ? 
             `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 
             'N/A';
@@ -539,7 +547,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             content: [{
               attachment: {
                 contentType: 'text/plain',
-                data: btoa(`Result acknowledged: ${result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test'} - ${result.valueQuantity ? `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 'See report'}`)
+                data: btoa(`Result acknowledged: ${getResourceDisplayText(result)} - ${result.valueQuantity ? `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 'See report'}`)
               }
             }],
             context: {
@@ -564,7 +572,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           // Publish acknowledgment event
           await publish(CLINICAL_EVENTS.RESULT_ACKNOWLEDGED, {
             resultId: result.id,
-            testName: result.code?.text || result.code?.coding?.[0]?.display || 'Unknown test',
+            testName: getResourceDisplayText(result),
             acknowledgedBy: 'Current User',
             timestamp: new Date().toISOString(),
             patientId
@@ -747,7 +755,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     
     observations.forEach(o => {
       const enhancedObs = enhanceObservationWithReferenceRange(o);
-      const category = enhancedObs.category?.[0]?.coding?.[0]?.code;
+      const category = getObservationCategory(enhancedObs);
       if (category === 'laboratory') {
         labResults.push(enhancedObs);
       } else if (category === 'vital-signs') {
@@ -795,7 +803,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
 
       // Search filter
       if (searchTerm) {
-        const testName = result.code?.text || result.code?.coding?.[0]?.display || '';
+        const testName = getResourceDisplayText(result);
         if (!testName.toLowerCase().includes(searchTerm.toLowerCase())) {
           return false;
         }
@@ -1219,7 +1227,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                   <TableRow key={report.id}>
                     <TableCell>
                       <Typography variant="subtitle2">
-                        {report.code?.text || report.code?.coding?.[0]?.display || 'Diagnostic Report'}
+                        {getResourceDisplayText(report)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -1244,7 +1252,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                         </Button>
                         <QuickResultNote
                           result={report}
-                          patientId={report.subject?.reference?.split('/')[1]}
+                          patientId={getReferenceId(report.subject?.reference)}
                           variant="button"
                           onNoteCreated={(data) => {
                           }}
@@ -1290,7 +1298,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
               <Box>
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>Test Name</Typography>
                 <Typography variant="h6">
-                  {selectedResult.code?.text || selectedResult.code?.coding?.[0]?.display || 'Unknown test'}
+                  {getResourceDisplayText(selectedResult)}
                 </Typography>
                 {selectedResult.code?.coding?.[0]?.code && (
                   <Typography variant="caption" color="text.secondary">
@@ -1309,8 +1317,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                       {selectedResult.valueQuantity ? 
                         `${selectedResult.valueQuantity.value} ${selectedResult.valueQuantity.unit || ''}` :
                         selectedResult.valueString || 
-                        selectedResult.valueCodeableConcept?.text ||
-                        selectedResult.valueCodeableConcept?.coding?.[0]?.display ||
+                        getCodeableConceptDisplay(selectedResult.valueCodeableConcept) ||
                         'No value recorded'
                       }
                     </Typography>
@@ -1378,7 +1385,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                         {selectedResult.component.map((comp, index) => (
                           <TableRow key={index}>
                             <TableCell>
-                              {comp.code?.text || comp.code?.coding?.[0]?.display || 'Component'}
+                              {getResourceDisplayText(comp)}
                             </TableCell>
                             <TableCell>
                               {comp.valueQuantity ? 
@@ -1423,7 +1430,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>Interpretation</Typography>
                   {selectedResult.interpretation.map((interp, index) => (
                     <Typography key={index} variant="body2">
-                      {interp.text || interp.coding?.[0]?.display || 'See result status'}
+                      {getCodeableConceptDisplay(interp)}
                     </Typography>
                   ))}
                 </Box>
@@ -1434,7 +1441,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>Method</Typography>
                   <Typography variant="body2">
-                    {selectedResult.method.text || selectedResult.method.coding?.[0]?.display}
+                    {getCodeableConceptDisplay(selectedResult.method)}
                   </Typography>
                 </Box>
               )}
