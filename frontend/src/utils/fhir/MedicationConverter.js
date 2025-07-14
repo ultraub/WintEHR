@@ -110,11 +110,15 @@ export class MedicationConverter extends AbstractFHIRConverter {
     const startDate = this.parseDate(medicationRequest.authoredOn) || new Date();
     const endDate = this.parseDate(medicationRequest.dispenseRequest?.validityPeriod?.end);
 
-    // Extract medication information - handle both R4 and R5 formats
+    // Extract medication information - handle both R4B and R5 formats
     let selectedMedication = null;
     let customMedication = '';
     
-    const medication = medicationRequest.medication || medicationRequest.medicationCodeableConcept;
+    // Try R4B format first (medicationCodeableConcept)
+    const medication = medicationRequest.medicationCodeableConcept || 
+                      medicationRequest.medication || 
+                      medicationRequest.medicationReference;
+                      
     if (medication) {
       // R5 format: medication.concept
       if (medication.concept?.coding?.[0]) {
@@ -126,7 +130,7 @@ export class MedicationConverter extends AbstractFHIRConverter {
           source: 'existing'
         };
       }
-      // R4 format: medication.coding or direct coding
+      // R4B format: direct coding
       else if (medication.coding?.[0]) {
         const coding = medication.coding[0];
         selectedMedication = {
@@ -135,6 +139,10 @@ export class MedicationConverter extends AbstractFHIRConverter {
           system: coding.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
           source: 'existing'
         };
+      }
+      // Reference format
+      else if (medication.reference) {
+        customMedication = medication.display || 'Referenced medication';
       }
       // Text only
       else if (medication.text || medication.concept?.text) {
@@ -219,27 +227,25 @@ export class MedicationConverter extends AbstractFHIRConverter {
       status: formData.status,
       intent: formData.intent,
       priority: formData.priority,
-      // Use R5 format for medication
-      medication: {
-        concept: formData.selectedMedication ? {
-          coding: [{
-            system: formData.selectedMedication.system || 
-                    formData.selectedMedication.code?.coding?.[0]?.system ||
-                    'http://www.nlm.nih.gov/research/umls/rxnorm',
-            code: String(formData.selectedMedication.code?.coding?.[0]?.code || 
-                         formData.selectedMedication.code || 
-                         formData.selectedMedication.id || 
-                         'unknown'),
-            display: formData.selectedMedication.display || 
-                     formData.selectedMedication.code?.text || 
-                     'Unknown medication'
-          }],
-          text: formData.selectedMedication.display || 
-                formData.selectedMedication.code?.text || 
-                'Unknown medication'
-        } : {
-          text: formData.customMedication
-        }
+      // Use R4B format (medicationCodeableConcept)
+      medicationCodeableConcept: formData.selectedMedication ? {
+        coding: [{
+          system: formData.selectedMedication.system || 
+                  formData.selectedMedication.code?.coding?.[0]?.system ||
+                  'http://www.nlm.nih.gov/research/umls/rxnorm',
+          code: String(formData.selectedMedication.code?.coding?.[0]?.code || 
+                       formData.selectedMedication.code || 
+                       formData.selectedMedication.id || 
+                       'unknown'),
+          display: formData.selectedMedication.display || 
+                   formData.selectedMedication.code?.text || 
+                   'Unknown medication'
+        }],
+        text: formData.selectedMedication.display || 
+              formData.selectedMedication.code?.text || 
+              'Unknown medication'
+      } : {
+        text: formData.customMedication
       },
       authoredOn: this.createDateString(formData.startDate),
       dosageInstruction: [{

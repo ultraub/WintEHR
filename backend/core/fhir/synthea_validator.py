@@ -266,40 +266,45 @@ class SyntheaFHIRValidator(FHIRValidator):
                     if k in allowed_ref_fields
                 }
         
-        # Enhanced R4/R5 format tolerance - convert to proper R5 structure
-        # Handle R4 format: medicationCodeableConcept -> medication.concept
-        if 'medicationCodeableConcept' in data:
-            logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
-            medication_concept = data.pop('medicationCodeableConcept')
-            # Ensure proper R5 structure with concept wrapper
-            data['medication'] = {
-                'concept': medication_concept
-            }
-        # Handle R4 format: medicationReference -> medication.reference  
-        elif 'medicationReference' in data:
-            logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
-            medication_ref = data.pop('medicationReference')
-            data['medication'] = {
-                'reference': medication_ref
-            }
-        # Handle existing R5 format or ensure proper nesting
-        elif 'medication' in data and isinstance(data['medication'], dict):
-            # If medication exists but doesn't have concept/reference wrapper, fix it
-            medication = data['medication']
-            
-            # Check if it's already properly structured (has concept or reference)
-            if 'concept' not in medication and 'reference' not in medication:
-                # Check if it looks like a CodeableConcept (has coding or text)
-                if 'coding' in medication or 'text' in medication:
-                    logging.debug(f"DEBUG: Wrapping loose medication CodeableConcept in R5 structure for {resource_id}")
-                    # Wrap in concept structure for R5
-                    data['medication'] = {
-                        'concept': medication
-                    }
-                else:
-                    logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
-            else:
-                logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+        # DISABLED: R4/R5 conversion - we're using R4B which expects medicationCodeableConcept/medicationReference
+        # The fhir.resources R4B library expects the field names to be exactly medicationCodeableConcept or medicationReference
+        # NOT medication.concept or medication.reference
+        
+        # # Enhanced R4/R5 format tolerance - convert to proper R5 structure
+        # # Handle R4 format: medicationCodeableConcept -> medication.concept
+        # if 'medicationCodeableConcept' in data:
+        #     logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
+        #     medication_concept = data.pop('medicationCodeableConcept')
+        #     # Ensure proper R5 structure with concept wrapper
+        #     data['medication'] = {
+        #         'concept': medication_concept
+        #     }
+        # # Handle R4 format: medicationReference -> medication.reference  
+        # elif 'medicationReference' in data:
+        #     logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
+        #     medication_ref = data.pop('medicationReference')
+        #     data['medication'] = {
+        #         'reference': medication_ref
+        #     }
+        # DISABLED: Handle existing R5 format - we're using R4B
+        # # Handle existing R5 format or ensure proper nesting
+        # elif 'medication' in data and isinstance(data['medication'], dict):
+        #     # If medication exists but doesn't have concept/reference wrapper, fix it
+        #     medication = data['medication']
+        #     
+        #     # Check if it's already properly structured (has concept or reference)
+        #     if 'concept' not in medication and 'reference' not in medication:
+        #         # Check if it looks like a CodeableConcept (has coding or text)
+        #         if 'coding' in medication or 'text' in medication:
+        #             logging.debug(f"DEBUG: Wrapping loose medication CodeableConcept in R5 structure for {resource_id}")
+        #             # Wrap in concept structure for R5
+        #             data['medication'] = {
+        #                 'concept': medication
+        #             }
+        #         else:
+        #             logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
+        #     else:
+        #         logging.debug(f"DEBUG: Medication format already appears to be R5 for {resource_id}")
         
         logging.debug(f"DEBUG: MedicationRequest {resource_id} preprocessing complete")
         
