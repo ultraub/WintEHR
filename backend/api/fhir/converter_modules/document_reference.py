@@ -9,13 +9,10 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import base64
 import json
-from fhir.resources.documentreference import DocumentReference
-from fhir.resources.codeableconcept import CodeableConcept
-from fhir.resources.coding import Coding
-from fhir.resources.reference import Reference
-from fhir.resources.attachment import Attachment
-from fhir.resources.documentreference import DocumentReferenceContent
-from fhir.resources.identifier import Identifier
+from core.fhir.resources_r4b import (
+    DocumentReference, CodeableConcept, Coding, Reference, 
+    Attachment, Identifier
+)
 
 
 class DocumentReferenceConverter:

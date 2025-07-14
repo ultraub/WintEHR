@@ -7,12 +7,10 @@ Used for laboratory and imaging orders.
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from fhir.resources.servicerequest import ServiceRequest
-from fhir.resources.codeableconcept import CodeableConcept
-from fhir.resources.coding import Coding
-from fhir.resources.reference import Reference
-from fhir.resources.identifier import Identifier
-from fhir.resources.annotation import Annotation
+from core.fhir.resources_r4b import (
+    ServiceRequest, CodeableConcept, Coding, Reference,
+    Identifier, Annotation
+)
 
 
 class ServiceRequestConverter:

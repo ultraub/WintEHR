@@ -17,10 +17,8 @@ from core.fhir.synthea_validator import SyntheaFHIRValidator
 from core.fhir.operations import OperationHandler
 from core.fhir.search import SearchParameterHandler
 from database import get_db_session
-from fhir.resources import construct_fhir_element
-from fhir.resources.bundle import Bundle
-from fhir.resources.parameters import Parameters
-from fhir.resources.capabilitystatement import (
+from core.fhir.resources_r4b import construct_fhir_element, Bundle, Parameters
+from fhir.resources.R4B.capabilitystatement import (
     CapabilityStatement,
     CapabilityStatementRest,
     CapabilityStatementRestResource,
