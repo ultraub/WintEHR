@@ -263,36 +263,24 @@ export const DocumentationProvider = ({ children }) => {
     }
   };
 
-  // Load note templates (still using API endpoint as templates aren't FHIR resources)
+  // Load note templates from the template service
   const loadNoteTemplates = async (specialty) => {
     try {
-      // For now, use hardcoded templates until we implement a proper template service
-      const templates = [
-        {
-          id: 'soap-basic',
-          name: 'Basic SOAP Note',
-          noteType: 'progress',
-          content: {
-            subjective: 'Chief Complaint: \nHistory of Present Illness: \nReview of Systems: ',
-            objective: 'Vital Signs: \nPhysical Exam: ',
-            assessment: 'Assessment: \n1. ',
-            plan: 'Plan: \n1. '
-          }
-        },
-        {
-          id: 'hp-standard',
-          name: 'History & Physical',
-          noteType: 'history_physical',
-          content: {
-            chiefComplaint: 'Chief Complaint: ',
-            historyPresentIllness: 'History of Present Illness: ',
-            reviewOfSystems: 'Review of Systems: \nConstitutional: \nHEENT: \nCardiovascular: \nRespiratory: ',
-            physicalExam: 'Physical Examination: \nVital Signs: \nGeneral: \nHEENT: \nCardiovascular: \nRespiratory: ',
-            assessment: 'Assessment: ',
-            plan: 'Plan: '
-          }
-        }
-      ];
+      // Import templates from noteTemplatesService
+      const { NOTE_TEMPLATES, getTemplatesBySpecialty } = await import('../services/noteTemplatesService');
+      
+      // Get templates based on specialty if provided
+      const templates = specialty 
+        ? await getTemplatesBySpecialty(specialty)
+        : Object.values(NOTE_TEMPLATES).map(template => ({
+            id: template.id,
+            name: template.label,
+            noteType: template.id,
+            content: template.defaultContent,
+            structure: template.structure,
+            code: template.code,
+            system: template.system
+          }));
       
       setNoteTemplates(templates);
     } catch (error) {
@@ -487,12 +475,23 @@ export const DocumentationProvider = ({ children }) => {
 
   // Expand smart phrase
   const expandSmartPhrase = (phrase) => {
-    // Mock smart phrase expansion
+    // Temporary smart phrase implementation until full service is developed
+    // In production, this would integrate with a configurable smart phrase service
     const smartPhrases = {
+      // Common abbreviations
       '.ros': 'Review of Systems: Constitutional: Denies fever, chills, or weight loss. HEENT: Denies headache, vision changes. Cardiovascular: Denies chest pain, palpitations. Respiratory: Denies shortness of breath, cough.',
       '.pe': 'Physical Exam: Vital Signs: BP ___/___ HR ___ RR ___ Temp ___°F SpO2 ___%. General: Alert and oriented x3, in no acute distress.',
       '.normal': 'Within normal limits',
-      '.wnl': 'Within normal limits'
+      '.wnl': 'Within normal limits',
+      '.nad': 'No acute distress',
+      '.aox3': 'Alert and oriented x3',
+      '.ctab': 'Clear to auscultation bilaterally',
+      '.rrr': 'Regular rate and rhythm',
+      '.abd': 'Abdomen: Soft, non-tender, non-distended, normal bowel sounds',
+      // Date/time macros
+      '.today': new Date().toLocaleDateString(),
+      '.now': new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      '.date': new Date().toLocaleDateString()
     };
 
     return smartPhrases[phrase.toLowerCase()] || phrase;

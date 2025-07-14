@@ -369,111 +369,82 @@ class DocumentValidationService:
         Returns:
             Tuple of (fixed_document, remaining_issues)
         """
-        # Make a copy to avoid modifying the original
-        doc_data = doc_ref.dict()
+        logger.info("Starting validate_and_fix for DocumentReference")
         
-        # Apply automatic fixes
+        # Apply fixes directly to the DocumentReference object without dict conversion
+        # This avoids the integer type conversion issues
         fixes_applied = []
         
-        # Fix missing date
-        if not doc_data.get('date'):
-            doc_data['date'] = datetime.now().isoformat() + 'Z'
-            fixes_applied.append({
-                'field': 'date',
-                'fix': 'Set to current timestamp',
-                'value': doc_data['date']
-            })
-        
-        # Fix missing docStatus
-        if not doc_data.get('docStatus'):
-            doc_data['docStatus'] = 'preliminary'
-            fixes_applied.append({
-                'field': 'docStatus',
-                'fix': 'Set to preliminary',
-                'value': 'preliminary'
-            })
-        
-        # Fix content type if missing
-        if doc_data.get('content'):
-            for i, content in enumerate(doc_data['content']):
-                if (content.get('attachment') and 
-                    content['attachment'].get('data') and 
-                    not content['attachment'].get('contentType')):
-                    
-                    # Try to detect content type from data
-                    try:
-                        decoded = base64.b64decode(content['attachment']['data']).decode('utf-8')
-                        try:
-                            json.loads(decoded)
-                            content_type = 'application/json'
-                        except json.JSONDecodeError:
-                            content_type = 'text/plain'
-                        
-                        content['attachment']['contentType'] = content_type
-                        fixes_applied.append({
-                            'field': f'content[{i}].attachment.contentType',
-                            'fix': f'Detected and set to {content_type}',
-                            'value': content_type
-                        })
-                    except Exception:
-                        content['attachment']['contentType'] = 'text/plain'
-                        fixes_applied.append({
-                            'field': f'content[{i}].attachment.contentType',
-                            'fix': 'Set to text/plain (fallback)',
-                            'value': 'text/plain'
-                        })
-                
-                # Fix integer fields that might be passed as strings
-                attachment = content.get('attachment', {})
-                for int_field in ['size', 'height', 'width', 'pages', 'frames']:
-                    if int_field in attachment and isinstance(attachment[int_field], str):
-                        old_value = attachment[int_field]
-                        try:
-                            # Try to convert string to integer
-                            int_value = int(old_value)
-                            attachment[int_field] = int_value
-                            fixes_applied.append({
-                                'field': f'content[{i}].attachment.{int_field}',
-                                'fix': f'Converted string to integer',
-                                'old_value': old_value,
-                                'new_value': int_value
-                            })
-                        except ValueError:
-                            # If conversion fails, remove the field
-                            del attachment[int_field]
-                            fixes_applied.append({
-                                'field': f'content[{i}].attachment.{int_field}',
-                                'fix': 'Removed invalid integer field',
-                                'old_value': old_value
-                            })
-        
-        # Create fixed DocumentReference
         try:
-            fixed_doc_ref = DocumentReference(**doc_data)
-        except Exception as e:
-            # Log detailed error information for debugging
-            logger.error(f"Failed to create DocumentReference: {e}")
-            logger.error(f"Document data causing error: {json.dumps(doc_data, indent=2, default=str)}")
+            # Fix missing date
+            if not doc_ref.date:
+                doc_ref.date = datetime.now().isoformat() + 'Z'
+                fixes_applied.append({
+                    'field': 'date',
+                    'fix': 'Set to current timestamp',
+                    'value': doc_ref.date
+                })
             
-            # If creation fails, return original with error
+            # Fix missing docStatus
+            if not doc_ref.docStatus:
+                doc_ref.docStatus = 'preliminary'
+                fixes_applied.append({
+                    'field': 'docStatus',
+                    'fix': 'Set to preliminary',
+                    'value': 'preliminary'
+                })
+            
+            # Fix content type if missing
+            if doc_ref.content:
+                for i, content in enumerate(doc_ref.content):
+                    if (content.attachment and 
+                        content.attachment.data and 
+                        not content.attachment.contentType):
+                        
+                        # Try to detect content type from data
+                        try:
+                            decoded = base64.b64decode(content.attachment.data).decode('utf-8')
+                            try:
+                                json.loads(decoded)
+                                content_type = 'application/json'
+                            except json.JSONDecodeError:
+                                content_type = 'text/plain'
+                            
+                            content.attachment.contentType = content_type
+                            fixes_applied.append({
+                                'field': f'content[{i}].attachment.contentType',
+                                'fix': f'Detected and set to {content_type}',
+                                'value': content_type
+                            })
+                        except Exception:
+                            content.attachment.contentType = 'text/plain'
+                            fixes_applied.append({
+                                'field': f'content[{i}].attachment.contentType',
+                                'fix': 'Set to text/plain (fallback)',
+                                'value': 'text/plain'
+                            })
+            
+            # Validate the document
+            is_valid, remaining_issues = cls.validate_document_reference(doc_ref)
+            
+            # Add fix information to issues
+            for issue in remaining_issues:
+                issue['fixes_applied'] = fixes_applied
+            
+            if fixes_applied:
+                logger.info(f"Applied {len(fixes_applied)} automatic fixes to DocumentReference")
+            
+            return doc_ref, remaining_issues
+            
+        except Exception as e:
+            logger.error(f"Error in validate_and_fix: {e}")
+            # Return original with error
             return doc_ref, [{
                 'field': 'document',
                 'severity': 'critical',
-                'message': f'Failed to create fixed document: {e}',
-                'code': 'DOCUMENT_CREATION_ERROR'
+                'message': f'Failed to validate document: {e}',
+                'code': 'DOCUMENT_VALIDATION_ERROR'
             }]
-        
-        # Validate the fixed document
-        is_valid, remaining_issues = cls.validate_document_reference(fixed_doc_ref)
-        
-        # Add fix information to issues
-        for issue in remaining_issues:
-            issue['fixes_applied'] = fixes_applied
-        
-        if fixes_applied:
-            logger.info(f"Applied {len(fixes_applied)} automatic fixes to DocumentReference")
-        
-        return fixed_doc_ref, remaining_issues
     
     @classmethod
     def validate_before_save(cls, doc_ref: DocumentReference, auto_fix: bool = True) -> DocumentReference:

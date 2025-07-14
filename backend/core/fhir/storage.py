@@ -223,10 +223,20 @@ class FHIRStorageEngine:
             # Preprocess with SyntheaFHIRValidator before validation
             resource_data = self.validator._preprocess_synthea_resource(resource_type, resource_data)
             
-            fhir_resource = construct_fhir_element(resource_type, resource_data)
+            logging.info(f"Attempting to construct FHIR element for {resource_type}")
+            logging.debug(f"Resource data: {json.dumps(resource_data, indent=2, default=str)}")
+            
+            try:
+                fhir_resource = construct_fhir_element(resource_type, resource_data)
+                logging.info(f"Successfully constructed FHIR element for {resource_type}")
+            except Exception as construction_error:
+                logging.error(f"Failed to construct FHIR element: {construction_error}")
+                logging.error(f"Resource data that failed construction: {json.dumps(resource_data, indent=2, default=str)}")
+                raise ValueError(f"Failed to construct {resource_type}: {str(construction_error)}")
             
             # Apply DocumentReference-specific validation
             if resource_type == 'DocumentReference':
+                logging.info("=== DOCUMENTREFERENCE VALIDATION START ===")
                 from services.document_validation_service import DocumentValidationService
                 try:
                     fhir_resource = DocumentValidationService.validate_before_save(
@@ -235,10 +245,15 @@ class FHIRStorageEngine:
                     logging.info(f"DocumentReference validation passed for resource {fhir_resource.id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference validation failed: {validation_error}")
-                    logging.error(f"Resource data that failed validation: {json.dumps(resource_dict, indent=2, default=str)}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
                     raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
             
-            resource_dict = fhir_resource.dict(exclude_none=True)
+            # For DocumentReference, use json() method instead of dict() to preserve data types
+            if resource_type == 'DocumentReference':
+                import json as json_module
+                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+            else:
+                resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -455,9 +470,15 @@ class FHIRStorageEngine:
                     logging.info(f"DocumentReference update validation passed for resource {fhir_resource.id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference update validation failed: {validation_error}")
-                    logging.error(f"Resource data that failed validation: {json.dumps(resource_dict, indent=2, default=str)}")
+                    logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
                     raise ValueError(f"DocumentReference validation failed: {str(validation_error)}")
-            resource_dict = fhir_resource.dict(exclude_none=True)
+            
+            # For DocumentReference, use json() method instead of dict() to preserve data types
+            if resource_type == 'DocumentReference':
+                import json as json_module
+                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+            else:
+                resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type

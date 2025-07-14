@@ -279,7 +279,7 @@ const NoteCard = ({ note, onEdit, onView, onSign, onPrint, onExport }) => {
 
 // Note Editor Component
 const NoteEditor = ({ open, onClose, note, patientId }) => {
-  const { publish } = useClinicalWorkflow();
+  const { publish, clinicalContext } = useClinicalWorkflow();
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [noteData, setNoteData] = useState({
     type: 'progress',
@@ -346,7 +346,7 @@ const NoteEditor = ({ open, onClose, note, patientId }) => {
           noteData,
           { 
             patientId, 
-            encounterId: null, 
+            encounterId: clinicalContext?.activeEncounter?.id || null, 
             userId: 'current-user', 
             signNote 
           }

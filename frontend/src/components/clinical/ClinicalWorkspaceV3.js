@@ -60,6 +60,7 @@ import { usePatientCDSAlerts } from '../../contexts/CDSContext';
 
 // Lazy-loaded Components
 const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
+const CDSPresentation = React.lazy(() => import('./cds/CDSPresentation'));
 
 // Tab Components - Lazy Loaded for Performance
 const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
@@ -161,8 +162,6 @@ const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
     return null;
   }
 
-  // Import CDSPresentation - check if it exists
-  const CDSPresentation = React.lazy(() => import('./cds/CDSPresentation').catch(() => ({ default: () => null })));
 
   return (
     <>

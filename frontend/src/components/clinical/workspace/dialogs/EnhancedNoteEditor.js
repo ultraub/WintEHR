@@ -548,8 +548,8 @@ const EnhancedNoteEditor = ({
       const extractedContent = documentReferenceConverter.extractDocumentContent(note);
       
       if (extractedContent.error) {
-        console.warn('Error extracting note content:', extractedContent.error);
-        content = 'Failed to load note content';
+        // Error is handled by setting content to error message
+        content = `Failed to load note content: ${extractedContent.error}`;
       } else if (extractedContent.type === 'soap' && extractedContent.sections) {
         sections = extractedContent.sections;
       } else {
