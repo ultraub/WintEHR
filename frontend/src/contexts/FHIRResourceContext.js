@@ -426,25 +426,14 @@ export function FHIRResourceProvider({ children }) {
   }, [state.resources]);
 
   const getPatientResources = useCallback((patientId, resourceType = null) => {
-    // DEBUG: Log function call
-    console.log('DEBUG FHIRResourceContext - getPatientResources called with:', {
-      patientId,
-      resourceType,
-      hasRelationships: !!state.relationships[patientId],
-      relationshipKeys: state.relationships[patientId] ? Object.keys(state.relationships[patientId]) : []
-    });
-    
     const relationships = state.relationships[patientId];
     if (!relationships) {
-      console.log('DEBUG FHIRResourceContext - No relationships found for patient:', patientId);
-      console.log('DEBUG FHIRResourceContext - Available relationship keys:', Object.keys(state.relationships));
       return [];
     }
 
     if (resourceType) {
       const resourceIds = relationships[resourceType] || [];
       const resources = resourceIds.map(id => state.resources[resourceType]?.[id]).filter(Boolean);
-      console.log('DEBUG FHIRResourceContext - Found resources for', resourceType, ':', resources.length, 'of', resourceIds.length, 'IDs');
       return resources;
     }
 
@@ -459,7 +448,6 @@ export function FHIRResourceProvider({ children }) {
       });
     });
 
-    console.log('DEBUG FHIRResourceContext - Total resources for patient:', allResources.length);
     return allResources;
   }, [state.resources, state.relationships]);
 
@@ -513,7 +501,6 @@ export function FHIRResourceProvider({ children }) {
         // Build relationships for patient resources
         if (params.patient || params.subject) {
           const patientId = params.patient || params.subject;
-          console.log('DEBUG FHIRResourceContext - Building relationships for patient:', patientId, 'resourceType:', resourceType, 'count:', result.resources.length);
           result.resources.forEach(resource => {
             dispatch({
               type: FHIR_ACTIONS.ADD_RELATIONSHIP,
@@ -540,26 +527,18 @@ export function FHIRResourceProvider({ children }) {
   }, [getCachedData, setCachedData, setResources]);
 
   const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
-    // DEBUG: Log fetchPatientBundle call
-    console.log('DEBUG FHIRResourceContext - fetchPatientBundle called with:', {
-      patientId,
-      forceRefresh,
-      priority
-    });
-    
     const cacheKey = `patient_bundle_${patientId}_${priority}`;
     
     if (!forceRefresh) {
       const cached = getCachedData('bundles', cacheKey);
       if (cached) {
-        console.log('DEBUG FHIRResourceContext - Using cached bundle for patient:', patientId);
         return cached;
       }
     }
 
     // Define resource types by priority for progressive loading
     const resourceTypesByPriority = {
-      critical: ['Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
+      critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
       important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage'],
       optional: ['Immunization', 'CarePlan', 'CareTeam', 'DocumentReference', 'ImagingStudy']
     };
@@ -593,7 +572,13 @@ export function FHIRResourceProvider({ children }) {
           resourceCount = 50;  // Usually fewer encounters
         }
         
-        let params = { patient: patientId, _count: resourceCount };
+        let params;
+        if (resourceType === 'Patient') {
+          // Patient resource uses direct ID, not patient parameter
+          params = { _id: patientId, _count: 1 };
+        } else {
+          params = { patient: patientId, _count: resourceCount };
+        }
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {
@@ -633,6 +618,22 @@ export function FHIRResourceProvider({ children }) {
         }
         
         return searchResources(resourceType, params, forceRefresh)
+          .then(result => {
+            // For Patient resource, manually add to relationships since it doesn't have a patient parameter
+            if (resourceType === 'Patient' && result.resources && result.resources.length > 0) {
+              result.resources.forEach(resource => {
+                dispatch({
+                  type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+                  payload: {
+                    patientId,
+                    resourceType: 'Patient',
+                    resourceId: resource.id
+                  }
+                });
+              });
+            }
+            return result;
+          })
           .catch(err => ({ resourceType, error: err.message, resources: [] }));
       });
 
@@ -660,12 +661,8 @@ export function FHIRResourceProvider({ children }) {
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {
-    // DEBUG: Log patient ID being set
-    console.log('DEBUG FHIRResourceContext - setCurrentPatient called with:', patientId);
-    
     // Prevent duplicate calls for the same patient
     if (state.currentPatient?.id === patientId) {
-      console.log('DEBUG FHIRResourceContext - Patient already set, returning current patient');
       return state.currentPatient;
     }
     
