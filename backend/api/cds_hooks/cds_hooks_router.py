@@ -1047,6 +1047,55 @@ async def create_hook(
         raise HTTPException(status_code=500, detail="Failed to create hook")
 
 
+# Hook Management Endpoints (specific routes before parameterized routes)
+@router.get("/hooks/backup")
+async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
+    """Create a backup of all hook configurations"""
+    try:
+        manager = await get_persistence_manager(db)
+        backup = await manager.backup_hooks()
+        
+        # Include sample hooks in backup
+        backup['sample_hooks'] = {k: v.dict() for k, v in SAMPLE_HOOKS.items()}
+        
+        return backup
+        
+    except Exception as e:
+        logger.error(f"Error creating hooks backup: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create backup")
+
+@router.post("/hooks/restore")
+async def restore_hooks(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
+    """Restore hooks from backup data"""
+    try:
+        manager = await get_persistence_manager(db)
+        restored_count = await manager.restore_hooks(backup_data)
+        
+        return {
+            "message": f"Successfully restored {restored_count} hooks",
+            "restored_count": restored_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error restoring hooks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to restore hooks")
+
+@router.post("/hooks/sync-samples")
+async def sync_sample_hooks(db: AsyncSession = Depends(get_db_session)):
+    """Sync sample hooks to database"""
+    try:
+        await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
+        db_hooks = await load_hooks_from_database(db)
+        
+        return {
+            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample hooks",
+            "hooks_count": len(db_hooks),
+            "hooks": list(db_hooks.keys())
+        }
+    except Exception as e:
+        logger.error(f"Error syncing sample hooks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync sample hooks")
+
 @router.get("/hooks/{hook_id}", response_model=HookConfiguration)
 async def get_hook(hook_id: str, db: AsyncSession = Depends(get_db_session)):
     """Get a specific CDS hook"""
@@ -1142,38 +1191,6 @@ async def toggle_hook(hook_id: str, enabled: bool, db: AsyncSession = Depends(ge
         logger.error(f"Error toggling hook {hook_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to toggle hook")
 
-@router.get("/hooks/backup")
-async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Create a backup of all hook configurations"""
-    try:
-        manager = await get_persistence_manager(db)
-        backup = await manager.backup_hooks()
-        
-        # Include sample hooks in backup
-        backup['sample_hooks'] = {k: v.dict() for k, v in SAMPLE_HOOKS.items()}
-        
-        return backup
-        
-    except Exception as e:
-        logger.error(f"Error creating hooks backup: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create backup")
-
-@router.post("/hooks/restore")
-async def restore_hooks(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
-    """Restore hooks from backup data"""
-    try:
-        manager = await get_persistence_manager(db)
-        restored_count = await manager.restore_hooks(backup_data)
-        
-        return {
-            "message": f"Successfully restored {restored_count} hooks",
-            "restored_count": restored_count
-        }
-        
-    except Exception as e:
-        logger.error(f"Error restoring hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to restore hooks")
-
 @router.post("/hooks/test/{hook_id}")
 async def test_hook(
     hook_id: str,
@@ -1215,23 +1232,6 @@ async def test_hook(
     except Exception as e:
         logger.error(f"Error testing hook {hook_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to test hook")
-
-# Sync sample hooks endpoint
-@router.post("/hooks/sync-samples")
-async def sync_sample_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Sync sample hooks to database"""
-    try:
-        await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
-        db_hooks = await load_hooks_from_database(db)
-        
-        return {
-            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample hooks",
-            "hooks_count": len(db_hooks),
-            "hooks": list(db_hooks.keys())
-        }
-    except Exception as e:
-        logger.error(f"Error syncing sample hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to sync sample hooks")
 
 # Health check endpoint
 @router.get("/health")
