@@ -191,13 +191,13 @@ export const updateResource = (encounter = {}, formData, patientId) => {
       versionId: encounter.meta?.versionId ? String(parseInt(encounter.meta.versionId) + 1) : '1'
     },
     status: formData.status || 'planned',
-    class: [{
+    class: {
       coding: [{
         system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
         code: formData.type,
         display: ENCOUNTER_TYPES.find(t => t.value === formData.type)?.display || 'Ambulatory'
       }]
-    }],
+    },
     type: [{
       coding: [{
         system: 'http://snomed.info/sct',
@@ -209,7 +209,7 @@ export const updateResource = (encounter = {}, formData, patientId) => {
     subject: {
       reference: `Patient/${patientId}`
     },
-    actualPeriod: {
+    period: {
       start: scheduledDateTime,
       end: endDateTime
     }

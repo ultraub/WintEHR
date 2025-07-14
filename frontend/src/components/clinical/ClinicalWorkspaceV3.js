@@ -242,7 +242,7 @@ const ClinicalWorkspaceV3 = () => {
   
   // Route params
   const { id: encodedPatientId } = useParams();
-  const patientId = decodeFhirId(encodedPatientId);
+  const patientId = decodeFhirId(encodedPatientId).toLowerCase(); // Normalize to lowercase for consistency
   
   // Contexts
   const { currentUser } = useAuth();

@@ -2,7 +2,7 @@
 
 ## Overview
 
-MedGenEMR uses FHIR R4B (4.3.0) throughout the system. This document explains the version handling strategy and common issues.
+MedGenEMR uses FHIR R4B (4.3.0) throughout the system with R4/R5 agnostic handling for backward compatibility. This document explains the version handling strategy and common issues.
 
 ## Backend: fhir.resources R4B
 
@@ -79,10 +79,55 @@ The system includes version detection and transformation capabilities:
 3. **Avoid field name transformations** unless absolutely necessary
 4. **Document any version-specific handling** in code comments
 
+## R4/R5 Agnostic Approach
+
+The system now handles both R4B and R5 format data through preprocessing in `synthea_validator.py`:
+
+### MedicationRequest R5 to R4B Conversion
+```python
+# Convert R5 format to R4B format for fhir.resources compatibility
+if 'medication' in data and isinstance(data['medication'], dict):
+    medication = data['medication']
+    if 'concept' in medication:
+        data['medicationCodeableConcept'] = medication['concept']
+        del data['medication']
+    elif 'reference' in medication:
+        data['medicationReference'] = medication['reference']
+        del data['medication']
+```
+
+### Reason Field Conversion
+```python
+# Convert R5 reason format to R4B reasonCode/reasonReference format
+if 'reason' in data and isinstance(data['reason'], list):
+    reason_codes = []
+    reason_references = []
+    
+    for reason in data['reason']:
+        if isinstance(reason, dict):
+            if 'concept' in reason:
+                reason_codes.append(reason['concept'])
+            elif 'reference' in reason:
+                reason_references.append(reason['reference'])
+    
+    if reason_codes:
+        data['reasonCode'] = reason_codes
+    if reason_references:
+        data['reasonReference'] = reason_references
+    
+    del data['reason']
+```
+
+This approach allows:
+- Existing R5 format data in the database to be processed correctly
+- New R4B format data from the frontend to work without modification
+- Seamless migration without requiring database updates
+
 ## Recent Updates
 
 ### 2025-01-14
-- Fixed medication field format mismatch between frontend and backend
-- Disabled R4-to-R5 conversion in synthea validator
-- Updated MedicationConverter to use R4B format consistently
-- Verified medication workflows (prescribe, verify, dispense) working correctly
+- Implemented R4/R5 agnostic preprocessing for medication resources
+- Added R5 to R4B conversion for MedicationRequest and MedicationDispense
+- Fixed reason field conversion from R5 to R4B format
+- Fixed numberOfRepeatsAllowed validation to prevent negative values
+- Verified all medication workflows (prescribe, verify, dispense) working with both formats

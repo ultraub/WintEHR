@@ -40,12 +40,24 @@ import {
   Print as PrintIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
-import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
+import { 
+  getConditionStatus, 
+  getMedicationStatus, 
+  getObservationCategory, 
+  getObservationInterpretation,
+  getEncounterStatus,
+  isObservationLaboratory,
+  isConditionActive,
+  isMedicationActive,
+  getResourceDisplayText,
+  getCodeableConceptDisplay
+} from '../../../../utils/fhirFieldUtils';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -170,9 +182,48 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     getPatientResources, 
     searchResources, 
     isResourceLoading,
-    currentPatient 
+    currentPatient,
+    relationships 
   } = useFHIRResource();
   const { subscribe, publish } = useClinicalWorkflow();
+  
+  // Try using the usePatientResources hook as an alternative
+  // const { resources: hookResources, loading: hookLoading } = usePatientResources(patientId);
+  
+  // Get recent items - memoized to prevent excessive calls
+  const conditions = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Condition') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const medications = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'MedicationRequest') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const observations = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Observation') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const encounters = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'Encounter') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+  
+  const allergies = useMemo(() => {
+    return relationships[patientId] ? getPatientResources(patientId, 'AllergyIntolerance') || [] : [];
+  }, [patientId, relationships, getPatientResources]);
+
+  // DEBUG: Log component props and context
+  console.log('DEBUG SummaryTab - Component rendered with:', {
+    patientId,
+    currentPatient: currentPatient?.id,
+    hasRelationships: !!relationships[patientId],
+    relationshipKeys: relationships[patientId] ? Object.keys(relationships[patientId]) : [],
+    // hookResourcesCount: hookResources?.length || 0,
+    // hookLoading,
+    allRelationships: Object.keys(relationships),
+    conditionsInState: conditions.length,
+    medicationsInState: medications.length,
+    observationsInState: observations.length
+  });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,31 +238,55 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
   // Define loadDashboardData function before it's used
   const loadDashboardData = useCallback(async () => {
+    // Prevent recursive calls if already loading
+    if (loading) {
+      console.log('DEBUG SummaryTab - Already loading, skipping loadDashboardData');
+      return;
+    }
+    
     try {
       setLoading(true);
       
+      // DEBUG: Track patient ID and relationships
+      console.log('DEBUG SummaryTab - loadDashboardData called with patientId:', patientId);
+      
+      // Check if we have relationships by calling getPatientResources with a test resource type
+      const testResources = getPatientResources(patientId, 'Patient');
+      if (!testResources || testResources.length === 0) {
+        console.log('DEBUG SummaryTab - No patient data available for patient:', patientId);
+        setStats({
+          activeProblems: 0,
+          activeMedications: 0,
+          recentLabs: 0,
+          upcomingAppointments: 0,
+          overdueItems: 0
+        });
+        return;
+      }
+      
       // Get all resources
-      const conditions = getPatientResources(patientId, 'Condition') || [];
-      const medications = getPatientResources(patientId, 'MedicationRequest') || [];
-      const observations = getPatientResources(patientId, 'Observation') || [];
-      const encounters = getPatientResources(patientId, 'Encounter') || [];
-      const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
-
-      // Calculate stats
-      const activeConditions = conditions.filter(c => {
-        // Check multiple possible locations for clinical status
-        const status = c.clinicalStatus?.coding?.[0]?.code || 
-                      c.clinicalStatus?.code ||
-                      c.clinicalStatus;
-        return status === 'active';
+      const conditionsData = getPatientResources(patientId, 'Condition') || [];
+      const medicationsData = getPatientResources(patientId, 'MedicationRequest') || [];
+      const observationsData = getPatientResources(patientId, 'Observation') || [];
+      const encountersData = getPatientResources(patientId, 'Encounter') || [];
+      const allergiesData = getPatientResources(patientId, 'AllergyIntolerance') || [];
+      
+      // DEBUG: Log resource counts
+      console.log('DEBUG SummaryTab - Resource counts:', {
+        conditions: conditionsData.length,
+        medications: medicationsData.length,
+        observations: observationsData.length,
+        encounters: encountersData.length,
+        allergies: allergiesData.length
       });
-      const activeMeds = medications.filter(m => 
-        m.status === 'active'
-      );
+
+      // Calculate stats using resilient field access utilities
+      const activeConditions = conditionsData.filter(isConditionActive);
+      const activeMeds = medicationsData.filter(isMedicationActive);
       
       // Recent labs (last 7 days)
-      const recentLabs = observations.filter(o => {
-        if (o.category?.[0]?.coding?.[0]?.code === 'laboratory') {
+      const recentLabs = observationsData.filter(o => {
+        if (isObservationLaboratory(o)) {
           const date = o.effectiveDateTime || o.issued;
           if (date) {
             return isWithinInterval(parseISO(date), {
@@ -224,7 +299,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       });
 
       // Count upcoming appointments (encounters with future dates)
-      const upcomingAppointments = encounters.filter(enc => {
+      const upcomingAppointments = encountersData.filter(enc => {
         const startDate = enc.period?.start;
         return startDate && new Date(startDate) > new Date() && enc.status === 'planned';
       }).length;
@@ -233,8 +308,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       let overdueCount = 0;
       
       // Check for medications that might need refills
-      medications.forEach(med => {
-        if (med.status === 'active' && med.dispenseRequest?.validityPeriod?.end) {
+      medicationsData.forEach(med => {
+        if (isMedicationActive(med) && med.dispenseRequest?.validityPeriod?.end) {
           const endDate = new Date(med.dispenseRequest.validityPeriod.end);
           if (endDate < new Date()) {
             overdueCount++;
@@ -274,14 +349,22 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [patientId, getPatientResources, onNotificationUpdate]);
+  }, [patientId, getPatientResources, onNotificationUpdate, loading]);
 
-  // Load all patient data - only when patientId changes
+  // Load all patient data - only when patientId changes or when patient data becomes available
   useEffect(() => {
-    if (patientId) {
+    if (patientId && currentPatient && currentPatient.id === patientId && !loading) {
+      console.log('DEBUG SummaryTab - Loading dashboard data for patient:', patientId);
+      console.log('DEBUG SummaryTab - Relationships available:', !!relationships[patientId]);
+      
+      // Always call loadDashboardData - it will handle the case where no relationships exist
       loadDashboardData();
+    } else if (patientId && !loading) {
+      console.log('DEBUG SummaryTab - Waiting for patient data to load. CurrentPatient:', currentPatient?.id, 'PatientId:', patientId);
+      // If we don't have the current patient yet, keep loading state
+      setLoading(true);
     }
-  }, [patientId]); // Only depend on patientId, not the function itself
+  }, [patientId, currentPatient?.id, loading]); // Add loading to prevent loops
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -307,7 +390,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         // Only refresh if the event is for the current patient
         if (data.patientId === patientId || data.resourceType) {
           setRefreshing(true);
-          loadDashboardData();
+          // Use a timeout to prevent rapid successive calls
+          setTimeout(() => loadDashboardData(), 100);
         }
       });
       unsubscribers.push(unsubscribe);
@@ -325,7 +409,17 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  // Resolve medication references
+  const { getMedicationDisplay } = useMedicationResolver(
+    medications?.filter(med => med && med.id) || []
+  );
+
   const handlePrintSummary = () => {
+    // Skip printing if no relationships are available
+    if (!relationships[patientId]) {
+      return;
+    }
+    
     const patientInfo = {
       name: currentPatient ? 
         `${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`.trim() : 
@@ -341,21 +435,20 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     
     // Active Problems
     content += '<h3>Active Problems</h3>';
-    const activeConditions = conditions.filter(c => {
-      const status = c.clinicalStatus?.coding?.[0]?.code || 
-                    c.clinicalStatus?.code ||
-                    c.clinicalStatus;
-      return status === 'active';
-    });
+    const activeConditions = conditions.filter(isConditionActive);
     content += formatConditionsForPrint(activeConditions);
     
     // Active Medications
     content += '<h3>Active Medications</h3>';
-    const activeMeds = medications.filter(m => m.status === 'active');
+    const activeMeds = medications.filter(isMedicationActive);
     content += formatMedicationsForPrint(activeMeds);
     
     // Recent Lab Results
     content += '<h3>Recent Lab Results (Last 7 Days)</h3>';
+    const recentLabs = observations
+      .filter(isObservationLaboratory)
+      .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
+      .slice(0, 5);
     content += formatLabResultsForPrint(recentLabs);
     
     // Allergies
@@ -363,7 +456,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       content += '<h3>Allergies</h3>';
       content += '<ul>';
       allergies.forEach(allergy => {
-        const allergyText = allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown';
+        const allergyText = getResourceDisplayText(allergy);
         const criticality = allergy.criticality ? ` (${allergy.criticality})` : '';
         content += `<li>${allergyText}${criticality}</li>`;
       });
@@ -377,18 +470,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
-  // Get recent items
-  const conditions = getPatientResources(patientId, 'Condition') || [];
-  const medications = getPatientResources(patientId, 'MedicationRequest') || [];
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const encounters = getPatientResources(patientId, 'Encounter') || [];
-  const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
-  
-  // Resolve medication references
-  const { getMedicationDisplay } = useMedicationResolver(
-    medications?.filter(med => med && med.id) || []
-  );
-
   // Memoized data processing to prevent recalculation on every render
   const processedData = useMemo(() => {
     return {
@@ -397,12 +478,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         .slice(0, 5),
       
       recentMedications: medications
-        .filter(m => m.status === 'active')
+        .filter(isMedicationActive)
         .sort((a, b) => new Date(b.authoredOn || 0) - new Date(a.authoredOn || 0))
         .slice(0, 5),
       
       recentLabs: observations
-        .filter(o => o.category?.[0]?.coding?.[0]?.code === 'laboratory')
+        .filter(isObservationLaboratory)
         .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
         .slice(0, 5),
       
@@ -415,8 +496,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const { recentConditions, recentMedications, recentLabs, recentEncounters } = processedData;
 
   if (loading && !refreshing) {
+    console.log('DEBUG SummaryTab - Showing loading state');
     return (
       <Box sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Loading patient data...</Typography>
         <Grid container spacing={3}>
           {[1, 2, 3, 4].map(i => (
             <Grid item xs={12} sm={6} md={3} key={i}>
@@ -513,7 +596,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           </Typography>
           {allergies.slice(0, 3).map((allergy, index) => (
             <Typography key={index} variant="body2">
-              • {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'} 
+              • {getResourceDisplayText(allergy)} 
               {allergy.criticality && ` (${allergy.criticality})`}
             </Typography>
           ))}
@@ -539,13 +622,13 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   recentConditions.map((condition) => (
                     <RecentItem
                       key={condition.id}
-                      primary={condition.code?.text || condition.code?.coding?.[0]?.display}
+                      primary={getResourceDisplayText(condition)}
                       secondary={condition.recordedDate ? 
                         `Recorded ${format(parseISO(condition.recordedDate), 'MMM d, yyyy')}` : 
                         'Date unknown'
                       }
                       icon={<ProblemIcon color="warning" />}
-                      status={condition.clinicalStatus?.coding?.[0]?.code}
+                      status={getConditionStatus(condition)}
                       onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
@@ -609,7 +692,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   recentLabs.map((lab) => (
                     <RecentItem
                       key={lab.id}
-                      primary={lab.code?.text || lab.code?.coding?.[0]?.display}
+                      primary={getResourceDisplayText(lab)}
                       secondary={
                         <>
                           {lab.valueQuantity ? 
@@ -621,8 +704,11 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                         </>
                       }
                       icon={<LabIcon color="info" />}
-                      status={lab.interpretation?.[0]?.coding?.[0]?.code === 'H' ? 'High' : 
-                              lab.interpretation?.[0]?.coding?.[0]?.code === 'L' ? 'Low' : null}
+                      status={(() => {
+                        const interpretation = getObservationInterpretation(lab);
+                        return interpretation === 'H' ? 'High' : 
+                               interpretation === 'L' ? 'Low' : null;
+                      })()}
                       onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))
@@ -660,7 +746,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                           'Date unknown'
                       }
                       icon={<EncounterIcon color="secondary" />}
-                      status={encounter.status}
+                      status={getEncounterStatus(encounter)}
                       onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
                     />
                   ))

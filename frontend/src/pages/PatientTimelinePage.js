@@ -6,9 +6,11 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Typography, Paper } from '@mui/material';
 import FHIRResourceTimeline from '../components/clinical/timeline/FHIRResourceTimeline';
+import { decodeFhirId } from '../utils/navigationUtils';
 
 const PatientTimelinePage = () => {
-  const { id: patientId } = useParams();
+  const { id: encodedPatientId } = useParams();
+  const patientId = decodeFhirId(encodedPatientId).toLowerCase();
 
   return (
     <Box sx={{ p: 3 }}>
