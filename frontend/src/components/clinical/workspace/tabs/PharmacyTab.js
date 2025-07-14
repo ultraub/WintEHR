@@ -472,9 +472,19 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   }, [medicationRequest]);
 
   const handleDispense = () => {
+    // Extract medication information from the request
+    let medication = null;
+    if (medicationRequest.medicationCodeableConcept) {
+      medication = medicationRequest.medicationCodeableConcept;
+    } else if (medicationRequest.medication?.concept) {
+      medication = medicationRequest.medication.concept;
+    }
+    
     const dispenseData = {
       medicationRequestId: medicationRequest.id,
+      medication: medication,
       quantity: parseFloat(quantity),
+      unit: medicationRequest.dispenseRequest?.quantity?.unit || 'units',
       lotNumber,
       expirationDate,
       pharmacistNotes,
@@ -783,12 +793,16 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);
       if (currentRequest) {
         // Update the medication request status to 'completed'
+        // Calculate remaining refills (don't go below 0)
+        const currentRefills = currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
+        const remainingRefills = Math.max(0, currentRefills - 1);
+        
         const updatedRequest = {
           ...currentRequest,
           status: 'completed',
           dispenseRequest: {
             ...currentRequest.dispenseRequest,
-            numberOfRepeatsAllowed: (currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0) - 1
+            numberOfRepeatsAllowed: remainingRefills
           }
         };
         await fhirClient.update('MedicationRequest', dispenseData.medicationRequestId, updatedRequest);

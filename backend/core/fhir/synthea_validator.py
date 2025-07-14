@@ -109,6 +109,8 @@ class SyntheaFHIRValidator(FHIRValidator):
             processed = self._preprocess_location(processed)
         elif resource_type == 'Observation':
             processed = self._preprocess_observation(processed)
+        elif resource_type == 'MedicationDispense':
+            processed = self._preprocess_medication_dispense(processed)
         
         return processed
     
@@ -266,26 +268,23 @@ class SyntheaFHIRValidator(FHIRValidator):
                     if k in allowed_ref_fields
                 }
         
-        # DISABLED: R4/R5 conversion - we're using R4B which expects medicationCodeableConcept/medicationReference
+        # Convert R5 format to R4B format for fhir.resources compatibility
         # The fhir.resources R4B library expects the field names to be exactly medicationCodeableConcept or medicationReference
-        # NOT medication.concept or medication.reference
         
-        # # Enhanced R4/R5 format tolerance - convert to proper R5 structure
-        # # Handle R4 format: medicationCodeableConcept -> medication.concept
-        # if 'medicationCodeableConcept' in data:
-        #     logging.debug(f"DEBUG: Converting R4 medicationCodeableConcept to R5 format for {resource_id}")
-        #     medication_concept = data.pop('medicationCodeableConcept')
-        #     # Ensure proper R5 structure with concept wrapper
-        #     data['medication'] = {
-        #         'concept': medication_concept
-        #     }
-        # # Handle R4 format: medicationReference -> medication.reference  
-        # elif 'medicationReference' in data:
-        #     logging.debug(f"DEBUG: Converting R4 medicationReference to R5 format for {resource_id}")
-        #     medication_ref = data.pop('medicationReference')
-        #     data['medication'] = {
-        #         'reference': medication_ref
-        #     }
+        # Handle R5 format: medication.concept -> medicationCodeableConcept
+        if 'medication' in data and isinstance(data['medication'], dict):
+            medication = data['medication']
+            if 'concept' in medication:
+                logging.debug(f"DEBUG: Converting R5 medication.concept to R4B medicationCodeableConcept for {resource_id}")
+                data['medicationCodeableConcept'] = medication['concept']
+                del data['medication']
+            elif 'reference' in medication:
+                logging.debug(f"DEBUG: Converting R5 medication.reference to R4B medicationReference for {resource_id}")
+                data['medicationReference'] = medication['reference']
+                del data['medication']
+        
+        # R4B format is already correct, no conversion needed
+        # if 'medicationCodeableConcept' in data or 'medicationReference' in data
         # DISABLED: Handle existing R5 format - we're using R4B
         # # Handle existing R5 format or ensure proper nesting
         # elif 'medication' in data and isinstance(data['medication'], dict):
@@ -308,60 +307,34 @@ class SyntheaFHIRValidator(FHIRValidator):
         
         logging.debug(f"DEBUG: MedicationRequest {resource_id} preprocessing complete")
         
-        # Fix reason field - the error shows "reason -> 0 -> reference" and "reason -> 0 -> display" issues
-        # This suggests reason is an array with improper Reference objects
+        # Convert R5 reason format to R4B reasonCode/reasonReference format
+        # R5 uses: reason[].concept or reason[].reference  
+        # R4B uses: reasonCode[] or reasonReference[]
         if 'reason' in data and isinstance(data['reason'], list):
-            cleaned_reasons = []
+            logging.debug(f"DEBUG: Converting R5 reason to R4B format for {resource_id}")
+            reason_codes = []
+            reason_references = []
+            
             for reason in data['reason']:
                 if isinstance(reason, dict):
-                    # Check if it's a reference (for backward compatibility)
-                    if 'reference' in reason:
-                        # Wrap in proper structure
-                        cleaned_reasons.append({
-                            'reference': {
-                                'reference': reason['reference'],
-                                'display': reason.get('display')
-                            }
-                        })
-                    # Check if it's already properly structured
-                    elif 'concept' in reason or 'reference' in reason:
-                        # Clean the reason BackboneElement
-                        allowed_reason_fields = {'id', 'extension', 'concept', 'reference'}
-                        cleaned_reason = {
-                            k: v for k, v in reason.items()
-                            if k in allowed_reason_fields
-                        }
-                        
-                        # Clean nested reference if present
-                        if 'reference' in cleaned_reason and isinstance(cleaned_reason['reference'], dict):
-                            allowed_ref_fields = {'id', 'extension', 'reference', 'type', 'identifier', 'display'}
-                            cleaned_reason['reference'] = {
-                                k: v for k, v in cleaned_reason['reference'].items()
-                                if k in allowed_ref_fields
-                            }
-                        
-                        cleaned_reasons.append(cleaned_reason)
+                    if 'concept' in reason:
+                        # Extract CodeableConcept for reasonCode
+                        reason_codes.append(reason['concept'])
+                    elif 'reference' in reason:
+                        # Extract Reference for reasonReference
+                        reason_references.append(reason['reference'])
             
-            if cleaned_reasons:
-                data['reason'] = cleaned_reasons
-            else:
-                del data['reason']
+            # Set the appropriate R4B fields
+            if reason_codes:
+                data['reasonCode'] = reason_codes
+            if reason_references:
+                data['reasonReference'] = reason_references
+            
+            # Remove the R5 field
+            del data['reason']
         
-        # Fix reasonReference (older format)
-        if 'reasonReference' in data:
-            if isinstance(data['reasonReference'], list):
-                data['reason'] = [{'reference': ref} for ref in data['reasonReference']]
-            else:
-                data['reason'] = [{'reference': data['reasonReference']}]
-            del data['reasonReference']
-        
-        # Fix reasonCode (convert to reason with concept)
-        if 'reasonCode' in data:
-            if 'reason' not in data:
-                data['reason'] = []
-            for code in data['reasonCode']:
-                data['reason'].append({'concept': code})
-            del data['reasonCode']
+        # Handle direct reasonCode field (R4B format already, just ensure it's clean)
+        # No conversion needed - R4B format is what we want
         
         # Fix dosageInstruction
         if 'dosageInstruction' in data:
@@ -819,6 +792,26 @@ class SyntheaFHIRValidator(FHIRValidator):
                         if k in allowed_telecom_fields
                     })
             data['telecom'] = cleaned_telecoms
+        
+        return data
+    
+    def _preprocess_medication_dispense(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix MedicationDispense-specific format issues and handle R4/R5 conversion."""
+        resource_id = data.get('id', 'unknown')
+        logging.debug(f"DEBUG: Preprocessing MedicationDispense {resource_id}")
+        
+        # Convert R5 format to R4B format for fhir.resources compatibility
+        # Same logic as MedicationRequest
+        if 'medication' in data and isinstance(data['medication'], dict):
+            medication = data['medication']
+            if 'concept' in medication:
+                logging.debug(f"DEBUG: Converting R5 medication.concept to R4B medicationCodeableConcept for {resource_id}")
+                data['medicationCodeableConcept'] = medication['concept']
+                del data['medication']
+            elif 'reference' in medication:
+                logging.debug(f"DEBUG: Converting R5 medication.reference to R4B medicationReference for {resource_id}")
+                data['medicationReference'] = medication['reference']
+                del data['medication']
         
         return data
     
