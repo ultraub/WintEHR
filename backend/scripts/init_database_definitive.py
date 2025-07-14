@@ -3,7 +3,7 @@
 Definitive Database Initialization Script
 
 This is the ONE script that creates the complete, correct database schema
-for MedGenEMR with all required tables, columns, constraints, and indexes.
+for WintEHR with all required tables, columns, constraints, and indexes.
 
 This script replaces all other initialization attempts and ensures consistency.
 
@@ -21,7 +21,7 @@ import logging
 async def init_database_definitive():
     """Initialize the complete database schema definitively."""
     
-    logging.info("🚀 MedGenEMR Definitive Database Initialization")
+    logging.info("🚀 WintEHR Definitive Database Initialization")
     logging.info("=" * 60)
     try:
         # Connect to database

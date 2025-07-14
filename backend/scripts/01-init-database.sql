@@ -1,5 +1,5 @@
 -- ========================================================================
--- MedGenEMR Database Initialization Script
+-- WintEHR Database Initialization Script
 -- This script creates all required tables and indexes for the FHIR EMR
 -- Executed automatically by PostgreSQL during container initialization
 -- ========================================================================

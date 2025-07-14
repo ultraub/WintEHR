@@ -56,7 +56,7 @@ def provider_to_person(provider: Provider) -> Dict[str, Any]:
     # Add EMR user ID as identifier for authentication
     resource["identifier"].append({
         "use": "usual",
-        "system": "http://medgenemr.local/identifier/user",
+        "system": "http://wintehr.local/identifier/user",
         "value": str(provider.id)
     })
     
@@ -154,7 +154,7 @@ def create_person_from_user_data(
     resource["identifier"] = [
         {
             "use": "usual",
-            "system": "http://medgenemr.local/identifier/user",
+            "system": "http://wintehr.local/identifier/user",
             "value": user_id
         }
     ]
@@ -171,7 +171,7 @@ def create_person_from_user_data(
     
     # Add extension for user role
     resource["extension"] = [{
-        "url": "http://medgenemr.local/fhir/StructureDefinition/user-role",
+        "url": "http://wintehr.local/fhir/StructureDefinition/user-role",
         "valueString": role
     }]
     
@@ -189,20 +189,20 @@ def add_authentication_extensions(person_resource: Dict[str, Any], session: Opti
     # Add last login time
     if session and session.created_at:
         person_resource["extension"].append({
-            "url": "http://medgenemr.local/fhir/StructureDefinition/last-login",
+            "url": "http://wintehr.local/fhir/StructureDefinition/last-login",
             "valueDateTime": session.created_at.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         })
     
     # Add session expiry if active session
     if session and session.expires_at:
         person_resource["extension"].append({
-            "url": "http://medgenemr.local/fhir/StructureDefinition/session-expires",
+            "url": "http://wintehr.local/fhir/StructureDefinition/session-expires",
             "valueDateTime": session.expires_at.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         })
     
     # Add authentication status
     person_resource["extension"].append({
-        "url": "http://medgenemr.local/fhir/StructureDefinition/authentication-status",
+        "url": "http://wintehr.local/fhir/StructureDefinition/authentication-status",
         "valueBoolean": session is not None and session.is_active
     })
     

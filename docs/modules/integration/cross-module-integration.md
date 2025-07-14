@@ -1,7 +1,7 @@
 # Cross-Module Integration Guide
 
 ## Overview
-This guide documents how MedGenEMR's modules work together to provide a cohesive electronic medical records system. It covers integration patterns, data flows, event orchestration, and best practices for module interaction.
+This guide documents how WintEHR's modules work together to provide a cohesive electronic medical records system. It covers integration patterns, data flows, event orchestration, and best practices for module interaction.
 
 ## Module Dependency Map
 ```

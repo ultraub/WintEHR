@@ -84,7 +84,7 @@ async def get_capability_statement():
         fhirVersion="4.0.1",
         format=["application/fhir+json", "application/json"],
         implementation={
-            "description": "MedGenEMR FHIR R4 Server",
+            "description": "WintEHR FHIR R4 Server",
             "url": "http://localhost:8000/fhir/R4"
         },
         rest=[

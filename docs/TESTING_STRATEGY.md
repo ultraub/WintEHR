@@ -1,10 +1,10 @@
-# MedGenEMR Testing Strategy
+# WintEHR Testing Strategy
 
 **Comprehensive testing framework covering unit, integration, E2E, and performance testing**
 
 ## Overview
 
-MedGenEMR implements a multi-layered testing strategy to ensure clinical data integrity, FHIR compliance, and robust user workflows. Our testing pyramid includes:
+WintEHR implements a multi-layered testing strategy to ensure clinical data integrity, FHIR compliance, and robust user workflows. Our testing pyramid includes:
 
 1. **Unit Tests** - Individual component and function testing
 2. **Integration Tests** - FHIR API and database integration
@@ -295,7 +295,7 @@ cy.fixture('test-medication-request.json').then(medicationRequest => {
 
 ### GitHub Actions Workflow
 ```yaml
-name: MedGenEMR Test Suite
+name: WintEHR Test Suite
 on: [push, pull_request]
 
 jobs:
@@ -486,4 +486,4 @@ docker system prune -f
 docker volume prune -f
 ```
 
-This comprehensive testing strategy ensures that MedGenEMR maintains high quality, reliability, and compliance with healthcare standards while supporting rapid development and deployment cycles.
+This comprehensive testing strategy ensures that WintEHR maintains high quality, reliability, and compliance with healthcare standards while supporting rapid development and deployment cycles.

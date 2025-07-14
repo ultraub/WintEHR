@@ -252,7 +252,7 @@ Data Binding: {json.dumps(component.get('dataBinding', {}), indent=2)}
 
 Requirements:
 1. Use Material-UI components (@mui/material, @mui/icons-material)
-2. Follow MedGenEMR patterns and conventions
+2. Follow WintEHR patterns and conventions
 3. Include proper error handling and loading states
 4. Use hooks for data fetching (assume useFHIRResources hook is available)
 5. Ensure clinical data safety and accuracy

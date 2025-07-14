@@ -1,15 +1,15 @@
 -- ========================================================================
--- MedGenEMR PostgreSQL Initialization Script
+-- WintEHR PostgreSQL Initialization Script
 -- This script is automatically executed by PostgreSQL docker-entrypoint-initdb.d
 -- ========================================================================
 
--- Connect to the MedGenEMR database
+-- Connect to the WintEHR database
 \c emr_db;
 
 -- Set up error handling
 \set ON_ERROR_STOP on
 
-\echo 'Starting MedGenEMR database initialization...'
+\echo 'Starting WintEHR database initialization...'
 
 -- Create schemas
 DO $$
@@ -370,5 +370,5 @@ WHERE schemaname IN ('fhir', 'auth', 'cds_hooks')
 GROUP BY schemaname
 ORDER BY schemaname;
 
-\echo '✅ MedGenEMR database initialization completed successfully!'
+\echo '✅ WintEHR database initialization completed successfully!'
 \echo 'Database is ready for FHIR resource storage and clinical operations.'

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This system implements sophisticated FHIR query-driven dynamic UI generation for MedGenEMR. It automatically generates React components based on intelligent FHIR query planning with chaining, includes, and optimal data fetching.
+This system implements sophisticated FHIR query-driven dynamic UI generation for WintEHR. It automatically generates React components based on intelligent FHIR query planning with chaining, includes, and optimal data fetching.
 
 ## Key Components
 

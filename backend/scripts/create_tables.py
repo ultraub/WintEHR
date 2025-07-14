@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple script to create the necessary database tables for MedGenEMR
+Simple script to create the necessary database tables for WintEHR
 """
 
 import asyncio

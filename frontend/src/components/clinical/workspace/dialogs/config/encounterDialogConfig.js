@@ -170,9 +170,9 @@ export const parseResource = (encounter) => {
       Math.round((new Date(encounter.period.end) - new Date(encounter.period.start)) / (1000 * 60)) : 30,
     priority: encounter.priority?.code || 'routine',
     status: encounter.status || 'planned',
-    checklist: encounter.extension?.find(ext => ext.url === 'http://medgenemr.com/fhir/StructureDefinition/encounter-checklist')?.valueString?.split(',') || [],
-    expectedOrders: encounter.extension?.find(ext => ext.url === 'http://medgenemr.com/fhir/StructureDefinition/encounter-expected-orders')?.valueString?.split(',') || [],
-    notes: encounter.extension?.find(ext => ext.url === 'http://medgenemr.com/fhir/StructureDefinition/encounter-notes')?.valueString || ''
+    checklist: encounter.extension?.find(ext => ext.url === 'http://wintehr.com/fhir/StructureDefinition/encounter-checklist')?.valueString?.split(',') || [],
+    expectedOrders: encounter.extension?.find(ext => ext.url === 'http://wintehr.com/fhir/StructureDefinition/encounter-expected-orders')?.valueString?.split(',') || [],
+    notes: encounter.extension?.find(ext => ext.url === 'http://wintehr.com/fhir/StructureDefinition/encounter-notes')?.valueString || ''
   };
 };
 
@@ -262,19 +262,19 @@ export const updateResource = (encounter = {}, formData, patientId) => {
   const extensions = [];
   if (formData.checklist && formData.checklist.length > 0) {
     extensions.push({
-      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-checklist',
+      url: 'http://wintehr.com/fhir/StructureDefinition/encounter-checklist',
       valueString: formData.checklist.join(',')
     });
   }
   if (formData.expectedOrders && formData.expectedOrders.length > 0) {
     extensions.push({
-      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-expected-orders',
+      url: 'http://wintehr.com/fhir/StructureDefinition/encounter-expected-orders',
       valueString: formData.expectedOrders.join(',')
     });
   }
   if (formData.notes) {
     extensions.push({
-      url: 'http://medgenemr.com/fhir/StructureDefinition/encounter-notes',
+      url: 'http://wintehr.com/fhir/StructureDefinition/encounter-notes',
       valueString: formData.notes
     });
   }

@@ -1,7 +1,7 @@
-# MedGenEMR Development Patterns & Conventions
+# WintEHR Development Patterns & Conventions
 
 **Last Updated**: 2025-01-08  
-**Purpose**: Definitive guide to coding patterns, conventions, and best practices used throughout the MedGenEMR codebase
+**Purpose**: Definitive guide to coding patterns, conventions, and best practices used throughout the WintEHR codebase
 
 ## Table of Contents
 1. [Frontend Patterns](#frontend-patterns)
@@ -794,7 +794,7 @@ class PermissionManager:
 
 ## Summary
 
-This document outlines the key patterns and conventions used throughout the MedGenEMR codebase. These patterns ensure:
+This document outlines the key patterns and conventions used throughout the WintEHR codebase. These patterns ensure:
 
 1. **Consistency**: Uniform approach across the entire codebase
 2. **Maintainability**: Clear separation of concerns and responsibilities

@@ -19,7 +19,7 @@ import logging
 async def init_database():
     """Initialize the complete database schema."""
     
-    logging.info("🚀 Initializing MedGenEMR Database Schema")
+    logging.info("🚀 Initializing WintEHR Database Schema")
     logging.info("=" * 50)
     try:
         # Connect to database

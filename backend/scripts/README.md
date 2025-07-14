@@ -1,6 +1,6 @@
-# MedGenEMR Scripts Directory
+# WintEHR Scripts Directory
 
-This directory contains utility scripts for managing the MedGenEMR system. Many scripts have been consolidated for better maintainability.
+This directory contains utility scripts for managing the WintEHR system. Many scripts have been consolidated for better maintainability.
 
 ## Primary Scripts
 

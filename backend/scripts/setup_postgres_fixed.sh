@@ -1,26 +1,26 @@
 #!/bin/bash
 set -e
 
-echo "🐘 Setting up PostgreSQL for MedGenEMR"
+echo "🐘 Setting up PostgreSQL for WintEHR"
 echo "====================================="
 
 # Configuration
-DB_NAME="medgenemr"
+DB_NAME="wintehr"
 DB_USER="emr_user"
 DB_PASSWORD="emr_password"
 DB_HOST="localhost"
 DB_PORT="5432"
 
 # Check if PostgreSQL is running in Docker
-if ! docker ps | grep -q postgres-medgenemr; then
+if ! docker ps | grep -q postgres-wintehr; then
     echo "📦 Starting PostgreSQL in Docker..."
     docker run -d \
-        --name postgres-medgenemr \
+        --name postgres-wintehr \
         -e POSTGRES_USER=$DB_USER \
         -e POSTGRES_PASSWORD=$DB_PASSWORD \
         -e POSTGRES_DB=$DB_NAME \
         -p $DB_PORT:5432 \
-        -v medgenemr_postgres_data:/var/lib/postgresql/data \
+        -v wintehr_postgres_data:/var/lib/postgresql/data \
         postgres:15-alpine
     
     echo "⏳ Waiting for PostgreSQL to start..."
@@ -32,7 +32,7 @@ fi
 # Wait for PostgreSQL to be ready
 echo "🔍 Checking PostgreSQL connection..."
 for i in {1..30}; do
-    if docker exec postgres-medgenemr pg_isready -U $DB_USER > /dev/null 2>&1; then
+    if docker exec postgres-wintehr pg_isready -U $DB_USER > /dev/null 2>&1; then
         echo "✅ PostgreSQL is ready"
         break
     fi
@@ -42,8 +42,8 @@ done
 
 # Create extensions
 echo "🔧 Creating PostgreSQL extensions..."
-docker exec postgres-medgenemr psql -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" || true
-docker exec postgres-medgenemr psql -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";" || true
+docker exec postgres-wintehr psql -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" || true
+docker exec postgres-wintehr psql -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";" || true
 
 # Switch to PostgreSQL environment
 echo "🔄 Switching to PostgreSQL configuration..."
@@ -77,5 +77,5 @@ echo "Connection URL:"
 echo "  postgresql+asyncpg://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME"
 echo ""
 echo "To connect with psql:"
-echo "  docker exec -it postgres-medgenemr psql -U $DB_USER -d $DB_NAME"
+echo "  docker exec -it postgres-wintehr psql -U $DB_USER -d $DB_NAME"
 echo ""

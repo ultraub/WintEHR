@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# MedGenEMR Complete Deployment Script
+# WintEHR Complete Deployment Script
 # =============================================================================
 # This script performs a complete, automated deployment without manual intervention
 # Fixes all known issues and ensures proper database schema consistency
@@ -32,7 +32,7 @@ error() {
     exit 1
 }
 
-log "🚀 Starting MedGenEMR Complete Deployment"
+log "🚀 Starting WintEHR Complete Deployment"
 echo "=============================================================="
 
 # Step 1: Clean environment

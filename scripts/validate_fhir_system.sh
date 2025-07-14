@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 BACKEND_URL="http://localhost:8000"
 FRONTEND_URL="http://localhost:3000"
 
-echo -e "${BLUE}🏥 MedGenEMR FHIR System Validation${NC}"
+echo -e "${BLUE}🏥 WintEHR FHIR System Validation${NC}"
 echo "============================================================"
 
 # Function to check if service is running

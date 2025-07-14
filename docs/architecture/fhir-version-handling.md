@@ -1,8 +1,8 @@
-# FHIR Version Handling in MedGenEMR
+# FHIR Version Handling in WintEHR
 
 ## Overview
 
-MedGenEMR uses FHIR R4B (4.3.0) throughout the system with R4/R5 agnostic handling for backward compatibility. This document explains the version handling strategy and common issues.
+WintEHR uses FHIR R4B (4.3.0) throughout the system with R4/R5 agnostic handling for backward compatibility. This document explains the version handling strategy and common issues.
 
 ## Backend: fhir.resources R4B
 

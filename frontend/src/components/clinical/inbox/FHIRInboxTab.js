@@ -139,7 +139,7 @@ const FHIRInboxTab = () => {
     recipients: comm.recipient?.map(r => r.display || 'Unknown') || [],
     about: comm.subject,
     inResponseTo: comm.inResponseTo,
-    isStarred: comm.extension?.find(e => e.url === 'http://medgenemr.com/starred')?.valueBoolean || false,
+    isStarred: comm.extension?.find(e => e.url === 'http://wintehr.com/starred')?.valueBoolean || false,
     attachments: comm.payload?.filter(p => p.contentAttachment)?.map(p => p.contentAttachment) || []
   });
 
@@ -159,12 +159,12 @@ const FHIRInboxTab = () => {
     try {
       const comm = await fhirClient.read('Communication', message.id);
       comm.extension = comm.extension || [];
-      const starredExt = comm.extension.find(e => e.url === 'http://medgenemr.com/starred');
+      const starredExt = comm.extension.find(e => e.url === 'http://wintehr.com/starred');
       if (starredExt) {
         starredExt.valueBoolean = !starredExt.valueBoolean;
       } else {
         comm.extension.push({
-          url: 'http://medgenemr.com/starred',
+          url: 'http://wintehr.com/starred',
           valueBoolean: true
         });
       }

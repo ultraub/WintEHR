@@ -1,7 +1,7 @@
 # Cross-Module Integration Guide
 
 ## Overview
-This guide documents the clinical workflow event system that enables seamless communication between different modules in MedGenEMR.
+This guide documents the clinical workflow event system that enables seamless communication between different modules in WintEHR.
 
 ## Core Integration Patterns
 

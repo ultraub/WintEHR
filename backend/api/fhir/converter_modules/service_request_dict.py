@@ -161,7 +161,7 @@ def service_request_to_fhir_dict(service_request: ServiceRequest) -> Dict[str, A
     # Requisition
     if service_request.requisition:
         resource["requisition"] = {
-            "system": "http://medgenemr.com/requisition",
+            "system": "http://wintehr.com/requisition",
             "value": service_request.requisition
         }
     

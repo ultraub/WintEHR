@@ -64,7 +64,7 @@ def create_communication_resource(
             "text": subject
         }],
         "extension": [{
-            "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+            "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
             "valueBoolean": False
         }]
     }
@@ -98,7 +98,7 @@ async def get_unread_count(
         
         # Extension for unread status
         unread_extension = json.dumps([{
-            "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+            "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
             "valueBoolean": False
         }])
         
@@ -135,7 +135,7 @@ async def get_notifications(
         if unread_only:
             base_query = text(str(base_query) + " AND data->'extension' @> :unread_extension")
             query_params["unread_extension"] = json.dumps([{
-                "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+                "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
                 "valueBoolean": False
             }])
         
@@ -165,7 +165,7 @@ async def get_notifications(
         if unread_only:
             count_query = text(str(count_query) + " AND data->'extension' @> :unread_extension")
             count_params["unread_extension"] = json.dumps([{
-                "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+                "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
                 "valueBoolean": False
             }])
         
@@ -284,7 +284,7 @@ async def mark_as_read(
         
         # Update the read status
         for ext in communication.get('extension', []):
-            if ext.get('url') == 'http://medgenemr.com/fhir/StructureDefinition/notification-read':
+            if ext.get('url') == 'http://wintehr.com/fhir/StructureDefinition/notification-read':
                 ext['valueBoolean'] = True
                 break
         
@@ -355,7 +355,7 @@ async def mark_all_as_read(
         
         recipient_ref = json.dumps([{"reference": f"Practitioner/{current_user['id']}"}])
         unread_extension = json.dumps([{
-            "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+            "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
             "valueBoolean": False
         }])
         

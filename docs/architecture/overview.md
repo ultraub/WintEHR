@@ -1,4 +1,4 @@
-# MedGenEMR System Architecture Overview
+# WintEHR System Architecture Overview
 
 **Last Updated**: 2025-01-08  
 **Version**: 1.0.0  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-MedGenEMR is a sophisticated, production-ready Electronic Medical Records system built with modern technologies and designed as a comprehensive training environment for healthcare informatics education. The system operates as a fully FHIR R4-compliant EMR with real-world clinical workflows, sophisticated state management, and comprehensive integration capabilities.
+WintEHR is a sophisticated, production-ready Electronic Medical Records system built with modern technologies and designed as a comprehensive training environment for healthcare informatics education. The system operates as a fully FHIR R4-compliant EMR with real-world clinical workflows, sophisticated state management, and comprehensive integration capabilities.
 
 ## System Architecture Diagram
 
@@ -334,6 +334,6 @@ services:
 
 ## Conclusion
 
-MedGenEMR represents a sophisticated, production-ready EMR system that successfully balances educational needs with real-world clinical functionality. The architecture demonstrates modern software engineering practices, comprehensive clinical workflow integration, and the technical rigor necessary for healthcare systems.
+WintEHR represents a sophisticated, production-ready EMR system that successfully balances educational needs with real-world clinical functionality. The architecture demonstrates modern software engineering practices, comprehensive clinical workflow integration, and the technical rigor necessary for healthcare systems.
 
 The system's modular design, comprehensive testing, and standards compliance make it suitable for both educational environments and potential production deployment with appropriate security hardening and compliance measures.

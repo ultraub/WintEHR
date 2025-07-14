@@ -106,7 +106,7 @@ async def create_drug_interaction_document(interaction_data):
         },
         "category": [{
             "coding": [{
-                "system": "http://medgenemr.com/document-category",
+                "system": "http://wintehr.com/document-category",
                 "code": "drug-interaction",
                 "display": "Drug Interaction"
             }]

@@ -76,7 +76,7 @@ class FHIRQueryPlannerAgent:
         patient_id = context.get('patientId', '')
         
         return f"""
-You are a FHIR query planning expert for the MedGenEMR clinical system. Analyze the following natural language request and create a detailed plan for FHIR queries needed to retrieve the relevant data.
+You are a FHIR query planning expert for the WintEHR clinical system. Analyze the following natural language request and create a detailed plan for FHIR queries needed to retrieve the relevant data.
 
 Request: "{request}"
 
@@ -159,7 +159,7 @@ Respond with a JSON object containing:
 Focus on:
 1. **Clinical Accuracy**: Use correct LOINC codes, SNOMED codes, and FHIR search parameters
 2. **Performance**: Minimize queries while getting complete data
-3. **Real Data**: Plan for actual FHIR resources in the MedGenEMR database
+3. **Real Data**: Plan for actual FHIR resources in the WintEHR database
 4. **Temporal Context**: Consider date ranges and trends for clinical data
 5. **Patient Safety**: Ensure queries return clinically relevant and accurate data
 

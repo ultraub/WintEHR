@@ -1,5 +1,5 @@
 # Comprehensive FHIR Architecture Transformation Plan
-**MedGenEMR - Future-Proof FHIR Platform with Multi-Version & Profile Support**
+**WintEHR - Future-Proof FHIR Platform with Multi-Version & Profile Support**
 
 *Created: 2025-07-13*  
 *Status: Active Implementation*  
@@ -8,7 +8,7 @@
 
 ## 🎯 Strategic Vision
 
-Transform MedGenEMR into a future-proof, modular FHIR platform that:
+Transform WintEHR into a future-proof, modular FHIR platform that:
 1. **Supports multiple FHIR versions** (R4, R5, future R6) seamlessly
 2. **Enables profile and IG compliance** without hardcoding specific requirements
 3. **Eliminates code duplication** through intelligent abstraction (60%+ reduction)

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 async def run_imaging_workflow():
     """Run the complete imaging workflow."""
     
-    logger.info("🏥 Starting MedGenEMR Imaging Workflow")
+    logger.info("🏥 Starting WintEHR Imaging Workflow")
     logger.info("=" * 60)
     
     # Step 1: Run enhance_imaging_import to create ImagingStudy resources if needed

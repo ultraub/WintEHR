@@ -1,6 +1,6 @@
 # Catalog Extraction System
 
-The MedGenEMR system now includes a comprehensive catalog extraction service that automatically builds searchable catalogs from real patient FHIR data. This eliminates the need for manually maintaining static catalog files and ensures that your catalogs reflect actual medications, conditions, and lab tests used in your patient population.
+The WintEHR system now includes a comprehensive catalog extraction service that automatically builds searchable catalogs from real patient FHIR data. This eliminates the need for manually maintaining static catalog files and ensures that your catalogs reflect actual medications, conditions, and lab tests used in your patient population.
 
 ## Overview
 

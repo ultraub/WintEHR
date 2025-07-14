@@ -1,4 +1,4 @@
-# MedGenEMR Build System Documentation
+# WintEHR Build System Documentation
 
 **Last Updated:** 2025-01-11  
 **Version:** 2.0 - Modular Deployment System
@@ -29,7 +29,7 @@
 
 ## 🏗️ Overview
 
-The MedGenEMR build system has been completely modernized with a modular, bulletproof deployment architecture that ensures:
+The WintEHR build system has been completely modernized with a modular, bulletproof deployment architecture that ensures:
 
 - **Zero manual intervention** required
 - **Schema preservation** during all operations

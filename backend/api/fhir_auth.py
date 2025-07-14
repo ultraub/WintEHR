@@ -195,7 +195,7 @@ async def get_auth_metadata():
         "date": datetime.utcnow().isoformat() + "Z",
         "kind": "instance",
         "implementation": {
-            "description": "MedGenEMR FHIR Authentication Service"
+            "description": "WintEHR FHIR Authentication Service"
         },
         "fhirVersion": "4.0.1",
         "format": ["json"],
@@ -561,7 +561,7 @@ async def validate_session(
                 "text": f"Session valid for {int(remaining_time / 60)} minutes"
             },
             "extension": [{
-                "url": "http://medgenemr.local/fhir/StructureDefinition/session-info",
+                "url": "http://wintehr.local/fhir/StructureDefinition/session-info",
                 "extension": [
                     {
                         "url": "expires-at",

@@ -310,7 +310,7 @@ Requirements:
 - Use @mui/material components
 - Use useFHIRResources or usePatientResources hooks
 - Include loading and error states
-- Follow MedGenEMR patterns (no console.log)
+- Follow WintEHR patterns (no console.log)
 - Make it responsive and accessible
 
 Generate only the component code without markdown blocks."""

@@ -86,7 +86,7 @@ function ClinicalLayout({ children }) {
 
           {/* App Name */}
           <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
-            MedGenEMR
+            WintEHR
           </Typography>
           
           <Box sx={{ flexGrow: 1 }} />

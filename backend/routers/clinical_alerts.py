@@ -212,7 +212,7 @@ async def create_test_alerts(
             "status": "in-progress",  # Not yet acknowledged
             "category": [{
                 "coding": [{
-                    "system": "http://medgenemr.com/fhir/communication-category",
+                    "system": "http://wintehr.com/fhir/communication-category",
                     "code": "alert",
                     "display": "Clinical Alert"
                 }]
@@ -230,7 +230,7 @@ async def create_test_alerts(
             "sent": datetime.now(timezone.utc).isoformat(),
             "reasonCode": [{
                 "coding": [{
-                    "system": "http://medgenemr.com/fhir/alert-type",
+                    "system": "http://wintehr.com/fhir/alert-type",
                     "code": alert_data["alert_type"],
                     "display": alert_data["alert_type"].replace("-", " ").title()
                 }]

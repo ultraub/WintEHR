@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# MedGenEMR Start Script - Compatibility Wrapper
+# WintEHR Start Script - Compatibility Wrapper
 # =============================================================================
 # This script redirects to the new modular deployment system
 # For direct access to options, use: ./scripts/master-deploy.sh --help

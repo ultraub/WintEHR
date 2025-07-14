@@ -155,7 +155,7 @@ const PharmacyPage = () => {
     // Check for pharmacy status extension
     const extensions = medicationRequest.extension || [];
     for (const ext of extensions) {
-      if (ext.url === 'http://medgenemr.com/fhir/StructureDefinition/pharmacy-status') {
+      if (ext.url === 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status') {
         for (const subExt of ext.extension || []) {
           if (subExt.url === 'status') {
             return subExt.valueString;

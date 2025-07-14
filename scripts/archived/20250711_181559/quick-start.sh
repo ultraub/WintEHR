@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MedGenEMR Quick Start Script
+# WintEHR Quick Start Script
 # For rapid local development with minimal setup
 
 set -e
@@ -11,12 +11,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}🚀 MedGenEMR Quick Start${NC}"
+echo -e "${BLUE}🚀 WintEHR Quick Start${NC}"
 echo -e "${BLUE}========================${NC}"
 
 # Check if we're in the right directory
 if [ ! -f "package.json" ] || [ ! -d "backend" ]; then
-    echo -e "${RED}Error: Please run this script from the MedGenEMR root directory${NC}"
+    echo -e "${RED}Error: Please run this script from the WintEHR root directory${NC}"
     exit 1
 fi
 

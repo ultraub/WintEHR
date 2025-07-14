@@ -1,4 +1,4 @@
-# CLAUDE.md - MedGenEMR Developer Guide
+# CLAUDE.md - WintEHR Developer Guide
 
 **Production-Ready FHIR-Native EMR**  
 **Version**: 2025-07-12  
@@ -480,7 +480,7 @@ python .claude/agents/feature-workflow.py "New lab viewer" --check-only
 
 | Agent | Purpose | Context7 Integration |
 |-------|---------|---------------------|
-| **feature-scaffold.py** | Generate boilerplate | Queries latest MedGenEMR patterns |
+| **feature-scaffold.py** | Generate boilerplate | Queries latest WintEHR patterns |
 | **fhir-integration-checker.py** | Validate FHIR compliance | Real-time R5 standards validation |
 | **integration-validator.py** | Check cross-module patterns | Current integration patterns |
 | **qa-agent.py** | Code quality & cleanup | Latest React/FastAPI practices |

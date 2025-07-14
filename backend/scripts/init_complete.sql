@@ -1,4 +1,4 @@
--- Complete initialization SQL for MedGenEMR
+-- Complete initialization SQL for WintEHR
 -- This file contains all necessary database setup for Docker initialization
 -- Run via PostgreSQL's docker-entrypoint-initdb.d system
 

@@ -1023,7 +1023,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       title: `Pharmacy Queue - ${currentTabName}`,
       patient: patientFilter === 'current' ? currentPatient : null,
       content,
-      footer: 'Generated from MedGenEMR Pharmacy Management System'
+      footer: 'Generated from WintEHR Pharmacy Management System'
     });
   }, [tabValue, currentRequests, patientFilter, currentPatient]);
 

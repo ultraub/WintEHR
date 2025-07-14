@@ -11,7 +11,7 @@ import logging
 
 
 # Database connection
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://medgenemr:medgenemr@localhost:5432/medgenemr')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://wintehr:wintehr@localhost:5432/wintehr')
 engine = create_engine(DATABASE_URL)
 
 def analyze_status_fields():

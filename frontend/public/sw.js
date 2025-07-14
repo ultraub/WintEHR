@@ -1,4 +1,4 @@
-// Service Worker for MedGenEMR
+// Service Worker for WintEHR
 // Provides caching for better performance and offline capabilities
 
 const CACHE_NAME = 'medgen-emr-v1.0.1';
@@ -199,7 +199,7 @@ self.addEventListener('push', (event) => {
   };
   
   event.waitUntil(
-    self.registration.showNotification('MedGenEMR', options)
+    self.registration.showNotification('WintEHR', options)
   );
 });
 

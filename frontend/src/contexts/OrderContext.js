@@ -67,7 +67,7 @@ export const OrderProvider = ({ children }) => {
 
   // Extract medication details from extensions or contained resources
   const extractMedicationDetails = (fhirRequest) => {
-    const extension = fhirRequest.extension?.find(e => e.url === 'http://medgenemr.com/medication-details');
+    const extension = fhirRequest.extension?.find(e => e.url === 'http://wintehr.com/medication-details');
     if (!extension) return null;
     
     return {
@@ -127,7 +127,7 @@ export const OrderProvider = ({ children }) => {
     // Add order-type specific details
     if (order.orderType === 'medication' && order.medicationDetails) {
       fhirRequest.extension = [{
-        url: 'http://medgenemr.com/medication-details',
+        url: 'http://wintehr.com/medication-details',
         valueString: order.medicationDetails.medicationName,
         extension: [
           { url: 'dosage', valueString: order.medicationDetails.dosage },
@@ -210,11 +210,11 @@ export const OrderProvider = ({ children }) => {
       description: questionnaire.description,
       specialty: getSpecialtyFromCode(code),
       orders: questionnaire.item?.map(item => ({
-        type: item.extension?.find(e => e.url === 'http://medgenemr.com/order-type')?.valueCode || 'other',
+        type: item.extension?.find(e => e.url === 'http://wintehr.com/order-type')?.valueCode || 'other',
         code: item.code?.[0]?.code,
         display: item.text || item.code?.[0]?.display,
-        priority: item.extension?.find(e => e.url === 'http://medgenemr.com/order-priority')?.valueCode || 'routine',
-        frequency: item.extension?.find(e => e.url === 'http://medgenemr.com/order-frequency')?.valueString,
+        priority: item.extension?.find(e => e.url === 'http://wintehr.com/order-priority')?.valueCode || 'routine',
+        frequency: item.extension?.find(e => e.url === 'http://wintehr.com/order-frequency')?.valueString,
         selected: item.initial?.[0]?.valueBoolean || false,
         linkId: item.linkId
       })) || []
@@ -237,7 +237,7 @@ export const OrderProvider = ({ children }) => {
     try {
       // Search for questionnaires with order-set-type code
       const searchParams = {
-        code: 'http://medgenemr.com/order-set-type|',
+        code: 'http://wintehr.com/order-set-type|',
         _count: 50
       };
       
@@ -439,7 +439,7 @@ export const OrderProvider = ({ children }) => {
       // Add extension for discontinuation reason
       if (!fhirRequest.extension) fhirRequest.extension = [];
       fhirRequest.extension.push({
-        url: 'http://medgenemr.com/discontinuation-reason',
+        url: 'http://wintehr.com/discontinuation-reason',
         valueString: reason
       });
       
@@ -498,7 +498,7 @@ export const OrderProvider = ({ children }) => {
         // Add order set reference
         if (!fhirRequest.extension) fhirRequest.extension = [];
         fhirRequest.extension.push({
-          url: 'http://medgenemr.com/order-set-reference',
+          url: 'http://wintehr.com/order-set-reference',
           valueReference: {
             reference: `Questionnaire/${orderSetId}`,
             display: orderSet.name

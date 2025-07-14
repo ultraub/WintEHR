@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MedGenEMR Development Mode Script
+# WintEHR Development Mode Script
 # Switches between production and development configurations
 
 set -e
@@ -75,7 +75,7 @@ elif [ "$1" == "prod" ]; then
     echo "  Backend API: http://localhost:8000"
     
 else
-    echo "MedGenEMR Development Mode Manager"
+    echo "WintEHR Development Mode Manager"
     echo ""
     echo "Usage: ./dev-mode.sh [command]"
     echo ""

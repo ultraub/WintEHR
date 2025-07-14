@@ -2,7 +2,7 @@
 
 ## 🚨 CRITICAL: Preventing Infinite Re-render Loops
 
-This document establishes architectural standards to prevent infinite refresh loops and ensure optimal React performance across the MedGenEMR application.
+This document establishes architectural standards to prevent infinite refresh loops and ensure optimal React performance across the WintEHR application.
 
 ## ⚠️ Common Anti-patterns That MUST Be Avoided
 
@@ -360,4 +360,4 @@ When updating existing components:
 
 ---
 
-**Remember**: These patterns are MANDATORY for all React components in the MedGenEMR application. Violations will cause production issues and must be addressed immediately.
+**Remember**: These patterns are MANDATORY for all React components in the WintEHR application. Violations will cause production issues and must be addressed immediately.

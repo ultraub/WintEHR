@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MedGenEMR Comprehensive Test Suite Runner
+WintEHR Comprehensive Test Suite Runner
 Runs all FHIR and integration tests in sequence
 """
 
@@ -185,7 +185,7 @@ class TestRunner:
         # Save results to file
         results_file = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(results_file, "w") as f:
-            f.write(f"MedGenEMR Test Results - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"WintEHR Test Results - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("="*60 + "\n\n")
             
             for test_name, result in self.test_results.items():
@@ -202,7 +202,7 @@ async def main():
     """Run all tests"""
     runner = TestRunner()
     
-    print("🏥 MedGenEMR Comprehensive Test Suite")
+    print("🏥 WintEHR Comprehensive Test Suite")
     print("="*60)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     

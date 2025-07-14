@@ -22,7 +22,7 @@ async def init_fhir_schema():
     logging.info("🏥 Initializing FHIR Schema Tables")
     logging.info("=" * 60)
     # Use existing database connection parameters
-    DATABASE_URL = "postgresql+asyncpg://medgenemr:medgenemr@localhost:5432/medgenemr"
+    DATABASE_URL = "postgresql+asyncpg://wintehr:wintehr@localhost:5432/wintehr"
     
     engine = create_async_engine(DATABASE_URL)
     

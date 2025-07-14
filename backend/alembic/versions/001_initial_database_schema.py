@@ -1,4 +1,4 @@
-"""Initial database schema for MedGenEMR FHIR storage
+"""Initial database schema for WintEHR FHIR storage
 
 Revision ID: 001
 Revises: 
@@ -17,7 +17,7 @@ depends_on = None
 
 
 def upgrade():
-    """Create initial database schema for MedGenEMR"""
+    """Create initial database schema for WintEHR"""
     
     # Create schemas
     op.execute("CREATE SCHEMA IF NOT EXISTS fhir")

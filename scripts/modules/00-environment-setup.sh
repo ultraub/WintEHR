@@ -76,7 +76,7 @@ if [ "$FORCE_CLEAN" = "true" ]; then
     docker system prune -af || true
     
     # Remove specific volumes if they exist
-    docker volume rm medgenemr_postgres_data 2>/dev/null || true
+    docker volume rm wintehr_postgres_data 2>/dev/null || true
     
     # Clean up synthea and data directories
     rm -rf backend/synthea || true

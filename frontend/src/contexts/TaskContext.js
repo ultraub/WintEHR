@@ -71,7 +71,7 @@ export const TaskProvider = ({ children }) => {
     if (task.taskType || task.code) {
       fhirTask.code = {
         coding: [{
-          system: 'http://medgenemr.com/task-type',
+          system: 'http://wintehr.com/task-type',
           code: task.taskType || task.code || 'review',
           display: task.taskTypeDisplay || getTaskTypeDisplay(task.taskType)
         }]

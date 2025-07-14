@@ -232,15 +232,15 @@ const ComprehensiveNoteCreator = ({
         } : undefined,
         extension: [
           {
-            url: 'http://medgenemr.com/fhir/StructureDefinition/comprehensive-note',
+            url: 'http://wintehr.com/fhir/StructureDefinition/comprehensive-note',
             valueBoolean: true
           },
           {
-            url: 'http://medgenemr.com/fhir/StructureDefinition/template-type',
+            url: 'http://wintehr.com/fhir/StructureDefinition/template-type',
             valueString: generatedNote.metadata.templateType
           },
           {
-            url: 'http://medgenemr.com/fhir/StructureDefinition/data-sourced',
+            url: 'http://wintehr.com/fhir/StructureDefinition/data-sourced',
             valueBoolean: generatedNote.metadata.dataSourced
           }
         ]

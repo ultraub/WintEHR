@@ -78,7 +78,7 @@ def provider_to_practitioner(
                 "display": "Employee number"
             }]
         },
-        "system": "http://medgenemr.local/identifier/practitioner",
+        "system": "http://wintehr.local/identifier/practitioner",
         "value": str(provider.id)
     })
     
@@ -158,7 +158,7 @@ def provider_to_practitioner(
     # Add organization affiliation
     if provider.organization_id:
         resource["extension"].append({
-            "url": "http://medgenemr.local/fhir/StructureDefinition/primary-organization",
+            "url": "http://wintehr.local/fhir/StructureDefinition/primary-organization",
             "valueReference": {
                 "reference": f"Organization/{provider.organization_id}"
             }
@@ -167,12 +167,12 @@ def provider_to_practitioner(
     # Add authentication extensions if session provided
     if session:
         resource["extension"].append({
-            "url": "http://medgenemr.local/fhir/StructureDefinition/last-authenticated",
+            "url": "http://wintehr.local/fhir/StructureDefinition/last-authenticated",
             "valueDateTime": session.last_activity.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z" if session.last_activity else None
         })
         
         resource["extension"].append({
-            "url": "http://medgenemr.local/fhir/StructureDefinition/authentication-active",
+            "url": "http://wintehr.local/fhir/StructureDefinition/authentication-active",
             "valueBoolean": session.is_active
         })
     
@@ -289,7 +289,7 @@ def add_practitioner_credentials(
     for cred in credentials:
         qualification = {
             "identifier": [{
-                "system": f"http://medgenemr.local/credential/{cred['type']}",
+                "system": f"http://wintehr.local/credential/{cred['type']}",
                 "value": cred['number']
             }],
             "code": {

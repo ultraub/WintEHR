@@ -37,7 +37,7 @@ emr_router.include_router(clinical_router, prefix="/clinical", tags=["Clinical T
 async def emr_info():
     """Get information about EMR extensions."""
     return {
-        "name": "MedGenEMR Extensions",
+        "name": "WintEHR Extensions",
         "version": "1.0.0",
         "description": "EMR-specific extensions to FHIR functionality",
         "features": [

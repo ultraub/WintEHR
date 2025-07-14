@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# MedGenEMR Comprehensive Test Suite Runner
+# WintEHR Comprehensive Test Suite Runner
 # Runs all tests: unit, integration, and E2E with proper sequencing
 #
 
@@ -257,7 +257,7 @@ generate_reports() {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MedGenEMR Test Results Summary</title>
+    <title>WintEHR Test Results Summary</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .section { margin: 20px 0; padding: 15px; border-left: 4px solid #007cba; }
@@ -268,7 +268,7 @@ generate_reports() {
     </style>
 </head>
 <body>
-    <h1>MedGenEMR Test Results Summary</h1>
+    <h1>WintEHR Test Results Summary</h1>
     <p class="timestamp">Generated: $(date)</p>
     
     <div class="section success">
@@ -325,7 +325,7 @@ asyncio.run(cleanup_test_data())
 # Main execution
 main() {
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║        🧪 MedGenEMR Comprehensive Test Suite 🧪       ║${NC}"
+    echo -e "${BLUE}║        🧪 WintEHR Comprehensive Test Suite 🧪       ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════════════════════╝${NC}"
     echo ""
     

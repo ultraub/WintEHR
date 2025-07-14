@@ -220,7 +220,7 @@ Schedule comprehensive evaluations:
 
 ```bash
 # Weekly cron job
-0 0 * * 0 cd /path/to/medgenemr && python api/ui_composer/run_provider_tests.py --mode evaluate
+0 0 * * 0 cd /path/to/wintehr && python api/ui_composer/run_provider_tests.py --mode evaluate
 ```
 
 ## Troubleshooting

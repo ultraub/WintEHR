@@ -1,7 +1,7 @@
 # Authentication Module
 
 ## Overview
-The Authentication Module provides flexible authentication and authorization for MedGenEMR, supporting both simple training mode and production-ready JWT authentication. This module demonstrates healthcare-specific security patterns and role-based access control.
+The Authentication Module provides flexible authentication and authorization for WintEHR, supporting both simple training mode and production-ready JWT authentication. This module demonstrates healthcare-specific security patterns and role-based access control.
 
 ## Architecture
 ```

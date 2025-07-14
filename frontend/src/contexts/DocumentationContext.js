@@ -77,13 +77,13 @@ export const DocumentationProvider = ({ children }) => {
       encounterId: fhirDoc.context?.encounter?.[0]?.reference?.split('/')[1],
       noteType,
       title: getNoteTypeDisplay(noteType),
-      templateId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/template-id')?.valueString,
+      templateId: fhirDoc.extension?.find(e => e.url === 'http://wintehr.com/template-id')?.valueString,
       status: fhirDoc.status,
       authorId: fhirDoc.author?.[0]?.reference?.split('/')[1],
       createdAt: fhirDoc.date,
       signedAt: fhirDoc.status === 'current' ? fhirDoc.date : null,
-      requiresCosignature: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/requires-cosignature')?.valueBoolean,
-      cosignerId: fhirDoc.extension?.find(e => e.url === 'http://medgenemr.com/cosigner')?.valueReference?.reference?.split('/')[1],
+      requiresCosignature: fhirDoc.extension?.find(e => e.url === 'http://wintehr.com/requires-cosignature')?.valueBoolean,
+      cosignerId: fhirDoc.extension?.find(e => e.url === 'http://wintehr.com/cosigner')?.valueReference?.reference?.split('/')[1],
       isSOAPFormat,
       ...sections
     };
@@ -138,21 +138,21 @@ export const DocumentationProvider = ({ children }) => {
 
     if (note.templateId) {
       fhirDoc.extension.push({
-        url: 'http://medgenemr.com/template-id',
+        url: 'http://wintehr.com/template-id',
         valueString: note.templateId
       });
     }
 
     if (note.requiresCosignature) {
       fhirDoc.extension.push({
-        url: 'http://medgenemr.com/requires-cosignature',
+        url: 'http://wintehr.com/requires-cosignature',
         valueBoolean: true
       });
     }
 
     if (note.cosignerId) {
       fhirDoc.extension.push({
-        url: 'http://medgenemr.com/cosigner',
+        url: 'http://wintehr.com/cosigner',
         valueReference: { reference: `Practitioner/${note.cosignerId}` }
       });
     }
@@ -363,7 +363,7 @@ export const DocumentationProvider = ({ children }) => {
       // Add authenticator extension
       if (!fhirDoc.extension) fhirDoc.extension = [];
       fhirDoc.extension.push({
-        url: 'http://medgenemr.com/signed-at',
+        url: 'http://wintehr.com/signed-at',
         valueDateTime: new Date().toISOString()
       });
       

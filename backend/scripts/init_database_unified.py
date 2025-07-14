@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Database Initialization Script for MedGenEMR
+Unified Database Initialization Script for WintEHR
 
 This is the consolidated, definitive database initialization script that replaces
 all other initialization scripts. It creates the complete, correct database schema
@@ -599,7 +599,7 @@ class UnifiedDatabaseInitializer:
     
     async def initialize(self):
         """Main initialization method."""
-        logger.info("🚀 MedGenEMR Unified Database Initialization")
+        logger.info("🚀 WintEHR Unified Database Initialization")
         logger.info("=" * 60)
         logger.info(f"Mode: {self.mode}")
         logger.info(f"Verify only: {self.verify_only}")
@@ -662,7 +662,7 @@ class UnifiedDatabaseInitializer:
 
 async def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='MedGenEMR Unified Database Initializer')
+    parser = argparse.ArgumentParser(description='WintEHR Unified Database Initializer')
     parser.add_argument('--mode', choices=['development', 'production'], 
                         default='development', help='Deployment mode')
     parser.add_argument('--verify-only', action='store_true', 

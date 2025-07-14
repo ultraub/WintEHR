@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MedGenEMR - Complete Deployment Script
+# WintEHR - Complete Deployment Script
 # Works on local development and AWS EC2 instances
 # Handles database initialization, patient data generation, DICOM images, and server startup
 
@@ -22,7 +22,7 @@ INCLUDE_DICOM=${INCLUDE_DICOM:-true}
 SKIP_DATA_GENERATION=${SKIP_DATA_GENERATION:-false}
 ENVIRONMENT=${ENVIRONMENT:-local}
 
-echo -e "${PURPLE}🏥 MedGenEMR Complete Deployment${NC}"
+echo -e "${PURPLE}🏥 WintEHR Complete Deployment${NC}"
 echo -e "${PURPLE}===============================================${NC}"
 echo -e "${BLUE}Configuration:${NC}"
 echo -e "  📊 Patient Count: ${PATIENT_COUNT}"
@@ -34,7 +34,7 @@ echo ""
 # Function to check if we're in the right directory
 check_directory() {
     if [ ! -f "package.json" ] || [ ! -d "backend" ]; then
-        echo -e "${RED}Error: Please run this script from the MedGenEMR root directory${NC}"
+        echo -e "${RED}Error: Please run this script from the WintEHR root directory${NC}"
         exit 1
     fi
 }
@@ -243,7 +243,7 @@ validate_deployment() {
 # Function to display final status
 display_status() {
     echo ""
-    echo -e "${GREEN}🎉 MedGenEMR Deployment Complete!${NC}"
+    echo -e "${GREEN}🎉 WintEHR Deployment Complete!${NC}"
     echo -e "${GREEN}=====================================${NC}"
     echo ""
     echo -e "${CYAN}📋 Access Points:${NC}"
@@ -283,7 +283,7 @@ display_status() {
 # Function to save deployment configuration
 save_deployment_config() {
     cat > .deployment-config << EOF
-# MedGenEMR Deployment Configuration
+# WintEHR Deployment Configuration
 # Generated: $(date)
 PATIENT_COUNT=$PATIENT_COUNT
 VALIDATION_MODE=$VALIDATION_MODE
@@ -338,7 +338,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help)
-            echo "MedGenEMR Deployment Script"
+            echo "WintEHR Deployment Script"
             echo ""
             echo "Usage: ./deploy.sh [OPTIONS]"
             echo ""

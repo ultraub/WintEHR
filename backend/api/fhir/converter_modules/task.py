@@ -21,42 +21,42 @@ class TaskConverter:
     # Task type codes
     TASK_TYPE_CODES = {
         'review': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'review',
             'display': 'Review'
         },
         'follow_up': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'follow-up',
             'display': 'Follow-up'
         },
         'lab_review': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'lab-review',
             'display': 'Lab Review'
         },
         'med_reconciliation': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'med-recon',
             'display': 'Medication Reconciliation'
         },
         'prior_auth': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'prior-auth',
             'display': 'Prior Authorization'
         },
         'patient_outreach': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'outreach',
             'display': 'Patient Outreach'
         },
         'referral': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'referral',
             'display': 'Referral'
         },
         'documentation': {
-            'system': 'http://medgenemr.com/task-type',
+            'system': 'http://wintehr.com/task-type',
             'code': 'documentation',
             'display': 'Documentation'
         }
@@ -167,7 +167,7 @@ class TaskConverter:
         # Identifiers
         if data.get('id'):
             task.identifier = [Identifier()]
-            task.identifier[0].system = "http://medgenemr.com/task"
+            task.identifier[0].system = "http://wintehr.com/task"
             task.identifier[0].value = str(data['id'])
         
         # Reason
@@ -278,7 +278,7 @@ class TaskConverter:
         # Extract identifiers
         if task.identifier:
             for identifier in task.identifier:
-                if identifier.system == "http://medgenemr.com/task":
+                if identifier.system == "http://wintehr.com/task":
                     data['externalId'] = identifier.value
         
         return data

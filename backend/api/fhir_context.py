@@ -135,7 +135,7 @@ class FHIRContext:
         context = {
             "user": self.practitioner_reference["reference"],
             "userType": "Practitioner",
-            "style": "https://medgenemr.local/smart-style.json"
+            "style": "https://wintehr.local/smart-style.json"
         }
         
         if self.organization:

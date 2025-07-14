@@ -297,7 +297,7 @@ elif 'medication' in data:
 
 ## 📚 Related Documentation
 - [FHIR R5 Specification](https://hl7.org/fhir/R5/)
-- [MedGenEMR CLAUDE.md](./CLAUDE.md) - Main development guide
+- [WintEHR CLAUDE.md](./CLAUDE.md) - Main development guide
 - [Backend FHIR Storage](./backend/core/fhir/storage.py) - Implementation details
 - [Frontend Medication Hooks](./frontend/src/hooks/useMedicationResolver.js) - Client-side logic
 

@@ -400,7 +400,7 @@ export const formatClinicalNoteForPrint = (note, patient, template) => {
       title: 'Clinical Note',
       patient,
       content: '<p>No note content available.</p>',
-      footer: 'Printed from MedGenEMR'
+      footer: 'Printed from WintEHR'
     };
   }
 
@@ -458,7 +458,7 @@ export const formatClinicalNoteForPrint = (note, patient, template) => {
     title: `${noteType} - ${patient?.name || 'Patient'}`,
     patient,
     content: metadata + content,
-    footer: 'Printed from MedGenEMR Clinical Documentation System'
+    footer: 'Printed from WintEHR Clinical Documentation System'
   };
 };
 
@@ -620,7 +620,7 @@ Status: ${note.docStatus || 'preliminary'}
 ${content}
 
 ---
-Exported from MedGenEMR on ${format(new Date(), 'MMMM d, yyyy h:mm a')}
+Exported from WintEHR on ${format(new Date(), 'MMMM d, yyyy h:mm a')}
   `.trim();
   
   return new Blob([textContent], { type: 'text/plain' });

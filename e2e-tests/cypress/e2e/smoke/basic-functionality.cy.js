@@ -1,5 +1,5 @@
 // Smoke Tests - Basic Functionality
-describe('MedGenEMR Smoke Tests', () => {
+describe('WintEHR Smoke Tests', () => {
   
   beforeEach(() => {
     // Authenticate before each test

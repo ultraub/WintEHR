@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# MedGenEMR Master Deployment Script
+# WintEHR Master Deployment Script
 # =============================================================================
 # Single entry point for complete, bulletproof deployment
 # Handles everything from scratch with zero manual intervention
@@ -78,7 +78,7 @@ section() {
 
 show_help() {
     cat << EOF
-MedGenEMR Master Deployment Script
+WintEHR Master Deployment Script
 
 USAGE:
     ./scripts/master-deploy.sh [OPTIONS]
@@ -161,7 +161,7 @@ preflight_checks() {
     
     # Check if we're in the right directory
     if [ ! -f "$ROOT_DIR/docker-compose.yml" ] || [ ! -d "$ROOT_DIR/backend" ]; then
-        error "Please run this script from the MedGenEMR root directory or ensure the project structure is correct"
+        error "Please run this script from the WintEHR root directory or ensure the project structure is correct"
     fi
     
     # Check Docker
@@ -236,7 +236,7 @@ execute_module() {
 run_deployment() {
     local start_time=$(date +%s)
     
-    section "🚀 MedGenEMR Master Deployment"
+    section "🚀 WintEHR Master Deployment"
     
     info "Configuration:"
     info "  Mode: $DEPLOYMENT_MODE"

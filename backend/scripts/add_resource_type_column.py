@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+asyncpg://robertbarrett@127.0.0.1:5432/medgenemr')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+asyncpg://robertbarrett@127.0.0.1:5432/wintehr')
 
 
 async def check_column_exists(session: AsyncSession) -> bool:
