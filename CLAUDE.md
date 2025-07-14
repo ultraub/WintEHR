@@ -641,6 +641,10 @@ git status docs/ --porcelain
 ## 📅 Recent Updates
 
 ### 2025-07-14
+- Implemented R4/R5 agnostic handling for medication resources
+- Fixed MedicationRequest and MedicationDispense R5 to R4B conversion
+- Resolved reason field and numberOfRepeatsAllowed validation errors
+- All medication workflows (prescribe, verify, dispense) working correctly
 - Fixed DocumentReference validation "integer is required" errors
 - Resolved dict() to json() conversion for preserving data types
 - Simplified document validation to avoid reconstruction issues
