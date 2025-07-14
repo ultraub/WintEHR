@@ -116,35 +116,67 @@ class SyntheaFHIRValidator(FHIRValidator):
     
     def _preprocess_encounter(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Fix Encounter-specific Synthea format issues."""
-        # Fix class field - The fhir.resources library (R5) expects a LIST of CodeableConcept
-        # Synthea provides a single Coding object following FHIR R4 spec
-        # We need to convert: Coding -> [CodeableConcept]
+        # Fix class field - The fhir.resources library (R4B) expects a single Coding object
+        # Frontend/UI may send a CodeableConcept structure, we need to convert it to Coding
         if 'class' in data:
             if isinstance(data['class'], dict):
-                # Convert single Coding to list of CodeableConcept
-                if 'system' in data['class'] and 'code' in data['class']:
-                    # It's a Coding object - wrap in CodeableConcept and make it a list
-                    data['class'] = [{
-                        'coding': [data['class']]
-                    }]
-                elif 'coding' in data['class']:
-                    # It's already a CodeableConcept - just make it a list
-                    data['class'] = [data['class']]
+                if 'coding' in data['class']:
+                    # It's a CodeableConcept - extract the first coding
+                    coding_array = data['class']['coding']
+                    if isinstance(coding_array, list) and len(coding_array) > 0:
+                        data['class'] = coding_array[0]
+                    else:
+                        # Invalid or empty coding array
+                        data['class'] = {
+                            'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                            'code': 'AMB',
+                            'display': 'ambulatory'
+                        }
+                elif 'system' in data['class'] and 'code' in data['class']:
+                    # It's already a Coding object - keep as is
+                    pass
+                else:
+                    # Invalid format - create default
+                    data['class'] = {
+                        'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                        'code': 'AMB',
+                        'display': 'ambulatory'
+                    }
             elif isinstance(data['class'], list):
-                # Already a list - ensure each item is a CodeableConcept
-                cleaned_classes = []
-                for cls in data['class']:
-                    if isinstance(cls, dict):
-                        if 'coding' in cls:
-                            # Already a CodeableConcept
-                            cleaned_classes.append(cls)
-                        elif 'system' in cls and 'code' in cls:
-                            # It's a Coding - wrap in CodeableConcept
-                            cleaned_classes.append({'coding': [cls]})
-                data['class'] = cleaned_classes if cleaned_classes else [{'coding': [{'code': 'UNK'}]}]
+                # List format - extract first CodeableConcept's first coding
+                if len(data['class']) > 0:
+                    first_class = data['class'][0]
+                    if isinstance(first_class, dict) and 'coding' in first_class:
+                        coding_array = first_class['coding']
+                        if isinstance(coding_array, list) and len(coding_array) > 0:
+                            data['class'] = coding_array[0]
+                        else:
+                            data['class'] = {
+                                'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                                'code': 'AMB',
+                                'display': 'ambulatory'
+                            }
+                    else:
+                        # Invalid format - create default
+                        data['class'] = {
+                            'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                            'code': 'AMB',
+                            'display': 'ambulatory'
+                        }
+                else:
+                    # Empty list - create default
+                    data['class'] = {
+                        'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                        'code': 'AMB',
+                        'display': 'ambulatory'
+                    }
             else:
                 # Invalid format - create default
-                data['class'] = [{'coding': [{'code': 'UNK'}]}]
+                data['class'] = {
+                    'system': 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+                    'code': 'AMB',
+                    'display': 'ambulatory'
+                }
         # Clean up all BackboneElement fields to remove Synthea's extra fields
         # Period - the error shows "extra fields not permitted"
         if 'period' in data and isinstance(data['period'], dict):
