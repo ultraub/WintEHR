@@ -460,7 +460,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         period: {
           start: `${newEncounterData.startDate}T${newEncounterData.startTime}:00`
         },
-        reasonCode: newEncounterData.reasonForVisit ? [{
+        reason: newEncounterData.reasonForVisit ? [{
           text: newEncounterData.reasonForVisit
         }] : [],
         participant: newEncounterData.provider ? [{

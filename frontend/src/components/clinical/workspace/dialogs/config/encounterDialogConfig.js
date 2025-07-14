@@ -160,8 +160,8 @@ export const parseResource = (encounter) => {
   return {
     selectedTemplate: '',
     type: encounter.type?.[0]?.code || 'AMB',
-    reasonForVisit: encounter.reasonCode?.[0]?.text || '',
-    chiefComplaint: encounter.reasonCode?.[0]?.coding?.[0]?.display || '',
+    reasonForVisit: encounter.reason?.[0]?.text || encounter.reasonCode?.[0]?.text || '',
+    chiefComplaint: encounter.reason?.[0]?.coding?.[0]?.display || encounter.reasonCode?.[0]?.coding?.[0]?.display || '',
     provider: encounter.participant?.find(p => p.type?.[0]?.coding?.[0]?.code === 'ATND')?.individual?.display || '',
     location: encounter.location?.[0]?.location?.display || 'main-clinic',
     scheduledDate: encounter.period?.start ? new Date(encounter.period.start).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -244,7 +244,8 @@ export const updateResource = (encounter = {}, formData, patientId) => {
   }
 
   if (formData.reasonForVisit) {
-    resource.reasonCode = [{
+    // Use 'reason' instead of 'reasonCode' for FHIR R4 Encounter
+    resource.reason = [{
       text: formData.reasonForVisit
     }];
   }
