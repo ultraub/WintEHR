@@ -253,7 +253,7 @@ def create_dicom_dataset(image_data, study_config, study_uid, series_uid, instan
     file_meta.MediaStorageSOPInstanceUID = generate_sop_instance_uid()
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
     file_meta.ImplementationClassUID = "1.2.826.0.1.3680043.8.498.1"
-    file_meta.ImplementationVersionName = "MedGenEMR_DEMO"
+    file_meta.ImplementationVersionName = "WintEHR_DEMO"
     
     # Main dataset
     ds = Dataset()

@@ -227,9 +227,9 @@ Data Binding: {json.dumps(component.get('dataBinding', {}), indent=2)}
 
 Requirements:
 1. Use Material-UI components (@mui/material, @mui/icons-material)
-2. Follow MedGenEMR patterns and conventions
+2. Follow WintEHR patterns and conventions
 3. Include proper error handling and loading states
-4. Use ACTUAL MedGenEMR FHIR hooks:
+4. Use ACTUAL WintEHR FHIR hooks:
    - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
    - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
    - import {{ fhirService }} from '../../../services/fhirService';

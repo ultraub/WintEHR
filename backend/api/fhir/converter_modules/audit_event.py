@@ -83,9 +83,9 @@ def audit_log_to_fhir(
         "source": {
             "observer": {
                 "identifier": {
-                    "value": "MedGenEMR"
+                    "value": "WintEHR"
                 },
-                "display": "MedGenEMR System"
+                "display": "WintEHR System"
             }
         }
     }
@@ -126,7 +126,7 @@ def audit_log_to_fhir(
         },
         "who": {
             "identifier": {
-                "value": "MedGenEMR"
+                "value": "WintEHR"
             }
         },
         "requestor": False

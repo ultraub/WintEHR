@@ -1,7 +1,7 @@
 # Common Components Module
 
 ## Overview
-The Common Components Module provides reusable UI components that implement healthcare-specific patterns, Material-UI integration, and clinical workflows. These components form the building blocks for MedGenEMR's user interface.
+The Common Components Module provides reusable UI components that implement healthcare-specific patterns, Material-UI integration, and clinical workflows. These components form the building blocks for WintEHR's user interface.
 
 ## Architecture
 ```

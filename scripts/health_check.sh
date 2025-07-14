@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Health check script for MedGenEMR FHIR-native implementation
+# Health check script for WintEHR FHIR-native implementation
 
-echo "🏥 MedGenEMR Health Check"
+echo "🏥 WintEHR Health Check"
 echo "========================"
 
 # Colors for output
@@ -118,7 +118,7 @@ check_database() {
         echo -e "${GREEN}✓${NC} PostgreSQL is ready"
         
         # Check if schemas exist
-        schemas=$(docker exec emr-postgres psql -U postgres -d medgenemr -t -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('fhir', 'emr');")
+        schemas=$(docker exec emr-postgres psql -U postgres -d wintehr -t -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('fhir', 'emr');")
         
         if echo "$schemas" | grep -q "fhir"; then
             echo -e "  ${GREEN}✓${NC} FHIR schema exists"

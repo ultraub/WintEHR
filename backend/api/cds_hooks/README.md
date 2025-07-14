@@ -234,7 +234,7 @@ def create_card(
         "summary": summary,
         "indicator": indicator,
         "source": {
-            "label": "MedGenEMR CDS",
+            "label": "WintEHR CDS",
             "url": "http://localhost:8000"
         }
     }

@@ -1,6 +1,6 @@
-# MedGenEMR Deployment Guide
+# WintEHR Deployment Guide
 
-**Complete deployment guide for MedGenEMR with Docker, database initialization, and multi-environment support**
+**Complete deployment guide for WintEHR with Docker, database initialization, and multi-environment support**
 
 ## Quick Start
 
@@ -14,7 +14,7 @@
 ```bash
 # Clone and deploy with default settings (5 patients, local environment)
 git clone <repository-url>
-cd MedGenEMR
+cd WintEHR
 ./unified-deploy.sh
 
 # Custom deployment with more data
@@ -85,7 +85,7 @@ The system automatically creates all required database tables during container s
 
 ### Database Initialization Process
 1. PostgreSQL container starts with initialization scripts in `postgres-init/`
-2. `01-init-medgenemr.sql` creates all schemas, tables, indexes, and triggers
+2. `01-init-wintehr.sql` creates all schemas, tables, indexes, and triggers
 3. Backend container verifies schema completion during startup
 4. Data generation scripts populate with realistic clinical data
 
@@ -180,7 +180,7 @@ docker-compose exec postgres pg_dump -U emr_user emr_db > backup.sql
 docker-compose exec -T postgres psql -U emr_user emr_db < backup.sql
 
 # Volume backup
-docker run --rm -v medgenemr_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/db-backup.tar.gz /data
+docker run --rm -v wintehr_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/db-backup.tar.gz /data
 ```
 
 ## Monitoring and Maintenance
@@ -345,7 +345,7 @@ services:
 ### CI/CD Integration
 ```yaml
 # Example GitHub Actions workflow
-name: Deploy MedGenEMR
+name: Deploy WintEHR
 on:
   push:
     branches: [main]

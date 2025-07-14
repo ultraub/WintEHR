@@ -1,7 +1,7 @@
 # Clinical Workspace Module
 
 ## Overview
-The Clinical Workspace Module is the heart of MedGenEMR's EMR interface, providing a comprehensive tabbed interface for clinical workflows. This module demonstrates modern EMR design patterns with real-time FHIR integration and cross-tab communication.
+The Clinical Workspace Module is the heart of WintEHR's EMR interface, providing a comprehensive tabbed interface for clinical workflows. This module demonstrates modern EMR design patterns with real-time FHIR integration and cross-tab communication.
 
 ## Architecture
 ```

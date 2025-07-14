@@ -1,11 +1,11 @@
-# MedGenEMR Makefile
+# WintEHR Makefile
 # Comprehensive build and deployment automation
 
 .PHONY: help build up down restart logs shell test clean fresh init-data
 
 # Default target
 help:
-	@echo "MedGenEMR Management Commands"
+	@echo "WintEHR Management Commands"
 	@echo "============================="
 	@echo "make build       - Build all Docker images"
 	@echo "make up          - Start all services"

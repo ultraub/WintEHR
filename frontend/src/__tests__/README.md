@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains tests for the MedGenEMR frontend application. We use Jest and React Testing Library for unit and integration testing.
+This directory contains tests for the WintEHR frontend application. We use Jest and React Testing Library for unit and integration testing.
 
 ## Test Structure
 

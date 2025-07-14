@@ -160,7 +160,7 @@ export class ClinicalDocumentationLinkingService {
         },
         // Custom extension for problem linking
         extension: [{
-          url: 'http://medgenemr.com/fhir/StructureDefinition/linked-condition',
+          url: 'http://wintehr.com/fhir/StructureDefinition/linked-condition',
           valueReference: {
             reference: `Condition/${conditionId}`,
             display: 'Linked Clinical Problem'
@@ -235,7 +235,7 @@ export class ClinicalDocumentationLinkingService {
         },
         // Custom extension for medication linking
         extension: [{
-          url: 'http://medgenemr.com/fhir/StructureDefinition/linked-medication',
+          url: 'http://wintehr.com/fhir/StructureDefinition/linked-medication',
           valueReference: {
             reference: `MedicationRequest/${medicationId}`,
             display: 'Linked Medication'

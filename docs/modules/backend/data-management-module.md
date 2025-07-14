@@ -1,7 +1,7 @@
 # Data Management Module
 
 ## Overview
-The Data Management Module handles data generation, import, validation, and maintenance for MedGenEMR. This module provides tools for managing Synthea synthetic data, DICOM image generation, and database operations, demonstrating best practices for healthcare data management.
+The Data Management Module handles data generation, import, validation, and maintenance for WintEHR. This module provides tools for managing Synthea synthetic data, DICOM image generation, and database operations, demonstrating best practices for healthcare data management.
 
 ## Architecture
 ```
@@ -463,7 +463,7 @@ class BackupService:
     async def create_backup(self, backup_type: str = "full") -> str:
         """Create database backup"""
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"medgenemr_{backup_type}_{timestamp}"
+        backup_name = f"wintehr_{backup_type}_{timestamp}"
         
         if backup_type == "full":
             # Full database dump

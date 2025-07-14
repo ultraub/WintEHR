@@ -235,14 +235,14 @@ class ClaudeCLIService:
             generation_instructions = """
 Generation Mode: FULL GENERATION
 - Create completely new, creative components from scratch
-- Do not reuse existing MedGenEMR components
+- Do not reuse existing WintEHR components
 - Prioritize unique designs and innovative layouts
 - Generate all custom code without relying on templates
 """
         elif generation_mode == 'mixed':
             generation_instructions = """
 Generation Mode: SMART MIX
-- Combine existing MedGenEMR components with new generated parts
+- Combine existing WintEHR components with new generated parts
 - Reuse standard components like ChartReviewTab patterns where applicable
 - Generate custom code only for unique requirements
 - Balance consistency with innovation
@@ -250,7 +250,7 @@ Generation Mode: SMART MIX
         elif generation_mode == 'template':
             generation_instructions = """
 Generation Mode: TEMPLATE-BASED
-- Use existing MedGenEMR templates and patterns
+- Use existing WintEHR templates and patterns
 - Minimal custom generation, focus on configuration
 - Prioritize speed and consistency over creativity
 - Reuse proven UI patterns from the codebase
@@ -385,24 +385,24 @@ Return this exact JSON structure:
 FULL GENERATION MODE:
 - Create completely custom components from scratch
 - Use unique styling and layout approaches
-- Don't follow standard MedGenEMR patterns unless necessary
+- Don't follow standard WintEHR patterns unless necessary
 - Focus on innovation and creativity
 - Generate all necessary sub-components inline
 """
             elif generation_mode == 'mixed':
                 generation_specific_instructions = """
 SMART MIX MODE:
-- Reuse MedGenEMR component patterns where appropriate
+- Reuse WintEHR component patterns where appropriate
 - Import existing components like: ChartReviewTab, ResultsTab patterns
 - Generate custom code only for unique features
-- Follow established MedGenEMR conventions
+- Follow established WintEHR conventions
 - Balance reusability with customization
 """
             elif generation_mode == 'template':
                 generation_specific_instructions = """
 TEMPLATE-BASED MODE:
 - Use minimal custom code
-- Rely heavily on existing MedGenEMR templates
+- Rely heavily on existing WintEHR templates
 - Focus on configuration over generation
 - Reuse standard layout patterns
 - Prioritize speed and consistency
@@ -485,9 +485,9 @@ CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY:
 4. DO NOT use mock patient names like "Patient A", "Patient B" - use real data from FHIR
 5. DO NOT use template data - generate based on the specification
 1. Use Material-UI components (@mui/material, @mui/icons-material)
-2. Follow MedGenEMR patterns and conventions
+2. Follow WintEHR patterns and conventions
 3. Include proper error handling and loading states
-4. **MANDATORY**: Use ACTUAL MedGenEMR FHIR hooks - NOT MOCK DATA:
+4. **MANDATORY**: Use ACTUAL WintEHR FHIR hooks - NOT MOCK DATA:
    - import {{ usePatientResources }} from '../../../hooks/useFHIRResources';
    - import {{ useFHIRClient }} from '../../../contexts/FHIRClientContext';
    - import {{ fhirService }} from '../../../services/fhirService';
@@ -539,7 +539,7 @@ COMPONENT DATA REQUIREMENTS:
 
 IMPORTANT: Generate and return ONLY the React component code. Do NOT return descriptions, explanations, or documentation. Return ONLY executable JSX/React code that can be saved as a .js file and imported into the application.
 
-Generate a complete, functional React component that queries and displays REAL FHIR data from the MedGenEMR database. Return ONLY the component code with NO mock data whatsoever."""
+Generate a complete, functional React component that queries and displays REAL FHIR data from the WintEHR database. Return ONLY the component code with NO mock data whatsoever."""
             else:
                 # For single components or non-dashboard layouts
                 gen_inst_defined = generation_specific_instructions is not None

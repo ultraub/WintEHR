@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MedGenEMR Data Processor
+WintEHR Data Processor
 
 Automated data processing script for post-import operations including:
 - Patient and provider name cleaning (removing numbers)
@@ -35,8 +35,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MedGenEMRDataProcessor:
-    """Comprehensive data processor for MedGenEMR."""
+class WintEHRDataProcessor:
+    """Comprehensive data processor for WintEHR."""
     
     def __init__(self, mode="development", dry_run=False):
         self.mode = mode
@@ -603,7 +603,7 @@ class MedGenEMRDataProcessor:
 
 async def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='MedGenEMR Data Processor')
+    parser = argparse.ArgumentParser(description='WintEHR Data Processor')
     parser.add_argument('--mode', choices=['development', 'production'], 
                         default='development', help='Processing mode')
     parser.add_argument('--dry-run', action='store_true', 
@@ -626,7 +626,7 @@ async def main():
     
     args = parser.parse_args()
     
-    processor = MedGenEMRDataProcessor(mode=args.mode, dry_run=args.dry_run)
+    processor = WintEHRDataProcessor(mode=args.mode, dry_run=args.dry_run)
     
     success = False
     

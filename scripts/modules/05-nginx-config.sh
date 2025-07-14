@@ -265,7 +265,7 @@ cat > frontend/public/error-pages/50x.html << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MedGenEMR - Service Unavailable</title>
+    <title>WintEHR - Service Unavailable</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -297,7 +297,7 @@ cat > frontend/public/error-pages/50x.html << 'EOF'
 </head>
 <body>
     <div class="error-container">
-        <h1>MedGenEMR Service Unavailable</h1>
+        <h1>WintEHR Service Unavailable</h1>
         <div class="error-code">5xx</div>
         <p>We're experiencing technical difficulties. Please try again in a few moments.</p>
         <button class="retry-btn" onclick="window.location.reload()">Retry</button>
@@ -336,8 +336,8 @@ if [ ! -f "frontend/public/manifest.json" ]; then
     log "Creating manifest.json..."
     cat > frontend/public/manifest.json << 'EOF'
 {
-  "short_name": "MedGenEMR",
-  "name": "MedGenEMR - Medical Records System",
+  "short_name": "WintEHR",
+  "name": "WintEHR - Medical Records System",
   "icons": [
     {
       "src": "favicon.ico",

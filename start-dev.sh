@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# MedGenEMR Development Mode Startup Script
+# WintEHR Development Mode Startup Script
 # This script starts the application in development mode with hot reload
 
 set -e
 
-echo "🔥 Starting MedGenEMR in Development Mode with Hot Reload"
+echo "🔥 Starting WintEHR in Development Mode with Hot Reload"
 echo "=================================================="
 
 # Check if docker-compose is available

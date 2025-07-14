@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🏥 MedGenEMR Backend Starting..."
+echo "🏥 WintEHR Backend Starting..."
 
 # Wait for database to be ready
 echo "⏳ Waiting for PostgreSQL..."

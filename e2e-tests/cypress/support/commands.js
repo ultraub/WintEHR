@@ -1,4 +1,4 @@
-// MedGenEMR Custom Cypress Commands
+// WintEHR Custom Cypress Commands
 
 // Authentication commands
 Cypress.Commands.add('login', (providerId = 'dr-smith') => {

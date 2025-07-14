@@ -32,49 +32,49 @@ Opening `/dev/tty` failed (6): Device not configured
   "tests": [
     {
       "title": "should load the main dashboard without errors",
-      "fullTitle": "MedGenEMR Smoke Tests should load the main dashboard without errors",
+      "fullTitle": "WintEHR Smoke Tests should load the main dashboard without errors",
       "duration": 2491,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should allow patient selection and navigation",
-      "fullTitle": "MedGenEMR Smoke Tests should allow patient selection and navigation",
+      "fullTitle": "WintEHR Smoke Tests should allow patient selection and navigation",
       "duration": 2229,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should navigate between clinical tabs without errors",
-      "fullTitle": "MedGenEMR Smoke Tests should navigate between clinical tabs without errors",
+      "fullTitle": "WintEHR Smoke Tests should navigate between clinical tabs without errors",
       "duration": 4247,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should handle FHIR API calls correctly",
-      "fullTitle": "MedGenEMR Smoke Tests should handle FHIR API calls correctly",
+      "fullTitle": "WintEHR Smoke Tests should handle FHIR API calls correctly",
       "duration": 2112,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should display patient data correctly",
-      "fullTitle": "MedGenEMR Smoke Tests should display patient data correctly",
+      "fullTitle": "WintEHR Smoke Tests should display patient data correctly",
       "duration": 2166,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should handle authentication properly",
-      "fullTitle": "MedGenEMR Smoke Tests should handle authentication properly",
+      "fullTitle": "WintEHR Smoke Tests should handle authentication properly",
       "duration": 2120,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should respond to user interactions within acceptable time",
-      "fullTitle": "MedGenEMR Smoke Tests should respond to user interactions within acceptable time",
+      "fullTitle": "WintEHR Smoke Tests should respond to user interactions within acceptable time",
       "duration": 2135,
       "currentRetry": 0,
       "err": {}
@@ -85,49 +85,49 @@ Opening `/dev/tty` failed (6): Device not configured
   "passes": [
     {
       "title": "should load the main dashboard without errors",
-      "fullTitle": "MedGenEMR Smoke Tests should load the main dashboard without errors",
+      "fullTitle": "WintEHR Smoke Tests should load the main dashboard without errors",
       "duration": 2491,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should allow patient selection and navigation",
-      "fullTitle": "MedGenEMR Smoke Tests should allow patient selection and navigation",
+      "fullTitle": "WintEHR Smoke Tests should allow patient selection and navigation",
       "duration": 2229,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should navigate between clinical tabs without errors",
-      "fullTitle": "MedGenEMR Smoke Tests should navigate between clinical tabs without errors",
+      "fullTitle": "WintEHR Smoke Tests should navigate between clinical tabs without errors",
       "duration": 4247,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should handle FHIR API calls correctly",
-      "fullTitle": "MedGenEMR Smoke Tests should handle FHIR API calls correctly",
+      "fullTitle": "WintEHR Smoke Tests should handle FHIR API calls correctly",
       "duration": 2112,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should display patient data correctly",
-      "fullTitle": "MedGenEMR Smoke Tests should display patient data correctly",
+      "fullTitle": "WintEHR Smoke Tests should display patient data correctly",
       "duration": 2166,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should handle authentication properly",
-      "fullTitle": "MedGenEMR Smoke Tests should handle authentication properly",
+      "fullTitle": "WintEHR Smoke Tests should handle authentication properly",
       "duration": 2120,
       "currentRetry": 0,
       "err": {}
     },
     {
       "title": "should respond to user interactions within acceptable time",
-      "fullTitle": "MedGenEMR Smoke Tests should respond to user interactions within acceptable time",
+      "fullTitle": "WintEHR Smoke Tests should respond to user interactions within acceptable time",
       "duration": 2135,
       "currentRetry": 0,
       "err": {}
@@ -151,7 +151,7 @@ Opening `/dev/tty` failed (6): Device not configured
 
   (Video)
 
-  -  Video output: /Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/e2e-tests/cypress/videos/basic-functionality.cy.js.mp4
+  -  Video output: /Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/WintEHR/e2e-tests/cypress/videos/basic-functionality.cy.js.mp4
 
 
 Opening `/dev/tty` failed (6): Device not configured

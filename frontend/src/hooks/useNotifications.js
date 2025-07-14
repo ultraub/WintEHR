@@ -97,7 +97,7 @@ export const useNotifications = () => {
           prev.map(notif => 
             notif.id === notificationId 
               ? { ...notif, extension: notif.extension?.map(ext => 
-                  ext.url === 'http://medgenemr.com/fhir/StructureDefinition/notification-read'
+                  ext.url === 'http://wintehr.com/fhir/StructureDefinition/notification-read'
                     ? { ...ext, valueBoolean: true }
                     : ext
                 )}
@@ -135,7 +135,7 @@ export const useNotifications = () => {
           prev.map(notif => ({
             ...notif,
             extension: notif.extension?.map(ext => 
-              ext.url === 'http://medgenemr.com/fhir/StructureDefinition/notification-read'
+              ext.url === 'http://wintehr.com/fhir/StructureDefinition/notification-read'
                 ? { ...ext, valueBoolean: true }
                 : ext
             )
@@ -168,7 +168,7 @@ export const useNotifications = () => {
         if (isForCurrentUser) {
           // Increment count if it's unread
           const isUnread = resource?.extension?.some(
-            ext => ext.url === 'http://medgenemr.com/fhir/StructureDefinition/notification-read' 
+            ext => ext.url === 'http://wintehr.com/fhir/StructureDefinition/notification-read' 
                    && ext.valueBoolean === false
           );
           

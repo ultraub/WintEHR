@@ -26,11 +26,11 @@ export class ClinicalCrossReferenceService {
           resourceType: 'Basic',
           id: `crossref-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           meta: {
-            profile: ['http://medgenemr.com/fhir/StructureDefinition/clinical-cross-reference']
+            profile: ['http://wintehr.com/fhir/StructureDefinition/clinical-cross-reference']
           },
           code: {
             coding: [{
-              system: 'http://medgenemr.com/fhir/CodeSystem/cross-reference-type',
+              system: 'http://wintehr.com/fhir/CodeSystem/cross-reference-type',
               code: 'clinical-documentation-link',
               display: 'Clinical Documentation Link'
             }]
@@ -41,25 +41,25 @@ export class ClinicalCrossReferenceService {
           created: new Date().toISOString(),
           extension: [
             {
-              url: 'http://medgenemr.com/fhir/StructureDefinition/source-document',
+              url: 'http://wintehr.com/fhir/StructureDefinition/source-document',
               valueReference: {
                 reference: `DocumentReference/${documentRef.id}`,
                 display: documentRef.description
               }
             },
             {
-              url: 'http://medgenemr.com/fhir/StructureDefinition/target-resource',
+              url: 'http://wintehr.com/fhir/StructureDefinition/target-resource',
               valueReference: {
                 reference: resourceRef.reference,
                 display: resourceRef.display
               }
             },
             {
-              url: 'http://medgenemr.com/fhir/StructureDefinition/link-type',
+              url: 'http://wintehr.com/fhir/StructureDefinition/link-type',
               valueString: this.determineLinkType(resourceRef)
             },
             {
-              url: 'http://medgenemr.com/fhir/StructureDefinition/link-strength',
+              url: 'http://wintehr.com/fhir/StructureDefinition/link-strength',
               valueString: this.determineLinkStrength(documentRef, resourceRef)
             }
           ]
@@ -92,7 +92,7 @@ export class ClinicalCrossReferenceService {
       // Search for cross-references pointing to this resource
       const crossRefs = await fhirClient.search('Basic', {
         'code': 'clinical-documentation-link',
-        '_profile': 'http://medgenemr.com/fhir/StructureDefinition/clinical-cross-reference'
+        '_profile': 'http://wintehr.com/fhir/StructureDefinition/clinical-cross-reference'
       });
 
       const linkedNotes = [];
@@ -103,13 +103,13 @@ export class ClinicalCrossReferenceService {
           
           // Check if this cross-reference targets our resource
           const targetExtension = crossRef.extension?.find(ext => 
-            ext.url === 'http://medgenemr.com/fhir/StructureDefinition/target-resource'
+            ext.url === 'http://wintehr.com/fhir/StructureDefinition/target-resource'
           );
           
           if (targetExtension?.valueReference?.reference === resourceRef) {
             // Get the source document
             const sourceExtension = crossRef.extension?.find(ext => 
-              ext.url === 'http://medgenemr.com/fhir/StructureDefinition/source-document'
+              ext.url === 'http://wintehr.com/fhir/StructureDefinition/source-document'
             );
             
             if (sourceExtension?.valueReference?.reference) {
@@ -122,10 +122,10 @@ export class ClinicalCrossReferenceService {
                   ...document,
                   crossReference: {
                     linkType: crossRef.extension?.find(ext => 
-                      ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-type'
+                      ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-type'
                     )?.valueString,
                     linkStrength: crossRef.extension?.find(ext => 
-                      ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-strength'
+                      ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-strength'
                     )?.valueString,
                     created: crossRef.created
                   }
@@ -166,7 +166,7 @@ export class ClinicalCrossReferenceService {
       // Search for cross-references from this document
       const crossRefs = await fhirClient.search('Basic', {
         'code': 'clinical-documentation-link',
-        '_profile': 'http://medgenemr.com/fhir/StructureDefinition/clinical-cross-reference'
+        '_profile': 'http://wintehr.com/fhir/StructureDefinition/clinical-cross-reference'
       });
 
       const linkedData = {
@@ -186,13 +186,13 @@ export class ClinicalCrossReferenceService {
           
           // Check if this cross-reference originates from our document
           const sourceExtension = crossRef.extension?.find(ext => 
-            ext.url === 'http://medgenemr.com/fhir/StructureDefinition/source-document'
+            ext.url === 'http://wintehr.com/fhir/StructureDefinition/source-document'
           );
           
           if (sourceExtension?.valueReference?.reference === `DocumentReference/${documentId}`) {
             // Get the target resource
             const targetExtension = crossRef.extension?.find(ext => 
-              ext.url === 'http://medgenemr.com/fhir/StructureDefinition/target-resource'
+              ext.url === 'http://wintehr.com/fhir/StructureDefinition/target-resource'
             );
             
             if (targetExtension?.valueReference?.reference) {
@@ -206,10 +206,10 @@ export class ClinicalCrossReferenceService {
                   ...resource,
                   crossReference: {
                     linkType: crossRef.extension?.find(ext => 
-                      ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-type'
+                      ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-type'
                     )?.valueString,
                     linkStrength: crossRef.extension?.find(ext => 
-                      ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-strength'
+                      ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-strength'
                     )?.valueString,
                     created: crossRef.created
                   }
@@ -293,7 +293,7 @@ export class ClinicalCrossReferenceService {
       const crossRefs = await fhirClient.search('Basic', {
         'subject': `Patient/${patientId}`,
         'code': 'clinical-documentation-link',
-        '_profile': 'http://medgenemr.com/fhir/StructureDefinition/clinical-cross-reference'
+        '_profile': 'http://wintehr.com/fhir/StructureDefinition/clinical-cross-reference'
       });
 
       const reverseIndex = new Map();
@@ -303,10 +303,10 @@ export class ClinicalCrossReferenceService {
           const crossRef = entry.resource;
           
           const sourceExtension = crossRef.extension?.find(ext => 
-            ext.url === 'http://medgenemr.com/fhir/StructureDefinition/source-document'
+            ext.url === 'http://wintehr.com/fhir/StructureDefinition/source-document'
           );
           const targetExtension = crossRef.extension?.find(ext => 
-            ext.url === 'http://medgenemr.com/fhir/StructureDefinition/target-resource'
+            ext.url === 'http://wintehr.com/fhir/StructureDefinition/target-resource'
           );
           
           if (sourceExtension && targetExtension) {
@@ -324,20 +324,20 @@ export class ClinicalCrossReferenceService {
             reverseIndex.get(sourceRef).linkedTo.push({
               reference: targetRef,
               linkType: crossRef.extension?.find(ext => 
-                ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-type'
+                ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-type'
               )?.valueString,
               linkStrength: crossRef.extension?.find(ext => 
-                ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-strength'
+                ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-strength'
               )?.valueString
             });
             
             reverseIndex.get(targetRef).linkedFrom.push({
               reference: sourceRef,
               linkType: crossRef.extension?.find(ext => 
-                ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-type'
+                ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-type'
               )?.valueString,
               linkStrength: crossRef.extension?.find(ext => 
-                ext.url === 'http://medgenemr.com/fhir/StructureDefinition/link-strength'
+                ext.url === 'http://wintehr.com/fhir/StructureDefinition/link-strength'
               )?.valueString
             });
           }
@@ -531,7 +531,7 @@ export class ClinicalCrossReferenceService {
       // Find all cross-references for this document
       const crossRefs = await fhirClient.search('Basic', {
         'code': 'clinical-documentation-link',
-        '_profile': 'http://medgenemr.com/fhir/StructureDefinition/clinical-cross-reference'
+        '_profile': 'http://wintehr.com/fhir/StructureDefinition/clinical-cross-reference'
       });
 
       const toDelete = [];
@@ -541,7 +541,7 @@ export class ClinicalCrossReferenceService {
           const crossRef = entry.resource;
           
           const sourceExtension = crossRef.extension?.find(ext => 
-            ext.url === 'http://medgenemr.com/fhir/StructureDefinition/source-document'
+            ext.url === 'http://wintehr.com/fhir/StructureDefinition/source-document'
           );
           
           if (sourceExtension?.valueReference?.reference === `DocumentReference/${documentId}`) {

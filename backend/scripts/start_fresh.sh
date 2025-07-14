@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fresh start script for MedGenEMR with comprehensive cleanup
+# Fresh start script for WintEHR with comprehensive cleanup
 
 set -e  # Exit on error
 
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "🚀 MedGenEMR Fresh Start Script"
+echo "🚀 WintEHR Fresh Start Script"
 echo "==============================="
 echo ""
 echo "Configuration:"

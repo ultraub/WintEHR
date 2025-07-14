@@ -45,7 +45,7 @@ TRAINING_USERS = {
         "id": "demo-user-001",
         "username": "demo",
         "name": "Demo User",
-        "email": "demo@medgenemr.training",
+        "email": "demo@wintehr.training",
         "role": "physician",
         "permissions": ["read", "write", "admin"],
         "department": "Internal Medicine"
@@ -54,7 +54,7 @@ TRAINING_USERS = {
         "id": "nurse-user-001", 
         "username": "nurse",
         "name": "Nurse User",
-        "email": "nurse@medgenemr.training",
+        "email": "nurse@wintehr.training",
         "role": "nurse",
         "permissions": ["read", "write"],
         "department": "Nursing"
@@ -63,7 +63,7 @@ TRAINING_USERS = {
         "id": "pharmacist-user-001",
         "username": "pharmacist", 
         "name": "Pharmacist User",
-        "email": "pharmacist@medgenemr.training",
+        "email": "pharmacist@wintehr.training",
         "role": "pharmacist",
         "permissions": ["read", "write"],
         "department": "Pharmacy"
@@ -72,7 +72,7 @@ TRAINING_USERS = {
         "id": "admin-user-001",
         "username": "admin",
         "name": "System Admin",
-        "email": "admin@medgenemr.training", 
+        "email": "admin@wintehr.training", 
         "role": "admin",
         "permissions": ["read", "write", "admin", "system"],
         "department": "IT"

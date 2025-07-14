@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the FHIR-compliant authentication system implemented in MedGenEMR. The system uses FHIR Person and Practitioner resources to manage user identity and authentication, providing a standards-based approach to healthcare system authentication.
+This document describes the FHIR-compliant authentication system implemented in WintEHR. The system uses FHIR Person and Practitioner resources to manage user identity and authentication, providing a standards-based approach to healthcare system authentication.
 
 ## Architecture
 
@@ -145,7 +145,7 @@ photo_url VARCHAR(500)           -- Profile photo URL
       "value": "<provider.npi>"
     },
     {
-      "system": "http://medgenemr.local/identifier/user",
+      "system": "http://wintehr.local/identifier/user",
       "value": "<provider.id>"
     }
   ],
@@ -200,8 +200,8 @@ photo_url VARCHAR(500)           -- Profile photo URL
 ```json
 {
   "sub": "practitioner-id",
-  "iss": "http://medgenemr.local/fhir",
-  "aud": "http://medgenemr.local/fhir",
+  "iss": "http://wintehr.local/fhir",
+  "aud": "http://wintehr.local/fhir",
   "exp": 1234567890,
   "iat": 1234567890,
   "practitioner_ref": "Practitioner/123",
@@ -321,7 +321,7 @@ JWT_SECRET_KEY=your-secret-key-change-in-production
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES=480  # 8 hours
 
 # Database
-DATABASE_URL=postgresql://user:pass@localhost/medgenemr
+DATABASE_URL=postgresql://user:pass@localhost/wintehr
 ```
 
 ### Running Migrations

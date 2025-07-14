@@ -109,7 +109,7 @@ class ServiceRequestConverter:
             service_req.code.coding[0].display = code_info['display']
         else:
             # Custom code
-            service_req.code.coding[0].system = data.get('codeSystem', 'http://medgenemr.com/orders')
+            service_req.code.coding[0].system = data.get('codeSystem', 'http://wintehr.com/orders')
             service_req.code.coding[0].code = data.get('code', 'unknown')
             service_req.code.coding[0].display = data.get('display', data.get('code', 'Unknown'))
         
@@ -149,7 +149,7 @@ class ServiceRequestConverter:
         # Identifiers
         if data.get('id'):
             service_req.identifier = [Identifier()]
-            service_req.identifier[0].system = "http://medgenemr.com/servicerequest"
+            service_req.identifier[0].system = "http://wintehr.com/servicerequest"
             service_req.identifier[0].value = str(data['id'])
         
         # Reason
@@ -240,7 +240,7 @@ class ServiceRequestConverter:
         # Extract identifiers
         if service_req.identifier:
             for identifier in service_req.identifier:
-                if identifier.system == "http://medgenemr.com/servicerequest":
+                if identifier.system == "http://wintehr.com/servicerequest":
                     data['externalId'] = identifier.value
         
         return data

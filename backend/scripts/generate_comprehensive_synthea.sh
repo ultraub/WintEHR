@@ -8,7 +8,7 @@ BACKEND_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 SYNTHEA_DIR="$BACKEND_DIR/synthea"
 OUTPUT_DIR="$SYNTHEA_DIR/output/fhir"
 
-echo "🏥 Generating Comprehensive Synthea Data for MedGenEMR"
+echo "🏥 Generating Comprehensive Synthea Data for WintEHR"
 echo "=================================================="
 
 # Check if Synthea is built

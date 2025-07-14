@@ -1,8 +1,8 @@
-# MedGenEMR Development Environment
+# WintEHR Development Environment
 
 ## 🔥 Hot Reload Development Setup
 
-This document describes the hot reload development environment for MedGenEMR, enabling rapid development with automatic recompilation and reloading.
+This document describes the hot reload development environment for WintEHR, enabling rapid development with automatic recompilation and reloading.
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ docker-compose -f docker-compose.dev.yml down
 ## File Structure
 
 ```
-📁 MedGenEMR/
+📁 WintEHR/
 ├── 🐳 docker-compose.dev.yml     # Development configuration
 ├── 📁 backend/
 │   └── 🐳 Dockerfile.dev         # Backend development image
@@ -60,7 +60,7 @@ docker-compose -f docker-compose.dev.yml down
 ```bash
 # Clone repository
 git clone <repository-url>
-cd MedGenEMR
+cd WintEHR
 
 # Start development environment
 ./start-dev.sh
@@ -218,7 +218,7 @@ cd backend && python scripts/synthea_master.py full --count 10
 docker-compose -f docker-compose.dev.yml build
 
 # Use cached node_modules
-docker volume create medgenemr_frontend_node_modules
+docker volume create wintehr_frontend_node_modules
 ```
 
 #### Reduce Resource Usage
@@ -324,4 +324,4 @@ docker-compose -f docker-compose.dev.yml down
 - **Automated Scripts**: One-command setup and testing
 - **Comprehensive Documentation**: Complete development guide
 
-This development environment enables rapid iteration and testing, significantly improving the development experience for MedGenEMR.
+This development environment enables rapid iteration and testing, significantly improving the development experience for WintEHR.

@@ -1,7 +1,7 @@
 # Contexts Module
 
 ## Overview
-The Contexts Module implements React Context API patterns to provide global state management, cross-component communication, and shared functionality throughout MedGenEMR. This module demonstrates advanced state management patterns for healthcare applications.
+The Contexts Module implements React Context API patterns to provide global state management, cross-component communication, and shared functionality throughout WintEHR. This module demonstrates advanced state management patterns for healthcare applications.
 
 ## Architecture
 ```

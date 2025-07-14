@@ -3,7 +3,7 @@
 # =============================================================================
 # Module 06: System Validation
 # =============================================================================
-# Comprehensive validation of the entire MedGenEMR system after deployment
+# Comprehensive validation of the entire WintEHR system after deployment
 
 set -e
 
@@ -88,7 +88,7 @@ mkdir -p logs
 
 # Create validation log file
 echo "==============================================================================" > "$VALIDATION_LOG"
-echo "MedGenEMR System Validation Report - $(date)" >> "$VALIDATION_LOG"
+echo "WintEHR System Validation Report - $(date)" >> "$VALIDATION_LOG"
 echo "Mode: $MODE" >> "$VALIDATION_LOG"
 echo "Expected Patients: $PATIENT_COUNT" >> "$VALIDATION_LOG"
 echo "==============================================================================" >> "$VALIDATION_LOG"

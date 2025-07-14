@@ -288,7 +288,7 @@ export const InboxProvider = ({ children }) => {
         priority: messageData.priority || 'routine',
         category: [{
           coding: [{
-            system: 'http://medgenemr.com/communication-category',
+            system: 'http://wintehr.com/communication-category',
             code: messageData.category || 'notification',
             display: messageData.categoryDisplay || 'Notification'
           }]

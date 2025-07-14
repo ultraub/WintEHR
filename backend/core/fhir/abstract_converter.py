@@ -89,7 +89,7 @@ class AbstractFHIRConverter(ABC):
     def __init__(self,
                  source_version: FHIRVersion = FHIRVersion.R4,
                  target_version: FHIRVersion = FHIRVersion.R5,
-                 system_id: str = "medgenemr",
+                 system_id: str = "wintehr",
                  profile_urls: List[str] = None,
                  validation_pipeline: ValidationPipeline = None):
         """

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Database Schema Validation Script for MedGenEMR
+Database Schema Validation Script for WintEHR
 
 This script validates that all required database tables, indexes, and schemas
-are properly created and configured for MedGenEMR deployment.
+are properly created and configured for WintEHR deployment.
 
 Usage:
     python scripts/validate_database_schema.py [--docker] [--verbose]
@@ -24,7 +24,7 @@ import logging
 
 
 class DatabaseSchemaValidator:
-    """Validates MedGenEMR database schema"""
+    """Validates WintEHR database schema"""
     
     def __init__(self, database_url: str, verbose: bool = False):
         self.database_url = database_url
@@ -339,7 +339,7 @@ class DatabaseSchemaValidator:
 
 
 async def main():
-    parser = argparse.ArgumentParser(description='Validate MedGenEMR database schema')
+    parser = argparse.ArgumentParser(description='Validate WintEHR database schema')
     parser.add_argument('--docker', action='store_true', help='Use Docker postgres hostname')
     parser.add_argument('--verbose', action='store_true', help='Show detailed validation output')
     
@@ -353,7 +353,7 @@ async def main():
     
     validator = DatabaseSchemaValidator(database_url, args.verbose)
     
-    print("🔍 MedGenEMR Database Schema Validation")
+    print("🔍 WintEHR Database Schema Validation")
     print("=" * 50)
     
     # Run validation

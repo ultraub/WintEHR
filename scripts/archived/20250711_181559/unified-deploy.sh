@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# MedGenEMR Unified Deployment Script
+# WintEHR Unified Deployment Script
 # Supports: Local (Docker), AWS, Azure deployments
 # Features: Complete data generation with Organizations, Providers, and clean patient names
 #
@@ -51,7 +51,7 @@ log_section() {
 # Show usage
 usage() {
     cat << EOF
-🏥 MedGenEMR Unified Deployment Script
+🏥 WintEHR Unified Deployment Script
 
 Usage: $0 [OPTIONS]
 
@@ -950,7 +950,7 @@ deploy_azure() {
 # Main deployment orchestration
 main() {
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║          🏥 MedGenEMR Unified Deployment 🏥           ║${NC}"
+    echo -e "${BLUE}║          🏥 WintEHR Unified Deployment 🏥           ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════════════════════╝${NC}"
     echo ""
     
@@ -1006,7 +1006,7 @@ main() {
         
         # Optionally open browser
         if command -v open > /dev/null 2>&1; then
-            log_info "Opening MedGenEMR in browser..."
+            log_info "Opening WintEHR in browser..."
             sleep 2
             open http://localhost
         elif command -v xdg-open > /dev/null 2>&1; then

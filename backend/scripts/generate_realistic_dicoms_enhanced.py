@@ -233,8 +233,8 @@ def create_dicom_dataset(patient_id, patient_name, study_uid, study_date,
     
     # Equipment info
     ds.Modality = modality
-    ds.Manufacturer = 'MedGenEMR'
-    ds.InstitutionName = 'MedGenEMR Teaching Hospital'
+    ds.Manufacturer = 'WintEHR'
+    ds.InstitutionName = 'WintEHR Teaching Hospital'
     ds.StationName = 'EMR001'
     
     # Image info

@@ -162,7 +162,7 @@ Components load in phases:
 - Component generation relies on Claude Code's local instance
 - Falls back to template-based generation if Claude is unavailable
 - All data comes from FHIR APIs - no mock data
-- Generated components follow MedGenEMR patterns
+- Generated components follow WintEHR patterns
 
 ## 🔍 Troubleshooting
 

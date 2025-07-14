@@ -1,5 +1,5 @@
 # Frontend Directory Restructure Plan
-**MedGenEMR - Feature-Based Architecture Implementation**
+**WintEHR - Feature-Based Architecture Implementation**
 
 *Created: 2025-07-13*  
 *Status: Implementation Ready*  

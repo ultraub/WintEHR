@@ -1,7 +1,7 @@
 # Core Infrastructure Module
 
 ## Overview
-The Core Infrastructure Module provides the foundational services and utilities that support all other modules in MedGenEMR. This includes database connectivity, configuration management, logging, error handling, and system-wide utilities.
+The Core Infrastructure Module provides the foundational services and utilities that support all other modules in WintEHR. This includes database connectivity, configuration management, logging, error handling, and system-wide utilities.
 
 ## Architecture
 ```
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
     # Startup
-    logger.info("Starting MedGenEMR application")
+    logger.info("Starting WintEHR application")
     
     # Initialize database
     await init_database()
@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("Shutting down MedGenEMR application")
+    logger.info("Shutting down WintEHR application")
     
     # Close database connections
     await close_database_connections()
@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="MedGenEMR",
+    title="WintEHR",
     description="FHIR-native Electronic Medical Record System",
     version="1.0.0",
     lifespan=lifespan,
@@ -193,7 +193,7 @@ class Settings(BaseSettings):
     """Application settings with validation"""
     
     # Application
-    APP_NAME: str = "MedGenEMR"
+    APP_NAME: str = "WintEHR"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = Field(default=False, env="DEBUG")
     ENVIRONMENT: str = Field(default="development", env="ENVIRONMENT")
@@ -201,7 +201,7 @@ class Settings(BaseSettings):
     # Database
     DB_HOST: str = Field(default="localhost", env="DB_HOST")
     DB_PORT: int = Field(default=5432, env="DB_PORT")
-    DB_NAME: str = Field(default="medgenemr", env="DB_NAME")
+    DB_NAME: str = Field(default="wintehr", env="DB_NAME")
     DB_USER: str = Field(default="postgres", env="DB_USER")
     DB_PASSWORD: str = Field(default="postgres", env="DB_PASSWORD")
     DB_POOL_SIZE: int = Field(default=20, env="DB_POOL_SIZE")

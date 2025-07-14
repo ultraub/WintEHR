@@ -290,7 +290,7 @@ class ImagingToolkit:
             
         logging.info(f"✅ Created {num_instances} DICOM files for study {study.id}")
 def main():
-    parser = argparse.ArgumentParser(description="Imaging and DICOM tools for MedGenEMR")
+    parser = argparse.ArgumentParser(description="Imaging and DICOM tools for WintEHR")
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     

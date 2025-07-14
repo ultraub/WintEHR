@@ -156,4 +156,4 @@ getResourceDisplayText(allergy)
 - Function maintains all existing functionality while being more robust
 
 ## File Location
-Updated file: `/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/frontend/src/components/clinical/workspace/tabs/ChartReviewTab.js`
+Updated file: `/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/WintEHR/frontend/src/components/clinical/workspace/tabs/ChartReviewTab.js`

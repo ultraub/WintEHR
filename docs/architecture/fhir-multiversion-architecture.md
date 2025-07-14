@@ -174,7 +174,7 @@ python migrate_fhir_versions.py analyze --from R4 --to R5
 python migrate_fhir_versions.py test --from R4 --to R5 --sample-size 100
 
 # Step 3: Backup
-pg_dump medgenemr > backup_before_r5.sql
+pg_dump wintehr > backup_before_r5.sql
 
 # Step 4: Migrate with monitoring
 python migrate_fhir_versions.py execute --from R4 --to R5 --batch-size 1000
@@ -349,4 +349,4 @@ This multi-version FHIR architecture provides:
 - ✅ Comprehensive validation and compliance
 - ✅ Future-proof extensibility
 
-The architecture maintains backward compatibility while enabling forward progress, ensuring MedGenEMR can serve diverse client needs across the FHIR version spectrum.
+The architecture maintains backward compatibility while enabling forward progress, ensuring WintEHR can serve diverse client needs across the FHIR version spectrum.

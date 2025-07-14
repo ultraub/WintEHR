@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Fresh start script for MedGenEMR with 30 patients
+# Fresh start script for WintEHR with 30 patients
 # This script clears everything and starts fresh with 30 Synthea patients
 
 set -e  # Exit on error
 
-echo "🧹 MedGenEMR Fresh Start Script - 30 Patients"
+echo "🧹 WintEHR Fresh Start Script - 30 Patients"
 echo "============================================"
 
 # Colors for output

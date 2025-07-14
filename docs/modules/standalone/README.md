@@ -1,6 +1,6 @@
 # Standalone Modules Documentation
 
-This directory contains documentation for standalone modules in the MedGenEMR system - components that operate independently or provide specialized functionality outside the main clinical workflow.
+This directory contains documentation for standalone modules in the WintEHR system - components that operate independently or provide specialized functionality outside the main clinical workflow.
 
 ## Module Categories
 

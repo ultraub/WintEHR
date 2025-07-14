@@ -1,6 +1,6 @@
-# MedGenEMR Deployment Guide
+# WintEHR Deployment Guide
 
-This guide covers deployment options for MedGenEMR on different environments with automated deployment scripts.
+This guide covers deployment options for WintEHR on different environments with automated deployment scripts.
 
 ## 🚀 Quick Deployment Options
 
@@ -49,8 +49,8 @@ This guide covers deployment options for MedGenEMR on different environments wit
 ### AWS EC2 Deployment
 ```bash
 # On fresh EC2 instance (Amazon Linux 2)
-git clone https://github.com/your-org/MedGenEMR.git
-cd MedGenEMR
+git clone https://github.com/your-org/WintEHR.git
+cd WintEHR
 ./deploy.sh --environment aws --patients 10
 
 # Or using AWS-specific compose file
@@ -125,7 +125,7 @@ This option runs PostgreSQL in Docker but the application locally.
    pip install -r requirements.txt
    
    # Update .env for local PostgreSQL access
-   # DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/medgenemr
+   # DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/wintehr
    ```
 
 3. **Initialize database:**
@@ -248,7 +248,7 @@ curl "http://localhost:8000/fhir/R4/Observation?category=vital-signs&_count=5"
 ### Check Database
 ```bash
 # For Docker PostgreSQL
-docker exec emr-postgres psql -U postgres -d medgenemr -c "SELECT COUNT(*) FROM fhir.resources;"
+docker exec emr-postgres psql -U postgres -d wintehr -c "SELECT COUNT(*) FROM fhir.resources;"
 
 # For local PostgreSQL
 psql -d emr_db -c "SELECT COUNT(*) FROM fhir.resources;"

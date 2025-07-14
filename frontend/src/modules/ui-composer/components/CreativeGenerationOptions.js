@@ -38,7 +38,7 @@ const CreativeGenerationOptions = ({ value, onChange, disabled }) => {
     {
       value: 'mixed',
       label: 'Smart Mix',
-      description: 'Combine existing MedGenEMR components with AI-generated parts',
+      description: 'Combine existing WintEHR components with AI-generated parts',
       icon: <MergeIcon />,
       benefits: ['Faster generation', 'Consistent with app', 'Lower cost'],
       drawbacks: ['Less creative freedom'],

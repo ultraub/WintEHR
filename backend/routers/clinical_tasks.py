@@ -93,7 +93,7 @@ async def create_task(
     if task.task_type:
         fhir_task["code"] = {
             "coding": [{
-                "system": "http://medgenemr.com/fhir/task-type",
+                "system": "http://wintehr.com/fhir/task-type",
                 "code": task.task_type,
                 "display": task.task_type.replace("-", " ").title()
             }]

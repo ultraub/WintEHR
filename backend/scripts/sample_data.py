@@ -182,7 +182,7 @@ class SampleDataGenerator:
                 
         logging.info(f"✅ Created {created} sample communications")
 def main():
-    parser = argparse.ArgumentParser(description="Generate sample data for MedGenEMR")
+    parser = argparse.ArgumentParser(description="Generate sample data for WintEHR")
     parser.add_argument('--patients', type=int, default=0, help='Number of sample patients to create')
     parser.add_argument('--providers', type=int, default=0, help='Number of sample providers to create')
     parser.add_argument('--communications', type=int, default=0, help='Number of sample communications to create')

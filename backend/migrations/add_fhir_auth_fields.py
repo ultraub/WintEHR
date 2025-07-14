@@ -11,7 +11,7 @@ import logging
 
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/medgenemr")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/wintehr")
 
 Base = declarative_base()
 

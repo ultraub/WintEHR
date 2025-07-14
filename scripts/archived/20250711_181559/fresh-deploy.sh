@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MedGenEMR Fresh Deployment Script
+# WintEHR Fresh Deployment Script
 # Complete clean deployment with realistic DICOM and imaging reports
 
 set -e
@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}================================================${NC}"
-echo -e "${BLUE}     MedGenEMR Fresh Deployment${NC}"
+echo -e "${BLUE}     WintEHR Fresh Deployment${NC}"
 echo -e "${BLUE}================================================${NC}"
 
 # Check if Docker is running
@@ -170,7 +170,7 @@ docker-compose exec -T frontend sh -c "cp -r /app/build/* /usr/share/nginx/html/
 
 # Display access information
 echo -e "${GREEN}================================================${NC}"
-echo -e "${GREEN}🎉 MedGenEMR Fresh Deployment Complete!${NC}"
+echo -e "${GREEN}🎉 WintEHR Fresh Deployment Complete!${NC}"
 echo -e "${GREEN}================================================${NC}"
 echo ""
 echo -e "${BLUE}📋 Access Points:${NC}"
@@ -194,7 +194,7 @@ echo ""
 
 # Optional: Open browser
 if command -v open > /dev/null 2>&1; then
-    echo -e "${BLUE}🌐 Opening MedGenEMR in browser...${NC}"
+    echo -e "${BLUE}🌐 Opening WintEHR in browser...${NC}"
     sleep 2
     open http://localhost
 elif command -v xdg-open > /dev/null 2>&1; then

@@ -163,7 +163,7 @@ Requirements:
 1. Use Material-UI (@mui/material) for UI components
 2. Use the useFHIRResources or usePatientResources hooks for data fetching
 3. Include proper loading and error states
-4. Use the MedGenEMR patterns (no console.log, proper error handling)
+4. Use the WintEHR patterns (no console.log, proper error handling)
 5. Make components responsive and accessible
 6. Include TypeScript-style prop validation with PropTypes
 
@@ -171,7 +171,7 @@ Generate a complete, working React component that:
 - Fetches the required FHIR data
 - Displays it according to the specification
 - Handles all edge cases (loading, errors, empty data)
-- Follows MedGenEMR coding standards
+- Follows WintEHR coding standards
 
 Return only the component code without markdown code blocks."""
         

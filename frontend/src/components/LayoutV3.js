@@ -327,7 +327,7 @@ function LayoutV3({ children }) {
       {/* Logo/Brand */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          MedGenEMR
+          WintEHR
         </Typography>
         <Typography variant="caption" color="text.secondary">
           FHIR-Native Clinical Platform

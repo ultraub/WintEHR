@@ -1,5 +1,5 @@
 # BaseResourceDialog Design Specification
-**MedGenEMR Frontend - Comprehensive Dialog Abstraction Architecture**
+**WintEHR Frontend - Comprehensive Dialog Abstraction Architecture**
 
 *Design Date: 2025-07-13*  
 *Based On: Dialog Component Analysis Report*  

@@ -74,7 +74,7 @@ async def get_notification_count(
             is_read = False
             if comm.extension:
                 for ext in comm.extension:
-                    if ext.url == "http://medgenemr.com/fhir/StructureDefinition/notification-read":
+                    if ext.url == "http://wintehr.com/fhir/StructureDefinition/notification-read":
                         is_read = ext.valueBoolean or False
                         break
             
@@ -117,7 +117,7 @@ async def get_notifications(
         is_read = False
         if comm.extension:
             for ext in comm.extension:
-                if ext.url == "http://medgenemr.com/fhir/StructureDefinition/notification-read":
+                if ext.url == "http://wintehr.com/fhir/StructureDefinition/notification-read":
                     is_read = ext.valueBoolean or False
                     break
         
@@ -173,14 +173,14 @@ async def mark_notification_read(
             comm.extension = []
         
         for ext in comm.extension:
-            if ext.url == "http://medgenemr.com/fhir/StructureDefinition/notification-read":
+            if ext.url == "http://wintehr.com/fhir/StructureDefinition/notification-read":
                 ext.valueBoolean = True
                 read_ext_found = True
                 break
         
         if not read_ext_found:
             comm.extension.append(Extension(
-                url="http://medgenemr.com/fhir/StructureDefinition/notification-read",
+                url="http://wintehr.com/fhir/StructureDefinition/notification-read",
                 valueBoolean=True
             ))
         
@@ -233,7 +233,7 @@ async def mark_all_notifications_read(
             is_read = False
             if comm.extension:
                 for ext in comm.extension:
-                    if ext.url == "http://medgenemr.com/fhir/StructureDefinition/notification-read":
+                    if ext.url == "http://wintehr.com/fhir/StructureDefinition/notification-read":
                         is_read = ext.valueBoolean or False
                         break
             
@@ -244,14 +244,14 @@ async def mark_all_notifications_read(
                 
                 read_ext_found = False
                 for ext in comm.extension:
-                    if ext.url == "http://medgenemr.com/fhir/StructureDefinition/notification-read":
+                    if ext.url == "http://wintehr.com/fhir/StructureDefinition/notification-read":
                         ext.valueBoolean = True
                         read_ext_found = True
                         break
                 
                 if not read_ext_found:
                     comm.extension.append(Extension(
-                        url="http://medgenemr.com/fhir/StructureDefinition/notification-read",
+                        url="http://wintehr.com/fhir/StructureDefinition/notification-read",
                         valueBoolean=True
                     ))
                 
@@ -304,7 +304,7 @@ async def create_notification(
         ],
         "extension": [
             {
-                "url": "http://medgenemr.com/fhir/StructureDefinition/notification-read",
+                "url": "http://wintehr.com/fhir/StructureDefinition/notification-read",
                 "valueBoolean": False
             }
         ]

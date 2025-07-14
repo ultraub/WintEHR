@@ -200,7 +200,7 @@ class QueryDrivenGenerator:
             # Template mode - minimal imports
             component_code.append(self._generate_template_mode_imports())
         else:
-            # Mixed mode - balanced imports with MedGenEMR integration
+            # Mixed mode - balanced imports with WintEHR integration
             component_code.append(self._generate_mixed_mode_imports(required_imports))
         
         component_code.append("")
@@ -663,7 +663,7 @@ class QueryDrivenGenerator:
             "import { useSpring, animated } from '@react-spring/web';"
         ]
         
-        # Add MedGenEMR hooks for FHIR data
+        # Add WintEHR hooks for FHIR data
         imports.extend([
             "import { usePatientResources } from '../../../hooks/useFHIRResources';",
             "import { useFHIRClient } from '../../../contexts/FHIRClientContext';",
@@ -674,7 +674,7 @@ class QueryDrivenGenerator:
         return "\n".join(imports)
     
     def _generate_mixed_mode_imports(self, required_imports: Set[str]) -> str:
-        """Generate imports for mixed mode with MedGenEMR integration"""
+        """Generate imports for mixed mode with WintEHR integration"""
         imports = [
             "import React, { useState, useEffect, useMemo } from 'react';",
             "import { Box, Card, CardContent, Typography, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Alert, CircularProgress, IconButton, Tooltip } from '@mui/material';",
@@ -682,7 +682,7 @@ class QueryDrivenGenerator:
             "import { format, parseISO } from 'date-fns';",
             "import { TrendingUp, TrendingDown, Warning, CheckCircle } from '@mui/icons-material';",
             "",
-            "// MedGenEMR imports",
+            "// WintEHR imports",
             "import { usePatientResources } from '../../../hooks/useFHIRResources';",
             "import { useFHIRClient } from '../../../contexts/FHIRClientContext';",
             "import { fhirService } from '../../../services/fhirService';"
@@ -750,7 +750,7 @@ class QueryDrivenGenerator:
         return "\n".join(state_vars)
     
     def _generate_mixed_mode_state(self, query_results: Dict[str, QueryResult], data_structure: DataStructure) -> str:
-        """Generate state management for mixed mode using MedGenEMR patterns"""
+        """Generate state management for mixed mode using WintEHR patterns"""
         state_vars = []
         
         # Extract resource types
@@ -759,7 +759,7 @@ class QueryDrivenGenerator:
             if result.resource_type:
                 resource_types.add(result.resource_type)
         
-        # Use standard MedGenEMR hooks
+        # Use standard WintEHR hooks
         state_vars.append("  // FHIR data hooks")
         for resource_type in resource_types:
             state_vars.append(f"  const {{ resources: {resource_type.lower()}s, loading: loading{resource_type} }} = usePatientResources(patientId, '{resource_type}');")

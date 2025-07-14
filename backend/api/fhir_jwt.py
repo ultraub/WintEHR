@@ -44,8 +44,8 @@ def create_fhir_access_token(
     # Create FHIR-compliant token data
     token_data = {
         "sub": practitioner_id,
-        "iss": "http://medgenemr.local/fhir",
-        "aud": "http://medgenemr.local/fhir",
+        "iss": "http://wintehr.local/fhir",
+        "aud": "http://wintehr.local/fhir",
         "exp": expire,
         "iat": datetime.utcnow(),
         "practitioner_ref": f"Practitioner/{practitioner_id}",
@@ -59,7 +59,7 @@ def create_fhir_access_token(
         token_data["context"]["organization"] = organization_id
     
     # Add SMART on FHIR claims
-    token_data["smart_style"] = "https://medgenemr.local/smart-style.json"
+    token_data["smart_style"] = "https://wintehr.local/smart-style.json"
     token_data["need_patient_banner"] = True
     
     encoded_jwt = jwt.encode(token_data, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
@@ -73,7 +73,7 @@ def decode_fhir_access_token(token: str) -> Dict[str, Any]:
             token, 
             JWT_SECRET_KEY, 
             algorithms=[JWT_ALGORITHM],
-            audience="http://medgenemr.local/fhir"
+            audience="http://wintehr.local/fhir"
         )
         return payload
     except jwt.ExpiredSignatureError:

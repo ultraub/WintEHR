@@ -1,9 +1,9 @@
 #\!/bin/bash
-# Complete initialization script for MedGenEMR with all features
+# Complete initialization script for WintEHR with all features
 
 set -e  # Exit on error
 
-echo "🚀 MedGenEMR Complete System Initialization"
+echo "🚀 WintEHR Complete System Initialization"
 echo "==========================================="
 
 # Database initialization with proper permissions

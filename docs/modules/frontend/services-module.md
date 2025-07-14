@@ -1,7 +1,7 @@
 # Services Module
 
 ## Overview
-The Services Module provides the core business logic layer for MedGenEMR, encapsulating all API interactions, data transformations, and external service integrations. This module demonstrates clean architecture principles with clear separation of concerns.
+The Services Module provides the core business logic layer for WintEHR, encapsulating all API interactions, data transformations, and external service integrations. This module demonstrates clean architecture principles with clear separation of concerns.
 
 ## Architecture
 ```

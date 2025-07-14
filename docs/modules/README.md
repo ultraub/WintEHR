@@ -1,7 +1,7 @@
-# MedGenEMR Module Documentation
+# WintEHR Module Documentation
 
 ## Overview
-This directory contains comprehensive documentation for MedGenEMR's modular architecture. Instead of documenting individual files, we've organized the documentation by functional modules, providing a higher-level view of the system architecture and making the documentation more maintainable.
+This directory contains comprehensive documentation for WintEHR's modular architecture. Instead of documenting individual files, we've organized the documentation by functional modules, providing a higher-level view of the system architecture and making the documentation more maintainable.
 
 ## Documentation Structure
 
@@ -301,4 +301,4 @@ await websocket_manager.broadcast({
 
 ---
 
-*This modular documentation approach provides a maintainable, high-level view of MedGenEMR's architecture while serving as both a technical reference and educational resource.*
+*This modular documentation approach provides a maintainable, high-level view of WintEHR's architecture while serving as both a technical reference and educational resource.*

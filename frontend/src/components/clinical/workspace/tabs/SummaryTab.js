@@ -211,19 +211,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     return relationships[patientId] ? getPatientResources(patientId, 'AllergyIntolerance') || [] : [];
   }, [patientId, relationships, getPatientResources]);
 
-  // DEBUG: Log component props and context
-  console.log('DEBUG SummaryTab - Component rendered with:', {
-    patientId,
-    currentPatient: currentPatient?.id,
-    hasRelationships: !!relationships[patientId],
-    relationshipKeys: relationships[patientId] ? Object.keys(relationships[patientId]) : [],
-    // hookResourcesCount: hookResources?.length || 0,
-    // hookLoading,
-    allRelationships: Object.keys(relationships),
-    conditionsInState: conditions.length,
-    medicationsInState: medications.length,
-    observationsInState: observations.length
-  });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -238,22 +225,13 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
   // Define loadDashboardData function before it's used
   const loadDashboardData = useCallback(async () => {
-    // Prevent recursive calls if already loading
-    if (loading) {
-      console.log('DEBUG SummaryTab - Already loading, skipping loadDashboardData');
-      return;
-    }
-    
     try {
       setLoading(true);
       
-      // DEBUG: Track patient ID and relationships
-      console.log('DEBUG SummaryTab - loadDashboardData called with patientId:', patientId);
       
       // Check if we have relationships by calling getPatientResources with a test resource type
       const testResources = getPatientResources(patientId, 'Patient');
       if (!testResources || testResources.length === 0) {
-        console.log('DEBUG SummaryTab - No patient data available for patient:', patientId);
         setStats({
           activeProblems: 0,
           activeMedications: 0,
@@ -271,14 +249,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       const encountersData = getPatientResources(patientId, 'Encounter') || [];
       const allergiesData = getPatientResources(patientId, 'AllergyIntolerance') || [];
       
-      // DEBUG: Log resource counts
-      console.log('DEBUG SummaryTab - Resource counts:', {
-        conditions: conditionsData.length,
-        medications: medicationsData.length,
-        observations: observationsData.length,
-        encounters: encountersData.length,
-        allergies: allergiesData.length
-      });
 
       // Calculate stats using resilient field access utilities
       const activeConditions = conditionsData.filter(isConditionActive);
@@ -349,22 +319,18 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [patientId, getPatientResources, onNotificationUpdate, loading]);
+  }, [patientId, getPatientResources, onNotificationUpdate]);
 
   // Load all patient data - only when patientId changes or when patient data becomes available
   useEffect(() => {
-    if (patientId && currentPatient && currentPatient.id === patientId && !loading) {
-      console.log('DEBUG SummaryTab - Loading dashboard data for patient:', patientId);
-      console.log('DEBUG SummaryTab - Relationships available:', !!relationships[patientId]);
-      
+    if (patientId && currentPatient && currentPatient.id === patientId) {
       // Always call loadDashboardData - it will handle the case where no relationships exist
       loadDashboardData();
-    } else if (patientId && !loading) {
-      console.log('DEBUG SummaryTab - Waiting for patient data to load. CurrentPatient:', currentPatient?.id, 'PatientId:', patientId);
+    } else if (patientId && !currentPatient) {
       // If we don't have the current patient yet, keep loading state
       setLoading(true);
     }
-  }, [patientId, currentPatient?.id, loading]); // Add loading to prevent loops
+  }, [patientId, currentPatient?.id, relationships]);
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -496,7 +462,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const { recentConditions, recentMedications, recentLabs, recentEncounters } = processedData;
 
   if (loading && !refreshing) {
-    console.log('DEBUG SummaryTab - Showing loading state');
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>Loading patient data...</Typography>

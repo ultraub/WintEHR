@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Startup script for MedGenEMR FHIR-native implementation
+# Startup script for WintEHR FHIR-native implementation
 
-echo "🚀 Starting MedGenEMR FHIR-native implementation"
+echo "🚀 Starting WintEHR FHIR-native implementation"
 echo "=============================================="
 
 # Check if .env file exists
@@ -10,7 +10,7 @@ if [ ! -f .env ]; then
     echo "Creating .env file from example..."
     cat > .env << EOF
 # Database
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/medgenemr
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/wintehr
 
 # Security
 JWT_SECRET=your-secret-key-change-in-production-$(openssl rand -hex 32)

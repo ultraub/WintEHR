@@ -155,7 +155,7 @@ class DocumentReferenceConverter:
         if data.get('id'):
             doc_ref_dict["identifier"] = [
                 {
-                    "system": "http://medgenemr.com/documentreference",
+                    "system": "http://wintehr.com/documentreference",
                     "value": str(data['id'])
                 }
             ]
@@ -297,7 +297,7 @@ class DocumentReferenceConverter:
         # Extract identifiers
         if doc_ref.identifier:
             for identifier in doc_ref.identifier:
-                if identifier.system == "http://medgenemr.com/documentreference":
+                if identifier.system == "http://wintehr.com/documentreference":
                     data['externalId'] = identifier.value
         
         return data

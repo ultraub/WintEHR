@@ -417,7 +417,7 @@ describe('Comprehensive Medication Management', () => {
           id: testPatientId,
           birthDate: '1940-01-01', // 84 years old
           extension: [{
-            url: 'http://medgenemr.com/fhir/StructureDefinition/renal-function',
+            url: 'http://wintehr.com/fhir/StructureDefinition/renal-function',
             valueQuantity: { value: 45, unit: 'mL/min/1.73m2' }
           }]
         }

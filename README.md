@@ -1,4 +1,4 @@
-# MedGenEMR - Modern FHIR-Native Electronic Medical Records System
+# WintEHR - Modern FHIR-Native Electronic Medical Records System
 
 A comprehensive, educational EMR system built with React and FastAPI, featuring full FHIR R4 compliance, real-time clinical workflows, and modern medical imaging support.
 
@@ -11,8 +11,8 @@ A comprehensive, educational EMR system built with React and FastAPI, featuring 
 **One Command Setup:**
 ```bash
 # Clone and start everything
-git clone https://github.com/yourusername/MedGenEMR.git
-cd MedGenEMR
+git clone https://github.com/yourusername/WintEHR.git
+cd WintEHR
 
 # Complete deployment with patient data and DICOM images
 ./deploy.sh
@@ -80,7 +80,7 @@ cd MedGenEMR
 **Modern Container-Based Architecture:**
 
 ```
-MedGenEMR/
+WintEHR/
 ├── frontend/                   # React SPA (Port 3000)
 │   ├── src/components/clinical # Clinical workspace components
 │   ├── src/services/          # FHIR client and API services  
@@ -197,7 +197,7 @@ python backend/scripts/synthea_master.py import    # Import existing data
 ```bash
 # On fresh EC2 instance
 git clone <repo-url>
-cd MedGenEMR
+cd WintEHR
 ./deploy.sh --environment aws --patients 25
 
 # With AWS-specific optimizations

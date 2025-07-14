@@ -258,13 +258,13 @@ async def update_pharmacy_status(
         pharmacy_ext = None
         
         for ext in extensions:
-            if ext.get('url') == 'http://medgenemr.com/fhir/StructureDefinition/pharmacy-status':
+            if ext.get('url') == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
                 pharmacy_ext = ext
                 break
         
         if not pharmacy_ext:
             pharmacy_ext = {
-                "url": "http://medgenemr.com/fhir/StructureDefinition/pharmacy-status",
+                "url": "http://wintehr.com/fhir/StructureDefinition/pharmacy-status",
                 "extension": []
             }
             extensions.append(pharmacy_ext)
@@ -467,7 +467,7 @@ def _get_pharmacy_status(medication_request: Dict[str, Any]) -> str:
     extensions = medication_request.get('extension', [])
     
     for ext in extensions:
-        if ext.get('url') == 'http://medgenemr.com/fhir/StructureDefinition/pharmacy-status':
+        if ext.get('url') == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
             for sub_ext in ext.get('extension', []):
                 if sub_ext.get('url') == 'status':
                     return sub_ext.get('valueString', 'pending')

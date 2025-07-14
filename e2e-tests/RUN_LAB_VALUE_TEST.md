@@ -4,7 +4,7 @@
 
 1. **Open Terminal** and navigate to the e2e-tests directory:
 ```bash
-cd "/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/e2e-tests"
+cd "/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/WintEHR/e2e-tests"
 ```
 
 2. **Run the visual test**:

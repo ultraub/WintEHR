@@ -8,7 +8,7 @@
 
 ## 📋 Overview
 
-This document outlines the implementation plan for completing core clinical workflows in MedGenEMR based on 2024 primary care best practices. 
+This document outlines the implementation plan for completing core clinical workflows in WintEHR based on 2024 primary care best practices. 
 
 **🚨 CRITICAL NOTICE**: Systematic infrastructure errors have been identified that create **patient safety risks** and system instability. **Phase 0: System Stabilization** is now **MANDATORY** and **BLOCKS ALL OTHER DEVELOPMENT** until resolved.
 

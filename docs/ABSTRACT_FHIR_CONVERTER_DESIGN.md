@@ -1,5 +1,5 @@
 # AbstractFHIRConverter Design Specification
-**MedGenEMR Backend - Comprehensive Converter Abstraction Architecture**
+**WintEHR Backend - Comprehensive Converter Abstraction Architecture**
 
 *Design Date: 2025-07-13*  
 *Based On: Converter Pattern Analysis Report*  
@@ -95,7 +95,7 @@ class AbstractFHIRConverter(ABC):
                  source_version: FHIRVersion = FHIRVersion.R4,
                  target_version: FHIRVersion = FHIRVersion.R5,
                  validation_level: ValidationLevel = ValidationLevel.STRICT,
-                 system_id: str = "medgenemr",
+                 system_id: str = "wintehr",
                  profile_urls: List[str] = None):
         """
         Initialize converter with version and validation settings.

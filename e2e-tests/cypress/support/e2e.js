@@ -1,4 +1,4 @@
-// MedGenEMR E2E Test Support
+// WintEHR E2E Test Support
 import './commands';
 
 // Global configuration

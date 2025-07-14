@@ -7,7 +7,7 @@
 
 ## 🎯 Overview
 
-This document provides comprehensive guidance on using the clinical workflow features implemented in MedGenEMR. All features are production-ready and follow FHIR R4 standards with integrated clinical decision support.
+This document provides comprehensive guidance on using the clinical workflow features implemented in WintEHR. All features are production-ready and follow FHIR R4 standards with integrated clinical decision support.
 
 ## 📋 Phase Summary
 
@@ -399,4 +399,4 @@ frontend/src/utils/
 
 ---
 
-**Remember**: All features are production-ready and follow MedGenEMR coding standards. Report any issues through the established workflow validation system.
+**Remember**: All features are production-ready and follow WintEHR coding standards. Report any issues through the established workflow validation system.

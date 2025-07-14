@@ -24,7 +24,7 @@ ORDER_SETS = [
         "status": "active",
         "subjectType": ["Patient"],
         "code": [{
-            "system": "http://medgenemr.com/order-set-type",
+            "system": "http://wintehr.com/order-set-type",
             "code": "admission-basic",
             "display": "Basic Admission Orders"
         }],
@@ -42,7 +42,7 @@ ORDER_SETS = [
                     "display": "Comprehensive metabolic 2000 panel - Serum or Plasma"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -59,7 +59,7 @@ ORDER_SETS = [
                     "display": "Complete blood count (hemogram) panel - Blood by Automated count"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -76,7 +76,7 @@ ORDER_SETS = [
                     "display": "Chest X-ray"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "imaging"
                 }]
             }
@@ -90,7 +90,7 @@ ORDER_SETS = [
         "status": "active",
         "subjectType": ["Patient"],
         "code": [{
-            "system": "http://medgenemr.com/order-set-type",
+            "system": "http://wintehr.com/order-set-type",
             "code": "cardiac-workup",
             "display": "Cardiac Workup"
         }],
@@ -109,11 +109,11 @@ ORDER_SETS = [
                 }],
                 "extension": [
                     {
-                        "url": "http://medgenemr.com/order-type",
+                        "url": "http://wintehr.com/order-type",
                         "valueCode": "laboratory"
                     },
                     {
-                        "url": "http://medgenemr.com/order-frequency",
+                        "url": "http://wintehr.com/order-frequency",
                         "valueString": "q8h x 3"
                     }
                 ]
@@ -131,7 +131,7 @@ ORDER_SETS = [
                     "display": "Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -149,11 +149,11 @@ ORDER_SETS = [
                 }],
                 "extension": [
                     {
-                        "url": "http://medgenemr.com/order-type",
+                        "url": "http://wintehr.com/order-type",
                         "valueCode": "procedure"
                     },
                     {
-                        "url": "http://medgenemr.com/order-priority",
+                        "url": "http://wintehr.com/order-priority",
                         "valueCode": "stat"
                     }
                 ]
@@ -168,7 +168,7 @@ ORDER_SETS = [
         "status": "active",
         "subjectType": ["Patient"],
         "code": [{
-            "system": "http://medgenemr.com/order-set-type",
+            "system": "http://wintehr.com/order-set-type",
             "code": "diabetes-monitoring",
             "display": "Diabetes Monitoring"
         }],
@@ -186,7 +186,7 @@ ORDER_SETS = [
                     "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -203,7 +203,7 @@ ORDER_SETS = [
                     "display": "Fasting glucose [Mass/volume] in Serum or Plasma"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -220,7 +220,7 @@ ORDER_SETS = [
                     "display": "Lipid panel with direct LDL - Serum or Plasma"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             },
@@ -237,7 +237,7 @@ ORDER_SETS = [
                     "display": "Microalbumin [Mass/volume] in Urine"
                 }],
                 "extension": [{
-                    "url": "http://medgenemr.com/order-type",
+                    "url": "http://wintehr.com/order-type",
                     "valueCode": "laboratory"
                 }]
             }
@@ -251,7 +251,7 @@ ORDER_SETS = [
         "status": "active",
         "subjectType": ["Patient"],
         "code": [{
-            "system": "http://medgenemr.com/order-set-type",
+            "system": "http://wintehr.com/order-set-type",
             "code": "sepsis-bundle",
             "display": "Sepsis Bundle"
         }],
@@ -270,11 +270,11 @@ ORDER_SETS = [
                 }],
                 "extension": [
                     {
-                        "url": "http://medgenemr.com/order-type",
+                        "url": "http://wintehr.com/order-type",
                         "valueCode": "laboratory"
                     },
                     {
-                        "url": "http://medgenemr.com/order-priority",
+                        "url": "http://wintehr.com/order-priority",
                         "valueCode": "stat"
                     }
                 ]
@@ -293,11 +293,11 @@ ORDER_SETS = [
                 }],
                 "extension": [
                     {
-                        "url": "http://medgenemr.com/order-type",
+                        "url": "http://wintehr.com/order-type",
                         "valueCode": "laboratory"
                     },
                     {
-                        "url": "http://medgenemr.com/order-priority",
+                        "url": "http://wintehr.com/order-priority",
                         "valueCode": "urgent"
                     }
                 ]
@@ -316,11 +316,11 @@ ORDER_SETS = [
                 }],
                 "extension": [
                     {
-                        "url": "http://medgenemr.com/order-type",
+                        "url": "http://wintehr.com/order-type",
                         "valueCode": "medication"
                     },
                     {
-                        "url": "http://medgenemr.com/order-priority",
+                        "url": "http://wintehr.com/order-priority",
                         "valueCode": "stat"
                     }
                 ]
@@ -340,7 +340,7 @@ async def create_order_set(order_set_data):
         "description": order_set_data["description"],
         "subjectType": order_set_data["subjectType"],
         "date": datetime.now().isoformat(),
-        "publisher": "MedGenEMR",
+        "publisher": "WintEHR",
         "code": order_set_data.get("code", []),
         "item": order_set_data["item"]
     }

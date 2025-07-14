@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-MedGenEMR Deployment Validation Script
+WintEHR Deployment Validation Script
 
-This script validates that the MedGenEMR deployment is working correctly,
+This script validates that the WintEHR deployment is working correctly,
 including database schema, FHIR API endpoints, and core functionality.
 
 Usage:
@@ -23,7 +23,7 @@ from datetime import datetime
 
 
 class DeploymentValidator:
-    """Validates MedGenEMR deployment components."""
+    """Validates WintEHR deployment components."""
     
     def __init__(self, use_docker=False, verbose=False):
         self.use_docker = use_docker
@@ -264,7 +264,7 @@ class DeploymentValidator:
     
     async def run_validation(self):
         """Run complete validation suite."""
-        self.log("Starting MedGenEMR deployment validation...")
+        self.log("Starting WintEHR deployment validation...")
         
         validations = [
             ("Database Schema", self.validate_database_schema()),
@@ -296,7 +296,7 @@ class DeploymentValidator:
         
         if passed == total:
             self.log(f"🎉 All validations passed ({passed}/{total})", "SUCCESS")
-            self.log("MedGenEMR deployment is ready for use!", "SUCCESS")
+            self.log("WintEHR deployment is ready for use!", "SUCCESS")
             return True
         else:
             self.log(f"❌ {total - passed} validation(s) failed ({passed}/{total})", "ERROR")
@@ -305,7 +305,7 @@ class DeploymentValidator:
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Validate MedGenEMR deployment")
+    parser = argparse.ArgumentParser(description="Validate WintEHR deployment")
     parser.add_argument("--docker", action="store_true", help="Use docker connection settings")
     parser.add_argument("--verbose", action="store_true", help="Show detailed output")
     
