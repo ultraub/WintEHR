@@ -771,7 +771,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     if (patientId) {
       loadUnacknowledgedCount();
     }
-  }, [patientId, observations]);
+  }, [patientId]); // Only depend on patientId, not observations array
 
   // Load patient conditions and care plan for lab-to-care integration
   useEffect(() => {
