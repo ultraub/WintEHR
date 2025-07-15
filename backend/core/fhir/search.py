@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple, Any, Optional, Set
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from .reference_utils import ReferenceUtils
+from .composite_search import CompositeSearchHandler
 
 
 class SearchParameterHandler:
@@ -56,6 +57,7 @@ class SearchParameterHandler:
                 Format: {resource_type: {param_name: param_definition}}
         """
         self.definitions = search_parameter_definitions or {}
+        self.composite_handler = CompositeSearchHandler()
     
     def parse_search_params(
         self,
@@ -174,6 +176,10 @@ class SearchParameterHandler:
                 where_clause = self._build_special_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
+            elif param_type == 'composite':
+                where_clause = self._build_composite_clause(
+                    resource_type, param_data['name'], values, modifier, param_counter, sql_params
+                )
             else:
                 continue
             
@@ -255,6 +261,15 @@ class SearchParameterHandler:
         else:
             base_param = param_name
             modifier = None
+        
+        # Check if this is a composite parameter
+        if self.composite_handler.is_composite_parameter(resource_type, base_param):
+            return {
+                'name': base_param,
+                'type': 'composite',
+                'modifier': modifier,
+                'values': param_values  # Keep raw values for composite handler
+            }
         
         # Get parameter type
         param_type = self._get_parameter_type(resource_type, base_param)
@@ -904,3 +919,142 @@ class SearchParameterHandler:
             """)
         
         return f"({' OR '.join(conditions)})"
+    
+    def _build_composite_clause(
+        self,
+        resource_type: str,
+        param_name: str,
+        values: List[Any],
+        modifier: Optional[str],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for composite search parameters."""
+        # Use the CompositeSearchHandler to build the JSONB query
+        conditions = []
+        
+        for i, value in enumerate(values):
+            if isinstance(value, str):
+                # Parse composite value
+                parsed_values = self.composite_handler.parse_composite_value(value)
+                
+                # Build JSONB conditions based on resource type and parameter
+                if resource_type == "Observation" and param_name == "code-value-quantity":
+                    # Example: code-value-quantity=http://loinc.org|8480-6$gt140
+                    if len(parsed_values) >= 2:
+                        code = parsed_values[0]
+                        quantity_expr = parsed_values[1]
+                        
+                        # Parse quantity expression
+                        comparator = 'eq'
+                        number_str = quantity_expr
+                        
+                        # Check for comparator prefixes
+                        for comp in ['gt', 'ge', 'lt', 'le', 'eq', 'ne']:
+                            if quantity_expr.startswith(comp):
+                                comparator = comp
+                                number_str = quantity_expr[len(comp):]
+                                break
+                        
+                        try:
+                            number = float(number_str)
+                        except ValueError:
+                            continue
+                        
+                        # Build JSONB condition
+                        code_key = f"comp_code_{counter}_{i}"
+                        value_key = f"comp_value_{counter}_{i}"
+                        sql_params[code_key] = code
+                        sql_params[value_key] = number
+                        
+                        # Build the appropriate comparison
+                        comp_op = {
+                            'gt': '>',
+                            'ge': '>=',
+                            'lt': '<',
+                            'le': '<=',
+                            'eq': '=',
+                            'ne': '!='
+                        }.get(comparator, '=')
+                        
+                        condition = f"""
+                            (EXISTS (
+                                SELECT 1 FROM jsonb_array_elements(r.resource->'code'->'coding') AS coding
+                                WHERE coding->>'code' = :{code_key}
+                            ) AND (r.resource->'valueQuantity'->>'value')::numeric {comp_op} :{value_key})
+                        """
+                        conditions.append(condition)
+                        
+                elif resource_type == "Observation" and param_name == "component-code-value-quantity":
+                    # Component composite search
+                    if len(parsed_values) >= 2:
+                        code = parsed_values[0]
+                        quantity_expr = parsed_values[1]
+                        
+                        # Parse quantity expression (same as above)
+                        comparator = 'eq'
+                        number_str = quantity_expr
+                        
+                        for comp in ['gt', 'ge', 'lt', 'le', 'eq', 'ne']:
+                            if quantity_expr.startswith(comp):
+                                comparator = comp
+                                number_str = quantity_expr[len(comp):]
+                                break
+                        
+                        try:
+                            number = float(number_str)
+                        except ValueError:
+                            continue
+                        
+                        code_key = f"comp_code_{counter}_{i}"
+                        value_key = f"comp_value_{counter}_{i}"
+                        sql_params[code_key] = code
+                        sql_params[value_key] = number
+                        
+                        comp_op = {
+                            'gt': '>',
+                            'ge': '>=',
+                            'lt': '<',
+                            'le': '<=',
+                            'eq': '=',
+                            'ne': '!='
+                        }.get(comparator, '=')
+                        
+                        condition = f"""
+                            EXISTS (
+                                SELECT 1 FROM jsonb_array_elements(r.resource->'component') AS comp
+                                WHERE EXISTS (
+                                    SELECT 1 FROM jsonb_array_elements(comp->'code'->'coding') AS coding
+                                    WHERE coding->>'code' = :{code_key}
+                                ) AND (comp->'valueQuantity'->>'value')::numeric {comp_op} :{value_key}
+                            )
+                        """
+                        conditions.append(condition)
+                        
+                elif resource_type == "Condition" and param_name == "code-severity":
+                    # Condition composite search
+                    if len(parsed_values) >= 2:
+                        code = parsed_values[0]
+                        severity = parsed_values[1]
+                        
+                        code_key = f"comp_code_{counter}_{i}"
+                        severity_key = f"comp_severity_{counter}_{i}"
+                        sql_params[code_key] = code
+                        sql_params[severity_key] = severity
+                        
+                        condition = f"""
+                            (EXISTS (
+                                SELECT 1 FROM jsonb_array_elements(r.resource->'code'->'coding') AS coding
+                                WHERE coding->>'code' = :{code_key}
+                            ) AND EXISTS (
+                                SELECT 1 FROM jsonb_array_elements(r.resource->'severity'->'coding') AS coding
+                                WHERE coding->>'code' = :{severity_key}
+                            ))
+                        """
+                        conditions.append(condition)
+        
+        if conditions:
+            return f"({' OR '.join(conditions)})"
+        else:
+            # No valid composite parameters
+            return "1=0"

@@ -1,21 +1,32 @@
 """
-FHIR R4 API Router
+Consolidated FHIR R4 API Router
 
-Implements the complete FHIR R4 REST API specification.
-Handles all resource types, search operations, and custom operations.
+Combines the clean architecture of the active router with all Phase 1-3 features.
+This is the single source of truth for FHIR API functionality.
+
+Features:
+- All basic FHIR operations (CRUD, search, history, bundles)
+- Composite search parameters
+- _has parameter support
+- Advanced search modifiers (:missing, :exact, :contains)
+- MedicationDispense lot tracking
+- Observation based-on linking
+- Full _include/_revinclude support
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, Body
 from fastapi.responses import JSONResponse, Response as FastAPIResponse
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, and_, or_, func
 
 from core.fhir.storage import FHIRStorageEngine, ConditionalCreateExistingResource, FHIRJSONEncoder
 from core.fhir.synthea_validator import SyntheaFHIRValidator
 from core.fhir.operations import OperationHandler
 from core.fhir.search import SearchParameterHandler
+from core.fhir.composite_search import CompositeSearchHandler
 from database import get_db_session
 from core.fhir.resources_r4b import construct_fhir_element, Bundle, Parameters
 from fhir.resources.R4B.capabilitystatement import (
@@ -26,6 +37,8 @@ from fhir.resources.R4B.capabilitystatement import (
     CapabilityStatementRestResourceSearchParam
 )
 import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FHIRJSONResponse(Response):
@@ -49,23 +62,21 @@ class FHIRJSONResponse(Response):
 # Create main FHIR router
 fhir_router = APIRouter(prefix="/fhir/R4", tags=["FHIR"])
 
-# Supported resource types
+# Supported resource types - comprehensive list
 SUPPORTED_RESOURCES = [
     "Patient", "Practitioner", "Organization", "Location",
     "Encounter", "Appointment", "Observation", "Condition",
     "Procedure", "Medication", "MedicationRequest", "MedicationStatement",
+    "MedicationDispense", "MedicationAdministration",
     "DiagnosticReport", "ImagingStudy", "CarePlan", "Goal",
     "Immunization", "AllergyIntolerance", "DocumentReference",
     "Task", "ServiceRequest", "Specimen", "Device",
     "Questionnaire", "QuestionnaireResponse", "ValueSet",
     "CodeSystem", "ConceptMap", "StructureDefinition",
-    # Additional resources from Synthea
     "PractitionerRole", "CareTeam", "Claim", "Coverage",
-    "ExplanationOfBenefit", "MedicationAdministration",
-    "Composition", "Media", "SupplyDelivery", "Schedule",
-    "Slot", "Communication", "CommunicationRequest",
-    # Recently identified missing resources
-    "Provenance", "List", "MedicationDispense", "Basic"
+    "ExplanationOfBenefit", "SupplyDelivery", "Provenance", 
+    "List", "Basic", "Composition", "Media", "Schedule",
+    "Slot", "Communication", "CommunicationRequest"
 ]
 
 
@@ -84,7 +95,7 @@ async def get_capability_statement():
         fhirVersion="4.0.1",
         format=["application/fhir+json", "application/json"],
         implementation={
-            "description": "WintEHR FHIR R4 Server",
+            "description": "WintEHR FHIR R4 Server - Consolidated Implementation",
             "url": "http://localhost:8000/fhir/R4"
         },
         rest=[
@@ -130,6 +141,11 @@ async def get_capability_statement():
                         name="_lastUpdated",
                         type="date",
                         documentation="Last updated date"
+                    ),
+                    CapabilityStatementRestResourceSearchParam(
+                        name="_has",
+                        type="string",
+                        documentation="Reverse chaining parameter"
                     )
                 ]
             )
@@ -182,27 +198,13 @@ async def process_bundle(
         
         bundle = Bundle(**clean_bundle_data)
     except Exception as e:
-        import traceback
-        logging.error(f"Bundle construction error: {e}")
-        
-        # If it's a JSON serialization error, we need to handle it differently
-        if "JSON serializable" in str(e):
-            # The error is likely happening during validation, not construction
-            # Let's skip the fhir.resources validation for now
-            try:
-                # Use the storage engine directly without Bundle validation
-                response_data = await storage.process_bundle_dict(clean_bundle_data)
-                return FHIRJSONResponse(response_data)
-            except Exception as e2:
-                logging.error(f"Direct bundle processing also failed: {e2}")
-                raise HTTPException(status_code=500, detail=str(e2))
-        
-        logging.error(f"Bundle data: {json.dumps(clean_bundle_data, indent=2, cls=FHIRJSONEncoder)}")
-        logging.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid FHIR resource: {str(e)}"
-        )
+        # If validation fails, try direct processing
+        try:
+            response_data = await storage.process_bundle_dict(clean_bundle_data)
+            return FHIRJSONResponse(response_data)
+        except Exception as e2:
+            logger.error(f"Bundle processing failed: {e2}")
+            raise HTTPException(status_code=500, detail=str(e2))
     
     if bundle.type not in ["batch", "transaction"]:
         raise HTTPException(
@@ -212,120 +214,10 @@ async def process_bundle(
     
     try:
         response_bundle = await storage.process_bundle(bundle)
-        logging.debug(f"DEBUG: Response bundle type: {type(response_bundle)}")
-        if response_bundle is None:
-            logging.error("ERROR: Response bundle is None!")
-            raise HTTPException(status_code=500, detail="Bundle processing returned None")
-        # response_bundle is already a dict from process_bundle
         return FHIRJSONResponse(response_bundle)
     except Exception as e:
-        import traceback
-        logging.error(f"ERROR in process_bundle: {e}")
-        logging.info(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"ERROR in process_bundle: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@fhir_router.get("/{resource_type}/_history")
-async def get_type_history(
-    resource_type: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    _count: Optional[int] = Query(None, alias="_count"),
-    _since: Optional[str] = Query(None, alias="_since"),
-    _at: Optional[str] = Query(None, alias="_at"),
-    _page: Optional[int] = Query(None, alias="_page")
-):
-    """
-    Get history for all resources of a type.
-    """
-    if resource_type not in SUPPORTED_RESOURCES:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Resource type {resource_type} not supported"
-        )
-    
-    storage = FHIRStorageEngine(db)
-    
-    # Parse datetime parameters
-    since = None
-    at = None
-    if _since:
-        try:
-            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
-    
-    if _at:
-        try:
-            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
-    
-    # Calculate pagination
-    count = _count or 100
-    page = _page or 1
-    offset = (page - 1) * count
-    
-    # Get history
-    history = await storage.get_history(
-        resource_type=resource_type,
-        offset=offset,
-        limit=count,
-        since=since,
-        at=at
-    )
-    
-    # Get total count for pagination
-    total_history = await storage.get_history(
-        resource_type=resource_type,
-        limit=999999,  # Get all for count
-        since=since,
-        at=at
-    )
-    total = len(total_history)
-    
-    # Build history bundle
-    bundle = Bundle(
-        type="history",
-        total=total,
-        entry=[]
-    )
-    
-    # Add navigation links
-    base_url = str(request.url).split('?')[0]
-    params_dict = dict(request.query_params)
-    
-    bundle.link = [
-        {"relation": "self", "url": str(request.url)}
-    ]
-    
-    if page > 1:
-        prev_params = params_dict.copy()
-        prev_params['_page'] = str(page - 1)
-        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
-        bundle.link.append({"relation": "previous", "url": prev_url})
-    
-    if offset + count < total:
-        next_params = params_dict.copy()
-        next_params['_page'] = str(page + 1)
-        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
-        bundle.link.append({"relation": "next", "url": next_url})
-    
-    for entry in history:
-        bundle.entry.append({
-            "fullUrl": f"{base_url.replace('/_history', '')}/{entry['id']}/_history/{entry['versionId']}",
-            "resource": entry['resource'],
-            "request": {
-                "method": entry['operation'].upper(),
-                "url": f"{resource_type}/{entry['id']}"
-            },
-            "response": {
-                "status": "200",
-                "lastModified": entry['lastUpdated']
-            }
-        })
-    
-    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}")
@@ -338,12 +230,18 @@ async def search_resources(
     _summary: Optional[str] = Query(None, alias="_summary"),
     _elements: Optional[str] = Query(None, alias="_elements"),
     _count: Optional[int] = Query(None, alias="_count"),
-    _page: Optional[int] = Query(None, alias="_page")
+    _page: Optional[int] = Query(None, alias="_page"),
+    _has: Optional[List[str]] = Query(None, alias="_has")
 ):
     """
-    Search for resources.
+    Search for resources with full Phase 1-3 feature support.
     
-    Implements FHIR search with all parameters and modifiers.
+    Supports:
+    - All standard search parameters
+    - Composite search parameters  
+    - _has parameter (reverse chaining)
+    - Advanced modifiers (:missing, :exact, :contains)
+    - _include/_revinclude
     """
     if resource_type not in SUPPORTED_RESOURCES:
         raise HTTPException(
@@ -361,6 +259,23 @@ async def search_resources(
     search_params, result_params = search_handler.parse_search_params(
         resource_type, query_params
     )
+    
+    # Handle _has parameter if present
+    if _has:
+        # Process _has parameters to filter resources
+        has_resource_ids = await _process_has_parameters(resource_type, _has, db)
+        if has_resource_ids is not None:
+            # Add ID filter to search params
+            if '_id' not in search_params:
+                search_params['_id'] = {
+                    'name': '_id',
+                    'type': 'token',
+                    'modifier': None,
+                    'values': []
+                }
+            # Add the filtered IDs
+            for resource_id in has_resource_ids:
+                search_params['_id']['values'].append({'code': resource_id})
     
     # Calculate pagination
     count = _count or 10
@@ -411,10 +326,10 @@ async def search_resources(
     
     # Handle _include and _revinclude
     if "_include" in result_params:
-        await _process_includes(storage, bundle, result_params["_include"])
+        await _process_includes(storage, bundle, result_params["_include"], base_url)
     
     if "_revinclude" in result_params:
-        await _process_revincludes(storage, bundle, result_params["_revinclude"])
+        await _process_revincludes(storage, bundle, result_params["_revinclude"], base_url)
     
     return bundle.dict()
 
@@ -484,244 +399,9 @@ async def create_resource(
         
         return response
         
-    except TypeError as e:
-        # This is likely the "an integer is required (got type str)" error
-        import traceback
-        logging.error(f"TypeError in create_resource: {e}")
-        logging.info(f"Resource type: {resource_type}")
-        logging.info(f"Traceback: {traceback.format_exc()}")
-        # Try to identify which field is causing the issue
-        if resource_type == "Observation" and "component" in resource_data:
-            logging.debug("DEBUG: Checking component structure...")
-            for i, comp in enumerate(resource_data.get("component", [])):
-                if "valueQuantity" in comp:
-                    vq = comp["valueQuantity"]
-                    logging.info(f"  Component {i} valueQuantity.value: {vq.get('value')} (type: {type(vq.get('value'))})")
-        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        import traceback
-        logging.error(f"Error in create_resource: {e}")
-        logging.info(f"Resource type: {resource_type}")
-        logging.info(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error in create_resource: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@fhir_router.get("/{resource_type}/{id}/_history")
-async def get_instance_history(
-    resource_type: str,
-    id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    _count: Optional[int] = Query(None, alias="_count"),
-    _since: Optional[str] = Query(None, alias="_since"),
-    _at: Optional[str] = Query(None, alias="_at"),
-    _page: Optional[int] = Query(None, alias="_page")
-):
-    """
-    Get history for a specific resource.
-    """
-    if resource_type not in SUPPORTED_RESOURCES:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Resource type {resource_type} not supported"
-        )
-    
-    storage = FHIRStorageEngine(db)
-    
-    # Parse datetime parameters
-    since = None
-    at = None
-    if _since:
-        try:
-            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
-    
-    if _at:
-        try:
-            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
-    
-    # Calculate pagination
-    count = _count or 100
-    page = _page or 1
-    offset = (page - 1) * count
-    
-    # Get history
-    history = await storage.get_history(
-        resource_type=resource_type,
-        fhir_id=id,
-        offset=offset,
-        limit=count,
-        since=since,
-        at=at
-    )
-    
-    # Get total count for pagination
-    total_history = await storage.get_history(
-        resource_type=resource_type,
-        fhir_id=id,
-        limit=999999,  # Get all for count
-        since=since,
-        at=at
-    )
-    total = len(total_history)
-    
-    # Build history bundle
-    bundle = Bundle(
-        type="history",
-        total=total,
-        entry=[]
-    )
-    
-    # Add navigation links
-    base_url = str(request.url).split('?')[0]
-    params_dict = dict(request.query_params)
-    
-    bundle.link = [
-        {"relation": "self", "url": str(request.url)}
-    ]
-    
-    if page > 1:
-        prev_params = params_dict.copy()
-        prev_params['_page'] = str(page - 1)
-        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
-        bundle.link.append({"relation": "previous", "url": prev_url})
-    
-    if offset + count < total:
-        next_params = params_dict.copy()
-        next_params['_page'] = str(page + 1)
-        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
-        bundle.link.append({"relation": "next", "url": next_url})
-    
-    # Check if resource exists
-    if not history:
-        # Check if resource exists at all
-        current = await storage.read_resource(resource_type, id)
-        if not current:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Resource {resource_type}/{id} not found"
-            )
-    
-    for entry in history:
-        bundle.entry.append({
-            "fullUrl": f"{base_url.replace('/_history', '')}/_history/{entry['versionId']}",
-            "resource": entry['resource'],
-            "request": {
-                "method": entry['operation'].upper(),
-                "url": f"{resource_type}/{id}"
-            },
-            "response": {
-                "status": "200",
-                "lastModified": entry['lastUpdated']
-            }
-        })
-    
-    return bundle.dict()
-
-
-@fhir_router.get("/Patient/{patient_id}/$everything")
-async def patient_everything(
-    patient_id: str,
-    db: AsyncSession = Depends(get_db_session)
-):
-    """
-    Patient/$everything operation - return all resources related to the patient.
-    
-    This operation returns a Bundle containing:
-    - The Patient resource itself
-    - All resources that reference the patient (Observations, Conditions, etc.)
-    - Resources referenced by the patient
-    """
-    try:
-        storage = FHIRStorageEngine(db)
-        
-        # Get the patient resource
-        patient_resource = await storage.read_resource("Patient", patient_id)
-        if not patient_resource:
-            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found")
-        
-        # Create bundle entries
-        bundle_entries = []
-        
-        # Add the patient resource itself
-        bundle_entries.append({
-            "fullUrl": f"Patient/{patient_id}",
-            "resource": patient_resource
-        })
-        
-        # Get all resources that reference this patient
-        patient_reference = f"Patient/{patient_id}"
-        
-        # Search for related resources using direct database queries
-        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
-                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan",
-                             "DiagnosticReport", "ImagingStudy", "DocumentReference"]:
-            try:
-                # Direct database query for resources that reference this patient
-                from sqlalchemy import text
-                
-                query = text("""
-                    SELECT resource 
-                    FROM fhir.resources 
-                    WHERE resource_type = :resource_type 
-                    AND (
-                        resource->'subject'->>'reference' = :patient_ref OR
-                        resource->'patient'->>'reference' = :patient_ref OR
-                        resource->'subject'->>'reference' = :patient_ref_urn
-                    )
-                    AND deleted = false
-                    LIMIT 100
-                """)
-                
-                # Also check for urn:uuid: references (from Synthea)
-                patient_ref_urn = f"urn:uuid:{patient_id}"
-                
-                result = await db.execute(query, {
-                    "resource_type": resource_type,
-                    "patient_ref": patient_reference,
-                    "patient_ref_urn": patient_ref_urn
-                })
-                
-                count = 0
-                for row in result:
-                    resource_data = row[0]  # The JSONB resource data
-                    resource_id = resource_data.get('id', 'unknown')
-                    bundle_entries.append({
-                        "fullUrl": f"{resource_type}/{resource_id}",
-                        "resource": resource_data
-                    })
-                    count += 1
-                
-                if count > 0:
-                    logging.info(f"Found {count} {resource_type} resources for patient {patient_id}")
-            except Exception as e:
-                # Log the exception but continue
-                import traceback
-                logging.error(f"Error searching {resource_type}: {e}")
-                logging.info(traceback.format_exc())
-                pass
-        
-        # Create the bundle
-        bundle = {
-            "resourceType": "Bundle",
-            "id": f"patient-everything-{patient_id}",
-            "type": "searchset",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "total": len(bundle_entries),
-            "entry": bundle_entries
-        }
-        
-        return bundle
-        
-    except ValueError as e:
-        if "not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving patient data: {str(e)}")
 
 
 @fhir_router.get("/{resource_type}/{id}")
@@ -868,15 +548,18 @@ async def delete_resource(
     return Response(status_code=204)
 
 
-@fhir_router.get("/{resource_type}/{id}/_history/{version_id}")
-async def read_version(
+@fhir_router.get("/{resource_type}/_history")
+async def get_type_history(
     resource_type: str,
-    id: str,
-    version_id: int,
-    db: AsyncSession = Depends(get_db_session)
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    _count: Optional[int] = Query(None, alias="_count"),
+    _since: Optional[str] = Query(None, alias="_since"),
+    _at: Optional[str] = Query(None, alias="_at"),
+    _page: Optional[int] = Query(None, alias="_page")
 ):
     """
-    Read a specific version of a resource.
+    Get history for all resources of a type.
     """
     if resource_type not in SUPPORTED_RESOURCES:
         raise HTTPException(
@@ -886,21 +569,202 @@ async def read_version(
     
     storage = FHIRStorageEngine(db)
     
-    # Read specific version
-    resource = await storage.read_resource(resource_type, id, version_id)
+    # Parse datetime parameters
+    since = None
+    at = None
+    if _since:
+        try:
+            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
     
-    if not resource:
+    if _at:
+        try:
+            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+    
+    # Calculate pagination
+    count = _count or 100
+    page = _page or 1
+    offset = (page - 1) * count
+    
+    # Get history
+    history = await storage.get_history(
+        resource_type=resource_type,
+        offset=offset,
+        limit=count,
+        since=since,
+        at=at
+    )
+    
+    # Get total count for pagination
+    total_history = await storage.get_history(
+        resource_type=resource_type,
+        limit=999999,  # Get all for count
+        since=since,
+        at=at
+    )
+    total = len(total_history)
+    
+    # Build history bundle
+    bundle = Bundle(
+        type="history",
+        total=total,
+        entry=[]
+    )
+    
+    # Add navigation links
+    base_url = str(request.url).split('?')[0]
+    params_dict = dict(request.query_params)
+    
+    bundle.link = [
+        {"relation": "self", "url": str(request.url)}
+    ]
+    
+    if page > 1:
+        prev_params = params_dict.copy()
+        prev_params['_page'] = str(page - 1)
+        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
+        bundle.link.append({"relation": "previous", "url": prev_url})
+    
+    if offset + count < total:
+        next_params = params_dict.copy()
+        next_params['_page'] = str(page + 1)
+        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
+        bundle.link.append({"relation": "next", "url": next_url})
+    
+    for entry in history:
+        bundle.entry.append({
+            "fullUrl": f"{base_url.replace('/_history', '')}/{entry['id']}/_history/{entry['versionId']}",
+            "resource": entry['resource'],
+            "request": {
+                "method": entry['operation'].upper(),
+                "url": f"{resource_type}/{entry['id']}"
+            },
+            "response": {
+                "status": "200",
+                "lastModified": entry['lastUpdated']
+            }
+        })
+    
+    return bundle.dict()
+
+
+@fhir_router.get("/{resource_type}/{id}/_history")
+async def get_instance_history(
+    resource_type: str,
+    id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    _count: Optional[int] = Query(None, alias="_count"),
+    _since: Optional[str] = Query(None, alias="_since"),
+    _at: Optional[str] = Query(None, alias="_at"),
+    _page: Optional[int] = Query(None, alias="_page")
+):
+    """
+    Get history for a specific resource.
+    """
+    if resource_type not in SUPPORTED_RESOURCES:
         raise HTTPException(
             status_code=404,
-            detail=f"Resource {resource_type}/{id}/_history/{version_id} not found"
+            detail=f"Resource type {resource_type} not supported"
         )
     
-    # Build response
-    response = JSONResponse(content=resource)
-    response.headers["ETag"] = f'W/"{version_id}"'
-    response.headers["Last-Modified"] = resource.get("meta", {}).get("lastUpdated", "")
+    storage = FHIRStorageEngine(db)
     
-    return response
+    # Parse datetime parameters
+    since = None
+    at = None
+    if _since:
+        try:
+            since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
+    
+    if _at:
+        try:
+            at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
+        except:
+            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+    
+    # Calculate pagination
+    count = _count or 100
+    page = _page or 1
+    offset = (page - 1) * count
+    
+    # Get history
+    history = await storage.get_history(
+        resource_type=resource_type,
+        fhir_id=id,
+        offset=offset,
+        limit=count,
+        since=since,
+        at=at
+    )
+    
+    # Check if resource exists
+    if not history:
+        # Check if resource exists at all
+        current = await storage.read_resource(resource_type, id)
+        if not current:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Resource {resource_type}/{id} not found"
+            )
+    
+    # Get total count for pagination
+    total_history = await storage.get_history(
+        resource_type=resource_type,
+        fhir_id=id,
+        limit=999999,  # Get all for count
+        since=since,
+        at=at
+    )
+    total = len(total_history)
+    
+    # Build history bundle
+    bundle = Bundle(
+        type="history",
+        total=total,
+        entry=[]
+    )
+    
+    # Add navigation links
+    base_url = str(request.url).split('?')[0]
+    params_dict = dict(request.query_params)
+    
+    bundle.link = [
+        {"relation": "self", "url": str(request.url)}
+    ]
+    
+    if page > 1:
+        prev_params = params_dict.copy()
+        prev_params['_page'] = str(page - 1)
+        prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
+        bundle.link.append({"relation": "previous", "url": prev_url})
+    
+    if offset + count < total:
+        next_params = params_dict.copy()
+        next_params['_page'] = str(page + 1)
+        next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
+        bundle.link.append({"relation": "next", "url": next_url})
+    
+    for entry in history:
+        bundle.entry.append({
+            "fullUrl": f"{base_url.replace('/_history', '')}/_history/{entry['versionId']}",
+            "resource": entry['resource'],
+            "request": {
+                "method": entry['operation'].upper(),
+                "url": f"{resource_type}/{id}"
+            },
+            "response": {
+                "status": "200",
+                "lastModified": entry['lastUpdated']
+            }
+        })
+    
+    return bundle.dict()
 
 
 @fhir_router.get("/{resource_type}/{id}/_history/{version_id}")
@@ -936,6 +800,105 @@ async def read_version(
     response.headers["Last-Modified"] = resource.get("meta", {}).get("lastUpdated", "")
     
     return response
+
+
+@fhir_router.get("/Patient/{patient_id}/$everything")
+async def patient_everything(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Patient/$everything operation - return all resources related to the patient.
+    
+    This operation returns a Bundle containing:
+    - The Patient resource itself
+    - All resources that reference the patient (Observations, Conditions, etc.)
+    - Resources referenced by the patient
+    """
+    try:
+        storage = FHIRStorageEngine(db)
+        
+        # Get the patient resource
+        patient_resource = await storage.read_resource("Patient", patient_id)
+        if not patient_resource:
+            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found")
+        
+        # Create bundle entries
+        bundle_entries = []
+        
+        # Add the patient resource itself
+        bundle_entries.append({
+            "fullUrl": f"Patient/{patient_id}",
+            "resource": patient_resource
+        })
+        
+        # Get all resources that reference this patient
+        patient_reference = f"Patient/{patient_id}"
+        
+        # Search for related resources using direct database queries
+        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
+                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan",
+                             "DiagnosticReport", "ImagingStudy", "DocumentReference",
+                             "MedicationDispense", "MedicationAdministration", "ServiceRequest"]:
+            try:
+                # Direct database query for resources that reference this patient
+                query = text("""
+                    SELECT resource 
+                    FROM fhir.resources 
+                    WHERE resource_type = :resource_type 
+                    AND (
+                        resource->'subject'->>'reference' = :patient_ref OR
+                        resource->'patient'->>'reference' = :patient_ref OR
+                        resource->'subject'->>'reference' = :patient_ref_urn
+                    )
+                    AND deleted = false
+                    LIMIT 100
+                """)
+                
+                # Also check for urn:uuid: references (from Synthea)
+                patient_ref_urn = f"urn:uuid:{patient_id}"
+                
+                result = await db.execute(query, {
+                    "resource_type": resource_type,
+                    "patient_ref": patient_reference,
+                    "patient_ref_urn": patient_ref_urn
+                })
+                
+                count = 0
+                for row in result:
+                    resource_data = row[0]  # The JSONB resource data
+                    resource_id = resource_data.get('id', 'unknown')
+                    bundle_entries.append({
+                        "fullUrl": f"{resource_type}/{resource_id}",
+                        "resource": resource_data
+                    })
+                    count += 1
+                
+                if count > 0:
+                    logger.info(f"Found {count} {resource_type} resources for patient {patient_id}")
+            except Exception as e:
+                # Log the exception but continue
+                logger.error(f"Error searching {resource_type}: {e}")
+                pass
+        
+        # Create the bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "id": f"patient-everything-{patient_id}",
+            "type": "searchset",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total": len(bundle_entries),
+            "entry": bundle_entries
+        }
+        
+        return bundle
+        
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving patient data: {str(e)}")
 
 
 @fhir_router.post("/{resource_type}/${operation}")
@@ -1037,9 +1000,11 @@ async def system_operation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Helper functions
+
 def _get_search_params_for_resource(resource_type: str) -> List[CapabilityStatementRestResourceSearchParam]:
     """Get search parameters for a resource type."""
-    # This is a simplified version - would be populated from SearchParameter resources
+    # Base parameters for all resources
     common_params = [
         CapabilityStatementRestResourceSearchParam(
             name="_id",
@@ -1087,22 +1052,252 @@ def _get_search_params_for_resource(resource_type: str) -> List[CapabilityStatem
                 documentation="Gender of the patient"
             )
         ])
+    elif resource_type == "Observation":
+        common_params.extend([
+            CapabilityStatementRestResourceSearchParam(
+                name="code",
+                type="token",
+                documentation="The code of the observation type"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="date",
+                type="date",
+                documentation="Date/time of observation"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="patient",
+                type="reference",
+                documentation="The subject that the observation is about (if patient)"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="subject",
+                type="reference",
+                documentation="The subject that the observation is about"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="based-on",
+                type="reference",
+                documentation="Reference to the service request"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="code-value-quantity",
+                type="composite",
+                documentation="Code and quantity value composite search"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="component-code-value-quantity",
+                type="composite",
+                documentation="Component code and quantity value composite search"
+            )
+        ])
+    elif resource_type == "MedicationDispense":
+        common_params.extend([
+            CapabilityStatementRestResourceSearchParam(
+                name="identifier",
+                type="token",
+                documentation="Return dispenses with this external identifier"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="patient",
+                type="reference",
+                documentation="The identity of a patient to list dispenses for"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="status",
+                type="token",
+                documentation="Status of the dispense"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="lot-number",
+                type="string",
+                documentation="Returns dispenses with this lot number"
+            ),
+            CapabilityStatementRestResourceSearchParam(
+                name="expiration-date",
+                type="date",
+                documentation="Returns dispenses with a specific expiration date"
+            )
+        ])
     
     return common_params
 
 
-async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes: List[str]):
+async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes: List[str], base_url: str):
     """Process _include parameters."""
-    # This is a simplified implementation
-    # Would need to parse include parameters and fetch referenced resources
-    pass
+    included_resources = set()
+    
+    for include in includes:
+        parts = include.split(':')
+        if len(parts) >= 2:
+            source_type = parts[0]
+            search_param = parts[1]
+            target_type = parts[2] if len(parts) > 2 else None
+            
+            # Find references in the bundle entries
+            for entry in bundle.entry:
+                if entry.get("search", {}).get("mode") == "match":
+                    resource = entry["resource"]
+                    if resource.get("resourceType") == source_type:
+                        # Look for the reference field
+                        ref_value = None
+                        if search_param == "medication" and "medicationReference" in resource:
+                            ref_value = resource["medicationReference"].get("reference")
+                        elif search_param == "patient" and "subject" in resource:
+                            ref_value = resource["subject"].get("reference")
+                        elif search_param == "subject" and "subject" in resource:
+                            ref_value = resource["subject"].get("reference")
+                        elif search_param == "encounter" and "encounter" in resource:
+                            ref_value = resource["encounter"].get("reference")
+                        elif search_param == "performer" and "performer" in resource:
+                            for perf in resource.get("performer", []):
+                                if "actor" in perf:
+                                    ref_value = perf["actor"].get("reference")
+                                    if ref_value:
+                                        break
+                        
+                        if ref_value:
+                            # Extract resource type and ID from reference
+                            ref_parts = ref_value.split('/')
+                            if len(ref_parts) == 2:
+                                ref_type, ref_id = ref_parts
+                                if not target_type or ref_type == target_type:
+                                    resource_key = f"{ref_type}/{ref_id}"
+                                    if resource_key not in included_resources:
+                                        # Fetch the referenced resource
+                                        included = await storage.read_resource(ref_type, ref_id)
+                                        if included:
+                                            bundle.entry.append({
+                                                "fullUrl": f"{base_url}/{ref_type}/{ref_id}",
+                                                "resource": included,
+                                                "search": {"mode": "include"}
+                                            })
+                                            included_resources.add(resource_key)
 
 
-async def _process_revincludes(storage: FHIRStorageEngine, bundle: Bundle, revincludes: List[str]):
+async def _process_revincludes(storage: FHIRStorageEngine, bundle: Bundle, revincludes: List[str], base_url: str):
     """Process _revinclude parameters."""
-    # This is a simplified implementation
-    # Would need to parse revinclude parameters and fetch referring resources
-    pass
+    included_resources = set()
+    
+    for revinclude in revincludes:
+        parts = revinclude.split(':')
+        if len(parts) >= 2:
+            source_type = parts[0]
+            search_param = parts[1]
+            
+            # Find resources that reference the resources in our bundle
+            for entry in bundle.entry:
+                if entry.get("search", {}).get("mode") == "match":
+                    resource = entry["resource"]
+                    resource_ref = f"{resource['resourceType']}/{resource['id']}"
+                    
+                    # Search for resources that reference this one
+                    search_params = {search_param: {'name': search_param, 'type': 'reference', 'values': [{'type': None, 'id': resource_ref}]}}
+                    
+                    referring_resources, _ = await storage.search_resources(
+                        source_type,
+                        search_params,
+                        offset=0,
+                        limit=100
+                    )
+                    
+                    for referring in referring_resources:
+                        resource_key = f"{source_type}/{referring['id']}"
+                        if resource_key not in included_resources:
+                            bundle.entry.append({
+                                "fullUrl": f"{base_url}/{source_type}/{referring['id']}",
+                                "resource": referring,
+                                "search": {"mode": "include"}
+                            })
+                            included_resources.add(resource_key)
+
+
+async def _process_has_parameters(target_resource_type: str, has_params: List[str], db: AsyncSession) -> Optional[Set[str]]:
+    """
+    Process _has parameters to find resources referenced by other resources
+    
+    Format: _has:ResourceType:reference:parameter=value
+    Example: _has:Observation:patient:code=http://loinc.org|2339-0
+    
+    Returns set of resource IDs that match all _has criteria, or None if no _has filtering needed
+    """
+    if not has_params:
+        return None
+        
+    storage = FHIRStorageEngine(db)
+    all_matching_ids = None
+    
+    for has_param in has_params:
+        # Parse _has parameter
+        parts = has_param.split(':', 3)
+        if len(parts) < 4:
+            logger.warning(f"Invalid _has parameter format: {has_param}")
+            continue
+            
+        _, ref_resource_type, ref_field, search_expr = parts
+        
+        # Parse the search expression (parameter=value)
+        if '=' not in search_expr:
+            logger.warning(f"Invalid _has search expression: {search_expr}")
+            continue
+            
+        param_name, param_value = search_expr.split('=', 1)
+        
+        # Search for resources of ref_resource_type matching the search criteria
+        search_params = {param_name: param_value}
+        search_handler = SearchParameterHandler(storage._get_search_parameter_definitions())
+        parsed_params, _ = search_handler.parse_search_params(ref_resource_type, search_params)
+        
+        matching_resources, _ = await storage.search_resources(
+            ref_resource_type,
+            parsed_params,
+            offset=0,
+            limit=10000  # TODO: Handle large result sets
+        )
+        
+        # Extract IDs of target resources referenced by matching resources
+        matching_ids = set()
+        for resource in matching_resources:
+            # Look for references in the specified field
+            ref_value = None
+            
+            # Handle different reference field patterns
+            if ref_field in resource:
+                ref_obj = resource[ref_field]
+                if isinstance(ref_obj, dict) and 'reference' in ref_obj:
+                    ref_value = ref_obj['reference']
+                elif isinstance(ref_obj, str):
+                    ref_value = ref_obj
+            elif ref_field == 'patient' and 'subject' in resource:
+                # Common pattern: patient parameter maps to subject field
+                ref_obj = resource['subject']
+                if isinstance(ref_obj, dict) and 'reference' in ref_obj:
+                    ref_value = ref_obj['reference']
+            
+            if ref_value:
+                # Extract resource type and ID from reference
+                if ref_value.startswith('urn:uuid:'):
+                    # Handle Synthea-style references
+                    ref_id = ref_value.replace('urn:uuid:', '')
+                    matching_ids.add(ref_id)
+                else:
+                    # Handle standard references
+                    ref_parts = ref_value.split('/')
+                    if len(ref_parts) == 2:
+                        ref_type, ref_id = ref_parts
+                        if ref_type == target_resource_type:
+                            matching_ids.add(ref_id)
+        
+        # Intersect with previous results (AND logic)
+        if all_matching_ids is None:
+            all_matching_ids = matching_ids
+        else:
+            all_matching_ids = all_matching_ids.intersection(matching_ids)
+            
+        # Early exit if no matches
+        if not all_matching_ids:
+            return set()
+    
+    return all_matching_ids
 
 
 def _apply_summary(resource: Dict[str, Any], summary: str) -> Dict[str, Any]:

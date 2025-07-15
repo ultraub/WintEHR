@@ -89,15 +89,15 @@ async def create_references_table(conn):
         );
     """))
     
-    # Create indexes
+    # Create indexes (IF NOT EXISTS)
     await conn.execute(text("""
-        CREATE INDEX idx_references_source ON fhir.references(source_id);
+        CREATE INDEX IF NOT EXISTS idx_references_source ON fhir.references(source_id);
     """))
     await conn.execute(text("""
-        CREATE INDEX idx_references_target ON fhir.references(target_type, target_id);
+        CREATE INDEX IF NOT EXISTS idx_references_target ON fhir.references(target_type, target_id);
     """))
     await conn.execute(text("""
-        CREATE INDEX idx_references_source_type ON fhir.references(source_type, source_id);
+        CREATE INDEX IF NOT EXISTS idx_references_source_type ON fhir.references(source_type, source_id);
     """))
     
     logger.info("✅ Created references table with correct schema")
@@ -111,7 +111,22 @@ async def fix_references_table_schema(conn, existing_columns):
         # This is the old schema, we need to migrate
         logger.info("Detected old schema. Migrating to new schema...")
         
-        # First, rename the old table
+        # First, drop existing indexes to avoid conflicts
+        logger.info("Dropping existing indexes...")
+        index_drops = [
+            "DROP INDEX IF EXISTS fhir.idx_references_source;",
+            "DROP INDEX IF EXISTS fhir.idx_references_target;",
+            "DROP INDEX IF EXISTS fhir.idx_references_source_type;",
+            "DROP INDEX IF EXISTS fhir.idx_ref_source_resource;",
+            "DROP INDEX IF EXISTS fhir.idx_ref_target_resource;"
+        ]
+        for drop_stmt in index_drops:
+            try:
+                await conn.execute(text(drop_stmt))
+            except Exception as e:
+                logger.warning(f"Could not drop index: {e}")
+        
+        # Then rename the old table
         await conn.execute(text("""
             ALTER TABLE fhir.references RENAME TO references_old;
         """))
@@ -130,14 +145,18 @@ async def fix_references_table_schema(conn, existing_columns):
                 SELECT 
                     COALESCE(source_id, source_resource_id) as source_id,
                     'Unknown' as source_type,  -- We'll need to update this
-                    target_resource_type as target_type,
+                    COALESCE(target_resource_type, 'Unknown') as target_type,
                     target_resource_id as target_id,
-                    source_path as reference_path,
+                    COALESCE(source_path, 'unknown') as reference_path,
                     COALESCE(target_url, 
-                        CONCAT(target_resource_type, '/', target_resource_id)
+                        CASE 
+                            WHEN target_resource_type IS NOT NULL AND target_resource_id IS NOT NULL 
+                            THEN CONCAT(target_resource_type, '/', target_resource_id)
+                            ELSE 'unknown'
+                        END
                     ) as reference_value
                 FROM fhir.references_old
-                WHERE source_resource_id IS NOT NULL;
+                WHERE COALESCE(source_id, source_resource_id) IS NOT NULL;
             """))
             
             # Update source_type based on resources table

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Import new FHIR router
+# Import FHIR router (consolidated with all Phase 1-3 features)
 from fhir_api.router import fhir_router
 
 # Import new EMR router

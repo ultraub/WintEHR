@@ -529,54 +529,403 @@ generate.demographics.default_state = Massachusetts
         await self._extract_search_params(session, resource_db_id, resource_type, resource_data)
     
     async def _extract_search_params(self, session, resource_id, resource_type, resource_data):
-        """Extract and store basic search parameters."""
+        """Extract and store comprehensive search parameters for all resource types."""
         # Always index the resource ID
         await self._add_search_param(
             session, resource_id, resource_type, '_id', 'token', 
             value_string=resource_data.get('id')
         )
         
-        # Resource-specific parameters
+        # Comprehensive resource-specific parameters
         if resource_type == 'Patient':
-            # Names
-            if 'name' in resource_data:
-                for name in resource_data['name']:
-                    if 'family' in name:
+            await self._extract_patient_params(session, resource_id, resource_data)
+        
+        elif resource_type == 'ServiceRequest':
+            await self._extract_service_request_params(session, resource_id, resource_data)
+        
+        elif resource_type == 'Coverage':
+            await self._extract_coverage_params(session, resource_id, resource_data)
+        
+        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 
+                               'MedicationAdministration', 'Procedure', 'DiagnosticReport', 
+                               'Immunization', 'AllergyIntolerance', 'ImagingStudy', 
+                               'DocumentReference', 'MedicationDispense']:
+            await self._extract_clinical_resource_params(session, resource_id, resource_type, resource_data)
+        
+        elif resource_type in ['CarePlan', 'CareTeam', 'Goal']:
+            await self._extract_care_coordination_params(session, resource_id, resource_type, resource_data)
+        
+        elif resource_type in ['Organization', 'Practitioner', 'PractitionerRole', 'Location']:
+            await self._extract_admin_resource_params(session, resource_id, resource_type, resource_data)
+        
+        elif resource_type in ['Claim', 'ExplanationOfBenefit']:
+            await self._extract_financial_params(session, resource_id, resource_type, resource_data)
+        
+        elif resource_type == 'Device':
+            await self._extract_device_params(session, resource_id, resource_data)
+        
+        elif resource_type == 'SupplyDelivery':
+            await self._extract_supply_delivery_params(session, resource_id, resource_data)
+        
+        elif resource_type == 'Provenance':
+            await self._extract_provenance_params(session, resource_id, resource_data)
+    
+    async def _extract_patient_params(self, session, resource_id, resource_data):
+        """Extract Patient search parameters."""
+        # Names
+        if 'name' in resource_data:
+            for name in resource_data['name']:
+                if 'family' in name:
+                    await self._add_search_param(
+                        session, resource_id, 'Patient', 'family', 'string',
+                        value_string=name['family']
+                    )
+                if 'given' in name:
+                    for given in name['given']:
                         await self._add_search_param(
-                            session, resource_id, resource_type, 'family', 'string',
-                            value_string=name['family']
+                            session, resource_id, 'Patient', 'given', 'string',
+                            value_string=given
                         )
-                    if 'given' in name:
-                        for given in name['given']:
-                            await self._add_search_param(
-                                session, resource_id, resource_type, 'given', 'string',
-                                value_string=given
-                            )
-            
-            # Gender
-            if 'gender' in resource_data:
+        
+        # Gender
+        if 'gender' in resource_data:
+            await self._add_search_param(
+                session, resource_id, 'Patient', 'gender', 'token',
+                value_string=resource_data['gender']
+            )
+        
+        # Birthdate
+        if 'birthDate' in resource_data:
+            try:
+                birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d')
                 await self._add_search_param(
-                    session, resource_id, resource_type, 'gender', 'token',
-                    value_string=resource_data['gender']
+                    session, resource_id, 'Patient', 'birthdate', 'date',
+                    value_date=birth_date
+                )
+            except:
+                pass
+        
+        # Identifiers
+        for identifier in resource_data.get('identifier', []):
+            system = identifier.get('system', '')
+            value = identifier.get('value', '')
+            if value:
+                await self._add_search_param(
+                    session, resource_id, 'Patient', 'identifier', 'token',
+                    value_token_system=system, value_token_code=value
+                )
+    
+    async def _extract_service_request_params(self, session, resource_id, resource_data):
+        """Extract ServiceRequest search parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('subject'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, 'ServiceRequest', 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, 'ServiceRequest', 'status', 'token',
+                value_string=resource_data['status']
+            )
+        
+        # Intent
+        if 'intent' in resource_data:
+            await self._add_search_param(
+                session, resource_id, 'ServiceRequest', 'intent', 'token',
+                value_string=resource_data['intent']
+            )
+        
+        # Code
+        if 'code' in resource_data:
+            await self._extract_codeable_concept_params(
+                session, resource_id, 'ServiceRequest', 'code', resource_data['code']
+            )
+        
+        # Authored date
+        if 'authoredOn' in resource_data:
+            auth_date = self._parse_datetime(resource_data['authoredOn'])
+            if auth_date:
+                await self._add_search_param(
+                    session, resource_id, 'ServiceRequest', 'authored', 'date',
+                    value_date=auth_date
                 )
         
-        elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 'MedicationAdministration', 'Procedure', 'DiagnosticReport', 'Immunization', 'AllergyIntolerance', 'ImagingStudy']:
-            # Patient reference (handle both Patient/ and urn:uuid: formats)
-            if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
-                ref = resource_data['subject'].get('reference', '')
-                patient_id = None
-                
-                if ref.startswith('Patient/'):
-                    patient_id = ref.split('/')[-1]
-                elif ref.startswith('urn:uuid:'):
-                    # Extract UUID from urn:uuid: format
-                    patient_id = ref.replace('urn:uuid:', '')
-                
-                if patient_id:
+        # Encounter
+        encounter_id = self._extract_reference_id(resource_data.get('encounter'))
+        if encounter_id:
+            await self._add_search_param(
+                session, resource_id, 'ServiceRequest', 'encounter', 'reference',
+                value_reference=encounter_id
+            )
+    
+    async def _extract_coverage_params(self, session, resource_id, resource_data):
+        """Extract Coverage search parameters."""
+        # Beneficiary (patient)
+        patient_id = self._extract_reference_id(resource_data.get('beneficiary'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, 'Coverage', 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, 'Coverage', 'status', 'token',
+                value_string=resource_data['status']
+            )
+        
+        # Type
+        if 'type' in resource_data:
+            await self._extract_codeable_concept_params(
+                session, resource_id, 'Coverage', 'type', resource_data['type']
+            )
+        
+        # Payor
+        for payor in resource_data.get('payor', []):
+            payor_id = self._extract_reference_id(payor)
+            if payor_id:
+                await self._add_search_param(
+                    session, resource_id, 'Coverage', 'payor', 'reference',
+                    value_reference=payor_id
+                )
+        
+        # Identifiers
+        for identifier in resource_data.get('identifier', []):
+            system = identifier.get('system', '')
+            value = identifier.get('value', '')
+            if value:
+                await self._add_search_param(
+                    session, resource_id, 'Coverage', 'identifier', 'token',
+                    value_token_system=system, value_token_code=value
+                )
+    
+    async def _extract_clinical_resource_params(self, session, resource_id, resource_type, resource_data):
+        """Extract common clinical resource parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('subject') or resource_data.get('patient'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'status', 'token',
+                value_string=resource_data['status']
+            )
+        
+        # Encounter
+        encounter_id = self._extract_reference_id(resource_data.get('encounter') or resource_data.get('context'))
+        if encounter_id:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'encounter', 'reference',
+                value_reference=encounter_id
+            )
+        
+        # Code
+        if 'code' in resource_data:
+            await self._extract_codeable_concept_params(
+                session, resource_id, resource_type, 'code', resource_data['code']
+            )
+        
+        # Category for certain types
+        if resource_type in ['Observation', 'Condition', 'DocumentReference'] and 'category' in resource_data:
+            for category in resource_data.get('category', []):
+                await self._extract_codeable_concept_params(
+                    session, resource_id, resource_type, 'category', category
+                )
+        
+        # Date handling based on resource type
+        date_field = None
+        if resource_type in ['Observation', 'DiagnosticReport']:
+            date_field = 'effectiveDateTime'
+        elif resource_type == 'Procedure':
+            date_field = 'performedDateTime'
+        elif resource_type == 'Immunization':
+            date_field = 'occurrenceDateTime'
+        elif resource_type == 'Condition':
+            date_field = 'onsetDateTime'
+        elif resource_type == 'MedicationRequest':
+            date_field = 'authoredOn'
+        elif resource_type == 'DocumentReference':
+            date_field = 'date'
+        
+        if date_field and date_field in resource_data:
+            date_val = self._parse_datetime(resource_data[date_field])
+            if date_val:
+                await self._add_search_param(
+                    session, resource_id, resource_type, 'date', 'date',
+                    value_date=date_val
+                )
+    
+    async def _extract_care_coordination_params(self, session, resource_id, resource_type, resource_data):
+        """Extract care coordination resource parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('subject'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'status', 'token',
+                value_string=resource_data['status']
+            )
+        
+        # Category
+        for category in resource_data.get('category', []):
+            await self._extract_codeable_concept_params(
+                session, resource_id, resource_type, 'category', category
+            )
+    
+    async def _extract_admin_resource_params(self, session, resource_id, resource_type, resource_data):
+        """Extract administrative resource parameters."""
+        # Name
+        if resource_type in ['Organization', 'Location'] and 'name' in resource_data:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'name', 'string',
+                value_string=resource_data['name']
+            )
+        elif resource_type in ['Practitioner', 'PractitionerRole'] and 'name' in resource_data:
+            for name in resource_data['name']:
+                if 'family' in name:
                     await self._add_search_param(
-                        session, resource_id, resource_type, 'patient', 'reference',
-                        value_reference=patient_id
+                        session, resource_id, resource_type, 'name', 'string',
+                        value_string=name['family']
                     )
+        
+        # Identifiers
+        for identifier in resource_data.get('identifier', []):
+            system = identifier.get('system', '')
+            value = identifier.get('value', '')
+            if value:
+                await self._add_search_param(
+                    session, resource_id, resource_type, 'identifier', 'token',
+                    value_token_system=system, value_token_code=value
+                )
+    
+    async def _extract_financial_params(self, session, resource_id, resource_type, resource_data):
+        """Extract financial resource parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('patient'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, resource_type, 'status', 'token',
+                value_string=resource_data['status']
+            )
+    
+    async def _extract_device_params(self, session, resource_id, resource_data):
+        """Extract Device search parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('patient'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, 'Device', 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Type
+        if 'type' in resource_data:
+            await self._extract_codeable_concept_params(
+                session, resource_id, 'Device', 'type', resource_data['type']
+            )
+    
+    async def _extract_supply_delivery_params(self, session, resource_id, resource_data):
+        """Extract SupplyDelivery search parameters."""
+        # Patient reference
+        patient_id = self._extract_reference_id(resource_data.get('patient'))
+        if patient_id:
+            await self._add_search_param(
+                session, resource_id, 'SupplyDelivery', 'patient', 'reference',
+                value_reference=patient_id
+            )
+        
+        # Status
+        if 'status' in resource_data:
+            await self._add_search_param(
+                session, resource_id, 'SupplyDelivery', 'status', 'token',
+                value_string=resource_data['status']
+            )
+    
+    async def _extract_provenance_params(self, session, resource_id, resource_data):
+        """Extract Provenance search parameters."""
+        # Target references
+        for target in resource_data.get('target', []):
+            target_id = self._extract_reference_id(target)
+            if target_id:
+                await self._add_search_param(
+                    session, resource_id, 'Provenance', 'target', 'reference',
+                    value_reference=target_id
+                )
+    
+    def _extract_reference_id(self, reference_obj):
+        """Extract ID from reference object."""
+        if not reference_obj:
+            return None
+        
+        if isinstance(reference_obj, dict):
+            ref = reference_obj.get('reference', '')
+        else:
+            ref = str(reference_obj)
+        
+        if ref.startswith('urn:uuid:'):
+            return ref.replace('urn:uuid:', '')
+        elif '/' in ref:
+            return ref.split('/')[-1]
+        
+        return None
+    
+    async def _extract_codeable_concept_params(self, session, resource_id, resource_type, param_name, codeable_concept):
+        """Extract search parameters from CodeableConcept."""
+        if not codeable_concept:
+            return
+        
+        # Extract from coding array
+        for coding in codeable_concept.get('coding', []):
+            system = coding.get('system', '')
+            code = coding.get('code', '')
+            if code:
+                await self._add_search_param(
+                    session, resource_id, resource_type, param_name, 'token',
+                    value_token_system=system, value_token_code=code
+                )
+        
+        # Also index text if present
+        if 'text' in codeable_concept:
+            await self._add_search_param(
+                session, resource_id, resource_type, param_name, 'string',
+                value_string=codeable_concept['text']
+            )
+    
+    def _parse_datetime(self, date_str):
+        """Parse datetime string to datetime object."""
+        if not date_str:
+            return None
+        try:
+            # Handle timezone
+            if 'T' in date_str:
+                return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                return datetime.strptime(date_str, '%Y-%m-%d')
+        except:
+            return None
     
     async def _add_search_param(self, session, resource_id, resource_type, param_name, param_type, **values):
         """Add a search parameter to the database."""

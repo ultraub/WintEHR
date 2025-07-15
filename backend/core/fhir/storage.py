@@ -87,7 +87,10 @@ class FHIRStorageEngine:
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'},
                 'performer': {'type': 'reference'},
-                'status': {'type': 'token'}
+                'status': {'type': 'token'},
+                'based-on': {'type': 'reference'},  # Added for Phase 1-3 features
+                'code-value-quantity': {'type': 'composite'},  # Composite parameter
+                'component-code-value-quantity': {'type': 'composite'}  # Composite parameter
             },
             'Condition': {
                 'code': {'type': 'token'},
@@ -505,6 +508,8 @@ class FHIRStorageEngine:
         version_id = 1
         last_updated = datetime.now(timezone.utc)
         
+        logging.info(f"DEBUG: Creating {resource_type} with ID {fhir_id}")
+        
         # Add resource metadata
         resource_dict['id'] = fhir_id
         resource_dict['meta'] = resource_dict.get('meta', {})
@@ -578,6 +583,17 @@ class FHIRStorageEngine:
             await self._extract_references(resource_id, resource_dict, "", resource_type)
         except Exception as e:
             logging.error(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
+        
+        # Auto-link Observations to ServiceRequests
+        if resource_type == 'Observation' and not resource_dict.get('basedOn'):
+            try:
+                print(f"\n\n=== AUTO-LINK: Attempting to auto-link Observation {fhir_id} ===\n")
+                logging.info(f"DEBUG: Attempting to auto-link Observation {fhir_id}")
+                await self._auto_link_observation_to_service_request(resource_id, resource_dict)
+            except Exception as e:
+                print(f"\n\n=== AUTO-LINK ERROR: {e} ===\n")
+                logging.error(f"ERROR: Failed to auto-link Observation to ServiceRequest: {e}", exc_info=True)
+        
         await self.session.commit()
         
         # Send WebSocket notification
@@ -5263,6 +5279,168 @@ class FHIRStorageEngine:
             WHERE resource_id = :resource_id
         """)
         await self.session.execute(query, {'resource_id': resource_id})
+    
+    async def _auto_link_observation_to_service_request(self, observation_id: int, observation_data: Dict[str, Any]):
+        """
+        Automatically link an Observation to a ServiceRequest based on matching criteria.
+        
+        Matching logic:
+        1. Same patient
+        2. Same test code (LOINC)
+        3. Date proximity (result within 7 days of order)
+        4. ServiceRequest status is 'active' or 'completed'
+        """
+        from datetime import timedelta
+        
+        print(f"\n=== AUTO-LINK: Starting auto-link for Observation ID {observation_id} ===")
+        logging.info(f"DEBUG: Starting auto-link for Observation ID {observation_id}")
+        
+        # Extract observation details
+        patient_ref = observation_data.get('subject', {}).get('reference', '')
+        if not patient_ref:
+            logging.info("DEBUG: No patient reference found in Observation")
+            return
+        
+        # Extract LOINC codes from observation
+        obs_codes = []
+        if 'code' in observation_data and 'coding' in observation_data['code']:
+            for coding in observation_data['code']['coding']:
+                if coding.get('system') == 'http://loinc.org' and 'code' in coding:
+                    obs_codes.append(coding['code'])
+        
+        logging.info(f"DEBUG: Found LOINC codes in Observation: {obs_codes}")
+        
+        if not obs_codes:
+            logging.info("DEBUG: No LOINC codes found in Observation")
+            return
+        
+        # Get observation date
+        obs_date_str = observation_data.get('effectiveDateTime') or observation_data.get('issued')
+        if not obs_date_str:
+            return
+        
+        try:
+            obs_date = datetime.fromisoformat(obs_date_str.replace('Z', '+00:00'))
+        except:
+            return
+        
+        # Search for matching ServiceRequests
+        # Build search query for ServiceRequests with matching patient and date range
+        min_date = (obs_date - timedelta(days=7)).isoformat()
+        
+        query = text("""
+            SELECT r.fhir_id, r.resource
+            FROM fhir.resources r
+            WHERE r.resource_type = 'ServiceRequest'
+            AND r.deleted = false
+            AND r.resource->>'status' IN ('active', 'completed')
+            AND r.resource->'subject'->>'reference' = :patient_ref
+            AND (
+                r.resource->'category' @> '[{"coding": [{"code": "laboratory"}]}]'::jsonb
+                OR r.resource->'category' @> '[{"coding": [{"system": "http://snomed.info/sct", "code": "108252007"}]}]'::jsonb
+            )
+            AND COALESCE(
+                r.resource->>'authoredOn',
+                r.resource->>'occurrenceDateTime'
+            ) >= :min_date
+            ORDER BY r.last_updated DESC
+        """)
+        
+        logging.info(f"DEBUG: Searching for ServiceRequests with patient_ref={patient_ref}, min_date={min_date}")
+        
+        result = await self.session.execute(query, {
+            'patient_ref': patient_ref,
+            'min_date': min_date
+        })
+        
+        rows = list(result)
+        print(f"=== AUTO-LINK: Found {len(rows)} ServiceRequests ===")
+        logging.info(f"DEBUG: Found {len(rows)} ServiceRequests")
+        
+        best_match = None
+        best_time_diff = timedelta(days=7)
+        
+        for row in result:
+            sr_fhir_id, sr_resource = row
+            sr_data = json.loads(sr_resource) if isinstance(sr_resource, str) else sr_resource
+            
+            # Extract ServiceRequest date
+            sr_date_str = sr_data.get('authoredOn') or sr_data.get('occurrenceDateTime')
+            if not sr_date_str:
+                continue
+            
+            try:
+                sr_date = datetime.fromisoformat(sr_date_str.replace('Z', '+00:00'))
+            except:
+                continue
+            
+            # Result should come after order
+            if obs_date < sr_date:
+                continue
+            
+            # Check if LOINC codes match
+            sr_codes = []
+            if 'code' in sr_data and 'coding' in sr_data['code']:
+                for coding in sr_data['code']['coding']:
+                    if coding.get('system') == 'http://loinc.org' and 'code' in coding:
+                        sr_codes.append(coding['code'])
+            
+            # Check for matching codes
+            print(f"=== AUTO-LINK: Comparing obs codes {obs_codes} with sr codes {sr_codes} ===")
+            if not any(code in sr_codes for code in obs_codes):
+                print(f"=== AUTO-LINK: No matching codes, skipping ===")
+                continue
+            
+            # Calculate time difference
+            time_diff = obs_date - sr_date
+            
+            # Check if this is a better match
+            if time_diff < best_time_diff:
+                best_match = sr_fhir_id
+                best_time_diff = time_diff
+        
+        # If we found a match, update the observation
+        if best_match:
+            logging.info(f"DEBUG: Found match! Linking Observation to ServiceRequest {best_match}")
+            
+            # Add basedOn reference to the observation
+            observation_data['basedOn'] = [{
+                'reference': f'ServiceRequest/{best_match}',
+                'type': 'ServiceRequest'
+            }]
+            
+            # Update the observation in the database
+            update_query = text("""
+                UPDATE fhir.resources
+                SET resource = :resource,
+                    last_updated = CURRENT_TIMESTAMP,
+                    version_id = version_id + 1
+                WHERE id = :resource_id
+            """)
+            
+            await self.session.execute(update_query, {
+                'resource': json.dumps(observation_data, cls=FHIRJSONEncoder),
+                'resource_id': observation_id
+            })
+            
+            # Also update the ServiceRequest status to completed if it's active
+            sr_update_query = text("""
+                UPDATE fhir.resources
+                SET resource = jsonb_set(resource, '{status}', '"completed"'::jsonb),
+                    last_updated = CURRENT_TIMESTAMP,
+                    version_id = version_id + 1
+                WHERE resource_type = 'ServiceRequest'
+                AND fhir_id = :fhir_id
+                AND resource->>'status' = 'active'
+            """)
+            
+            await self.session.execute(sr_update_query, {
+                'fhir_id': best_match
+            })
+            
+            logging.info(f"Auto-linked Observation {observation_data['id']} to ServiceRequest {best_match}")
+        else:
+            logging.info("DEBUG: No matching ServiceRequest found")
     
     async def create_clinical_workflow(
         self, 
