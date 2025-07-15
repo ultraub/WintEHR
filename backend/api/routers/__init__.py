@@ -45,8 +45,8 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         from api.catalogs import router as catalogs_router
         from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
-        from routers.clinical_tasks import router as clinical_tasks_router
-        from routers.clinical_alerts import router as clinical_alerts_router
+        from api.clinical.tasks.router import router as clinical_tasks_router
+        from api.clinical.alerts.router import router as clinical_alerts_router
         
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
@@ -82,7 +82,7 @@ def register_all_routers(app: FastAPI) -> None:
     
     # 6. Quality & Analytics
     try:
-        from routers.quality_measures import router as quality_measures_router
+        from api.quality.router import router as quality_measures_router
         app.include_router(quality_measures_router, tags=["Quality Measures"])
         logger.info("✓ Quality routers registered")
     except Exception as e:
@@ -91,7 +91,7 @@ def register_all_routers(app: FastAPI) -> None:
     # 7. Imaging & DICOM Services
     try:
         from api.dicom.dicom_service import router as dicom_router
-        from routers.imaging_studies import router as imaging_studies_router
+        from api.imaging.router import router as imaging_studies_router
         
         app.include_router(dicom_router, tags=["DICOM Services"])
         app.include_router(imaging_studies_router, tags=["Imaging Studies"])
