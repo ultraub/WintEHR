@@ -559,7 +559,285 @@ class FHIRClient {
   async updateProcedure(id, procedure) {
     return this.update('Procedure', id, procedure);
   }
-}
+
+  /**
+   * Enhanced observation search with value-quantity filtering
+   * Supports FHIR R4 value-quantity search parameters with operators
+   */
+  async searchObservationsWithValueFilter(patientId, filters = {}) {
+    const params = {
+      patient: patientId,
+      _sort: '-date',
+      _count: filters.limit || 1000
+    };
+
+    // Add code filter if specified
+    if (filters.code) {
+      params.code = `http://loinc.org|${filters.code}`;
+    }
+
+    // Add value-quantity filter
+    if (filters.valueFilter) {
+      const { operator, value, unit } = filters.valueFilter;
+      let valueQuantityParam = `${operator}${value}`;
+      
+      if (unit) {
+        valueQuantityParam += `|http://unitsofmeasure.org|${unit}`;
+      }
+      
+      params['value-quantity'] = valueQuantityParam;
+    }
+
+    // Add category filter if specified
+    if (filters.category) {
+      params.category = filters.category;
+    }
+
+    // Add date range filters
+    if (filters.dateFrom || filters.dateTo) {
+      const dateParams = [];
+      if (filters.dateFrom) {
+        dateParams.push(`ge${filters.dateFrom}`);
+      }
+      if (filters.dateTo) {
+        dateParams.push(`le${filters.dateTo}`);
+      }
+      
+      if (dateParams.length === 1) {
+        params.date = dateParams[0];
+      } else if (dateParams.length === 2) {
+        // Handle multiple date parameters for range queries
+        const response = await this.httpClient.get('/Observation', {
+          params: {
+            ...params,
+            date: dateParams
+          },
+          paramsSerializer: (params) => {
+            // Handle multiple date parameters correctly for FHIR
+            return Object.entries(params)
+              .flatMap(([key, value]) => 
+                Array.isArray(value) 
+                  ? value.map(v => `${key}=${encodeURIComponent(v)}`)
+                  : [`${key}=${encodeURIComponent(value)}`]
+              )
+              .join('&');
+          }
+        });
+        
+        const bundle = response.data;
+        const resources = bundle.entry?.map(entry => entry.resource) || [];
+        
+        return {
+          resources,
+          total: bundle.total || resources.length,
+          bundle
+        };
+      }
+    }
+
+    const response = await this.search('Observation', params);
+    return response;
+  }
+
+  /**
+   * Search for critical lab values using predefined thresholds
+   * Uses value-quantity search to identify abnormal results
+   */
+  async searchCriticalLabValues(patientId, timeframe = '24h') {
+    const criticalValueDefinitions = [
+      // Glucose critical values
+      { code: '2339-0', name: 'Glucose', operator: 'gt', value: 400, unit: 'mg/dL', severity: 'critical' },
+      { code: '2339-0', name: 'Glucose', operator: 'lt', value: 40, unit: 'mg/dL', severity: 'critical' },
+      
+      // Hemoglobin critical values
+      { code: '718-7', name: 'Hemoglobin', operator: 'lt', value: 6, unit: 'g/dL', severity: 'critical' },
+      { code: '718-7', name: 'Hemoglobin', operator: 'gt', value: 20, unit: 'g/dL', severity: 'critical' },
+      
+      // Creatinine critical values
+      { code: '2160-0', name: 'Creatinine', operator: 'gt', value: 4.0, unit: 'mg/dL', severity: 'critical' },
+      
+      // Potassium critical values
+      { code: '6298-4', name: 'Potassium', operator: 'gt', value: 6.5, unit: 'mEq/L', severity: 'critical' },
+      { code: '6298-4', name: 'Potassium', operator: 'lt', value: 2.5, unit: 'mEq/L', severity: 'critical' },
+      
+      // Sodium critical values
+      { code: '2947-0', name: 'Sodium', operator: 'gt', value: 155, unit: 'mEq/L', severity: 'critical' },
+      { code: '2947-0', name: 'Sodium', operator: 'lt', value: 125, unit: 'mEq/L', severity: 'critical' },
+      
+      // Troponin critical values
+      { code: '6598-7', name: 'Troponin', operator: 'gt', value: 0.04, unit: 'ng/mL', severity: 'critical' }
+    ];
+
+    const cutoffDate = new Date();
+    if (timeframe === '24h') {
+      cutoffDate.setHours(cutoffDate.getHours() - 24);
+    } else if (timeframe === '7d') {
+      cutoffDate.setDate(cutoffDate.getDate() - 7);
+    } else if (timeframe === '30d') {
+      cutoffDate.setDate(cutoffDate.getDate() - 30);
+    }
+
+    const criticalResults = [];
+
+    for (const definition of criticalValueDefinitions) {
+      try {
+        const results = await this.searchObservationsWithValueFilter(patientId, {
+          code: definition.code,
+          valueFilter: {
+            operator: definition.operator,
+            value: definition.value,
+            unit: definition.unit
+          },
+          dateFrom: cutoffDate.toISOString()
+        });
+
+        if (results.resources && results.resources.length > 0) {
+          criticalResults.push({
+            definition,
+            results: results.resources,
+            count: results.resources.length
+          });
+        }
+      } catch (error) {
+        console.error(`Error searching for critical values: ${definition.name}`, error);
+      }
+    }
+
+    return criticalResults;
+  }
+
+  /**
+   * Search observations with multiple value filters (OR logic)
+   * Useful for finding results matching any of several critical thresholds
+   */
+  async searchObservationsWithMultipleValueFilters(patientId, filters = []) {
+    const allResults = [];
+    const seenIds = new Set();
+
+    for (const filter of filters) {
+      try {
+        const results = await this.searchObservationsWithValueFilter(patientId, filter);
+        
+        // Add unique results to avoid duplicates
+        results.resources.forEach(result => {
+          if (!seenIds.has(result.id)) {
+            seenIds.add(result.id);
+            allResults.push(result);
+          }
+        });
+      } catch (error) {
+        console.error('Error in multi-filter search:', error);
+      }
+    }
+
+    // Sort by date descending
+    allResults.sort((a, b) => {
+      const dateA = new Date(a.effectiveDateTime || a.issued || 0);
+      const dateB = new Date(b.effectiveDateTime || b.issued || 0);
+      return dateB - dateA;
+    });
+
+    return {
+      resources: allResults,
+      total: allResults.length,
+      bundle: {
+        resourceType: 'Bundle',
+        type: 'searchset',
+        total: allResults.length,
+        entry: allResults.map(resource => ({ resource }))
+      }
+    };
+  }
+
+  /**
+   * Search observations with range-based value filtering
+   * Supports finding values within or outside specified ranges
+   */
+  async searchObservationsInValueRange(patientId, options = {}) {
+    const { code, minValue, maxValue, unit, dateFrom, dateTo, excludeRange = false } = options;
+
+    if (excludeRange) {
+      // Find values outside the range (less than min OR greater than max)
+      const filters = [];
+      
+      if (minValue !== undefined) {
+        filters.push({
+          code,
+          valueFilter: { operator: 'lt', value: minValue, unit },
+          dateFrom,
+          dateTo
+        });
+      }
+      
+      if (maxValue !== undefined) {
+        filters.push({
+          code,
+          valueFilter: { operator: 'gt', value: maxValue, unit },
+          dateFrom,
+          dateTo
+        });
+      }
+      
+      return this.searchObservationsWithMultipleValueFilters(patientId, filters);
+    } else {
+      // Find values within the range (greater than min AND less than max)
+      const params = {
+        patient: patientId,
+        _sort: '-date',
+        _count: 1000
+      };
+
+      if (code) {
+        params.code = `http://loinc.org|${code}`;
+      }
+
+      // For range queries, we need to make multiple calls or use server-side filtering
+      // This is a simplified implementation - a production system might need more sophisticated handling
+      if (minValue !== undefined && maxValue !== undefined) {
+        // Search for values >= minValue
+        const minResults = await this.searchObservationsWithValueFilter(patientId, {
+          code,
+          valueFilter: { operator: 'ge', value: minValue, unit },
+          dateFrom,
+          dateTo
+        });
+
+        // Filter client-side for values <= maxValue
+        const rangeResults = minResults.resources.filter(obs => {
+          const value = obs.valueQuantity?.value;
+          return value !== undefined && value <= maxValue;
+        });
+
+        return {
+          resources: rangeResults,
+          total: rangeResults.length,
+          bundle: {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            total: rangeResults.length,
+            entry: rangeResults.map(resource => ({ resource }))
+          }
+        };
+      } else if (minValue !== undefined) {
+        return this.searchObservationsWithValueFilter(patientId, {
+          code,
+          valueFilter: { operator: 'ge', value: minValue, unit },
+          dateFrom,
+          dateTo
+        });
+      } else if (maxValue !== undefined) {
+        return this.searchObservationsWithValueFilter(patientId, {
+          code,
+          valueFilter: { operator: 'le', value: maxValue, unit },
+          dateFrom,
+          dateTo
+        });
+      }
+    }
+
+    // Fallback to regular search if no value constraints
+    return this.searchObservationsWithValueFilter(patientId, { code, dateFrom, dateTo });
+  }
 
 // Export singleton instance for common use
 export const fhirClient = new FHIRClient();
