@@ -6,7 +6,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   List,
   ListItem,
@@ -15,7 +14,6 @@ import {
   ListItemSecondaryAction,
   Chip,
   Stack,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
@@ -24,7 +22,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -32,10 +29,6 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Badge,
   useTheme,
   alpha,
   Snackbar,
@@ -45,7 +38,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -60,16 +55,19 @@ import {
   Edit as EditIcon,
   History as HistoryIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
-  Print as PrintIcon,
-  Timeline as TimelineIcon,
-  CheckCircle as ActiveIcon,
-  Cancel as InactiveIcon,
   ErrorOutline as SeverityIcon,
   Refresh as RefreshIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Tune as TuneIcon,
+  Sort as SortIcon,
+  CheckCircle as VerifiedIcon,
+  HelpOutline as UnconfirmedIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
@@ -113,6 +111,18 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  
+  // Enhanced filtering state for new FHIR parameters
+  const [dateFilter, setDateFilter] = useState({
+    enabled: false,
+    startDate: null,
+    endDate: null,
+    operator: 'ge' // ge, le, gt, lt, eq
+  });
+  const [verificationFilter, setVerificationFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [sortBySeverity, setSortBySeverity] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -157,18 +167,113 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
     }
   };
 
-  const filteredConditions = conditions.filter(condition => {
-    const conditionStatus = getConditionStatus(condition);
-    const matchesFilter = filter === 'all' || 
-      (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
-      (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
+  // Enhanced FHIR parameter utility functions
+  const getVerificationStatus = (condition) => {
+    return condition.verificationStatus?.coding?.[0]?.code || 'unknown';
+  };
+
+  const getSeverityLevel = (severity) => {
+    if (!severity) return 'unknown';
+    const code = severity.coding?.[0]?.code?.toLowerCase();
+    const display = severity.coding?.[0]?.display?.toLowerCase() || severity.text?.toLowerCase();
     
-    const conditionDisplay = getResourceDisplayText(condition);
-    const matchesSearch = !searchTerm || 
-      conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
+    // SNOMED CT severity codes
+    if (code === '24484000' || display?.includes('severe')) return 'severe';
+    if (code === '6736007' || display?.includes('moderate')) return 'moderate'; 
+    if (code === '255604002' || display?.includes('mild')) return 'mild';
     
-    return matchesFilter && matchesSearch;
-  });
+    // Fallback to text analysis
+    if (display) {
+      if (display.includes('severe') || display.includes('critical')) return 'severe';
+      if (display.includes('moderate')) return 'moderate';
+      if (display.includes('mild') || display.includes('minor')) return 'mild';
+    }
+    
+    return 'unknown';
+  };
+
+  const getSeverityWeight = (severity) => {
+    switch(getSeverityLevel(severity)) {
+      case 'severe': return 3;
+      case 'moderate': return 2;
+      case 'mild': return 1;
+      default: return 0;
+    }
+  };
+
+  const matchesDateFilter = (condition) => {
+    if (!dateFilter.enabled || !dateFilter.startDate) return true;
+    
+    const onsetDate = condition.onsetDateTime || condition.onsetPeriod?.start;
+    if (!onsetDate) return false;
+    
+    const conditionDate = new Date(onsetDate);
+    const filterDate = new Date(dateFilter.startDate);
+    const endDate = dateFilter.endDate ? new Date(dateFilter.endDate) : null;
+    
+    switch(dateFilter.operator) {
+      case 'ge': // Greater than or equal (on or after)
+        return conditionDate >= filterDate;
+      case 'le': // Less than or equal (on or before)
+        return conditionDate <= filterDate;
+      case 'gt': // Greater than (after)
+        return conditionDate > filterDate;
+      case 'lt': // Less than (before)
+        return conditionDate < filterDate;
+      case 'eq': // Equal (exactly on)
+        return conditionDate.toDateString() === filterDate.toDateString();
+      case 'between': // Between two dates
+        return endDate ? (conditionDate >= filterDate && conditionDate <= endDate) : true;
+      default:
+        return true;
+    }
+  };
+
+  // Enhanced filtering and sorting with new FHIR parameters
+  const filteredAndSortedConditions = useMemo(() => {
+    let filtered = conditions.filter(condition => {
+      const conditionStatus = getConditionStatus(condition);
+      const matchesFilter = filter === 'all' || 
+        (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
+        (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
+      
+      const conditionDisplay = getResourceDisplayText(condition);
+      const matchesSearch = !searchTerm || 
+        conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Enhanced FHIR parameter filtering
+      const matchesDate = matchesDateFilter(condition);
+      
+      // Verification status filtering
+      const matchesVerification = verificationFilter === 'all' || 
+        getVerificationStatus(condition) === verificationFilter;
+      
+      // Severity filtering
+      const matchesSeverityFilter = severityFilter === 'all' || 
+        getSeverityLevel(condition.severity) === severityFilter;
+      
+      return matchesFilter && matchesSearch && matchesDate && 
+             matchesVerification && matchesSeverityFilter;
+    });
+    
+    // Severity-based sorting
+    if (sortBySeverity) {
+      filtered.sort((a, b) => {
+        const weightA = getSeverityWeight(a.severity);
+        const weightB = getSeverityWeight(b.severity);
+        return weightB - weightA; // Severe first
+      });
+    } else {
+      // Default sorting by onset date (most recent first)
+      filtered.sort((a, b) => {
+        const dateA = new Date(a.onsetDateTime || a.onsetPeriod?.start || '1900-01-01');
+        const dateB = new Date(b.onsetDateTime || b.onsetPeriod?.start || '1900-01-01');
+        return dateB - dateA;
+      });
+    }
+    
+    return filtered;
+  }, [conditions, filter, searchTerm, dateFilter, verificationFilter, severityFilter, sortBySeverity]);
 
   const activeCount = conditions.filter(c => isConditionActive(c)).length;
   const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
@@ -235,6 +340,26 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
             </Stack>
           </Box>
           <Stack direction="row" spacing={1}>
+            <Tooltip title="Advanced Filters">
+              <IconButton 
+                size="small" 
+                color={showAdvancedFilters ? "primary" : "default"}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                aria-label="Toggle advanced filtering options"
+              >
+                <TuneIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sort by Severity">
+              <IconButton 
+                size="small"
+                color={sortBySeverity ? "primary" : "default"}
+                onClick={() => setSortBySeverity(!sortBySeverity)}
+                aria-label="Sort problems by severity (severe first)"
+              >
+                <SortIcon />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Add Problem">
               <IconButton 
                 size="small" 
@@ -283,13 +408,138 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           }}
         />
 
+        {/* Advanced Filters Panel */}
+        <Collapse in={showAdvancedFilters}>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Card variant="outlined" sx={{ mb: 2, p: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Advanced Filters
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {/* Date Range Filter */}
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={dateFilter.enabled}
+                        onChange={(e) => setDateFilter(prev => ({ 
+                          ...prev, 
+                          enabled: e.target.checked 
+                        }))}
+                      />
+                    }
+                    label="Filter by Onset Date"
+                  />
+                  
+                  {dateFilter.enabled && (
+                    <Box sx={{ mt: 1 }}>
+                      <FormControl fullWidth size="small" sx={{ mb: 1 }}>
+                        <InputLabel>Date Operator</InputLabel>
+                        <Select
+                          value={dateFilter.operator}
+                          label="Date Operator"
+                          onChange={(e) => setDateFilter(prev => ({ 
+                            ...prev, 
+                            operator: e.target.value 
+                          }))}
+                        >
+                          <MenuItem value="ge">On or After</MenuItem>
+                          <MenuItem value="le">On or Before</MenuItem>
+                          <MenuItem value="gt">After</MenuItem>
+                          <MenuItem value="lt">Before</MenuItem>
+                          <MenuItem value="eq">Exactly On</MenuItem>
+                          <MenuItem value="between">Between Dates</MenuItem>
+                        </Select>
+                      </FormControl>
+                      
+                      <DatePicker
+                        label="Start Date"
+                        value={dateFilter.startDate}
+                        onChange={(date) => setDateFilter(prev => ({ 
+                          ...prev, 
+                          startDate: date 
+                        }))}
+                        renderInput={(params) => 
+                          <TextField {...params} fullWidth size="small" sx={{ mb: 1 }} />
+                        }
+                      />
+                      
+                      {dateFilter.operator === 'between' && (
+                        <DatePicker
+                          label="End Date"
+                          value={dateFilter.endDate}
+                          onChange={(date) => setDateFilter(prev => ({ 
+                            ...prev, 
+                            endDate: date 
+                          }))}
+                          renderInput={(params) => 
+                            <TextField {...params} fullWidth size="small" />
+                          }
+                        />
+                      )}
+                    </Box>
+                  )}
+                </Grid>
+                
+                {/* Verification Status Filter */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Verification Status</InputLabel>
+                    <Select
+                      value={verificationFilter}
+                      label="Verification Status"
+                      onChange={(e) => setVerificationFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="confirmed">Confirmed</MenuItem>
+                      <MenuItem value="provisional">Provisional</MenuItem>
+                      <MenuItem value="differential">Differential</MenuItem>
+                      <MenuItem value="unconfirmed">Unconfirmed</MenuItem>
+                      <MenuItem value="refuted">Refuted</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                {/* Severity Filter */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Severity</InputLabel>
+                    <Select
+                      value={severityFilter}
+                      label="Severity"
+                      onChange={(e) => setSeverityFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="severe">Severe</MenuItem>
+                      <MenuItem value="moderate">Moderate</MenuItem>
+                      <MenuItem value="mild">Mild</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              
+              {/* Filter Summary */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Showing {filteredAndSortedConditions.length} of {conditions.length} problems
+                  {dateFilter.enabled && ` • Date filtered`}
+                  {verificationFilter !== 'all' && ` • ${verificationFilter} only`}
+                  {severityFilter !== 'all' && ` • ${severityFilter} only`}
+                  {sortBySeverity && ` • Sorted by severity`}
+                </Typography>
+              </Box>
+            </Card>
+          </LocalizationProvider>
+        </Collapse>
+
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-          {filteredConditions.length === 0 ? (
+          {filteredAndSortedConditions.length === 0 ? (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
               No problems found
             </Typography>
           ) : (
-            filteredConditions.map((condition) => (
+            filteredAndSortedConditions.map((condition) => (
               <ListItem
                 key={condition.id}
                 sx={{
@@ -304,15 +554,59 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 </ListItemIcon>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                       <Typography variant="body1">
                         {getResourceDisplayText(condition)}
                       </Typography>
+                      
+                      {/* Verification Status Indicator */}
+                      {(() => {
+                        const verificationStatus = getVerificationStatus(condition);
+                        if (verificationStatus !== 'unknown') {
+                          const getVerificationIcon = (status) => {
+                            switch(status) {
+                              case 'confirmed': return <VerifiedIcon fontSize="small" />;
+                              case 'provisional': return <InfoIcon fontSize="small" />;
+                              case 'differential': return <InfoIcon fontSize="small" />;
+                              case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
+                              case 'refuted': return <CancelIcon fontSize="small" />;
+                              default: return null;
+                            }
+                          };
+                          
+                          const getVerificationColor = (status) => {
+                            switch(status) {
+                              case 'confirmed': return 'success';
+                              case 'provisional': return 'warning';
+                              case 'differential': return 'info';
+                              case 'unconfirmed': return 'warning';
+                              case 'refuted': return 'error';
+                              default: return 'default';
+                            }
+                          };
+                          
+                          return (
+                            <Tooltip title={`Verification: ${verificationStatus}`}>
+                              <Chip
+                                icon={getVerificationIcon(verificationStatus)}
+                                label={verificationStatus.charAt(0).toUpperCase() + verificationStatus.slice(1)}
+                                size="small"
+                                color={getVerificationColor(verificationStatus)}
+                                variant="outlined"
+                              />
+                            </Tooltip>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Severity Indicator */}
                       {condition.severity && (
                         <Chip 
-                          label={getCodeableConceptDisplay(condition.severity)} 
+                          label={getSeverityLevel(condition.severity).charAt(0).toUpperCase() + getSeverityLevel(condition.severity).slice(1)}
                           size="small" 
-                          color={getSeverityColor(getCodeableConceptDisplay(condition.severity))}
+                          color={getSeverityColor(getSeverityLevel(condition.severity))}
+                          variant={getSeverityLevel(condition.severity) === 'severe' ? 'filled' : 'outlined'}
                         />
                       )}
                     </Box>
@@ -893,12 +1187,42 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  
+  // Enhanced allergy management state
+  const [verificationFilter, setVerificationFilter] = useState('all');
+  const [criticalityFilter, setCriticalityFilter] = useState('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
       case 'high': return 'error';
       case 'low': return 'warning';
       default: return 'info';
+    }
+  };
+
+  // Enhanced FHIR allergy utility functions
+  const getAllergyVerificationStatus = (allergy) => {
+    return allergy.verificationStatus?.coding?.[0]?.code || 'unknown';
+  };
+
+  const getVerificationStatusColor = (status) => {
+    switch(status) {
+      case 'confirmed': return 'error'; // High alert for confirmed allergies
+      case 'unconfirmed': return 'warning';
+      case 'refuted': return 'success';
+      case 'entered-in-error': return 'default';
+      default: return 'info';
+    }
+  };
+
+  const getVerificationStatusIcon = (status) => {
+    switch(status) {
+      case 'confirmed': return <VerifiedIcon fontSize="small" />;
+      case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
+      case 'refuted': return <CancelIcon fontSize="small" />;
+      case 'entered-in-error': return <SeverityIcon fontSize="small" />;
+      default: return <InfoIcon fontSize="small" />;
     }
   };
 
@@ -932,7 +1256,49 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
     }
   };
 
+  // Enhanced allergy filtering and sorting
+  const filteredAndSortedAllergies = useMemo(() => {
+    let filtered = allergies.filter(allergy => {
+      // Verification status filtering
+      const matchesVerification = verificationFilter === 'all' || 
+        getAllergyVerificationStatus(allergy) === verificationFilter;
+      
+      // Criticality filtering
+      const matchesCriticality = criticalityFilter === 'all' || 
+        (allergy.criticality?.toLowerCase() || 'unknown') === criticalityFilter;
+      
+      return matchesVerification && matchesCriticality;
+    });
+    
+    // Sort by criticality (high first) then by verification status (confirmed first)
+    filtered.sort((a, b) => {
+      // First sort by criticality
+      const criticalityWeightA = a.criticality?.toLowerCase() === 'high' ? 3 : 
+                                a.criticality?.toLowerCase() === 'low' ? 2 : 1;
+      const criticalityWeightB = b.criticality?.toLowerCase() === 'high' ? 3 : 
+                                b.criticality?.toLowerCase() === 'low' ? 2 : 1;
+      
+      if (criticalityWeightA !== criticalityWeightB) {
+        return criticalityWeightB - criticalityWeightA;
+      }
+      
+      // Then sort by verification status (confirmed first)
+      const verificationA = getAllergyVerificationStatus(a);
+      const verificationB = getAllergyVerificationStatus(b);
+      const verificationWeightA = verificationA === 'confirmed' ? 2 : 1;
+      const verificationWeightB = verificationB === 'confirmed' ? 2 : 1;
+      
+      return verificationWeightB - verificationWeightA;
+    });
+    
+    return filtered;
+  }, [allergies, verificationFilter, criticalityFilter]);
+
   const activeAllergies = allergies.filter(a => getConditionStatus(a) === FHIR_STATUS_VALUES.CONDITION.ACTIVE);
+  const criticalAllergies = allergies.filter(a => 
+    a.criticality?.toLowerCase() === 'high' && 
+    getAllergyVerificationStatus(a) === 'confirmed'
+  );
 
   return (
     <Card sx={{ height: '100%' }}>
