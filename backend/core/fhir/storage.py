@@ -2705,8 +2705,111 @@ class FHIRStorageEngine:
                                     'value_string': ref
                                 })
         
+        elif resource_type == 'Coverage':
+            # FHIR R4 Coverage search parameters for insurance verification workflows
+            # Comprehensive implementation for revenue cycle management
+            
+            # Status (required) - active, cancelled, draft, entered-in-error
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Beneficiary (required) - the covered party
+            if 'beneficiary' in resource_data and 'reference' in resource_data['beneficiary']:
+                params_to_extract.append({
+                    'param_name': 'beneficiary',
+                    'param_type': 'reference',
+                    'value_string': resource_data['beneficiary']['reference']
+                })
+            
+            # Subscriber - the subscriber to the plan
+            if 'subscriber' in resource_data and 'reference' in resource_data['subscriber']:
+                params_to_extract.append({
+                    'param_name': 'subscriber',
+                    'param_type': 'reference',
+                    'value_string': resource_data['subscriber']['reference']
+                })
+            
+            # PolicyHolder - owner of the policy
+            if 'policyHolder' in resource_data and 'reference' in resource_data['policyHolder']:
+                params_to_extract.append({
+                    'param_name': 'policy-holder',
+                    'param_type': 'reference',
+                    'value_string': resource_data['policyHolder']['reference']
+                })
+            
+            # Payor - the insurer/payor
+            if 'payor' in resource_data:
+                for payor in resource_data['payor']:
+                    if 'reference' in payor:
+                        params_to_extract.append({
+                            'param_name': 'payor',
+                            'param_type': 'reference',
+                            'value_string': payor['reference']
+                        })
+            
+            # Type - coverage category
+            if 'type' in resource_data:
+                coverage_type = resource_data['type']
+                if 'coding' in coverage_type:
+                    for coding in coverage_type['coding']:
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'type',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+            
+            # Class - coverage class information
+            if 'class' in resource_data:
+                for coverage_class in resource_data['class']:
+                    # Class type
+                    if 'type' in coverage_class and 'coding' in coverage_class['type']:
+                        for coding in coverage_class['type']['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'class-type',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+                    
+                    # Class value
+                    if 'value' in coverage_class:
+                        params_to_extract.append({
+                            'param_name': 'class-value',
+                            'param_type': 'string',
+                            'value_string': coverage_class['value']
+                        })
+            
+            # Dependent - dependent number
+            if 'dependent' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'dependent',
+                    'param_type': 'string',
+                    'value_string': resource_data['dependent']
+                })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
         elif resource_type == 'Claim':
-            # Status
+            # FHIR R4 Claim search parameters for medical billing workflows
+            # Enhanced implementation for claims processing and revenue cycle management
+            
+            # Status (required) - active, cancelled, draft, entered-in-error
             if 'status' in resource_data:
                 params_to_extract.append({
                     'param_name': 'status',
@@ -2714,16 +2817,39 @@ class FHIRStorageEngine:
                     'value_token_code': resource_data['status']
                 })
             
-            # Patient reference
+            # Use (required) - claim, preauthorization, predetermination
+            if 'use' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'use',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['use']
+                })
+            
+            # Patient reference (required)
             if 'patient' in resource_data and 'reference' in resource_data['patient']:
-                ref = resource_data['patient']['reference']
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_string': resource_data['patient']['reference']
                 })
             
-            # Created date
+            # Insurer (required) - the insurer organization
+            if 'insurer' in resource_data and 'reference' in resource_data['insurer']:
+                params_to_extract.append({
+                    'param_name': 'insurer',
+                    'param_type': 'reference',
+                    'value_string': resource_data['insurer']['reference']
+                })
+            
+            # Provider (required) - the provider of services
+            if 'provider' in resource_data and 'reference' in resource_data['provider']:
+                params_to_extract.append({
+                    'param_name': 'provider',
+                    'param_type': 'reference',
+                    'value_string': resource_data['provider']['reference']
+                })
+            
+            # Created date (required)
             if 'created' in resource_data:
                 try:
                     created_date = datetime.fromisoformat(
@@ -2736,8 +2862,62 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
+            
+            # Priority - claim priority
+            if 'priority' in resource_data and 'coding' in resource_data['priority']:
+                for coding in resource_data['priority']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'priority',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # Care team members
+            if 'careTeam' in resource_data:
+                for care_team_member in resource_data['careTeam']:
+                    if 'provider' in care_team_member and 'reference' in care_team_member['provider']:
+                        params_to_extract.append({
+                            'param_name': 'care-team',
+                            'param_type': 'reference',
+                            'value_string': care_team_member['provider']['reference']
+                        })
+            
+            # Insurance references
+            if 'insurance' in resource_data:
+                for insurance in resource_data['insurance']:
+                    if 'coverage' in insurance and 'reference' in insurance['coverage']:
+                        params_to_extract.append({
+                            'param_name': 'coverage',
+                            'param_type': 'reference',
+                            'value_string': insurance['coverage']['reference']
+                        })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
         elif resource_type == 'ExplanationOfBenefit':
-            # Status
+            # FHIR R4 ExplanationOfBenefit search parameters for payment processing workflows
+            # Enhanced implementation for claims adjudication and payment tracking
+            
+            # Status (required) - active, cancelled, draft, entered-in-error
             if 'status' in resource_data:
                 params_to_extract.append({
                     'param_name': 'status',
@@ -2745,16 +2925,31 @@ class FHIRStorageEngine:
                     'value_token_code': resource_data['status']
                 })
             
-            # Patient reference
+            # Patient reference (required)
             if 'patient' in resource_data and 'reference' in resource_data['patient']:
-                ref = resource_data['patient']['reference']
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_string': resource_data['patient']['reference']
                 })
             
-            # Created date
+            # Insurer (required) - the insurer organization
+            if 'insurer' in resource_data and 'reference' in resource_data['insurer']:
+                params_to_extract.append({
+                    'param_name': 'insurer',
+                    'param_type': 'reference',
+                    'value_string': resource_data['insurer']['reference']
+                })
+            
+            # Provider - the provider of services
+            if 'provider' in resource_data and 'reference' in resource_data['provider']:
+                params_to_extract.append({
+                    'param_name': 'provider',
+                    'param_type': 'reference',
+                    'value_string': resource_data['provider']['reference']
+                })
+            
+            # Created date (required)
             if 'created' in resource_data:
                 try:
                     created_date = datetime.fromisoformat(
@@ -2767,6 +2962,473 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
+            
+            # Claim reference - reference to the original claim
+            if 'claim' in resource_data and 'reference' in resource_data['claim']:
+                params_to_extract.append({
+                    'param_name': 'claim',
+                    'param_type': 'reference',
+                    'value_string': resource_data['claim']['reference']
+                })
+            
+            # Coverage references
+            if 'insurance' in resource_data:
+                for insurance in resource_data['insurance']:
+                    if 'coverage' in insurance and 'reference' in insurance['coverage']:
+                        params_to_extract.append({
+                            'param_name': 'coverage',
+                            'param_type': 'reference',
+                            'value_string': insurance['coverage']['reference']
+                        })
+            
+            # Disposition - claim disposition
+            if 'disposition' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'disposition',
+                    'param_type': 'string',
+                    'value_string': resource_data['disposition']
+                })
+            
+            # Outcome - claim outcome
+            if 'outcome' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'outcome',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['outcome']
+                })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
+        elif resource_type == 'Device':
+            # FHIR R4 Device search parameters for medical equipment management
+            # Comprehensive implementation for device tracking and maintenance
+            
+            # Status - active, inactive, entered-in-error, unknown
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Patient reference - device assigned to patient
+            if 'patient' in resource_data and 'reference' in resource_data['patient']:
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': resource_data['patient']['reference']
+                })
+            
+            # Location reference - current location of device
+            if 'location' in resource_data and 'reference' in resource_data['location']:
+                params_to_extract.append({
+                    'param_name': 'location',
+                    'param_type': 'reference',
+                    'value_string': resource_data['location']['reference']
+                })
+            
+            # Organization reference - owning organization
+            if 'owner' in resource_data and 'reference' in resource_data['owner']:
+                params_to_extract.append({
+                    'param_name': 'organization',
+                    'param_type': 'reference',
+                    'value_string': resource_data['owner']['reference']
+                })
+            
+            # Device type
+            if 'type' in resource_data and 'coding' in resource_data['type']:
+                for coding in resource_data['type']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'type',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Manufacturer
+            if 'manufacturer' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'manufacturer',
+                    'param_type': 'string',
+                    'value_string': resource_data['manufacturer']
+                })
+            
+            # Model number
+            if 'modelNumber' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'model',
+                    'param_type': 'string',
+                    'value_string': resource_data['modelNumber']
+                })
+            
+            # UDI (Unique Device Identifier)
+            if 'udiCarrier' in resource_data:
+                for udi in resource_data['udiCarrier']:
+                    if 'deviceIdentifier' in udi:
+                        params_to_extract.append({
+                            'param_name': 'udi-di',
+                            'param_type': 'string',
+                            'value_string': udi['deviceIdentifier']
+                        })
+                    if 'carrierHRF' in udi:
+                        params_to_extract.append({
+                            'param_name': 'udi-carrier',
+                            'param_type': 'string',
+                            'value_string': udi['carrierHRF']
+                        })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
+        elif resource_type == 'Goal':
+            # FHIR R4 Goal search parameters for care planning workflows
+            # Comprehensive implementation for goal management and tracking
+            
+            # LifecycleStatus (required) - proposed, planned, accepted, active, on-hold, completed, cancelled, entered-in-error, rejected
+            if 'lifecycleStatus' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'lifecycle-status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['lifecycleStatus']
+                })
+            
+            # AchievementStatus - in-progress, improving, worsening, no-change, achieved, sustaining, not-achieved, no-progress, not-attainable
+            if 'achievementStatus' in resource_data and 'coding' in resource_data['achievementStatus']:
+                for coding in resource_data['achievementStatus']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'achievement-status',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Subject (patient) reference - who the goal is for
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                subject_ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+                # Also index as 'patient' for compatibility
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+            
+            # Category - goal category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Start date
+            if 'startDate' in resource_data:
+                try:
+                    start_date = datetime.strptime(resource_data['startDate'], '%Y-%m-%d') if isinstance(resource_data['startDate'], str) else resource_data['startDate']
+                    params_to_extract.append({
+                        'param_name': 'start-date',
+                        'param_type': 'date',
+                        'value_date': start_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse goal start date: {resource_data.get('startDate')} - {e}")
+            
+            # Target dates
+            if 'target' in resource_data:
+                for target in resource_data['target']:
+                    if 'dueDate' in target:
+                        try:
+                            due_date = datetime.strptime(target['dueDate'], '%Y-%m-%d') if isinstance(target['dueDate'], str) else target['dueDate']
+                            params_to_extract.append({
+                                'param_name': 'target-date',
+                                'param_type': 'date',
+                                'value_date': due_date
+                            })
+                        except (ValueError, TypeError) as e:
+                            logging.warning(f"WARNING: Could not parse goal target date: {target.get('dueDate')} - {e}")
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
+        elif resource_type == 'Media':
+            # FHIR R4 Media search parameters for multimedia content management
+            # Comprehensive implementation for imaging and media workflows
+            
+            # Status (required) - preparation, in-progress, not-done, on-hold, stopped, completed, entered-in-error, unknown
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject (patient) reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                subject_ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+                # Also index as 'patient' for compatibility
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+            
+            # Type - photo, video, audio
+            if 'type' in resource_data and 'coding' in resource_data['type']:
+                for coding in resource_data['type']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'type',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Modality - imaging modality (CT, MR, US, etc.)
+            if 'modality' in resource_data and 'coding' in resource_data['modality']:
+                for coding in resource_data['modality']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'modality',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Created date/time
+            if 'createdDateTime' in resource_data:
+                try:
+                    created_date = datetime.fromisoformat(
+                        resource_data['createdDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'created',
+                        'param_type': 'date',
+                        'value_date': created_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse media created date: {resource_data.get('createdDateTime')} - {e}")
+            
+            # Operator - who created the media
+            if 'operator' in resource_data and 'reference' in resource_data['operator']:
+                params_to_extract.append({
+                    'param_name': 'operator',
+                    'param_type': 'reference',
+                    'value_string': resource_data['operator']['reference']
+                })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # BasedOn - what the media is based on (ServiceRequest, etc.)
+            if 'basedOn' in resource_data:
+                for based_on in resource_data['basedOn']:
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_string': based_on['reference']
+                        })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
+        elif resource_type == 'AuditEvent':
+            # FHIR R4 AuditEvent search parameters for security audit trails
+            # Comprehensive implementation for compliance and security monitoring
+            
+            # Action - C (Create), R (Read), U (Update), D (Delete), E (Execute)
+            if 'action' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'action',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['action']
+                })
+            
+            # Outcome - 0 (Success), 4 (Minor failure), 8 (Serious failure), 12 (Major failure)
+            if 'outcome' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'outcome',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['outcome']
+                })
+            
+            # Recorded date - when the event was recorded
+            if 'recorded' in resource_data:
+                try:
+                    recorded_date = datetime.fromisoformat(
+                        resource_data['recorded'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': recorded_date
+                    })
+                    # Also index as 'recorded'
+                    params_to_extract.append({
+                        'param_name': 'recorded',
+                        'param_type': 'date',
+                        'value_date': recorded_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse audit recorded date: {resource_data.get('recorded')} - {e}")
+            
+            # Type - the type of event
+            if 'type' in resource_data:
+                audit_type = resource_data['type']
+                if 'code' in audit_type:
+                    params_to_extract.append({
+                        'param_name': 'type',
+                        'param_type': 'token',
+                        'value_token_system': audit_type.get('system'),
+                        'value_token_code': audit_type['code']
+                    })
+            
+            # Subtype - more specific event classification
+            if 'subtype' in resource_data:
+                for subtype in resource_data['subtype']:
+                    if 'code' in subtype:
+                        params_to_extract.append({
+                            'param_name': 'subtype',
+                            'param_type': 'token',
+                            'value_token_system': subtype.get('system'),
+                            'value_token_code': subtype['code']
+                        })
+            
+            # Agent - who performed the action
+            if 'agent' in resource_data:
+                for agent in resource_data['agent']:
+                    if 'who' in agent and 'reference' in agent['who']:
+                        params_to_extract.append({
+                            'param_name': 'agent',
+                            'param_type': 'reference',
+                            'value_string': agent['who']['reference']
+                        })
+                    
+                    # Agent name
+                    if 'name' in agent:
+                        params_to_extract.append({
+                            'param_name': 'agent-name',
+                            'param_type': 'string',
+                            'value_string': agent['name']
+                        })
+                    
+                    # Agent role
+                    if 'type' in agent and 'coding' in agent['type']:
+                        for coding in agent['type']['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'agent-role',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Source - audit event source
+            if 'source' in resource_data:
+                source = resource_data['source']
+                if 'observer' in source and 'reference' in source['observer']:
+                    params_to_extract.append({
+                        'param_name': 'source',
+                        'param_type': 'reference',
+                        'value_string': source['observer']['reference']
+                    })
+                
+                # Source site
+                if 'site' in source:
+                    params_to_extract.append({
+                        'param_name': 'site',
+                        'param_type': 'string',
+                        'value_string': source['site']
+                    })
+            
+            # Entity - what was accessed/modified
+            if 'entity' in resource_data:
+                for entity in resource_data['entity']:
+                    if 'what' in entity and 'reference' in entity['what']:
+                        params_to_extract.append({
+                            'param_name': 'entity',
+                            'param_type': 'reference',
+                            'value_string': entity['what']['reference']
+                        })
+                    
+                    # Entity name
+                    if 'name' in entity:
+                        params_to_extract.append({
+                            'param_name': 'entity-name',
+                            'param_type': 'string',
+                            'value_string': entity['name']
+                        })
+                    
+                    # Entity type
+                    if 'type' in entity and 'code' in entity['type']:
+                        params_to_extract.append({
+                            'param_name': 'entity-type',
+                            'param_type': 'token',
+                            'value_token_system': entity['type'].get('system'),
+                            'value_token_code': entity['type']['code']
+                        })
         
         elif resource_type == 'Practitioner':
             # Name (family and given)
@@ -3702,6 +4364,500 @@ class FHIRStorageEngine:
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
                             'value_string': reason['reference']
+                        })
+        
+        elif resource_type == 'ServiceRequest':
+            # FHIR R4 ServiceRequest search parameters for clinical ordering workflows
+            # Comprehensive implementation supporting Orders and Results module integration
+            
+            # Status (required) - active, cancelled, completed, draft, entered-in-error, on-hold, revoked, unknown
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Intent (required) - directive, filler-order, instance-order, option, order, original-order, plan, proposal, reflex-order
+            if 'intent' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'intent',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['intent']
+                })
+            
+            # Priority - routine, urgent, asap, stat
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['priority']
+                })
+            
+            # Category - laboratory, imaging, procedure, survey, etc.
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+                    if 'text' in category:
+                        params_to_extract.append({
+                            'param_name': 'category',
+                            'param_type': 'string',
+                            'value_string': category['text']
+                        })
+            
+            # Code - what is being requested (LOINC, SNOMED, CPT, etc.)
+            if 'code' in resource_data:
+                code = resource_data['code']
+                if 'coding' in code:
+                    for coding in code['coding']:
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'code',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+                if 'text' in code:
+                    params_to_extract.append({
+                        'param_name': 'code',
+                        'param_type': 'string',
+                        'value_string': code['text']
+                    })
+            
+            # Subject (patient) reference - critical for patient-specific orders
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                subject_ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+                # Also index as 'patient' for compatibility
+                params_to_extract.append({
+                    'param_name': 'patient',
+                    'param_type': 'reference',
+                    'value_string': subject_ref
+                })
+            
+            # Encounter reference - link to clinical encounter
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # Authored date - when the order was created
+            if 'authoredOn' in resource_data:
+                try:
+                    authored_date = datetime.fromisoformat(
+                        resource_data['authoredOn'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'authored',
+                        'param_type': 'date',
+                        'value_date': authored_date
+                    })
+                    # Also index as 'authoredon' for compatibility
+                    params_to_extract.append({
+                        'param_name': 'authoredon',
+                        'param_type': 'date',
+                        'value_date': authored_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse authoredOn date: {resource_data.get('authoredOn')} - {e}")
+            
+            # Occurrence date/time - when the service should be performed
+            if 'occurrenceDateTime' in resource_data:
+                try:
+                    occurrence_date = datetime.fromisoformat(
+                        resource_data['occurrenceDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'occurrence',
+                        'param_type': 'date',
+                        'value_date': occurrence_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse occurrenceDateTime: {resource_data.get('occurrenceDateTime')} - {e}")
+            
+            # Occurrence period
+            if 'occurrencePeriod' in resource_data:
+                period = resource_data['occurrencePeriod']
+                if 'start' in period:
+                    try:
+                        start_date = datetime.fromisoformat(
+                            period['start'].replace('Z', '+00:00')
+                        )
+                        params_to_extract.append({
+                            'param_name': 'occurrence',
+                            'param_type': 'date',
+                            'value_date': start_date
+                        })
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"WARNING: Could not parse occurrence period start: {period.get('start')} - {e}")
+            
+            # Requester - who requested the service
+            if 'requester' in resource_data and 'reference' in resource_data['requester']:
+                params_to_extract.append({
+                    'param_name': 'requester',
+                    'param_type': 'reference',
+                    'value_string': resource_data['requester']['reference']
+                })
+            
+            # Performer - who should perform the service
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'reference' in performer:
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': performer['reference']
+                        })
+            
+            # PerformerType - type of performer
+            if 'performerType' in resource_data:
+                performer_type = resource_data['performerType']
+                if 'coding' in performer_type:
+                    for coding in performer_type['coding']:
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'performer-type',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+            
+            # Specimen reference
+            if 'specimen' in resource_data:
+                for specimen in resource_data['specimen']:
+                    if 'reference' in specimen:
+                        params_to_extract.append({
+                            'param_name': 'specimen',
+                            'param_type': 'reference',
+                            'value_string': specimen['reference']
+                        })
+            
+            # BodySite - anatomical location
+            if 'bodySite' in resource_data:
+                for body_site in resource_data['bodySite']:
+                    if 'coding' in body_site:
+                        for coding in body_site['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'body-site',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # ReasonCode - coded reason for the request
+            if 'reasonCode' in resource_data:
+                for reason_code in resource_data['reasonCode']:
+                    if 'coding' in reason_code:
+                        for coding in reason_code['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'reason-code',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+                    if 'text' in reason_code:
+                        params_to_extract.append({
+                            'param_name': 'reason-code',
+                            'param_type': 'string',
+                            'value_string': reason_code['text']
+                        })
+            
+            # ReasonReference - reference to condition or observation
+            if 'reasonReference' in resource_data:
+                for reason_ref in resource_data['reasonReference']:
+                    if 'reference' in reason_ref:
+                        params_to_extract.append({
+                            'param_name': 'reason-reference',
+                            'param_type': 'reference',
+                            'value_string': reason_ref['reference']
+                        })
+            
+            # Insurance references
+            if 'insurance' in resource_data:
+                for insurance in resource_data['insurance']:
+                    if 'reference' in insurance:
+                        params_to_extract.append({
+                            'param_name': 'insurance',
+                            'param_type': 'reference',
+                            'value_string': insurance['reference']
+                        })
+            
+            # Supporting info references
+            if 'supportingInfo' in resource_data:
+                for supporting_info in resource_data['supportingInfo']:
+                    if 'reference' in supporting_info:
+                        params_to_extract.append({
+                            'param_name': 'supporting-info',
+                            'param_type': 'reference',
+                            'value_string': supporting_info['reference']
+                        })
+            
+            # BasedOn - references to other requests this is based on
+            if 'basedOn' in resource_data:
+                for based_on in resource_data['basedOn']:
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_string': based_on['reference']
+                        })
+            
+            # Replaces - references to requests this replaces
+            if 'replaces' in resource_data:
+                for replaces in resource_data['replaces']:
+                    if 'reference' in replaces:
+                        params_to_extract.append({
+                            'param_name': 'replaces',
+                            'param_type': 'reference',
+                            'value_string': replaces['reference']
+                        })
+            
+            # Identifiers - external identifiers for the service request
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
+        elif resource_type == 'Appointment':
+            # FHIR R4 Appointment search parameters for healthcare scheduling workflows
+            # Comprehensive implementation supporting Schedule module integration
+            
+            # Status (required) - proposed, pending, booked, arrived, fulfilled, cancelled, noshow, entered-in-error, checked-in, waitlist
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Date - appointment start date and time (CRITICAL for scheduling)
+            if 'start' in resource_data:
+                try:
+                    start_date = datetime.fromisoformat(
+                        resource_data['start'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': start_date
+                    })
+                    # Also index as 'start' for compatibility
+                    params_to_extract.append({
+                        'param_name': 'start',
+                        'param_type': 'date',
+                        'value_date': start_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse appointment start date: {resource_data.get('start')} - {e}")
+            
+            # End date - appointment end time
+            if 'end' in resource_data:
+                try:
+                    end_date = datetime.fromisoformat(
+                        resource_data['end'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'end',
+                        'param_type': 'date',
+                        'value_date': end_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse appointment end date: {resource_data.get('end')} - {e}")
+            
+            # ServiceCategory - broad categorization of service
+            if 'serviceCategory' in resource_data:
+                for service_category in resource_data['serviceCategory']:
+                    if 'coding' in service_category:
+                        for coding in service_category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'service-category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # ServiceType - specific type of service
+            if 'serviceType' in resource_data:
+                for service_type in resource_data['serviceType']:
+                    if 'coding' in service_type:
+                        for coding in service_type['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'service-type',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Specialty - medical specialty required
+            if 'specialty' in resource_data:
+                for specialty in resource_data['specialty']:
+                    if 'coding' in specialty:
+                        for coding in specialty['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'specialty',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # AppointmentType - style of appointment or patient
+            if 'appointmentType' in resource_data:
+                appointment_type = resource_data['appointmentType']
+                if 'coding' in appointment_type:
+                    for coding in appointment_type['coding']:
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'appointment-type',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+            
+            # Priority - appointment priority
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'number',
+                    'value_number': resource_data['priority']
+                })
+            
+            # Participants - extract patient, practitioner, location references
+            if 'participant' in resource_data:
+                for participant in resource_data['participant']:
+                    if 'actor' in participant and 'reference' in participant['actor']:
+                        actor_ref = participant['actor']['reference']
+                        
+                        # Generic participant search
+                        params_to_extract.append({
+                            'param_name': 'participant',
+                            'param_type': 'reference',
+                            'value_string': actor_ref
+                        })
+                        
+                        # Specific participant type searches
+                        if actor_ref.startswith('Patient/'):
+                            params_to_extract.append({
+                                'param_name': 'patient',
+                                'param_type': 'reference',
+                                'value_string': actor_ref
+                            })
+                        elif actor_ref.startswith('Practitioner/'):
+                            params_to_extract.append({
+                                'param_name': 'practitioner',
+                                'param_type': 'reference',
+                                'value_string': actor_ref
+                            })
+                        elif actor_ref.startswith('Location/'):
+                            params_to_extract.append({
+                                'param_name': 'location',
+                                'param_type': 'reference',
+                                'value_string': actor_ref
+                            })
+                        elif actor_ref.startswith('Device/'):
+                            params_to_extract.append({
+                                'param_name': 'device',
+                                'param_type': 'reference',
+                                'value_string': actor_ref
+                            })
+                        elif actor_ref.startswith('HealthcareService/'):
+                            params_to_extract.append({
+                                'param_name': 'healthcare-service',
+                                'param_type': 'reference',
+                                'value_string': actor_ref
+                            })
+                    
+                    # Participant status
+                    if 'status' in participant:
+                        params_to_extract.append({
+                            'param_name': 'participant-status',
+                            'param_type': 'token',
+                            'value_token_code': participant['status']
+                        })
+                    
+                    # Participant required status
+                    if 'required' in participant:
+                        params_to_extract.append({
+                            'param_name': 'participant-required',
+                            'param_type': 'token',
+                            'value_token_code': participant['required']
+                        })
+            
+            # Slot references
+            if 'slot' in resource_data:
+                for slot in resource_data['slot']:
+                    if 'reference' in slot:
+                        params_to_extract.append({
+                            'param_name': 'slot',
+                            'param_type': 'reference',
+                            'value_string': slot['reference']
+                        })
+            
+            # Reason codes
+            if 'reasonCode' in resource_data:
+                for reason_code in resource_data['reasonCode']:
+                    if 'coding' in reason_code:
+                        for coding in reason_code['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'reason-code',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Reason references
+            if 'reasonReference' in resource_data:
+                for reason_ref in resource_data['reasonReference']:
+                    if 'reference' in reason_ref:
+                        params_to_extract.append({
+                            'param_name': 'reason-reference',
+                            'param_type': 'reference',
+                            'value_string': reason_ref['reference']
+                        })
+            
+            # Supporting information
+            if 'supportingInformation' in resource_data:
+                for supporting_info in resource_data['supportingInformation']:
+                    if 'reference' in supporting_info:
+                        params_to_extract.append({
+                            'param_name': 'supporting-information',
+                            'param_type': 'reference',
+                            'value_string': supporting_info['reference']
+                        })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
                         })
         
         elif resource_type == 'Parameters':
