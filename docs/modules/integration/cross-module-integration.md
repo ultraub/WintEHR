@@ -34,6 +34,11 @@ Backend Modules
 │   ├── depends on → Clinical Services Module
 │   ├── evaluates → Clinical Rules
 │   └── integrates with → Clinical Workflows
+├── Clinical Workflow Engine (NEW)
+│   ├── orchestrates → Document-Communication-Task workflows
+│   ├── depends on → FHIR API Module
+│   ├── manages → Resource Relationships
+│   └── synchronizes → Workflow Status
 ├── Data Management Module
 │   ├── uses → FHIR API Module
 │   └── manages → Database Operations
@@ -732,5 +737,331 @@ describe('Order to Result Workflow', () => {
 - ✅ Orders → Results workflow: Real-time order status synchronization
 - ✅ Cross-module context sharing: Patient data consistency maintained
 - ✅ WebSocket integration: Real-time updates functional across all tabs
+
+## Clinical Workflow Engine Integration
+
+### Document-Communication-Task Orchestration
+**Complete clinical workflow integration with linked resource management**
+
+### Workflow Creation Integration
+```javascript
+// Frontend integration - creating a consultation workflow
+import { fhirService } from '../services/fhirService';
+
+const createConsultationWorkflow = async (patientId, consultationData) => {
+  // Create workflow via FHIR storage engine
+  const workflow = await fhirService.createClinicalWorkflow({
+    workflowType: 'consultation',
+    patientRef: `Patient/${patientId}`,
+    encounterRef: `Encounter/${consultationData.encounterId}`,
+    initiatorRef: `Practitioner/${consultationData.practitionerId}`,
+    description: 'Cardiology consultation with follow-up planning',
+    priority: 'high'
+  });
+  
+  // Workflow creates linked resources:
+  // - DocumentReference for consultation notes
+  // - Communication for provider notifications
+  // - Task for workflow orchestration
+  
+  return workflow;
+};
+```
+
+### Cross-Module Workflow Events
+```javascript
+// Clinical Workspace integration
+const { publish, subscribe } = useClinicalWorkflow();
+
+// Publish workflow events
+useEffect(() => {
+  const handleWorkflowCreated = async (workflowData) => {
+    await publish(CLINICAL_EVENTS.WORKFLOW_CREATED, {
+      workflowId: workflowData.workflow_id,
+      type: workflowData.type,
+      patientId: workflowData.patientId,
+      resources: workflowData.resources
+    });
+  };
+}, []);
+
+// Subscribe to workflow updates across modules
+useEffect(() => {
+  const unsubscribe = subscribe(CLINICAL_EVENTS.WORKFLOW_STATUS_CHANGED, (data) => {
+    // Update UI across Chart Review, Communication, and Orders tabs
+    if (data.workflowId === currentWorkflowId) {
+      refreshWorkflowResources(data.workflowId);
+      updateWorkflowStatus(data.newStatus);
+    }
+  });
+  
+  return unsubscribe;
+}, [currentWorkflowId]);
+```
+
+### Resource Relationship Management
+```javascript
+// Cross-resource integration patterns
+class WorkflowIntegrationService {
+  async linkDocumentToWorkflow(documentId, workflowId) {
+    // Link DocumentReference to existing workflow
+    await fhirService.linkWorkflowResources(
+      'DocumentReference', documentId,
+      'Task', workflowId,
+      'supports'
+    );
+    
+    // Notify all modules of the relationship
+    await publish(CLINICAL_EVENTS.RESOURCE_LINKED, {
+      sourceType: 'DocumentReference',
+      sourceId: documentId,
+      targetType: 'Task', 
+      targetId: workflowId,
+      relationship: 'supports'
+    });
+  }
+  
+  async getWorkflowResources(workflowId) {
+    // Get all resources in workflow
+    const resources = await fhirService.getWorkflowResources(workflowId);
+    
+    return {
+      documents: resources.DocumentReference || [],
+      communications: resources.Communication || [],
+      tasks: resources.Task || []
+    };
+  }
+}
+```
+
+### Module Integration Points
+
+#### Chart Review ↔ Workflow Engine
+```javascript
+// Chart Review tab workflow integration
+const ChartReviewWorkflow = () => {
+  const [workflowResources, setWorkflowResources] = useState({});
+  
+  // Load workflow documents in Chart Review
+  useEffect(() => {
+    const loadWorkflowDocuments = async () => {
+      if (currentWorkflowId) {
+        const resources = await fhirService.getWorkflowResources(currentWorkflowId);
+        
+        // Display DocumentReferences in Chart Review
+        setDocuments(resources.DocumentReference || []);
+        
+        // Show linked communications
+        setCommunications(resources.Communication || []);
+      }
+    };
+    
+    loadWorkflowDocuments();
+  }, [currentWorkflowId]);
+  
+  // Create new workflow document
+  const createWorkflowDocument = async (documentData) => {
+    const document = await fhirService.createResource('DocumentReference', {
+      ...documentData,
+      identifier: [{
+        system: 'http://example.org/clinical-workflow',
+        value: currentWorkflowId
+      }]
+    });
+    
+    // Link to existing workflow
+    await fhirService.linkWorkflowResources(
+      'DocumentReference', document.id,
+      'Task', currentTaskId,
+      'supports'
+    );
+    
+    return document;
+  };
+};
+```
+
+#### Communication Module Integration
+```javascript
+// Communication threading with workflow
+const CommunicationWorkflow = () => {
+  // Create threaded communication in workflow
+  const createWorkflowCommunication = async (messageData) => {
+    const communication = await fhirService.createResource('Communication', {
+      ...messageData,
+      identifier: [{
+        system: 'http://example.org/clinical-workflow',
+        value: currentWorkflowId
+      }],
+      about: [
+        { reference: `DocumentReference/${relatedDocumentId}` },
+        { reference: `Task/${workflowTaskId}` }
+      ],
+      basedOn: [{ reference: `Task/${workflowTaskId}` }]
+    });
+    
+    // Publish communication event
+    await publish(CLINICAL_EVENTS.COMMUNICATION_SENT, {
+      workflowId: currentWorkflowId,
+      communicationId: communication.id,
+      participants: communication.recipient
+    });
+    
+    return communication;
+  };
+  
+  // Handle workflow communication responses
+  const handleCommunicationResponse = async (responseData) => {
+    const response = await fhirService.createResource('Communication', {
+      ...responseData,
+      inResponseTo: [{ reference: `Communication/${parentCommunicationId}` }],
+      partOf: [{ reference: `Communication/${threadId}` }]
+    });
+    
+    // Update workflow status based on response
+    if (responseData.status === 'completed') {
+      await fhirService.updateWorkflowStatus(
+        currentWorkflowId,
+        'in-progress',
+        'Communication response received'
+      );
+    }
+    
+    return response;
+  };
+};
+```
+
+#### Orders ↔ Task Integration
+```javascript
+// Orders module workflow task creation
+const OrdersWorkflowIntegration = () => {
+  // Create task for order fulfillment
+  const createOrderTask = async (orderData) => {
+    const task = await fhirService.createResource('Task', {
+      status: 'ready',
+      intent: 'order',
+      code: { text: 'Fulfill order' },
+      for: { reference: `Patient/${orderData.patientId}` },
+      focus: { reference: `ServiceRequest/${orderData.orderId}` },
+      authoredOn: new Date().toISOString(),
+      businessStatus: { text: 'Order received' }
+    });
+    
+    // Link to workflow if part of larger process
+    if (orderData.workflowId) {
+      await fhirService.linkWorkflowResources(
+        'Task', task.id,
+        'Task', orderData.workflowId,
+        'part-of'
+      );
+    }
+    
+    return task;
+  };
+  
+  // Update task status on order completion
+  const updateOrderTaskStatus = async (orderId, newStatus) => {
+    const tasks = await fhirService.searchResources('Task', {
+      focus: [`ServiceRequest/${orderId}`]
+    });
+    
+    for (const task of tasks.entry || []) {
+      await fhirService.updateResource('Task', task.resource.id, {
+        ...task.resource,
+        status: newStatus,
+        lastModified: new Date().toISOString(),
+        businessStatus: { text: `Order ${newStatus}` }
+      });
+    }
+    
+    // Publish status update
+    await publish(CLINICAL_EVENTS.ORDER_STATUS_CHANGED, {
+      orderId,
+      newStatus,
+      taskIds: tasks.entry?.map(t => t.resource.id) || []
+    });
+  };
+};
+```
+
+### Workflow Search Integration
+```javascript
+// Cross-module workflow search capabilities
+const WorkflowSearchIntegration = {
+  // Find all workflow resources by patient
+  async getPatientWorkflows(patientId) {
+    const [documents, communications, tasks] = await Promise.all([
+      fhirService.searchResources('DocumentReference', {
+        patient: [patientId],
+        identifier: ['http://example.org/clinical-workflow|*']
+      }),
+      fhirService.searchResources('Communication', {
+        subject: [`Patient/${patientId}`],
+        identifier: ['http://example.org/clinical-workflow|*']
+      }),
+      fhirService.searchResources('Task', {
+        for: [`Patient/${patientId}`],
+        identifier: ['http://example.org/clinical-workflow|*']
+      })
+    ]);
+    
+    return { documents, communications, tasks };
+  },
+  
+  // Find workflow by specific resource
+  async getWorkflowByResource(resourceType, resourceId) {
+    const resource = await fhirService.getResource(resourceType, resourceId);
+    const workflowIdentifier = resource.identifier?.find(
+      id => id.system === 'http://example.org/clinical-workflow'
+    );
+    
+    if (workflowIdentifier) {
+      return await fhirService.getWorkflowResources(workflowIdentifier.value);
+    }
+    
+    return null;
+  },
+  
+  // Cross-reference workflow search
+  async findRelatedWorkflowResources(resourceType, resourceId) {
+    const queries = {
+      'DocumentReference': {
+        'Communication': { about: [`DocumentReference/${resourceId}`] },
+        'Task': { focus: [`DocumentReference/${resourceId}`] }
+      },
+      'Communication': {
+        'DocumentReference': { related: [`Communication/${resourceId}`] },
+        'Task': { input: [`Communication/${resourceId}`] }
+      },
+      'Task': {
+        'DocumentReference': { context: [`Task/${resourceId}`] },
+        'Communication': { basedOn: [`Task/${resourceId}`] }
+      }
+    };
+    
+    const relatedQueries = queries[resourceType] || {};
+    const results = {};
+    
+    for (const [targetType, searchParams] of Object.entries(relatedQueries)) {
+      results[targetType] = await fhirService.searchResources(targetType, searchParams);
+    }
+    
+    return results;
+  }
+};
+```
+
+### 2025-07-15 Clinical Workflow Integration
+- **Major Addition**: Complete Document-Communication-Task workflow orchestration
+- **Enhanced**: Cross-module workflow event system with real-time synchronization
+- **Added**: Resource relationship management with automatic linking
+- **Improved**: Chart Review ↔ Communication ↔ Orders workflow integration
+- **Added**: Comprehensive workflow search capabilities across all modules
+- **Enhanced**: Task-based workflow status management with cross-resource synchronization
+- **Added**: Clinical workflow context integration with existing ClinicalWorkflowContext
+- **Improved**: Event-driven architecture for workflow state management
+- **Added**: Workflow resource lifecycle management (create, link, update, search)
+- **Enhanced**: Cross-tab workflow synchronization via WebSocket integration
 
 This update ensures robust medication workflow integration with proper event-driven communication between Chart Review, Pharmacy, and Orders modules.

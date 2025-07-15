@@ -465,12 +465,296 @@ async def get_resource_history(resource_type: str, resource_id: str) -> Bundle:
 - Authentication required
 - Audit all operations
 
+## Documentation and Infrastructure Resources
+
+### Enhanced DocumentReference Support
+**Complete FHIR R4 search parameter implementation with workflow integration**
+
+**Enhanced Search Parameters**:
+```python
+# Core parameters
+GET /DocumentReference?status=current
+GET /DocumentReference?type=http://loinc.org|34133-9
+GET /DocumentReference?category=clinical-note
+GET /DocumentReference?patient=Patient/123
+
+# Enhanced parameters (newly added)
+GET /DocumentReference?facility=hospital-main
+GET /DocumentReference?period=2023-01-01
+GET /DocumentReference?relatesto=DocumentReference/456
+GET /DocumentReference?security-label=restricted
+GET /DocumentReference?content-format=application/pdf
+GET /DocumentReference?content-size=gt1000000
+```
+
+**Workflow Integration**:
+```python
+# Create workflow-linked document
+workflow_result = await storage.create_clinical_workflow(
+    workflow_type="consultation",
+    patient_ref="Patient/123",
+    encounter_ref="Encounter/456",
+    description="Cardiology consultation workflow"
+)
+
+# Links DocumentReference with Communication and Task resources
+# - DocumentReference contains consultation notes
+# - Communication handles notifications 
+# - Task orchestrates workflow completion
+```
+
+### Communication Resource Implementation
+**Complete threading and workflow notification capabilities**
+
+**Threading Support**:
+```python
+# Parent communication
+POST /Communication
+{
+  "status": "in-progress",
+  "topic": {"text": "Patient care coordination"},
+  "identifier": [{"value": "thread-001"}]
+}
+
+# Response communication with threading
+POST /Communication  
+{
+  "status": "completed",
+  "inResponseTo": [{"reference": "Communication/parent-123"}],
+  "partOf": [{"reference": "Communication/thread-001"}]
+}
+```
+
+**Search Capabilities**:
+```python
+# Find all communications in a thread
+GET /Communication?part-of=Communication/thread-001
+
+# Find responses to specific communication
+GET /Communication?in-response-to=Communication/parent-123
+
+# Search by participants
+GET /Communication?sender=Practitioner/dr-smith
+GET /Communication?recipient=Patient/123
+
+# Search by workflow context
+GET /Communication?about=DocumentReference/consultation-notes
+```
+
+### Task Resource Orchestration
+**Comprehensive workflow management and business process support**
+
+**Workflow Orchestration**:
+```python
+# Create coordinating task
+POST /Task
+{
+  "status": "ready",
+  "intent": "plan",
+  "code": {"text": "Care coordination"},
+  "for": {"reference": "Patient/123"},
+  "focus": {"reference": "DocumentReference/care-plan"},
+  "basedOn": [{"reference": "ServiceRequest/referral"}],
+  "partOf": [{"reference": "Task/master-workflow"}]
+}
+```
+
+**Advanced Search**:
+```python
+# Find tasks by workflow
+GET /Task?based-on=ServiceRequest/referral
+GET /Task?part-of=Task/master-workflow
+GET /Task?focus=DocumentReference/care-plan
+
+# Business status tracking
+GET /Task?business-status=pending-review
+GET /Task?status=in-progress&priority=high
+
+# Date-based workflow queries  
+GET /Task?authored-on=ge2023-01-01
+GET /Task?modified=today
+```
+
+### Bundle Processing Enhancement
+**Atomic transaction processing with rollback and performance optimization**
+
+**Transaction Processing**:
+```python
+# Atomic workflow creation
+POST /Bundle
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "request": {"method": "POST", "url": "DocumentReference"},
+      "resource": {/* DocumentReference for workflow */}
+    },
+    {
+      "request": {"method": "POST", "url": "Communication"},
+      "resource": {/* Communication for notifications */}
+    },
+    {
+      "request": {"method": "POST", "url": "Task"},
+      "resource": {/* Task for orchestration */}
+    }
+  ]
+}
+```
+
+**Enhanced Features**:
+- ✅ Atomic transaction processing with full rollback
+- ✅ Performance optimization for bulk operations
+- ✅ Support for all Bundle types (transaction, batch, collection, searchset, history, document)
+- ✅ Enhanced error reporting with detailed diagnostics
+- ✅ Reference resolution within Bundle entries
+
+### OperationOutcome Enhancement
+**Detailed diagnostic generation with clinical context**
+
+**Enhanced Diagnostics**:
+```python
+# Detailed validation errors
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "invalid",
+      "details": {
+        "text": "DocumentReference.status is required"
+      },
+      "diagnostics": "Resource validation failed: missing required field 'status' in DocumentReference",
+      "expression": ["DocumentReference.status"],
+      "location": ["line 15, column 3"]
+    }
+  ]
+}
+```
+
+**Clinical Context Integration**:
+- ✅ Resource-specific error messages
+- ✅ Expression paths for precise error location  
+- ✅ Clinical context in diagnostic messages
+- ✅ Severity levels (fatal, error, warning, information)
+- ✅ Integration with workflow validation
+
+### Parameters Resource Support
+**Comprehensive FHIR operation parameter handling**
+
+**Extended Search Parameters**:
+```python
+# Parameter name and value searches
+GET /Parameters?parameter=patient-id
+GET /Parameters?value-string=Patient/123
+GET /Parameters?value-boolean=true
+GET /Parameters?value-integer=42
+
+# Date and time parameter searches
+GET /Parameters?value-date=2023-01-01
+GET /Parameters?value-datetime=ge2023-01-01T00:00:00Z
+
+# Complex parameter searches
+GET /Parameters?value-reference=Patient/123
+GET /Parameters?value-quantity=gt100
+GET /Parameters?operation=validate
+```
+
+**Operation Context Support**:
+```python
+# Track operation parameters
+POST /Parameters
+{
+  "parameter": [
+    {
+      "name": "resource",
+      "valueReference": {"reference": "Patient/123"}
+    },
+    {
+      "name": "mode", 
+      "valueCode": "validate"
+    }
+  ],
+  "meta": {
+    "tag": [
+      {
+        "system": "http://hl7.org/fhir/operation",
+        "code": "validate"
+      }
+    ]
+  }
+}
+```
+
+### Clinical Workflow Integration
+**Orchestrated Document-Communication-Task workflows**
+
+**Workflow Creation API**:
+```python
+# Create complete clinical workflow
+async def create_consultation_workflow():
+    workflow = await storage.create_clinical_workflow(
+        workflow_type="consultation",
+        patient_ref="Patient/123",
+        encounter_ref="Encounter/456", 
+        initiator_ref="Practitioner/dr-smith",
+        description="Cardiology consultation with follow-up",
+        priority="high"
+    )
+    
+    # Returns:
+    # {
+    #   "workflow_id": "uuid-123",
+    #   "resources": {
+    #     "document": "DocumentReference/doc-456",
+    #     "communication": "Communication/comm-789", 
+    #     "task": "Task/task-101"
+    #   }
+    # }
+```
+
+**Workflow Management**:
+```python
+# Get all workflow resources
+workflow_resources = await storage.get_workflow_resources("uuid-123")
+
+# Update workflow status
+await storage.update_workflow_status(
+    "uuid-123", 
+    "completed",
+    "Consultation completed successfully"
+)
+
+# Link additional resources
+await storage.link_workflow_resources(
+    "Task", "task-101",
+    "ServiceRequest", "follow-up-456", 
+    "references"
+)
+```
+
+**Workflow Search**:
+```python
+# Find all resources in workflow
+GET /DocumentReference?identifier=http://example.org/clinical-workflow|uuid-123
+GET /Communication?identifier=http://example.org/clinical-workflow|uuid-123  
+GET /Task?identifier=http://example.org/clinical-workflow|uuid-123
+
+# Cross-resource workflow queries
+GET /Task?focus:DocumentReference.identifier=uuid-123
+GET /Communication?about:Task.identifier=uuid-123
+```
+
 ## Module Dependencies
 ```
 FHIR API Module
 ├── Database Module (PostgreSQL)
 ├── Auth Module (OAuth2/JWT)
 ├── Validation Module (FHIR schemas)
+├── Clinical Workflow Engine (NEW)
+│   ├── Document Management
+│   ├── Communication Threading
+│   └── Task Orchestration
 └── External Services
     ├── Terminology Server
     ├── Identity Provider
@@ -483,3 +767,22 @@ FHIR API Module
 - API contract tests
 - Performance tests
 - Compliance test suite
+- Comprehensive test harnesses for documentation/infrastructure resources
+- SQL database validation framework for search parameter accuracy
+- Clinical workflow orchestration testing
+
+## Recent Updates
+
+### 2025-07-15
+- **Major Enhancement**: Comprehensive Documentation and Infrastructure resource support
+- **Added**: Complete DocumentReference search parameters (category, facility, period, relatesto, security-label)
+- **Added**: Full Communication resource with threading capabilities and workflow notifications
+- **Added**: Complete Task resource with workflow orchestration and business process support
+- **Enhanced**: Bundle processing with atomic transactions, rollback capability, and performance optimization
+- **Enhanced**: OperationOutcome with detailed diagnostics, clinical context, and expression paths
+- **Added**: Comprehensive Parameters resource search support for all FHIR data types
+- **Added**: Clinical workflow integration with Document-Communication-Task orchestration
+- **Added**: Extensive test harnesses and validation frameworks for infrastructure testing
+- **Improved**: Search parameter extraction accuracy and database query performance
+- **Enhanced**: Cross-resource workflow queries and reference resolution
+- **Compliance**: Full FHIR R4 compliance for all enhanced resources and search parameters
