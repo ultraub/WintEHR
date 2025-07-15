@@ -223,7 +223,7 @@ export const useMedicationWorkflow = (prescriptionId) => {
       });
       const dispenses = dispensesResponse.entry?.map(e => e.resource) || [];
       
-      // Load related administrations (when available in Phase 2)
+      // Load related administrations (Phase 2 implementation)
       let administrations = [];
       try {
         const administrationsResponse = await fhirClient.search('MedicationAdministration', {
@@ -232,7 +232,8 @@ export const useMedicationWorkflow = (prescriptionId) => {
         });
         administrations = administrationsResponse.entry?.map(e => e.resource) || [];
       } catch (err) {
-        // MedicationAdministration not yet implemented
+        // Administrations may not exist for this prescription
+        administrations = [];
       }
       
       // Calculate workflow status

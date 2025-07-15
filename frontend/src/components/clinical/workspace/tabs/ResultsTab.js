@@ -75,7 +75,8 @@ import {
   Close as CloseIcon,
   CheckCircle,
   Timeline as TimelineIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  LocationOn as LocationIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -949,8 +950,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     
     switch (tabValue) {
       case 0: 
-        // Priority: Provider filter > Advanced filter > Regular results
-        if (filteredByProvider && providerFilteredResults.length > 0) {
+        // Priority: Facility filter > Provider filter > Advanced filter > Regular results
+        if (filteredByFacility && facilityFilteredResults.length > 0) {
+          currentResults = filterResults(facilityFilteredResults);
+        } else if (filteredByFacility) {
+          // Facility filter active but no results found
+          currentResults = [];
+        } else if (filteredByProvider && providerFilteredResults.length > 0) {
           currentResults = filterResults(providerFilteredResults);
         } else if (filteredByProvider) {
           // Provider filter active but no results found
@@ -985,7 +991,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       filteredResults: currentResults, 
       sortedResults: sorted 
     };
-  }, [tabValue, labResults, vitalSigns, diagnosticReports, filterResults, filteredByValue, advancedFilteredResults, advancedFilters, filteredByProvider, providerFilteredResults]);
+  }, [tabValue, labResults, vitalSigns, diagnosticReports, filterResults, filteredByValue, advancedFilteredResults, advancedFilters, filteredByProvider, providerFilteredResults, filteredByFacility, facilityFilteredResults]);
 
   // Memoized abnormal count calculation
   const abnormalCount = useMemo(() => {
@@ -1020,6 +1026,24 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           >
             Providers
             {filteredByProvider && (
+              <Chip 
+                label="Filtered" 
+                size="small" 
+                color="primary" 
+                sx={{ ml: 1 }} 
+              />
+            )}
+          </Button>
+
+          {/* Facility Management */}
+          <Button
+            variant={showFacilityPanel ? "contained" : "outlined"}
+            onClick={() => setShowFacilityPanel(!showFacilityPanel)}
+            startIcon={<LocationIcon />}
+            color={filteredByFacility ? "primary" : "inherit"}
+          >
+            Facilities
+            {filteredByFacility && (
               <Chip 
                 label="Filtered" 
                 size="small" 
@@ -1319,6 +1343,18 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             onProviderFilter={handleProviderFilter}
             onResultsUpdate={handleProviderResultsUpdate}
             selectedProvider={providerFilter?.provider?.id}
+          />
+        </Box>
+      )}
+
+      {/* Facility Result Manager Panel */}
+      {showFacilityPanel && (
+        <Box sx={{ mb: 3 }}>
+          <FacilityResultManager
+            patientId={patientId}
+            onFacilityFilter={handleFacilityFilter}
+            onResultsUpdate={handleFacilityResultsUpdate}
+            selectedFacility={facilityFilter?.facility?.id}
           />
         </Box>
       )}

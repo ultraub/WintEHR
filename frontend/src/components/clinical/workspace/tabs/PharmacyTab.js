@@ -78,9 +78,13 @@ import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
 import { medicationDispenseService } from '../../../../services/medicationDispenseService';
+import { medicationAdministrationService } from '../../../../services/medicationAdministrationService';
 import { useMedicationDispense, useMedicationWorkflow } from '../../../../hooks/useMedicationDispense';
+import { useMedicationAdministration } from '../../../../hooks/useMedicationAdministration';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
+import AdministrationDialog from './components/AdministrationDialog';
+import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
 
 // Medication status definitions
 const MEDICATION_STATUSES = {
@@ -592,7 +596,10 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   
   // Enhanced medication hooks
   const { dispenses, createDispense, refreshDispenses } = useMedicationDispense(patientId);
+  const { administrations, recordAdministration, refreshAdministrations } = useMedicationAdministration(patientId);
   const [enhancedDispenseDialog, setEnhancedDispenseDialog] = useState(false);
+  const [administrationDialogOpen, setAdministrationDialogOpen] = useState(false);
+  const [administrationMode, setAdministrationMode] = useState('administer');
   
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -856,6 +863,51 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses]);
 
+  // Handle medication administration
+  const handleAdminister = useCallback(async (medicationRequest, mode = 'administer') => {
+    setSelectedRequest(medicationRequest);
+    setAdministrationMode(mode);
+    setAdministrationDialogOpen(true);
+  }, []);
+
+  const handleRecordAdministration = useCallback(async (administrationData) => {
+    try {
+      await recordAdministration(administrationData);
+      await refreshAdministrations();
+      
+      setSnackbar({
+        open: true,
+        message: 'Medication administration recorded successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to record administration: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  }, [recordAdministration, refreshAdministrations]);
+
+  const handleRecordMissedDose = useCallback(async (missedDoseData) => {
+    try {
+      await recordAdministration(missedDoseData);
+      await refreshAdministrations();
+      
+      setSnackbar({
+        open: true,
+        message: 'Missed dose recorded successfully',
+        severity: 'info'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to record missed dose: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  }, [recordAdministration, refreshAdministrations]);
+
   // Handle refill request approval
   const handleApproveRefill = useCallback(async (refillRequestId, approvalData) => {
     try {
@@ -958,6 +1010,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       case 2: return categorizedRequests.dispensed;
       case 3: return categorizedRequests.completed;
       case 4: return pendingRefills; // Refill requests tab
+      case 5: return []; // MAR tab - handled separately
       default: return filteredRequests;
     }
   };
@@ -1179,6 +1232,11 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             }
             iconPosition="start"
           />
+          <Tab 
+            label="Medication Administration (MAR)" 
+            icon={<PharmacyIcon />}
+            iconPosition="start"
+          />
         </Tabs>
       </Paper>
 
@@ -1248,7 +1306,20 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       </Paper>
 
       {/* Medication Requests List */}
-      {currentRequests.length === 0 ? (
+      {tabValue === 5 ? (
+        // Render MAR (Medication Administration Record)
+        <MedicationAdministrationRecord
+          patientId={patientId}
+          onAdministrationComplete={(type, medicationRequestId) => {
+            setSnackbar({
+              open: true,
+              message: `Medication ${type} recorded successfully`,
+              severity: type === 'administered' ? 'success' : 'info'
+            });
+          }}
+          currentUser={{ id: 'current-user', name: 'Current User' }} // In real app, get from auth context
+        />
+      ) : currentRequests.length === 0 ? (
         <Alert severity="info">
           {patientFilter === 'current' && currentPatient
             ? `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
@@ -1355,6 +1426,18 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Administration Dialog */}
+      <AdministrationDialog
+        open={administrationDialogOpen}
+        onClose={() => setAdministrationDialogOpen(false)}
+        medicationRequest={selectedRequest}
+        patientId={patientId}
+        mode={administrationMode}
+        onAdminister={handleRecordAdministration}
+        onMissedDose={handleRecordMissedDose}
+        currentUser={{ id: 'current-user', name: 'Current User' }} // In real app, get from auth context
+      />
 
       {/* Snackbar for notifications */}
       <Snackbar
