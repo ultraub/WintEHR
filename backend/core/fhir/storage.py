@@ -1673,7 +1673,7 @@ class FHIRStorageEngine:
             if 'gender' in resource_data:
                 await self._add_search_param(
                     resource_id, resource_type, 'gender', 'token',
-                    value_string=resource_data['gender']
+                    value_token_code=resource_data['gender']
                 )
         
         elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 
