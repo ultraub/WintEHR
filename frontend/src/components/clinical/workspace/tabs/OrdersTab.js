@@ -87,6 +87,8 @@ import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import CPOEDialog from '../dialogs/CPOEDialog';
 import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
+import AdvancedOrderFilters from './components/AdvancedOrderFilters';
+import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -505,6 +507,26 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // Enhanced order search with comprehensive FHIR R4 capabilities
+  const {
+    entries: searchResults,
+    total: totalResults,
+    loading: searchLoading,
+    error: searchError,
+    analytics,
+    hasActiveFilters,
+    updateFilters,
+    clearSearch,
+    search: executeSearch,
+    pagination
+  } = useAdvancedOrderSearch({
+    patientId,
+    autoSearch: true,
+    includeAnalytics: true,
+    debounceMs: 300
+  });
 
   // Use centralized CDS
   const { executeCDSHooks, getAlerts } = useCDS();
@@ -525,27 +547,38 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [getAlerts, onNotificationUpdate]);
 
-  // Get all orders
-  const medicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
-  const serviceRequests = getPatientResources(patientId, 'ServiceRequest') || [];
+  // Get orders from enhanced search or fallback to FHIR context
+  const enhancedOrders = searchResults?.map(entry => entry.resource) || [];
+  const fallbackMedicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
+  const fallbackServiceRequests = getPatientResources(patientId, 'ServiceRequest') || [];
+  const fallbackOrders = [...fallbackMedicationRequests, ...fallbackServiceRequests];
   
-  // Combine all orders
-  const allOrders = [...medicationRequests, ...serviceRequests];
+  // Use enhanced search results if available, otherwise fallback
+  const allOrders = enhancedOrders.length > 0 ? enhancedOrders : fallbackOrders;
   
   // Separate by category
-  const medicationOrders = medicationRequests;
-  const labOrders = serviceRequests.filter(sr => 
-    sr.category?.[0]?.coding?.[0]?.code === 'laboratory'
+  const medicationOrders = allOrders.filter(order => order.resourceType === 'MedicationRequest');
+  const labOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    order.category?.[0]?.coding?.[0]?.code === 'laboratory'
   );
-  const imagingOrders = serviceRequests.filter(sr => 
-    sr.category?.[0]?.coding?.[0]?.code === 'imaging'
+  const imagingOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    order.category?.[0]?.coding?.[0]?.code === 'imaging'
   );
-  const otherOrders = serviceRequests.filter(sr => 
-    !['laboratory', 'imaging'].includes(sr.category?.[0]?.coding?.[0]?.code)
+  const otherOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    !['laboratory', 'imaging'].includes(order.category?.[0]?.coding?.[0]?.code)
   );
 
-  // Filter orders
+  // Filter orders (legacy filters for fallback when not using enhanced search)
   const filterOrders = (orders) => {
+    // If using enhanced search results, return as-is (filtering handled by search service)
+    if (enhancedOrders.length > 0) {
+      return orders;
+    }
+    
+    // Legacy filtering for fallback
     return orders.filter(order => {
       // Status filter
       if (filterStatus !== 'all' && order.status !== filterStatus) {
@@ -601,7 +634,8 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const currentOrders = getCurrentOrders();
-  const sortedOrders = [...currentOrders].sort((a, b) => {
+  // Enhanced search results are already sorted by service
+  const sortedOrders = enhancedOrders.length > 0 ? currentOrders : [...currentOrders].sort((a, b) => {
     const dateA = new Date(a.authoredOn || a.occurrenceDateTime || 0);
     const dateB = new Date(b.authoredOn || b.occurrenceDateTime || 0);
     return dateB - dateA;
@@ -1272,13 +1306,40 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         </Tabs>
       </Paper>
 
-      {/* Filters */}
+      {/* Enhanced Order Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">Search & Filters</Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {hasActiveFilters() && (
+              <Chip 
+                label={`${Object.keys(searchResults || {}).length} filters active`} 
+                size="small" 
+                color="primary"
+                onDelete={clearSearch}
+              />
+            )}
+            <Button
+              size="small"
+              startIcon={<FilterIcon />}
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              variant={showAdvancedFilters ? 'contained' : 'outlined'}
+            >
+              {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+            </Button>
+          </Stack>
+        </Stack>
+        
+        {/* Quick Filters Row */}
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mb={showAdvancedFilters ? 2 : 0}>
           <TextField
-            placeholder="Search orders..."
+            placeholder="Search orders, medications, procedures..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              // Update enhanced search with text
+              updateFilters({ freeText: e.target.value });
+            }}
             size="small"
             sx={{ flex: 1 }}
             InputProps={{
@@ -1294,7 +1355,10 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <InputLabel>Status</InputLabel>
             <Select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                updateFilters({ status: e.target.value !== 'all' ? e.target.value : '' });
+              }}
               label="Status"
             >
               <MenuItem value="all">All Status</MenuItem>
@@ -1309,13 +1373,17 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <InputLabel>Period</InputLabel>
             <Select
               value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
+              onChange={(e) => {
+                setFilterPeriod(e.target.value);
+                updateFilters({ dateRange: e.target.value !== 'all' ? e.target.value : '' });
+              }}
               label="Period"
             >
               <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="7d">Last 7 Days</MenuItem>
-              <MenuItem value="30d">Last 30 Days</MenuItem>
-              <MenuItem value="90d">Last 90 Days</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="week">Last Week</MenuItem>
+              <MenuItem value="month">Last Month</MenuItem>
+              <MenuItem value="3months">Last 3 Months</MenuItem>
             </Select>
           </FormControl>
 
@@ -1335,12 +1403,48 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             label="Select All"
           />
         </Stack>
+        
+        {/* Advanced Filters */}
+        {showAdvancedFilters && (
+          <AdvancedOrderFilters
+            onFiltersChange={updateFilters}
+            patientId={patientId}
+            showAdvanced={true}
+          />
+        )}
       </Paper>
 
+      {/* Search Results Info */}
+      {searchLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <CircularProgress size={24} />
+          <Typography sx={{ ml: 1 }}>Searching orders...</Typography>
+        </Box>
+      )}
+      
+      {searchError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Search Error: {searchError}
+        </Alert>
+      )}
+      
+      {analytics && (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>Search Analytics</Typography>
+          <Stack direction="row" spacing={2}>
+            <Chip label={`Total: ${analytics.summary.total}`} size="small" />
+            <Chip label={`Service Requests: ${analytics.summary.byResourceType?.ServiceRequest || 0}`} size="small" color="info" />
+            <Chip label={`Medications: ${analytics.summary.byResourceType?.MedicationRequest || 0}`} size="small" color="secondary" />
+            <Chip label={`Active: ${analytics.summary.byStatus?.active || 0}`} size="small" color="success" />
+            <Chip label={`Urgent: ${analytics.summary.byPriority?.urgent || 0}`} size="small" color="warning" />
+          </Stack>
+        </Paper>
+      )}
+      
       {/* Orders List */}
       {sortedOrders.length === 0 ? (
         <Alert severity="info">
-          No orders found matching your criteria
+          {searchLoading ? 'Searching...' : (enhancedOrders.length > 0 ? 'No orders match your search criteria' : 'No orders found')}
         </Alert>
       ) : sortedOrders.length > 20 ? (
         // Use virtual scrolling for large lists

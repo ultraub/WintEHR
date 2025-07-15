@@ -58,6 +58,8 @@ import {
   getResourceDisplayText,
   getCodeableConceptDisplay
 } from '../../../../utils/fhirFieldUtils';
+import CareTeamSummary from '../components/CareTeamSummary';
+import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 
 // Metric Card Component
 const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
@@ -179,39 +181,15 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { 
-    getPatientResources, 
-    searchResources, 
+    resources,
+    fetchPatientBundle,
     isResourceLoading,
     currentPatient,
-    relationships 
+    relationships,
+    isCacheWarm 
   } = useFHIRResource();
   const { subscribe, publish } = useClinicalWorkflow();
   
-  // Try using the usePatientResources hook as an alternative
-  // const { resources: hookResources, loading: hookLoading } = usePatientResources(patientId);
-  
-  // Get recent items - memoized to prevent excessive calls
-  const conditions = useMemo(() => {
-    return relationships[patientId] ? getPatientResources(patientId, 'Condition') || [] : [];
-  }, [patientId, relationships, getPatientResources]);
-  
-  const medications = useMemo(() => {
-    return relationships[patientId] ? getPatientResources(patientId, 'MedicationRequest') || [] : [];
-  }, [patientId, relationships, getPatientResources]);
-  
-  const observations = useMemo(() => {
-    return relationships[patientId] ? getPatientResources(patientId, 'Observation') || [] : [];
-  }, [patientId, relationships, getPatientResources]);
-  
-  const encounters = useMemo(() => {
-    return relationships[patientId] ? getPatientResources(patientId, 'Encounter') || [] : [];
-  }, [patientId, relationships, getPatientResources]);
-  
-  const allergies = useMemo(() => {
-    return relationships[patientId] ? getPatientResources(patientId, 'AllergyIntolerance') || [] : [];
-  }, [patientId, relationships, getPatientResources]);
-
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -223,31 +201,60 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     overdueItems: 0
   });
 
+  // Load patient data if not already cached
+  useEffect(() => {
+    if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
+      fetchPatientBundle(patientId, false, 'critical');
+    }
+  }, [patientId, isCacheWarm, fetchPatientBundle]);
+
+  // Get resources from context - these are already cached and shared
+  const conditions = useMemo(() => 
+    Object.values(resources.Condition || {}).filter(c => 
+      c.subject?.reference === `Patient/${patientId}` || 
+      c.patient?.reference === `Patient/${patientId}`
+    ), [resources.Condition, patientId]);
+  
+  const medications = useMemo(() => 
+    Object.values(resources.MedicationRequest || {}).filter(m => 
+      m.subject?.reference === `Patient/${patientId}` || 
+      m.patient?.reference === `Patient/${patientId}`
+    ), [resources.MedicationRequest, patientId]);
+  
+  const observations = useMemo(() => 
+    Object.values(resources.Observation || {}).filter(o => 
+      o.subject?.reference === `Patient/${patientId}` || 
+      o.patient?.reference === `Patient/${patientId}`
+    ), [resources.Observation, patientId]);
+  
+  const encounters = useMemo(() => 
+    Object.values(resources.Encounter || {}).filter(e => 
+      e.subject?.reference === `Patient/${patientId}` || 
+      e.patient?.reference === `Patient/${patientId}`
+    ), [resources.Encounter, patientId]);
+  
+  const allergies = useMemo(() => 
+    Object.values(resources.AllergyIntolerance || {}).filter(a => 
+      a.patient?.reference === `Patient/${patientId}`
+    ), [resources.AllergyIntolerance, patientId]);
+
+  const serviceRequests = useMemo(() => 
+    Object.values(resources.ServiceRequest || {}).filter(s => 
+      s.subject?.reference === `Patient/${patientId}` || 
+      s.patient?.reference === `Patient/${patientId}`
+    ), [resources.ServiceRequest, patientId]);
+
   // Define loadDashboardData function before it's used
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       
-      
-      // Check if we have relationships by calling getPatientResources with a test resource type
-      const testResources = getPatientResources(patientId, 'Patient');
-      if (!testResources || testResources.length === 0) {
-        setStats({
-          activeProblems: 0,
-          activeMedications: 0,
-          recentLabs: 0,
-          upcomingAppointments: 0,
-          overdueItems: 0
-        });
-        return;
-      }
-      
-      // Get all resources
-      const conditionsData = getPatientResources(patientId, 'Condition') || [];
-      const medicationsData = getPatientResources(patientId, 'MedicationRequest') || [];
-      const observationsData = getPatientResources(patientId, 'Observation') || [];
-      const encountersData = getPatientResources(patientId, 'Encounter') || [];
-      const allergiesData = getPatientResources(patientId, 'AllergyIntolerance') || [];
+      // Use already loaded resources from context instead of making new API calls
+      const conditionsData = conditions;
+      const medicationsData = medications;
+      const observationsData = observations;
+      const encountersData = encounters;
+      const allergiesData = allergies;
       
 
       // Calculate stats using resilient field access utilities
@@ -287,8 +294,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         }
       });
 
-      // Check for overdue lab orders
-      const labOrders = getPatientResources(patientId, 'ServiceRequest') || [];
+      // Check for overdue lab orders (use already loaded service requests)
+      const labOrders = serviceRequests;
       labOrders.forEach(order => {
         if (order.status === 'active' && order.occurrenceDateTime) {
           const dueDate = new Date(order.occurrenceDateTime);
@@ -702,18 +709,58 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
               <List disablePadding>
                 {recentEncounters.length > 0 ? (
                   recentEncounters.map((encounter) => (
-                    <RecentItem
+                    <ListItem 
                       key={encounter.id}
-                      primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
-                      secondary={
-                        (encounter.actualPeriod || encounter.period)?.start ? 
-                          format(parseISO((encounter.actualPeriod || encounter.period).start), 'MMM d, yyyy h:mm a') : 
-                          'Date unknown'
-                      }
-                      icon={<EncounterIcon color="secondary" />}
-                      status={getEncounterStatus(encounter)}
-                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
-                    />
+                      component="button"
+                      onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
+                      sx={{ 
+                        borderRadius: 1,
+                        mb: 1,
+                        '&:hover': { backgroundColor: 'action.hover' },
+                        cursor: 'pointer',
+                        border: 'none',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        '&:focus': {
+                          outline: '2px solid',
+                          outlineColor: 'primary.main',
+                          outlineOffset: '2px'
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <ListItemIcon>
+                        <EncounterIcon color="secondary" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {(encounter.actualPeriod || encounter.period)?.start ? 
+                                format(parseISO((encounter.actualPeriod || encounter.period).start), 'MMM d, yyyy h:mm a') : 
+                                'Date unknown'
+                              }
+                            </Typography>
+                            {encounter.participant && (
+                              <EnhancedProviderDisplay
+                                participants={encounter.participant}
+                                encounter={encounter}
+                                mode="compact"
+                                showIcon={false}
+                              />
+                            )}
+                          </Box>
+                        }
+                      />
+                      <Chip 
+                        label={getEncounterStatus(encounter)} 
+                        size="small" 
+                        color={getEncounterStatus(encounter) === 'finished' ? 'success' : 'default'}
+                      />
+                    </ListItem>
                   ))
                 ) : (
                   <Typography variant="body2" color="text.secondary">
@@ -723,6 +770,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
               </List>
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Care Team Summary */}
+        <Grid item xs={12} md={6}>
+          <CareTeamSummary
+            patientId={patientId}
+            onViewFullTeam={() => navigate(`/clinical/${patientId}?tab=carePlan`)}
+          />
         </Grid>
       </Grid>
     </Box>

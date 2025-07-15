@@ -100,7 +100,7 @@ import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';
 import ResultTrendAnalysis from '../../results/ResultTrendAnalysis';
 import LabCareRecommendations from '../../results/LabCareRecommendations';
 import LabMonitoringDashboard from '../../results/LabMonitoringDashboard';
-import AdvancedLabValueFilter from '../../results/AdvancedLabValueFilter';
+import AdvancedLabValueFilter from './components/AdvancedLabValueFilter';
 import ProviderAccountabilityPanel from '../../results/ProviderAccountabilityPanel';
 import OrderContextPanel from '../../results/OrderContextPanel';
 import FacilityResultManager from '../../results/FacilityResultManager';
@@ -806,56 +806,16 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   }, [patientId]);
 
   // Handle advanced filter changes
-  const handleAdvancedFilterChange = async (filters) => {
+  const handleAdvancedFilterChange = (filters) => {
     setAdvancedFilters(filters);
     
     if (filters.length === 0) {
       setFilteredByValue(false);
       setAdvancedFilteredResults([]);
-      return;
     }
-
-    if (tabValue === 0) { // Only for Lab Results tab
-      setLoading(true);
-      setFilteredByValue(true);
-      
-      try {
-        // Apply each advanced filter and combine results
-        const allFilteredResults = [];
-        const seenIds = new Set();
-
-        for (const filter of filters) {
-          const searchResults = await fhirClient.searchObservationsWithValueFilter(patientId, {
-            code: filter.code,
-            valueFilter: {
-              operator: filter.operator,
-              value: filter.value,
-              unit: filter.unit
-            },
-            category: 'laboratory'
-          });
-          
-          // Add unique results to avoid duplicates
-          searchResults.resources.forEach(result => {
-            if (!seenIds.has(result.id)) {
-              seenIds.add(result.id);
-              allFilteredResults.push(result);
-            }
-          });
-        }
-        
-        // Enhance results with reference ranges
-        const enhancedResults = allFilteredResults.map(enhanceObservationWithReferenceRange);
-        
-        setAdvancedFilteredResults(enhancedResults);
-      } catch (error) {
-        console.error('Error applying advanced filters:', error);
-        setFilteredByValue(false);
-        setAdvancedFilteredResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }
+    
+    // The actual filtering is now handled by the AdvancedLabValueFilter component
+    // Results are passed back via onFilteredResultsChange callback
   };
 
   // Handle provider filter changes
@@ -1223,9 +1183,23 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       {/* Advanced Lab Value Filtering - Only show for Lab Results tab */}
       {tabValue === 0 && (
         <AdvancedLabValueFilter
-          onFilterChange={handleAdvancedFilterChange}
-          initialFilters={advancedFilters}
           patientId={patientId}
+          onFilterChange={handleAdvancedFilterChange}
+          onFilteredResultsChange={(results) => {
+            setAdvancedFilteredResults(results);
+            setFilteredByValue(results.length > 0);
+          }}
+          onCriticalValuesFound={(criticalValues) => {
+            // Handle critical values found during filtering
+            criticalValues.forEach(result => {
+              if (!alertedResults.has(result.id)) {
+                setCriticalResult(result);
+                setCriticalAlertOpen(true);
+              }
+            });
+          }}
+          initialFilters={advancedFilters}
+          isVisible={true}
         />
       )}
 

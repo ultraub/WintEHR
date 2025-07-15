@@ -838,6 +838,7 @@ class FHIRClient {
     // Fallback to regular search if no value constraints
     return this.searchObservationsWithValueFilter(patientId, { code, dateFrom, dateTo });
   }
+}
 
 // Export singleton instance for common use
 export const fhirClient = new FHIRClient();

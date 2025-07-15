@@ -30,14 +30,15 @@ import {
   Assignment as OrderIcon,
   Person as ProviderIcon,
   Schedule as DateIcon,
-  Priority as PriorityIcon,
+  Flag as PriorityIcon,
   Info as IndicationIcon,
   CheckCircle as CompletedIcon,
   Pending as PendingIcon,
   Error as ErrorIcon,
   Visibility as ViewIcon,
   Link as LinkIcon,
-  AccessTime as TimingIcon
+  AccessTime as TimingIcon,
+  Assignment
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';

@@ -75,6 +75,9 @@ import { useDebounce } from '../../../../hooks/useDebounce';
 import { printDocument } from '../../../../utils/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import GeographicTimelineFilter from '../components/GeographicTimelineFilter';
+import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
+import { useProviderDirectory } from '../../../../hooks/useProviderDirectory';
 
 // Event type configuration
 const eventTypes = {
@@ -255,10 +258,18 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
   const getEventSubtitle = () => {
     switch (event.resourceType) {
       case 'Encounter':
-        const provider = event.participant?.find(p => 
-          p.type?.[0]?.coding?.[0]?.code === 'ATND'
-        )?.individual?.display;
-        return provider || event.status;
+        // Enhanced provider display with roles and locations
+        if (event.participant) {
+          return (
+            <EnhancedProviderDisplay
+              participants={event.participant}
+              encounter={event}
+              mode="compact"
+              showIcon={false}
+            />
+          );
+        }
+        return event.status;
       case 'MedicationRequest':
         return getMedicationDosageDisplay(event);
       case 'Observation':
@@ -429,6 +440,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   const { subscribe, notifications } = useClinicalWorkflow();
+  const { searchProvidersNearLocation, searchProviders, getLocationsByOrganization } = useProviderDirectory();
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -442,6 +454,20 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // Geographic and administrative filter state
+  const [geographicFilters, setGeographicFilters] = useState({
+    useGeographicFilter: false,
+    organizations: [],
+    locations: [],
+    distanceKm: 25,
+    providers: [],
+    encounterTypes: [],
+    providerTypes: []
+  });
+  const [patientLocation, setPatientLocation] = useState(null);
+  const [availableLocations, setAvailableLocations] = useState([]);
+  const [availableOrganizations, setAvailableOrganizations] = useState([]);
 
   useEffect(() => {
     setLoading(false);
@@ -498,6 +524,121 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       });
     };
   }, [subscribe, patientId]);
+
+  // Load available locations and organizations for filters
+  useEffect(() => {
+    if (patientId) {
+      loadGeographicData();
+    }
+  }, [patientId]);
+
+  const loadGeographicData = async () => {
+    try {
+      // Extract locations and organizations from patient's encounters and resources
+      const encounters = getPatientResources(patientId, 'Encounter') || [];
+      const locations = new Set();
+      const organizations = new Set();
+
+      // Extract from encounters
+      encounters.forEach(encounter => {
+        encounter.location?.forEach(loc => {
+          if (loc.location?.display) {
+            locations.add(JSON.stringify({
+              id: loc.location.reference?.split('/')[1] || `loc-${Math.random()}`,
+              name: loc.location.display,
+              type: 'encounter-location'
+            }));
+          }
+        });
+
+        encounter.serviceProvider?.display && organizations.add(JSON.stringify({
+          id: encounter.serviceProvider.reference?.split('/')[1] || `org-${Math.random()}`,
+          name: encounter.serviceProvider.display,
+          type: 'healthcare-provider'
+        }));
+      });
+
+      // Try to search for more providers and locations
+      try {
+        const providers = await searchProviders('', { limit: 20 });
+        providers.forEach(provider => {
+          provider.organizations?.forEach(org => {
+            organizations.add(JSON.stringify({
+              id: org.id,
+              name: org.name,
+              type: 'provider-organization'
+            }));
+          });
+
+          provider.roles?.forEach(role => {
+            role.location?.forEach(loc => {
+              locations.add(JSON.stringify({
+                id: loc.reference?.split('/')[1] || `loc-${Math.random()}`,
+                name: loc.display,
+                type: 'provider-location'
+              }));
+            });
+          });
+        });
+      } catch (error) {
+        console.error('Error loading additional provider data:', error);
+      }
+
+      setAvailableLocations(Array.from(locations).map(loc => JSON.parse(loc)));
+      setAvailableOrganizations(Array.from(organizations).map(org => JSON.parse(org)));
+
+      // Try to extract patient location from address
+      if (currentPatient?.address?.[0]) {
+        const address = currentPatient.address[0];
+        setPatientLocation({
+          address: `${address.line?.join(' ') || ''} ${address.city || ''} ${address.state || ''} ${address.postalCode || ''}`.trim(),
+          city: address.city,
+          state: address.state,
+          postalCode: address.postalCode,
+          // Note: In a real implementation, you would geocode the address to get coordinates
+          latitude: null,
+          longitude: null
+        });
+      }
+    } catch (error) {
+      console.error('Error loading geographic data:', error);
+    }
+  };
+
+  const handleLocationSearch = async (searchLocation) => {
+    // In a real implementation, this would use a geocoding service
+    // For now, we'll simulate setting coordinates
+    if (searchLocation) {
+      setPatientLocation({
+        ...patientLocation,
+        ...searchLocation,
+        latitude: searchLocation.latitude || 42.3601, // Default to Boston coordinates
+        longitude: searchLocation.longitude || -71.0589
+      });
+    } else {
+      // Request current location from browser
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setPatientLocation({
+              ...patientLocation,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              address: patientLocation?.address || 'Current location'
+            });
+          },
+          (error) => {
+            console.error('Error getting location:', error);
+            setSnackbar({
+              open: true,
+              message: 'Unable to get current location',
+              severity: 'warning'
+            });
+          }
+        );
+      }
+    }
+  };
 
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {
@@ -571,6 +712,66 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     );
   }, []);
 
+  // Geographic and administrative filtering function
+  const isEventMatchingFilters = useCallback((event) => {
+    // Organization filter
+    if (geographicFilters.organizations?.length > 0) {
+      let hasMatchingOrganization = false;
+      
+      // Check encounter service provider
+      if (event.resourceType === 'Encounter' && event.serviceProvider) {
+        const orgId = event.serviceProvider.reference?.split('/')[1];
+        if (orgId && geographicFilters.organizations.includes(orgId)) {
+          hasMatchingOrganization = true;
+        }
+      }
+      
+      // Check for organization references in other resources
+      if (!hasMatchingOrganization && event.performer) {
+        event.performer.forEach(performer => {
+          const orgId = performer.reference?.split('/')[1];
+          if (orgId && geographicFilters.organizations.includes(orgId)) {
+            hasMatchingOrganization = true;
+          }
+        });
+      }
+      
+      if (!hasMatchingOrganization) {
+        return false;
+      }
+    }
+
+    // Location filter
+    if (geographicFilters.locations?.length > 0) {
+      let hasMatchingLocation = false;
+      
+      if (event.resourceType === 'Encounter' && event.location) {
+        event.location.forEach(loc => {
+          const locId = loc.location?.reference?.split('/')[1];
+          if (locId && geographicFilters.locations.includes(locId)) {
+            hasMatchingLocation = true;
+          }
+        });
+      }
+      
+      if (!hasMatchingLocation) {
+        return false;
+      }
+    }
+
+    // Encounter type filter
+    if (geographicFilters.encounterTypes?.length > 0) {
+      if (event.resourceType === 'Encounter') {
+        const encounterClass = event.class?.code;
+        if (!encounterClass || !geographicFilters.encounterTypes.includes(encounterClass)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, [geographicFilters]);
+
   // Memoized filtering and sorting to prevent recalculation
   const filteredEvents = useMemo(() => {
     return allEvents.filter(event => {
@@ -604,10 +805,15 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         }
       }
 
+      // Geographic and administrative filters
+      if (!isEventMatchingFilters(event)) {
+        return false;
+      }
+
       // Optimized search filter with debounced search term
       return isEventMatchingSearch(event, debouncedSearchTerm);
     });
-  }, [allEvents, selectedTypes, filterPeriod, debouncedSearchTerm, isEventMatchingSearch]);
+  }, [allEvents, selectedTypes, filterPeriod, debouncedSearchTerm, isEventMatchingSearch, isEventMatchingFilters]);
 
   // Memoized sorting to prevent recalculation
   const sortedEvents = useMemo(() => {
@@ -883,6 +1089,16 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           </Collapse>
         </Stack>
       </Paper>
+
+      {/* Geographic and Administrative Filters */}
+      <GeographicTimelineFilter
+        filters={geographicFilters}
+        onFiltersChange={setGeographicFilters}
+        patientLocation={patientLocation}
+        onLocationSearch={handleLocationSearch}
+        availableLocations={availableLocations}
+        availableOrganizations={availableOrganizations}
+      />
 
       {/* Timeline Display */}
       {sortedEvents.length === 0 ? (

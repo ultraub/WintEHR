@@ -77,6 +77,7 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtil
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../utils/fhirFieldUtils';
+import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounter) => {
@@ -171,17 +172,11 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
               )}
 
               {encounter.participant && (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <ProviderIcon fontSize="small" color="action" />
-                  <Typography variant="body2" color="text.secondary">
-                    {encounter.participant.find(p => 
-                      p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
-                    )?.actor?.display || 
-                    encounter.participant.find(p => 
-                      p.type?.[0]?.coding?.[0]?.code === 'PPRF' || p.type?.[0]?.coding?.[0]?.code === 'ATND'
-                    )?.individual?.display || 'No provider recorded'}
-                  </Typography>
-                </Stack>
+                <EnhancedProviderDisplay
+                  participants={encounter.participant}
+                  encounter={encounter}
+                  mode="compact"
+                />
               )}
 
               {(encounter.reasonCode || encounter.reason) && (
@@ -742,11 +737,11 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
                     <Typography variant="h6">
                       {getEncounterTypeLabel(encounter)}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {encounter.participant?.find(p => 
-                        p.type?.[0]?.coding?.[0]?.code === 'ATND'
-                      )?.individual?.display || 'No provider recorded'}
-                    </Typography>
+                    <EnhancedProviderDisplay
+                      participants={encounter.participant}
+                      encounter={encounter}
+                      mode="compact"
+                    />
                     <Button 
                       size="small" 
                       onClick={() => handleViewEncounterDetails(encounter)}
