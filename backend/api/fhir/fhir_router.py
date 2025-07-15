@@ -2151,8 +2151,11 @@ async def search_resources(
         "ServiceRequest": service_request_to_fhir
     }
     
+    # Handle JSONB-stored resources (they already have FHIR format)
+    jsonb_resources = ["MedicationDispense", "Task"]
+    
     converter = converter_map.get(resource_type)
-    if not converter:
+    if not converter and resource_type not in jsonb_resources:
         raise HTTPException(status_code=500, detail=f"No converter for {resource_type}")
     
     # Create FHIR Bundle
@@ -2172,9 +2175,8 @@ async def search_resources(
     for resource in resources:
         # Handle JSONB resources differently
         if isinstance(resource, FHIRResource):
-            # For JSONB resources, use the generic converter
-            from .converter_modules.generic_converter import generic_resource_to_fhir
-            fhir_resource = generic_resource_to_fhir(resource)
+            # For JSONB resources, they're already in FHIR format
+            fhir_resource = resource.data  # The data field already contains the FHIR resource
             resource_id = resource.fhir_id
         else:
             # For model-based resources, use specific converters

@@ -104,13 +104,51 @@ class FHIRStorageEngine:
                 'form': {'type': 'token'}
             },
             'MedicationRequest': {
-                'code': {'type': 'token'},
+                'medication': {'type': 'token'},  # FHIR R4 compliant parameter
+                'code': {'type': 'token'},        # Keep for backward compatibility
                 'status': {'type': 'token'},
                 'intent': {'type': 'token'},
+                'identifier': {'type': 'token'},
                 'patient': {'type': 'reference'},
                 'subject': {'type': 'reference'},
                 'encounter': {'type': 'reference'},
+                'requester': {'type': 'reference'},
+                'performer': {'type': 'reference'},
                 'authoredon': {'type': 'date'}
+            },
+            'MedicationDispense': {
+                'identifier': {'type': 'token'},
+                'status': {'type': 'token'},
+                'patient': {'type': 'reference'},
+                'subject': {'type': 'reference'},
+                'context': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'medication': {'type': 'token'},
+                'code': {'type': 'token'},
+                'performer': {'type': 'reference'},
+                'receiver': {'type': 'reference'},
+                'destination': {'type': 'reference'},
+                'responsibleparty': {'type': 'reference'},
+                'prescription': {'type': 'reference'},
+                'type': {'type': 'token'},
+                'whenhandedover': {'type': 'date'},
+                'whenprepared': {'type': 'date'}
+            },
+            'MedicationAdministration': {
+                'identifier': {'type': 'token'},
+                'status': {'type': 'token'},
+                'patient': {'type': 'reference'},
+                'subject': {'type': 'reference'},
+                'context': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'effective-time': {'type': 'date'},
+                'medication': {'type': 'token'},
+                'code': {'type': 'token'},
+                'performer': {'type': 'reference'},
+                'device': {'type': 'reference'},
+                'request': {'type': 'reference'},
+                'reason-given': {'type': 'token'},
+                'reason-not-given': {'type': 'token'}
             },
             'Encounter': {
                 'status': {'type': 'token'},
@@ -1562,6 +1600,253 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} (type: {type(resource_data.get('authoredOn'))}) - {e}")
+        
+        elif resource_type == 'MedicationDispense':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Medication code/reference
+            if 'medicationCodeableConcept' in resource_data and 'coding' in resource_data['medicationCodeableConcept']:
+                for coding in resource_data['medicationCodeableConcept']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'medication',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            elif 'medicationReference' in resource_data and 'reference' in resource_data['medicationReference']:
+                params_to_extract.append({
+                    'param_name': 'medication',
+                    'param_type': 'reference',
+                    'value_string': resource_data['medicationReference']['reference']
+                })
+            
+            # Subject/Patient reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Context/Encounter reference
+            if 'context' in resource_data and 'reference' in resource_data['context']:
+                params_to_extract.append({
+                    'param_name': 'context',
+                    'param_type': 'reference',
+                    'value_string': resource_data['context']['reference']
+                })
+                if resource_data['context']['reference'].startswith('Encounter/'):
+                    params_to_extract.append({
+                        'param_name': 'encounter',
+                        'param_type': 'reference',
+                        'value_string': resource_data['context']['reference']
+                    })
+            
+            # Performer reference
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'actor' in performer and 'reference' in performer['actor']:
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': performer['actor']['reference']
+                        })
+            
+            # Prescription reference
+            if 'authorizingPrescription' in resource_data:
+                for prescription in resource_data['authorizingPrescription']:
+                    if 'reference' in prescription:
+                        params_to_extract.append({
+                            'param_name': 'prescription',
+                            'param_type': 'reference',
+                            'value_string': prescription['reference']
+                        })
+            
+            # When handed over
+            if 'whenHandedOver' in resource_data:
+                try:
+                    when_handed_over_str = resource_data['whenHandedOver']
+                    if isinstance(when_handed_over_str, str):
+                        if when_handed_over_str.endswith('Z'):
+                            when_handed_over_date = datetime.fromisoformat(when_handed_over_str.replace('Z', '+00:00'))
+                        elif '+' in when_handed_over_str or when_handed_over_str.endswith('00:00'):
+                            when_handed_over_date = datetime.fromisoformat(when_handed_over_str)
+                        else:
+                            when_handed_over_date = datetime.fromisoformat(when_handed_over_str + '+00:00')
+                    else:
+                        when_handed_over_date = when_handed_over_str if isinstance(when_handed_over_str, datetime) else datetime.fromisoformat(str(when_handed_over_str))
+                    
+                    params_to_extract.append({
+                        'param_name': 'whenhandedover',
+                        'param_type': 'date',
+                        'value_date': when_handed_over_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse whenHandedOver: {resource_data.get('whenHandedOver')} - {e}")
+            
+            # When prepared
+            if 'whenPrepared' in resource_data:
+                try:
+                    when_prepared_str = resource_data['whenPrepared']
+                    if isinstance(when_prepared_str, str):
+                        if when_prepared_str.endswith('Z'):
+                            when_prepared_date = datetime.fromisoformat(when_prepared_str.replace('Z', '+00:00'))
+                        elif '+' in when_prepared_str or when_prepared_str.endswith('00:00'):
+                            when_prepared_date = datetime.fromisoformat(when_prepared_str)
+                        else:
+                            when_prepared_date = datetime.fromisoformat(when_prepared_str + '+00:00')
+                    else:
+                        when_prepared_date = when_prepared_str if isinstance(when_prepared_str, datetime) else datetime.fromisoformat(str(when_prepared_str))
+                    
+                    params_to_extract.append({
+                        'param_name': 'whenprepared',
+                        'param_type': 'date',
+                        'value_date': when_prepared_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse whenPrepared: {resource_data.get('whenPrepared')} - {e}")
+        
+        elif resource_type == 'MedicationAdministration':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Medication code/reference
+            if 'medicationCodeableConcept' in resource_data and 'coding' in resource_data['medicationCodeableConcept']:
+                for coding in resource_data['medicationCodeableConcept']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'medication',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            elif 'medicationReference' in resource_data and 'reference' in resource_data['medicationReference']:
+                params_to_extract.append({
+                    'param_name': 'medication',
+                    'param_type': 'reference',
+                    'value_string': resource_data['medicationReference']['reference']
+                })
+            
+            # Subject/Patient reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Context/Encounter reference
+            if 'context' in resource_data and 'reference' in resource_data['context']:
+                params_to_extract.append({
+                    'param_name': 'context',
+                    'param_type': 'reference',
+                    'value_string': resource_data['context']['reference']
+                })
+                if resource_data['context']['reference'].startswith('Encounter/'):
+                    params_to_extract.append({
+                        'param_name': 'encounter',
+                        'param_type': 'reference',
+                        'value_string': resource_data['context']['reference']
+                    })
+            
+            # Effective time
+            effective_time_field = None
+            if 'effectiveDateTime' in resource_data:
+                effective_time_field = 'effectiveDateTime'
+            elif 'effectivePeriod' in resource_data and 'start' in resource_data['effectivePeriod']:
+                effective_time_field = 'effectivePeriod'
+            
+            if effective_time_field:
+                try:
+                    if effective_time_field == 'effectiveDateTime':
+                        effective_time_str = resource_data['effectiveDateTime']
+                    else:
+                        effective_time_str = resource_data['effectivePeriod']['start']
+                    
+                    if isinstance(effective_time_str, str):
+                        if effective_time_str.endswith('Z'):
+                            effective_date = datetime.fromisoformat(effective_time_str.replace('Z', '+00:00'))
+                        elif '+' in effective_time_str or effective_time_str.endswith('00:00'):
+                            effective_date = datetime.fromisoformat(effective_time_str)
+                        else:
+                            effective_date = datetime.fromisoformat(effective_time_str + '+00:00')
+                    else:
+                        effective_date = effective_time_str if isinstance(effective_time_str, datetime) else datetime.fromisoformat(str(effective_time_str))
+                    
+                    params_to_extract.append({
+                        'param_name': 'effective-time',
+                        'param_type': 'date',
+                        'value_date': effective_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse effective time: {resource_data.get(effective_time_field)} - {e}")
+            
+            # Performer reference
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'actor' in performer and 'reference' in performer['actor']:
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': performer['actor']['reference']
+                        })
+            
+            # Request reference
+            if 'request' in resource_data and 'reference' in resource_data['request']:
+                params_to_extract.append({
+                    'param_name': 'request',
+                    'param_type': 'reference',
+                    'value_string': resource_data['request']['reference']
+                })
+            
+            # Device reference
+            if 'device' in resource_data:
+                for device in resource_data['device']:
+                    if 'reference' in device:
+                        params_to_extract.append({
+                            'param_name': 'device',
+                            'param_type': 'reference',
+                            'value_string': device['reference']
+                        })
+        
         elif resource_type == 'Encounter':
             # Status
             if 'status' in resource_data:
@@ -2056,6 +2341,11 @@ class FHIRStorageEngine:
             'coverage': 'Coverage',
             'payor': 'Organization',
             'prescription': 'MedicationRequest',
+            'authorizingPrescription': 'MedicationRequest',
+            'request': 'MedicationRequest',
+            'receiver': 'Patient',
+            'destination': 'Location',
+            'responsibleparty': 'Practitioner',
             'eventHistory': 'Provenance'
         }
         
