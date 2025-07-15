@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
 import { useStableCallback, useStateGuard } from '../hooks/useStableReferences';
@@ -333,6 +333,9 @@ const FHIRResourceContext = createContext();
 // Provider Component
 export function FHIRResourceProvider({ children }) {
   const [state, dispatch] = useReducer(fhirResourceReducer, initialState);
+  
+  // Track in-flight requests to prevent duplicates
+  const inFlightRequests = useRef(new Map());
 
   // Enhanced cache utilities using intelligent cache
   const getCachedData = useCallback((cacheType, key) => {
@@ -454,6 +457,13 @@ export function FHIRResourceProvider({ children }) {
   // FHIR Operations with Caching
   const fetchResource = useCallback(async (resourceType, resourceId, forceRefresh = false) => {
     const cacheKey = `${resourceType}/${resourceId}`;
+    const requestKey = `fetch_${cacheKey}`;
+    
+    // Check for in-flight request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
     
     if (!forceRefresh) {
       const cached = getCachedData('resources', cacheKey);
@@ -463,23 +473,36 @@ export function FHIRResourceProvider({ children }) {
     dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
     dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
 
-    try {
-      const resource = await fhirClient.read(resourceType, resourceId);
+    const fetchPromise = (async () => {
+      try {
+        const resource = await fhirClient.read(resourceType, resourceId);
       
       addResource(resourceType, resource);
       setCachedData('resources', cacheKey, resource, 600000, resourceType); // 10 minute default
       
-      return resource;
-    } catch (error) {
-      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
-      throw error;
-    } finally {
-      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
-    }
+        return resource;
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+        throw error;
+      } finally {
+        dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    inFlightRequests.current.set(requestKey, fetchPromise);
+    return fetchPromise;
   }, [getCachedData, setCachedData, addResource]);
 
   const searchResources = useCallback(async (resourceType, params = {}, forceRefresh = false) => {
     const searchKey = `${resourceType}_${JSON.stringify(params)}`;
+    const requestKey = `search_${searchKey}`;
+    
+    // Check for in-flight request first
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
     
     if (!forceRefresh) {
       const cached = getCachedData('searches', searchKey);
@@ -492,8 +515,10 @@ export function FHIRResourceProvider({ children }) {
     dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
     dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
 
-    try {
-      const result = await fhirClient.search(resourceType, params);
+    // Create the promise and store it
+    const searchPromise = (async () => {
+      try {
+        const result = await fhirClient.search(resourceType, params);
       
       if (result.resources && result.resources.length > 0) {
         setResources(resourceType, result.resources);
@@ -517,17 +542,32 @@ export function FHIRResourceProvider({ children }) {
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
       dispatch({ type: FHIR_ACTIONS.SET_SEARCH_RESULTS, payload: { searchKey, results: result } });
       
-      return result;
-    } catch (error) {
-      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
-      throw error;
-    } finally {
-      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
-    }
+        return result;
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+        throw error;
+      } finally {
+        dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+        // Clean up in-flight request
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    // Store the promise
+    inFlightRequests.current.set(requestKey, searchPromise);
+    
+    return searchPromise;
   }, [getCachedData, setCachedData, setResources]);
 
   const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
     const cacheKey = `patient_bundle_${patientId}_${priority}`;
+    const requestKey = `bundle_${cacheKey}`;
+    
+    // Check for in-flight request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
     
     if (!forceRefresh) {
       const cached = getCachedData('bundles', cacheKey);
@@ -552,8 +592,9 @@ export function FHIRResourceProvider({ children }) {
       resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
 
-    try {
-      const promises = resourceTypes.map(resourceType => {
+    const bundlePromise = (async () => {
+      try {
+        const promises = resourceTypes.map(resourceType => {
         // Reduce initial count for better performance, increase for specific needs
         const counts = {
           critical: 100,
@@ -637,26 +678,34 @@ export function FHIRResourceProvider({ children }) {
           .catch(err => ({ resourceType, error: err.message, resources: [] }));
       });
 
-      const results = await Promise.all(promises);
-      const bundle = {};
-      
-      results.forEach(result => {
-        if (result.error) {
-          
-        }
-        bundle[result.resourceType || 'unknown'] = result.resources || [];
-      });
+        const results = await Promise.all(promises);
+        const bundle = {};
+        
+        results.forEach(result => {
+          if (result.error) {
+            
+          }
+          bundle[result.resourceType || 'unknown'] = result.resources || [];
+        });
 
-      // Cache with intelligent TTL based on priority
-      const cacheTTL = priority === 'critical' ? 900000 : // 15 minutes
-                      priority === 'important' ? 600000 : // 10 minutes  
-                      300000; // 5 minutes
-      setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
-      return bundle;
-    } catch (error) {
-      
-      throw error;
-    }
+        // Cache with intelligent TTL based on priority
+        const cacheTTL = priority === 'critical' ? 900000 : // 15 minutes
+                        priority === 'important' ? 600000 : // 10 minutes  
+                        300000; // 5 minutes
+        setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
+        return bundle;
+      } catch (error) {
+        
+        throw error;
+      } finally {
+        // Clean up in-flight request
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    // Store the promise
+    inFlightRequests.current.set(requestKey, bundlePromise);
+    return bundlePromise;
   }, [searchResources, getCachedData, setCachedData]);
 
   // Patient Context Management - using stable callback to prevent infinite loops

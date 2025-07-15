@@ -438,9 +438,20 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
 const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { 
+    resources, 
+    fetchPatientBundle, 
+    isResourceLoading, 
+    currentPatient,
+    isCacheWarm 
+  } = useFHIRResource();
   const { subscribe, notifications } = useClinicalWorkflow();
   const { searchProvidersNearLocation, searchProviders, getLocationsByOrganization } = useProviderDirectory();
+  
+  // Progressive loading of resource types
+  const criticalTypes = ['Encounter', 'Condition', 'MedicationRequest', 'Procedure'];
+  const importantTypes = ['Observation', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization'];
+  const optionalTypes = ['DocumentReference', 'CarePlan', 'CareTeam', 'Coverage', 'ImagingStudy', 'Goal'];
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -454,6 +465,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [loadedTypes, setLoadedTypes] = useState(new Set(criticalTypes));
   
   // Geographic and administrative filter state
   const [geographicFilters, setGeographicFilters] = useState({
@@ -535,12 +547,15 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const loadGeographicData = async () => {
     try {
       // Extract locations and organizations from patient's encounters and resources
-      const encounters = getPatientResources(patientId, 'Encounter') || [];
+      const patientEncounters = Object.values(resources.Encounter || {}).filter(e => 
+        e.subject?.reference === `Patient/${patientId}` || 
+        e.patient?.reference === `Patient/${patientId}`
+      );
       const locations = new Set();
       const organizations = new Set();
 
       // Extract from encounters
-      encounters.forEach(encounter => {
+      patientEncounters.forEach(encounter => {
         encounter.location?.forEach(loc => {
           if (loc.location?.display) {
             locations.add(JSON.stringify({
@@ -640,14 +655,37 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
+  // Progressive loading effect
+  useEffect(() => {
+    if (patientId && !isCacheWarm(patientId, criticalTypes)) {
+      setLoading(true);
+      // Load critical resources first
+      fetchPatientBundle(patientId, false, 'critical').then(() => {
+        setLoading(false);
+        // Load important resources in background
+        setTimeout(() => {
+          setLoadedTypes(prev => new Set([...prev, ...importantTypes]));
+          fetchPatientBundle(patientId, false, 'important');
+        }, 100);
+        // Load optional resources after a delay
+        setTimeout(() => {
+          setLoadedTypes(prev => new Set([...prev, ...optionalTypes]));
+          fetchPatientBundle(patientId, false, 'all');
+        }, 2000);
+      });
+    } else {
+      setLoading(false);
+    }
+  }, [patientId, isCacheWarm, fetchPatientBundle]);
+
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {
     const events = [];
     const seenIds = new Set(); // Track unique IDs to prevent duplicates
     
     try {
-      // Add all resource types
-      Object.keys(eventTypes).forEach(resourceType => {
+      // Only process loaded resource types
+      loadedTypes.forEach(resourceType => {
         try {
           if (resourceType === 'WorkflowEvent') {
             // Add workflow events from state
@@ -658,10 +696,13 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
                 events.push(event);
               }
             });
-          } else {
-            // Add FHIR resources
-            const resources = getPatientResources(patientId, resourceType) || [];
-            resources.forEach(resource => {
+          } else if (resources[resourceType]) {
+            // Add FHIR resources from context
+            const patientResources = Object.values(resources[resourceType] || {}).filter(r => 
+              r.subject?.reference === `Patient/${patientId}` || 
+              r.patient?.reference === `Patient/${patientId}`
+            );
+            patientResources.forEach(resource => {
               const uniqueKey = `${resource.resourceType}-${resource.id}`;
               if (!seenIds.has(uniqueKey)) {
                 seenIds.add(uniqueKey);
@@ -681,7 +722,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     }
 
     return events;
-  }, [patientId, getPatientResources, workflowEvents]); // Recalculate when patientId, resources, or workflow events update
+  }, [patientId, resources, workflowEvents, loadedTypes]); // Recalculate when patientId, resources, workflow events, or loaded types update
 
   // Optimized search function that doesn't use JSON.stringify
   const isEventMatchingSearch = useCallback((event, term) => {

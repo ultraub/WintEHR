@@ -89,6 +89,7 @@ import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 import AdvancedOrderFilters from './components/AdvancedOrderFilters';
 import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
+import { usePatientClinicalData } from '../../../../hooks/usePatientClinicalData';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -490,7 +491,7 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
 
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { isLoading, currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -547,11 +548,14 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [getAlerts, onNotificationUpdate]);
 
-  // Get orders from enhanced search or fallback to FHIR context
+  // Use shared hook to get orders data
+  const { medications, serviceRequests, isLoading: clinicalDataLoading } = usePatientClinicalData(patientId, {
+    resourceTypes: ['MedicationRequest', 'ServiceRequest']
+  });
+  
+  // Get orders from enhanced search or fallback to shared hook data
   const enhancedOrders = searchResults?.map(entry => entry.resource) || [];
-  const fallbackMedicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
-  const fallbackServiceRequests = getPatientResources(patientId, 'ServiceRequest') || [];
-  const fallbackOrders = [...fallbackMedicationRequests, ...fallbackServiceRequests];
+  const fallbackOrders = [...medications, ...serviceRequests];
   
   // Use enhanced search results if available, otherwise fallback
   const allOrders = enhancedOrders.length > 0 ? enhancedOrders : fallbackOrders;

@@ -326,18 +326,16 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [patientId, getPatientResources, onNotificationUpdate]);
+  }, [conditions, medications, observations, encounters, allergies, serviceRequests, onNotificationUpdate]);
 
-  // Load all patient data - only when patientId changes or when patient data becomes available
+  // Update dashboard when resources change
   useEffect(() => {
-    if (patientId && currentPatient && currentPatient.id === patientId) {
-      // Always call loadDashboardData - it will handle the case where no relationships exist
+    if (patientId && isCacheWarm(patientId)) {
       loadDashboardData();
-    } else if (patientId && !currentPatient) {
-      // If we don't have the current patient yet, keep loading state
+    } else if (patientId) {
       setLoading(true);
     }
-  }, [patientId, currentPatient?.id, relationships]);
+  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length, loadDashboardData]);
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below

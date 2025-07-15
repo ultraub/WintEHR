@@ -187,6 +187,55 @@ class FHIRClient {
   }
 
   /**
+   * Execute a batch request
+   * @param {Array} requests - Array of request objects with method and url
+   * @returns {Promise} Bundle response with results
+   */
+  async batch(requests) {
+    const bundle = {
+      resourceType: 'Bundle',
+      type: 'batch',
+      entry: requests.map(req => ({
+        request: {
+          method: req.method || 'GET',
+          url: req.url
+        },
+        resource: req.resource // Include resource for POST/PUT requests
+      }))
+    };
+    
+    try {
+      const response = await this.httpClient.post('/', bundle);
+      
+      // Extract resources from bundle response
+      const results = response.data.entry?.map(entry => {
+        if (entry.response?.status?.startsWith('2')) {
+          return {
+            success: true,
+            resource: entry.resource,
+            status: entry.response.status
+          };
+        } else {
+          return {
+            success: false,
+            error: entry.response?.outcome || entry.response,
+            status: entry.response?.status
+          };
+        }
+      }) || [];
+      
+      return {
+        resourceType: 'Bundle',
+        type: 'batch-response',
+        entry: response.data.entry,
+        results
+      };
+    } catch (error) {
+      throw new Error(`Batch request failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Search for resources
    */
   async search(resourceType, params = {}) {
