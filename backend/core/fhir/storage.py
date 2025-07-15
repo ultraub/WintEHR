@@ -156,6 +156,8 @@ class FHIRStorageEngine:
                 'type': {'type': 'token'},
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
+                'participant': {'type': 'reference'},
+                'practitioner': {'type': 'reference'},
                 'date': {'type': 'date'},
                 'period': {'type': 'date'}
             },
@@ -178,12 +180,15 @@ class FHIRStorageEngine:
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'},
+                'performer': {'type': 'reference'},
                 'date': {'type': 'date'},
                 'performed': {'type': 'date'}
             },
             'AllergyIntolerance': {
                 'code': {'type': 'token'},
                 'clinical-status': {'type': 'token'},
+                'verification-status': {'type': 'token'},
+                'criticality': {'type': 'token'},
                 'type': {'type': 'token'},
                 'category': {'type': 'token'},
                 'patient': {'type': 'reference'},
@@ -193,6 +198,7 @@ class FHIRStorageEngine:
                 'vaccine-code': {'type': 'token'},
                 'status': {'type': 'token'},
                 'patient': {'type': 'reference'},
+                'performer': {'type': 'reference'},
                 'date': {'type': 'date'},
                 'encounter': {'type': 'reference'}
             },
@@ -203,6 +209,7 @@ class FHIRStorageEngine:
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'},
+                'performer': {'type': 'reference'},
                 'date': {'type': 'date'},
                 'issued': {'type': 'date'}
             },
@@ -212,6 +219,7 @@ class FHIRStorageEngine:
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'},
+                'performer': {'type': 'reference'},
                 'started': {'type': 'date'}
             }
         }
@@ -1483,6 +1491,24 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse effectivePeriod.start: {resource_data.get('effectivePeriod', {}).get('start')} - {e}")
+            
+            # Value quantity (CRIT-001-OBS)
+            if 'valueQuantity' in resource_data:
+                value_quantity = resource_data['valueQuantity']
+                if 'value' in value_quantity:
+                    try:
+                        quantity_value = float(value_quantity['value'])
+                        params_to_extract.append({
+                            'param_name': 'value-quantity',
+                            'param_type': 'quantity',
+                            'value_quantity_value': quantity_value,
+                            'value_quantity_unit': value_quantity.get('unit'),
+                            'value_quantity_system': value_quantity.get('system'),
+                            'value_quantity_code': value_quantity.get('code')
+                        })
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"WARNING: Could not parse valueQuantity.value: {value_quantity.get('value')} - {e}")
+        
         elif resource_type == 'Condition':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -1523,6 +1549,32 @@ class FHIRStorageEngine:
                         'param_type': 'reference',
                         'value_string': ref
                     })
+            
+            # Onset date (CRIT-001-CON)
+            if 'onsetDateTime' in resource_data:
+                try:
+                    onset_date = datetime.fromisoformat(
+                        resource_data['onsetDateTime'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'onset-date',
+                        'param_type': 'date',
+                        'value_date': onset_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse onsetDateTime: {resource_data.get('onsetDateTime')} - {e}")
+            elif 'onsetPeriod' in resource_data and 'start' in resource_data['onsetPeriod']:
+                try:
+                    onset_date = datetime.fromisoformat(
+                        resource_data['onsetPeriod']['start'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'onset-date',
+                        'param_type': 'date',
+                        'value_date': onset_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse onsetPeriod.start: {resource_data.get('onsetPeriod', {}).get('start')} - {e}")
         
         elif resource_type == 'MedicationRequest':
             # Medication code
@@ -1910,6 +1962,25 @@ class FHIRStorageEngine:
                         })
                     except (ValueError, TypeError) as e:
                         logging.warning(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
+            
+            # Participant references (CRIT-002-Multiple)
+            if 'participant' in resource_data:
+                for participant in resource_data['participant']:
+                    if 'individual' in participant and 'reference' in participant['individual']:
+                        ref = participant['individual']['reference']
+                        params_to_extract.append({
+                            'param_name': 'participant',
+                            'param_type': 'reference',
+                            'value_string': ref
+                        })
+                        # Also extract as practitioner if reference is to Practitioner
+                        if ref.startswith('Practitioner/'):
+                            params_to_extract.append({
+                                'param_name': 'practitioner',
+                                'param_type': 'reference',
+                                'value_string': ref
+                            })
+        
         elif resource_type == 'Procedure':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -1973,6 +2044,18 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse performedPeriod.start: {resource_data.get('performedPeriod', {}).get('start')} - {e}")
+            
+            # Performer references (CRIT-002-Multiple)
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'actor' in performer and 'reference' in performer['actor']:
+                        ref = performer['actor']['reference']
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': ref
+                        })
+        
         elif resource_type == 'Immunization':
             # Vaccine code
             if 'vaccineCode' in resource_data and 'coding' in resource_data['vaccineCode']:
@@ -2015,6 +2098,18 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse occurrenceDateTime: {resource_data.get('occurrenceDateTime')} - {e}")
+            
+            # Performer references (CRIT-002-Multiple)
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'actor' in performer and 'reference' in performer['actor']:
+                        ref = performer['actor']['reference']
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': ref
+                        })
+        
         elif resource_type == 'AllergyIntolerance':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -2037,6 +2132,25 @@ class FHIRStorageEngine:
                             'value_token_system': coding.get('system'),
                             'value_token_code': coding['code']
                         })
+            
+            # Verification status (CRIT-002-ALL)
+            if 'verificationStatus' in resource_data and 'coding' in resource_data['verificationStatus']:
+                for coding in resource_data['verificationStatus']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'verification-status',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Criticality (CRIT-002-ALL) 
+            if 'criticality' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'criticality',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['criticality']
+                })
             
             # Patient reference
             if 'patient' in resource_data and 'reference' in resource_data['patient']:
@@ -2098,6 +2212,18 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse effectiveDateTime: {resource_data.get('effectiveDateTime')} - {e}")
+            
+            # Performer references (CRIT-002-Multiple)
+            if 'performer' in resource_data:
+                for performer in resource_data['performer']:
+                    if 'reference' in performer:
+                        ref = performer['reference']
+                        params_to_extract.append({
+                            'param_name': 'performer',
+                            'param_type': 'reference',
+                            'value_string': ref
+                        })
+        
         elif resource_type == 'CarePlan':
             # Status
             if 'status' in resource_data:
@@ -2138,6 +2264,61 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse period.start: {resource_data.get('period', {}).get('start')} - {e}")
+        
+        elif resource_type == 'ImagingStudy':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Subject reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                
+                # Also extract patient-specific reference
+                # Handle both Patient/ and urn:uuid: formats
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Started date
+            if 'started' in resource_data:
+                try:
+                    started_date = datetime.fromisoformat(
+                        resource_data['started'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'started',
+                        'param_type': 'date',
+                        'value_date': started_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse started: {resource_data.get('started')} - {e}")
+            
+            # Performer references (CRIT-002-Multiple)
+            if 'series' in resource_data:
+                for series in resource_data['series']:
+                    if 'performer' in series:
+                        for performer in series['performer']:
+                            if 'actor' in performer and 'reference' in performer['actor']:
+                                ref = performer['actor']['reference']
+                                params_to_extract.append({
+                                    'param_name': 'performer',
+                                    'param_type': 'reference',
+                                    'value_string': ref
+                                })
+        
         elif resource_type == 'Claim':
             # Status
             if 'status' in resource_data:
@@ -2208,11 +2389,11 @@ class FHIRStorageEngine:
                 INSERT INTO fhir.search_params (
                     resource_id, resource_type, param_name, param_type,
                     value_string, value_number, value_date,
-                    value_token_system, value_token_code
+                    value_token_system, value_token_code, value_reference
                 ) VALUES (
                     :resource_id, :resource_type, :param_name, :param_type,
                     :value_string, :value_number, :value_date,
-                    :value_token_system, :value_token_code
+                    :value_token_system, :value_token_code, :value_reference
                 )
             """)
             
@@ -2233,7 +2414,8 @@ class FHIRStorageEngine:
                 'value_number': value_number,
                 'value_date': param.get('value_date'),
                 'value_token_system': param.get('value_token_system'),
-                'value_token_code': param.get('value_token_code')
+                'value_token_code': param.get('value_token_code'),
+                'value_reference': param.get('value_reference')
             }
             
             await self.session.execute(query, params_dict)
