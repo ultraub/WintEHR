@@ -297,7 +297,7 @@ RESOURCE_MAPPINGS = {
         "search_params": [
             "identifier", "status", "category", "code", "subject", "patient", "encounter",
             "date", "effective", "performer", "value-quantity", "value-string", 
-            "value-concept", "component-code", "component-value-quantity", "_id", "_lastUpdated"
+            "value-concept", "component-code", "component-value-quantity", "based-on", "_id", "_lastUpdated"
         ]
     },
     "Condition": {
@@ -381,7 +381,7 @@ RESOURCE_MAPPINGS = {
         "model": DiagnosticReport,
         "search_params": [
             "identifier", "status", "category", "code", "subject", "patient",
-            "encounter", "date", "issued", "performer", "result", "_id", "_lastUpdated"
+            "encounter", "date", "issued", "performer", "result", "based-on", "_id", "_lastUpdated"
         ]
     },
     "ImagingStudy": {
@@ -499,7 +499,7 @@ RESOURCE_MAPPINGS = {
             "identifier", "status", "patient", "subject", "context", "encounter",
             "medication", "code", "performer", "receiver", "destination",
             "responsibleparty", "prescription", "type", "whenhandedover",
-            "whenprepared", "_id", "_lastUpdated"
+            "whenprepared", "lot-number", "expiration-date", "_id", "_lastUpdated"
         ]
     }
 }
@@ -706,6 +706,8 @@ class FHIRSearchProcessor:
             query = self._handle_imaging_study_params(query, base_param, value, modifier)
         elif self.resource_type == "Appointment":
             query = self._handle_appointment_params(query, base_param, value, modifier)
+        elif self.resource_type == "Provenance":
+            query = self._handle_provenance_params(query, base_param, value, modifier)
         
         return query
     
@@ -930,6 +932,26 @@ class FHIRSearchProcessor:
         elif param == "value-concept":
             # Search coded values
             query = self._apply_string_filter(query, Observation.value_code, value, modifier)
+        elif param == "based-on":
+            # Search for observations based on ServiceRequest references
+            # Handle FHIR reference format: ServiceRequest/123 or just 123
+            if "/" in value:
+                # Full reference format - search in JSON array
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Observation.based_on,
+                        f'$[*].reference ? (@ == "{value}")'
+                    )
+                )
+            else:
+                # Just the ID - assume ServiceRequest
+                service_ref = f"ServiceRequest/{value}"
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Observation.based_on,
+                        f'$[*].reference ? (@ == "{service_ref}")'
+                    )
+                )
         
         return query
     
@@ -1002,6 +1024,29 @@ class FHIRSearchProcessor:
                 # Handle FHIR reference format: Encounter/123 or just 123
                 encounter_id = value.replace("Encounter/", "") if value.startswith("Encounter/") else value
                 query = query.filter(Condition.encounter_id == encounter_id)
+        elif param == "category":
+            # Handle category search for distinguishing problem list from encounter diagnoses
+            # Support token format: system|code or just code
+            system, code_value = self._parse_token_value(value)
+            
+            # Since Condition is stored as JSONB, we need to search within the JSON structure
+            # Category is typically stored as a CodeableConcept with coding array
+            if system:
+                # Search for specific system and code
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        self.model.resource,
+                        f'$.category[*].coding[*] ? (@.system == "{system}" && @.code == "{code_value}")'
+                    )
+                )
+            else:
+                # Search for code in any system
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        self.model.resource,
+                        f'$.category[*].coding[*] ? (@.code == "{code_value}")'
+                    )
+                )
         
         return query
     
@@ -1369,6 +1414,26 @@ class FHIRSearchProcessor:
             query = self._apply_date_filter(query, DiagnosticReport.report_date, value, modifier)
         elif param == "identifier":
             query = query.filter(DiagnosticReport.id == value)
+        elif param == "based-on":
+            # Search for diagnostic reports based on ServiceRequest references
+            # Handle FHIR reference format: ServiceRequest/123 or just 123
+            if "/" in value:
+                # Full reference format - search in JSON array
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        DiagnosticReport.based_on,
+                        f'$[*].reference ? (@ == "{value}")'
+                    )
+                )
+            else:
+                # Just the ID - assume ServiceRequest
+                service_ref = f"ServiceRequest/{value}"
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        DiagnosticReport.based_on,
+                        f'$[*].reference ? (@ == "{service_ref}")'
+                    )
+                )
         
         return query
     
@@ -1477,6 +1542,150 @@ class FHIRSearchProcessor:
         elif param == "based-on":
             # Search in based_on JSON field
             query = query.filter(Appointment.based_on.ilike(f"%{value}%"))
+        
+        return query
+    
+    def _handle_provenance_params(self, query, param, value, modifier):
+        """Handle Provenance-specific search parameters"""
+        if param == "target":
+            # Search for provenance about specific resources
+            # Handle reference format: ResourceType/id
+            if "/" in value:
+                # Full reference - search in JSON array
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.target,
+                        f'$[*].reference ? (@ == "{value}")'
+                    )
+                )
+            else:
+                # Just ID - search for any reference ending with this ID
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.target,
+                        f'$[*].reference ? (@ like "%/{value}")'
+                    )
+                )
+        elif param == "agent":
+            # Search for specific agent involvement
+            # Agent is stored as JSON array with who.reference
+            if "/" in value:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].who.reference ? (@ == "{value}")'
+                    )
+                )
+            else:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].who.reference ? (@ like "%/{value}")'
+                    )
+                )
+        elif param == "agent-type":
+            # Search by agent type code
+            system, code_value = self._parse_token_value(value)
+            if system:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].type.coding[*] ? (@.system == "{system}" && @.code == "{code_value}")'
+                    )
+                )
+            else:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].type.coding[*] ? (@.code == "{code_value}")'
+                    )
+                )
+        elif param == "agent-role":
+            # Search by agent role
+            system, code_value = self._parse_token_value(value)
+            if system:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].role[*].coding[*] ? (@.system == "{system}" && @.code == "{code_value}")'
+                    )
+                )
+            else:
+                query = query.filter(
+                    func.jsonb_path_exists(
+                        Provenance.agent,
+                        f'$[*].role[*].coding[*] ? (@.code == "{code_value}")'
+                    )
+                )
+        elif param == "recorded":
+            # When the activity was recorded
+            query = self._apply_date_filter(query, Provenance.recorded, value, modifier)
+        elif param == "activity":
+            # What activity occurred
+            if "." in param:
+                # Activity code search
+                system, code_value = self._parse_token_value(value)
+                if system:
+                    query = query.filter(
+                        func.jsonb_path_exists(
+                            Provenance.activity,
+                            f'$.coding[*] ? (@.system == "{system}" && @.code == "{code_value}")'
+                        )
+                    )
+                else:
+                    query = query.filter(
+                        func.jsonb_path_exists(
+                            Provenance.activity,
+                            f'$.coding[*] ? (@.code == "{code_value}")'
+                        )
+                    )
+            else:
+                # Simple activity text search
+                query = query.filter(
+                    func.cast(Provenance.activity, String).ilike(f'%{value}%')
+                )
+        elif param == "location":
+            # Where the activity occurred
+            if value.startswith("Location/"):
+                query = query.filter(Provenance.location_id == value.replace("Location/", ""))
+            else:
+                query = query.filter(Provenance.location_id == value)
+        elif param == "patient":
+            # Find provenance for specific patient's resources
+            # This requires checking the target resources
+            patient_ref = f"Patient/{value}" if not value.startswith("Patient/") else value
+            # Search for patient references in targets
+            query = query.filter(
+                or_(
+                    func.jsonb_path_exists(
+                        Provenance.target,
+                        f'$[*].reference ? (@ == "{patient_ref}")'
+                    ),
+                    # Also check if target is about resources belonging to this patient
+                    func.jsonb_path_exists(
+                        Provenance.target,
+                        f'$[*].reference ? (@ like "%patient={value}%")'
+                    )
+                )
+            )
+        elif param == "signature":
+            # Has signature
+            if modifier == "missing":
+                is_missing = value.lower() == "true"
+                if is_missing:
+                    query = query.filter(
+                        or_(
+                            Provenance.signature == None,
+                            func.jsonb_array_length(Provenance.signature) == 0
+                        )
+                    )
+                else:
+                    query = query.filter(
+                        and_(
+                            Provenance.signature != None,
+                            func.jsonb_array_length(Provenance.signature) > 0
+                        )
+                    )
         
         return query
     
@@ -1742,6 +1951,14 @@ class FHIRSearchProcessor:
             if base_param == "performer":
                 performer_ref = f"Practitioner/{value}" if not value.startswith("Practitioner/") else value
                 query = query_builder.apply_reference_filter(query, "performer[0].actor", performer_ref)
+        
+        elif self.resource_type == "MedicationDispense":
+            if base_param == "lot-number":
+                # Search in batch.lotNumber field
+                query = query_builder.apply_string_filter(query, "batch.lotNumber", value, modifier)
+            elif base_param == "expiration-date":
+                # Search in batch.expirationDate field
+                query = query_builder.apply_date_filter(query, "batch.expirationDate", value, modifier)
         
         return query
 
