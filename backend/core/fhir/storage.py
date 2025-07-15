@@ -357,10 +357,30 @@ class FHIRStorageEngine:
                 'location': {'type': 'string'}
             },
             'Parameters': {
-                # Parameters search parameters
+                # Core Parameters search parameters
                 'name': {'type': 'string'},
                 'value': {'type': 'string'},
-                'identifier': {'type': 'token'}
+                'identifier': {'type': 'token'},
+                
+                # Extended Parameters search parameters for FHIR operations
+                'parameter': {'type': 'string'},  # Parameter name search
+                'value-string': {'type': 'string'},  # String parameter values
+                'value-boolean': {'type': 'token'},  # Boolean parameter values  
+                'value-integer': {'type': 'number'},  # Integer parameter values
+                'value-decimal': {'type': 'number'},  # Decimal parameter values
+                'value-date': {'type': 'date'},  # Date parameter values
+                'value-time': {'type': 'date'},  # Time parameter values
+                'value-datetime': {'type': 'date'},  # DateTime parameter values
+                'value-code': {'type': 'token'},  # Code parameter values
+                'value-uri': {'type': 'uri'},  # URI parameter values
+                'value-reference': {'type': 'reference'},  # Reference parameter values
+                'value-quantity': {'type': 'quantity'},  # Quantity parameter values
+                
+                # Meta search parameters for operation tracking
+                'operation': {'type': 'string'},  # Operation name context
+                'context': {'type': 'string'},  # Operation context
+                'source': {'type': 'reference'},  # Source resource reference
+                'target': {'type': 'reference'}  # Target resource reference
             }
         }
     
@@ -3684,6 +3704,249 @@ class FHIRStorageEngine:
                             'value_string': reason['reference']
                         })
         
+        elif resource_type == 'Parameters':
+            # Process Parameters resource for FHIR operations support
+            
+            # Extract each parameter within the Parameters resource
+            if 'parameter' in resource_data:
+                for param in resource_data['parameter']:
+                    # Parameter name
+                    if 'name' in param:
+                        param_name = param['name']
+                        params_to_extract.append({
+                            'param_name': 'parameter',
+                            'param_type': 'string',
+                            'value_string': param_name
+                        })
+                        
+                        # Also index as 'name' for backward compatibility
+                        params_to_extract.append({
+                            'param_name': 'name',
+                            'param_type': 'string',
+                            'value_string': param_name
+                        })
+                    
+                    # Parameter values based on type
+                    # String values
+                    if 'valueString' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-string',
+                            'param_type': 'string',
+                            'value_string': param['valueString']
+                        })
+                        # Generic value search
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': param['valueString']
+                        })
+                    
+                    # Boolean values
+                    if 'valueBoolean' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-boolean',
+                            'param_type': 'token',
+                            'value_token_code': str(param['valueBoolean']).lower()
+                        })
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': str(param['valueBoolean']).lower()
+                        })
+                    
+                    # Integer values
+                    if 'valueInteger' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-integer',
+                            'param_type': 'number',
+                            'value_number': param['valueInteger']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': str(param['valueInteger'])
+                        })
+                    
+                    # Decimal values
+                    if 'valueDecimal' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-decimal',
+                            'param_type': 'number',
+                            'value_number': param['valueDecimal']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': str(param['valueDecimal'])
+                        })
+                    
+                    # Date values
+                    if 'valueDate' in param:
+                        try:
+                            date_value = datetime.strptime(param['valueDate'], '%Y-%m-%d') if isinstance(param['valueDate'], str) else param['valueDate']
+                            params_to_extract.append({
+                                'param_name': 'value-date',
+                                'param_type': 'date',
+                                'value_date': date_value
+                            })
+                        except (ValueError, TypeError) as e:
+                            logging.warning(f"WARNING: Could not parse valueDate: {param.get('valueDate')} - {e}")
+                    
+                    # DateTime values
+                    if 'valueDateTime' in param:
+                        try:
+                            datetime_value = datetime.fromisoformat(
+                                param['valueDateTime'].replace('Z', '+00:00')
+                            )
+                            params_to_extract.append({
+                                'param_name': 'value-datetime',
+                                'param_type': 'date',
+                                'value_date': datetime_value
+                            })
+                        except (ValueError, TypeError) as e:
+                            logging.warning(f"WARNING: Could not parse valueDateTime: {param.get('valueDateTime')} - {e}")
+                    
+                    # Time values
+                    if 'valueTime' in param:
+                        try:
+                            # Convert time to datetime for consistency
+                            time_str = param['valueTime']
+                            time_value = datetime.strptime(f"1970-01-01T{time_str}", '%Y-%m-%dT%H:%M:%S')
+                            params_to_extract.append({
+                                'param_name': 'value-time',
+                                'param_type': 'date',
+                                'value_date': time_value
+                            })
+                        except (ValueError, TypeError) as e:
+                            logging.warning(f"WARNING: Could not parse valueTime: {param.get('valueTime')} - {e}")
+                    
+                    # Code values
+                    if 'valueCode' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-code',
+                            'param_type': 'token',
+                            'value_token_code': param['valueCode']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': param['valueCode']
+                        })
+                    
+                    # URI values
+                    if 'valueUri' in param:
+                        params_to_extract.append({
+                            'param_name': 'value-uri',
+                            'param_type': 'uri',
+                            'value_string': param['valueUri']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'value',
+                            'param_type': 'string',
+                            'value_string': param['valueUri']
+                        })
+                    
+                    # Reference values
+                    if 'valueReference' in param and 'reference' in param['valueReference']:
+                        params_to_extract.append({
+                            'param_name': 'value-reference',
+                            'param_type': 'reference',
+                            'value_string': param['valueReference']['reference']
+                        })
+                    
+                    # Quantity values
+                    if 'valueQuantity' in param:
+                        quantity = param['valueQuantity']
+                        if 'value' in quantity:
+                            params_to_extract.append({
+                                'param_name': 'value-quantity',
+                                'param_type': 'number',
+                                'value_number': quantity['value']
+                            })
+                        # Also store unit information
+                        if 'unit' in quantity:
+                            params_to_extract.append({
+                                'param_name': 'value',
+                                'param_type': 'string',
+                                'value_string': f"{quantity.get('value', '')} {quantity['unit']}"
+                            })
+                    
+                    # Coding values
+                    if 'valueCoding' in param:
+                        coding = param['valueCoding']
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'value-code',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+                        if 'display' in coding:
+                            params_to_extract.append({
+                                'param_name': 'value',
+                                'param_type': 'string',
+                                'value_string': coding['display']
+                            })
+                    
+                    # CodeableConcept values
+                    if 'valueCodeableConcept' in param:
+                        concept = param['valueCodeableConcept']
+                        if 'coding' in concept:
+                            for coding in concept['coding']:
+                                if 'code' in coding:
+                                    params_to_extract.append({
+                                        'param_name': 'value-code',
+                                        'param_type': 'token',
+                                        'value_token_system': coding.get('system'),
+                                        'value_token_code': coding['code']
+                                    })
+                        if 'text' in concept:
+                            params_to_extract.append({
+                                'param_name': 'value',
+                                'param_type': 'string',
+                                'value_string': concept['text']
+                            })
+                    
+                    # Nested parameters (recursive structure)
+                    if 'part' in param:
+                        for part in param['part']:
+                            if 'name' in part:
+                                params_to_extract.append({
+                                    'param_name': 'parameter',
+                                    'param_type': 'string',
+                                    'value_string': f"{param.get('name', '')}.{part['name']}"
+                                })
+            
+            # Meta parameters for operation context
+            if 'meta' in resource_data:
+                meta = resource_data['meta']
+                # Extract operation context from meta tags
+                if 'tag' in meta:
+                    for tag in meta['tag']:
+                        if tag.get('system') == 'http://hl7.org/fhir/operation':
+                            params_to_extract.append({
+                                'param_name': 'operation',
+                                'param_type': 'string',
+                                'value_string': tag.get('code', '')
+                            })
+                        elif tag.get('system') == 'http://hl7.org/fhir/operation-context':
+                            params_to_extract.append({
+                                'param_name': 'context',
+                                'param_type': 'string',
+                                'value_string': tag.get('code', '')
+                            })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+        
         # Insert all search parameters
         logging.debug(f"DEBUG: Found {len(params_to_extract)} search parameters to store")
         for i, param in enumerate(params_to_extract):
@@ -3845,6 +4108,408 @@ class FHIRStorageEngine:
         """)
         await self.session.execute(query, {'resource_id': resource_id})
     
+    async def create_clinical_workflow(
+        self, 
+        workflow_type: str,
+        patient_ref: str,
+        encounter_ref: Optional[str] = None,
+        initiator_ref: Optional[str] = None,
+        description: str = "",
+        priority: str = "normal"
+    ) -> Dict[str, str]:
+        """
+        Create a clinical workflow with linked Document-Communication-Task resources.
+        
+        Args:
+            workflow_type: Type of workflow (e.g., 'consultation', 'referral', 'care_coordination')
+            patient_ref: Patient reference (e.g., 'Patient/patient-id')
+            encounter_ref: Optional encounter reference
+            initiator_ref: Optional practitioner/organization reference
+            description: Workflow description
+            priority: Workflow priority ('low', 'normal', 'high', 'urgent')
+            
+        Returns:
+            Dictionary with created resource IDs
+        """
+        workflow_id = str(uuid.uuid4())
+        created_resources = {}
+        
+        # 1. Create DocumentReference for workflow documentation
+        document_data = {
+            "resourceType": "DocumentReference",
+            "status": "current",
+            "type": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "34133-9", 
+                    "display": "Summary of care record"
+                }]
+            },
+            "category": [{
+                "coding": [{
+                    "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
+                    "code": "clinical-note",
+                    "display": "Clinical Note"
+                }]
+            }],
+            "subject": {"reference": patient_ref},
+            "date": datetime.now(timezone.utc).isoformat(),
+            "description": f"Workflow documentation: {description}",
+            "content": [{
+                "attachment": {
+                    "contentType": "text/plain",
+                    "title": f"Clinical Workflow - {workflow_type}",
+                    "creation": datetime.now(timezone.utc).isoformat()
+                }
+            }],
+            "context": {
+                "encounter": [{"reference": encounter_ref}] if encounter_ref else [],
+                "event": [{
+                    "coding": [{
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                        "code": workflow_type,
+                        "display": workflow_type.replace('_', ' ').title()
+                    }]
+                }],
+                "period": {
+                    "start": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            "identifier": [{
+                "system": "http://example.org/clinical-workflow",
+                "value": workflow_id
+            }]
+        }
+        
+        if initiator_ref:
+            document_data["author"] = [{"reference": initiator_ref}]
+        
+        doc_id, _, _ = await self.create_resource("DocumentReference", document_data)
+        created_resources["document"] = doc_id
+        
+        # 2. Create Communication for workflow notifications
+        communication_data = {
+            "resourceType": "Communication", 
+            "status": "preparation",
+            "category": [{
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/communication-category",
+                    "code": "notification",
+                    "display": "Notification"
+                }]
+            }],
+            "priority": priority,
+            "subject": {"reference": patient_ref},
+            "topic": {
+                "text": f"Clinical Workflow: {workflow_type}"
+            },
+            "payload": [{
+                "contentString": f"Workflow initiated: {description}"
+            }],
+            "identifier": [{
+                "system": "http://example.org/clinical-workflow",
+                "value": workflow_id
+            }],
+            "about": [{"reference": f"DocumentReference/{doc_id}"}]
+        }
+        
+        if encounter_ref:
+            communication_data["encounter"] = {"reference": encounter_ref}
+        
+        if initiator_ref:
+            communication_data["sender"] = {"reference": initiator_ref}
+        
+        comm_id, _, _ = await self.create_resource("Communication", communication_data)
+        created_resources["communication"] = comm_id
+        
+        # 3. Create Task for workflow orchestration
+        task_data = {
+            "resourceType": "Task",
+            "status": "ready",
+            "intent": "plan", 
+            "priority": priority,
+            "code": {
+                "coding": [{
+                    "system": "http://hl7.org/fhir/CodeSystem/task-code",
+                    "code": "fulfill",
+                    "display": "Fulfill the focal request"
+                }]
+            },
+            "description": description,
+            "for": {"reference": patient_ref},
+            "authoredOn": datetime.now(timezone.utc).isoformat(),
+            "lastModified": datetime.now(timezone.utc).isoformat(),
+            "identifier": [{
+                "system": "http://example.org/clinical-workflow", 
+                "value": workflow_id
+            }],
+            "focus": {"reference": f"DocumentReference/{doc_id}"},
+            "input": [{
+                "type": {
+                    "coding": [{
+                        "system": "http://hl7.org/fhir/task-input-type",
+                        "code": "reference",
+                        "display": "Reference"
+                    }]
+                },
+                "valueReference": {"reference": f"Communication/{comm_id}"}
+            }],
+            "businessStatus": {
+                "text": f"Workflow {workflow_type} initiated"
+            }
+        }
+        
+        if encounter_ref:
+            task_data["encounter"] = {"reference": encounter_ref}
+        
+        if initiator_ref:
+            task_data["requester"] = {"reference": initiator_ref}
+        
+        task_id, _, _ = await self.create_resource("Task", task_data)
+        created_resources["task"] = task_id
+        
+        # 4. Update Communication to reference the Task
+        communication_update = {
+            "resourceType": "Communication",
+            "id": comm_id,
+            "status": "in-progress",
+            "category": [{
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/communication-category", 
+                    "code": "notification",
+                    "display": "Notification"
+                }]
+            }],
+            "priority": priority,
+            "subject": {"reference": patient_ref},
+            "topic": {
+                "text": f"Clinical Workflow: {workflow_type}"
+            },
+            "payload": [{
+                "contentString": f"Workflow initiated: {description}",
+                "contentReference": {"reference": f"Task/{task_id}"}
+            }],
+            "identifier": [{
+                "system": "http://example.org/clinical-workflow",
+                "value": workflow_id
+            }],
+            "about": [
+                {"reference": f"DocumentReference/{doc_id}"},
+                {"reference": f"Task/{task_id}"}
+            ],
+            "basedOn": [{"reference": f"Task/{task_id}"}]
+        }
+        
+        if encounter_ref:
+            communication_update["encounter"] = {"reference": encounter_ref}
+        
+        if initiator_ref:
+            communication_update["sender"] = {"reference": initiator_ref}
+        
+        await self.update_resource("Communication", comm_id, communication_update)
+        
+        return {
+            "workflow_id": workflow_id,
+            "resources": created_resources
+        }
+    
+    async def link_workflow_resources(
+        self,
+        source_resource_type: str,
+        source_id: str, 
+        target_resource_type: str,
+        target_id: str,
+        relationship_type: str = "supports"
+    ) -> bool:
+        """
+        Create links between workflow resources.
+        
+        Args:
+            source_resource_type: Source resource type
+            source_id: Source resource ID
+            target_resource_type: Target resource type
+            target_id: Target resource ID
+            relationship_type: Type of relationship ('supports', 'replaces', 'references')
+            
+        Returns:
+            True if successful
+        """
+        try:
+            # Read source resource
+            source_resource = await self.read_resource(source_resource_type, source_id)
+            if not source_resource:
+                return False
+            
+            # Add relationship based on resource types and relationship
+            target_ref = f"{target_resource_type}/{target_id}"
+            
+            if source_resource_type == "DocumentReference":
+                if relationship_type == "supports":
+                    # Add to relatesTo
+                    if "relatesTo" not in source_resource:
+                        source_resource["relatesTo"] = []
+                    source_resource["relatesTo"].append({
+                        "code": "supports",
+                        "target": {"reference": target_ref}
+                    })
+                elif relationship_type == "references":
+                    # Add to context.related
+                    if "context" not in source_resource:
+                        source_resource["context"] = {}
+                    if "related" not in source_resource["context"]:
+                        source_resource["context"]["related"] = []
+                    source_resource["context"]["related"].append({
+                        "reference": target_ref
+                    })
+            
+            elif source_resource_type == "Communication":
+                if relationship_type == "supports":
+                    # Add to about
+                    if "about" not in source_resource:
+                        source_resource["about"] = []
+                    source_resource["about"].append({"reference": target_ref})
+                elif relationship_type == "references":
+                    # Add to basedOn
+                    if "basedOn" not in source_resource:
+                        source_resource["basedOn"] = []
+                    source_resource["basedOn"].append({"reference": target_ref})
+            
+            elif source_resource_type == "Task":
+                if relationship_type == "supports":
+                    # Add to focus or input
+                    if target_resource_type == "DocumentReference":
+                        source_resource["focus"] = {"reference": target_ref}
+                    else:
+                        if "input" not in source_resource:
+                            source_resource["input"] = []
+                        source_resource["input"].append({
+                            "type": {
+                                "coding": [{
+                                    "system": "http://hl7.org/fhir/task-input-type",
+                                    "code": "reference",
+                                    "display": "Reference"
+                                }]
+                            },
+                            "valueReference": {"reference": target_ref}
+                        })
+                elif relationship_type == "references":
+                    # Add to basedOn or partOf
+                    if "basedOn" not in source_resource:
+                        source_resource["basedOn"] = []
+                    source_resource["basedOn"].append({"reference": target_ref})
+            
+            # Update the source resource
+            await self.update_resource(source_resource_type, source_id, source_resource)
+            return True
+            
+        except Exception as e:
+            logging.error(f"ERROR: Failed to link workflow resources: {e}")
+            return False
+    
+    async def get_workflow_resources(
+        self,
+        workflow_id: str
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get all resources associated with a clinical workflow.
+        
+        Args:
+            workflow_id: Workflow identifier
+            
+        Returns:
+            Dictionary of resource lists by type
+        """
+        workflow_resources = {
+            "DocumentReference": [],
+            "Communication": [],
+            "Task": []
+        }
+        
+        try:
+            # Search for resources with the workflow identifier
+            for resource_type in workflow_resources.keys():
+                search_result = await self.search_resources(
+                    resource_type,
+                    {"identifier": [f"http://example.org/clinical-workflow|{workflow_id}"]},
+                    {"_count": ["50"]}
+                )
+                
+                if "entry" in search_result:
+                    workflow_resources[resource_type] = [
+                        entry["resource"] for entry in search_result["entry"]
+                    ]
+            
+            return workflow_resources
+            
+        except Exception as e:
+            logging.error(f"ERROR: Failed to get workflow resources: {e}")
+            return workflow_resources
+    
+    async def update_workflow_status(
+        self,
+        workflow_id: str,
+        new_status: str,
+        update_reason: Optional[str] = None
+    ) -> bool:
+        """
+        Update the status of all resources in a clinical workflow.
+        
+        Args:
+            workflow_id: Workflow identifier
+            new_status: New status to apply
+            update_reason: Optional reason for the status change
+            
+        Returns:
+            True if successful
+        """
+        try:
+            workflow_resources = await self.get_workflow_resources(workflow_id)
+            
+            # Update Task status
+            for task in workflow_resources["Task"]:
+                task["status"] = new_status
+                task["lastModified"] = datetime.now(timezone.utc).isoformat()
+                
+                if update_reason:
+                    if "statusReason" not in task:
+                        task["statusReason"] = {}
+                    task["statusReason"]["text"] = update_reason
+                
+                await self.update_resource("Task", task["id"], task)
+            
+            # Update Communication status
+            for comm in workflow_resources["Communication"]:
+                if new_status in ["completed", "stopped"]:
+                    comm["status"] = "completed"
+                elif new_status in ["in-progress", "ready"]:
+                    comm["status"] = "in-progress"
+                else:
+                    comm["status"] = "preparation"
+                
+                if update_reason:
+                    if "payload" not in comm:
+                        comm["payload"] = []
+                    comm["payload"].append({
+                        "contentString": f"Status update: {update_reason}"
+                    })
+                
+                await self.update_resource("Communication", comm["id"], comm)
+            
+            # Update DocumentReference status if needed
+            for doc in workflow_resources["DocumentReference"]:
+                if new_status == "completed":
+                    doc["status"] = "current"
+                elif new_status == "stopped":
+                    doc["status"] = "superseded"
+                
+                await self.update_resource("DocumentReference", doc["id"], doc)
+            
+            return True
+            
+        except Exception as e:
+            logging.error(f"ERROR: Failed to update workflow status: {e}")
+            return False
+
     async def _delete_references(self, resource_id: int):
         """Delete all references for a resource."""
         query = text("""
