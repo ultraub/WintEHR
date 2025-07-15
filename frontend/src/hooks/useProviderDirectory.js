@@ -5,15 +5,22 @@
  * geographic search, and organizational hierarchy management.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { apiClient } from '../services/api';
+import { useProviderDirectoryContext } from '../contexts/ProviderDirectoryContext';
 
 export const useProviderDirectory = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
-  const [availableSpecialties, setAvailableSpecialties] = useState([]);
-  const [availableOrganizations, setAvailableOrganizations] = useState([]);
+  
+  // Get shared data from context to prevent duplicate API calls
+  const {
+    specialties: availableSpecialties,
+    organizations: availableOrganizations,
+    loadSpecialties: contextLoadSpecialties,
+    loadOrganizations: contextLoadOrganizations
+  } = useProviderDirectoryContext();
 
   // ============================================================================
   // Provider Search Operations
@@ -256,31 +263,14 @@ export const useProviderDirectory = () => {
   // Directory Utility Operations
   // ============================================================================
 
-  const loadAvailableSpecialties = useCallback(async () => {
-    try {
-      const response = await apiClient.get('/provider-directory/specialties');
-      setAvailableSpecialties(response.specialties || []);
-      return response.specialties || [];
-    } catch (err) {
-      setError(`Failed to load available specialties: ${err.message}`);
-      return [];
-    }
-  }, []);
+  // Use context methods to prevent duplicate API calls
+  const loadAvailableSpecialties = useCallback(async (forceRefresh = false) => {
+    return contextLoadSpecialties(forceRefresh);
+  }, [contextLoadSpecialties]);
 
-  const loadAvailableOrganizations = useCallback(async (activeOnly = true) => {
-    try {
-      const params = new URLSearchParams({
-        active_only: activeOnly.toString()
-      });
-
-      const response = await apiClient.get(`/provider-directory/organizations?${params}`);
-      setAvailableOrganizations(response.organizations || []);
-      return response.organizations || [];
-    } catch (err) {
-      setError(`Failed to load available organizations: ${err.message}`);
-      return [];
-    }
-  }, []);
+  const loadAvailableOrganizations = useCallback(async (activeOnly = true, forceRefresh = false) => {
+    return contextLoadOrganizations(activeOnly, forceRefresh);
+  }, [contextLoadOrganizations]);
 
   // ============================================================================
   // Utility Functions
@@ -335,11 +325,12 @@ export const useProviderDirectory = () => {
     setError(null);
   }, []);
 
-  // Load initial data on hook initialization
-  useEffect(() => {
-    loadAvailableSpecialties();
-    loadAvailableOrganizations();
-  }, [loadAvailableSpecialties, loadAvailableOrganizations]);
+  // Remove automatic loading on hook initialization to prevent redundant API calls
+  // Components should explicitly call these functions when needed
+  // useEffect(() => {
+  //   loadAvailableSpecialties();
+  //   loadAvailableOrganizations();
+  // }, [loadAvailableSpecialties, loadAvailableOrganizations]);
 
   return {
     // State
