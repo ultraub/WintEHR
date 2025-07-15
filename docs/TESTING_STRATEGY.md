@@ -90,20 +90,46 @@ npm test -- --testNamePattern="FHIR Resource"
 ### 2. Integration Tests
 
 #### FHIR API Integration
-```bash
-# Comprehensive FHIR testing
-docker-compose exec backend python test_fhir_comprehensive.py
 
-# Clinical workflow testing
-docker-compose exec backend python test_complete_clinical_workflow.py
+**Comprehensive FHIR Test Harness Framework** - Complete validation suite for all FHIR implementations:
+
+```bash
+# Master test suite - runs all FHIR validation harnesses
+cd backend/tests/fhir-implementation-fixes/test-harnesses
+python comprehensive_fhir_test_runner.py --all --benchmark
+
+# Individual test harnesses for specific areas
+python core_clinical_validation.py                    # Patient, Observation, Condition, AllergyIntolerance
+python medication_workflow_validation.py              # Complete medication lifecycle testing
+python provider_directory_validation.py               # PractitionerRole, Location, Organization hierarchy
+python documentation_infrastructure_validation.py     # DocumentReference, Communication, Task, Bundle
+python sql_database_validation.py                     # Search parameter extraction and performance
+python performance_benchmark_suite.py                 # CRUD and search performance testing
+python integration_workflow_testing.py                # Cross-resource clinical workflows
+python automated_regression_suite.py                  # Continuous integration and regression analysis
+
+# Automated regression testing for CI/CD
+python automated_regression_suite.py --validation-level standard --include-performance
 ```
 
+**Test Harness Coverage:**
+- **Core Clinical**: Patient identifier search, Observation value-quantity queries, Condition onset-date search
+- **Medication Workflow**: MedicationDispense, MedicationAdministration, complete prescription lifecycle  
+- **Provider Directory**: Provider searches, geographic queries, organizational hierarchy
+- **Documentation**: Enhanced DocumentReference search, Communication threading, Task orchestration
+- **SQL Performance**: Search parameter extraction accuracy, query performance benchmarks
+- **Integration**: Patient-centric workflows, cross-resource validation, end-to-end scenarios
+- **Regression**: Automated test execution, historical comparison, CI/CD integration
+
 **Test Scenarios:**
-- CRUD operations for all FHIR resource types
-- Search parameter functionality
-- Bundle operations (transaction/batch)
-- Version negotiation
-- Capability statement validation
+- CRUD operations for all FHIR resource types with comprehensive validation
+- Search parameter functionality with FHIR R4 compliance testing
+- Bundle operations (transaction/batch) with atomic processing validation
+- Version negotiation and content type handling
+- Capability statement validation and metadata accuracy
+- Performance benchmarks with configurable thresholds
+- Cross-resource workflow integration testing
+- SQL injection prevention and security validation
 
 #### Database Integration
 ```bash
@@ -234,23 +260,70 @@ docker scout cves
 
 ### 6. FHIR Compliance Tests
 
-#### Standard Compliance
+#### Comprehensive FHIR Test Harness Framework
+
+**Agent F Implementation** - Complete validation framework for all FHIR implementations:
+
+The system includes a comprehensive test harness framework located in `/backend/tests/fhir-implementation-fixes/test-harnesses/` providing production-ready validation for all FHIR R4 implementations.
+
+**Framework Components:**
 ```bash
-# FHIR R4 validation
+# Test Harness Framework Structure
+backend/tests/fhir-implementation-fixes/test-harnesses/
+├── comprehensive_fhir_test_runner.py        # Master orchestration framework
+├── core_clinical_validation.py              # Patient, Observation, Condition, AllergyIntolerance
+├── medication_workflow_validation.py        # Complete medication lifecycle testing
+├── provider_directory_validation.py         # PractitionerRole, Location, Organization
+├── documentation_infrastructure_validation.py # DocumentReference, Communication, Task
+├── sql_database_validation.py               # Database performance and accuracy
+├── performance_benchmark_suite.py           # CRUD and search benchmarks
+├── integration_workflow_testing.py          # Cross-resource workflows
+├── automated_regression_suite.py            # CI/CD regression analysis
+└── README.md                               # Complete usage documentation
+```
+
+**Validation Categories:**
+- **CORE_CLINICAL**: Patient identifier search, Observation value-quantity, Condition onset-date
+- **MEDICATION**: MedicationDispense, MedicationAdministration, prescription workflows
+- **PROVIDER_ORGANIZATION**: Provider directory, geographic search, organizational hierarchy
+- **DOCUMENTATION**: Enhanced DocumentReference, Communication threading, Task orchestration
+- **SQL_VALIDATION**: Search parameter extraction, database performance, security
+- **PERFORMANCE**: CRUD benchmarks, search performance, concurrent access patterns
+- **INTEGRATION**: Patient-centric workflows, cross-resource validation
+
+**Performance Targets:**
+- **Read Operations**: 100 ops/sec, <100ms average
+- **Search Operations**: 50 ops/sec, <200ms simple, <500ms complex  
+- **Create Operations**: 20 ops/sec, <300ms average
+- **Database Queries**: <200ms simple, <500ms complex
+- **Success Rate**: 100% for all critical tests
+
+#### Standard Compliance Testing
+```bash
+# Complete FHIR R4 validation using test harnesses
+cd backend/tests/fhir-implementation-fixes/test-harnesses
+python comprehensive_fhir_test_runner.py --all --benchmark
+
+# FHIR R4 validation via E2E tests
 cd e2e-tests
 npm run test:fhir-compliance
 
 # Capability statement validation
 curl http://localhost:8000/fhir/R4/metadata | jq .
+
+# Automated regression testing for CI/CD
+python automated_regression_suite.py --validation-level comprehensive --include-performance
 ```
 
 **Compliance Areas:**
-- Resource structure validation
-- Search parameter support
-- HTTP status code compliance
-- Content negotiation
-- Version header handling
-- OperationOutcome formatting
+- Resource structure validation with FHIR R4 schema compliance
+- Search parameter support across all implemented resources
+- HTTP status code compliance and proper error handling
+- Content negotiation and version header handling
+- OperationOutcome formatting for all error scenarios
+- Bundle transaction processing with atomic operations
+- Cross-resource reference integrity validation
+- Performance compliance with healthcare industry standards
 
 ## Test Data Management
 
@@ -309,8 +382,19 @@ jobs:
           docker-compose run backend pytest
           docker-compose run frontend npm test
 
-  integration-tests:
+  fhir-validation-tests:
     needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run FHIR test harnesses
+        run: |
+          ./unified-deploy.sh --patients 10
+          cd backend/tests/fhir-implementation-fixes/test-harnesses
+          python comprehensive_fhir_test_runner.py --all --benchmark
+          python automated_regression_suite.py --validation-level standard --include-performance
+
+  integration-tests:
+    needs: fhir-validation-tests
     runs-on: ubuntu-latest
     steps:
       - name: Run integration tests
@@ -330,12 +414,16 @@ jobs:
 ```
 
 ### Quality Gates
-- All unit tests must pass
+- All unit tests must pass (minimum 80% coverage)
+- **FHIR test harnesses must pass with 100% success rate**
+- **Automated regression suite must detect no regressions**
 - Integration tests must pass
 - E2E smoke tests must pass
-- Code coverage must meet thresholds
+- **Performance benchmarks must meet healthcare industry standards**
+- Code coverage must meet thresholds (critical FHIR operations: 95%)
 - No critical security vulnerabilities
-- FHIR compliance tests must pass
+- **SQL validation tests must pass (search parameter accuracy)**
+- **Cross-resource workflow validation must complete successfully**
 
 ## Test Reporting
 
@@ -487,3 +575,15 @@ docker volume prune -f
 ```
 
 This comprehensive testing strategy ensures that WintEHR maintains high quality, reliability, and compliance with healthcare standards while supporting rapid development and deployment cycles.
+
+## Recent Updates
+
+### 2025-07-15
+- **Implemented comprehensive FHIR test harness framework** (Agent F)
+- Added 9 specialized test harnesses covering all FHIR resource types and workflows
+- Integrated automated regression testing suite for continuous integration
+- Enhanced performance benchmarking with healthcare industry standard targets
+- Implemented SQL validation framework for search parameter accuracy
+- Added cross-resource workflow integration testing capabilities
+- Created master test orchestration framework for coordinated validation
+- Established quality gates requiring 100% FHIR test harness success rate
