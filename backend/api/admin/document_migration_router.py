@@ -14,7 +14,7 @@ from datetime import datetime
 from database import get_db_session
 from scripts.document_reference_migration import DocumentReferenceMigrator
 from services.document_validation_service import DocumentValidationService
-from emr_api.auth import get_current_user, require_admin
+from api.auth import get_current_user, require_admin
 from core.database import get_database_url
 
 router = APIRouter(prefix="/admin/documents", tags=["Admin - Document Migration"])

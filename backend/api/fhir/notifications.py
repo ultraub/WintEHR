@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, func, text
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from database import get_db_session as get_db
-from emr_api.auth import get_current_user
+from api.auth import get_current_user
 import uuid
 import json
 
