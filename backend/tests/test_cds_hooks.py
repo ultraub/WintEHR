@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime, date
 
 from main import app
-from database.database import get_db, Base
+from database import get_db_session as get_db, Base
 from models.models import Patient, Provider, Encounter, Observation, Condition, Medication
 
 

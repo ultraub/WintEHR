@@ -12,7 +12,7 @@ from pydantic import BaseModel
 import json
 
 from database import get_db_session
-from auth import get_current_user
+from api.auth import get_current_user
 
 router = APIRouter(prefix="/api/quality/measures", tags=["quality-measures"])
 

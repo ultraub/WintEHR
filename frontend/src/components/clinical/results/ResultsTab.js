@@ -46,8 +46,7 @@ import {
 import { useClinical } from '../../../contexts/ClinicalContext';
 import { fhirClient } from '../../../services/fhirClient';
 import api from '../../../services/api';
-// Temporarily use simplified viewer to avoid cornerstone-tools issues
-import ImageViewerV2 from '../../ImageViewerV2_Simple';
+import ImageViewerV2 from '../../ImageViewerV2';
 import RealTimeResultsIndicator from './RealTimeResultsIndicator';
 
 const TabPanel = ({ children, value, index, ...other }) => {

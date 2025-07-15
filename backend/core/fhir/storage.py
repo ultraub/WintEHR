@@ -1649,7 +1649,7 @@ class FHIRStorageEngine:
         # Always index the resource ID
         await self._add_search_param(
             resource_id, resource_type, '_id', 'token', 
-            value_string=resource_data.get('id')
+            value_token_code=resource_data.get('id')
         )
         
         # Resource-specific parameters

@@ -11,7 +11,7 @@ import random
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.database import SessionLocal
+from database import async_session_maker as SessionLocal
 from models.clinical.notes import ClinicalNote
 from models.synthea_models import Patient, Provider, Encounter
 import logging

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 import uuid
 
 from database import get_db_session
-from auth import get_current_user
+from api.auth import get_current_user
 
 router = APIRouter(prefix="/api/clinical/tasks", tags=["clinical-tasks"])
 

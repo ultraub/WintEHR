@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database.database import DATABASE_URL
+from database import DATABASE_URL
 from models.synthea_models import Provider
 from models.session import PatientProviderAssignment
 from models.models import Patient

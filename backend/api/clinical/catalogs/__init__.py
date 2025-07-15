@@ -1,1 +1,0 @@
-# Clinical Catalogs API module

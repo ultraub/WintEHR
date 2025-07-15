@@ -11,7 +11,7 @@ import random
 from sqlalchemy.orm import Session
 
 from models.models import Patient, Encounter, Observation, Condition, Medication
-from database.database import get_db
+from database import get_db_session as get_db
 
 
 class ScenarioType(str, Enum):
