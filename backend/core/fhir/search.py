@@ -170,6 +170,10 @@ class SearchParameterHandler:
                 where_clause = self._build_quantity_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
+            elif param_type == 'special':
+                where_clause = self._build_special_clause(
+                    alias, param_data['name'], values, modifier, param_counter, sql_params
+                )
             else:
                 continue
             
@@ -811,3 +815,92 @@ class SearchParameterHandler:
             end = date_value + timedelta(microseconds=1)
         
         return start, end
+    
+    def _build_special_clause(
+        self,
+        alias: str,
+        param_name: str,
+        values: List[str],
+        modifier: Optional[str],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for special parameters like geographic 'near' search."""
+        if param_name == 'near':
+            # Handle geographic proximity search
+            # Format: latitude|longitude|distance|units
+            # or: latitude|longitude (uses default distance)
+            
+            conditions = []
+            for value in values:
+                param_key = f"special_param_{counter}_{len(conditions)}"
+                
+                # Parse near parameter
+                parts = value.split('|')
+                if len(parts) < 2:
+                    continue
+                
+                try:
+                    target_lat = float(parts[0])
+                    target_lon = float(parts[1])
+                    
+                    # Default distance: 50km if not specified
+                    distance_km = 50.0
+                    if len(parts) >= 3:
+                        distance_km = float(parts[2])
+                        # Handle units - default to km
+                        if len(parts) >= 4 and parts[3].lower() in ['mi', 'mile', 'miles']:
+                            distance_km = distance_km * 1.60934  # Convert miles to kilometers
+                    
+                    # Store search parameters
+                    sql_params[f"{param_key}_lat"] = target_lat
+                    sql_params[f"{param_key}_lon"] = target_lon
+                    sql_params[f"{param_key}_dist"] = distance_km
+                    
+                    # Use the Haversine formula for distance calculation
+                    # 6371 is Earth's radius in kilometers
+                    distance_calc = f"""
+                        6371 * 2 * ASIN(SQRT(
+                            POWER(SIN(RADIANS(:{param_key}_lat - 
+                                CAST(SPLIT_PART({alias}.value_string, ',', 1) AS FLOAT)
+                            ) / 2), 2) +
+                            COS(RADIANS(CAST(SPLIT_PART({alias}.value_string, ',', 1) AS FLOAT))) *
+                            COS(RADIANS(:{param_key}_lat)) *
+                            POWER(SIN(RADIANS(:{param_key}_lon - 
+                                CAST(SPLIT_PART({alias}.value_string, ',', 2) AS FLOAT)
+                            ) / 2), 2)
+                        ))
+                    """
+                    
+                    condition = f"""
+                        ({alias}.param_name = 'near' AND
+                         {alias}.param_type = 'special' AND
+                         {alias}.value_string IS NOT NULL AND
+                         ARRAY_LENGTH(STRING_TO_ARRAY({alias}.value_string, ','), 1) >= 2 AND
+                         {distance_calc} <= :{param_key}_dist)
+                    """
+                    
+                    conditions.append(condition)
+                    
+                except (ValueError, IndexError):
+                    # Invalid coordinate format, skip this value
+                    continue
+            
+            if conditions:
+                return f"({' OR '.join(conditions)})"
+            else:
+                # No valid geographic parameters, return false condition
+                return "1=0"
+        
+        # Default handling for other special parameters
+        conditions = []
+        for i, value in enumerate(values):
+            param_key = f"special_param_{counter}_{i}"
+            sql_params[param_key] = value
+            conditions.append(f"""
+                {alias}.param_name = '{param_name}' AND
+                {alias}.param_type = 'special' AND
+                {alias}.value_string = :{param_key}
+            """)
+        
+        return f"({' OR '.join(conditions)})"

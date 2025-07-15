@@ -166,13 +166,52 @@ class FHIRStorageEngine:
                 'family': {'type': 'string'},
                 'given': {'type': 'string'},
                 'identifier': {'type': 'token'},
-                'active': {'type': 'token'}
+                'active': {'type': 'token'},
+                'email': {'type': 'token'},
+                'phone': {'type': 'token'},
+                'telecom': {'type': 'token'},
+                'address': {'type': 'string'},
+                'address-city': {'type': 'string'},
+                'address-state': {'type': 'string'},
+                'gender': {'type': 'token'},
+                'communication': {'type': 'token'}
             },
             'Organization': {
                 'name': {'type': 'string'},
                 'identifier': {'type': 'token'},
                 'type': {'type': 'token'},
-                'active': {'type': 'token'}
+                'active': {'type': 'token'},
+                'partof': {'type': 'reference'},
+                'address': {'type': 'string'},
+                'address-city': {'type': 'string'},
+                'endpoint': {'type': 'reference'}
+            },
+            'PractitionerRole': {
+                'identifier': {'type': 'token'},
+                'practitioner': {'type': 'reference'},
+                'organization': {'type': 'reference'},
+                'location': {'type': 'reference'},
+                'specialty': {'type': 'token'},
+                'role': {'type': 'token'},
+                'service': {'type': 'reference'},
+                'active': {'type': 'token'},
+                'date': {'type': 'date'},
+                'period': {'type': 'date'},
+                'endpoint': {'type': 'reference'}
+            },
+            'Location': {
+                'identifier': {'type': 'token'},
+                'name': {'type': 'string'},
+                'address': {'type': 'string'},
+                'address-city': {'type': 'string'},
+                'address-state': {'type': 'string'},
+                'address-postalcode': {'type': 'string'},
+                'organization': {'type': 'reference'},
+                'partof': {'type': 'reference'},
+                'status': {'type': 'token'},
+                'type': {'type': 'token'},
+                'near': {'type': 'special'},
+                'endpoint': {'type': 'reference'}
             },
             'Procedure': {
                 'code': {'type': 'token'},
@@ -221,6 +260,107 @@ class FHIRStorageEngine:
                 'encounter': {'type': 'reference'},
                 'performer': {'type': 'reference'},
                 'started': {'type': 'date'}
+            },
+            'DocumentReference': {
+                # Core search parameters
+                'patient': {'type': 'reference'},
+                'subject': {'type': 'reference'},
+                'encounter': {'type': 'reference'},
+                'type': {'type': 'token'},
+                'category': {'type': 'token'},
+                'date': {'type': 'date'},
+                'author': {'type': 'reference'},
+                'status': {'type': 'token'},
+                'doc-status': {'type': 'token'},
+                'identifier': {'type': 'token'},
+                'description': {'type': 'string'},
+                # Enhanced search parameters
+                'facility': {'type': 'token'},
+                'period': {'type': 'date'},
+                'relatesto': {'type': 'reference'},
+                'security-label': {'type': 'token'},
+                'content-format': {'type': 'token'},
+                'content-size': {'type': 'quantity'},
+                # Clinical workflow parameters
+                'custodian': {'type': 'reference'},
+                'authenticator': {'type': 'reference'},
+                'event': {'type': 'token'}
+            },
+            'Communication': {
+                # Core FHIR R4 search parameters
+                'category': {'type': 'token'},
+                'encounter': {'type': 'reference'},
+                'identifier': {'type': 'token'},
+                'medium': {'type': 'token'},
+                'received': {'type': 'date'},
+                'recipient': {'type': 'reference'},
+                'sender': {'type': 'reference'},
+                'sent': {'type': 'date'},
+                'status': {'type': 'token'},
+                'subject': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'priority': {'type': 'token'},
+                # Workflow and threading parameters
+                'based-on': {'type': 'reference'},
+                'part-of': {'type': 'reference'},
+                'reason-reference': {'type': 'reference'},
+                'reason-code': {'type': 'token'},
+                # Context parameters
+                'context': {'type': 'reference'},
+                'payload-content': {'type': 'string'}
+            },
+            'Task': {
+                # Core FHIR R4 search parameters
+                'status': {'type': 'token'},
+                'business-status': {'type': 'token'},
+                'code': {'type': 'token'},
+                'focus': {'type': 'reference'},
+                'for': {'type': 'reference'},
+                'identifier': {'type': 'token'},
+                'owner': {'type': 'reference'},
+                'part-of': {'type': 'reference'},
+                'patient': {'type': 'reference'},
+                'performer': {'type': 'reference'},
+                'requester': {'type': 'reference'},
+                'subject': {'type': 'reference'},
+                # Date and timing parameters
+                'authored-on': {'type': 'date'},
+                'modified': {'type': 'date'},
+                'period': {'type': 'date'},
+                # Workflow parameters
+                'priority': {'type': 'token'},
+                'intent': {'type': 'token'},
+                'group-identifier': {'type': 'token'},
+                'based-on': {'type': 'reference'},
+                'reason-code': {'type': 'token'},
+                'reason-reference': {'type': 'reference'},
+                # Context parameters
+                'encounter': {'type': 'reference'},
+                'location': {'type': 'reference'}
+            },
+            'Bundle': {
+                # Bundle search parameters
+                'type': {'type': 'token'},
+                'identifier': {'type': 'token'},
+                'timestamp': {'type': 'date'},
+                'total': {'type': 'number'},
+                'composition': {'type': 'reference'},
+                'message': {'type': 'reference'}
+            },
+            'OperationOutcome': {
+                # OperationOutcome search parameters
+                'severity': {'type': 'token'},
+                'code': {'type': 'token'},
+                'details': {'type': 'token'},
+                'diagnostics': {'type': 'string'},
+                'expression': {'type': 'string'},
+                'location': {'type': 'string'}
+            },
+            'Parameters': {
+                # Parameters search parameters
+                'name': {'type': 'string'},
+                'value': {'type': 'string'},
+                'identifier': {'type': 'token'}
             }
         }
     
@@ -933,7 +1073,7 @@ class FHIRStorageEngine:
     
     async def process_bundle_dict(self, bundle_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process a FHIR Bundle from dictionary data (without fhir.resources validation).
+        Enhanced FHIR Bundle processing with optimization and detailed error handling.
         
         Args:
             bundle_data: Bundle data as dictionary
@@ -941,51 +1081,277 @@ class FHIRStorageEngine:
         Returns:
             Response Bundle as dictionary
         """
+        # Validate bundle structure
+        if not isinstance(bundle_data, dict) or bundle_data.get('resourceType') != 'Bundle':
+            raise ValueError("Invalid Bundle resource structure")
+        
         bundle_type = bundle_data.get('type')
+        if not bundle_type:
+            raise ValueError("Bundle type is required")
+        
+        # Validate bundle type
+        valid_types = ['transaction', 'batch', 'collection', 'searchset', 'history', 'document']
+        if bundle_type not in valid_types:
+            raise ValueError(f"Invalid Bundle type '{bundle_type}'. Must be one of: {', '.join(valid_types)}")
+        
         entries = bundle_data.get('entry', [])
+        
+        # Performance optimization: pre-validate entries for transactions
+        if bundle_type == "transaction":
+            await self._validate_transaction_bundle_entries(entries)
         
         response_bundle = {
             "resourceType": "Bundle",
-            "type": "batch-response" if bundle_type == "batch" else "transaction-response",
-            "entry": []
+            "type": f"{bundle_type}-response" if bundle_type in ['transaction', 'batch'] else bundle_type,
+            "entry": [],
+            "meta": {
+                "lastUpdated": datetime.now(timezone.utc).isoformat()
+            }
         }
         
-        # Transaction handling
-        if bundle_type == "transaction":
-            # All operations must succeed
-            try:
-                for entry in entries:
-                    response_entry = await self._process_bundle_entry_dict(entry)
-                    response_bundle['entry'].append(response_entry)
-                await self.session.commit()
-            except Exception as e:
-                await self.session.rollback()
-                raise
-        else:
-            # Batch - independent operations
-            for entry in entries:
-                try:
-                    response_entry = await self._process_bundle_entry_dict(entry)
-                    await self.session.commit()
-                except Exception as e:
-                    # Create error response
-                    response_entry = {
-                        "response": {
-                            "status": "500",
-                            "outcome": {
-                                "resourceType": "OperationOutcome",
-                                "issue": [{
-                                    "severity": "error",
-                                    "code": "exception",
-                                    "diagnostics": str(e)
-                                }]
-                            }
-                        }
+        # Add bundle ID if provided
+        if 'id' in bundle_data:
+            response_bundle['id'] = bundle_data['id']
+        
+        # Performance monitoring
+        start_time = datetime.now()
+        processed_count = 0
+        error_count = 0
+        
+        try:
+            if bundle_type == "transaction":
+                # Enhanced transaction handling with atomic operations
+                response_bundle['entry'] = await self._process_transaction_bundle(entries)
+                processed_count = len(entries)
+                
+            elif bundle_type == "batch":
+                # Enhanced batch processing with independent error handling
+                batch_results = await self._process_batch_bundle(entries)
+                response_bundle['entry'] = batch_results['entries']
+                processed_count = batch_results['processed_count']
+                error_count = batch_results['error_count']
+                
+            elif bundle_type == "collection":
+                # Collection bundles don't require processing - return as-is
+                response_bundle['entry'] = [{'resource': entry.get('resource')} for entry in entries if entry.get('resource')]
+                processed_count = len(response_bundle['entry'])
+                
+            elif bundle_type in ["searchset", "history", "document"]:
+                # These are typically response bundles, but handle gracefully
+                response_bundle['entry'] = entries
+                response_bundle['total'] = len(entries)
+                processed_count = len(entries)
+                
+            else:
+                raise ValueError(f"Bundle type '{bundle_type}' processing not implemented")
+            
+            # Add processing metadata
+            processing_time = (datetime.now() - start_time).total_seconds()
+            response_bundle['meta']['extension'] = [{
+                "url": "http://wintehr.com/fhir/StructureDefinition/bundle-processing-info",
+                "extension": [
+                    {
+                        "url": "processedCount",
+                        "valueInteger": processed_count
+                    },
+                    {
+                        "url": "errorCount", 
+                        "valueInteger": error_count
+                    },
+                    {
+                        "url": "processingTimeMs",
+                        "valueDecimal": round(processing_time * 1000, 2)
                     }
-                    await self.session.rollback()
-                response_bundle['entry'].append(response_entry)
+                ]
+            }]
+            
+            logging.info(f"Bundle processing completed: {processed_count} entries processed, "
+                        f"{error_count} errors, {processing_time:.2f}s")
+            
+        except Exception as e:
+            # Enhanced error handling with detailed OperationOutcome
+            logging.error(f"Bundle processing failed: {str(e)}")
+            await self.session.rollback()
+            
+            error_outcome = await self._create_enhanced_operation_outcome(
+                severity="fatal",
+                code="exception",
+                diagnostics=f"Bundle processing failed: {str(e)}",
+                expression=["Bundle"],
+                details_code="bundle-processing-error"
+            )
+            
+            raise ValueError(f"Bundle processing failed: {str(e)}")
         
         return response_bundle
+    
+    async def _validate_transaction_bundle_entries(self, entries: List[Dict[str, Any]]):
+        """Validate transaction bundle entries before processing."""
+        if not entries:
+            return
+        
+        # Check for required request elements
+        for i, entry in enumerate(entries):
+            if 'request' not in entry:
+                raise ValueError(f"Bundle entry {i} missing required 'request' element")
+            
+            request = entry['request']
+            if 'method' not in request or 'url' not in request:
+                raise ValueError(f"Bundle entry {i} request missing required 'method' or 'url'")
+            
+            method = request['method']
+            if method not in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']:
+                raise ValueError(f"Bundle entry {i} has invalid HTTP method: {method}")
+            
+            # Validate resource presence for operations that require it
+            if method in ['POST', 'PUT', 'PATCH'] and 'resource' not in entry:
+                raise ValueError(f"Bundle entry {i} with method {method} missing required 'resource'")
+        
+        # Check for duplicate fullUrl values
+        full_urls = [entry.get('fullUrl') for entry in entries if entry.get('fullUrl')]
+        if len(full_urls) != len(set(full_urls)):
+            raise ValueError("Bundle contains duplicate fullUrl values")
+    
+    async def _process_transaction_bundle(self, entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Process transaction bundle with atomic operations."""
+        response_entries = []
+        
+        try:
+            # Process all entries in a single transaction
+            for entry in entries:
+                response_entry = await self._process_bundle_entry_dict(entry)
+                response_entries.append(response_entry)
+            
+            # Commit all changes atomically
+            await self.session.commit()
+            logging.debug(f"Transaction bundle committed successfully with {len(response_entries)} entries")
+            
+        except Exception as e:
+            # Rollback all changes on any failure
+            await self.session.rollback()
+            logging.error(f"Transaction bundle failed, rolled back: {str(e)}")
+            
+            # Create enhanced error response
+            error_outcome = await self._create_enhanced_operation_outcome(
+                severity="fatal",
+                code="transient",
+                diagnostics=f"Transaction failed: {str(e)}",
+                expression=["Bundle"],
+                details_code="transaction-rollback"
+            )
+            
+            raise ValueError(f"Transaction bundle processing failed: {str(e)}")
+        
+        return response_entries
+    
+    async def _process_batch_bundle(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Process batch bundle with independent error handling."""
+        response_entries = []
+        processed_count = 0
+        error_count = 0
+        
+        for i, entry in enumerate(entries):
+            try:
+                response_entry = await self._process_bundle_entry_dict(entry)
+                await self.session.commit()
+                response_entries.append(response_entry)
+                processed_count += 1
+                
+            except Exception as e:
+                # Create detailed error response for this entry
+                await self.session.rollback()
+                error_count += 1
+                
+                # Determine appropriate HTTP status code
+                status_code = "400"  # Default to bad request
+                error_code = "invalid"
+                
+                if "validation" in str(e).lower():
+                    status_code = "400"
+                    error_code = "invalid"
+                elif "not found" in str(e).lower():
+                    status_code = "404"
+                    error_code = "not-found"
+                elif "unauthorized" in str(e).lower():
+                    status_code = "401"
+                    error_code = "forbidden"
+                else:
+                    status_code = "500"
+                    error_code = "exception"
+                
+                # Create enhanced OperationOutcome
+                error_outcome = await self._create_enhanced_operation_outcome(
+                    severity="error",
+                    code=error_code,
+                    diagnostics=str(e),
+                    expression=[f"Bundle.entry[{i}]"],
+                    details_code="batch-entry-error"
+                )
+                
+                response_entry = {
+                    "response": {
+                        "status": status_code,
+                        "outcome": error_outcome
+                    }
+                }
+                response_entries.append(response_entry)
+                
+                logging.warning(f"Batch entry {i} failed: {str(e)}")
+        
+        return {
+            'entries': response_entries,
+            'processed_count': processed_count,
+            'error_count': error_count
+        }
+    
+    async def _create_enhanced_operation_outcome(
+        self,
+        severity: str,
+        code: str,
+        diagnostics: str,
+        expression: List[str] = None,
+        location: List[str] = None,
+        details_code: str = None
+    ) -> Dict[str, Any]:
+        """Create enhanced OperationOutcome with detailed diagnostics."""
+        
+        issue = {
+            "severity": severity,
+            "code": code,
+            "diagnostics": diagnostics
+        }
+        
+        # Add expression paths for error location
+        if expression:
+            issue["expression"] = expression
+        
+        # Add location information
+        if location:
+            issue["location"] = location
+        elif expression:
+            # Default location to expression if not provided
+            issue["location"] = expression
+        
+        # Add coded details
+        if details_code:
+            issue["details"] = {
+                "coding": [{
+                    "system": "http://wintehr.com/fhir/CodeSystem/operation-outcome-details",
+                    "code": details_code,
+                    "display": details_code.replace('-', ' ').title()
+                }]
+            }
+        
+        operation_outcome = {
+            "resourceType": "OperationOutcome",
+            "issue": [issue],
+            "meta": {
+                "lastUpdated": datetime.now(timezone.utc).isoformat(),
+                "profile": ["http://wintehr.com/fhir/StructureDefinition/enhanced-operation-outcome"]
+            }
+        }
+        
+        return operation_outcome
     
     async def _process_bundle_entry_dict(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """Process a single bundle entry from dictionary."""
@@ -2381,6 +2747,943 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse created: {resource_data.get('created')} - {e}")
+        
+        elif resource_type == 'Practitioner':
+            # Name (family and given)
+            if 'name' in resource_data:
+                for name in resource_data['name']:
+                    if 'family' in name:
+                        params_to_extract.append({
+                            'param_name': 'family',
+                            'param_type': 'string',
+                            'value_string': name['family']
+                        })
+                        params_to_extract.append({
+                            'param_name': 'name',
+                            'param_type': 'string',
+                            'value_string': name['family']
+                        })
+                    if 'given' in name:
+                        for given in name['given']:
+                            params_to_extract.append({
+                                'param_name': 'given',
+                                'param_type': 'string',
+                                'value_string': given
+                            })
+                            params_to_extract.append({
+                                'param_name': 'name',
+                                'param_type': 'string',
+                                'value_string': given
+                            })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Active status
+            if 'active' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'active',
+                    'param_type': 'token',
+                    'value_token_code': str(resource_data['active']).lower()
+                })
+            
+            # Gender
+            if 'gender' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'gender',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['gender']
+                })
+            
+            # Telecom (email and phone)
+            if 'telecom' in resource_data:
+                for telecom in resource_data['telecom']:
+                    if 'value' in telecom and 'system' in telecom:
+                        # General telecom parameter
+                        params_to_extract.append({
+                            'param_name': 'telecom',
+                            'param_type': 'token',
+                            'value_token_system': telecom['system'],
+                            'value_token_code': telecom['value']
+                        })
+                        
+                        # Specific system parameters
+                        if telecom['system'] == 'email':
+                            params_to_extract.append({
+                                'param_name': 'email',
+                                'param_type': 'token',
+                                'value_token_code': telecom['value']
+                            })
+                        elif telecom['system'] == 'phone':
+                            params_to_extract.append({
+                                'param_name': 'phone',
+                                'param_type': 'token',
+                                'value_token_code': telecom['value']
+                            })
+            
+            # Address
+            if 'address' in resource_data:
+                for address in resource_data['address']:
+                    # Full address string
+                    address_parts = []
+                    if 'line' in address:
+                        address_parts.extend(address['line'])
+                    if 'city' in address:
+                        address_parts.append(address['city'])
+                        params_to_extract.append({
+                            'param_name': 'address-city',
+                            'param_type': 'string',
+                            'value_string': address['city']
+                        })
+                    if 'state' in address:
+                        address_parts.append(address['state'])
+                        params_to_extract.append({
+                            'param_name': 'address-state',
+                            'param_type': 'string',
+                            'value_string': address['state']
+                        })
+                    if 'postalCode' in address:
+                        address_parts.append(address['postalCode'])
+                    
+                    if address_parts:
+                        params_to_extract.append({
+                            'param_name': 'address',
+                            'param_type': 'string',
+                            'value_string': ' '.join(address_parts)
+                        })
+            
+            # Communication
+            if 'communication' in resource_data:
+                for communication in resource_data['communication']:
+                    if 'coding' in communication:
+                        for coding in communication['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'communication',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+        
+        elif resource_type == 'Organization':
+            # Name
+            if 'name' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'name',
+                    'param_type': 'string',
+                    'value_string': resource_data['name']
+                })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Type
+            if 'type' in resource_data:
+                for org_type in resource_data['type']:
+                    if 'coding' in org_type:
+                        for coding in org_type['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'type',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Active status
+            if 'active' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'active',
+                    'param_type': 'token',
+                    'value_token_code': str(resource_data['active']).lower()
+                })
+            
+            # Part of (organizational hierarchy)
+            if 'partOf' in resource_data and 'reference' in resource_data['partOf']:
+                params_to_extract.append({
+                    'param_name': 'partof',
+                    'param_type': 'reference',
+                    'value_string': resource_data['partOf']['reference']
+                })
+            
+            # Address
+            if 'address' in resource_data:
+                for address in resource_data['address']:
+                    # Full address string
+                    address_parts = []
+                    if 'line' in address:
+                        address_parts.extend(address['line'])
+                    if 'city' in address:
+                        address_parts.append(address['city'])
+                        params_to_extract.append({
+                            'param_name': 'address-city',
+                            'param_type': 'string',
+                            'value_string': address['city']
+                        })
+                    if 'state' in address:
+                        address_parts.append(address['state'])
+                    if 'postalCode' in address:
+                        address_parts.append(address['postalCode'])
+                    
+                    if address_parts:
+                        params_to_extract.append({
+                            'param_name': 'address',
+                            'param_type': 'string',
+                            'value_string': ' '.join(address_parts)
+                        })
+            
+            # Endpoint
+            if 'endpoint' in resource_data:
+                for endpoint in resource_data['endpoint']:
+                    if 'reference' in endpoint:
+                        params_to_extract.append({
+                            'param_name': 'endpoint',
+                            'param_type': 'reference',
+                            'value_string': endpoint['reference']
+                        })
+        
+        elif resource_type == 'PractitionerRole':
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Practitioner reference
+            if 'practitioner' in resource_data and 'reference' in resource_data['practitioner']:
+                params_to_extract.append({
+                    'param_name': 'practitioner',
+                    'param_type': 'reference',
+                    'value_string': resource_data['practitioner']['reference']
+                })
+            
+            # Organization reference
+            if 'organization' in resource_data and 'reference' in resource_data['organization']:
+                params_to_extract.append({
+                    'param_name': 'organization',
+                    'param_type': 'reference',
+                    'value_string': resource_data['organization']['reference']
+                })
+            
+            # Location references
+            if 'location' in resource_data:
+                for location in resource_data['location']:
+                    if 'reference' in location:
+                        params_to_extract.append({
+                            'param_name': 'location',
+                            'param_type': 'reference',
+                            'value_string': location['reference']
+                        })
+            
+            # Specialty
+            if 'specialty' in resource_data:
+                for specialty in resource_data['specialty']:
+                    if 'coding' in specialty:
+                        for coding in specialty['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'specialty',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Role (code)
+            if 'code' in resource_data:
+                for code in resource_data['code']:
+                    if 'coding' in code:
+                        for coding in code['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'role',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Healthcare Service references
+            if 'healthcareService' in resource_data:
+                for service in resource_data['healthcareService']:
+                    if 'reference' in service:
+                        params_to_extract.append({
+                            'param_name': 'service',
+                            'param_type': 'reference',
+                            'value_string': service['reference']
+                        })
+            
+            # Active status
+            if 'active' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'active',
+                    'param_type': 'token',
+                    'value_token_code': str(resource_data['active']).lower()
+                })
+            
+            # Period (date range)
+            if 'period' in resource_data:
+                if 'start' in resource_data['period']:
+                    try:
+                        start_date = datetime.fromisoformat(
+                            resource_data['period']['start'].replace('Z', '+00:00')
+                        )
+                        params_to_extract.append({
+                            'param_name': 'date',
+                            'param_type': 'date',
+                            'value_date': start_date
+                        })
+                        params_to_extract.append({
+                            'param_name': 'period',
+                            'param_type': 'date',
+                            'value_date': start_date
+                        })
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"WARNING: Could not parse period start: {resource_data['period'].get('start')} - {e}")
+            
+            # Endpoint references
+            if 'endpoint' in resource_data:
+                for endpoint in resource_data['endpoint']:
+                    if 'reference' in endpoint:
+                        params_to_extract.append({
+                            'param_name': 'endpoint',
+                            'param_type': 'reference',
+                            'value_string': endpoint['reference']
+                        })
+        
+        elif resource_type == 'Location':
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Name
+            if 'name' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'name',
+                    'param_type': 'string',
+                    'value_string': resource_data['name']
+                })
+            
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Type
+            if 'type' in resource_data:
+                for location_type in resource_data['type']:
+                    if 'coding' in location_type:
+                        for coding in location_type['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'type',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Address
+            if 'address' in resource_data:
+                address = resource_data['address']
+                # Full address string
+                address_parts = []
+                if 'line' in address:
+                    address_parts.extend(address['line'])
+                if 'city' in address:
+                    address_parts.append(address['city'])
+                    params_to_extract.append({
+                        'param_name': 'address-city',
+                        'param_type': 'string',
+                        'value_string': address['city']
+                    })
+                if 'state' in address:
+                    address_parts.append(address['state'])
+                    params_to_extract.append({
+                        'param_name': 'address-state',
+                        'param_type': 'string',
+                        'value_string': address['state']
+                    })
+                if 'postalCode' in address:
+                    address_parts.append(address['postalCode'])
+                    params_to_extract.append({
+                        'param_name': 'address-postalcode',
+                        'param_type': 'string',
+                        'value_string': address['postalCode']
+                    })
+                
+                if address_parts:
+                    params_to_extract.append({
+                        'param_name': 'address',
+                        'param_type': 'string',
+                        'value_string': ' '.join(address_parts)
+                    })
+            
+            # Position (for geographic searches)
+            if 'position' in resource_data:
+                position = resource_data['position']
+                if 'latitude' in position and 'longitude' in position:
+                    # Store position for 'near' search parameter
+                    # We'll implement the geographic distance calculation in the search logic
+                    params_to_extract.append({
+                        'param_name': 'near',
+                        'param_type': 'special',
+                        'value_string': f"{position['latitude']},{position['longitude']}"
+                    })
+            
+            # Managing organization
+            if 'managingOrganization' in resource_data and 'reference' in resource_data['managingOrganization']:
+                params_to_extract.append({
+                    'param_name': 'organization',
+                    'param_type': 'reference',
+                    'value_string': resource_data['managingOrganization']['reference']
+                })
+            
+            # Part of (location hierarchy)
+            if 'partOf' in resource_data and 'reference' in resource_data['partOf']:
+                params_to_extract.append({
+                    'param_name': 'partof',
+                    'param_type': 'reference',
+                    'value_string': resource_data['partOf']['reference']
+                })
+            
+            # Endpoint references
+            if 'endpoint' in resource_data:
+                for endpoint in resource_data['endpoint']:
+                    if 'reference' in endpoint:
+                        params_to_extract.append({
+                            'param_name': 'endpoint',
+                            'param_type': 'reference',
+                            'value_string': endpoint['reference']
+                        })
+        
+        elif resource_type == 'DocumentReference':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Doc status
+            if 'docStatus' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'doc-status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['docStatus']
+                })
+            
+            # Type
+            if 'type' in resource_data and 'coding' in resource_data['type']:
+                for coding in resource_data['type']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'type',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Subject/Patient reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Author references
+            if 'author' in resource_data:
+                for author in resource_data['author']:
+                    if 'reference' in author:
+                        params_to_extract.append({
+                            'param_name': 'author',
+                            'param_type': 'reference',
+                            'value_string': author['reference']
+                        })
+            
+            # Date
+            if 'date' in resource_data:
+                try:
+                    date_value = datetime.fromisoformat(
+                        resource_data['date'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'date',
+                        'param_type': 'date',
+                        'value_date': date_value
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse date: {resource_data.get('date')} - {e}")
+            
+            # Encounter reference
+            if 'context' in resource_data and 'encounter' in resource_data['context']:
+                for encounter in resource_data['context']['encounter']:
+                    if 'reference' in encounter:
+                        params_to_extract.append({
+                            'param_name': 'encounter',
+                            'param_type': 'reference',
+                            'value_string': encounter['reference']
+                        })
+            
+            # Facility (from context.facilityType)
+            if 'context' in resource_data and 'facilityType' in resource_data['context']:
+                facility_type = resource_data['context']['facilityType']
+                if 'coding' in facility_type:
+                    for coding in facility_type['coding']:
+                        if 'code' in coding:
+                            params_to_extract.append({
+                                'param_name': 'facility',
+                                'param_type': 'token',
+                                'value_token_system': coding.get('system'),
+                                'value_token_code': coding['code']
+                            })
+            
+            # Period (from context.period)
+            if 'context' in resource_data and 'period' in resource_data['context']:
+                period = resource_data['context']['period']
+                if 'start' in period:
+                    try:
+                        period_start = datetime.fromisoformat(
+                            period['start'].replace('Z', '+00:00')
+                        )
+                        params_to_extract.append({
+                            'param_name': 'period',
+                            'param_type': 'date',
+                            'value_date': period_start
+                        })
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"WARNING: Could not parse period.start: {period.get('start')} - {e}")
+                if 'end' in period:
+                    try:
+                        period_end = datetime.fromisoformat(
+                            period['end'].replace('Z', '+00:00')
+                        )
+                        params_to_extract.append({
+                            'param_name': 'period',
+                            'param_type': 'date',
+                            'value_date': period_end
+                        })
+                    except (ValueError, TypeError) as e:
+                        logging.warning(f"WARNING: Could not parse period.end: {period.get('end')} - {e}")
+            
+            # RelatesTo
+            if 'relatesTo' in resource_data:
+                for relates in resource_data['relatesTo']:
+                    if 'target' in relates and 'reference' in relates['target']:
+                        params_to_extract.append({
+                            'param_name': 'relatesto',
+                            'param_type': 'reference',
+                            'value_string': relates['target']['reference']
+                        })
+            
+            # Security label
+            if 'securityLabel' in resource_data:
+                for label in resource_data['securityLabel']:
+                    if 'coding' in label:
+                        for coding in label['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'security-label',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Content format and size
+            if 'content' in resource_data:
+                for content in resource_data['content']:
+                    # Format
+                    if 'format' in content and 'code' in content['format']:
+                        params_to_extract.append({
+                            'param_name': 'content-format',
+                            'param_type': 'token',
+                            'value_token_system': content['format'].get('system'),
+                            'value_token_code': content['format']['code']
+                        })
+                    
+                    # Size
+                    if 'attachment' in content and 'size' in content['attachment']:
+                        try:
+                            size_value = float(content['attachment']['size'])
+                            params_to_extract.append({
+                                'param_name': 'content-size',
+                                'param_type': 'quantity',
+                                'value_number': size_value
+                            })
+                        except (ValueError, TypeError) as e:
+                            logging.warning(f"WARNING: Could not parse content size: {content['attachment'].get('size')} - {e}")
+        
+        elif resource_type == 'Communication':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Priority
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['priority']
+                })
+            
+            # Subject/Patient reference
+            if 'subject' in resource_data and 'reference' in resource_data['subject']:
+                ref = resource_data['subject']['reference']
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # Sender reference
+            if 'sender' in resource_data and 'reference' in resource_data['sender']:
+                params_to_extract.append({
+                    'param_name': 'sender',
+                    'param_type': 'reference',
+                    'value_string': resource_data['sender']['reference']
+                })
+            
+            # Recipient references
+            if 'recipient' in resource_data:
+                for recipient in resource_data['recipient']:
+                    if 'reference' in recipient:
+                        params_to_extract.append({
+                            'param_name': 'recipient',
+                            'param_type': 'reference',
+                            'value_string': recipient['reference']
+                        })
+            
+            # Sent date
+            if 'sent' in resource_data:
+                try:
+                    sent_date = datetime.fromisoformat(
+                        resource_data['sent'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'sent',
+                        'param_type': 'date',
+                        'value_date': sent_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse sent: {resource_data.get('sent')} - {e}")
+            
+            # Received date
+            if 'received' in resource_data:
+                try:
+                    received_date = datetime.fromisoformat(
+                        resource_data['received'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'received',
+                        'param_type': 'date',
+                        'value_date': received_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse received: {resource_data.get('received')} - {e}")
+            
+            # Medium
+            if 'medium' in resource_data:
+                for medium in resource_data['medium']:
+                    if 'coding' in medium:
+                        for coding in medium['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'medium',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Based on references
+            if 'basedOn' in resource_data:
+                for based_on in resource_data['basedOn']:
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_string': based_on['reference']
+                        })
+            
+            # Part of references
+            if 'partOf' in resource_data:
+                for part_of in resource_data['partOf']:
+                    if 'reference' in part_of:
+                        params_to_extract.append({
+                            'param_name': 'part-of',
+                            'param_type': 'reference',
+                            'value_string': part_of['reference']
+                        })
+            
+            # Reason references
+            if 'reasonReference' in resource_data:
+                for reason in resource_data['reasonReference']:
+                    if 'reference' in reason:
+                        params_to_extract.append({
+                            'param_name': 'reason-reference',
+                            'param_type': 'reference',
+                            'value_string': reason['reference']
+                        })
+        
+        elif resource_type == 'Task':
+            # Status
+            if 'status' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'status',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['status']
+                })
+            
+            # Business status
+            if 'businessStatus' in resource_data and 'coding' in resource_data['businessStatus']:
+                for coding in resource_data['businessStatus']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'business-status',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Intent
+            if 'intent' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'intent',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['intent']
+                })
+            
+            # Priority
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['priority']
+                })
+            
+            # Code (task type)
+            if 'code' in resource_data and 'coding' in resource_data['code']:
+                for coding in resource_data['code']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'code',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # For/Subject/Patient reference
+            if 'for' in resource_data and 'reference' in resource_data['for']:
+                ref = resource_data['for']['reference']
+                params_to_extract.append({
+                    'param_name': 'for',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                params_to_extract.append({
+                    'param_name': 'subject',
+                    'param_type': 'reference',
+                    'value_string': ref
+                })
+                if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
+                    params_to_extract.append({
+                        'param_name': 'patient',
+                        'param_type': 'reference',
+                        'value_string': ref
+                    })
+            
+            # Owner reference
+            if 'owner' in resource_data and 'reference' in resource_data['owner']:
+                params_to_extract.append({
+                    'param_name': 'owner',
+                    'param_type': 'reference',
+                    'value_string': resource_data['owner']['reference']
+                })
+            
+            # Requester reference
+            if 'requester' in resource_data and 'reference' in resource_data['requester']:
+                params_to_extract.append({
+                    'param_name': 'requester',
+                    'param_type': 'reference',
+                    'value_string': resource_data['requester']['reference']
+                })
+            
+            # Focus reference
+            if 'focus' in resource_data and 'reference' in resource_data['focus']:
+                params_to_extract.append({
+                    'param_name': 'focus',
+                    'param_type': 'reference',
+                    'value_string': resource_data['focus']['reference']
+                })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_string': resource_data['encounter']['reference']
+                })
+            
+            # Authored on date
+            if 'authoredOn' in resource_data:
+                try:
+                    authored_date = datetime.fromisoformat(
+                        resource_data['authoredOn'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'authored-on',
+                        'param_type': 'date',
+                        'value_date': authored_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} - {e}")
+            
+            # Last modified date
+            if 'lastModified' in resource_data:
+                try:
+                    modified_date = datetime.fromisoformat(
+                        resource_data['lastModified'].replace('Z', '+00:00')
+                    )
+                    params_to_extract.append({
+                        'param_name': 'modified',
+                        'param_type': 'date',
+                        'value_date': modified_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse lastModified: {resource_data.get('lastModified')} - {e}")
+            
+            # Identifiers
+            if 'identifier' in resource_data:
+                for identifier in resource_data['identifier']:
+                    if 'value' in identifier:
+                        params_to_extract.append({
+                            'param_name': 'identifier',
+                            'param_type': 'token',
+                            'value_token_system': identifier.get('system'),
+                            'value_token_code': identifier['value']
+                        })
+            
+            # Part of references
+            if 'partOf' in resource_data:
+                for part_of in resource_data['partOf']:
+                    if 'reference' in part_of:
+                        params_to_extract.append({
+                            'param_name': 'part-of',
+                            'param_type': 'reference',
+                            'value_string': part_of['reference']
+                        })
+            
+            # Based on references
+            if 'basedOn' in resource_data:
+                for based_on in resource_data['basedOn']:
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_string': based_on['reference']
+                        })
+            
+            # Reason references
+            if 'reasonReference' in resource_data:
+                for reason in resource_data['reasonReference']:
+                    if 'reference' in reason:
+                        params_to_extract.append({
+                            'param_name': 'reason-reference',
+                            'param_type': 'reference',
+                            'value_string': reason['reference']
+                        })
+        
         # Insert all search parameters
         logging.debug(f"DEBUG: Found {len(params_to_extract)} search parameters to store")
         for i, param in enumerate(params_to_extract):

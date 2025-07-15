@@ -319,21 +319,23 @@ RESOURCE_MAPPINGS = {
         "model": Provider,
         "search_params": [
             "identifier", "active", "name", "family", "given", "telecom", 
-            "qualification", "_id", "_lastUpdated"
+            "email", "phone", "address", "address-city", "address-state",
+            "gender", "communication", "qualification", "_id", "_lastUpdated"
         ]
     },
     "Organization": {
         "model": Organization,
         "search_params": [
-            "identifier", "active", "name", "type", "address", "partof",
-            "_id", "_lastUpdated"
+            "identifier", "active", "name", "type", "address", "address-city", 
+            "partof", "endpoint", "_id", "_lastUpdated"
         ]
     },
     "Location": {
         "model": Location,
         "search_params": [
-            "identifier", "status", "name", "type", "address", "position",
-            "_id", "_lastUpdated"
+            "identifier", "status", "name", "type", "address", "address-city", 
+            "address-state", "address-postalcode", "organization", "partof",
+            "near", "endpoint", "_id", "_lastUpdated"
         ]
     },
     "AllergyIntolerance": {
@@ -432,7 +434,7 @@ RESOURCE_MAPPINGS = {
         "model": PractitionerRole,
         "search_params": [
             "identifier", "practitioner", "organization", "role", "specialty",
-            "location", "service", "active", "date", "telecom", "_id", "_lastUpdated"
+            "location", "service", "active", "date", "period", "endpoint", "_id", "_lastUpdated"
         ]
     },
     "Coverage": {
@@ -2106,13 +2108,67 @@ async def search_resources(
             patient=search_params.get("patient")
         )
     
-    # Build and execute query
-    processor = FHIRSearchProcessor(resource_type, db)
-    query = processor.build_query(search_params)
+    # Check if this is a FHIR storage resource (PractitionerRole, Location)
+    fhir_storage_resources = {"PractitionerRole", "Location"}
     
-    # Apply pagination
-    total_count = query.count() if _total == "accurate" else None
-    resources = query.offset(_offset).limit(_count).all()
+    if resource_type in fhir_storage_resources:
+        # Use FHIR storage engine for these resources
+        from core.fhir.storage import FHIRStorageEngine
+        storage_engine = FHIRStorageEngine(async_db)
+        
+        # Convert search parameters for storage engine
+        fhir_search_params = {}
+        for key, value in search_params.items():
+            if not key.startswith('_'):
+                fhir_search_params[key] = value
+        
+        # Execute search using storage engine
+        try:
+            fhir_resources, total_count = await storage_engine.search_resources(
+                resource_type, fhir_search_params, offset=_offset, limit=_count
+            )
+            
+            # Convert to response format
+            entries = []
+            for resource in fhir_resources:
+                entries.append({
+                    "fullUrl": f"{request.base_url}fhir/R4/{resource_type}/{resource['id']}",
+                    "resource": resource,
+                    "search": {"mode": "match"}
+                })
+            
+            # Build bundle response
+            bundle = {
+                "resourceType": "Bundle",
+                "id": str(uuid.uuid4()),
+                "meta": {
+                    "lastUpdated": datetime.now().isoformat() + "Z"
+                },
+                "type": "searchset",
+                "total": total_count,
+                "entry": entries
+            }
+            
+            # Add pagination links
+            if total_count and total_count > _offset + _count:
+                next_offset = _offset + _count
+                next_url = str(request.url.include_query_params(_offset=next_offset))
+                bundle["link"] = [
+                    {"relation": "next", "url": next_url}
+                ]
+            
+            return bundle
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+    else:
+        # Use legacy search processor for other resources
+        processor = FHIRSearchProcessor(resource_type, db)
+        query = processor.build_query(search_params)
+        
+        # Apply pagination
+        total_count = query.count() if _total == "accurate" else None
+        resources = query.offset(_offset).limit(_count).all()
     
     # Add pagination links if needed
     next_url = None
@@ -2247,6 +2303,42 @@ async def get_resource(
             current_user=current_user
         )
     
+    # Check if this is a FHIR storage resource (PractitionerRole, Location)
+    fhir_storage_resources = {"PractitionerRole", "Location"}
+    
+    if resource_type in fhir_storage_resources:
+        # Use FHIR storage engine for these resources
+        from core.fhir.storage import FHIRStorageEngine
+        storage_engine = FHIRStorageEngine(async_db)
+        
+        try:
+            fhir_resource = await storage_engine.read_resource(resource_type, resource_id)
+            
+            # Audit the read operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="read",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=True
+            )
+            
+            return fhir_resource
+            
+        except Exception as e:
+            # Audit the failed operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="read",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=False,
+                error_details=str(e)
+            )
+            raise HTTPException(status_code=404, detail=f"{resource_type} not found")
+    
     model = RESOURCE_MAPPINGS[resource_type]["model"]
     
     # Check if this is a JSONB-stored resource
@@ -2335,7 +2427,47 @@ async def update_resource(
     if resource_type not in RESOURCE_MAPPINGS:
         raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
     
-    # Use batch processor to handle the update
+    # Check if this is a FHIR storage resource (PractitionerRole, Location)
+    fhir_storage_resources = {"PractitionerRole", "Location"}
+    
+    if resource_type in fhir_storage_resources:
+        # Use FHIR storage engine for these resources
+        from core.fhir.storage import FHIRStorageEngine
+        storage_engine = FHIRStorageEngine(async_db)
+        
+        try:
+            updated_resource = await storage_engine.update_resource(resource_type, resource_id, resource_data)
+            
+            # Audit the update operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="update",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=True
+            )
+            
+            return Response(
+                status_code=200,
+                headers={"Location": f"/{resource_type}/{resource_id}"},
+                content=json.dumps(updated_resource)
+            )
+            
+        except Exception as e:
+            # Audit the failed operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="update",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=False,
+                error_details=str(e)
+            )
+            raise HTTPException(status_code=500, detail=f"Failed to update resource: {str(e)}")
+    
+    # Use batch processor to handle the update for other resources
     processor = BatchProcessor(db)
     entry = {
         "resource": resource_data,
@@ -2383,6 +2515,42 @@ async def delete_resource(
     
     if resource_type not in RESOURCE_MAPPINGS:
         raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
+    
+    # Check if this is a FHIR storage resource (PractitionerRole, Location)
+    fhir_storage_resources = {"PractitionerRole", "Location"}
+    
+    if resource_type in fhir_storage_resources:
+        # Use FHIR storage engine for these resources
+        from core.fhir.storage import FHIRStorageEngine
+        storage_engine = FHIRStorageEngine(async_db)
+        
+        try:
+            await storage_engine.delete_resource(resource_type, resource_id)
+            
+            # Audit the delete operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="delete",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=True
+            )
+            
+            return Response(status_code=204)
+            
+        except Exception as e:
+            # Audit the failed operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="delete",
+                resource_type=resource_type,
+                resource_id=resource_id,
+                user_id=current_user["id"] if current_user else None,
+                success=False,
+                error_details=str(e)
+            )
+            raise HTTPException(status_code=404, detail=f"{resource_type} not found")
     
     model = RESOURCE_MAPPINGS[resource_type]["model"]
     resource = db.query(model).filter(model.id == resource_id).first()
@@ -2437,7 +2605,46 @@ async def create_resource(
     if resource_type not in RESOURCE_MAPPINGS:
         raise HTTPException(status_code=404, detail=f"Resource type {resource_type} not supported")
     
-    # Use batch processor to handle the creation
+    # Check if this is a FHIR storage resource (PractitionerRole, Location)
+    fhir_storage_resources = {"PractitionerRole", "Location"}
+    
+    if resource_type in fhir_storage_resources:
+        # Use FHIR storage engine for these resources
+        from core.fhir.storage import FHIRStorageEngine
+        storage_engine = FHIRStorageEngine(async_db)
+        
+        try:
+            created_resource = await storage_engine.create_resource(resource_type, resource_data)
+            
+            # Audit the create operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="create",
+                resource_type=resource_type,
+                resource_id=created_resource.get("id"),
+                user_id=current_user["id"] if current_user else None,
+                success=True
+            )
+            
+            return Response(
+                status_code=201,
+                headers={"Location": f"/{resource_type}/{created_resource['id']}"},
+                content=json.dumps(created_resource)
+            )
+            
+        except Exception as e:
+            # Audit the failed operation
+            await AuditService.audit_fhir_operation(
+                db=async_db,
+                operation="create",
+                resource_type=resource_type,
+                user_id=current_user["id"] if current_user else None,
+                success=False,
+                error_details=str(e)
+            )
+            raise HTTPException(status_code=500, detail=f"Failed to create resource: {str(e)}")
+    
+    # Use batch processor to handle the creation for other resources
     processor = BatchProcessor(db)
     entry = {
         "resource": resource_data,
