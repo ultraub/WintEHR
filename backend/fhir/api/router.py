@@ -205,7 +205,7 @@ async def process_bundle(
         )
     
     try:
-        response_bundle = await storage.process_bundle(bundle)
+        response_bundle = await storage.process_bundle_dict(bundle)
         return FHIRJSONResponse(response_bundle)
     except Exception as e:
         logger.error(f"ERROR in process_bundle: {e}")
