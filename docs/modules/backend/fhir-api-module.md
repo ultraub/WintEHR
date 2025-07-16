@@ -5,8 +5,22 @@ The FHIR API Module implements a complete FHIR R4-compliant RESTful API with ful
 
 ## Recent Updates
 
-### 2025-01-16 - $everything Operation
-Implemented complete FHIR R4 $everything operation with full parameter support:
+### 2025-01-16 - Advanced FHIR Search Features
+Implemented complete FHIR R4 advanced search functionality:
+
+**1. Chained Searches**
+- Simple chains: `Patient?general-practitioner.name=Smith`
+- Type-specific chains: `Observation?subject:Patient.name=John`
+- Multi-level chains: `Patient?organization.partOf.name=Hospital`
+- Efficient SQL generation using EXISTS subqueries
+
+**2. _has Parameter (Reverse Chaining)**
+- Find resources referenced by others: `Patient?_has:Observation:patient:code=1234-5`
+- Nested _has support: `Organization?_has:Patient:managingOrganization:_has:Specimen:subject:type=blood`
+- Support for all search parameter types (token, string, date, reference)
+- Combined with regular parameters: `Patient?gender=female&_has:Observation:patient:category=vital-signs`
+
+**3. $everything Operation**
 - Complete patient compartment resource collection (50+ resource types)
 - Parameter support: _since, _type, _count, _offset
 - Reference following for related resources
@@ -159,20 +173,37 @@ async def process_transaction(bundle: dict, db: AsyncSession):
 - **Number**: Numeric comparisons
 - **Quantity**: Value and unit searches
 
-**Search Features**:
+**Advanced Search Features (All Implemented)**:
 ```python
-# Chained parameters
+# Chained parameters - Follow references to search on referenced resource properties
 GET /Patient?general-practitioner.name=Smith
+GET /Observation?patient.birthdate=1970-01-01
+GET /MedicationRequest?subject:Patient.name=John
+GET /Patient?organization.partOf.name=Regional%20Health
 
-# Reverse chaining
+# Reverse chaining (_has) - Find resources that are referenced by others
 GET /Patient?_has:Observation:patient:code=1234-5
+GET /Practitioner?_has:Encounter:participant:status=finished
+GET /Organization?_has:Patient:managingOrganization:birthdate=2000
+GET /Organization?_has:Patient:managingOrganization:_has:Specimen:subject:type=blood
 
 # Including referenced resources
 GET /Patient?_include=Patient:general-practitioner
+GET /MedicationRequest?_include=MedicationRequest:medication
+GET /Patient?_include=Patient:organization&_include=Organization:partOf
+
+# Including resources that reference this one
+GET /Patient?_revinclude=Observation:patient
+GET /Patient?_revinclude=Encounter:patient&_revinclude=MedicationRequest:patient
 
 # Search result modifiers
 GET /Patient?name:exact=John
 GET /Patient?birthdate:missing=true
+GET /Observation?code:text=blood
+
+# Combining features
+GET /Observation?patient.family=Smith&_include=Observation:patient
+GET /Patient?gender=female&_has:Observation:patient:category=vital-signs&_revinclude=Encounter:patient
 ```
 
 **Implementation Example**:

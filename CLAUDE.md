@@ -648,6 +648,12 @@ git status docs/ --porcelain
 - Implemented resource cache size limits (200 max per type)
 - Added automatic old resource cleanup to prevent unbounded growth
 - Memory usage reduced from 500MB+ to typical 50-100MB
+- Implemented complete FHIR R4 advanced search features:
+  - Chained searches (e.g., Patient?general-practitioner.name=Smith)
+  - _has parameter for reverse chaining (e.g., Patient?_has:Observation:patient:code=1234-5)
+  - $everything operation with full parameter support (_since, _type, _count, _offset)
+- Fixed _include for Medication resources (issue was test data, not implementation)
+- All advanced FHIR features now fully functional and tested
 
 ### 2025-07-16
 - Consolidated all FHIR-related code into unified `backend/fhir/` module structure
