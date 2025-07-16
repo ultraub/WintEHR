@@ -5,6 +5,14 @@ The FHIR API Module implements a complete FHIR R4-compliant RESTful API with ful
 
 ## Recent Updates
 
+### 2025-01-16 - $everything Operation
+Implemented complete FHIR R4 $everything operation with full parameter support:
+- Complete patient compartment resource collection (50+ resource types)
+- Parameter support: _since, _type, _count, _offset
+- Reference following for related resources
+- Proper Bundle pagination with navigation links
+- Comprehensive test coverage
+
 ### 2025-07-16 - Consolidation
 The FHIR implementation has been consolidated into a unified `backend/fhir/` module structure, resolving import conflicts and improving maintainability.
 
@@ -59,6 +67,12 @@ POST   /fhir/R4/{resourceType}/_search
 # System-level operations
 GET    /fhir/R4/metadata
 POST   /fhir/R4/
+
+# FHIR Operations
+GET    /fhir/R4/Patient/{id}/$everything
+POST   /fhir/R4/{resourceType}/$validate
+GET    /fhir/R4/{resourceType}/_history
+POST   /fhir/R4/$
 ```
 
 **Request Handling**:
@@ -100,6 +114,15 @@ async def transaction_operation(bundle: dict) -> Bundle
 
 # History
 async def history_operation(resource_type: str, resource_id: str) -> Bundle
+
+# Patient/$everything - Complete implementation
+async def patient_everything_operation(
+    patient_id: str,
+    _since: Optional[str] = None,     # Filter by last update date
+    _type: Optional[str] = None,      # Filter by resource types
+    _count: Optional[int] = None,     # Pagination size
+    _offset: Optional[int] = None     # Pagination offset
+) -> Bundle
 
 # Search operations
 async def search_operation(resource_type: str, parameters: dict) -> Bundle

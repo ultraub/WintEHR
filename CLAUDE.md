@@ -653,6 +653,16 @@ git status docs/ --porcelain
 - Created comprehensive test suite and manual testing script for _has parameter
 - Updated search documentation with _has parameter guide
 
+### 2025-01-16
+- Implemented complete FHIR R4 $everything operation
+- Added full parameter support (_since, _type, _count, _offset)
+- Included all 50+ patient compartment resource types
+- Implemented reference following for related resources
+- Added proper Bundle pagination with navigation links
+- Created comprehensive test suite for $everything operation
+- Updated router to use OperationHandler for all operations
+- Fixed SQL syntax error in patient_everything endpoint
+
 ### 2025-07-14
 - Implemented R4/R5 agnostic handling for medication resources
 - Fixed MedicationRequest and MedicationDispense R5 to R4B conversion

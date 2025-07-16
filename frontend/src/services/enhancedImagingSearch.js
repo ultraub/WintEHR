@@ -229,7 +229,7 @@ export class EnhancedImagingSearchService {
   async getAvailableFilters(patientId) {
     try {
       // Get basic study data to determine available filters
-      const basicSearch = await this.searchImagingStudies(patientId, { _count: 1000 });
+      const basicSearch = await this.searchImagingStudies(patientId, { _count: 50 }); // Reduced to prevent memory issues
       
       const filters = {
         modalities: this.extractUniqueModalities(basicSearch.studies),

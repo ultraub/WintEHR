@@ -336,6 +336,8 @@ export function FHIRResourceProvider({ children }) {
   
   // Track in-flight requests to prevent duplicates
   const inFlightRequests = useRef(new Map());
+  // Track timeouts for cleanup
+  const timeoutRefs = useRef(new Set());
 
   // Enhanced cache utilities using intelligent cache
   const getCachedData = useCallback((cacheType, key) => {
@@ -379,13 +381,58 @@ export function FHIRResourceProvider({ children }) {
     });
   }, []);
 
+  // Cleanup old resources to prevent memory growth
+  const cleanupOldResources = useCallback(() => {
+    const MAX_RESOURCES_PER_TYPE = 200; // Limit resources per type
+    const resourceTypes = Object.keys(state.resources);
+    
+    resourceTypes.forEach(resourceType => {
+      const resources = state.resources[resourceType];
+      const resourceIds = Object.keys(resources);
+      
+      if (resourceIds.length > MAX_RESOURCES_PER_TYPE) {
+        // Sort by lastUpdated or meta.lastUpdated to keep recent ones
+        const sortedResources = resourceIds
+          .map(id => ({ id, resource: resources[id] }))
+          .sort((a, b) => {
+            const dateA = new Date(a.resource.meta?.lastUpdated || a.resource.lastUpdated || 0);
+            const dateB = new Date(b.resource.meta?.lastUpdated || b.resource.lastUpdated || 0);
+            return dateB - dateA;
+          });
+        
+        // Keep only the most recent resources
+        const resourcesToKeep = sortedResources.slice(0, MAX_RESOURCES_PER_TYPE);
+        const newResourceMap = {};
+        resourcesToKeep.forEach(({ id, resource }) => {
+          newResourceMap[id] = resource;
+        });
+        
+        dispatch({
+          type: FHIR_ACTIONS.CLEAR_RESOURCES,
+          payload: { resourceType }
+        });
+        
+        dispatch({
+          type: FHIR_ACTIONS.SET_RESOURCES,
+          payload: { resourceType, resources: Object.values(newResourceMap) }
+        });
+      }
+    });
+  }, [state.resources]);
+
   // Resource Management Functions
   const setResources = useCallback((resourceType, resources) => {
     dispatch({
       type: FHIR_ACTIONS.SET_RESOURCES,
       payload: { resourceType, resources }
     });
-  }, []);
+    
+    // Trigger cleanup if needed
+    const resourceCount = Object.keys(state.resources[resourceType] || {}).length;
+    if (resourceCount > 150) {
+      setTimeout(cleanupOldResources, 0);
+    }
+  }, [state.resources, cleanupOldResources]);
 
   const addResource = useCallback((resourceType, resource) => {
     dispatch({
@@ -595,22 +642,24 @@ export function FHIRResourceProvider({ children }) {
     const bundlePromise = (async () => {
       try {
         const promises = resourceTypes.map(resourceType => {
-        // Reduce initial count for better performance, increase for specific needs
+        // Reduce counts significantly to prevent memory issues
         const counts = {
-          critical: 100,
-          important: 200,
-          optional: 50
+          critical: 20,  // Reduced from 100
+          important: 50, // Reduced from 200
+          optional: 20   // Reduced from 50
         };
         
         let baseCount = priority === 'critical' ? counts.critical : 
                        priority === 'important' ? counts.important : counts.optional;
         
-        // Adjust count based on resource type
+        // Adjust count based on resource type - much smaller counts
         let resourceCount = baseCount;
         if (resourceType === 'Observation' && priority !== 'critical') {
-          resourceCount = 500; // Observations are numerous but important
+          resourceCount = 100; // Reduced from 500 - still get recent observations
         } else if (resourceType === 'Encounter') {
-          resourceCount = 50;  // Usually fewer encounters
+          resourceCount = 20;  // Reduced from 50
+        } else if (resourceType === 'DiagnosticReport' || resourceType === 'ImagingStudy') {
+          resourceCount = 30;  // Limit heavy resources
         }
         
         let params;
@@ -735,15 +784,19 @@ export function FHIRResourceProvider({ children }) {
         // Progressive loading: Load critical resources first, then important ones in background
         await fetchPatientBundle(patientId, false, 'critical');
         
-        // Load important resources in background
-        setTimeout(() => {
+        // Load important resources in background with cleanup
+        const importantTimeout = setTimeout(() => {
           fetchPatientBundle(patientId, false, 'important');
+          timeoutRefs.current.delete(importantTimeout);
         }, 100);
+        timeoutRefs.current.add(importantTimeout);
         
-        // Load optional resources after a delay
-        setTimeout(() => {
+        // Load optional resources after a delay with cleanup
+        const optionalTimeout = setTimeout(() => {
           fetchPatientBundle(patientId, false, 'all');
+          timeoutRefs.current.delete(optionalTimeout);
         }, 2000);
+        timeoutRefs.current.add(optionalTimeout);
       }
       
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
@@ -838,7 +891,14 @@ export function FHIRResourceProvider({ children }) {
       ];
       
       resourceTypes.forEach(resourceType => {
-        let params = { patient: patientId, _count: 1000 };
+        // Use smaller counts for refresh to prevent memory issues
+        let refreshCount = 50; // Default smaller count
+        if (resourceType === 'Observation') {
+          refreshCount = 100; // Still need more observations
+        } else if (resourceType === 'Encounter' || resourceType === 'Condition') {
+          refreshCount = 30;
+        }
+        let params = { patient: patientId, _count: refreshCount };
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {
@@ -905,6 +965,18 @@ export function FHIRResourceProvider({ children }) {
     };
   }, [state.currentPatient?.id]); // Only depend on patient ID, not the function
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all timeouts
+      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+      timeoutRefs.current.clear();
+      
+      // Clear all in-flight requests
+      inFlightRequests.current.clear();
+    };
+  }, []);
+
   // Context Value
   const contextValue = {
     // State
@@ -959,7 +1031,7 @@ export function useFHIRResource() {
 
 // Convenience hooks for specific resource types
 export function usePatient(patientId) {
-  const { getResource, fetchResource, setCurrentPatient, currentPatient } = useFHIRResource();
+  const { getResource, setCurrentPatient, currentPatient } = useFHIRResource();
   
   const patient = patientId ? getResource('Patient', patientId) : currentPatient;
   

@@ -399,7 +399,7 @@ class FHIRClient {
   async getObservations(patientId, category = null, count = 1000) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all observations
+      _count: count || 100,  // Reasonable default to prevent memory issues
       _sort: '-date'  // Sort by date descending
     };
     if (category) params.category = category;
@@ -420,7 +420,7 @@ class FHIRClient {
   async getMedications(patientId, status = null, count = 1000) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all medications
+      _count: count || 50,  // Reasonable default to prevent memory issues
       _sort: '-authoredon'  // Sort by authored date descending
     };
     if (status) {
@@ -436,7 +436,7 @@ class FHIRClient {
     return this.search('Condition', {
       patient: patientId,
       'clinical-status': clinicalStatus,
-      _count: count,  // Default to 1000 to ensure we get all conditions
+      _count: count || 50,  // Reasonable default to prevent memory issues
       _sort: '-recorded-date'  // Sort by recorded date descending
     });
   }
@@ -447,7 +447,7 @@ class FHIRClient {
   async getEncounters(patientId, status = null, count = 1000) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all encounters
+      _count: count || 30,  // Reasonable default to prevent memory issues
       _sort: '-date'  // Sort by date descending
     };
     if (status) params.status = status;
@@ -460,7 +460,7 @@ class FHIRClient {
   async getAllergies(patientId, count = 1000) {
     return this.search('AllergyIntolerance', {
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all allergies
+      _count: count || 30,  // Reasonable default to prevent memory issues
       _sort: '-date'  // Sort by date descending
     });
   }
@@ -509,7 +509,7 @@ class FHIRClient {
     return this.search('ImagingStudy', {
       patient: patientId,
       _sort: '-started',
-      _count: count  // Default to 1000 to ensure we get all imaging studies
+      _count: count || 30  // Reasonable default to prevent memory issues
     });
   }
 
@@ -524,7 +524,7 @@ class FHIRClient {
     return this.search('DocumentReference', {
       patient: patientId,
       _sort: '-date',
-      _count: count  // Default to 1000 to ensure we get all documents
+      _count: count || 30  // Reasonable default to prevent memory issues
     });
   }
 
@@ -593,7 +593,7 @@ class FHIRClient {
     return this.search('Procedure', {
       patient: patientId,
       _sort: '-performed-date',
-      _count: count  // Default to 1000 to ensure we get all procedures
+      _count: count || 50  // Reasonable default to prevent memory issues
     });
   }
 
@@ -617,7 +617,7 @@ class FHIRClient {
     const params = {
       patient: patientId,
       _sort: '-date',
-      _count: filters.limit || 1000
+      _count: filters.limit || 50  // Reasonable default
     };
 
     // Add code filter if specified
@@ -833,7 +833,7 @@ class FHIRClient {
       const params = {
         patient: patientId,
         _sort: '-date',
-        _count: 1000
+        _count: 100  // Reasonable default
       };
 
       if (code) {
