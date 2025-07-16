@@ -42,6 +42,7 @@ import {
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
+import { fhirClient } from '../../../../services/fhirClient';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -201,12 +202,73 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     overdueItems: 0
   });
 
-  // Load patient data if not already cached
-  useEffect(() => {
-    if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
-      fetchPatientBundle(patientId, false, 'critical');
+  // Optimized loading for summary counts
+  const loadSummaryStats = useCallback(async () => {
+    if (!patientId) return;
+    
+    try {
+      // Use batch request to get counts efficiently
+      const batchBundle = {
+        resourceType: "Bundle",
+        type: "batch",
+        entry: [
+          {
+            request: {
+              method: "GET",
+              url: `Condition?patient=${patientId}&clinical-status=active&_summary=count`
+            }
+          },
+          {
+            request: {
+              method: "GET",
+              url: `MedicationRequest?patient=${patientId}&status=active&_summary=count`
+            }
+          },
+          {
+            request: {
+              method: "GET",
+              url: `Observation?patient=${patientId}&category=laboratory&date=ge${subDays(new Date(), 7).toISOString().split('T')[0]}&_summary=count`
+            }
+          },
+          {
+            request: {
+              method: "GET",
+              url: `AllergyIntolerance?patient=${patientId}&_summary=count`
+            }
+          }
+        ]
+      };
+
+      const batchResult = await fhirClient.batch(batchBundle);
+      
+      // Extract counts from batch response
+      const entries = batchResult.entry || [];
+      const activeProblems = entries[0]?.resource?.total || 0;
+      const activeMedications = entries[1]?.resource?.total || 0;
+      const recentLabs = entries[2]?.resource?.total || 0;
+      const totalAllergies = entries[3]?.resource?.total || 0;
+
+      setStats({
+        activeProblems,
+        activeMedications,
+        recentLabs,
+        totalAllergies,
+        upcomingAppointments: 0, // Will be calculated separately
+        overdueItems: 0 // Will be calculated separately
+      });
+    } catch (error) {
+      console.error('Error loading summary stats:', error);
+      // Fallback to original method
+      if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
+        fetchPatientBundle(patientId, false, 'critical');
+      }
     }
-  }, [patientId, isCacheWarm, fetchPatientBundle]);
+  }, [patientId, fhirClient, isCacheWarm, fetchPatientBundle]);
+
+  // Load optimized summary stats on patient change
+  useEffect(() => {
+    loadSummaryStats();
+  }, [loadSummaryStats]);
 
   // Get resources from context - these are already cached and shared
   const conditions = useMemo(() => 

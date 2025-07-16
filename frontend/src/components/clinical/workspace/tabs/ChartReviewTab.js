@@ -1484,6 +1484,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const { 
     getPatientResources, 
     searchResources, 
+    searchWithInclude,
     isLoading,
     refreshPatientResources,
     currentPatient 
@@ -1522,7 +1523,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const createdCondition = result.resource || condition;
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1558,7 +1559,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1587,7 +1588,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1678,7 +1679,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       return result;
     } catch (error) {
@@ -1697,7 +1698,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       intelligentCache.clearPatient(patientId);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Publish event for medication deletion
       await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
@@ -1729,7 +1730,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       return result;
     } catch (error) {
@@ -1748,7 +1749,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       intelligentCache.clearPatient(patientId);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Publish event for allergy deletion
       await publish(CLINICAL_EVENTS.ALLERGY_UPDATED, {
@@ -1841,25 +1842,144 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
-  // Get resources using unified resource system
-  const conditions = getPatientResources(patientId, 'Condition') || [];
-  const medications = getPatientResources(patientId, 'MedicationRequest') || [];
-  const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const immunizations = getPatientResources(patientId, 'Immunization') || [];
-  
-  // Resources are now loaded automatically via getPatientResources hook
+  // State for optimized resource loading
+  const [conditions, setConditions] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const [observations, setObservations] = useState([]);
+  const [immunizations, setImmunizations] = useState([]);
+  const [loadingOptimized, setLoadingOptimized] = useState(false);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Optimized resource loading with batch requests and server-side filtering
+  const loadOptimizedResources = useCallback(async (filters = {}) => {
+    if (!patientId) return;
+    
+    setLoadingOptimized(true);
+    
+    try {
+      // Build batch bundle for all resources
+      const batchBundle = {
+        resourceType: "Bundle",
+        type: "batch",
+        entry: []
+      };
+
+      // Build condition search parameters with server-side filtering
+      let conditionQuery = `Condition?patient=${patientId}&_summary=data&_sort=-recorded-date&_count=50`;
+      if (filters.clinicalStatus && filters.clinicalStatus !== 'all') {
+        conditionQuery += `&clinical-status=${filters.clinicalStatus}`;
+      }
+      if (filters.verificationStatus && filters.verificationStatus !== 'all') {
+        conditionQuery += `&verification-status=${filters.verificationStatus}`;
+      }
+      if (filters.onsetDate) {
+        if (filters.onsetDateOperator === 'ge') {
+          conditionQuery += `&onset-date=ge${filters.onsetDate}`;
+        } else if (filters.onsetDateOperator === 'le') {
+          conditionQuery += `&onset-date=le${filters.onsetDate}`;
+        }
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: conditionQuery }
+      });
+
+      // Build medication search parameters with server-side filtering
+      let medicationQuery = `MedicationRequest?patient=${patientId}&_sort=-authored-on&_count=50&_include=MedicationRequest:medication,MedicationRequest:requester`;
+      if (filters.medicationStatus && filters.medicationStatus !== 'all') {
+        medicationQuery += `&status=${filters.medicationStatus}`;
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: medicationQuery }
+      });
+
+      // Build allergy search parameters with server-side filtering
+      let allergyQuery = `AllergyIntolerance?patient=${patientId}&_sort=-recorded-date`;
+      if (filters.allergyVerificationStatus && filters.allergyVerificationStatus !== 'all') {
+        allergyQuery += `&verification-status=${filters.allergyVerificationStatus}`;
+      }
+      if (filters.allergyCriticality && filters.allergyCriticality !== 'all') {
+        allergyQuery += `&criticality=${filters.allergyCriticality}`;
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: allergyQuery }
+      });
+
+      // Add observations query
+      batchBundle.entry.push({
+        request: { 
+          method: "GET", 
+          url: `Observation?patient=${patientId}&category=vital-signs&_sort=-date&_count=20` 
+        }
+      });
+
+      // Add immunizations query
+      batchBundle.entry.push({
+        request: { 
+          method: "GET", 
+          url: `Immunization?patient=${patientId}&_sort=-date&_count=50` 
+        }
+      });
+
+      // Execute batch request
+      const batchResult = await fhirClient.batch(batchBundle);
+      
+      // Process batch response
+      const entries = batchResult.entry || [];
+      
+      // Extract conditions from first response
+      const conditionsBundle = entries[0]?.resource;
+      const conditionsResources = conditionsBundle?.entry?.map(e => e.resource) || [];
+      setConditions(conditionsResources);
+
+      // Extract medications from second response (including _include results)
+      const medicationsBundle = entries[1]?.resource;
+      const medicationsResources = medicationsBundle?.entry?.map(e => e.resource) || [];
+      const medicationRequests = medicationsResources.filter(r => r.resourceType === 'MedicationRequest');
+      setMedications(medicationRequests);
+
+      // Extract allergies from third response
+      const allergiesBundle = entries[2]?.resource;
+      const allergiesResources = allergiesBundle?.entry?.map(e => e.resource) || [];
+      setAllergies(allergiesResources);
+
+      // Extract observations from fourth response
+      const observationsBundle = entries[3]?.resource;
+      const observationsResources = observationsBundle?.entry?.map(e => e.resource) || [];
+      setObservations(observationsResources);
+
+      // Extract immunizations from fifth response
+      const immunizationsBundle = entries[4]?.resource;
+      const immunizationsResources = immunizationsBundle?.entry?.map(e => e.resource) || [];
+      setImmunizations(immunizationsResources);
+
+    } catch (error) {
+      console.error('Error loading optimized resources:', error);
+      // Fallback to original method if optimized fails
+      const fallbackConditions = getPatientResources(patientId, 'Condition') || [];
+      const fallbackMedications = getPatientResources(patientId, 'MedicationRequest') || [];
+      const fallbackAllergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
+      const fallbackObservations = getPatientResources(patientId, 'Observation') || [];
+      const fallbackImmunizations = getPatientResources(patientId, 'Immunization') || [];
+      
+      setConditions(fallbackConditions);
+      setMedications(fallbackMedications);
+      setAllergies(fallbackAllergies);
+      setObservations(fallbackObservations);
+      setImmunizations(fallbackImmunizations);
+    } finally {
+      setLoadingOptimized(false);
+    }
+  }, [patientId, searchResources, searchWithInclude, getPatientResources]);
+
+  // Load optimized resources on patient change
+  useEffect(() => {
+    loadOptimizedResources();
+  }, [loadOptimizedResources]);
+  
+  // Resources are now loaded automatically via optimized loading
 
   // Show skeleton loading while data is loading
-  if (isLoading || loading) {
+  if (loadingOptimized || isLoading || loading) {
     return (
       <Box sx={{ p: 3 }}>
         <Grid container spacing={isMobile ? 2 : 3}>
@@ -2017,7 +2137,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             patientId={patientId}
             medications={medications}
             onRefresh={async () => {
-              await refreshPatientResources(patientId);
+              await loadOptimizedResources();
             }}
           />
         </Grid>
@@ -2029,7 +2149,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             patientId={patientId}
             medications={medications}
             onRefresh={async () => {
-              await refreshPatientResources(patientId);
+              await loadOptimizedResources();
             }}
           />
         </Grid>
