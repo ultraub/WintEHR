@@ -1121,6 +1121,9 @@ async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes
     """Process _include parameters."""
     included_resources = set()
     
+    # Get search parameter definitions to validate reference types
+    search_definitions = storage._get_search_parameter_definitions()
+    
     for include in includes:
         parts = include.split(':')
         if len(parts) >= 2:
@@ -1128,82 +1131,226 @@ async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes
             search_param = parts[1]
             target_type = parts[2] if len(parts) > 2 else None
             
+            # Validate that the search parameter exists and is a reference type
+            param_def = search_definitions.get(source_type, {}).get(search_param, {})
+            if param_def.get('type') != 'reference':
+                continue  # Skip non-reference parameters
+            
             # Find references in the bundle entries
             for entry in bundle["entry"]:
                 if entry.get("search", {}).get("mode") == "match":
                     resource = entry["resource"]
                     if resource.get("resourceType") == source_type:
-                        # Look for the reference field
-                        ref_value = None
-                        if search_param == "medication" and "medicationReference" in resource:
-                            ref_value = resource["medicationReference"].get("reference")
-                        elif search_param == "patient" and "subject" in resource:
-                            ref_value = resource["subject"].get("reference")
-                        elif search_param == "subject" and "subject" in resource:
-                            ref_value = resource["subject"].get("reference")
-                        elif search_param == "encounter" and "encounter" in resource:
-                            ref_value = resource["encounter"].get("reference")
-                        elif search_param == "performer" and "performer" in resource:
-                            for perf in resource.get("performer", []):
-                                if "actor" in perf:
-                                    ref_value = perf["actor"].get("reference")
-                                    if ref_value:
-                                        break
+                        # Extract reference values based on the search parameter
+                        ref_values = _extract_reference_values(resource, search_param)
                         
-                        if ref_value:
+                        
+                        for ref_value in ref_values:
                             # Extract resource type and ID from reference
-                            ref_parts = ref_value.split('/')
-                            if len(ref_parts) == 2:
-                                ref_type, ref_id = ref_parts
-                                if not target_type or ref_type == target_type:
-                                    resource_key = f"{ref_type}/{ref_id}"
-                                    if resource_key not in included_resources:
-                                        # Fetch the referenced resource
-                                        included = await storage.read_resource(ref_type, ref_id)
-                                        if included:
-                                            bundle["entry"].append({
-                                                "fullUrl": f"{base_url}/{ref_type}/{ref_id}",
-                                                "resource": included,
-                                                "search": {"mode": "include"}
-                                            })
-                                            included_resources.add(resource_key)
+                            if ref_value.startswith('urn:uuid:'):
+                                # Handle urn:uuid references
+                                ref_id = ref_value.replace('urn:uuid:', '')
+                                # Try to infer type from parameter name if not specified
+                                ref_type = target_type or _infer_resource_type_from_param(search_param)
+                                if not ref_type:
+                                    continue
+                            elif '/' in ref_value:
+                                # Handle ResourceType/id format
+                                ref_parts = ref_value.split('/', 1)
+                                if len(ref_parts) == 2:
+                                    ref_type, ref_id = ref_parts
+                                else:
+                                    continue
+                            else:
+                                continue
+                            
+                            # Check if target type matches (if specified)
+                            if target_type and ref_type != target_type:
+                                continue
+                            
+                            resource_key = f"{ref_type}/{ref_id}"
+                            if resource_key not in included_resources:
+                                # Fetch the referenced resource
+                                try:
+                                    included = await storage.read_resource(ref_type, ref_id)
+                                    if included:
+                                        bundle["entry"].append({
+                                            "fullUrl": f"{base_url}/{ref_type}/{ref_id}",
+                                            "resource": included,
+                                            "search": {"mode": "include"}
+                                        })
+                                        included_resources.add(resource_key)
+                                    else:
+                                        import logging
+                                        logging.warning(f"Could not fetch resource: {resource_key}")
+                                except Exception as e:
+                                    import logging
+                                    logging.error(f"Error fetching resource {resource_key}: {e}")
+
+
+def _extract_reference_values(resource: dict, search_param: str) -> List[str]:
+    """
+    Extract reference values from a resource based on the search parameter name.
+    Returns a list of reference strings.
+    """
+    references = []
+    
+    # Map search parameters to FHIR paths
+    # This mapping covers common patterns - can be extended as needed
+    param_to_paths = {
+        # Common patterns
+        'patient': ['subject', 'patient'],
+        'subject': ['subject'],
+        'encounter': ['encounter', 'context'],
+        'requester': ['requester'],
+        'performer': ['performer', 'performer[*].actor'],
+        'author': ['author'],
+        'medication': ['medicationReference', 'medication'],
+        'prescription': ['prescription', 'authorizingPrescription'],
+        'location': ['location'],
+        'organization': ['organization', 'managingOrganization'],
+        'practitioner': ['practitioner', 'generalPractitioner'],
+        'general-practitioner': ['generalPractitioner'],
+        'based-on': ['basedOn'],
+        'part-of': ['partOf'],
+        'replaces': ['replaces'],
+        'context': ['context', 'encounter'],
+        'focus': ['focus'],
+        'definition': ['definition'],
+        'destination': ['destination'],
+        'receiver': ['receiver'],
+        'responsible': ['responsible'],
+        'responsibleparty': ['responsibleParty']
+    }
+    
+    # Get potential paths for this search parameter
+    paths = param_to_paths.get(search_param, [search_param])
+    
+    for path in paths:
+        if '[*]' in path:
+            # Handle array notation
+            base_path = path.split('[*]')[0]
+            sub_path = path.split('[*].')[1] if '[*].' in path else None
+            
+            if base_path in resource and isinstance(resource[base_path], list):
+                for item in resource[base_path]:
+                    if sub_path and isinstance(item, dict) and sub_path in item:
+                        ref_obj = item[sub_path]
+                    elif isinstance(item, dict) and 'reference' in item:
+                        ref_obj = item
+                    else:
+                        continue
+                    
+                    if isinstance(ref_obj, dict) and 'reference' in ref_obj:
+                        references.append(ref_obj['reference'])
+        else:
+            # Direct path
+            if path in resource:
+                value = resource[path]
+                if isinstance(value, dict) and 'reference' in value:
+                    references.append(value['reference'])
+                elif isinstance(value, list):
+                    # Handle arrays of references
+                    for item in value:
+                        if isinstance(item, dict) and 'reference' in item:
+                            references.append(item['reference'])
+    
+    return references
+
+
+def _infer_resource_type_from_param(search_param: str) -> Optional[str]:
+    """
+    Infer the likely resource type from a search parameter name.
+    Used for urn:uuid references where type isn't explicit.
+    """
+    param_to_type = {
+        'patient': 'Patient',
+        'subject': 'Patient',  # Usually Patient
+        'encounter': 'Encounter',
+        'practitioner': 'Practitioner',
+        'organization': 'Organization',
+        'location': 'Location',
+        'medication': 'Medication',
+        'requester': 'Practitioner',  # Often Practitioner
+        'performer': 'Practitioner',  # Often Practitioner
+        'author': 'Practitioner',  # Often Practitioner
+        'prescription': 'MedicationRequest',
+        'based-on': 'ServiceRequest',  # Often ServiceRequest
+        'context': 'Encounter',  # Usually Encounter
+        'general-practitioner': 'Practitioner'
+    }
+    
+    return param_to_type.get(search_param)
 
 
 async def _process_revincludes(storage: FHIRStorageEngine, bundle: Bundle, revincludes: List[str], base_url: str):
     """Process _revinclude parameters."""
     included_resources = set()
     
+    # Get search parameter definitions to validate reference types
+    search_definitions = storage._get_search_parameter_definitions()
+    
     for revinclude in revincludes:
         parts = revinclude.split(':')
         if len(parts) >= 2:
             source_type = parts[0]
             search_param = parts[1]
+            target_type = parts[2] if len(parts) > 2 else None
+            
+            # Validate that the search parameter exists and is a reference type
+            param_def = search_definitions.get(source_type, {}).get(search_param, {})
+            if param_def.get('type') != 'reference':
+                continue  # Skip non-reference parameters
             
             # Find resources that reference the resources in our bundle
             for entry in bundle["entry"]:
                 if entry.get("search", {}).get("mode") == "match":
                     resource = entry["resource"]
-                    resource_ref = f"{resource['resourceType']}/{resource['id']}"
+                    resource_type = resource.get('resourceType', '')
+                    resource_id = resource.get('id', '')
+                    
+                    # Skip if target type specified and doesn't match
+                    if target_type and resource_type != target_type:
+                        continue
+                    
+                    resource_ref = f"{resource_type}/{resource_id}"
+                    
+                    # Build search parameters with proper reference format
+                    # The parsed values expect dict format with 'type' and 'id'
+                    search_params = {
+                        search_param: {
+                            'name': search_param,
+                            'type': 'reference',
+                            'modifier': None,
+                            'values': [{
+                                'type': resource_type,
+                                'id': resource_id
+                            }]
+                        }
+                    }
                     
                     # Search for resources that reference this one
-                    search_params = {search_param: {'name': search_param, 'type': 'reference', 'values': [{'type': None, 'id': resource_ref}]}}
-                    
-                    referring_resources, _ = await storage.search_resources(
-                        source_type,
-                        search_params,
-                        offset=0,
-                        limit=100
-                    )
-                    
-                    for referring in referring_resources:
-                        resource_key = f"{source_type}/{referring['id']}"
-                        if resource_key not in included_resources:
-                            bundle["entry"].append({
-                                "fullUrl": f"{base_url}/{source_type}/{referring['id']}",
-                                "resource": referring,
-                                "search": {"mode": "include"}
-                            })
-                            included_resources.add(resource_key)
+                    try:
+                        referring_resources, _ = await storage.search_resources(
+                            source_type,
+                            search_params,
+                            offset=0,
+                            limit=100
+                        )
+                        
+                        for referring in referring_resources:
+                            resource_key = f"{source_type}/{referring['id']}"
+                            if resource_key not in included_resources:
+                                bundle["entry"].append({
+                                    "fullUrl": f"{base_url}/{source_type}/{referring['id']}",
+                                    "resource": referring,
+                                    "search": {"mode": "include"}
+                                })
+                                included_resources.add(resource_key)
+                    except Exception as e:
+                        # Log but don't fail the whole request
+                        import logging
+                        logging.warning(f"Failed to process _revinclude {revinclude}: {e}")
 
 
 async def _process_has_parameters(target_resource_type: str, has_params: List[str], db: AsyncSession) -> Optional[Set[str]]:

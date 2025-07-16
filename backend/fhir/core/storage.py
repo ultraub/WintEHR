@@ -125,7 +125,10 @@ class FHIRStorageEngine:
                 'birthdate': {'type': 'date'},
                 'address': {'type': 'string'},
                 'phone': {'type': 'token'},
-                'email': {'type': 'token'}
+                'email': {'type': 'token'},
+                'general-practitioner': {'type': 'reference'},
+                'organization': {'type': 'reference'},
+                'managing-organization': {'type': 'reference'}
             },
             'Observation': {
                 'code': {'type': 'token'},
@@ -156,8 +159,8 @@ class FHIRStorageEngine:
                 'form': {'type': 'token'}
             },
             'MedicationRequest': {
-                'medication': {'type': 'token'},  # FHIR R4 compliant parameter
-                'code': {'type': 'token'},        # Keep for backward compatibility
+                'medication': {'type': 'reference'},  # Changed to reference for medicationReference
+                'code': {'type': 'token'},           # For medicationCodeableConcept  
                 'status': {'type': 'token'},
                 'intent': {'type': 'token'},
                 'identifier': {'type': 'token'},
