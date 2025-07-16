@@ -3,8 +3,16 @@
 ## Overview
 The FHIR API Module implements a complete FHIR R4-compliant RESTful API with full CRUD operations, advanced search capabilities, and PostgreSQL-based storage. This module demonstrates enterprise-grade FHIR server implementation patterns.
 
-## Recent Consolidation (2025-07-16)
+## Recent Updates
+
+### 2025-07-16 - Consolidation
 The FHIR implementation has been consolidated into a unified `backend/fhir/` module structure, resolving import conflicts and improving maintainability.
+
+### 2025-07-16 - Dict Handling Fix  
+Fixed an issue where the storage layer was calling `.dict()` on objects that were already dictionaries. The system now properly handles both dict and Pydantic model objects in the create/update flow:
+- Added isinstance checks before calling `.dict()` method
+- Ensures compatibility with the JSON-based FHIR implementation
+- Fixes 400 errors when updating resources like Condition
 
 ## Architecture
 ```

@@ -6,17 +6,40 @@ Since we don't strictly need the fhir.resources package for our JSON-based
 FHIR implementation, we'll provide the necessary constructs here.
 """
 
-# Provide a simple construct_fhir_element function for compatibility
-def construct_fhir_element(name, data):
-    """
-    Compatibility function that mimics fhir.resources construct_fhir_element.
-    Our system works with JSON/dict representations directly.
-    """
-    return data
+# Base class for FHIR resources that provides dict conversion
+class FHIRBase:
+    """Base class for FHIR resources with dict conversion support"""
+    
+    def __init__(self, **kwargs):
+        """Initialize with keyword arguments"""
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+    
+    def dict(self):
+        """Convert resource to dictionary representation"""
+        result = {}
+        for key, value in self.__dict__.items():
+            if not key.startswith('_'):
+                if hasattr(value, 'dict'):
+                    result[key] = value.dict()
+                elif isinstance(value, list):
+                    result[key] = [
+                        item.dict() if hasattr(item, 'dict') else item 
+                        for item in value
+                    ]
+                else:
+                    result[key] = value
+        return result
+    
+    def json(self):
+        """Alias for dict() to match Pydantic interface"""
+        return self.dict()
+
+# Note: construct_fhir_element is defined at the bottom of the file after all classes
 
 # Placeholder classes for type hints and compatibility
 # These are not used in runtime as we work with JSON/dict representations
-class Resource:
+class Resource(FHIRBase):
     pass
 
 class DomainResource(Resource):
@@ -28,13 +51,13 @@ class Bundle(DomainResource):
 class Parameters(DomainResource):
     pass
 
-class ParametersParameter:
+class ParametersParameter(FHIRBase):
     pass
 
 class OperationOutcome(DomainResource):
     pass
 
-class OperationOutcomeIssue:
+class OperationOutcomeIssue(FHIRBase):
     pass
 
 class Patient(DomainResource):
@@ -121,7 +144,7 @@ class ServiceRequest(DomainResource):
 class Task(DomainResource):
     pass
 
-class TaskRestriction:
+class TaskRestriction(FHIRBase):
     pass
 
 class MedicationDispense(DomainResource):
@@ -130,40 +153,40 @@ class MedicationDispense(DomainResource):
 class Communication(DomainResource):
     pass
 
-class BundleEntry:
+class BundleEntry(FHIRBase):
     pass
 
-class BundleEntryRequest:
+class BundleEntryRequest(FHIRBase):
     pass
 
-class BundleEntryResponse:
+class BundleEntryResponse(FHIRBase):
     pass
 
-class CodeableConcept:
+class CodeableConcept(FHIRBase):
     pass
 
-class Coding:
+class Coding(FHIRBase):
     pass
 
-class Identifier:
+class Identifier(FHIRBase):
     pass
 
-class Reference:
+class Reference(FHIRBase):
     pass
 
-class Attachment:
+class Attachment(FHIRBase):
     pass
 
-class Extension:
+class Extension(FHIRBase):
     pass
 
-class Annotation:
+class Annotation(FHIRBase):
     pass
 
-class Id:
+class Id(FHIRBase):
     pass
 
-class Period:
+class Period(FHIRBase):
     pass
 
 # Export all resources
@@ -180,3 +203,35 @@ __all__ = [
     'Coding', 'Identifier', 'Reference', 'Attachment', 'Extension', 'Annotation',
     'Period', 'construct_fhir_element'
 ]
+
+# Provide construct_fhir_element function for compatibility
+def construct_fhir_element(name, data):
+    """
+    Compatibility function that mimics fhir.resources construct_fhir_element.
+    Creates an instance of the appropriate class with dict support.
+    """
+    # If data is already a dict, wrap it in the appropriate class
+    if isinstance(data, dict):
+        # Map resource names to classes
+        resource_map = {
+            'Bundle': Bundle,
+            'BundleEntry': BundleEntry,
+            'BundleEntryRequest': BundleEntryRequest,
+            'BundleEntryResponse': BundleEntryResponse,
+            'Parameters': Parameters,
+            'ParametersParameter': ParametersParameter,
+            'OperationOutcome': OperationOutcome,
+            'OperationOutcomeIssue': OperationOutcomeIssue,
+            # Add more mappings as needed
+        }
+        
+        # Get the class or use FHIRBase as default
+        resource_class = resource_map.get(name, FHIRBase)
+        return resource_class(**data)
+    
+    # If it's already an object with dict method, return as is
+    if hasattr(data, 'dict'):
+        return data
+    
+    # Otherwise, wrap in FHIRBase
+    return FHIRBase(**{'data': data})
