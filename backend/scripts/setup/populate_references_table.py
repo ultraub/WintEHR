@@ -8,13 +8,15 @@ import logging
 from datetime import datetime
 
 # Add the backend directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from fhir.core.storage import FHIRStorageEngine
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from database import DATABASE_URL
+
+# Use the correct database URL with emr_user
+DATABASE_URL = "postgresql+asyncpg://emr_user:emr_password@localhost:5432/emr_db"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
