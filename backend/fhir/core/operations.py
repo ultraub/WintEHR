@@ -7,6 +7,7 @@ Provides a framework for custom operations.
 
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
+import logging
 from fhir.core.resources_r4b import Bundle, BundleEntry, Parameters, OperationOutcome, construct_fhir_element
 from fhir.core.resources_r4b import ParametersParameter
 from fhir.core.storage import FHIRStorageEngine, safe_dict_conversion
@@ -354,20 +355,50 @@ class OperationHandler:
         """
         $everything operation - get all related resources.
         
-        Generic implementation that can be overridden for specific resources.
+        Generic implementation that delegates to resource-specific handlers
+        or provides basic functionality.
         """
         if not resource_type or not resource_id:
             raise ValueError("Resource type and ID required for $everything operation")
         
+        # For Patient resources, use the specialized implementation
+        if resource_type == "Patient":
+            return await self._patient_everything_operation(resource_type, resource_id, parameters)
+        
+        # For other resources, provide a basic implementation
         # Get the base resource
         base_resource = await self.storage.read_resource(resource_type, resource_id)
         if not base_resource:
             raise ValueError(f"Resource {resource_type}/{resource_id} not found")
         
-        # This is a simplified implementation
-        # A full implementation would follow references and reverse references
+        # Extract parameters
+        since_date = None
+        count_limit = None
+        offset = 0
+        
+        if parameters:
+            # Handle both dict and Parameters object
+            if hasattr(parameters, 'parameter'):
+                # Parameters object
+                for param in parameters.parameter or []:
+                    if param.name == "_since" and param.valueDateTime:
+                        since_date = param.valueDateTime
+                    elif param.name == "_count" and param.valueInteger:
+                        count_limit = param.valueInteger
+                    elif param.name == "_offset" and param.valueInteger:
+                        offset = param.valueInteger
+            else:
+                # Dict parameters (from HTTP query params)
+                since_date = parameters.get('_since')
+                if parameters.get('_count'):
+                    count_limit = int(parameters.get('_count'))
+                if parameters.get('_offset'):
+                    offset = int(parameters.get('_offset'))
+        
+        # Create result bundle
         bundle = Bundle(
             type="searchset",
+            total=1,
             entry=[
                 BundleEntry(
                     resource=construct_fhir_element(resource_type, base_resource),
@@ -375,6 +406,10 @@ class OperationHandler:
                 )
             ]
         )
+        
+        # For non-Patient resources, we could implement reference following
+        # but for now just return the resource itself
+        # TODO: Implement reference following for other resource types
         
         return bundle
     
@@ -448,10 +483,15 @@ class OperationHandler:
         """
         Patient/$everything - get all resources for a patient.
         
+        Implements FHIR R4 $everything operation with support for:
+        - _since: Only include resources modified after this date
+        - _type: Only include resources of specified types
+        - _count: Limit number of resources returned (with pagination)
+        
         Returns:
         - Patient resource
-        - All resources that reference the patient
-        - Resources referenced by the patient
+        - All resources in the patient compartment
+        - Resources referenced by those resources
         """
         if resource_type != "Patient" or not resource_id:
             raise ValueError("Patient ID required for Patient/$everything")
@@ -461,34 +501,313 @@ class OperationHandler:
         if not patient:
             raise ValueError(f"Patient/{resource_id} not found")
         
+        # Extract parameters
+        since_date = None
+        requested_types = None
+        count_limit = None
+        offset = 0
+        
+        if parameters:
+            # Handle both dict and Parameters object
+            if hasattr(parameters, 'parameter'):
+                # Parameters object
+                for param in parameters.parameter or []:
+                    if param.name == "_since" and param.valueDateTime:
+                        since_date = param.valueDateTime
+                    elif param.name == "_type" and param.valueString:
+                        requested_types = [t.strip() for t in param.valueString.split(',')]
+                    elif param.name == "_count" and param.valueInteger:
+                        count_limit = param.valueInteger
+                    elif param.name == "_offset" and param.valueInteger:
+                        offset = param.valueInteger
+            else:
+                # Dict parameters (from HTTP query params)
+                since_date = parameters.get('_since')
+                if parameters.get('_type'):
+                    requested_types = [t.strip() for t in parameters.get('_type').split(',')]
+                if parameters.get('_count'):
+                    count_limit = int(parameters.get('_count'))
+                if parameters.get('_offset'):
+                    offset = int(parameters.get('_offset'))
+        
+        # Define all resource types in the patient compartment
+        # Based on FHIR R4 specification
+        patient_compartment_types = [
+            # Core clinical resources
+            "AllergyIntolerance", "CarePlan", "CareTeam", "ClinicalImpression",
+            "Condition", "DiagnosticReport", "DocumentReference", "Encounter",
+            "Goal", "ImagingStudy", "Immunization", "MedicationAdministration",
+            "MedicationDispense", "MedicationRequest", "MedicationStatement",
+            "Observation", "Procedure", "RiskAssessment", "ServiceRequest",
+            
+            # Administrative resources  
+            "Account", "AdverseEvent", "Appointment", "AppointmentResponse",
+            "Basic", "BodyStructure", "ChargeItem", "Claim", "ClaimResponse",
+            "Communication", "CommunicationRequest", "Composition", "Consent",
+            "Coverage", "DetectedIssue", "DeviceRequest", "DeviceUseStatement",
+            "EpisodeOfCare", "ExplanationOfBenefit", "FamilyMemberHistory",
+            "Flag", "Invoice", "List", "Media", "NutritionOrder",
+            "Person", "Provenance", "QuestionnaireResponse", "RelatedPerson",
+            "RequestGroup", "ResearchSubject", "Schedule", "Specimen",
+            "SupplyDelivery", "SupplyRequest", "VisionPrescription"
+        ]
+        
+        # Filter by requested types if specified
+        if requested_types:
+            search_types = [t for t in requested_types if t in patient_compartment_types]
+            if not search_types:
+                # If no valid types requested, return empty bundle
+                search_types = []
+        else:
+            search_types = patient_compartment_types
+        
+        # Create result bundle
         bundle = Bundle(
             type="searchset",
-            entry=[
-                BundleEntry(
-                    resource=construct_fhir_element("Patient", patient),
-                    fullUrl=f"Patient/{resource_id}"
-                )
-            ]
+            total=0,
+            entry=[]
         )
         
-        # Get all resources referencing this patient
-        # This is simplified - would need to search all resource types
-        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter"]:
-            resources, _ = await self.storage.search_resources(
-                resource_type,
-                {"patient": f"Patient/{resource_id}"},
-                limit=1000
-            )
-            
-            for resource_data in resources:
-                bundle.entry.append(
-                    BundleEntry(
-                        resource=construct_fhir_element(resource_type, resource_data),
-                        fullUrl=f"{resource_type}/{resource_data['id']}"
-                    )
+        # Track all resources to avoid duplicates
+        included_resources = set()
+        all_entries = []
+        
+        # Always include the patient resource itself first
+        patient_entry = BundleEntry(
+            resource=construct_fhir_element("Patient", patient),
+            fullUrl=f"Patient/{resource_id}"
+        )
+        all_entries.append(patient_entry)
+        included_resources.add(f"Patient/{resource_id}")
+        
+        # Search each resource type for patient references
+        for res_type in search_types:
+            try:
+                # Build search parameters
+                search_params = self._get_patient_search_params(res_type, resource_id)
+                
+                # Add _lastUpdated filter if _since is specified
+                if since_date:
+                    search_params['_lastUpdated'] = f"gt{since_date}"
+                
+                # Search for resources
+                resources, _ = await self.storage.search_resources(
+                    res_type,
+                    search_params,
+                    limit=10000  # High limit to get all resources
                 )
+                
+                # Add resources to bundle
+                for resource_data in resources:
+                    res_id = f"{res_type}/{resource_data['id']}"
+                    if res_id not in included_resources:
+                        entry = BundleEntry(
+                            resource=construct_fhir_element(res_type, resource_data),
+                            fullUrl=res_id
+                        )
+                        all_entries.append(entry)
+                        included_resources.add(res_id)
+                        
+                        # Also collect referenced resources
+                        await self._collect_referenced_resources(
+                            resource_data, all_entries, included_resources, since_date
+                        )
+                        
+            except Exception as e:
+                # Log but continue with other resource types
+                logging.warning(f"Error searching {res_type} for patient {resource_id}: {e}")
+        
+        # Apply pagination if _count is specified
+        total_resources = len(all_entries)
+        bundle.total = total_resources
+        
+        if count_limit:
+            # Calculate pagination
+            start_idx = offset
+            end_idx = min(start_idx + count_limit, total_resources)
+            
+            # Add entries for this page
+            bundle.entry = all_entries[start_idx:end_idx]
+            
+            # Add pagination links
+            bundle.link = []
+            
+            # Self link
+            self_params = []
+            if requested_types:
+                self_params.append(f"_type={','.join(requested_types)}")
+            if since_date:
+                self_params.append(f"_since={since_date}")
+            if count_limit:
+                self_params.append(f"_count={count_limit}")
+            if offset:
+                self_params.append(f"_offset={offset}")
+            
+            self_url = f"Patient/{resource_id}/$everything"
+            if self_params:
+                self_url += "?" + "&".join(self_params)
+            
+            bundle.link.append({
+                "relation": "self",
+                "url": self_url
+            })
+            
+            # Next link if there are more resources
+            if end_idx < total_resources:
+                next_params = self_params.copy()
+                # Update offset for next page
+                next_params = [p for p in next_params if not p.startswith("_offset")]
+                next_params.append(f"_offset={end_idx}")
+                bundle.link.append({
+                    "relation": "next", 
+                    "url": f"Patient/{resource_id}/$everything?" + "&".join(next_params)
+                })
+            
+            # Previous link if not on first page
+            if offset > 0:
+                prev_offset = max(0, offset - count_limit)
+                prev_params = self_params.copy()
+                prev_params = [p for p in prev_params if not p.startswith("_offset")]
+                if prev_offset > 0:
+                    prev_params.append(f"_offset={prev_offset}")
+                bundle.link.append({
+                    "relation": "previous",
+                    "url": f"Patient/{resource_id}/$everything?" + "&".join(prev_params)
+                })
+        else:
+            # No pagination - return all resources
+            bundle.entry = all_entries
         
         return bundle
+    
+    def _get_patient_search_params(self, resource_type: str, patient_id: str) -> dict:
+        """
+        Get the appropriate search parameter for patient references by resource type.
+        
+        Different resources use different parameter names to reference patients.
+        """
+        # Most resources use 'patient' parameter
+        standard_patient_params = {
+            "AllergyIntolerance", "CarePlan", "CareTeam", "ClinicalImpression",
+            "Condition", "DiagnosticReport", "DocumentReference", "Encounter",
+            "Goal", "ImagingStudy", "Immunization", "MedicationAdministration",
+            "MedicationDispense", "MedicationRequest", "MedicationStatement",
+            "Observation", "Procedure", "RiskAssessment", "ServiceRequest",
+            "AdverseEvent", "Appointment", "AppointmentResponse", "Basic",
+            "BodyStructure", "ChargeItem", "Communication", "CommunicationRequest",
+            "Composition", "Consent", "Coverage", "DetectedIssue", "DeviceRequest",
+            "DeviceUseStatement", "EpisodeOfCare", "ExplanationOfBenefit",
+            "FamilyMemberHistory", "Flag", "Invoice", "List", "Media",
+            "NutritionOrder", "Provenance", "QuestionnaireResponse", "RequestGroup",
+            "ResearchSubject", "Schedule", "Specimen", "SupplyDelivery",
+            "SupplyRequest", "VisionPrescription"
+        }
+        
+        # Resources that use 'subject' parameter
+        subject_param_resources = {
+            "Basic", "BodyStructure", "Consent", "DetectedIssue", 
+            "Media", "QuestionnaireResponse", "RiskAssessment"
+        }
+        
+        # Resources that use specific parameters
+        special_params = {
+            "Account": "subject",
+            "Claim": "patient",
+            "ClaimResponse": "patient", 
+            "Coverage": "beneficiary",
+            "Group": "member",
+            "Person": "link",
+            "RelatedPerson": "patient"
+        }
+        
+        # Determine the correct parameter
+        if resource_type in special_params:
+            param_name = special_params[resource_type]
+        elif resource_type in subject_param_resources:
+            param_name = "subject"
+        else:
+            param_name = "patient"
+        
+        return {param_name: f"Patient/{patient_id}"}
+    
+    async def _collect_referenced_resources(
+        self,
+        resource_data: dict,
+        all_entries: list,
+        included_resources: set,
+        since_date: Optional[str]
+    ):
+        """
+        Collect resources referenced by the given resource.
+        
+        This implements the FHIR requirement to include "any resource referenced from those"
+        in the patient compartment.
+        """
+        # Common reference fields to check
+        reference_fields = [
+            "performer", "author", "encounter", "location", "organization",
+            "practitioner", "recorder", "asserter", "requester", "participant"
+        ]
+        
+        for field in reference_fields:
+            if field in resource_data:
+                ref_value = resource_data[field]
+                
+                # Handle single reference
+                if isinstance(ref_value, dict) and 'reference' in ref_value:
+                    await self._add_referenced_resource(
+                        ref_value['reference'], all_entries, included_resources, since_date
+                    )
+                
+                # Handle array of references
+                elif isinstance(ref_value, list):
+                    for item in ref_value:
+                        if isinstance(item, dict) and 'reference' in item:
+                            await self._add_referenced_resource(
+                                item['reference'], all_entries, included_resources, since_date
+                            )
+    
+    async def _add_referenced_resource(
+        self,
+        reference: str,
+        all_entries: list,
+        included_resources: set,
+        since_date: Optional[str]
+    ):
+        """Add a referenced resource to the bundle if not already included."""
+        if reference in included_resources:
+            return
+        
+        # Parse reference
+        if '/' in reference:
+            ref_parts = reference.split('/')
+            if len(ref_parts) == 2:
+                ref_type, ref_id = ref_parts
+                
+                # Skip if reference is to a contained resource or external system
+                if ref_type.startswith('#') or ref_type.startswith('http'):
+                    return
+                
+                try:
+                    # Fetch the referenced resource
+                    ref_resource = await self.storage.read_resource(ref_type, ref_id)
+                    if ref_resource:
+                        # Check _since filter
+                        if since_date:
+                            last_updated = ref_resource.get('meta', {}).get('lastUpdated')
+                            if last_updated and last_updated < since_date:
+                                return
+                        
+                        # Add to bundle
+                        entry = BundleEntry(
+                            resource=construct_fhir_element(ref_type, ref_resource),
+                            fullUrl=reference
+                        )
+                        all_entries.append(entry)
+                        included_resources.add(reference)
+                except Exception:
+                    # Log but continue if reference cannot be resolved
+                    pass
     
     async def _observation_stats_operation(
         self,

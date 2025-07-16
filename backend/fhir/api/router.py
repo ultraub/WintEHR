@@ -800,6 +800,10 @@ async def read_version(
 @fhir_router.get("/Patient/{patient_id}/$everything")
 async def patient_everything(
     patient_id: str,
+    _since: Optional[str] = Query(None, description="Only include resources modified after this date"),
+    _type: Optional[str] = Query(None, description="Comma-separated list of resource types to include"),
+    _count: Optional[int] = Query(None, description="Maximum number of resources to return"),
+    _offset: Optional[int] = Query(None, description="Number of resources to skip for pagination"),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -809,84 +813,38 @@ async def patient_everything(
     - The Patient resource itself
     - All resources that reference the patient (Observations, Conditions, etc.)
     - Resources referenced by the patient
+    
+    Parameters:
+    - _since: Only include resources modified after this date (ISO 8601)
+    - _type: Comma-separated list of resource types to include
+    - _count: Maximum number of resources to return (for pagination)
+    - _offset: Number of resources to skip (for pagination)
     """
     try:
         storage = FHIRStorageEngine(db)
+        validator = SyntheaFHIRValidator()
+        operation_handler = OperationHandler(storage, validator)
         
-        # Get the patient resource
-        patient_resource = await storage.read_resource("Patient", patient_id)
-        if not patient_resource:
-            raise HTTPException(status_code=404, detail=f"Patient/{patient_id} not found")
+        # Build parameters dict from query params
+        parameters = {}
+        if _since:
+            parameters['_since'] = _since
+        if _type:
+            parameters['_type'] = _type
+        if _count is not None:
+            parameters['_count'] = _count
+        if _offset is not None:
+            parameters['_offset'] = _offset
         
-        # Create bundle entries
-        bundle_entries = []
+        # Execute the operation
+        result = await operation_handler.execute_operation(
+            "everything",
+            resource_type="Patient",
+            resource_id=patient_id,
+            parameters=parameters
+        )
         
-        # Add the patient resource itself
-        bundle_entries.append({
-            "fullUrl": f"Patient/{patient_id}",
-            "resource": patient_resource
-        })
-        
-        # Get all resources that reference this patient
-        patient_reference = f"Patient/{patient_id}"
-        
-        # Search for related resources using direct database queries
-        for resource_type in ["Observation", "Condition", "MedicationRequest", "Encounter", 
-                             "AllergyIntolerance", "Immunization", "Procedure", "CarePlan",
-                             "DiagnosticReport", "ImagingStudy", "DocumentReference",
-                             "MedicationDispense", "MedicationAdministration", "ServiceRequest"]:
-            try:
-                # Direct database query for resources that reference this patient
-                query = text("""
-                    SELECT resource 
-                    FROM fhir.resources 
-                    WHERE resource_type = :resource_type 
-                    AND (
-                        resource->'subject'->>'reference' = :patient_ref OR
-                        resource->'patient'->>'reference' = :patient_ref OR
-                        resource->'subject'->>'reference' = :patient_ref_urn
-                    }
-                    AND deleted = false
-                    LIMIT 100
-                """)
-                
-                # Also check for urn:uuid: references (from Synthea)
-                patient_ref_urn = f"urn:uuid:{patient_id}"
-                
-                result = await db.execute(query, {
-                    "resource_type": resource_type,
-                    "patient_ref": patient_reference,
-                    "patient_ref_urn": patient_ref_urn
-                })
-                
-                count = 0
-                for row in result:
-                    resource_data = row[0]  # The JSONB resource data
-                    resource_id = resource_data.get('id', 'unknown')
-                    bundle_entries.append({
-                        "fullUrl": f"{resource_type}/{resource_id}",
-                        "resource": resource_data
-                    })
-                    count += 1
-                
-                if count > 0:
-                    logger.info(f"Found {count} {resource_type} resources for patient {patient_id}")
-            except Exception as e:
-                # Log the exception but continue
-                logger.error(f"Error searching {resource_type}: {e}")
-                pass
-        
-        # Create the bundle
-        bundle = {
-            "resourceType": "Bundle",
-            "id": f"patient-everything-{patient_id}",
-            "type": "searchset",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "total": len(bundle_entries),
-            "entry": bundle_entries
-        }
-        
-        return bundle
+        return result
         
     except ValueError as e:
         if "not found" in str(e):
