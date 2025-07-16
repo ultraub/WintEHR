@@ -19,6 +19,12 @@ This document provides a comprehensive summary of all FHIR search enhancements i
 - **Provider credentials** - Enhanced practitioner qualification searches
 - **Basic chained parameters** - patient.name, subject.family searches
 
+### Phase 3B: FHIR R4 Chained Search (2025-07-16) ✅
+- **Complete chained parameter parsing** - Supports all FHIR R4 chain formats
+- **Type-specific chains** - e.g., subject:Patient.name for polymorphic references
+- **Multi-level chains** - e.g., organization.partOf.name (up to 2 levels)
+- **Efficient SQL generation** - Uses EXISTS subqueries for performance
+
 ### Phase 3A: Advanced Clinical Features ✅
 - **Enhanced _include** - Comprehensive reference inclusion
 - **Enhanced _revinclude** - Expanded reverse includes
@@ -31,16 +37,16 @@ This document provides a comprehensive summary of all FHIR search enhancements i
 
 | Resource | Basic | Chained | Composite | Special |
 |----------|-------|---------|-----------|---------|
-| **Patient** | identifier, name, family, given, birthdate, gender, address | - | - | _has:* |
-| **Observation** | identifier, code, status, category, patient, encounter, date | patient.name, subject.family | code-value-quantity, component-code-value-quantity | based-on |
+| **Patient** | identifier, name, family, given, birthdate, gender, address | general-practitioner.name, organization.name | - | _has:* |
+| **Observation** | identifier, code, status, category, patient, encounter, date | patient.name, patient.birthdate, subject:Patient.name, performer.name | code-value-quantity, component-code-value-quantity | based-on |
 | **Condition** | identifier, code, clinical-status, category, severity, patient | patient.name, subject.family | code-status | category (problem-list) |
-| **MedicationRequest** | identifier, code, status, intent, patient, medication | patient.name | medication-code-status | - |
-| **MedicationDispense** | identifier, status, patient, medication | patient.name | - | lot-number, expiration-date |
-| **Procedure** | identifier, code, status, patient, performer | patient.name, performer.name | - | - |
-| **DiagnosticReport** | identifier, code, status, patient, category | patient.name | - | based-on |
-| **Encounter** | identifier, status, class, type, patient | patient.name | - | - |
+| **MedicationRequest** | identifier, code, status, intent, patient, medication | patient.name, subject:Patient.name, requester.name | medication-code-status | - |
+| **MedicationDispense** | identifier, status, patient, medication | patient.name, subject.name | - | lot-number, expiration-date |
+| **Procedure** | identifier, code, status, patient, performer | patient.name, performer.name, performer.identifier | - | - |
+| **DiagnosticReport** | identifier, code, status, patient, category | patient.name, subject.identifier | - | based-on |
+| **Encounter** | identifier, status, class, type, patient | patient.name, patient.identifier | - | - |
 | **Practitioner** | identifier, name, active, qualification | - | - | - |
-| **PractitionerRole** | identifier, practitioner, organization, role, specialty | - | - | - |
+| **PractitionerRole** | identifier, practitioner, organization, role, specialty | practitioner.name, organization.name | - | - |
 
 ### Control Parameters
 
@@ -105,6 +111,25 @@ Find patients due for HbA1c testing (diabetics without recent test):
 GET /api/fhir/Patient?_has:Condition:patient:code=http://snomed.info/sct|44054006&_has:Observation:patient:code=http://loinc.org|4548-4&_has:Observation:patient:date=lt2024-01-01
 ```
 
+### 9. Chained Search Examples
+Find patients by their practitioner's name:
+```bash
+# Simple chain
+GET /api/fhir/Patient?general-practitioner.name=Smith
+
+# Type-specific chain for polymorphic references
+GET /api/fhir/Observation?subject:Patient.name=John
+
+# Search by practitioner identifier
+GET /api/fhir/Patient?general-practitioner.identifier=12345
+
+# Multi-level chain (2 levels)
+GET /api/fhir/Patient?managingOrganization.partOf.name=Regional%20Health
+
+# Multiple chained parameters
+GET /api/fhir/Observation?patient.family=Doe&performer.name=Smith
+```
+
 ## Technical Architecture
 
 ### Query Processing Flow
@@ -120,10 +145,14 @@ GET /api/fhir/Patient?_has:Condition:patient:code=http://snomed.info/sct|4405400
 ### Key Components
 
 ```
+backend/fhir/core/search/
+├── basic.py                 # SearchParameterHandler with chained search support
+├── query_builder.py         # JSONB query construction
+├── composite.py             # Composite parameter handling
+└── optimized_queries.py     # Performance-optimized query patterns
+
 backend/api/fhir/
 ├── fhir_router.py           # Main search endpoint and processors
-├── query_builder.py         # JSONB query construction
-├── composite_search.py      # Composite parameter handling
 ├── converters.py            # Resource format converters
 └── batch_transaction.py     # Batch/transaction support
 
@@ -155,7 +184,7 @@ backend/scripts/
 - ✅ Universal identifier search
 - ✅ Missing field queries
 - ✅ Provider credential searches
-- ✅ Chained parameter queries
+- ✅ Chained parameter queries (simple and type-specific)
 - ✅ Include/revinclude operations
 - ✅ Reverse chaining with _has
 - ✅ Composite parameter searches
@@ -171,7 +200,7 @@ backend/scripts/
 - Identifier search (universal)
 - :missing modifier
 - :exact, :contains modifiers
-- Basic chained parameters
+- Complete chained parameters (simple, type-specific, multi-level)
 - _include parameter
 - _revinclude parameter
 - _has parameter (reverse chaining)
@@ -180,7 +209,7 @@ backend/scripts/
 
 ### Partially Implemented ⚠️
 - :above/:below modifiers (hierarchical codes)
-- Multi-level chaining (limited to one level)
+- Multi-level chaining (limited to 2 levels)
 - _sort parameter (basic support)
 
 ### Not Implemented ❌
