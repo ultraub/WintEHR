@@ -58,7 +58,7 @@ import {
 } from 'recharts';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { resultsManagementService } from '../../../services/resultsManagementService';
-import { REFERENCE_RANGES } from '../../../utils/labReferenceRanges';
+import { REFERENCE_RANGES } from '../../../core/fhir/utils/labReferenceRanges';
 
 // Common lab tests for trending
 const TRENDING_TESTS = [

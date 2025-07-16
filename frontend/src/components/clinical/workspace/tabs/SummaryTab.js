@@ -45,7 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { 
   getConditionStatus, 
   getMedicationStatus, 
@@ -57,7 +57,7 @@ import {
   isMedicationActive,
   getResourceDisplayText,
   getCodeableConceptDisplay
-} from '../../../../utils/fhirFieldUtils';
+} from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import json
 
 from database import get_db_session as get_db
-from services.cql_engine import CQLTranslationEngine, SimplifiedCQLExecutor
+from api.services.clinical.cql_engine import CQLTranslationEngine, SimplifiedCQLExecutor
 from api.auth import get_current_user
 
 

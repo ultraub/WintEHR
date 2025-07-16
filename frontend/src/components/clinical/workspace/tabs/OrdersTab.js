@@ -81,7 +81,7 @@ import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
-import { getMedicationName } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import CPOEDialog from '../dialogs/CPOEDialog';

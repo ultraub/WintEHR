@@ -76,7 +76,7 @@ import { printDocument, formatEncountersForPrint } from '../../../../utils/print
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../utils/fhirFieldUtils';
+import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 
 // Get encounter icon based on class

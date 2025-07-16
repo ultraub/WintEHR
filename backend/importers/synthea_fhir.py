@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from core.fhir.storage import FHIRStorageEngine
 from core.fhir.validator import FHIRValidator
 from core.fhir.profile_transformer import ProfileAwareFHIRTransformer
-from services.search_indexer import SearchParameterIndexer
+from api.services.fhir.search_indexer import SearchParameterIndexer
 from database import DATABASE_URL
 from core.fhir.resources_r4b import Bundle, construct_fhir_element
 import logging

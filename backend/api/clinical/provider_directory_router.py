@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from core.database import get_session
 from core.fhir.storage import FHIRStorageEngine
-from services.provider_directory_service import ProviderDirectoryService
+from api.services.clinical.provider_directory_service import ProviderDirectoryService
 from api.auth_enhanced import verify_token_or_demo
 
 router = APIRouter(prefix="/provider-directory", tags=["provider-directory"])

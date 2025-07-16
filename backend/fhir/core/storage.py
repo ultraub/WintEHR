@@ -480,7 +480,7 @@ class FHIRStorageEngine:
             # Apply DocumentReference-specific validation
             if resource_type == 'DocumentReference':
                 logging.info("=== DOCUMENTREFERENCE VALIDATION START ===")
-                from services.document_validation_service import DocumentValidationService
+                from api.services.fhir.document_validation_service import DocumentValidationService
                 try:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True
@@ -749,7 +749,7 @@ class FHIRStorageEngine:
             
             # Apply DocumentReference-specific validation for updates
             if resource_type == 'DocumentReference':
-                from services.document_validation_service import DocumentValidationService
+                from api.services.fhir.document_validation_service import DocumentValidationService
                 try:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True

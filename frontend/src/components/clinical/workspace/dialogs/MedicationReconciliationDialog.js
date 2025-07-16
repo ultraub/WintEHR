@@ -46,7 +46,7 @@ import {
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { medicationReconciliationService } from '../../../../services/medicationReconciliationService';
 import { format, parseISO } from 'date-fns';
-import { getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 
 const MedicationReconciliationDialog = ({ 
   open, 

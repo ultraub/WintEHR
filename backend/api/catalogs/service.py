@@ -12,7 +12,7 @@ import logging
 import json
 import os
 
-from services.dynamic_catalog_service import DynamicCatalogService
+from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
 from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
 from .models import (
     MedicationCatalogItem, 

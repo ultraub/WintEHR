@@ -56,7 +56,7 @@ import {
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { getMedicationName } from '../../../../../utils/medicationDisplayUtils';
+import { getMedicationName } from '../../../../../core/fhir/utils/medicationDisplayUtils';
 import { medicationDispenseService } from '../../../../../services/medicationDispenseService';
 
 const DISPENSING_STEPS = [

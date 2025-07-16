@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
-from api.auth import require_auth
+from api.auth import get_current_user
 from .canvas_service import ClinicalCanvasService
 
 router = APIRouter(prefix="/api/clinical-canvas", tags=["Clinical Canvas"])
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/clinical-canvas", tags=["Clinical Canvas"])
 async def generate_clinical_ui(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Generate a clinical UI from natural language prompt.
@@ -87,7 +87,7 @@ async def generate_clinical_ui(
 async def enhance_clinical_ui(
     request: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Enhance an existing UI with natural language feedback.
@@ -135,7 +135,7 @@ async def enhance_clinical_ui(
 @router.post("/validate")
 async def validate_ui_spec(
     ui_spec: Dict[str, Any],
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Validate a UI specification.
@@ -159,7 +159,7 @@ async def validate_ui_spec(
 @router.get("/templates")
 async def get_ui_templates(
     category: Optional[str] = None,
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get pre-built UI templates.
@@ -268,7 +268,7 @@ async def get_ui_templates(
 
 @router.get("/components")
 async def get_available_components(
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get list of available UI components."""
     return {
@@ -340,7 +340,7 @@ async def get_available_components(
 @router.post("/examples")
 async def get_example_prompts(
     context: Dict[str, Any],
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get example prompts based on current context.

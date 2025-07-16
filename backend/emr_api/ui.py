@@ -17,7 +17,7 @@ import uuid
 import json
 
 from database import get_db_session
-from .auth import require_auth
+from api.auth import get_current_user
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ router = APIRouter()
 async def get_ui_state(
     context: str,
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get UI state for a specific context.
@@ -70,7 +70,7 @@ async def save_ui_state(
     context: str,
     state: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Save UI state for a specific context."""
     # Upsert state
@@ -97,7 +97,7 @@ async def save_ui_state(
 async def reset_ui_state(
     context: str,
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Reset UI state to defaults for a specific context."""
     delete_query = text("""
@@ -124,7 +124,7 @@ async def reset_ui_state(
 @router.get("/states")
 async def get_all_ui_states(
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get all UI states for the current user."""
     query = text("""
@@ -153,7 +153,7 @@ async def get_all_ui_states(
 async def bulk_update_ui_states(
     updates: List[Dict[str, Any]],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Update multiple UI states at once."""
     updated_count = 0
@@ -192,7 +192,7 @@ async def bulk_update_ui_states(
 @router.post("/states/export")
 async def export_ui_states(
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Export all UI states for backup or transfer."""
     query = text("""
@@ -228,7 +228,7 @@ async def export_ui_states(
 async def import_ui_states(
     import_data: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth),
+    user: Dict[str, Any] = Depends(get_current_user),
     overwrite: bool = False
 ):
     """Import UI states from backup."""

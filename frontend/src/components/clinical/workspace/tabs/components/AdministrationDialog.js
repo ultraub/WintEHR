@@ -48,7 +48,7 @@ import {
   Notes as NotesIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { getMedicationName } from '../../../../../utils/medicationDisplayUtils';
+import { getMedicationName } from '../../../../../core/fhir/utils/medicationDisplayUtils';
 import { useMedicationAdministrationValidation } from '../../../../../hooks/useMedicationAdministration';
 
 const ADMINISTRATION_ROUTES = [

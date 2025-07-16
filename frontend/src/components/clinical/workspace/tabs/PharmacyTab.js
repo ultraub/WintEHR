@@ -73,7 +73,7 @@ import {
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../utils/printUtils';
-import { getMedicationDosageDisplay, getMedicationName } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';

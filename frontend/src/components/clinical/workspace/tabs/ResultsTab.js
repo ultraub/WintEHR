@@ -93,7 +93,7 @@ import {
   getResourceDisplayText,
   getCodeableConceptDisplay,
   getReferenceId 
-} from '../../../../utils/fhirFieldUtils';
+} from '../../../../core/fhir/utils/fhirFieldUtils';
 import QuickResultNote from '../../results/QuickResultNote';
 import CriticalValueAlert from '../../results/CriticalValueAlert';
 import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';

@@ -68,7 +68,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, isToday, isBefore, isAfter } from 'date-fns';
 import { useMedicationAdministrationRecord, useMedicationAdministrationMetrics } from '../../../hooks/useMedicationAdministration';
-import { getMedicationName } from '../../../utils/medicationDisplayUtils';
+import { getMedicationName } from '../../../core/fhir/utils/medicationDisplayUtils';
 
 const ADMINISTRATION_STATUSES = {
   completed: { 

@@ -43,7 +43,7 @@ import {
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { providerAccountabilityService } from '../../../services/providerAccountabilityService';
-import { getReferenceId } from '../../../utils/fhirFieldUtils';
+import { getReferenceId } from '../../../core/fhir/utils/fhirFieldUtils';
 
 const OrderContextPanel = ({ observation, onOrderSelect = null }) => {
   const [serviceRequest, setServiceRequest] = useState(null);

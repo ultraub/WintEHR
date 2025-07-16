@@ -17,7 +17,7 @@ import uuid
 import json
 
 from database import get_db_session
-from .auth import require_auth, require_role
+from api.auth import get_current_user
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ router = APIRouter()
 @router.get("/workflows")
 async def get_workflows(
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth),
+    user: Dict[str, Any] = Depends(get_current_user),
     type: Optional[str] = None,
     active_only: bool = True
 ):
@@ -73,7 +73,7 @@ async def get_workflows(
 async def create_workflow(
     workflow_data: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_role("admin"))
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Create a new workflow definition."""
     workflow_id = uuid.uuid4()
@@ -110,7 +110,7 @@ async def create_workflow(
 async def get_workflow(
     workflow_id: str,
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get a specific workflow definition."""
     query = text("""
@@ -146,7 +146,7 @@ async def instantiate_workflow(
     workflow_id: str,
     context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Instantiate a workflow.
@@ -241,7 +241,7 @@ async def instantiate_workflow(
 @router.get("/tasks/my-tasks")
 async def get_my_tasks(
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth),
+    user: Dict[str, Any] = Depends(get_current_user),
     status: Optional[str] = None,
     priority: Optional[int] = None
 ):
@@ -287,7 +287,7 @@ async def assign_task(
     task_fhir_id: str,
     assignment: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Assign or reassign a task."""
     update_query = text("""
@@ -331,7 +331,7 @@ async def update_task_ui_state(
     task_fhir_id: str,
     ui_state: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Update task UI state."""
     update_query = text("""
@@ -357,7 +357,7 @@ async def update_task_ui_state(
 async def get_task_history(
     task_fhir_id: str,
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get audit history for a task."""
     query = text("""
@@ -390,7 +390,7 @@ async def get_task_history(
 async def bulk_assign_tasks(
     bulk_assignment: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_role("admin"))
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Bulk assign multiple tasks."""
     task_ids = bulk_assignment.get("taskIds", [])
@@ -440,7 +440,7 @@ async def bulk_assign_tasks(
 @router.get("/workflow-metrics")
 async def get_workflow_metrics(
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth),
+    user: Dict[str, Any] = Depends(get_current_user),
     workflow_id: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None
