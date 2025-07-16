@@ -3,7 +3,7 @@
  * React hook for managing FHIR data migrations
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import MigrationManager from '../utils/migrations';
+import MigrationManager from '../core/migrations/migrations';
 
 export const useMigrations = () => {
   const [migrationManager] = useState(() => new MigrationManager());

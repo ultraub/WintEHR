@@ -85,7 +85,7 @@ import { fhirClient } from '../../../../services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
 import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
 import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../core/fhir/utils/medicationDisplayUtils';

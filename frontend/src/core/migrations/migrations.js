@@ -3,8 +3,8 @@
  * Handles data consistency, versioning, and migration between FHIR versions
  */
 
-import { validateResource } from './fhirValidation';
-import { fhirClient } from '../services/fhirClient';
+import { validateResource } from '../fhir/validators/fhirValidation';
+import { fhirClient } from '../../services/fhirClient';
 
 /**
  * Migration result class

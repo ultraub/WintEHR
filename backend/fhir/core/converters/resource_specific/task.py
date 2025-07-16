@@ -11,8 +11,8 @@ from fhir.core.resources_r4b import (
     Task, CodeableConcept, Coding, Reference,
     Identifier, Annotation
 )
-from fhir.resources.R4B.task import TaskRestriction
-from fhir.resources.R4B.period import Period
+from fhir.core.resources_r4b import TaskRestriction
+from fhir.core.resources_r4b import Period
 
 
 class TaskConverter:

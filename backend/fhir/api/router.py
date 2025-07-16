@@ -29,21 +29,6 @@ from fhir.core.search.basic import SearchParameterHandler
 from fhir.core.search.composite import CompositeSearchHandler
 from database import get_db_session
 from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
-try:
-    from fhir.resources.R4B.capabilitystatement import (
-        CapabilityStatement,
-        CapabilityStatementRest,
-        CapabilityStatementRestResource,
-        CapabilityStatementRestResourceInteraction,
-        CapabilityStatementRestResourceSearchParam
-    )
-except ImportError:
-    # Fallback imports if fhir.resources package is not installed
-    CapabilityStatement = None
-    CapabilityStatementRest = None
-    CapabilityStatementRestResource = None
-    CapabilityStatementRestResourceInteraction = None
-    CapabilityStatementRestResourceSearchParam = None
 import logging
 
 logger = logging.getLogger(__name__)
@@ -96,72 +81,71 @@ async def get_capability_statement():
     Returns the server's CapabilityStatement resource describing
     what operations and resources are supported.
     """
-    capability_statement = CapabilityStatement(
-        status="active",
-        date=datetime.now().isoformat(),
-        kind="instance",
-        fhirVersion="4.0.1",
-        format=["application/fhir+json", "application/json"],
-        implementation={
+    # Build CapabilityStatement as a dictionary since we work with JSON
+    capability_statement = {
+        "resourceType": "CapabilityStatement",
+        "status": "active",
+        "date": datetime.now().isoformat(),
+        "kind": "instance",
+        "fhirVersion": "4.0.1",
+        "format": ["application/fhir+json", "application/json"],
+        "implementation": {
             "description": "WintEHR FHIR R4 Server - Consolidated Implementation",
             "url": "http://localhost:8000/fhir/R4"
         },
-        rest=[
-            CapabilityStatementRest(
-                mode="server",
-                resource=[
-                    CapabilityStatementRestResource(
-                        type=resource_type,
-                        interaction=[
-                            CapabilityStatementRestResourceInteraction(code="read"),
-                            CapabilityStatementRestResourceInteraction(code="vread"),
-                            CapabilityStatementRestResourceInteraction(code="update"),
-                            CapabilityStatementRestResourceInteraction(code="delete"),
-                            CapabilityStatementRestResourceInteraction(code="history-instance"),
-                            CapabilityStatementRestResourceInteraction(code="history-type"),
-                            CapabilityStatementRestResourceInteraction(code="create"),
-                            CapabilityStatementRestResourceInteraction(code="search-type")
-                        ],
-                        versioning="versioned",
-                        readHistory=True,
-                        updateCreate=True,
-                        conditionalCreate=True,
-                        conditionalRead="full-support",
-                        conditionalUpdate=True,
-                        conditionalDelete="single",
-                        searchParam=_get_search_params_for_resource(resource_type)
-                    )
-                    for resource_type in SUPPORTED_RESOURCES
-                ],
-                interaction=[
-                    {"code": "transaction"},
-                    {"code": "batch"},
-                    {"code": "search-system"},
-                    {"code": "history-system"}
-                ],
-                searchParam=[
-                    CapabilityStatementRestResourceSearchParam(
-                        name="_id",
-                        type="token",
-                        documentation="Resource ID"
-                    ),
-                    CapabilityStatementRestResourceSearchParam(
-                        name="_lastUpdated",
-                        type="date",
-                        documentation="Last updated date"
-                    ),
-                    CapabilityStatementRestResourceSearchParam(
-                        name="_has",
-                        type="string",
-                        documentation="Reverse chaining parameter"
-                    )
-                ]
-            )
-        ]
-    )
+        "rest": [{
+            "mode": "server",
+            "resource": [
+                {
+                    "type": resource_type,
+                    "interaction": [
+                        {"code": "read"},
+                        {"code": "vread"},
+                        {"code": "update"},
+                        {"code": "delete"},
+                        {"code": "history-instance"},
+                        {"code": "history-type"},
+                        {"code": "create"},
+                        {"code": "search-type"}
+                    ],
+                    "versioning": "versioned",
+                    "readHistory": True,
+                    "updateCreate": True,
+                    "conditionalCreate": True,
+                    "conditionalRead": "full-support",
+                    "conditionalUpdate": True,
+                    "conditionalDelete": "single",
+                    "searchParam": _get_search_params_for_resource(resource_type)
+                }
+                for resource_type in SUPPORTED_RESOURCES
+            ],
+            "interaction": [
+                {"code": "transaction"},
+                {"code": "batch"},
+                {"code": "search-system"},
+                {"code": "history-system"}
+            ],
+            "searchParam": [
+                {
+                    "name": "_id",
+                    "type": "token",
+                    "documentation": "Resource ID"
+                },
+                {
+                    "name": "_lastUpdated",
+                    "type": "date",
+                    "documentation": "Last updated date"
+                },
+                {
+                    "name": "_has",
+                    "type": "string",
+                    "documentation": "Reverse chaining parameter"
+                }
+            ]
+        }]
+    }
     
-    # Convert to dict for JSON response
-    return capability_statement.dict()
+    return capability_statement
 
 
 @fhir_router.post("/")
@@ -858,7 +842,7 @@ async def patient_everything(
                         resource->'subject'->>'reference' = :patient_ref OR
                         resource->'patient'->>'reference' = :patient_ref OR
                         resource->'subject'->>'reference' = :patient_ref_urn
-                    )
+                    }
                     AND deleted = false
                     LIMIT 100
                 """)
@@ -1010,121 +994,121 @@ async def system_operation(
 
 # Helper functions
 
-def _get_search_params_for_resource(resource_type: str) -> List[CapabilityStatementRestResourceSearchParam]:
+def _get_search_params_for_resource(resource_type: str) -> List[Dict[str, str]]:
     """Get search parameters for a resource type."""
     # Base parameters for all resources
     common_params = [
-        CapabilityStatementRestResourceSearchParam(
-            name="_id",
-            type="token",
-            documentation="Logical id of this artifact"
-        ),
-        CapabilityStatementRestResourceSearchParam(
-            name="_lastUpdated",
-            type="date",
-            documentation="When the resource version last changed"
-        )
+        {
+            "name": "_id",
+            "type": "token",
+            "documentation": "Logical id of this artifact"
+        },
+        {
+            "name": "_lastUpdated",
+            "type": "date",
+            "documentation": "When the resource version last changed"
+        }
     ]
     
     # Add resource-specific parameters
     if resource_type == "Patient":
         common_params.extend([
-            CapabilityStatementRestResourceSearchParam(
-                name="identifier",
-                type="token",
-                documentation="A patient identifier"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="name",
-                type="string",
-                documentation="A portion of either family or given name of the patient"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="family",
-                type="string",
-                documentation="A portion of the family name of the patient"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="given",
-                type="string",
-                documentation="A portion of the given name of the patient"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="birthdate",
-                type="date",
-                documentation="The patient's date of birth"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="gender",
-                type="token",
-                documentation="Gender of the patient"
-            )
+            {
+                "name": "identifier",
+                "type": "token",
+                "documentation": "A patient identifier"
+            },
+            {
+                "name": "name",
+                "type": "string",
+                "documentation": "A portion of either family or given name of the patient"
+            },
+            {
+                "name": "family",
+                "type": "string",
+                "documentation": "A portion of the family name of the patient"
+            },
+            {
+                "name": "given",
+                "type": "string",
+                "documentation": "A portion of the given name of the patient"
+            },
+            {
+                "name": "birthdate",
+                "type": "date",
+                "documentation": "The patient's date of birth"
+            },
+            {
+                "name": "gender",
+                "type": "token",
+                "documentation": "Gender of the patient"
+            }
         ])
     elif resource_type == "Observation":
         common_params.extend([
-            CapabilityStatementRestResourceSearchParam(
-                name="code",
-                type="token",
-                documentation="The code of the observation type"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="date",
-                type="date",
-                documentation="Date/time of observation"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="patient",
-                type="reference",
-                documentation="The subject that the observation is about (if patient)"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="subject",
-                type="reference",
-                documentation="The subject that the observation is about"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="based-on",
-                type="reference",
-                documentation="Reference to the service request"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="code-value-quantity",
-                type="composite",
-                documentation="Code and quantity value composite search"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="component-code-value-quantity",
-                type="composite",
-                documentation="Component code and quantity value composite search"
-            )
+            {
+                "name": "code",
+                "type": "token",
+                "documentation": "The code of the observation type"
+            },
+            {
+                "name": "date",
+                "type": "date",
+                "documentation": "Date/time of observation"
+            },
+            {
+                "name": "patient",
+                "type": "reference",
+                "documentation": "The subject that the observation is about (if patient)"
+            },
+            {
+                "name": "subject",
+                "type": "reference",
+                "documentation": "The subject that the observation is about"
+            },
+            {
+                "name": "based-on",
+                "type": "reference",
+                "documentation": "Reference to the service request"
+            },
+            {
+                "name": "code-value-quantity",
+                "type": "composite",
+                "documentation": "Code and quantity value composite search"
+            },
+            {
+                "name": "component-code-value-quantity",
+                "type": "composite",
+                "documentation": "Component code and quantity value composite search"
+            }
         ])
     elif resource_type == "MedicationDispense":
         common_params.extend([
-            CapabilityStatementRestResourceSearchParam(
-                name="identifier",
-                type="token",
-                documentation="Return dispenses with this external identifier"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="patient",
-                type="reference",
-                documentation="The identity of a patient to list dispenses for"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="status",
-                type="token",
-                documentation="Status of the dispense"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="lot-number",
-                type="string",
-                documentation="Returns dispenses with this lot number"
-            ),
-            CapabilityStatementRestResourceSearchParam(
-                name="expiration-date",
-                type="date",
-                documentation="Returns dispenses with a specific expiration date"
-            )
+            {
+                "name": "identifier",
+                "type": "token",
+                "documentation": "Return dispenses with this external identifier"
+            },
+            {
+                "name": "patient",
+                "type": "reference",
+                "documentation": "The identity of a patient to list dispenses for"
+            },
+            {
+                "name": "status",
+                "type": "token",
+                "documentation": "Status of the dispense"
+            },
+            {
+                "name": "lot-number",
+                "type": "string",
+                "documentation": "Returns dispenses with this lot number"
+            },
+            {
+                "name": "expiration-date",
+                "type": "date",
+                "documentation": "Returns dispenses with a specific expiration date"
+            }
         ])
     
     return common_params

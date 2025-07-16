@@ -15,14 +15,15 @@ from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-from fhir.core.resources_r4b import construct_fhir_element
-from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
-from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
+from fhir.core.resources_r4b import (
+    construct_fhir_element, Bundle, BundleEntry, BundleEntryRequest, 
+    BundleEntryResponse, OperationOutcome, OperationOutcomeIssue
+)
 
-from fhir.core.synthea_validator import SyntheaFHIRValidator
+from fhir.core.validators.synthea import SyntheaFHIRValidator
 from fhir.core.reference_utils import ReferenceUtils
-from fhir.core.version_negotiator import FHIRVersion, version_negotiator
-from fhir.core.version_transformer import fhir_transformer
+from fhir.core.versioning.negotiator import FHIRVersion, version_negotiator
+from fhir.core.versioning.transformer import fhir_transformer
 try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:

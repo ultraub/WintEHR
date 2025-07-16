@@ -8,7 +8,7 @@ Provides a framework for custom operations.
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 from fhir.core.resources_r4b import Bundle, BundleEntry, Parameters, OperationOutcome, construct_fhir_element
-from fhir.resources.R4B.parameters import ParametersParameter
+from fhir.core.resources_r4b import ParametersParameter
 from fhir.core.storage import FHIRStorageEngine
 from fhir.core.validator import FHIRValidator
 

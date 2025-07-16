@@ -72,7 +72,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { printDocument } from '../../../../utils/printUtils';
+import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';

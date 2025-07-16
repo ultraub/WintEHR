@@ -51,7 +51,7 @@ import {
 // Contexts
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { decodeFhirId } from '../../utils/navigationUtils';
+import { decodeFhirId } from '../../core/navigation/navigationUtils';
 
 // Components
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';

@@ -62,7 +62,7 @@ import { format } from 'date-fns';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { cdsHooksTester } from '../../../../utils/cdsHooksTester';
+import { cdsHooksTester } from '../../../../core/cds/cdsHooksTester';
 
 const CDSHooksVerifier = () => {
   const theme = useTheme();

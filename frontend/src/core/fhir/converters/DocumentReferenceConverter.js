@@ -4,7 +4,7 @@
  * Fixes FHIR structure inconsistencies and content encoding issues
  */
 import { AbstractFHIRConverter } from './AbstractFHIRConverter.js';
-import { DocumentContentValidator } from '../../../utils/documentContentValidator.js';
+import { DocumentContentValidator } from '../../documents/documentContentValidator.js';
 
 // FHIR Value Sets for DocumentReference
 export const DOCUMENT_STATUS_OPTIONS = [

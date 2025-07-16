@@ -44,7 +44,7 @@ import { useAdvancedOrderSearch } from '../../../hooks/useAdvancedOrderSearch';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import VirtualizedList from '../../common/VirtualizedList';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../utils/exportUtils';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../core/export/exportUtils';
 import { getMedicationName } from '../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSContext';
 

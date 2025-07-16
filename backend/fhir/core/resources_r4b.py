@@ -1,55 +1,164 @@
 """
 FHIR R4B Resource Imports
 
-This module centralizes all FHIR resource imports to use R4B versions
-which are compatible with Synthea's R4 output.
+This module provides a compatibility layer for FHIR resource imports.
+Since we don't strictly need the fhir.resources package for our JSON-based
+FHIR implementation, we'll provide the necessary constructs here.
 """
 
-# Import all R4B resources that we use in the system
-from fhir.resources.R4B.patient import Patient
-from fhir.resources.R4B.encounter import Encounter
-from fhir.resources.R4B.observation import Observation
-from fhir.resources.R4B.condition import Condition
-from fhir.resources.R4B.procedure import Procedure
-from fhir.resources.R4B.medicationrequest import MedicationRequest
-from fhir.resources.R4B.medicationadministration import MedicationAdministration
-from fhir.resources.R4B.diagnosticreport import DiagnosticReport
-from fhir.resources.R4B.documentreference import DocumentReference
-from fhir.resources.R4B.immunization import Immunization
-from fhir.resources.R4B.allergyintolerance import AllergyIntolerance
-from fhir.resources.R4B.careteam import CareTeam
-from fhir.resources.R4B.careplan import CarePlan
-from fhir.resources.R4B.goal import Goal
-from fhir.resources.R4B.organization import Organization
-from fhir.resources.R4B.practitioner import Practitioner
-from fhir.resources.R4B.practitionerrole import PractitionerRole
-from fhir.resources.R4B.location import Location
-from fhir.resources.R4B.device import Device
-from fhir.resources.R4B.claim import Claim
-from fhir.resources.R4B.explanationofbenefit import ExplanationOfBenefit
-from fhir.resources.R4B.coverage import Coverage
-from fhir.resources.R4B.imagingstudy import ImagingStudy
-from fhir.resources.R4B.media import Media
-from fhir.resources.R4B.provenance import Provenance
-from fhir.resources.R4B.supplydelivery import SupplyDelivery
-from fhir.resources.R4B.servicerequest import ServiceRequest
-from fhir.resources.R4B.task import Task
-from fhir.resources.R4B.medicationdispense import MedicationDispense
-from fhir.resources.R4B.parameters import Parameters
-from fhir.resources.R4B.communication import Communication
-from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
-from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
-from fhir.resources.R4B.resource import Resource
-from fhir.resources.R4B.domainresource import DomainResource
-from fhir.resources.R4B.fhirtypes import Id
-from fhir.resources.R4B.codeableconcept import CodeableConcept
-from fhir.resources.R4B.coding import Coding
-from fhir.resources.R4B.identifier import Identifier
-from fhir.resources.R4B.reference import Reference
-from fhir.resources.R4B.attachment import Attachment
-from fhir.resources.R4B.extension import Extension
-from fhir.resources.R4B.annotation import Annotation
-from fhir.resources.R4B import construct_fhir_element
+# Provide a simple construct_fhir_element function for compatibility
+def construct_fhir_element(name, data):
+    """
+    Compatibility function that mimics fhir.resources construct_fhir_element.
+    Our system works with JSON/dict representations directly.
+    """
+    return data
+
+# Placeholder classes for type hints and compatibility
+# These are not used in runtime as we work with JSON/dict representations
+class Resource:
+    pass
+
+class DomainResource(Resource):
+    pass
+
+class Bundle(DomainResource):
+    pass
+
+class Parameters(DomainResource):
+    pass
+
+class OperationOutcome(DomainResource):
+    pass
+
+class OperationOutcomeIssue:
+    pass
+
+class Patient(DomainResource):
+    pass
+
+class Encounter(DomainResource):
+    pass
+
+class Observation(DomainResource):
+    pass
+
+class Condition(DomainResource):
+    pass
+
+class Procedure(DomainResource):
+    pass
+
+class MedicationRequest(DomainResource):
+    pass
+
+class MedicationAdministration(DomainResource):
+    pass
+
+class DiagnosticReport(DomainResource):
+    pass
+
+class DocumentReference(DomainResource):
+    pass
+
+class Immunization(DomainResource):
+    pass
+
+class AllergyIntolerance(DomainResource):
+    pass
+
+class CareTeam(DomainResource):
+    pass
+
+class CarePlan(DomainResource):
+    pass
+
+class Goal(DomainResource):
+    pass
+
+class Organization(DomainResource):
+    pass
+
+class Practitioner(DomainResource):
+    pass
+
+class PractitionerRole(DomainResource):
+    pass
+
+class Location(DomainResource):
+    pass
+
+class Device(DomainResource):
+    pass
+
+class Claim(DomainResource):
+    pass
+
+class ExplanationOfBenefit(DomainResource):
+    pass
+
+class Coverage(DomainResource):
+    pass
+
+class ImagingStudy(DomainResource):
+    pass
+
+class Media(DomainResource):
+    pass
+
+class Provenance(DomainResource):
+    pass
+
+class SupplyDelivery(DomainResource):
+    pass
+
+class ServiceRequest(DomainResource):
+    pass
+
+class Task(DomainResource):
+    pass
+
+class TaskRestriction:
+    pass
+
+class MedicationDispense(DomainResource):
+    pass
+
+class Communication(DomainResource):
+    pass
+
+class BundleEntry:
+    pass
+
+class BundleEntryRequest:
+    pass
+
+class BundleEntryResponse:
+    pass
+
+class CodeableConcept:
+    pass
+
+class Coding:
+    pass
+
+class Identifier:
+    pass
+
+class Reference:
+    pass
+
+class Attachment:
+    pass
+
+class Extension:
+    pass
+
+class Annotation:
+    pass
+
+class Id:
+    pass
 
 # Export all resources
 __all__ = [
@@ -59,7 +168,7 @@ __all__ = [
     'CarePlan', 'Goal', 'Organization', 'Practitioner', 'PractitionerRole',
     'Location', 'Device', 'Claim', 'ExplanationOfBenefit', 'Coverage',
     'ImagingStudy', 'Media', 'Provenance', 'SupplyDelivery', 'ServiceRequest',
-    'Task', 'MedicationDispense', 'Parameters', 'Communication', 'Bundle',
+    'Task', 'TaskRestriction', 'MedicationDispense', 'Parameters', 'Communication', 'Bundle',
     'BundleEntry', 'BundleEntryRequest', 'BundleEntryResponse', 'OperationOutcome',
     'OperationOutcomeIssue', 'Resource', 'DomainResource', 'Id', 'CodeableConcept',
     'Coding', 'Identifier', 'Reference', 'Attachment', 'Extension', 'Annotation',

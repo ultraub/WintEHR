@@ -80,7 +80,7 @@ import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMo
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
-import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../utils/printUtils';
+import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
@@ -93,7 +93,7 @@ import {
   updateDocumentReferencePayload,
   processDocumentForDisplay,
   validateDocumentData
-} from '../../../../utils/documentUtils';
+} from '../../../../core/documents/documentUtils';
 
 // Note type configuration
 const noteTypes = {

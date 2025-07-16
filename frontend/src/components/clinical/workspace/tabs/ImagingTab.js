@@ -73,7 +73,7 @@ import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
-import { printDocument } from '../../../../utils/printUtils';
+import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Get modality icon

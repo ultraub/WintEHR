@@ -4,7 +4,7 @@
  */
 
 import { DocumentReferenceConverter } from '../../core/fhir/converters/DocumentReferenceConverter';
-import { DocumentContentValidator } from '../documentContentValidator';
+import { DocumentContentValidator } from '../../../documents/documentContentValidator';
 
 describe('DocumentReferenceConverter', () => {
   let converter;

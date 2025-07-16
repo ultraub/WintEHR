@@ -43,7 +43,7 @@ import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from
 import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
-import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { 

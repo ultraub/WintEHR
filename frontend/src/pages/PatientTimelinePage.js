@@ -6,7 +6,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Typography, Paper } from '@mui/material';
 import FHIRResourceTimeline from '../components/clinical/timeline/FHIRResourceTimeline';
-import { decodeFhirId } from '../utils/navigationUtils';
+import { decodeFhirId } from '../core/navigation/navigationUtils';
 
 const PatientTimelinePage = () => {
   const { id: encodedPatientId } = useParams();

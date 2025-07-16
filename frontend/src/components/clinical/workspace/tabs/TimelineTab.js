@@ -72,7 +72,7 @@ import { format, parseISO, isWithinInterval, subDays, subMonths, subYears, start
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
-import { printDocument } from '../../../../utils/printUtils';
+import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import GeographicTimelineFilter from '../components/GeographicTimelineFilter';
