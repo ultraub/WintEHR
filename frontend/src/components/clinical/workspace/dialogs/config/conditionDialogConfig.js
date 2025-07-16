@@ -11,7 +11,7 @@ import {
   SEVERITY_OPTIONS,
   getStatusColor,
   getProblemDisplay
-} from '../../../../../utils/fhir/ConditionConverter';
+} from '../../../../../core/fhir/converters/ConditionConverter';
 
 // Re-export from converter for backward compatibility
 export {

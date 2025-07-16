@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
-from .field_definitions import clean_resource
+from fhir.core.field_definitions import clean_resource
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)

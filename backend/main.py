@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # Add FHIR content negotiation middleware
-from fhir_api.content_negotiation import content_negotiation_middleware
+from fhir.api.content_negotiation import content_negotiation_middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 app.add_middleware(BaseHTTPMiddleware, dispatch=content_negotiation_middleware)
 

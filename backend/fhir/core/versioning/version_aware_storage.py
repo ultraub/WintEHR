@@ -14,9 +14,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, and_, or_
 
-from .version_negotiator import FHIRVersion, FHIRVersionNegotiator, VersionDetectionResult, NegotiationResult
-from .version_transformer import fhir_transformer
-from .abstract_converter import AbstractFHIRConverter
+from fhir.core.version_negotiator import FHIRVersion, FHIRVersionNegotiator, VersionDetectionResult, NegotiationResult
+from fhir.core.version_transformer import fhir_transformer
+from fhir.core.abstract_converter import AbstractFHIRConverter
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class VersionAwareStorageEngine:
         """Initialize FHIR version converters"""
         # Initialize specific converters for each resource type
         try:
-            from .converters.allergy_intolerance_converter import AllergyIntoleranceConverter
+            from fhir.core.converters.allergy_intolerance_converter import AllergyIntoleranceConverter
             self.converters['AllergyIntolerance'] = AllergyIntoleranceConverter(self.canonical_version)
         except ImportError:
             logger.warning("AllergyIntolerance converter not available")

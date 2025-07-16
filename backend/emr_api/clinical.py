@@ -18,7 +18,7 @@ import json
 
 from database import get_db_session
 from api.auth import get_current_user
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 
 # Import drug interactions functionality
 from api.clinical.drug_interactions import router as drug_interactions_router, check_drug_interactions

@@ -99,7 +99,7 @@ async def test_storage_engine(
     db: AsyncSession = Depends(get_db_session)
 ):
     """Test the storage engine directly."""
-    from core.fhir.storage import FHIRStorageEngine
+    from fhir.core.storage import FHIRStorageEngine
     
     storage = FHIRStorageEngine(db)
     

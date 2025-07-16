@@ -3,7 +3,7 @@ Generic FHIR Resource Converter for JSONB-stored Resources
 """
 
 from typing import Dict, Any
-from models.fhir_resource import FHIRResource
+from fhir.models.resource import FHIRResource
 
 
 def generic_resource_to_fhir(resource: FHIRResource) -> Dict[str, Any]:

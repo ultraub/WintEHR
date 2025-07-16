@@ -13,14 +13,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import exc
 
 from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location, DocumentReference
-from models.fhir_resource import FHIRResource, Condition
+from fhir.models.resource import FHIRResource, Condition
 from models.clinical.orders import MedicationOrder as Medication
-from .converters import (
+from fhir.core.converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir, 
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
     organization_to_fhir, location_to_fhir, document_reference_to_fhir
 )
-from .converter_modules.document_reference import DocumentReferenceConverter
+from fhir.core.converter_modules.document_reference import DocumentReferenceConverter
 
 
 class BatchEntry:

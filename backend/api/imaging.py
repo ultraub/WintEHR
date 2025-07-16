@@ -16,7 +16,7 @@ from models.synthea_models import Patient, ImagingStudy
 # from api.auth import get_current_user  # Disabled for teaching purposes
 from pydantic import BaseModel
 from typing import Any, Optional, Dict
-from api.fhir.imaging_converter import dicom_study_to_fhir_imaging_study, create_wado_endpoint
+from fhir.core.converters.imaging_converter import dicom_study_to_fhir_imaging_study, create_wado_endpoint
 import logging
 
 

@@ -6,7 +6,7 @@ High-performance query functions for common EMR use cases
 from sqlalchemy import and_, or_, func, text
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from models.fhir_resource import FHIRResource
+from fhir.models.resource import FHIRResource
 from datetime import datetime, timedelta
 import json
 

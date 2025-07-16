@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import get_database_url
-from api.fhir.converter_modules.document_reference import DocumentReferenceConverter
+from fhir.core.converters.resource_specific.document_reference import DocumentReferenceConverter
 
 # Configure logging
 logging.basicConfig(

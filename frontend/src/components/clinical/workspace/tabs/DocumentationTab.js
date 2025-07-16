@@ -85,7 +85,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
-import { documentReferenceConverter } from '../../../../utils/fhir/DocumentReferenceConverter';
+import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
 import { 
   extractDocumentContent, 
   formatDocumentForDisplay, 

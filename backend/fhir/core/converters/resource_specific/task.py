@@ -7,7 +7,7 @@ Used for clinical tasks, reminders, and workflow items.
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from core.fhir.resources_r4b import (
+from fhir.core.resources_r4b import (
     Task, CodeableConcept, Coding, Reference,
     Identifier, Annotation
 )

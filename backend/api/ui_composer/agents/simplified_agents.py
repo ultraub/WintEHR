@@ -84,7 +84,7 @@ class FHIRDataAgent:
         
     async def _fetch_resources(self, resource_types: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch FHIR resources from database"""
-        from core.fhir.storage import FHIRStorageEngine
+        from fhir.core.storage import FHIRStorageEngine
         storage = FHIRStorageEngine(self.db_session)
         
         data = {}

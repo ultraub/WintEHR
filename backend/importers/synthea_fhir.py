@@ -13,12 +13,12 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-from core.fhir.storage import FHIRStorageEngine
-from core.fhir.validator import FHIRValidator
-from core.fhir.profile_transformer import ProfileAwareFHIRTransformer
+from fhir.core.storage import FHIRStorageEngine
+from fhir.core.validators.validator import FHIRValidator
+from fhir.core.converters.profile_transformer import ProfileAwareFHIRTransformer
 from api.services.fhir.search_indexer import SearchParameterIndexer
 from database import DATABASE_URL
-from core.fhir.resources_r4b import Bundle, construct_fhir_element
+from fhir.core.resources_r4b import Bundle, construct_fhir_element
 import logging
 
 

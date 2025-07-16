@@ -5,13 +5,13 @@ Extends the base validator to handle Synthea-specific formats and references.
 """
 
 from typing import Dict, List, Optional, Any
-from .resources_r4b import construct_fhir_element
+from fhir.core.resources_r4b import construct_fhir_element
 from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 from pydantic import ValidationError
 import re
 import logging
 
-from .validator import FHIRValidator
+from fhir.core.validator import FHIRValidator
 
 
 class SyntheaFHIRValidator(FHIRValidator):

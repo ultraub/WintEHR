@@ -11,7 +11,7 @@ import json
 import uuid
 from fastapi import Request
 
-from api.fhir.converter_modules.audit_event import audit_log_to_fhir, create_audit_event
+from fhir.core.converters.resource_specific.audit_event import audit_log_to_fhir, create_audit_event
 
 
 class AuditService:

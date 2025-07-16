@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import base64
 import json
-from core.fhir.resources_r4b import (
+from fhir.core.resources_r4b import (
     DocumentReference, CodeableConcept, Coding, Reference, 
     Attachment, Identifier
 )

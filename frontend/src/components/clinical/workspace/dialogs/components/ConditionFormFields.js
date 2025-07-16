@@ -26,7 +26,7 @@ import {
   SEVERITY_OPTIONS,
   getStatusColor,
   getProblemDisplay
-} from '../../../../../utils/fhir/ConditionConverter';
+} from '../../../../../core/fhir/converters/ConditionConverter';
 
 // Buffered text input to prevent clearing during re-renders
 const BufferedTextField = ({ value, onChange, debounceMs = 300, ...props }) => {

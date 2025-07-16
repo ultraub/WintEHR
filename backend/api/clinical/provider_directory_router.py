@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from core.database import get_session
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 from api.services.clinical.provider_directory_service import ProviderDirectoryService
 from api.auth_enhanced import verify_token_or_demo
 

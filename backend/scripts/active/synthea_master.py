@@ -47,8 +47,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from database import DATABASE_URL
-from core.fhir.storage import FHIRStorageEngine
-from core.fhir.profile_transformer import ProfileAwareFHIRTransformer
+from fhir.core.storage import FHIRStorageEngine
+from fhir.core.converters.profile_transformer import ProfileAwareFHIRTransformer
 
 # Configure logging
 logging.basicConfig(

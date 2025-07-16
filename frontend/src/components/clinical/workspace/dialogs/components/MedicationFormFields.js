@@ -32,7 +32,7 @@ import {
   getStatusColor,
   getPriorityColor,
   getMedicationDisplay
-} from '../../../../../utils/fhir/MedicationConverter';
+} from '../../../../../core/fhir/converters/MedicationConverter';
 
 const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   // Use catalog-enhanced medication search hook

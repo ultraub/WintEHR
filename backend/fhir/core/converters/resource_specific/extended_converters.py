@@ -5,12 +5,12 @@ Converts between extended database models and FHIR resources
 
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from models.fhir_extended_models import (
+from fhir.models.extended import (
     Medication, MedicationAdministration, CareTeam, PractitionerRole,
     Claim, ExplanationOfBenefit, SupplyDelivery, Provenance
 )
 from models.synthea_models import DocumentReference, Coverage
-from .helpers import create_reference, create_codeable_concept
+from fhir.core.helpers import create_reference, create_codeable_concept
 
 
 def document_reference_to_fhir(doc_ref: DocumentReference) -> Dict[str, Any]:

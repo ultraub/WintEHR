@@ -4,7 +4,7 @@
  * Fixes content decoding and presentation issues
  */
 
-import { documentReferenceConverter, NOTE_TYPES } from './fhir/DocumentReferenceConverter';
+import { documentReferenceConverter, NOTE_TYPES } from '../core/fhir/converters/DocumentReferenceConverter';
 
 /**
  * Extract and decode content from FHIR DocumentReference

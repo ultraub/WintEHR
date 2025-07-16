@@ -7,7 +7,7 @@ Used for laboratory and imaging orders.
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from core.fhir.resources_r4b import (
+from fhir.core.resources_r4b import (
     ServiceRequest, CodeableConcept, Coding, Reference,
     Identifier, Annotation
 )

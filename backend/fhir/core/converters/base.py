@@ -9,7 +9,7 @@ from enum import Enum
 import logging
 import json
 
-from .validation_pipeline import ValidationPipeline, ValidationResult, create_default_pipeline
+from fhir.core.validation_pipeline import ValidationPipeline, ValidationResult, create_default_pipeline
 
 class FHIRVersion(Enum):
     R4 = "R4"

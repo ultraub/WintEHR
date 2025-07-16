@@ -15,14 +15,14 @@ from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-from .resources_r4b import construct_fhir_element
+from fhir.core.resources_r4b import construct_fhir_element
 from fhir.resources.R4B.bundle import Bundle, BundleEntry, BundleEntryRequest, BundleEntryResponse
 from fhir.resources.R4B.operationoutcome import OperationOutcome, OperationOutcomeIssue
 
-from .synthea_validator import SyntheaFHIRValidator
-from .reference_utils import ReferenceUtils
-from .version_negotiator import FHIRVersion, version_negotiator
-from .version_transformer import fhir_transformer
+from fhir.core.synthea_validator import SyntheaFHIRValidator
+from fhir.core.reference_utils import ReferenceUtils
+from fhir.core.version_negotiator import FHIRVersion, version_negotiator
+from fhir.core.version_transformer import fhir_transformer
 try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:
@@ -926,7 +926,7 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (resources, total_count)
         """
-        from .search import SearchParameterHandler
+        from fhir.core.search import SearchParameterHandler
         
         # Initialize search handler
         search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
@@ -1562,7 +1562,7 @@ class FHIRStorageEngine:
                     query_params = {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
                     
                     # Execute search
-                    from .search import SearchParameterHandler
+                    from fhir.core.search import SearchParameterHandler
                     search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
                     search_params, result_params = search_handler.parse_search_params(
                         resource_type, query_params
@@ -5858,7 +5858,7 @@ class FHIRStorageEngine:
         criteria: str
     ) -> List[Dict[str, Any]]:
         """Search by search criteria string (for conditional operations)."""
-        from .search import SearchParameterHandler
+        from fhir.core.search import SearchParameterHandler
         
         # Parse search criteria into parameters
         # Handle multiple parameters separated by &

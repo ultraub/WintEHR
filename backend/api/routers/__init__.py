@@ -24,7 +24,7 @@ def register_all_routers(app: FastAPI) -> None:
     
     # 1. Core FHIR APIs
     try:
-        from fhir_api.router import fhir_router
+        from fhir.api.router import fhir_router
         from api.notifications import router as notifications_router
         
         app.include_router(fhir_router, tags=["FHIR R4"])

@@ -6,24 +6,24 @@ Converts between database models and FHIR resources
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location, Device, DiagnosticReport, ImagingStudy
-from models.fhir_resource import FHIRResource, Condition, AllergyIntolerance as Allergy, Immunization, Procedure, CarePlan
+from fhir.models.resource import FHIRResource, Condition, AllergyIntolerance as Allergy, Immunization, Procedure, CarePlan
 from models.clinical.orders import MedicationOrder as Medication
 from models.clinical.appointments import Appointment, AppointmentParticipant
-from .converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
-from .converter_modules.audit_event import audit_log_to_fhir, create_audit_event
-from .converter_modules.person import provider_to_person, create_person_from_user_data, add_authentication_extensions
-from .converter_modules.practitioner import provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
-from .converter_modules.extended_converters import (
+from fhir.core.converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
+from fhir.core.converter_modules.audit_event import audit_log_to_fhir, create_audit_event
+from fhir.core.converter_modules.person import provider_to_person, create_person_from_user_data, add_authentication_extensions
+from fhir.core.converter_modules.practitioner import provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
+from fhir.core.converter_modules.extended_converters import (
     document_reference_to_fhir, medication_to_fhir, medication_administration_to_fhir,
     care_team_to_fhir, practitioner_role_to_fhir, coverage_to_fhir,
     claim_to_fhir, explanation_of_benefit_to_fhir, supply_delivery_to_fhir,
     provenance_to_fhir
 )
-from .converter_modules.service_request_dict import service_request_to_fhir_dict
+from fhir.core.converter_modules.service_request_dict import service_request_to_fhir_dict
 
 
 # Import helper functions
-from .converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
+from fhir.core.converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
 
 
 def patient_to_fhir(patient: Patient) -> Dict[str, Any]:

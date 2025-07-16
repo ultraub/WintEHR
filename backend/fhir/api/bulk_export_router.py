@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from models.synthea_models import Patient, Encounter, Observation, Provider, Organization, Location
-from models.fhir_resource import FHIRResource, Condition
+from fhir.models.resource import FHIRResource, Condition
 from models.clinical.orders import MedicationOrder as Medication
 import logging
 
@@ -135,7 +135,7 @@ class BulkExportService:
     async def _export_resource_type(self, job: BulkExportJob, resource_type: str, job_dir: Path):
         """Export a specific resource type"""
         # Import converters dynamically to avoid circular imports
-        from .fhir_router import (
+        from fhir.core.fhir_router import (
             patient_to_fhir, encounter_to_fhir, observation_to_fhir, 
             condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
             organization_to_fhir, location_to_fhir

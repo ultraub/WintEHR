@@ -8,19 +8,19 @@ import asyncio
 from typing import Dict, Any
 from unittest.mock import Mock, AsyncMock, patch
 
-from core.fhir.version_negotiator import (
+from fhir.core.versioning.negotiator import (
     FHIRVersion, 
     FHIRVersionNegotiator, 
     VersionDetectionResult,
     NegotiationResult
 )
-from core.fhir.version_transformer import (
+from fhir.core.versioning.transformer import (
     FHIRVersionTransformer,
     MedicationRequestTransformer,
     PatientTransformer,
     TransformationResult
 )
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 
 
 class TestFHIRVersionDetection:
@@ -394,7 +394,7 @@ class TestAPIVersionRouting:
     def test_version_parsing(self):
         """Test parsing of version parameters"""
         try:
-            from api.fhir.version_router import VersionAwareFHIRRouter
+            from fhir.api.version_router import VersionAwareFHIRRouter
             
             router = VersionAwareFHIRRouter()
             
@@ -417,7 +417,7 @@ class TestAPIVersionRouting:
     def test_invalid_version_parsing(self):
         """Test handling of invalid version parameters"""
         try:
-            from api.fhir.version_router import VersionAwareFHIRRouter
+            from fhir.api.version_router import VersionAwareFHIRRouter
             from fastapi import HTTPException
             
             router = VersionAwareFHIRRouter()

@@ -158,7 +158,7 @@ async def validate_single_document(
     Requires admin privileges.
     """
     try:
-        from core.fhir.storage import FHIRStorageEngine
+        from fhir.core.storage import FHIRStorageEngine
         from sqlalchemy.ext.asyncio import AsyncSession
         
         # Get the document from database

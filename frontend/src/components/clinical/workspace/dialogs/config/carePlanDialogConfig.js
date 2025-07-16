@@ -15,7 +15,7 @@ import {
   getActivityStatusColor,
   getIntentColor,
   getCarePlanDisplay
-} from '../../../../../utils/fhir/CarePlanConverter';
+} from '../../../../../core/fhir/converters/CarePlanConverter';
 
 // Re-export from converter for backward compatibility
 export {

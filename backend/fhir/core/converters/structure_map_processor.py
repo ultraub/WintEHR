@@ -450,7 +450,7 @@ class StructureMapProcessor:
                 raise ValueError(f"Unsupported conversion: {source_version} → {target_version}")
         else:
             # Use generic processor for all other resources
-            from .generic_structure_map_processor import GenericStructureMapProcessor
+            from fhir.core.generic_structure_map_processor import GenericStructureMapProcessor
             
             # Initialize generic processor with the same maps directory
             generic_processor = GenericStructureMapProcessor(str(self.maps_dir))

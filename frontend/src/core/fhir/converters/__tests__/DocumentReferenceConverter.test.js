@@ -3,7 +3,7 @@
  * Tests content extraction, validation, and FHIR compliance
  */
 
-import { DocumentReferenceConverter } from '../fhir/DocumentReferenceConverter';
+import { DocumentReferenceConverter } from '../../core/fhir/converters/DocumentReferenceConverter';
 import { DocumentContentValidator } from '../documentContentValidator';
 
 describe('DocumentReferenceConverter', () => {

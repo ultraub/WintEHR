@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 
 logger = logging.getLogger(__name__)
 

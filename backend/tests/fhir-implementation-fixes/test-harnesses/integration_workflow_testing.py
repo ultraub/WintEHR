@@ -27,7 +27,7 @@ sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 from database import get_session_maker
 
 

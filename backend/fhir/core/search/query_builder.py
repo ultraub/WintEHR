@@ -7,7 +7,7 @@ from sqlalchemy import and_, or_, func, cast, String
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional
-from models.fhir_resource import FHIRResource
+from fhir.models.resource import FHIRResource
 
 
 class FHIRQueryBuilder:

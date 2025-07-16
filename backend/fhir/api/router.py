@@ -22,20 +22,28 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, and_, or_, func
 
-from core.fhir.storage import FHIRStorageEngine, ConditionalCreateExistingResource, FHIRJSONEncoder
-from core.fhir.synthea_validator import SyntheaFHIRValidator
-from core.fhir.operations import OperationHandler
-from core.fhir.search import SearchParameterHandler
-from core.fhir.composite_search import CompositeSearchHandler
+from fhir.core.storage import FHIRStorageEngine, ConditionalCreateExistingResource, FHIRJSONEncoder
+from fhir.core.validators.synthea import SyntheaFHIRValidator
+from fhir.core.operations import OperationHandler
+from fhir.core.search.basic import SearchParameterHandler
+from fhir.core.search.composite import CompositeSearchHandler
 from database import get_db_session
-from core.fhir.resources_r4b import construct_fhir_element, Bundle, Parameters
-from fhir.resources.R4B.capabilitystatement import (
-    CapabilityStatement,
-    CapabilityStatementRest,
-    CapabilityStatementRestResource,
-    CapabilityStatementRestResourceInteraction,
-    CapabilityStatementRestResourceSearchParam
-)
+from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
+try:
+    from fhir.resources.R4B.capabilitystatement import (
+        CapabilityStatement,
+        CapabilityStatementRest,
+        CapabilityStatementRestResource,
+        CapabilityStatementRestResourceInteraction,
+        CapabilityStatementRestResourceSearchParam
+    )
+except ImportError:
+    # Fallback imports if fhir.resources package is not installed
+    CapabilityStatement = None
+    CapabilityStatementRest = None
+    CapabilityStatementRestResource = None
+    CapabilityStatementRestResourceInteraction = None
+    CapabilityStatementRestResourceSearchParam = None
 import logging
 
 logger = logging.getLogger(__name__)

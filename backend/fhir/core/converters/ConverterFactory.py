@@ -16,7 +16,7 @@ from datetime import datetime
 import inspect
 
 # Import all legacy converter functions from converters.py
-from .converters import (
+from fhir.core.converters import (
     patient_to_fhir, encounter_to_fhir, observation_to_fhir,
     condition_to_fhir, medication_request_to_fhir, practitioner_to_fhir,
     organization_to_fhir, location_to_fhir, allergy_intolerance_to_fhir,
@@ -34,19 +34,19 @@ from .converters import (
 )
 
 # Import class-based converters from converter_modules
-from .converter_modules.document_reference import DocumentReferenceConverter
-from .converter_modules.service_request import ServiceRequestConverter
-from .converter_modules.task import TaskConverter
-from .converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
-from .converter_modules.audit_event import audit_log_to_fhir, create_audit_event
-from .converter_modules.person import (
+from fhir.core.converter_modules.document_reference import DocumentReferenceConverter
+from fhir.core.converter_modules.service_request import ServiceRequestConverter
+from fhir.core.converter_modules.task import TaskConverter
+from fhir.core.converter_modules.appointment import appointment_to_fhir, fhir_to_appointment
+from fhir.core.converter_modules.audit_event import audit_log_to_fhir, create_audit_event
+from fhir.core.converter_modules.person import (
     provider_to_person, create_person_from_user_data, add_authentication_extensions
 )
-from .converter_modules.practitioner import (
+from fhir.core.converter_modules.practitioner import (
     provider_to_practitioner, create_practitioner_role, add_practitioner_credentials
 )
-from .converter_modules.generic_converter import GenericConverter
-from .converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
+from fhir.core.converter_modules.generic_converter import GenericConverter
+from fhir.core.converter_modules.helpers import create_reference, create_codeable_concept, create_identifier
 
 
 class ConverterFactory:
