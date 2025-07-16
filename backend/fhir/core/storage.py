@@ -30,6 +30,54 @@ except ImportError:
     notification_service = None
 
 
+def safe_dict_conversion(obj: Any, exclude_none: bool = False) -> dict:
+    """
+    Safely convert a FHIR object to a dictionary.
+    Handles both Pydantic models, our custom FHIRBase objects, and plain dicts.
+    
+    Args:
+        obj: The object to convert (dict, Pydantic model, or FHIRBase instance)
+        exclude_none: Whether to exclude None values
+        
+    Returns:
+        Dictionary representation of the object
+    """
+    # If it's already a dict, return it (optionally filtering None values)
+    if isinstance(obj, dict):
+        if exclude_none:
+            return {k: v for k, v in obj.items() if v is not None}
+        return obj
+    
+    # If it has a dict method, use it
+    if hasattr(obj, 'dict'):
+        if exclude_none and hasattr(obj.dict, '__call__'):
+            # Check if dict method accepts exclude_none parameter
+            try:
+                return obj.dict(exclude_none=exclude_none)
+            except TypeError:
+                # If it doesn't accept exclude_none, call without it and filter manually
+                result = obj.dict()
+                return {k: v for k, v in result.items() if v is not None} if exclude_none else result
+        elif hasattr(obj.dict, '__call__'):
+            return obj.dict()
+    
+    # If it has a json method (some Pydantic v2 models), use it
+    if hasattr(obj, 'json'):
+        return json.loads(obj.json())
+    
+    # Last resort: convert attributes to dict
+    result = {}
+    for key in dir(obj):
+        if not key.startswith('_'):
+            value = getattr(obj, key)
+            if not callable(value):
+                result[key] = value
+    
+    if exclude_none:
+        return {k: v for k, v in result.items() if v is not None}
+    return result
+
+
 class ConditionalCreateExistingResource(Exception):
     """Raised when conditional create finds an existing resource."""
     def __init__(self, fhir_id: str, version_id: int, last_updated: datetime):
@@ -501,11 +549,8 @@ class FHIRStorageEngine:
                 else:
                     resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
             else:
-                # Check if fhir_resource is already a dict
-                if isinstance(fhir_resource, dict):
-                    resource_dict = fhir_resource
-                else:
-                    resource_dict = fhir_resource.dict(exclude_none=True)
+                # Use safe dict conversion
+                resource_dict = safe_dict_conversion(fhir_resource, exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -778,11 +823,8 @@ class FHIRStorageEngine:
                 else:
                     resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
             else:
-                # Check if fhir_resource is already a dict
-                if isinstance(fhir_resource, dict):
-                    resource_dict = fhir_resource
-                else:
-                    resource_dict = fhir_resource.dict(exclude_none=True)
+                # Use safe dict conversion
+                resource_dict = safe_dict_conversion(fhir_resource, exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -1122,7 +1164,7 @@ class FHIRStorageEngine:
                 response_bundle.entry.append(response_entry)
         
         # Convert to dict to avoid serialization issues with fhir.resources objects
-        return response_bundle.dict()
+        return safe_dict_conversion(response_bundle)
     
     async def process_bundle_dict(self, bundle_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1529,7 +1571,7 @@ class FHIRStorageEngine:
             if resource:
                 fhir_id, version_id, last_updated = await self.create_resource(
                     resource_type,
-                    resource.dict(exclude_none=True),
+                    safe_dict_conversion(resource, exclude_none=True),
                     getattr(request, 'ifNoneExist', None)
                 )
                 logging.debug(f"DEBUG: Created resource - ID: {fhir_id}, Version: {version_id}")
@@ -1545,7 +1587,7 @@ class FHIRStorageEngine:
                 version_id, last_updated = await self.update_resource(
                     resource_type,
                     fhir_id,
-                    resource.dict(exclude_none=True),
+                    safe_dict_conversion(resource, exclude_none=True),
                     getattr(request, 'ifMatch', None)
                 )
                 response_entry.response = BundleEntryResponse(

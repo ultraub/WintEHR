@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 from fhir.core.resources_r4b import Bundle, BundleEntry, Parameters, OperationOutcome, construct_fhir_element
 from fhir.core.resources_r4b import ParametersParameter
-from fhir.core.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine, safe_dict_conversion
 from fhir.core.validators.validator import FHIRValidator
 
 
@@ -160,7 +160,7 @@ class OperationHandler:
         # Validate the resource
         return self.validator.validate_resource(
             resource_type,
-            resource_param.dict(),
+            safe_dict_conversion(resource_param),
             profile_param
         )
     
