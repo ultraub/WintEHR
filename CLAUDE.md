@@ -538,8 +538,8 @@ src/hooks/useMedicationResolver.js      # Medication display logic
 
 ### Backend Core
 ```
-backend/core/fhir/storage.py                    # FHIR storage engine
-backend/api/fhir/fhir_router.py                 # FHIR R4 endpoints
+backend/fhir/core/storage.py                    # FHIR storage engine
+backend/fhir/api/router.py                      # FHIR R4 endpoints
 backend/api/clinical/dynamic_catalog_router.py  # Dynamic catalogs API
 backend/services/dynamic_catalog_service.py     # Catalog extraction logic
 backend/api/auth_enhanced.py                    # Dual-mode auth
@@ -639,6 +639,14 @@ git status docs/ --porcelain
 **Remember**: This is a production EMR. Patient safety and data integrity are paramount.
 
 ## 📅 Recent Updates
+
+### 2025-07-16
+- Consolidated all FHIR-related code into unified `backend/fhir/` module structure
+- Resolved Python namespace conflicts (renamed `fhir/resources/` to `fhir/resource_definitions/`)
+- Fixed FastAPI type validation issues with custom Pydantic models
+- Updated all import paths across 88 files to use new FHIR module structure
+- Verified all FHIR endpoints functional with proper Bundle structure
+- Created comprehensive backend consolidation documentation
 
 ### 2025-07-14
 - Implemented R4/R5 agnostic handling for medication resources

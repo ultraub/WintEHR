@@ -495,9 +495,17 @@ class FHIRStorageEngine:
             # For DocumentReference, use json() method instead of dict() to preserve data types
             if resource_type == 'DocumentReference':
                 import json as json_module
-                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                # Check if fhir_resource is already a dict
+                if isinstance(fhir_resource, dict):
+                    resource_dict = fhir_resource
+                else:
+                    resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
             else:
-                resource_dict = fhir_resource.dict(exclude_none=True)
+                # Check if fhir_resource is already a dict
+                if isinstance(fhir_resource, dict):
+                    resource_dict = fhir_resource
+                else:
+                    resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type
@@ -764,9 +772,17 @@ class FHIRStorageEngine:
             # For DocumentReference, use json() method instead of dict() to preserve data types
             if resource_type == 'DocumentReference':
                 import json as json_module
-                resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                # Check if fhir_resource is already a dict
+                if isinstance(fhir_resource, dict):
+                    resource_dict = fhir_resource
+                else:
+                    resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
             else:
-                resource_dict = fhir_resource.dict(exclude_none=True)
+                # Check if fhir_resource is already a dict
+                if isinstance(fhir_resource, dict):
+                    resource_dict = fhir_resource
+                else:
+                    resource_dict = fhir_resource.dict(exclude_none=True)
             
             # Ensure resourceType is in the final dict
             resource_dict['resourceType'] = resource_type

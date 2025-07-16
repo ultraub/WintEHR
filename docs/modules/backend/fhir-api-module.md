@@ -3,21 +3,36 @@
 ## Overview
 The FHIR API Module implements a complete FHIR R4-compliant RESTful API with full CRUD operations, advanced search capabilities, and PostgreSQL-based storage. This module demonstrates enterprise-grade FHIR server implementation patterns.
 
+## Recent Consolidation (2025-07-16)
+The FHIR implementation has been consolidated into a unified `backend/fhir/` module structure, resolving import conflicts and improving maintainability.
+
 ## Architecture
 ```
-FHIR API Module
-├── Router Layer (fhir_router.py)
-├── Operations Layer (operations.py)
-├── Search Engine (search.py)
-├── Storage Engine (storage.py)
-├── Validation Layer (validator.py)
-├── Search Indexer (search_indexer.py)
-└── Profile Transformer (profile_transformer.py)
+backend/fhir/
+├── api/                    # FHIR API endpoints
+│   ├── router.py          # Main FHIR R4 router
+│   ├── batch_router.py    # Batch/transaction operations
+│   ├── bulk_export_router.py
+│   ├── version_router.py  # Version negotiation
+│   └── content_negotiation.py
+├── core/                   # Core FHIR functionality
+│   ├── storage.py         # Storage engine
+│   ├── operations.py      # FHIR operations
+│   ├── resources_r4b.py   # Resource compatibility layer
+│   ├── converters/        # Resource converters
+│   ├── search/            # Search functionality
+│   ├── validators/        # Validation logic
+│   └── versioning/        # Version management
+├── models/                 # FHIR data models
+│   ├── resource.py
+│   └── extended.py
+└── resource_definitions/   # FHIR JSON definitions
+    └── official_resources/
 ```
 
 ## Core Components
 
-### FHIR Router (fhir_router.py)
+### FHIR Router (fhir/api/router.py)
 **Purpose**: RESTful endpoint implementation for all FHIR resources
 
 **Endpoints**:
@@ -64,7 +79,7 @@ async def read_resource(
     )
 ```
 
-### Operations Layer (operations.py)
+### Operations Layer (fhir/core/operations.py)
 **Purpose**: FHIR operations and extended functionality
 
 **Implemented Operations**:
@@ -102,7 +117,7 @@ async def process_transaction(bundle: dict, db: AsyncSession):
         return create_transaction_response(results)
 ```
 
-### Search Engine (search.py)
+### Search Engine (fhir/core/search/)
 **Purpose**: Advanced FHIR search parameter handling
 
 **Search Parameter Types**:
@@ -153,7 +168,7 @@ class FHIRSearch:
         return await self._execute_search(query, parameters)
 ```
 
-### Storage Engine (storage.py)
+### Storage Engine (fhir/core/storage.py)
 **Purpose**: PostgreSQL-based FHIR resource persistence
 
 **Database Schema**:
@@ -209,7 +224,7 @@ class FHIRStorage:
         return resource
 ```
 
-### Search Indexer (search_indexer.py)
+### Search Indexer (fhir/core/search/search_indexer.py)
 **Purpose**: Extract and index searchable parameters
 
 **Indexing Strategy**:
@@ -252,7 +267,7 @@ def extract_parameter_values(self, resource: dict, param_def: dict) -> List[Any]
     # ... other types
 ```
 
-### Validation Layer (validator.py)
+### Validation Layer (fhir/core/validators/validator.py)
 **Purpose**: FHIR resource validation and profile compliance
 
 **Validation Levels**:
@@ -772,6 +787,15 @@ FHIR API Module
 - Clinical workflow orchestration testing
 
 ## Recent Updates
+
+### 2025-07-16
+- **Major Refactor**: Consolidated all FHIR code into unified `backend/fhir/` module structure
+- **Fixed**: Resolved Python namespace conflicts between local modules and installed `fhir.resources` package
+- **Updated**: Changed local `fhir/resources/` to `fhir/resource_definitions/` to avoid import conflicts
+- **Improved**: Module organization with clear separation of API, core, models, and definitions
+- **Fixed**: FastAPI type validation issues by using `dict` types instead of custom Pydantic models
+- **Updated**: All import paths across 88 files to use new module structure
+- **Verified**: All FHIR endpoints functional with proper Bundle structure and pagination
 
 ### 2025-07-15
 - **Major Enhancement**: Comprehensive Documentation and Infrastructure resource support
