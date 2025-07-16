@@ -1463,9 +1463,11 @@ class FHIRStorageEngine:
         url = request.get('url')
         
         # Parse URL to get resource type and ID
-        url_parts = url.split('/')
-        resource_type = url_parts[0]
-        fhir_id = url_parts[1] if len(url_parts) > 1 else None
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        url_parts = parsed_url.path.strip('/').split('/')
+        resource_type = url_parts[0] if url_parts else None
+        fhir_id = url_parts[1] if len(url_parts) > 1 and url_parts[1] else None
         
         response_entry = {}
         
@@ -1512,11 +1514,32 @@ class FHIRStorageEngine:
                 else:
                     response_entry['response'] = {"status": "404"}
             else:
-                # Search
+                # Search - parse query parameters from URL
                 try:
-                    # Simple search without parameters for now
+                    # Parse query parameters from URL
+                    from urllib.parse import parse_qs
+                    from fhir.core.search.basic import SearchParameterHandler
+                    
+                    query_params = parse_qs(parsed_url.query)
+                    
+                    # Convert multi-value parameters to single values for query_params dict
+                    query_params_dict = {}
+                    for key, values in query_params.items():
+                        if values:
+                            query_params_dict[key] = values[0]  # Take first value
+                    
+                    # Use SearchParameterHandler to parse the parameters properly
+                    search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+                    search_params, result_params = search_handler.parse_search_params(
+                        resource_type, query_params_dict
+                    )
+                    
+                    # Extract common parameters from result_params (they're lists)
+                    limit = int(result_params.get('_count', [50])[0])
+                    offset = int(result_params.get('_offset', [0])[0])
+                    
                     resources, total = await self.search_resources(
-                        resource_type, {}, limit=10
+                        resource_type, search_params, limit=limit, offset=offset
                     )
                     
                     search_bundle = {
