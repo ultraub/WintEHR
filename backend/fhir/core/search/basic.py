@@ -141,6 +141,14 @@ class SearchParameterHandler:
             modifier = param_data.get('modifier')
             values = param_data['values']
             
+            # Handle chained parameters specially
+            if param_type == 'chained':
+                where_clause = self._build_chained_clause(
+                    param_data, param_counter, sql_params
+                )
+                where_clauses.append(where_clause)
+                continue
+            
             # Quantity searches don't use search_params table
             if param_type != 'quantity':
                 # Regular search parameters
@@ -246,6 +254,42 @@ class SearchParameterHandler:
         
         return parsed_sorts
     
+    def _parse_chained_parameter(self, param_name: str) -> Tuple[List[str], Optional[str]]:
+        """Parse a chained search parameter.
+        
+        Args:
+            param_name: The parameter name that may contain chaining
+            
+        Returns:
+            Tuple of (chain_parts, resource_type_modifier)
+            - chain_parts: List of parameter names in the chain
+            - resource_type_modifier: Resource type if specified (e.g., 'Patient' in 'subject:Patient.name')
+        """
+        # First check for resource type modifier (e.g., subject:Patient.name)
+        resource_type_modifier = None
+        if ':' in param_name and '.' in param_name:
+            # Check if this is a type-specific chain
+            colon_idx = param_name.index(':')
+            dot_idx = param_name.index('.')
+            if colon_idx < dot_idx:
+                # Format: reference:Type.param
+                parts = param_name.split(':', 1)
+                base_ref = parts[0]
+                type_and_chain = parts[1]
+                
+                # Extract type and chain
+                if '.' in type_and_chain:
+                    resource_type_modifier, chain_params = type_and_chain.split('.', 1)
+                    # Return the full chain including the base reference
+                    return [base_ref] + chain_params.split('.'), resource_type_modifier
+        
+        # Standard chained parameter (e.g., general-practitioner.name)
+        if '.' in param_name:
+            return param_name.split('.'), None
+        
+        # Not a chained parameter
+        return [param_name], None
+    
     def _parse_parameter(
         self,
         resource_type: str,
@@ -253,7 +297,20 @@ class SearchParameterHandler:
         param_values: List[str]
     ) -> Optional[Dict[str, Any]]:
         """Parse a single search parameter."""
-        # Extract modifier if present
+        # First check if this is a chained parameter
+        chain_parts, resource_type_modifier = self._parse_chained_parameter(param_name)
+        
+        if len(chain_parts) > 1:
+            # This is a chained parameter
+            return {
+                'name': chain_parts[0],  # Base reference parameter
+                'type': 'chained',
+                'chain': chain_parts[1:],  # Remaining chain
+                'resource_type_modifier': resource_type_modifier,
+                'values': param_values
+            }
+        
+        # Extract modifier if present (for non-chained parameters)
         if ':' in param_name:
             parts = param_name.split(':', 1)
             base_param = parts[0]
@@ -787,6 +844,225 @@ class SearchParameterHandler:
             # For quantity searches, don't use search_params table
             return f"({' OR '.join(conditions)})"
         return "1=1"
+    
+    def _build_chained_clause(
+        self,
+        param_data: Dict,
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for chained search parameters.
+        
+        Handles chains like:
+        - general-practitioner.name=Smith
+        - subject:Patient.name=John
+        - organization.partOf.name=Hospital
+        """
+        base_reference = param_data['name']
+        chain_parts = param_data['chain']
+        resource_type_modifier = param_data.get('resource_type_modifier')
+        values = param_data['values']
+        
+        # Determine the target resource type for the reference
+        # Common reference -> resource type mappings
+        reference_to_type = {
+            'subject': 'Patient',
+            'patient': 'Patient',
+            'beneficiary': 'Patient',
+            'performer': 'Practitioner',
+            'requester': 'Practitioner',
+            'author': 'Practitioner',
+            'attester': 'Practitioner',
+            'general-practitioner': 'Practitioner',
+            'organization': 'Organization',
+            'partOf': 'Organization',
+            'managingOrganization': 'Organization',
+            'custodian': 'Organization',
+            'encounter': 'Encounter',
+            'context': 'Encounter',
+            'location': 'Location',
+            'serviceProvider': 'Organization',
+            'basedOn': 'ServiceRequest',
+            'partOf': 'Procedure',
+            'medication': 'Medication',
+            'medicationReference': 'Medication'
+        }
+        
+        # Get target type from modifier or mapping
+        if resource_type_modifier:
+            target_type = resource_type_modifier
+        else:
+            target_type = reference_to_type.get(base_reference)
+            if not target_type:
+                # Try to infer from parameter name
+                if base_reference.endswith('Reference'):
+                    # Remove 'Reference' suffix and capitalize
+                    target_type = base_reference[:-9].capitalize()
+                else:
+                    # Default to capitalizing the parameter name
+                    target_type = base_reference.capitalize()
+        
+        # Build the chained query using subqueries
+        # For multi-level chains, we need to recursively build subqueries
+        if len(chain_parts) == 1:
+            # Simple chain: reference.parameter
+            return self._build_simple_chain_clause(
+                base_reference, target_type, chain_parts[0], values, counter, sql_params
+            )
+        else:
+            # Multi-level chain: reference.reference.parameter
+            return self._build_multilevel_chain_clause(
+                base_reference, target_type, chain_parts, values, counter, sql_params
+            )
+    
+    def _build_simple_chain_clause(
+        self,
+        reference_param: str,
+        target_type: str,
+        target_param: str,
+        values: List[str],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for simple chained parameter (one level)."""
+        conditions = []
+        
+        for i, value in enumerate(values):
+            subquery_alias = f"chain_{counter}_{i}"
+            value_key = f"chain_value_{counter}_{i}"
+            sql_params[value_key] = value
+            
+            # Build subquery to find matching target resources
+            subquery = f"""
+                EXISTS (
+                    SELECT 1 FROM fhir.resources {subquery_alias}
+                    WHERE {subquery_alias}.resource_type = '{target_type}'
+                    AND {subquery_alias}.deleted = false
+                    AND {self._build_chain_target_condition(subquery_alias, target_param, value_key)}
+                    AND (
+                        r.resource->'{reference_param}'->>'reference' = 
+                            '{target_type}/' || {subquery_alias}.fhir_id
+                        OR r.resource->'{reference_param}'->>'reference' = 
+                            'urn:uuid:' || {subquery_alias}.fhir_id
+                    )
+                )
+            """
+            conditions.append(subquery)
+        
+        return f"({' OR '.join(conditions)})" if conditions else "1=1"
+    
+    def _build_multilevel_chain_clause(
+        self,
+        reference_param: str,
+        target_type: str,
+        chain_parts: List[str],
+        values: List[str],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for multi-level chained parameter."""
+        # For now, implement two-level chains
+        # Can be extended recursively for deeper chains
+        if len(chain_parts) != 2:
+            return "1=1"  # Not supported yet
+        
+        intermediate_ref = chain_parts[0]
+        final_param = chain_parts[1]
+        
+        # Determine intermediate type
+        intermediate_type_map = {
+            'partOf': 'Organization',
+            'managingOrganization': 'Organization',
+            'organization': 'Organization'
+        }
+        intermediate_type = intermediate_type_map.get(intermediate_ref, 'Organization')
+        
+        conditions = []
+        for i, value in enumerate(values):
+            value_key = f"chain_value_{counter}_{i}"
+            sql_params[value_key] = value
+            
+            # Build nested subquery
+            subquery = f"""
+                EXISTS (
+                    SELECT 1 FROM fhir.resources int_{counter}_{i}
+                    WHERE int_{counter}_{i}.resource_type = '{target_type}'
+                    AND int_{counter}_{i}.deleted = false
+                    AND EXISTS (
+                        SELECT 1 FROM fhir.resources final_{counter}_{i}
+                        WHERE final_{counter}_{i}.resource_type = '{intermediate_type}'
+                        AND final_{counter}_{i}.deleted = false
+                        AND {self._build_chain_target_condition(f'final_{counter}_{i}', final_param, value_key)}
+                        AND (
+                            int_{counter}_{i}.resource->'{intermediate_ref}'->>'reference' = 
+                                '{intermediate_type}/' || final_{counter}_{i}.fhir_id
+                        )
+                    )
+                    AND (
+                        r.resource->'{reference_param}'->>'reference' = 
+                            '{target_type}/' || int_{counter}_{i}.fhir_id
+                    )
+                )
+            """
+            conditions.append(subquery)
+        
+        return f"({' OR '.join(conditions)})" if conditions else "1=1"
+    
+    def _build_chain_target_condition(
+        self,
+        table_alias: str,
+        param_name: str,
+        value_key: str
+    ) -> str:
+        """Build the condition for searching within the target resource."""
+        # Common parameter patterns
+        if param_name in ['name', 'family', 'given']:
+            if param_name == 'name':
+                # Search in all name fields
+                return f"""(
+                    {table_alias}.resource->'name' @> '[{{"family": "{{{value_key}}}"}}]'::jsonb
+                    OR EXISTS (
+                        SELECT 1 FROM jsonb_array_elements({table_alias}.resource->'name') AS n
+                        WHERE n->>'family' ILIKE '%' || :{value_key} || '%'
+                        OR n->>'text' ILIKE '%' || :{value_key} || '%'
+                        OR EXISTS (
+                            SELECT 1 FROM jsonb_array_elements_text(n->'given') AS g
+                            WHERE g ILIKE '%' || :{value_key} || '%'
+                        )
+                    )
+                )"""
+            elif param_name == 'family':
+                return f"""EXISTS (
+                    SELECT 1 FROM jsonb_array_elements({table_alias}.resource->'name') AS n
+                    WHERE n->>'family' ILIKE '%' || :{value_key} || '%'
+                )"""
+            elif param_name == 'given':
+                return f"""EXISTS (
+                    SELECT 1 FROM jsonb_array_elements({table_alias}.resource->'name') AS n
+                    WHERE EXISTS (
+                        SELECT 1 FROM jsonb_array_elements_text(n->'given') AS g
+                        WHERE g ILIKE '%' || :{value_key} || '%'
+                    )
+                )"""
+        elif param_name == 'identifier':
+            return f"""EXISTS (
+                SELECT 1 FROM jsonb_array_elements({table_alias}.resource->'identifier') AS i
+                WHERE i->>'value' = :{value_key}
+            )"""
+        elif param_name == 'birthdate':
+            # Handle date comparisons
+            return f"{table_alias}.resource->>'birthDate' = :{value_key}"
+        elif param_name == 'gender':
+            return f"{table_alias}.resource->>'gender' = :{value_key}"
+        elif param_name == 'code':
+            # Search in code.coding array
+            return f"""EXISTS (
+                SELECT 1 FROM jsonb_array_elements({table_alias}.resource->'code'->'coding') AS c
+                WHERE c->>'code' = :{value_key}
+            )"""
+        else:
+            # Generic field search
+            return f"{table_alias}.resource->>'{param_name}' ILIKE '%' || :{value_key} || '%'"
     
     def _build_has_clause(
         self,
