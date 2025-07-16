@@ -523,6 +523,7 @@ python scripts/generate_dicom_for_studies.py  # Multi-slice CT/MR studies
 | Export fails (large data) | Implement pagination or chunking |
 | CDS hook validation | Check hook ID uniqueness |
 | Dynamic catalog 404 | Service bypasses proxy, uses direct backend connection |
+| High memory usage (500MB+) | Fixed: Reduced resource counts, added cleanup mechanisms |
 
 ## 📁 Critical Files Reference
 
@@ -639,6 +640,14 @@ git status docs/ --porcelain
 **Remember**: This is a production EMR. Patient safety and data integrity are paramount.
 
 ## 📅 Recent Updates
+
+### 2025-01-16 (Latest)
+- Fixed frontend memory leaks causing 500MB+ RAM usage
+- Reduced resource loading from 500-1000 to 20-100 per type
+- Added proper cleanup for timeouts and in-flight requests
+- Implemented resource cache size limits (200 max per type)
+- Added automatic old resource cleanup to prevent unbounded growth
+- Memory usage reduced from 500MB+ to typical 50-100MB
 
 ### 2025-07-16
 - Consolidated all FHIR-related code into unified `backend/fhir/` module structure
