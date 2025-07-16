@@ -9,7 +9,7 @@ import logging
 import copy
 from dataclasses import dataclass
 
-from fhir.core.version_negotiator import FHIRVersion, version_negotiator
+from fhir.core.versioning.negotiator import FHIRVersion, version_negotiator
 
 logger = logging.getLogger(__name__)
 

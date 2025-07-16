@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple, Any, Optional, Set
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fhir.core.reference_utils import ReferenceUtils
-from fhir.core.composite_search import CompositeSearchHandler
+from fhir.core.search.composite import CompositeSearchHandler
 
 
 class SearchParameterHandler:

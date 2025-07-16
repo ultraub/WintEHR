@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, and_, or_
 
-from fhir.core.version_negotiator import FHIRVersion, FHIRVersionNegotiator, VersionDetectionResult, NegotiationResult
+from fhir.core.versioning.negotiator import FHIRVersion, FHIRVersionNegotiator, VersionDetectionResult, NegotiationResult
 from fhir.core.version_transformer import fhir_transformer
 from fhir.core.abstract_converter import AbstractFHIRConverter
 

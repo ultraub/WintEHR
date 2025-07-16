@@ -927,7 +927,7 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (resources, total_count)
         """
-        from fhir.core.search import SearchParameterHandler
+        from fhir.core.search.basic import SearchParameterHandler
         
         # Initialize search handler
         search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
@@ -1563,7 +1563,7 @@ class FHIRStorageEngine:
                     query_params = {k: v[0] if len(v) == 1 else v for k, v in query_params.items()}
                     
                     # Execute search
-                    from fhir.core.search import SearchParameterHandler
+                    from fhir.core.search.basic import SearchParameterHandler
                     search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
                     search_params, result_params = search_handler.parse_search_params(
                         resource_type, query_params
@@ -5859,7 +5859,7 @@ class FHIRStorageEngine:
         criteria: str
     ) -> List[Dict[str, Any]]:
         """Search by search criteria string (for conditional operations)."""
-        from fhir.core.search import SearchParameterHandler
+        from fhir.core.search.basic import SearchParameterHandler
         
         # Parse search criteria into parameters
         # Handle multiple parameters separated by &

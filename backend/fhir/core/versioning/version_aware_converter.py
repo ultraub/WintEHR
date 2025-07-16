@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 
 from fhir.core.abstract_converter import AbstractFHIRConverter, ConversionContext
-from fhir.core.version_negotiator import FHIRVersion, FHIRVersionNegotiator
+from fhir.core.versioning.negotiator import FHIRVersion, FHIRVersionNegotiator
 from fhir.core.validation_pipeline import ValidationPipeline, ValidationResult
 
 logger = logging.getLogger(__name__)

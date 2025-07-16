@@ -10,7 +10,7 @@ from datetime import datetime
 from fhir.core.resources_r4b import Bundle, BundleEntry, Parameters, OperationOutcome, construct_fhir_element
 from fhir.core.resources_r4b import ParametersParameter
 from fhir.core.storage import FHIRStorageEngine
-from fhir.core.validator import FHIRValidator
+from fhir.core.validators.validator import FHIRValidator
 
 
 class OperationHandler:
@@ -67,7 +67,7 @@ class OperationHandler:
         operation_name: str,
         resource_type: Optional[str] = None,
         resource_id: Optional[str] = None,
-        parameters: Optional[Parameters] = None
+        parameters: Optional[dict] = None
     ) -> Any:
         """
         Execute a FHIR operation.
@@ -123,8 +123,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> OperationOutcome:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $validate operation - validate a resource.
         
@@ -168,8 +168,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Parameters:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $meta operation - get metadata about resources.
         
@@ -200,7 +200,7 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
+        parameters: Optional[dict]
     ) -> Any:
         """
         $convert operation - convert between formats.
@@ -258,8 +258,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $search operation - search with POST.
         
@@ -302,8 +302,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $history operation - get resource history.
         
@@ -349,8 +349,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $everything operation - get all related resources.
         
@@ -382,8 +382,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         $document operation - generate a document bundle.
         
@@ -443,8 +443,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         Patient/$everything - get all resources for a patient.
         
@@ -494,8 +494,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Parameters:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         Observation/$stats - get statistics for observations.
         
@@ -539,8 +539,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Bundle:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         Observation/$lastn - get the last N observations.
         
@@ -588,7 +588,7 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
+        parameters: Optional[dict]
     ) -> Any:
         """
         ValueSet/$expand - expand a value set.
@@ -646,8 +646,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Parameters:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         ValueSet/$validate-code - validate a code against a value set.
         """
@@ -690,8 +690,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Parameters:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         CodeSystem/$lookup - look up code details.
         """
@@ -752,8 +752,8 @@ class OperationHandler:
         self,
         resource_type: Optional[str],
         resource_id: Optional[str],
-        parameters: Optional[Parameters]
-    ) -> Parameters:
+        parameters: Optional[dict]
+    ) -> dict:
         """
         CodeSystem/$subsumes - test subsumption relationship.
         """

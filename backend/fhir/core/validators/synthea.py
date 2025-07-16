@@ -11,7 +11,7 @@ from pydantic import ValidationError
 import re
 import logging
 
-from fhir.core.validator import FHIRValidator
+from fhir.core.validators.validator import FHIRValidator
 
 
 class SyntheaFHIRValidator(FHIRValidator):

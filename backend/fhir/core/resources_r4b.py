@@ -28,6 +28,9 @@ class Bundle(DomainResource):
 class Parameters(DomainResource):
     pass
 
+class ParametersParameter:
+    pass
+
 class OperationOutcome(DomainResource):
     pass
 
@@ -160,6 +163,9 @@ class Annotation:
 class Id:
     pass
 
+class Period:
+    pass
+
 # Export all resources
 __all__ = [
     'Patient', 'Encounter', 'Observation', 'Condition', 'Procedure',
@@ -168,9 +174,9 @@ __all__ = [
     'CarePlan', 'Goal', 'Organization', 'Practitioner', 'PractitionerRole',
     'Location', 'Device', 'Claim', 'ExplanationOfBenefit', 'Coverage',
     'ImagingStudy', 'Media', 'Provenance', 'SupplyDelivery', 'ServiceRequest',
-    'Task', 'TaskRestriction', 'MedicationDispense', 'Parameters', 'Communication', 'Bundle',
+    'Task', 'TaskRestriction', 'MedicationDispense', 'Parameters', 'ParametersParameter', 'Communication', 'Bundle',
     'BundleEntry', 'BundleEntryRequest', 'BundleEntryResponse', 'OperationOutcome',
     'OperationOutcomeIssue', 'Resource', 'DomainResource', 'Id', 'CodeableConcept',
     'Coding', 'Identifier', 'Reference', 'Attachment', 'Extension', 'Annotation',
-    'construct_fhir_element'
+    'Period', 'construct_fhir_element'
 ]

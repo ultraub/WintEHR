@@ -188,7 +188,7 @@ async def process_bundle(
                     # Remove fhirVersion from nested resources
                     entry['resource'].pop('fhirVersion', None)
         
-        bundle = Bundle(**clean_bundle_data)
+        bundle = clean_bundle_data
     except Exception as e:
         # If validation fails, try direct processing
         try:
@@ -198,7 +198,7 @@ async def process_bundle(
             logger.error(f"Bundle processing failed: {e2}")
             raise HTTPException(status_code=500, detail=str(e2))
     
-    if bundle.type not in ["batch", "transaction"]:
+    if bundle.get("type") not in ["batch", "transaction"]:
         raise HTTPException(
             status_code=400,
             detail="Only batch and transaction bundles are supported"
@@ -283,29 +283,30 @@ async def search_resources(
     )
     
     # Build search bundle
-    bundle = Bundle(
-        type="searchset",
-        total=total,
-        entry=[]
-    )
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "searchset",
+        "total": total,
+        "entry": []
+    }
     
     # Add navigation links
     base_url = str(request.url).split('?')[0]
     params_str = str(request.url.query)
     
-    bundle.link = [
+    bundle["link"] = [
         {"relation": "self", "url": str(request.url)}
     ]
     
     if page > 1:
         prev_page = page - 1
         prev_url = f"{base_url}?{params_str.replace(f'_page={page}', f'_page={prev_page}')}"
-        bundle.link.append({"relation": "previous", "url": prev_url})
+        bundle["link"].append({"relation": "previous", "url": prev_url})
     
     if offset + count < total:
         next_page = page + 1
         next_url = f"{base_url}?{params_str.replace(f'_page={page}', f'_page={next_page}')}"
-        bundle.link.append({"relation": "next", "url": next_url})
+        bundle["link"].append({"relation": "next", "url": next_url})
     
     # Add resources to bundle
     for resource_data in resources:
@@ -314,7 +315,7 @@ async def search_resources(
             "resource": resource_data,
             "search": {"mode": "match"}
         }
-        bundle.entry.append(entry)
+        bundle["entry"].append(entry)
     
     # Handle _include and _revinclude
     if "_include" in result_params:
@@ -323,7 +324,7 @@ async def search_resources(
     if "_revinclude" in result_params:
         await _process_revincludes(storage, bundle, result_params["_revinclude"], base_url)
     
-    return bundle.dict()
+    return bundle
 
 
 @fhir_router.post("/{resource_type}")
@@ -600,17 +601,18 @@ async def get_type_history(
     total = len(total_history)
     
     # Build history bundle
-    bundle = Bundle(
-        type="history",
-        total=total,
-        entry=[]
-    )
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "history",
+        "total": total,
+        "entry": []
+    }
     
     # Add navigation links
     base_url = str(request.url).split('?')[0]
     params_dict = dict(request.query_params)
     
-    bundle.link = [
+    bundle["link"] = [
         {"relation": "self", "url": str(request.url)}
     ]
     
@@ -618,16 +620,16 @@ async def get_type_history(
         prev_params = params_dict.copy()
         prev_params['_page'] = str(page - 1)
         prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
-        bundle.link.append({"relation": "previous", "url": prev_url})
+        bundle["link"].append({"relation": "previous", "url": prev_url})
     
     if offset + count < total:
         next_params = params_dict.copy()
         next_params['_page'] = str(page + 1)
         next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
-        bundle.link.append({"relation": "next", "url": next_url})
+        bundle["link"].append({"relation": "next", "url": next_url})
     
     for entry in history:
-        bundle.entry.append({
+        bundle["entry"].append({
             "fullUrl": f"{base_url.replace('/_history', '')}/{entry['id']}/_history/{entry['versionId']}",
             "resource": entry['resource'],
             "request": {
@@ -640,7 +642,7 @@ async def get_type_history(
             }
         })
     
-    return bundle.dict()
+    return bundle
 
 
 @fhir_router.get("/{resource_type}/{id}/_history")
@@ -716,17 +718,18 @@ async def get_instance_history(
     total = len(total_history)
     
     # Build history bundle
-    bundle = Bundle(
-        type="history",
-        total=total,
-        entry=[]
-    )
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "history",
+        "total": total,
+        "entry": []
+    }
     
     # Add navigation links
     base_url = str(request.url).split('?')[0]
     params_dict = dict(request.query_params)
     
-    bundle.link = [
+    bundle["link"] = [
         {"relation": "self", "url": str(request.url)}
     ]
     
@@ -734,16 +737,16 @@ async def get_instance_history(
         prev_params = params_dict.copy()
         prev_params['_page'] = str(page - 1)
         prev_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in prev_params.items())
-        bundle.link.append({"relation": "previous", "url": prev_url})
+        bundle["link"].append({"relation": "previous", "url": prev_url})
     
     if offset + count < total:
         next_params = params_dict.copy()
         next_params['_page'] = str(page + 1)
         next_url = f"{base_url}?" + "&".join(f"{k}={v}" for k, v in next_params.items())
-        bundle.link.append({"relation": "next", "url": next_url})
+        bundle["link"].append({"relation": "next", "url": next_url})
     
     for entry in history:
-        bundle.entry.append({
+        bundle["entry"].append({
             "fullUrl": f"{base_url.replace('/_history', '')}/_history/{entry['versionId']}",
             "resource": entry['resource'],
             "request": {
@@ -756,7 +759,7 @@ async def get_instance_history(
             }
         })
     
-    return bundle.dict()
+    return bundle
 
 
 @fhir_router.get("/{resource_type}/{id}/_history/{version_id}")
@@ -897,7 +900,7 @@ async def patient_everything(
 async def type_operation(
     resource_type: str,
     operation: str,
-    parameters: Optional[Parameters] = Body(None),
+    parameters: Optional[dict] = Body(None),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -933,7 +936,7 @@ async def instance_operation(
     resource_type: str,
     id: str,
     operation: str,
-    parameters: Optional[Parameters] = Body(None),
+    parameters: Optional[dict] = Body(None),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -968,7 +971,7 @@ async def instance_operation(
 @fhir_router.post("/${operation}")
 async def system_operation(
     operation: str,
-    parameters: Optional[Parameters] = Body(None),
+    parameters: Optional[dict] = Body(None),
     db: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -1126,7 +1129,7 @@ async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes
             target_type = parts[2] if len(parts) > 2 else None
             
             # Find references in the bundle entries
-            for entry in bundle.entry:
+            for entry in bundle["entry"]:
                 if entry.get("search", {}).get("mode") == "match":
                     resource = entry["resource"]
                     if resource.get("resourceType") == source_type:
@@ -1158,7 +1161,7 @@ async def _process_includes(storage: FHIRStorageEngine, bundle: Bundle, includes
                                         # Fetch the referenced resource
                                         included = await storage.read_resource(ref_type, ref_id)
                                         if included:
-                                            bundle.entry.append({
+                                            bundle["entry"].append({
                                                 "fullUrl": f"{base_url}/{ref_type}/{ref_id}",
                                                 "resource": included,
                                                 "search": {"mode": "include"}
@@ -1177,7 +1180,7 @@ async def _process_revincludes(storage: FHIRStorageEngine, bundle: Bundle, revin
             search_param = parts[1]
             
             # Find resources that reference the resources in our bundle
-            for entry in bundle.entry:
+            for entry in bundle["entry"]:
                 if entry.get("search", {}).get("mode") == "match":
                     resource = entry["resource"]
                     resource_ref = f"{resource['resourceType']}/{resource['id']}"
@@ -1195,7 +1198,7 @@ async def _process_revincludes(storage: FHIRStorageEngine, bundle: Bundle, revin
                     for referring in referring_resources:
                         resource_key = f"{source_type}/{referring['id']}"
                         if resource_key not in included_resources:
-                            bundle.entry.append({
+                            bundle["entry"].append({
                                 "fullUrl": f"{base_url}/{source_type}/{referring['id']}",
                                 "resource": referring,
                                 "search": {"mode": "include"}
