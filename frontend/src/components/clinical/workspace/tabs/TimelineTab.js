@@ -441,6 +441,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const { 
     resources, 
     fetchPatientBundle, 
+    fetchPatientEverything,
     isResourceLoading, 
     currentPatient,
     isCacheWarm 
@@ -655,28 +656,87 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  // Progressive loading effect
-  useEffect(() => {
-    if (patientId && !isCacheWarm(patientId, criticalTypes)) {
-      setLoading(true);
-      // Load critical resources first
-      fetchPatientBundle(patientId, false, 'critical').then(() => {
-        setLoading(false);
-        // Load important resources in background
+  // Optimized loading with $everything operation
+  const loadTimelineDataOptimized = useCallback(async (filters = {}) => {
+    if (!patientId) return;
+    
+    setLoading(true);
+    
+    try {
+      // Determine which resource types to load based on selected types
+      const enabledTypes = Array.from(selectedTypes);
+      
+      // If no specific types enabled, load critical types first
+      const typesToLoad = enabledTypes.length > 0 ? enabledTypes : criticalTypes;
+      
+      // Use $everything operation with type filter and date range
+      const everythingOptions = {
+        types: typesToLoad,
+        count: 200, // Reasonable limit for timeline
+        forceRefresh: false
+      };
+      
+      // Add date filter if specified
+      if (filters.startDate) {
+        everythingOptions.since = filters.startDate;
+      }
+      
+      const result = await fetchPatientEverything(patientId, everythingOptions);
+      
+      // Update loaded types to reflect what was actually loaded
+      setLoadedTypes(new Set(typesToLoad));
+      
+      // If we loaded critical types and user wants more, load important types in background
+      if (typesToLoad === criticalTypes && !filters.startDate) {
         setTimeout(() => {
-          setLoadedTypes(prev => new Set([...prev, ...importantTypes]));
-          fetchPatientBundle(patientId, false, 'important');
-        }, 100);
-        // Load optional resources after a delay
-        setTimeout(() => {
-          setLoadedTypes(prev => new Set([...prev, ...optionalTypes]));
-          fetchPatientBundle(patientId, false, 'all');
-        }, 2000);
-      });
-    } else {
+          const allTypes = [...criticalTypes, ...importantTypes, ...optionalTypes];
+          setLoadedTypes(new Set(allTypes));
+          fetchPatientEverything(patientId, { 
+            types: allTypes,
+            count: 300,
+            forceRefresh: false
+          });
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('Error loading timeline data:', error);
+      // Fallback to progressive loading
+      if (patientId && !isCacheWarm(patientId, criticalTypes)) {
+        fetchPatientBundle(patientId, false, 'critical').then(() => {
+          setTimeout(() => {
+            setLoadedTypes(prev => new Set([...prev, ...importantTypes]));
+            fetchPatientBundle(patientId, false, 'important');
+          }, 100);
+          setTimeout(() => {
+            setLoadedTypes(prev => new Set([...prev, ...optionalTypes]));
+            fetchPatientBundle(patientId, false, 'all');
+          }, 2000);
+        });
+      }
+    } finally {
       setLoading(false);
     }
-  }, [patientId, isCacheWarm, fetchPatientBundle]);
+  }, [patientId, selectedTypes, criticalTypes, importantTypes, optionalTypes, 
+      fetchPatientEverything, fetchPatientBundle, isCacheWarm]);
+
+  // Load timeline data when patient or filters change
+  useEffect(() => {
+    loadTimelineDataOptimized({ 
+      startDate: filterPeriod !== 'all' ? 
+        (() => {
+          const periodMap = {
+            '7d': subDays(new Date(), 7),
+            '30d': subDays(new Date(), 30),
+            '90d': subDays(new Date(), 90),
+            '6m': subMonths(new Date(), 6),
+            '1y': subYears(new Date(), 1),
+            '5y': subYears(new Date(), 5)
+          };
+          return periodMap[filterPeriod]?.toISOString().split('T')[0];
+        })() : undefined
+    });
+  }, [loadTimelineDataOptimized, filterPeriod]);
 
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {

@@ -2,7 +2,7 @@
  * Chart Review Tab Component
  * Comprehensive view of patient's problems, medications, and allergies
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,

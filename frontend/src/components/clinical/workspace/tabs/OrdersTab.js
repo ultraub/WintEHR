@@ -2,7 +2,7 @@
  * Orders Tab Component
  * Manage active orders, prescriptions, and order history
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -548,17 +548,131 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [getAlerts, onNotificationUpdate]);
 
-  // Use shared hook to get orders data
+  // State for optimized chained search results
+  const [chainedSearchResults, setChainedSearchResults] = useState([]);
+  const [loadingChainedSearch, setLoadingChainedSearch] = useState(false);
+  
+  // Use shared hook to get orders data as fallback
   const { medications, serviceRequests, isLoading: clinicalDataLoading } = usePatientClinicalData(patientId, {
     resourceTypes: ['MedicationRequest', 'ServiceRequest']
   });
   
-  // Get orders from enhanced search or fallback to shared hook data
+  // Optimized chained search function for orders
+  const performChainedSearch = useCallback(async (searchFilters = {}) => {
+    if (!patientId) return;
+    
+    setLoadingChainedSearch(true);
+    
+    try {
+      // Build batch bundle with chained searches
+      const batchBundle = {
+        resourceType: "Bundle",
+        type: "batch",
+        entry: []
+      };
+
+      // Standard medication requests with _include for requester and medication
+      batchBundle.entry.push({
+        request: {
+          method: "GET",
+          url: `MedicationRequest?patient=${patientId}&_include=MedicationRequest:medication,MedicationRequest:requester&_sort=-authored-on&_count=50`
+        }
+      });
+
+      // Service requests with _include for requester and performer
+      batchBundle.entry.push({
+        request: {
+          method: "GET",
+          url: `ServiceRequest?patient=${patientId}&_include=ServiceRequest:requester,ServiceRequest:performer&_sort=-authored-on&_count=50`
+        }
+      });
+
+      // If filtering by department, use chained search for organization
+      if (searchFilters.department) {
+        batchBundle.entry.push({
+          request: {
+            method: "GET",
+            url: `ServiceRequest?patient=${patientId}&performer.organization.name=${searchFilters.department}&_include=ServiceRequest:performer&_sort=-authored-on`
+          }
+        });
+      }
+
+      // If filtering by provider, use chained search for practitioner
+      if (searchFilters.provider) {
+        batchBundle.entry.push({
+          request: {
+            method: "GET",
+            url: `ServiceRequest?patient=${patientId}&requester.name=${searchFilters.provider}&_include=ServiceRequest:requester&_sort=-authored-on`
+          }
+        });
+      }
+
+      // Execute batch request
+      const batchResult = await fhirClient.batch(batchBundle);
+      const entries = batchResult.entry || [];
+      
+      // Process results
+      const allOrdersResults = [];
+      
+      // Extract medication requests from first batch entry
+      const medicationBundle = entries[0]?.resource;
+      if (medicationBundle?.entry) {
+        const medicationRequests = medicationBundle.entry
+          .filter(e => e.resource?.resourceType === 'MedicationRequest')
+          .map(e => e.resource);
+        allOrdersResults.push(...medicationRequests);
+      }
+
+      // Extract service requests from second batch entry
+      const serviceBundle = entries[1]?.resource;
+      if (serviceBundle?.entry) {
+        const serviceRequests = serviceBundle.entry
+          .filter(e => e.resource?.resourceType === 'ServiceRequest')
+          .map(e => e.resource);
+        allOrdersResults.push(...serviceRequests);
+      }
+
+      // Add filtered results from chained searches
+      if (entries.length > 2) {
+        for (let i = 2; i < entries.length; i++) {
+          const chainedBundle = entries[i]?.resource;
+          if (chainedBundle?.entry) {
+            const chainedResults = chainedBundle.entry
+              .filter(e => e.resource?.resourceType === 'ServiceRequest')
+              .map(e => e.resource);
+            allOrdersResults.push(...chainedResults);
+          }
+        }
+      }
+
+      // Remove duplicates based on resource ID
+      const uniqueOrders = allOrdersResults.filter((order, index, self) =>
+        index === self.findIndex(o => o.id === order.id)
+      );
+
+      setChainedSearchResults(uniqueOrders);
+      
+    } catch (error) {
+      console.error('Error performing chained search:', error);
+      setChainedSearchResults([]);
+    } finally {
+      setLoadingChainedSearch(false);
+    }
+  }, [patientId, fhirClient]);
+
+  // Load optimized chained search results on patient change
+  useEffect(() => {
+    performChainedSearch();
+  }, [performChainedSearch]);
+
+  // Get orders from enhanced search, chained search, or fallback to shared hook data
   const enhancedOrders = searchResults?.map(entry => entry.resource) || [];
   const fallbackOrders = [...medications, ...serviceRequests];
   
-  // Use enhanced search results if available, otherwise fallback
-  const allOrders = enhancedOrders.length > 0 ? enhancedOrders : fallbackOrders;
+  // Use enhanced search results first, then chained search, then fallback
+  const allOrders = enhancedOrders.length > 0 ? enhancedOrders : 
+                   chainedSearchResults.length > 0 ? chainedSearchResults : 
+                   fallbackOrders;
   
   // Separate by category
   const medicationOrders = allOrders.filter(order => order.resourceType === 'MedicationRequest');
@@ -1197,7 +1311,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   ];
 
-  if (loading) {
+  if (loading || loadingChainedSearch || clinicalDataLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
