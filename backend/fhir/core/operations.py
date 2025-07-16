@@ -525,6 +525,7 @@ class OperationHandler:
                 since_date = parameters.get('_since')
                 if parameters.get('_type'):
                     requested_types = [t.strip() for t in parameters.get('_type').split(',')]
+                    logging.info(f"$everything: Requested types: {requested_types}")
                 if parameters.get('_count'):
                     count_limit = int(parameters.get('_count'))
                 if parameters.get('_offset'):
@@ -554,12 +555,12 @@ class OperationHandler:
         
         # Filter by requested types if specified
         if requested_types:
-            search_types = [t for t in requested_types if t in patient_compartment_types]
-            if not search_types:
-                # If no valid types requested, return empty bundle
-                search_types = []
+            # Include "Patient" in the requested types since it's always returned
+            search_types = [t for t in requested_types if t in patient_compartment_types and t != "Patient"]
+            logging.info(f"$everything: Filtered search types: {search_types}")
         else:
             search_types = patient_compartment_types
+            logging.info(f"$everything: Using all compartment types: {len(search_types)} types")
         
         # Create result bundle
         bundle = Bundle(
@@ -584,21 +585,35 @@ class OperationHandler:
         for res_type in search_types:
             try:
                 # Build search parameters
-                search_params = self._get_patient_search_params(res_type, resource_id)
+                raw_search_params = self._get_patient_search_params(res_type, resource_id)
                 
                 # Add _lastUpdated filter if _since is specified
                 if since_date:
-                    search_params['_lastUpdated'] = f"gt{since_date}"
+                    raw_search_params['_lastUpdated'] = f"gt{since_date}"
+                
+                logging.info(f"$everything: Searching {res_type} with params: {raw_search_params}")
+                
+                # Parse the search parameters properly
+                from fhir.core.search.basic import SearchParameterHandler
+                search_handler = SearchParameterHandler(self.storage._get_search_parameter_definitions())
+                parsed_params, _ = search_handler.parse_search_params(res_type, raw_search_params)
                 
                 # Search for resources
                 resources, _ = await self.storage.search_resources(
                     res_type,
-                    search_params,
+                    parsed_params,
                     limit=10000  # High limit to get all resources
                 )
                 
+                logging.info(f"$everything: Found {len(resources)} {res_type} resources")
+                
                 # Add resources to bundle
                 for resource_data in resources:
+                    # Check if resource_data is a string (which would be wrong)
+                    if isinstance(resource_data, str):
+                        logging.error(f"$everything: Got string instead of dict for {res_type}: {resource_data[:100]}")
+                        continue
+                    
                     res_id = f"{res_type}/{resource_data['id']}"
                     if res_id not in included_resources:
                         entry = BundleEntry(
@@ -615,7 +630,9 @@ class OperationHandler:
                         
             except Exception as e:
                 # Log but continue with other resource types
+                import traceback
                 logging.warning(f"Error searching {res_type} for patient {resource_id}: {e}")
+                logging.warning(f"Traceback: {traceback.format_exc()}")
         
         # Apply pagination if _count is specified
         total_resources = len(all_entries)

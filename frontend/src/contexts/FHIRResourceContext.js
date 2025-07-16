@@ -542,7 +542,13 @@ export function FHIRResourceProvider({ children }) {
   }, [getCachedData, setCachedData, addResource]);
 
   const searchResources = useCallback(async (resourceType, params = {}, forceRefresh = false) => {
-    const searchKey = `${resourceType}_${JSON.stringify(params)}`;
+    // Add automatic _include for MedicationRequest to reduce separate fetches
+    const enhancedParams = { ...params };
+    if (resourceType === 'MedicationRequest' && !params._include) {
+      enhancedParams._include = 'MedicationRequest:medication';
+    }
+    
+    const searchKey = `${resourceType}_${JSON.stringify(enhancedParams)}`;
     const requestKey = `search_${searchKey}`;
     
     // Check for in-flight request first
@@ -565,7 +571,7 @@ export function FHIRResourceProvider({ children }) {
     // Create the promise and store it
     const searchPromise = (async () => {
       try {
-        const result = await fhirClient.search(resourceType, params);
+        const result = await fhirClient.search(resourceType, enhancedParams);
       
       if (result.resources && result.resources.length > 0) {
         setResources(resourceType, result.resources);
@@ -584,6 +590,33 @@ export function FHIRResourceProvider({ children }) {
             });
           });
         }
+      }
+      
+      // Process included resources from _include parameter
+      if (result.bundle?.entry) {
+        const includedResources = {};
+        
+        result.bundle.entry.forEach(entry => {
+          const resource = entry.resource;
+          if (!resource || !resource.resourceType) return;
+          
+          // Skip the main resources we already processed
+          if (resource.resourceType === resourceType) return;
+          
+          // Group included resources by type
+          if (!includedResources[resource.resourceType]) {
+            includedResources[resource.resourceType] = [];
+          }
+          includedResources[resource.resourceType].push(resource);
+        });
+        
+        // Add included resources to state
+        Object.entries(includedResources).forEach(([includedType, resources]) => {
+          setResources(includedType, resources);
+        });
+        
+        // Store included resources info in result for easy access
+        result.includedResources = includedResources;
       }
       
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
@@ -606,9 +639,32 @@ export function FHIRResourceProvider({ children }) {
     return searchPromise;
   }, [getCachedData, setCachedData, setResources]);
 
-  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
-    const cacheKey = `patient_bundle_${patientId}_${priority}`;
-    const requestKey = `bundle_${cacheKey}`;
+  // Enhanced search with automatic _include support
+  const searchWithInclude = useCallback(async (resourceType, params = {}, includes = [], forceRefresh = false) => {
+    const enhancedParams = { ...params };
+    
+    // Add _include parameters
+    if (includes.length > 0) {
+      enhancedParams._include = includes.join(',');
+    }
+    
+    // Use standard searchResources which now handles _include
+    return searchResources(resourceType, enhancedParams, forceRefresh);
+  }, [searchResources]);
+
+  // New optimized $everything-based patient bundle fetch
+  const fetchPatientEverything = useCallback(async (patientId, options = {}) => {
+    const { 
+      types = null, 
+      since = null, 
+      count = 200, 
+      offset = 0,
+      forceRefresh = false 
+    } = options;
+    
+    // Build cache key from parameters
+    const cacheKey = `patient_everything_${patientId}_${types || 'all'}_${since || 'all'}_${count}_${offset}`;
+    const requestKey = `everything_${cacheKey}`;
     
     // Check for in-flight request
     const existingRequest = inFlightRequests.current.get(requestKey);
@@ -616,146 +672,142 @@ export function FHIRResourceProvider({ children }) {
       return existingRequest;
     }
     
+    // Check cache
     if (!forceRefresh) {
-      const cached = getCachedData('bundles', cacheKey);
+      const cached = getCachedData('everything', cacheKey);
       if (cached) {
         return cached;
       }
     }
+    
+    // Build $everything parameters
+    const params = new URLSearchParams();
+    if (types) {
+      params.append('_type', Array.isArray(types) ? types.join(',') : types);
+    }
+    if (since) {
+      params.append('_since', since);
+    }
+    params.append('_count', count);
+    if (offset > 0) {
+      params.append('_offset', offset);
+    }
+    
+    const everythingPromise = (async () => {
+      try {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
+        
+        // Call $everything operation with query parameters
+        const url = `/Patient/${patientId}/$everything${params.toString() ? `?${params.toString()}` : ''}`;
+        const response = await fhirClient.httpClient.get(url);
+        
+        const bundle = response.data || response;
+        
+        // Process bundle entries and update state
+        const resourcesByType = {};
+        if (bundle.entry && bundle.entry.length > 0) {
+          
+          bundle.entry.forEach(entry => {
+            const resource = entry.resource;
+            if (!resource || !resource.resourceType) return;
+            
+            if (!resourcesByType[resource.resourceType]) {
+              resourcesByType[resource.resourceType] = [];
+            }
+            resourcesByType[resource.resourceType].push(resource);
+          });
+          
+          // Update state for each resource type
+          Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
+            setResources(resourceType, resources);
+            
+            // Update relationships
+            resources.forEach(resource => {
+              if (resource.subject?.reference === `Patient/${patientId}` ||
+                  resource.patient?.reference === `Patient/${patientId}`) {
+                dispatch({
+                  type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+                  payload: {
+                    patientId,
+                    resourceType,
+                    resourceId: resource.id
+                  }
+                });
+              }
+            });
+          });
+        }
+        
+        // Cache the bundle with metadata
+        const result = {
+          bundle,
+          total: bundle.total || 0,
+          hasMore: bundle.link?.some(link => link.relation === 'next') || false,
+          resourceTypes: Object.keys(resourcesByType || {}),
+          timestamp: new Date().toISOString()
+        };
+        
+        setCachedData('everything', cacheKey, result, 600000, 'Bundle'); // 10 min cache
+        
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+        return result;
+        
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType: 'Bundle', error: error.message } });
+        throw error;
+      } finally {
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    inFlightRequests.current.set(requestKey, everythingPromise);
+    return everythingPromise;
+  }, [setCachedData, getCachedData, setResources]);
 
-    // Define resource types by priority for progressive loading
+  // Legacy fetchPatientBundle - now uses $everything internally
+  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
+    // Map priority to resource types for backward compatibility
     const resourceTypesByPriority = {
       critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
       important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage'],
       optional: ['Immunization', 'CarePlan', 'CareTeam', 'DocumentReference', 'ImagingStudy']
     };
     
-    let resourceTypes;
+    let types;
     if (priority === 'critical') {
-      resourceTypes = resourceTypesByPriority.critical;
+      types = resourceTypesByPriority.critical;
     } else if (priority === 'important') {
-      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
+      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
     } else {
-      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
+      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
 
-    const bundlePromise = (async () => {
-      try {
-        const promises = resourceTypes.map(resourceType => {
-        // Reduce counts significantly to prevent memory issues
-        const counts = {
-          critical: 20,  // Reduced from 100
-          important: 50, // Reduced from 200
-          optional: 20   // Reduced from 50
-        };
-        
-        let baseCount = priority === 'critical' ? counts.critical : 
-                       priority === 'important' ? counts.important : counts.optional;
-        
-        // Adjust count based on resource type - much smaller counts
-        let resourceCount = baseCount;
-        if (resourceType === 'Observation' && priority !== 'critical') {
-          resourceCount = 100; // Reduced from 500 - still get recent observations
-        } else if (resourceType === 'Encounter') {
-          resourceCount = 20;  // Reduced from 50
-        } else if (resourceType === 'DiagnosticReport' || resourceType === 'ImagingStudy') {
-          resourceCount = 30;  // Limit heavy resources
-        }
-        
-        let params;
-        if (resourceType === 'Patient') {
-          // Patient resource uses direct ID, not patient parameter
-          params = { _id: patientId, _count: 1 };
-        } else {
-          params = { patient: patientId, _count: resourceCount };
-        }
-        
-        // Add appropriate sort parameters for each resource type
-        switch (resourceType) {
-          case 'Procedure':
-            params._sort = '-performed-date';
-            break;
-          case 'Observation':
-            params._sort = '-date';
-            break;
-          case 'Encounter':
-            params._sort = '-date';
-            break;
-          case 'MedicationRequest':
-            params._sort = '-authored';
-            break;
-          case 'Condition':
-            params._sort = '-recorded-date';
-            break;
-          case 'DiagnosticReport':
-            params._sort = '-date';
-            break;
-          case 'DocumentReference':
-            params._sort = '-date';
-            break;
-          case 'ImagingStudy':
-            params._sort = '-started';
-            break;
-          case 'AllergyIntolerance':
-            params._sort = '-date';
-            break;
-          case 'Immunization':
-            params._sort = '-date';
-            break;
-          default:
-            // Most resources use -date as default
-            params._sort = '-date';
-        }
-        
-        return searchResources(resourceType, params, forceRefresh)
-          .then(result => {
-            // For Patient resource, manually add to relationships since it doesn't have a patient parameter
-            if (resourceType === 'Patient' && result.resources && result.resources.length > 0) {
-              result.resources.forEach(resource => {
-                dispatch({
-                  type: FHIR_ACTIONS.ADD_RELATIONSHIP,
-                  payload: {
-                    patientId,
-                    resourceType: 'Patient',
-                    resourceId: resource.id
-                  }
-                });
-              });
-            }
-            return result;
-          })
-          .catch(err => ({ resourceType, error: err.message, resources: [] }));
-      });
-
-        const results = await Promise.all(promises);
-        const bundle = {};
-        
-        results.forEach(result => {
-          if (result.error) {
-            
-          }
-          bundle[result.resourceType || 'unknown'] = result.resources || [];
-        });
-
-        // Cache with intelligent TTL based on priority
-        const cacheTTL = priority === 'critical' ? 900000 : // 15 minutes
-                        priority === 'important' ? 600000 : // 10 minutes  
-                        300000; // 5 minutes
-        setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
-        return bundle;
-      } catch (error) {
-        
-        throw error;
-      } finally {
-        // Clean up in-flight request
-        inFlightRequests.current.delete(requestKey);
-      }
-    })();
+    // Use $everything operation for better performance
+    const count = priority === 'critical' ? 100 : priority === 'important' ? 200 : 300;
     
-    // Store the promise
-    inFlightRequests.current.set(requestKey, bundlePromise);
-    return bundlePromise;
-  }, [searchResources, getCachedData, setCachedData]);
+    const result = await fetchPatientEverything(patientId, {
+      types,
+      count,
+      forceRefresh
+    });
+    
+    // Convert to legacy bundle format for backward compatibility
+    const bundle = {};
+    if (result.bundle?.entry) {
+      result.bundle.entry.forEach(entry => {
+        const resource = entry.resource;
+        if (!resource || !resource.resourceType) return;
+        
+        if (!bundle[resource.resourceType]) {
+          bundle[resource.resourceType] = [];
+        }
+        bundle[resource.resourceType].push(resource);
+      });
+    }
+    
+    return bundle;
+  }, [fetchPatientEverything]);
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {
@@ -994,7 +1046,9 @@ export function FHIRResourceProvider({ children }) {
     // FHIR Operations
     fetchResource,
     searchResources,
+    searchWithInclude,
     fetchPatientBundle,
+    fetchPatientEverything,
     refreshPatientResources,
     
     // Patient Context

@@ -46,16 +46,25 @@ class DomainResource(Resource):
     pass
 
 class Bundle(DomainResource):
-    pass
+    def __init__(self, **kwargs):
+        # Ensure resourceType is always set for Bundle
+        kwargs['resourceType'] = 'Bundle'
+        super().__init__(**kwargs)
 
 class Parameters(DomainResource):
-    pass
+    def __init__(self, **kwargs):
+        # Ensure resourceType is always set for Parameters
+        kwargs['resourceType'] = 'Parameters'
+        super().__init__(**kwargs)
 
 class ParametersParameter(FHIRBase):
     pass
 
 class OperationOutcome(DomainResource):
-    pass
+    def __init__(self, **kwargs):
+        # Ensure resourceType is always set for OperationOutcome
+        kwargs['resourceType'] = 'OperationOutcome'
+        super().__init__(**kwargs)
 
 class OperationOutcomeIssue(FHIRBase):
     pass

@@ -80,6 +80,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { usePaginatedObservations, usePaginatedDiagnosticReports } from '../../../../hooks/usePaginatedObservations';
 import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
@@ -407,7 +408,7 @@ const ResultCard = ({ observation, onClick }) => {
 const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { currentPatient } = useFHIRResource();
   const { publish, createCriticalAlert } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -416,9 +417,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [loading, setLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [alertedResults, setAlertedResults] = useState(new Set());
@@ -455,13 +454,77 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [filteredByFacility, setFilteredByFacility] = useState(false);
   const [showFacilityPanel, setShowFacilityPanel] = useState(false);
 
-  // Get observations and diagnostic reports early for monitoring
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
+  // Calculate date range based on filter period
+  const dateRange = useMemo(() => {
+    if (filterPeriod === 'all') return null;
+    
+    const end = new Date();
+    let start = new Date();
+    
+    switch (filterPeriod) {
+      case '24h':
+        start = subDays(end, 1);
+        break;
+      case '7d':
+        start = subDays(end, 7);
+        break;
+      case '30d':
+        start = subDays(end, 30);
+        break;
+      case '90d':
+        start = subDays(end, 90);
+        break;
+      default:
+        return null;
+    }
+    
+    return { start, end };
+  }, [filterPeriod]);
+  
+  // Use paginated hooks for observations - separate by category
+  const labObservations = usePaginatedObservations(patientId, {
+    category: selectedCategory === 'laboratory' ? 'laboratory' : (selectedCategory === 'all' ? null : undefined),
+    pageSize: rowsPerPage,
+    dateRange,
+    status: filterStatus === 'all' ? null : filterStatus,
+    code: searchTerm || null
+  });
+  
+  const vitalObservations = usePaginatedObservations(patientId, {
+    category: 'vital-signs',
+    pageSize: rowsPerPage,
+    dateRange,
+    code: searchTerm || null
+  });
+  
+  // Use paginated hook for diagnostic reports
+  const diagnosticReportsData = usePaginatedDiagnosticReports(patientId, {
+    pageSize: rowsPerPage,
+    status: filterStatus === 'all' ? null : filterStatus
+  });
+  
+  // Combine observations based on tab
+  const observations = useMemo(() => {
+    if (tabValue === 0) { // Lab Results
+      return labObservations.observations;
+    } else if (tabValue === 2) { // Vitals
+      return vitalObservations.observations;
+    } else {
+      return [];
+    }
+  }, [tabValue, labObservations.observations, vitalObservations.observations]);
+  
+  const diagnosticReports = diagnosticReportsData.reports;
+  
+  // Get loading state based on active tab
+  const loading = tabValue === 0 ? labObservations.loading : 
+                 tabValue === 1 ? diagnosticReportsData.loading :
+                 tabValue === 2 ? vitalObservations.loading : false;
+  
+  // Get current page data based on tab
+  const currentPageData = tabValue === 0 ? labObservations : 
+                         tabValue === 1 ? diagnosticReportsData :
+                         tabValue === 2 ? vitalObservations : null;
 
   // Enhanced critical value monitoring with detection service
   useEffect(() => {
@@ -746,6 +809,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     if (loincCode) {
       setSelectedTestForTrend(loincCode);
       setShowTrendAnalysis(true);
+      
+      // NOTE: With server-side pagination, the LabTrendsChart component
+      // will need to fetch ALL historical data for this specific test
+      // to show complete trends (not just the current page)
     } else {
       setSnackbar({
         open: true,
@@ -1386,7 +1453,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             </TableHead>
             <TableBody>
               {sortedResults
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((result) => (
                   <ResultRow
                     key={result.id}
@@ -1403,13 +1469,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           </Table>
           <TablePagination
             component="div"
-            count={sortedResults.length}
-            page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
+            count={labObservations.totalCount}
+            page={labObservations.currentPage}
+            onPageChange={(e, newPage) => labObservations.goToPage(newPage)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {
               setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
+              labObservations.goToPage(0);
             }}
           />
         </TableContainer>
@@ -1441,7 +1507,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 </TableHead>
                 <TableBody>
                   {sortedResults
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((result) => (
                       <ResultRow
                         key={result.id}
@@ -1456,13 +1521,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
               </Table>
               <TablePagination
                 component="div"
-                count={sortedResults.length}
-                page={page}
-                onPageChange={(e, newPage) => setPage(newPage)}
+                count={vitalObservations.totalCount}
+                page={vitalObservations.currentPage}
+                onPageChange={(e, newPage) => vitalObservations.goToPage(newPage)}
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={(e) => {
                   setRowsPerPage(parseInt(e.target.value, 10));
-                  setPage(0);
+                  vitalObservations.goToPage(0);
                 }}
               />
             </TableContainer>
@@ -1732,7 +1797,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 observation={selectedResult} 
                 onOrderSelect={(order) => {
                   // Could open order details in a separate dialog
-                  console.log('Selected order:', order);
                 }}
               />
             </Stack>
