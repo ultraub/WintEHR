@@ -56,6 +56,19 @@ class ImagingStudyCatalogItem(BaseModel):
     usage_count: Optional[int] = None  # From dynamic extraction
 
 
+class ConditionCatalogItem(BaseModel):
+    """Condition/diagnosis catalog item model"""
+    id: str
+    display_name: str
+    icd10_code: Optional[str] = None
+    snomed_code: Optional[str] = None
+    category: Optional[str] = None
+    severity: Optional[str] = None
+    chronic: bool = False
+    usage_count: Optional[int] = None  # From dynamic extraction
+    common_medications: Optional[List[str]] = None  # From dynamic extraction
+
+
 class OrderSetItem(BaseModel):
     """Order set catalog item model"""
     id: str
@@ -74,5 +87,6 @@ class CatalogSearchResult(BaseModel):
     medications: List[MedicationCatalogItem] = []
     lab_tests: List[LabTestCatalogItem] = []
     imaging_studies: List[ImagingStudyCatalogItem] = []
+    conditions: List[ConditionCatalogItem] = []
     order_sets: List[OrderSetItem] = []
     total_results: int = 0

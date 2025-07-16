@@ -174,18 +174,28 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
             minQueryLength={2}
             getOptionLabel={(option) => {
               if (typeof option === 'string') return option;
-              return option.display || option.code?.text || option.id || 'Unknown condition';
+              // Handle both catalog format and FHIR format
+              return option.display || option.display_name || option.code?.text || option.id || 'Unknown condition';
             }}
             getOptionKey={(option) => {
               if (typeof option === 'string') return option;
-              return `condition-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+              // Handle both catalog format (code directly) and FHIR format (code.coding)
+              const code = option.code || option.code?.coding?.[0]?.code || option.id;
+              return `condition-${code}-${option.system || ''}`;
             }}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
-              const display = option.display || option.code?.text || 'Unknown condition';
-              const code = option.code?.coding?.[0]?.code || option.id;
-              const frequency = option.frequency || 0;
-              const source = option.searchSource || 'catalog';
+              // Handle both catalog format and FHIR format
+              const display = option.display || option.display_name || option.code?.text || 'Unknown condition';
+              const code = option.code || option.code?.coding?.[0]?.code || option.id;
+              const frequency = option.frequency || option.frequency_count || option.usage_count || 0;
+              const source = option.source || option.searchSource || 'catalog';
+              const system = option.system || option.code?.coding?.[0]?.system || '';
+              
+              // Determine code system label
+              let codeLabel = 'Code';
+              if (system.includes('snomed')) codeLabel = 'SNOMED';
+              else if (system.includes('icd-10')) codeLabel = 'ICD-10';
               
               return (
                 <Box component="li" key={key} {...otherProps}>
@@ -196,7 +206,7 @@ const ConditionFormFields = ({ formData = {}, errors = {}, onChange, disabled })
                     <Stack direction="row" spacing={1} alignItems="center">
                       {code && (
                         <Chip 
-                          label={`SNOMED: ${code}`} 
+                          label={`${codeLabel}: ${code}`} 
                           size="small" 
                           variant="outlined"
                           color="primary"

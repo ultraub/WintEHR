@@ -55,9 +55,13 @@ async def root():
         "health": "/health"
     }
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/health")
 async def health_check():
+    return {"status": "healthy", "service": "Teaching EMR API"}
+
+@app.get("/api/health") 
+async def api_health_check():
     return {"status": "healthy", "service": "Teaching EMR API"}
 
 # Startup event

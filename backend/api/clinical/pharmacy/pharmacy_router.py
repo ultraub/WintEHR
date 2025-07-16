@@ -239,6 +239,11 @@ async def update_pharmacy_status(
     """
     Update pharmacy workflow status for a medication request
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Updating pharmacy status for MedicationRequest ID: {medication_request_id}")
+    logger.info(f"New status: {status_update.status}")
+    
     try:
         storage = FHIRStorageEngine(db)
         

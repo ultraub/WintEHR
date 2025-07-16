@@ -14,6 +14,7 @@ from .models import (
     MedicationCatalogItem,
     LabTestCatalogItem,
     ImagingStudyCatalogItem,
+    ConditionCatalogItem,
     OrderSetItem,
     CatalogSearchResult
 )
@@ -55,6 +56,23 @@ async def search_lab_tests(
     Includes reference ranges calculated from actual patient data when available.
     """
     return await service.search_lab_tests(search, limit)
+
+
+@router.get("/conditions", response_model=List[ConditionCatalogItem])
+async def search_conditions(
+    search: Optional[str] = Query(None, description="Search term"),
+    limit: int = Query(50, ge=1, le=500),
+    service: UnifiedCatalogService = Depends(get_catalog_service)
+):
+    """
+    Search condition/diagnosis catalog.
+    
+    Data sources (in priority order):
+    1. Dynamic FHIR data - extracted from actual patient conditions
+    2. Database catalog - curated condition list
+    3. Static catalog - fallback data
+    """
+    return await service.search_conditions(search, limit)
 
 
 @router.get("/imaging-studies", response_model=List[ImagingStudyCatalogItem])

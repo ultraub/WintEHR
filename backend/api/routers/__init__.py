@@ -47,11 +47,13 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
         from api.clinical.tasks.router import router as clinical_tasks_router
         from api.clinical.alerts.router import router as clinical_alerts_router
+        from api.clinical.inbox.router import router as clinical_inbox_router
         
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
         app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
+        app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
         logger.info("✓ Clinical workflow routers registered")
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")
@@ -83,10 +85,13 @@ def register_all_routers(app: FastAPI) -> None:
     # 6. Quality & Analytics
     try:
         from api.quality.router import router as quality_measures_router
+        from api.analytics.router import router as analytics_router
+        
         app.include_router(quality_measures_router, tags=["Quality Measures"])
-        logger.info("✓ Quality routers registered")
+        app.include_router(analytics_router, tags=["Analytics"])
+        logger.info("✓ Quality & Analytics routers registered")
     except Exception as e:
-        logger.error(f"Failed to register quality routers: {e}")
+        logger.error(f"Failed to register quality/analytics routers: {e}")
     
     # 7. Imaging & DICOM Services
     try:

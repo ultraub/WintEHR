@@ -18,6 +18,7 @@ from .models import (
     MedicationCatalogItem, 
     LabTestCatalogItem, 
     ImagingStudyCatalogItem,
+    ConditionCatalogItem,
     OrderSetItem,
     CatalogSearchResult
 )
@@ -67,11 +68,16 @@ class UnifiedCatalogService:
         # 1. Try dynamic FHIR catalog first
         try:
             dynamic_meds = await self.dynamic_service.extract_medication_catalog(limit)
+            logger.info(f"Dynamic medications found: {len(dynamic_meds)}")
+            if dynamic_meds:
+                logger.info(f"Sample medication: {dynamic_meds[0]}")
+            
             if search_term:
                 dynamic_meds = [
                     med for med in dynamic_meds
                     if search_term.lower() in med.get('display', '').lower()
                 ]
+                logger.info(f"After search filter: {len(dynamic_meds)}")
             
             for med in dynamic_meds[:limit]:
                 results.append(MedicationCatalogItem(
@@ -157,7 +163,7 @@ class UnifiedCatalogService:
         
         # 1. Try dynamic FHIR catalog
         try:
-            dynamic_tests = await self.dynamic_service.extract_lab_catalog(limit)
+            dynamic_tests = await self.dynamic_service.extract_lab_test_catalog(limit)
             if search_term:
                 dynamic_tests = [
                     test for test in dynamic_tests
@@ -231,6 +237,100 @@ class UnifiedCatalogService:
         
         return results
     
+    async def search_conditions(
+        self,
+        search_term: Optional[str] = None,
+        limit: int = 50
+    ) -> List[ConditionCatalogItem]:
+        """
+        Search conditions/diagnoses across all sources.
+        Priority: Dynamic FHIR > Database > Static
+        """
+        results = []
+        
+        # 1. Try dynamic FHIR catalog first
+        try:
+            # Extract conditions from actual patient data
+            conditions = await self.dynamic_service.extract_condition_catalog(limit)
+            if search_term:
+                conditions = [
+                    cond for cond in conditions
+                    if search_term.lower() in cond.get('display', '').lower()
+                ]
+            
+            for cond in conditions[:limit]:
+                results.append(ConditionCatalogItem(
+                    id=cond.get('code', ''),
+                    display_name=cond.get('display', ''),
+                    icd10_code=cond.get('icd10_code'),
+                    snomed_code=cond.get('snomed_code'),
+                    category=cond.get('category'),
+                    chronic=cond.get('chronic', False),
+                    usage_count=cond.get('usage_count', 0),
+                    common_medications=cond.get('common_medications', [])
+                ))
+        except Exception as e:
+            logger.warning(f"Dynamic condition catalog failed: {e}")
+        
+        # 2. Static fallback with common conditions
+        if len(results) < limit:
+            # Common conditions as fallback
+            static_conditions = [
+                {
+                    "id": "E11.9",
+                    "display_name": "Type 2 diabetes mellitus without complications",
+                    "icd10_code": "E11.9",
+                    "category": "Endocrine",
+                    "chronic": True
+                },
+                {
+                    "id": "I10",
+                    "display_name": "Essential (primary) hypertension",
+                    "icd10_code": "I10",
+                    "category": "Cardiovascular",
+                    "chronic": True
+                },
+                {
+                    "id": "J45.909",
+                    "display_name": "Unspecified asthma, uncomplicated",
+                    "icd10_code": "J45.909",
+                    "category": "Respiratory",
+                    "chronic": True
+                },
+                {
+                    "id": "K21.9",
+                    "display_name": "Gastro-esophageal reflux disease without esophagitis",
+                    "icd10_code": "K21.9",
+                    "category": "Gastrointestinal",
+                    "chronic": True
+                },
+                {
+                    "id": "M25.561",
+                    "display_name": "Pain in right knee",
+                    "icd10_code": "M25.561",
+                    "category": "Musculoskeletal",
+                    "chronic": False
+                }
+            ]
+            
+            if search_term:
+                static_conditions = [
+                    cond for cond in static_conditions
+                    if search_term.lower() in cond.get('display_name', '').lower()
+                ]
+            
+            for cond in static_conditions[:limit - len(results)]:
+                results.append(ConditionCatalogItem(
+                    id=cond.get('id', ''),
+                    display_name=cond.get('display_name', ''),
+                    icd10_code=cond.get('icd10_code'),
+                    snomed_code=cond.get('snomed_code'),
+                    category=cond.get('category'),
+                    chronic=cond.get('chronic', False)
+                ))
+        
+        return results
+    
     async def search_all_catalogs(
         self,
         search_term: str,
@@ -239,13 +339,15 @@ class UnifiedCatalogService:
         """Search across all catalog types"""
         medications = await self.search_medications(search_term, limit_per_type)
         lab_tests = await self.search_lab_tests(search_term, limit_per_type)
+        conditions = await self.search_conditions(search_term, limit_per_type)
         
         # TODO: Implement imaging studies and order sets
         
         return CatalogSearchResult(
             medications=medications,
             lab_tests=lab_tests,
+            conditions=conditions,
             imaging_studies=[],
             order_sets=[],
-            total_results=len(medications) + len(lab_tests)
+            total_results=len(medications) + len(lab_tests) + len(conditions)
         )
