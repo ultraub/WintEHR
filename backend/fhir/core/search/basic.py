@@ -88,6 +88,15 @@ class SearchParameterHandler:
                 result_params[param_name] = param_value
                 continue
             
+            # Special handling for _has parameters
+            if param_name.startswith('_has:'):
+                # _has parameters bypass normal parsing
+                search_params[param_name] = {
+                    'type': '_has',
+                    'values': param_value
+                }
+                continue
+            
             # Parse search parameter
             parsed = self._parse_parameter(resource_type, param_name, param_value)
             if parsed:
@@ -120,7 +129,7 @@ class SearchParameterHandler:
             alias = f"sp{param_counter}"
             
             # Handle special parameters
-            if param_name.startswith('_has:'):
+            if param_name.startswith('_has:') or param_data.get('type') == '_has':
                 # Reverse chaining
                 where_clause = self._build_has_clause(
                     param_name, param_data, param_counter, sql_params
@@ -1071,13 +1080,307 @@ class SearchParameterHandler:
         counter: int,
         sql_params: Dict[str, Any]
     ) -> str:
-        """Build WHERE clause for _has parameter (reverse chaining)."""
-        # _has:Observation:patient:code=1234-5
-        # Find patients that have observations with code 1234-5
+        """Build WHERE clause for _has parameter (reverse chaining).
         
-        # This is a simplified implementation
-        # Full implementation would parse the _has parameter and build subquery
-        return "1=1"
+        Syntax: _has:ResourceType:referenceParameter:searchParameter=value
+        Example: _has:Observation:patient:code=1234-5
+        
+        This finds resources that are referenced by other resources matching specific criteria.
+        """
+        # Parse the _has parameter name
+        # Format: _has:ResourceType:referenceParameter:searchParameter
+        parts = param_name.split(':', 3)
+        if len(parts) < 4 or parts[0] != '_has':
+            return "1=1"  # Invalid format
+        
+        referencing_type = parts[1]  # e.g., "Observation"
+        reference_param = parts[2]   # e.g., "patient"
+        search_param = parts[3]      # e.g., "code"
+        
+        # Handle nested _has parameters
+        if search_param.startswith('_has:'):
+            # Recursive _has - build nested subquery
+            return self._build_nested_has_clause(
+                referencing_type, reference_param, search_param, 
+                param_data, counter, sql_params
+            )
+        
+        # Build subquery for reverse reference lookup
+        conditions = []
+        values = param_data.get('values', [])
+        
+        for i, value in enumerate(values):
+            subquery_alias = f"has_{counter}_{i}"
+            
+            # Determine the actual value to search for
+            if isinstance(value, dict):
+                search_value = value.get('value') or value.get('code') or str(value)
+            else:
+                search_value = str(value)
+            
+            # Build the subquery
+            subquery = self._build_single_has_subquery(
+                subquery_alias, referencing_type, reference_param,
+                search_param, search_value, counter, i, sql_params
+            )
+            
+            conditions.append(subquery)
+        
+        return f"({' OR '.join(conditions)})" if conditions else "1=1"
+    
+    def _build_single_has_subquery(
+        self,
+        alias: str,
+        referencing_type: str,
+        reference_param: str,
+        search_param: str,
+        search_value: str,
+        counter: int,
+        value_index: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build a single _has subquery for reverse reference lookup."""
+        # Determine if search_param has modifiers
+        param_parts = search_param.split(':')
+        base_search_param = param_parts[0]
+        modifier = param_parts[1] if len(param_parts) > 1 else None
+        
+        # Build the search condition for the referencing resource
+        search_condition = self._build_has_search_condition(
+            alias, base_search_param, search_value, modifier, 
+            counter, value_index, sql_params
+        )
+        
+        # Build the reference condition
+        # The referencing resource should reference the current resource
+        reference_condition = self._build_has_reference_condition(
+            alias, reference_param
+        )
+        
+        # Combine into EXISTS subquery
+        subquery = f"""
+            EXISTS (
+                SELECT 1 FROM fhir.resources {alias}
+                WHERE {alias}.resource_type = '{referencing_type}'
+                AND {alias}.deleted = false
+                AND {search_condition}
+                AND {reference_condition}
+            )
+        """
+        
+        return subquery.strip()
+    
+    def _build_has_search_condition(
+        self,
+        alias: str,
+        search_param: str,
+        search_value: str,
+        modifier: Optional[str],
+        counter: int,
+        value_index: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build search condition for the _has parameter target."""
+        value_key = f"has_value_{counter}_{value_index}"
+        
+        # Handle common search parameters
+        if search_param == 'code':
+            # Search in code.coding array
+            sql_params[value_key] = search_value
+            
+            # Handle token search with optional system
+            if '|' in search_value:
+                system, code = search_value.split('|', 1)
+                system_key = f"has_system_{counter}_{value_index}"
+                code_key = f"has_code_{counter}_{value_index}"
+                sql_params[system_key] = system if system else None
+                sql_params[code_key] = code
+                
+                if system:
+                    return f"""EXISTS (
+                        SELECT 1 FROM jsonb_array_elements({alias}.resource->'code'->'coding') AS c
+                        WHERE c->>'system' = :{system_key} AND c->>'code' = :{code_key}
+                    )"""
+                else:
+                    return f"""EXISTS (
+                        SELECT 1 FROM jsonb_array_elements({alias}.resource->'code'->'coding') AS c
+                        WHERE c->>'code' = :{code_key}
+                    )"""
+            else:
+                return f"""EXISTS (
+                    SELECT 1 FROM jsonb_array_elements({alias}.resource->'code'->'coding') AS c
+                    WHERE c->>'code' = :{value_key}
+                )"""
+        
+        elif search_param == 'status':
+            sql_params[value_key] = search_value
+            return f"{alias}.resource->>'status' = :{value_key}"
+        
+        elif search_param == 'identifier':
+            sql_params[value_key] = search_value
+            return f"""EXISTS (
+                SELECT 1 FROM jsonb_array_elements({alias}.resource->'identifier') AS i
+                WHERE i->>'value' = :{value_key}
+            )"""
+        
+        elif search_param in ['type', 'category']:
+            # Handle CodeableConcept searches
+            sql_params[value_key] = search_value
+            return f"""EXISTS (
+                SELECT 1 FROM jsonb_array_elements({alias}.resource->'{search_param}'->'coding') AS c
+                WHERE c->>'code' = :{value_key}
+            )"""
+        
+        elif search_param == 'date':
+            # Handle date searches with prefixes
+            return self._build_has_date_condition(
+                alias, search_param, search_value, modifier, 
+                counter, value_index, sql_params
+            )
+        
+        elif search_param == '_id':
+            sql_params[value_key] = search_value
+            return f"{alias}.fhir_id = :{value_key}"
+        
+        else:
+            # Generic string search
+            sql_params[value_key] = f"%{search_value}%"
+            return f"{alias}.resource->>'{search_param}' ILIKE :{value_key}"
+    
+    def _build_has_reference_condition(
+        self,
+        alias: str,
+        reference_param: str
+    ) -> str:
+        """Build condition to check if referencing resource references the current resource."""
+        # Handle different reference formats
+        return f"""(
+            {alias}.resource->'{reference_param}'->>'reference' = 
+                r.resource_type || '/' || r.fhir_id
+            OR {alias}.resource->'{reference_param}'->>'reference' = 
+                'urn:uuid:' || r.fhir_id
+            OR {alias}.resource->'{reference_param}'->>'reference' = r.fhir_id
+        )"""
+    
+    def _build_has_date_condition(
+        self,
+        alias: str,
+        search_param: str,
+        search_value: str,
+        modifier: Optional[str],
+        counter: int,
+        value_index: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build date condition for _has parameter."""
+        # Parse date value with optional prefix
+        parsed_date = self._parse_date_value(search_value)
+        if not parsed_date:
+            return "1=0"  # Invalid date
+        
+        prefix = parsed_date['prefix']
+        date_value = parsed_date['value']
+        precision = parsed_date['precision']
+        
+        # Get date range based on precision
+        start_date, end_date = self._get_date_range(date_value, precision)
+        
+        start_key = f"has_date_start_{counter}_{value_index}"
+        end_key = f"has_date_end_{counter}_{value_index}"
+        
+        if prefix == 'eq':
+            sql_params[start_key] = start_date.isoformat()
+            sql_params[end_key] = end_date.isoformat()
+            return f"({alias}.resource->>'{search_param}' >= :{start_key} AND {alias}.resource->>'{search_param}' < :{end_key})"
+        elif prefix == 'lt':
+            sql_params[start_key] = start_date.isoformat()
+            return f"{alias}.resource->>'{search_param}' < :{start_key}"
+        elif prefix == 'gt':
+            sql_params[end_key] = end_date.isoformat()
+            return f"{alias}.resource->>'{search_param}' >= :{end_key}"
+        elif prefix == 'le':
+            sql_params[end_key] = end_date.isoformat()
+            return f"{alias}.resource->>'{search_param}' < :{end_key}"
+        elif prefix == 'ge':
+            sql_params[start_key] = start_date.isoformat()
+            return f"{alias}.resource->>'{search_param}' >= :{start_key}"
+        else:
+            # Default to equality
+            sql_params[start_key] = start_date.isoformat()
+            sql_params[end_key] = end_date.isoformat()
+            return f"({alias}.resource->>'{search_param}' >= :{start_key} AND {alias}.resource->>'{search_param}' < :{end_key})"
+    
+    def _build_nested_has_clause(
+        self,
+        referencing_type: str,
+        reference_param: str,
+        nested_has_param: str,
+        param_data: Dict,
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build nested _has clause for recursive reverse chaining.
+        
+        Example: _has:Observation:patient:_has:AuditEvent:entity:type=rest
+        """
+        # Parse the nested _has parameter
+        nested_parts = nested_has_param.split(':', 3)
+        if len(nested_parts) < 4 or nested_parts[0] != '_has':
+            return "1=1"  # Invalid format
+        
+        nested_referencing_type = nested_parts[1]
+        nested_reference_param = nested_parts[2]
+        nested_search_param = nested_parts[3]
+        
+        values = param_data.get('values', [])
+        conditions = []
+        
+        for i, value in enumerate(values):
+            # Determine the actual value to search for
+            if isinstance(value, dict):
+                search_value = value.get('value') or value.get('code') or str(value)
+            else:
+                search_value = str(value)
+            
+            outer_alias = f"has_outer_{counter}_{i}"
+            inner_alias = f"has_inner_{counter}_{i}"
+            
+            # Build the nested search condition
+            search_condition = self._build_has_search_condition(
+                inner_alias, nested_search_param, search_value, None,
+                counter, i, sql_params
+            )
+            
+            # Build nested EXISTS query
+            subquery = f"""
+                EXISTS (
+                    SELECT 1 FROM fhir.resources {outer_alias}
+                    WHERE {outer_alias}.resource_type = '{referencing_type}'
+                    AND {outer_alias}.deleted = false
+                    AND (
+                        {outer_alias}.resource->'{reference_param}'->>'reference' = 
+                            r.resource_type || '/' || r.fhir_id
+                        OR {outer_alias}.resource->'{reference_param}'->>'reference' = 
+                            'urn:uuid:' || r.fhir_id
+                    )
+                    AND EXISTS (
+                        SELECT 1 FROM fhir.resources {inner_alias}
+                        WHERE {inner_alias}.resource_type = '{nested_referencing_type}'
+                        AND {inner_alias}.deleted = false
+                        AND {search_condition}
+                        AND (
+                            {inner_alias}.resource->'{nested_reference_param}'->>'reference' = 
+                                '{referencing_type}/' || {outer_alias}.fhir_id
+                            OR {inner_alias}.resource->'{nested_reference_param}'->>'reference' = 
+                                'urn:uuid:' || {outer_alias}.fhir_id
+                        )
+                    )
+                )
+            """
+            
+            conditions.append(subquery.strip())
+        
+        return f"({' OR '.join(conditions)})" if conditions else "1=1"
     
     def _get_date_range(
         self,

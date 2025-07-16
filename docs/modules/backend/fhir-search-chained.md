@@ -139,7 +139,11 @@ Comprehensive tests are provided in:
 1. Support for deeper chain levels (3+)
 2. Optimization for common chain patterns
 3. Chain parameter caching
-4. Support for _has parameter (reverse chaining)
+4. ~~Support for _has parameter (reverse chaining)~~ ✅ Implemented 2025-07-16
+
+## Related Features
+
+- **_has Parameter**: For reverse chaining, see [FHIR _has Parameter Documentation](./fhir-search-has-parameter.md)
 
 ## References
 
