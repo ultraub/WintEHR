@@ -381,9 +381,9 @@ export function FHIRResourceProvider({ children }) {
     });
   }, []);
 
-  // Cleanup old resources to prevent memory growth
+  // Cleanup old resources to prevent memory growth - more aggressive
   const cleanupOldResources = useCallback(() => {
-    const MAX_RESOURCES_PER_TYPE = 200; // Limit resources per type
+    const MAX_RESOURCES_PER_TYPE = 50; // Reduced from 200 to 50
     const resourceTypes = Object.keys(state.resources);
     
     resourceTypes.forEach(resourceType => {
@@ -427,9 +427,9 @@ export function FHIRResourceProvider({ children }) {
       payload: { resourceType, resources }
     });
     
-    // Trigger cleanup if needed
+    // Trigger cleanup if needed - more aggressive threshold
     const resourceCount = Object.keys(state.resources[resourceType] || {}).length;
-    if (resourceCount > 150) {
+    if (resourceCount > 30) { // Reduced from 150 to 30
       setTimeout(cleanupOldResources, 0);
     }
   }, [state.resources, cleanupOldResources]);
@@ -657,9 +657,10 @@ export function FHIRResourceProvider({ children }) {
     const { 
       types = null, 
       since = null, 
-      count = 200, 
+      count = 50, // Reduced default from 200 to 50
       offset = 0,
-      forceRefresh = false 
+      forceRefresh = false,
+      autoSince = true // Auto-calculate _since if not provided
     } = options;
     
     // Build cache key from parameters
@@ -685,9 +686,19 @@ export function FHIRResourceProvider({ children }) {
     if (types) {
       params.append('_type', Array.isArray(types) ? types.join(',') : types);
     }
-    if (since) {
-      params.append('_since', since);
+    
+    // Auto-calculate _since parameter for better performance
+    let effectiveSince = since;
+    if (!since && autoSince) {
+      // Default to last 3 months for initial load
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      effectiveSince = threeMonthsAgo.toISOString();
     }
+    if (effectiveSince) {
+      params.append('_since', effectiveSince);
+    }
+    
     params.append('_count', count);
     if (offset > 0) {
       params.append('_offset', offset);
@@ -783,8 +794,8 @@ export function FHIRResourceProvider({ children }) {
       types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
 
-    // Use $everything operation for better performance
-    const count = priority === 'critical' ? 100 : priority === 'important' ? 200 : 300;
+    // Use $everything operation for better performance - reduced counts
+    const count = priority === 'critical' ? 30 : priority === 'important' ? 50 : 100; // Reduced from 100/200/300
     
     const result = await fetchPatientEverything(patientId, {
       types,
@@ -833,22 +844,10 @@ export function FHIRResourceProvider({ children }) {
         Object.keys(state.relationships[patientId]).length > 0;
       
       if (!hasExistingData) {
-        // Progressive loading: Load critical resources first, then important ones in background
+        // Load only critical resources initially - components will load what they need
         await fetchPatientBundle(patientId, false, 'critical');
         
-        // Load important resources in background with cleanup
-        const importantTimeout = setTimeout(() => {
-          fetchPatientBundle(patientId, false, 'important');
-          timeoutRefs.current.delete(importantTimeout);
-        }, 100);
-        timeoutRefs.current.add(importantTimeout);
-        
-        // Load optional resources after a delay with cleanup
-        const optionalTimeout = setTimeout(() => {
-          fetchPatientBundle(patientId, false, 'all');
-          timeoutRefs.current.delete(optionalTimeout);
-        }, 2000);
-        timeoutRefs.current.add(optionalTimeout);
+        // No progressive loading - let components request resources as needed
       }
       
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
@@ -944,11 +943,11 @@ export function FHIRResourceProvider({ children }) {
       
       resourceTypes.forEach(resourceType => {
         // Use smaller counts for refresh to prevent memory issues
-        let refreshCount = 50; // Default smaller count
+        let refreshCount = 20; // Reduced default from 50 to 20
         if (resourceType === 'Observation') {
-          refreshCount = 100; // Still need more observations
+          refreshCount = 30; // Reduced from 100 to 30
         } else if (resourceType === 'Encounter' || resourceType === 'Condition') {
-          refreshCount = 30;
+          refreshCount = 20; // Reduced from 30 to 20
         }
         let params = { patient: patientId, _count: refreshCount };
         
@@ -959,6 +958,10 @@ export function FHIRResourceProvider({ children }) {
             break;
           case 'Observation':
             params._sort = '-date';
+            // Add date filter for observations - last 6 months only
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
             break;
           case 'Encounter':
             params._sort = '-date';
@@ -971,6 +974,10 @@ export function FHIRResourceProvider({ children }) {
             break;
           case 'DiagnosticReport':
             params._sort = '-date';
+            // Add date filter for diagnostic reports - last year only
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
             break;
           case 'DocumentReference':
             params._sort = '-date';
@@ -1099,16 +1106,61 @@ export function usePatient(patientId) {
 }
 
 export function usePatientResources(patientId, resourceType = null) {
-  const { getPatientResources, fetchPatientBundle, isResourceLoading } = useFHIRResource();
+  const { getPatientResources, fetchPatientBundle, isResourceLoading, searchResources, getResourcesByType } = useFHIRResource();
   
-  const resources = getPatientResources(patientId, resourceType);
+  const resources = resourceType 
+    ? getPatientResources(patientId, resourceType) 
+    : getResourcesByType(resourceType);
   const loading = isResourceLoading(resourceType || 'Patient');
   
+  // Load resources on-demand for specific resource type
   const loadResources = useCallback(async (forceRefresh = false) => {
-    if (patientId) {
+    if (!patientId) return;
+    
+    if (resourceType) {
+      // Load specific resource type with optimized parameters
+      let count = 20; // Default small count
+      let params = { patient: patientId, _count: count };
+      
+      // Resource-specific optimizations
+      if (resourceType === 'Observation') {
+        count = 30;
+        params._count = count;
+        params._sort = '-date';
+        // Get only last 6 months of observations
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
+      } else if (resourceType === 'MedicationRequest') {
+        params._sort = '-authored';
+        params.status = 'active,on-hold'; // Only active medications
+      } else if (resourceType === 'Condition') {
+        params._sort = '-recorded-date';
+        params['clinical-status'] = 'active'; // Only active conditions
+      } else if (resourceType === 'DiagnosticReport') {
+        params._sort = '-date';
+        // Get only last year of reports
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
+      } else if (resourceType === 'Encounter') {
+        params._sort = '-date';
+        params._count = 10; // Fewer encounters needed
+      }
+      
+      return await searchResources(resourceType, params, forceRefresh);
+    } else {
+      // Load patient bundle if no specific type requested
       return await fetchPatientBundle(patientId, forceRefresh);
     }
-  }, [patientId, fetchPatientBundle]);
+  }, [patientId, resourceType, searchResources, fetchPatientBundle]);
+
+  // Auto-load resources on mount if not already loaded
+  useEffect(() => {
+    if (patientId && resourceType && resources.length === 0 && !loading) {
+      loadResources();
+    }
+  }, [patientId, resourceType, resources.length, loading, loadResources]);
 
   return { resources, loading, loadResources };
 }

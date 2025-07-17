@@ -437,17 +437,64 @@ export const useHybridSearch = (resourceTypes, options = {}) => {
           if (Array.isArray(results)) {
             const transformedResults = results
               .filter(item => !fhirIds.has(item.id))
-              .map(item => ({
-                resourceType: type.charAt(0).toUpperCase() + type.slice(1),
-                id: item.id || `${type}-${Math.random().toString(36).substr(2, 9)}`,
-                code: {
-                  text: item.display || item.name,
-                  coding: item.coding ? [item.coding] : []
-                },
-                display: item.display || item.name,
-                frequency: item.frequency || 0,
-                searchSource: 'catalog'
-              }));
+              .map(item => {
+                // Get display name based on catalog type
+                let displayName = '';
+                let code = '';
+                let coding = [];
+                
+                if (type === 'medications') {
+                  displayName = item.generic_name || item.display || item.name || 'Unknown medication';
+                  code = item.rxnorm_code || item.code || '';
+                  if (code) {
+                    coding = [{
+                      system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else if (type === 'lab_tests') {
+                  displayName = item.test_name || item.display || item.name || 'Unknown test';
+                  code = item.loinc_code || item.test_code || item.code || '';
+                  if (code) {
+                    coding = [{
+                      system: 'http://loinc.org',
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else if (type === 'conditions') {
+                  displayName = item.display_name || item.display || item.name || 'Unknown condition';
+                  code = item.icd10_code || item.snomed_code || item.code || '';
+                  if (code) {
+                    const system = item.icd10_code ? 'http://hl7.org/fhir/sid/icd-10' : 'http://snomed.info/sct';
+                    coding = [{
+                      system: system,
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else {
+                  displayName = item.display || item.name || 'Unknown';
+                  code = item.code || '';
+                  if (item.coding) {
+                    coding = [item.coding];
+                  }
+                }
+                
+                return {
+                  resourceType: type === 'lab_tests' ? 'Observation' : type.charAt(0).toUpperCase() + type.slice(1),
+                  id: item.id || `${type}-${Math.random().toString(36).substr(2, 9)}`,
+                  code: {
+                    text: displayName,
+                    coding: coding
+                  },
+                  display: displayName,
+                  frequency: item.frequency || item.usage_count || 0,
+                  searchSource: 'catalog',
+                  category: item.category || type
+                };
+              });
             combinedResults.push(...transformedResults);
           }
         });
@@ -482,12 +529,16 @@ export const useLabTestSearch = (options = {}) => {
         resourceType: 'Observation',
         id: lab.id || `obs-${Math.random().toString(36).substr(2, 9)}`,
         code: {
-          text: lab.display || lab.name,
-          coding: lab.coding ? [lab.coding] : []
+          text: lab.test_name || lab.display || lab.name,
+          coding: lab.loinc_code ? [{
+            system: 'http://loinc.org',
+            code: lab.loinc_code,
+            display: lab.test_name || lab.display || lab.name
+          }] : []
         },
-        display: lab.display || lab.name,
+        display: lab.test_name || lab.display || lab.name,
         referenceRange: lab.reference_range,
-        category: lab.category,
+        category: lab.category || 'laboratory',
         searchSource: 'catalog'
       }));
     } catch (error) {

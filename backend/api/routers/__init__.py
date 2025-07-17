@@ -48,12 +48,14 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.tasks.router import router as clinical_tasks_router
         from api.clinical.alerts.router import router as clinical_alerts_router
         from api.clinical.inbox.router import router as clinical_inbox_router
+        from api.clinical.cds_clinical_data import router as cds_clinical_data_router
         
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
         app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
         app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
+        app.include_router(cds_clinical_data_router, tags=["CDS Clinical Data"])
         logger.info("✓ Clinical workflow routers registered")
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")
@@ -107,10 +109,13 @@ def register_all_routers(app: FastAPI) -> None:
     # 8. Patient Data & Provider Directory
     try:
         from api.patient_data import router as patient_data_router
+        from api.clinical.provider_directory_router import router as provider_directory_router
+        
         app.include_router(patient_data_router, prefix="/api", tags=["Patient Data"])
-        logger.info("✓ Patient data routers registered")
+        app.include_router(provider_directory_router, tags=["Provider Directory"])
+        logger.info("✓ Patient data & provider directory routers registered")
     except Exception as e:
-        logger.error(f"Failed to register patient data routers: {e}")
+        logger.error(f"Failed to register patient data/provider routers: {e}")
     
     # 9. Debug Tools (development only)
     try:

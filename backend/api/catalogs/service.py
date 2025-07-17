@@ -172,12 +172,13 @@ class UnifiedCatalogService:
             
             for test in dynamic_tests[:limit]:
                 results.append(LabTestCatalogItem(
-                    id=test.get('code', ''),
+                    id=test.get('id', ''),
                     test_name=test.get('display', ''),
-                    test_code=test.get('code', ''),
-                    loinc_code=test.get('code'),
+                    test_code=test.get('loinc_code', ''),
+                    loinc_code=test.get('loinc_code'),
                     reference_range=test.get('reference_range'),
-                    usage_count=test.get('frequency', 0)
+                    usage_count=test.get('frequency_count', 0),
+                    specimen_type=test.get('specimen_type', 'blood')
                 ))
         except Exception as e:
             logger.warning(f"Dynamic lab catalog failed: {e}")

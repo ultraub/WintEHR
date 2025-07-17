@@ -274,7 +274,7 @@ class CDSClinicalDataService {
       if (category) params.category = category;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/condition-catalog`, { params });
+      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);

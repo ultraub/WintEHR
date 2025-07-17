@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
+from datetime import datetime
 
-from core.database import get_session
+from database import get_db_session as get_session
 from fhir.core.storage import FHIRStorageEngine
 from api.services.clinical.provider_directory_service import ProviderDirectoryService
-from api.auth_enhanced import verify_token_or_demo
+from api.auth.service import get_optional_current_user
+from api.auth.models import User
 
 router = APIRouter(prefix="/provider-directory", tags=["provider-directory"])
 
@@ -63,7 +65,7 @@ async def search_providers(
     name: Optional[str] = Query(None, description="Provider name search"),
     active_only: bool = Query(True, description="Only return active providers"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Search for healthcare providers with various filters.
@@ -119,7 +121,7 @@ async def search_providers(
 async def get_provider_profile(
     practitioner_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get complete provider profile including roles, specialties, and locations.
@@ -145,7 +147,7 @@ async def get_provider_profile(
 async def get_provider_roles(
     practitioner_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all roles for a practitioner across organizations and locations.
@@ -170,7 +172,7 @@ async def get_provider_roles(
 async def get_provider_specialties(
     practitioner_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all specialties for a practitioner.
@@ -195,7 +197,7 @@ async def get_provider_specialties(
 async def get_provider_locations(
     practitioner_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all locations where a practitioner provides services.
@@ -227,7 +229,7 @@ async def search_providers_near_location(
     distance_km: float = Query(50, ge=1, le=500, description="Search radius in kilometers"),
     specialty_code: Optional[str] = Query(None, description="Optional specialty filter"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Search for providers within geographic distance with optional specialty filtering.
@@ -261,7 +263,7 @@ async def search_providers_near_location(
 async def search_providers_near_location_post(
     request: GeographicSearchRequest,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Search for providers within geographic distance (POST version with request body).
@@ -293,7 +295,7 @@ async def search_locations_near(
     distance_km: float = Query(50, ge=1, le=500, description="Search radius in kilometers"),
     location_type: Optional[str] = Query(None, description="Location type filter"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Search for locations within geographic distance.
@@ -335,7 +337,7 @@ async def search_locations_near(
 async def get_organization_hierarchy(
     organization_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get organizational hierarchy for an organization.
@@ -365,7 +367,7 @@ async def get_organization_providers(
     organization_id: str,
     active_only: bool = Query(True, description="Only return active providers"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all providers associated with an organization.
@@ -394,7 +396,7 @@ async def get_organization_providers(
 async def get_location_hierarchy(
     location_id: str,
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get location hierarchy for a location.
@@ -421,7 +423,7 @@ async def get_location_providers(
     location_id: str,
     active_only: bool = Query(True, description="Only return active providers"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all providers who provide services at a specific location.
@@ -468,7 +470,7 @@ async def get_location_providers(
 @router.get("/specialties")
 async def get_available_specialties(
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all available provider specialties in the system.
@@ -479,11 +481,27 @@ async def get_available_specialties(
         # Search all PractitionerRole resources to get unique specialties
         roles_response = await storage.search_resources('PractitionerRole', {})
         
+        # Handle different response formats from search_resources
+        entries = []
+        if isinstance(roles_response, tuple):
+            # If it's a tuple, first element might be the data
+            data = roles_response[0] if roles_response else []
+            if isinstance(data, dict) and 'entry' in data:
+                entries = data.get('entry', [])
+            elif isinstance(data, list):
+                entries = data
+        elif isinstance(roles_response, dict) and 'entry' in roles_response:
+            entries = roles_response.get('entry', [])
+        elif isinstance(roles_response, list):
+            entries = roles_response
+            
         specialties = []
         specialty_codes = set()
         
-        for entry in roles_response.get('entry', []):
-            role_resource = entry['resource']
+        for entry in entries:
+            # Handle both direct resources and bundle entries
+            if isinstance(entry, dict):
+                role_resource = entry.get('resource', entry)
             
             for specialty in role_resource.get('specialty', []):
                 for coding in specialty.get('coding', []):
@@ -509,7 +527,7 @@ async def get_available_specialties(
 async def get_available_organizations(
     active_only: bool = Query(True, description="Only return active organizations"),
     session: AsyncSession = Depends(get_session),
-    token_data: dict = Depends(verify_token_or_demo)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """
     Get all available organizations in the system.
@@ -517,30 +535,62 @@ async def get_available_organizations(
     try:
         storage = FHIRStorageEngine(session)
         
+        # For now, don't filter by active status
+        # TODO: Fix search parameter handling
         search_params = {}
-        if active_only:
-            search_params['active'] = 'true'
         
         orgs_response = await storage.search_resources('Organization', search_params)
+        
+        # Handle different response formats from search_resources
+        entries = []
+        if isinstance(orgs_response, tuple):
+            # If it's a tuple, first element might be the data
+            data = orgs_response[0] if orgs_response else []
+            if isinstance(data, dict) and 'entry' in data:
+                entries = data.get('entry', [])
+            elif isinstance(data, list):
+                entries = data
+        elif isinstance(orgs_response, dict) and 'entry' in orgs_response:
+            entries = orgs_response.get('entry', [])
+        elif isinstance(orgs_response, list):
+            entries = orgs_response
+            
         organizations = []
         
-        for entry in orgs_response.get('entry', []):
-            org = entry['resource']
-            organizations.append({
-                'id': org['id'],
-                'name': org.get('name', ''),
-                'active': org.get('active', True),
-                'type': org.get('type', []),
-                'address': org.get('address', [])
-            })
+        for entry in entries:
+            try:
+                # Handle both direct resources and bundle entries
+                org = None
+                if isinstance(entry, dict):
+                    org = entry.get('resource', entry)
+                else:
+                    # Skip non-dict entries
+                    continue
+                    
+                # Skip if not a proper dict
+                if not isinstance(org, dict) or 'id' not in org:
+                    continue
+                    
+                organizations.append({
+                    'id': org.get('id', ''),
+                    'name': org.get('name', ''),
+                    'active': org.get('active', True),
+                    'type': org.get('type', []),
+                    'address': org.get('address', [])
+                })
+            except Exception:
+                # Skip entries that cause errors
+                continue
         
         return {
-            "organizations": sorted(organizations, key=lambda x: x['name']),
+            "organizations": sorted(organizations, key=lambda x: x.get('name', '')),
             "total": len(organizations)
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting available organizations: {str(e)}")
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting available organizations: {str(e)} - Traceback: {tb}")
 
 
 @router.get("/health")
