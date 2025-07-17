@@ -39,7 +39,7 @@ import {
   CircularProgress,
   Skeleton
 } from '@mui/material';
-import { TreeView, TreeItem } from '@mui/lab';
+// TreeView removed - using custom list-based implementation
 import {
   Schema as SchemaIcon,
   ExpandMore as ExpandMoreIcon,
@@ -60,7 +60,8 @@ import {
   LockOpen as LockOpenIcon,
   Download as DownloadIcon,
   Refresh as RefreshIcon,
-  TrendingUp as TrendingUpIcon
+  TrendingUp as TrendingUpIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { fhirSchemaService } from '../../../services/fhirSchemaService';
@@ -130,6 +131,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [loadingSchema, setLoadingSchema] = useState(false);
+  const [elementSearchTerm, setElementSearchTerm] = useState('');
 
   // Load resource types on mount
   useEffect(() => {
@@ -144,6 +146,13 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       loadResourceSchema(selectedResource);
     }
   }, [selectedResource]);
+  
+  // Initialize expanded nodes
+  useEffect(() => {
+    if (!expandedNodes.includes('root')) {
+      setExpandedNodes(['root']);
+    }
+  }, []);
 
   const loadResourceTypes = async () => {
     try {
@@ -166,41 +175,21 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       setLoadingSchema(true);
       setError(null);
       
-      // Clear existing schema for this resource to force re-render
-      setSchemas(prev => {
-        const updated = { ...prev };
-        delete updated[resourceType];
-        return updated;
-      });
-      
       const schema = await fhirSchemaService.getResourceSchema(resourceType);
-      console.log(`Loaded schema for ${resourceType}:`, schema); // Debug log
       
       // Verify schema structure
       if (!schema || typeof schema !== 'object') {
         throw new Error('Invalid schema structure received');
       }
       
-      // Verify elements exist
-      if (!schema.elements || Object.keys(schema.elements).length === 0) {
-        console.warn(`No elements found in schema for ${resourceType}`);
-      }
+      // Update schemas state
+      setSchemas(prev => ({ ...prev, [resourceType]: schema }));
       
-      // Update schemas state with a small delay to ensure React processes the update
-      setTimeout(() => {
-        setSchemas(prev => {
-          const updated = { ...prev, [resourceType]: schema };
-          console.log('Updated schemas state:', updated);
-          console.log(`Schema for ${resourceType} has ${Object.keys(schema.elements || {}).length} elements`);
-          return updated;
-        });
-        
-        // Force expand first few nodes for better UX
-        if (schema.elements) {
-          const firstKeys = Object.keys(schema.elements).slice(0, 5);
-          setExpandedNodes(['root', ...firstKeys]);
-        }
-      }, 100);
+      // Expand first few nodes for better UX
+      if (schema.elements) {
+        const firstKeys = Object.keys(schema.elements).slice(0, 3);
+        setExpandedNodes(['root', ...firstKeys]);
+      }
       
     } catch (error) {
       console.error(`Failed to load schema for ${resourceType}:`, error);
@@ -212,7 +201,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
         return updated;
       });
     } finally {
-      setTimeout(() => setLoadingSchema(false), 150);
+      setLoadingSchema(false);
     }
   };
 
@@ -231,6 +220,11 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       setStats(statsData);
     } catch (error) {
       console.error('Failed to load stats:', error);
+      // Set default stats on error
+      setStats({
+        totalResources: resourceTypes.length || 0,
+        categories: {}
+      });
     }
   };
 
@@ -251,32 +245,78 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
     return schemas[selectedResource] || null;
   }, [selectedResource, schemas]);
 
-  // Build tree structure for schema
-  const buildTreeItems = useCallback((elements, parentId = '') => {
-    console.log('buildTreeItems called with:', { parentId, elementCount: Object.keys(elements || {}).length });
+  // Helper function to check if an element matches search criteria
+  const elementMatchesSearch = useCallback((key, element, searchTerm) => {
+    if (!searchTerm) return true;
     
+    const search = searchTerm.toLowerCase();
+    const keyLower = key.toLowerCase();
+    const typeLower = (element.type || '').toLowerCase();
+    const descriptionLower = (element.description || '').toLowerCase();
+    
+    return keyLower.includes(search) || 
+           typeLower.includes(search) || 
+           descriptionLower.includes(search);
+  }, []);
+
+  // Recursive function to find all matching elements
+  const findMatchingElements = useCallback((elements, parentId = '', searchTerm = '') => {
     if (!elements || typeof elements !== 'object') {
-      console.warn('Invalid elements provided to buildTreeItems:', elements);
+      return [];
+    }
+    
+    const matches = [];
+    
+    Object.entries(elements).forEach(([key, element]) => {
+      if (!element || typeof element !== 'object') return;
+      
+      const nodeId = parentId ? `${parentId}.${key}` : key;
+      
+      // Check if this element matches
+      if (elementMatchesSearch(key, element, searchTerm)) {
+        matches.push(nodeId);
+      }
+      
+      // Check child elements
+      if (element.elements) {
+        matches.push(...findMatchingElements(element.elements, nodeId, searchTerm));
+      }
+    });
+    
+    return matches;
+  }, [elementMatchesSearch]);
+
+  // Build tree structure for schema with search filtering
+  const buildTreeItems = useCallback((elements, parentId = '', searchTerm = '') => {
+    if (!elements || typeof elements !== 'object') {
       return null;
     }
     
     const entries = Object.entries(elements);
     if (entries.length === 0) {
-      console.warn('No elements to display in schema');
       return null;
     }
     
-    const treeItems = entries.map(([key, element]) => {
+    return entries.map(([key, element]) => {
       if (!element || typeof element !== 'object') {
-        console.warn(`Invalid element for key ${key}:`, element);
         return null;
       }
       
       const nodeId = parentId ? `${parentId}.${key}` : key;
       
+      // Check if this element or any of its children match the search
+      const hasMatchingChildren = element.elements && 
+        findMatchingElements(element.elements, nodeId, searchTerm).length > 0;
+      const elementMatches = elementMatchesSearch(key, element, searchTerm);
+      
+      // Hide element if it doesn't match and has no matching children
+      if (searchTerm && !elementMatches && !hasMatchingChildren) {
+        return null;
+      }
+      
       // Handle choice elements
       let displayKey = key;
-      let displayType = element.type || 'unknown';
+      let displayType = element.type || 'Element';
       if (element.isChoice) {
         displayKey = `${key}[x]`;
         if (element.choices && element.choices.length > 0) {
@@ -286,23 +326,87 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       
       const dataType = DATA_TYPE_ICONS[element.type] || DATA_TYPE_ICONS.default;
       
-      // Create a simple label first to debug
+      // Highlight matching text
+      const highlightText = (text, highlight) => {
+        if (!highlight) return text;
+        
+        const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+        return parts.map((part, index) => 
+          part.toLowerCase() === highlight.toLowerCase() ? (
+            <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
+              {part}
+            </mark>
+          ) : part
+        );
+      };
+      
       const labelContent = (
         <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 1 }}>
-          <Box sx={{ color: dataType.color, display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ color: dataType.color, display: 'flex', alignItems: 'center', minWidth: 24 }}>
             {React.cloneElement(dataType.icon, { fontSize: 'small' })}
           </Box>
-          <Typography variant="body2" sx={{ fontWeight: element.required ? 600 : 400 }}>
-            {displayKey}
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontWeight: element.required ? 600 : 400,
+              flex: 1
+            }}
+          >
+            {searchTerm ? highlightText(displayKey, searchTerm) : displayKey}
           </Typography>
           {element.required && (
-            <Chip label="REQ" size="small" color="error" sx={{ height: 16, fontSize: '0.7rem' }} />
+            <Chip 
+              label="required" 
+              size="small" 
+              color="error" 
+              sx={{ 
+                height: 18, 
+                fontSize: '0.65rem',
+                '& .MuiChip-label': {
+                  px: 0.75
+                }
+              }} 
+            />
           )}
           {element.array && (
-            <Chip label="[]" size="small" color="primary" sx={{ height: 16, fontSize: '0.7rem' }} />
+            <Chip 
+              label="array" 
+              size="small" 
+              color="primary" 
+              sx={{ 
+                height: 18, 
+                fontSize: '0.65rem',
+                '& .MuiChip-label': {
+                  px: 0.75
+                }
+              }} 
+            />
           )}
-          <Typography variant="caption" color="text.secondary">
-            ({displayType})
+          {element.binding && (
+            <Chip 
+              label={element.binding.strength} 
+              size="small" 
+              color="secondary" 
+              sx={{ 
+                height: 18, 
+                fontSize: '0.65rem',
+                '& .MuiChip-label': {
+                  px: 0.75
+                }
+              }}
+              title={element.binding.description || element.binding.valueSet}
+            />
+          )}
+          <Typography 
+            variant="caption" 
+            color="text.secondary" 
+            sx={{ 
+              fontStyle: 'italic',
+              minWidth: 80,
+              textAlign: 'right'
+            }}
+          >
+            {searchTerm ? highlightText(displayType, searchTerm) : displayType}
           </Typography>
         </Box>
       );
@@ -312,21 +416,23 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
           key={nodeId}
           nodeId={nodeId}
           label={labelContent}
-          onClick={() => setSelectedElement({ key: displayKey, path: nodeId, ...element })}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedElement({ key: displayKey, path: nodeId, ...element });
+          }}
         >
-          {element.elements && buildTreeItems(element.elements, nodeId)}
+          {element.elements && buildTreeItems(element.elements, nodeId, searchTerm)}
         </TreeItem>
       );
     }).filter(Boolean);
-    
-    console.log(`buildTreeItems returning ${treeItems.length} items`);
-    return treeItems;
-  }, []);
+  }, [elementMatchesSearch, findMatchingElements]);
 
   // Handle node toggle
   const handleToggle = (event, nodeIds) => {
     setExpandedNodes(nodeIds);
   };
+
+  // Auto-expand logic not needed for list-based tree view
 
   // Copy to clipboard
   const copyToClipboard = useCallback((text) => {
@@ -382,20 +488,18 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Schema Explorer
         </Typography>
-        {stats && (
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Chip
-              icon={<SchemaIcon />}
-              label={`${stats.totalResources} Resources`}
-              color="primary"
-            />
-            <Chip
-              icon={<TrendingUpIcon />}
-              label={`${Object.keys(schemas).length} Loaded`}
-              color="secondary"
-            />
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Chip
+            icon={<SchemaIcon />}
+            label={`${stats?.totalResources || resourceTypes.length} Resources`}
+            color="primary"
+          />
+          <Chip
+            icon={<TrendingUpIcon />}
+            label={`${Object.keys(schemas).length} Loaded`}
+            color="secondary"
+          />
+        </Box>
       </Box>
 
       {error && (
@@ -447,6 +551,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                     sx={{
                       borderRadius: 1,
                       mb: 0.5,
+                      position: 'relative',
                       '&.Mui-selected': {
                         bgcolor: 'primary.light',
                         color: 'primary.contrastText',
@@ -457,18 +562,26 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                     }}
                   >
                     <ListItemIcon>
-                      <SchemaIcon color={selectedResource === resource ? 'inherit' : 'primary'} />
+                      <Badge 
+                        color="success" 
+                        variant="dot" 
+                        invisible={!schemas[resource]}
+                        sx={{ '& .MuiBadge-dot': { right: -3, top: -3 } }}
+                      >
+                        <SchemaIcon color={selectedResource === resource ? 'inherit' : 'primary'} />
+                      </Badge>
                     </ListItemIcon>
                     <ListItemText
                       primary={resource}
                       secondary={
                         schemas[resource] 
                           ? schemas[resource].description?.substring(0, 50) + '...'
-                          : 'Loading...'
+                          : 'Click to load schema'
                       }
                       secondaryTypographyProps={{ 
                         noWrap: true,
-                        color: selectedResource === resource ? 'inherit' : 'text.secondary'
+                        color: selectedResource === resource ? 'inherit' : 'text.secondary',
+                        fontSize: '0.75rem'
                       }}
                     />
                     {fhirData && fhirData.resources && fhirData.resources[resource] && (
@@ -476,6 +589,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                         label={fhirData.resources[resource].length}
                         size="small"
                         color={selectedResource === resource ? 'default' : 'secondary'}
+                        sx={{ height: 20, fontSize: '0.7rem' }}
                       />
                     )}
                   </ListItem>
@@ -493,21 +607,111 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
               <Typography variant="h6" sx={{ flex: 1 }}>
                 {selectedResource} Schema
               </Typography>
-              <IconButton size="small" onClick={exportSchema} disabled={!currentSchema}>
-                <DownloadIcon />
-              </IconButton>
-              <IconButton 
-                size="small" 
-                onClick={async () => {
-                  fhirSchemaService.clearCache();
-                  await loadResourceSchema(selectedResource);
-                }}
-                disabled={loadingSchema}
-                title="Refresh schema"
-              >
-                <RefreshIcon />
-              </IconButton>
+              <Tooltip title="Expand all">
+                <span>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => {
+                      if (currentSchema?.elements) {
+                        const allNodeIds = [];
+                        const collectNodeIds = (elements, parentId = '') => {
+                          Object.keys(elements).forEach(key => {
+                            const nodeId = parentId ? `${parentId}.${key}` : key;
+                            allNodeIds.push(nodeId);
+                            if (elements[key].elements) {
+                              collectNodeIds(elements[key].elements, nodeId);
+                            }
+                          });
+                        };
+                        collectNodeIds(currentSchema.elements);
+                        setExpandedNodes(['root', ...allNodeIds]);
+                      }
+                    }}
+                    disabled={!currentSchema}
+                  >
+                    <ExpandMoreIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Collapse all">
+                <span>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setExpandedNodes([])}
+                    disabled={!currentSchema}
+                  >
+                    <ChevronRightIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Export schema">
+                <span>
+                  <IconButton size="small" onClick={exportSchema} disabled={!currentSchema}>
+                    <DownloadIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Refresh schema">
+                <span>
+                  <IconButton 
+                    size="small" 
+                    onClick={async () => {
+                      fhirSchemaService.clearCache();
+                      await loadResourceSchema(selectedResource);
+                    }}
+                    disabled={loadingSchema}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
             </Box>
+
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search elements..."
+              value={elementSearchTerm}
+              onChange={(e) => setElementSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: elementSearchTerm && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setElementSearchTerm('')}
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }}
+              sx={{ mb: 1 }}
+            />
+            
+            {elementSearchTerm && currentSchema?.elements && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {(() => {
+                    const matches = Object.entries(currentSchema.elements)
+                      .filter(([key, element]) => elementMatchesSearch(key, element, elementSearchTerm));
+                    return `${matches.length} element${matches.length === 1 ? '' : 's'} found`;
+                  })()}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => setElementSearchTerm('')}
+                  sx={{ minWidth: 'auto', px: 1 }}
+                >
+                  Clear
+                </Button>
+              </Box>
+            )}
 
             {loadingSchema ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -519,50 +723,85 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                   {currentSchema.description}
                 </Typography>
 
-                {/* Debug info */}
-                {process.env.NODE_ENV === 'development' && (
-                  <Alert severity="info" sx={{ mb: 2, fontSize: '0.75rem' }}>
-                    Debug: Schema loaded with {Object.keys(currentSchema.elements || {}).length} elements
-                  </Alert>
-                )}
-
                 {currentSchema.elements && Object.keys(currentSchema.elements).length > 0 ? (
                   <Box sx={{ flex: 1, overflow: 'auto' }}>
-                    {/* Temporary simple list to debug */}
-                    <List dense sx={{ mb: 2, bgcolor: 'grey.50', p: 1, borderRadius: 1 }}>
-                      {Object.entries(currentSchema.elements).slice(0, 5).map(([key, element]) => (
-                        <ListItem key={key}>
-                          <ListItemText 
-                            primary={`${key} (${element.type})`}
-                            secondary={element.description?.substring(0, 50) + '...'}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                    
-                    <TreeView
-                      defaultCollapseIcon={<ExpandMoreIcon />}
-                      defaultExpandIcon={<ChevronRightIcon />}
-                      expanded={expandedNodes}
-                      onNodeToggle={handleToggle}
-                      sx={{
-                        '.MuiTreeItem-content': {
-                          borderRadius: 1,
-                          '&:hover': {
-                            bgcolor: 'action.hover'
-                          }
-                        },
-                        '.MuiTreeItem-label': {
-                          fontSize: '0.875rem'
-                        }
-                      }}
-                    >
-                      {(() => {
-                        const items = buildTreeItems(currentSchema.elements);
-                        console.log('Built tree items:', items);
-                        return items || [];
-                      })()}
-                    </TreeView>
+                    {/* Schema Elements List */}
+                    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                        FHIR Schema Elements
+                      </Typography>
+                      <List dense>
+                        {Object.entries(currentSchema.elements)
+                          .filter(([key, element]) => {
+                            if (!elementSearchTerm) return true;
+                            return elementMatchesSearch(key, element, elementSearchTerm);
+                          })
+                          .map(([key, element]) => {
+                            const displayKey = element.isChoice ? `${key}[x]` : key;
+                            const highlightText = (text, highlight) => {
+                              if (!highlight) return text;
+                              const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+                              return parts.map((part, index) => 
+                                part.toLowerCase() === highlight.toLowerCase() ? (
+                                  <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
+                                    {part}
+                                  </mark>
+                                ) : part
+                              );
+                            };
+                            
+                            return (
+                              <ListItem 
+                                key={key} 
+                                button 
+                                onClick={() => setSelectedElement({ key: displayKey, path: key, ...element })}
+                                sx={{
+                                  pl: 2,
+                                  '&:hover': { bgcolor: 'action.hover' },
+                                  borderBottom: '1px solid',
+                                  borderColor: 'divider'
+                                }}
+                              >
+                                <ListItemIcon>
+                                  <Box sx={{ color: DATA_TYPE_ICONS[element.type]?.color || '#607D8B' }}>
+                                    {DATA_TYPE_ICONS[element.type]?.icon || <DataObjectIcon />}
+                                  </Box>
+                                </ListItemIcon>
+                                <ListItemText 
+                                  primary={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: element.required ? 600 : 400 }}>
+                                        {elementSearchTerm ? highlightText(displayKey, elementSearchTerm) : displayKey}
+                                      </Typography>
+                                      {element.required && (
+                                        <Chip label="required" size="small" color="error" sx={{ height: 16, fontSize: '0.65rem' }} />
+                                      )}
+                                      {element.array && (
+                                        <Chip label="array" size="small" color="primary" sx={{ height: 16, fontSize: '0.65rem' }} />
+                                      )}
+                                      {element.binding && (
+                                        <Chip 
+                                          label={element.binding.strength} 
+                                          size="small" 
+                                          color="secondary" 
+                                          sx={{ height: 16, fontSize: '0.65rem' }} 
+                                        />
+                                      )}
+                                    </Box>
+                                  }
+                                  secondary={
+                                    <Box>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {elementSearchTerm ? highlightText(element.type, elementSearchTerm) : element.type} - {element.description?.substring(0, 100)}...
+                                      </Typography>
+                                    </Box>
+                                  }
+                                />
+                              </ListItem>
+                            );
+                          })}
+                      </List>
+                    </Box>
                   </Box>
                 ) : (
                   <Alert severity="warning" sx={{ mt: 2 }}>
