@@ -481,7 +481,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     return { start, end };
   }, [filterPeriod]);
   
-  // Use paginated hooks for observations - separate by category
+  // Use paginated hooks for observations - separate by category (for table views)
   const labObservations = usePaginatedObservations(patientId, {
     category: selectedCategory === 'laboratory' ? 'laboratory' : (selectedCategory === 'all' ? null : undefined),
     pageSize: rowsPerPage,
@@ -496,30 +496,36 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     dateRange,
     code: searchTerm || null
   });
+
+  // Chart-specific hooks for complete historical data (no pagination limits)
+  const labObservationsForCharts = usePaginatedObservations(patientId, {
+    category: 'laboratory',
+    pageSize: 1000, // Large limit to get all historical data
+    dateRange: null, // Get all historical data for trends
+    status: null, // Include all statuses for comprehensive trends
+    code: null // Get all lab tests for trending
+  });
+  
+  const vitalObservationsForCharts = usePaginatedObservations(patientId, {
+    category: 'vital-signs',
+    pageSize: 1000, // Large limit to get all historical data
+    dateRange: null, // Get all historical data for trends
+    code: null // Get all vital signs for trending
+  });
   
   // Use paginated hook for diagnostic reports
   const diagnosticReportsData = usePaginatedDiagnosticReports(patientId, {
     pageSize: rowsPerPage,
     status: filterStatus === 'all' ? null : filterStatus
   });
-  
-  // Combine observations based on tab
-  const observations = useMemo(() => {
-    if (tabValue === 0) { // Lab Results
-      return labObservations.observations;
-    } else if (tabValue === 1) { // Vitals
-      return vitalObservations.observations;
-    } else {
-      return [];
-    }
-  }, [tabValue, labObservations.observations, vitalObservations.observations]);
-  
   const diagnosticReports = diagnosticReportsData.reports;
   
-  // Get loading state based on active tab
-  const loading = tabValue === 0 ? labObservations.loading : 
-                 tabValue === 1 ? vitalObservations.loading :
-                 tabValue === 2 ? diagnosticReportsData.loading : false;
+  // Get loading state based on active tab (include chart data for trends view)
+  const loading = tabValue === 0 ? (
+    viewMode === 'trends' ? (labObservations.loading || labObservationsForCharts.loading) : labObservations.loading
+  ) : tabValue === 1 ? (
+    viewMode === 'trends' ? (vitalObservations.loading || vitalObservationsForCharts.loading) : vitalObservations.loading
+  ) : tabValue === 2 ? diagnosticReportsData.loading : false;
   
   // Get current page data based on tab
   const currentPageData = tabValue === 0 ? labObservations : 
@@ -529,12 +535,15 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   // Enhanced critical value monitoring with detection service
   useEffect(() => {
     const monitorCriticalValues = async () => {
-      if (observations && observations.length > 0) {
+      const currentObservations = tabValue === 0 ? labObservations.observations : 
+                                 tabValue === 1 ? vitalObservations.observations : [];
+      
+      if (currentObservations && currentObservations.length > 0) {
         try {
           // Check for critical values in current observations
           const criticalAssessments = [];
           
-          for (const obs of observations) {
+          for (const obs of currentObservations) {
             const assessment = criticalValueDetectionService.isCriticalValue(obs);
             if (assessment.isCritical) {
               criticalAssessments.push({
@@ -571,7 +580,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           const oneDayAgo = new Date();
           oneDayAgo.setDate(oneDayAgo.getDate() - 1);
           
-          const recentAbnormalResults = observations.filter(obs => {
+          const recentAbnormalResults = currentObservations.filter(obs => {
             // Skip if already alerted
             if (alertedResults.has(obs.id)) return false;
             
@@ -630,7 +639,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     };
 
     monitorCriticalValues();
-  }, [observations, patientId, createCriticalAlert, publish, alertedResults, criticalAlertOpen]);
+  }, [tabValue, labObservations.observations, vitalObservations.observations, patientId, createCriticalAlert, publish, alertedResults, criticalAlertOpen]);
 
   const handleViewDetails = (result) => {
     setSelectedResult(result);
@@ -905,28 +914,27 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     setFacilityFilteredResults(results);
   };
 
-  // Memoized categorization to prevent recalculation on every render
-  const categorizedObservations = useMemo(() => {
-    const labResults = [];
-    const vitalSigns = [];
-    const otherResults = [];
+  // Enhanced chart data with reference ranges and categorization
+  const enhancedChartData = useMemo(() => {
+    const labResultsForCharts = [];
+    const vitalSignsForCharts = [];
     
-    observations.forEach(o => {
+    // Process lab observations for charts
+    labObservationsForCharts.observations.forEach(o => {
       const enhancedObs = enhanceObservationWithReferenceRange(o);
-      const category = getObservationCategory(enhancedObs);
-      if (category === 'laboratory') {
-        labResults.push(enhancedObs);
-      } else if (category === 'vital-signs') {
-        vitalSigns.push(enhancedObs);
-      } else {
-        otherResults.push(enhancedObs);
-      }
+      labResultsForCharts.push(enhancedObs);
     });
     
-    return { labResults, vitalSigns, otherResults };
-  }, [observations]);
+    // Process vital observations for charts
+    vitalObservationsForCharts.observations.forEach(o => {
+      const enhancedObs = enhanceObservationWithReferenceRange(o);
+      vitalSignsForCharts.push(enhancedObs);
+    });
+    
+    return { labResultsForCharts, vitalSignsForCharts };
+  }, [labObservationsForCharts.observations, vitalObservationsForCharts.observations]);
   
-  const { labResults, vitalSigns, otherResults } = categorizedObservations;
+  const { labResultsForCharts, vitalSignsForCharts } = enhancedChartData;
 
   // Memoized filter function to prevent recalculation
   const filterResults = useCallback((results) => {
@@ -998,8 +1006,15 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         }
         break;
       case 1: 
-        // Vital Signs
-        currentResults = filterResults(vitalObservations.observations);
+        // Vital Signs - Support advanced filtering
+        if (filteredByValue && advancedFilteredResults.length > 0) {
+          currentResults = filterResults(advancedFilteredResults);
+        } else if (filteredByValue && advancedFilters.length > 0) {
+          // Advanced filters active but no results found
+          currentResults = [];
+        } else {
+          currentResults = filterResults(vitalObservations.observations);
+        }
         break;
       case 2: 
         // Diagnostic Reports
@@ -1257,11 +1272,11 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         </Stack>
       </Paper>
 
-      {/* Advanced Lab Value Filtering - Only show for Lab Results tab */}
-      {tabValue === 0 && (
+      {/* Advanced Value Filtering - Show for Lab Results and Vital Signs tabs */}
+      {(tabValue === 0 || tabValue === 1) && (
         <AdvancedLabValueFilter
           patientId={patientId}
-          observations={labObservations.observations}
+          observations={tabValue === 0 ? labObservations.observations : vitalObservations.observations}
           currentTab={tabValue}
           onFilterChange={handleAdvancedFilterChange}
           onFilteredResultsChange={(results) => {
@@ -1343,9 +1358,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 {advancedFilters.map((f, i) => (
                   <Chip
                     key={i}
-                    label={`${f.codeName} ${f.operator} ${f.value} ${f.unit}`}
+                    label={f.testDisplay + ' ' + (
+                      f.operator === 'range' 
+                        ? `${f.rangeMin}-${f.rangeMax} ${f.unit}`
+                        : `${f.operator} ${f.value} ${f.unit}`
+                    )}
                     size="small"
-                    color={f.severity === 'critical' ? 'error' : 'warning'}
+                    color={f.category === 'critical' ? 'error' : 'warning'}
                     sx={{ ml: 1, mb: 0.5 }}
                   />
                 ))}
@@ -1353,7 +1372,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             ) : (
               <>
                 No results found matching {advancedFilters.length} advanced filter(s). 
-                Try adjusting the filter criteria or check if the patient has recent lab results.
+                Try adjusting the filter criteria or check if the patient has recent {tabValue === 0 ? 'lab results' : 'vital signs'}.
               </>
             )}
           </Typography>
@@ -1365,7 +1384,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         <Box sx={{ mb: 3 }}>
           <LabCareRecommendations
             patientId={patientId}
-            observations={labObservations.observations}
+            observations={labResultsForCharts}
             carePlanId={carePlanId}
             onRecommendationApplied={(recommendation, result) => {
               setSnackbar({
@@ -1440,7 +1459,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         // Lab Trends View
         <LabTrendsChart 
           patientId={patientId}
-          observations={labObservations.observations}
+          observations={labResultsForCharts}
           height={500}
         />
       ) : viewMode === 'table' && tabValue !== 1 ? (
@@ -1501,7 +1520,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           ) : viewMode === 'trends' ? (
             <VitalsOverview 
               patientId={patientId} 
-              vitalsData={vitalObservations.observations}
+              vitalsData={vitalSignsForCharts}
               compact={false}
             />
           ) : viewMode === 'table' ? (

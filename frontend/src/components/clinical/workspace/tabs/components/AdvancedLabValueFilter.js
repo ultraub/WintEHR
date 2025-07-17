@@ -48,7 +48,6 @@ import {
   Save as SaveIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
-import { fhirClient } from '../../../../../core/fhir/services/fhirClient';
 
 // Critical value presets for laboratory tests
 const LAB_VALUE_PRESETS = [
@@ -164,6 +163,109 @@ const LAB_VALUE_PRESETS = [
   }
 ];
 
+// Vital signs presets for common abnormal values
+const VITAL_SIGNS_PRESETS = [
+  {
+    id: 'bp_high_systolic',
+    label: 'Systolic BP > 180',
+    code: '8480-6', // Systolic blood pressure
+    system: 'http://loinc.org',
+    operator: 'gt',
+    value: 180,
+    unit: 'mmHg',
+    category: 'critical',
+    description: 'Critical high systolic blood pressure'
+  },
+  {
+    id: 'bp_low_systolic',
+    label: 'Systolic BP < 90',
+    code: '8480-6',
+    system: 'http://loinc.org',
+    operator: 'lt',
+    value: 90,
+    unit: 'mmHg',
+    category: 'critical',
+    description: 'Critical low systolic blood pressure'
+  },
+  {
+    id: 'bp_high_diastolic',
+    label: 'Diastolic BP > 110',
+    code: '8462-4', // Diastolic blood pressure
+    system: 'http://loinc.org',
+    operator: 'gt',
+    value: 110,
+    unit: 'mmHg',
+    category: 'critical',
+    description: 'Critical high diastolic blood pressure'
+  },
+  {
+    id: 'heart_rate_high',
+    label: 'Heart Rate > 120',
+    code: '8867-4', // Heart rate
+    system: 'http://loinc.org',
+    operator: 'gt',
+    value: 120,
+    unit: 'bpm',
+    category: 'abnormal',
+    description: 'High heart rate (tachycardia)'
+  },
+  {
+    id: 'heart_rate_low',
+    label: 'Heart Rate < 50',
+    code: '8867-4',
+    system: 'http://loinc.org',
+    operator: 'lt',
+    value: 50,
+    unit: 'bpm',
+    category: 'abnormal',
+    description: 'Low heart rate (bradycardia)'
+  },
+  {
+    id: 'temp_high',
+    label: 'Temperature > 101°F',
+    code: '8310-5', // Body temperature
+    system: 'http://loinc.org',
+    operator: 'gt',
+    value: 101,
+    unit: '[degF]',
+    category: 'abnormal',
+    description: 'High body temperature (fever)'
+  },
+  {
+    id: 'temp_low',
+    label: 'Temperature < 95°F',
+    code: '8310-5',
+    system: 'http://loinc.org',
+    operator: 'lt',
+    value: 95,
+    unit: '[degF]',
+    category: 'critical',
+    description: 'Low body temperature (hypothermia)'
+  },
+  {
+    id: 'resp_rate_high',
+    label: 'Respiratory Rate > 24',
+    code: '9279-1', // Respiratory rate
+    system: 'http://loinc.org',
+    operator: 'gt',
+    value: 24,
+    unit: '/min',
+    category: 'abnormal',
+    description: 'High respiratory rate'
+  },
+  {
+    id: 'oxygen_sat_low',
+    label: 'O2 Saturation < 90%',
+    code: '2708-6', // Oxygen saturation
+    system: 'http://loinc.org',
+    operator: 'lt',
+    value: 90,
+    unit: '%',
+    category: 'critical',
+    description: 'Low oxygen saturation'
+  }
+];
+
 // Common lab test options for custom filtering
 const COMMON_LAB_TESTS = [
   { code: '2339-0', display: 'Glucose', system: 'http://loinc.org', commonUnits: ['mg/dL', 'mmol/L'] },
@@ -178,6 +280,19 @@ const COMMON_LAB_TESTS = [
   { code: '2093-3', display: 'Cholesterol', system: 'http://loinc.org', commonUnits: ['mg/dL', 'mmol/L'] }
 ];
 
+// Common vital signs options for custom filtering
+const COMMON_VITAL_SIGNS = [
+  { code: '8480-6', display: 'Systolic Blood Pressure', system: 'http://loinc.org', commonUnits: ['mmHg'] },
+  { code: '8462-4', display: 'Diastolic Blood Pressure', system: 'http://loinc.org', commonUnits: ['mmHg'] },
+  { code: '8867-4', display: 'Heart Rate', system: 'http://loinc.org', commonUnits: ['bpm', '/min'] },
+  { code: '8310-5', display: 'Body Temperature', system: 'http://loinc.org', commonUnits: ['[degF]', 'Cel'] },
+  { code: '9279-1', display: 'Respiratory Rate', system: 'http://loinc.org', commonUnits: ['/min'] },
+  { code: '2708-6', display: 'Oxygen Saturation', system: 'http://loinc.org', commonUnits: ['%'] },
+  { code: '29463-7', display: 'Body Weight', system: 'http://loinc.org', commonUnits: ['kg', 'lb'] },
+  { code: '8302-2', display: 'Body Height', system: 'http://loinc.org', commonUnits: ['cm', 'in'] },
+  { code: '39156-5', display: 'Body Mass Index', system: 'http://loinc.org', commonUnits: ['kg/m2'] }
+];
+
 // Operator options for value comparison
 const COMPARISON_OPERATORS = [
   { value: 'gt', label: 'Greater than (>)', description: 'Values greater than threshold' },
@@ -187,6 +302,31 @@ const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'Equal to (=)', description: 'Values equal to threshold' },
   { value: 'ne', label: 'Not equal to (≠)', description: 'Values not equal to threshold' }
 ];
+
+// Helper functions to get appropriate data based on tab
+const getPresetsForTab = (tabIndex) => {
+  switch (tabIndex) {
+    case 0: return LAB_VALUE_PRESETS; // Lab Results
+    case 1: return VITAL_SIGNS_PRESETS; // Vital Signs
+    default: return [];
+  }
+};
+
+const getTestOptionsForTab = (tabIndex) => {
+  switch (tabIndex) {
+    case 0: return COMMON_LAB_TESTS; // Lab Results
+    case 1: return COMMON_VITAL_SIGNS; // Vital Signs
+    default: return [];
+  }
+};
+
+const getFilterTitleForTab = (tabIndex) => {
+  switch (tabIndex) {
+    case 0: return 'Advanced Lab Value Filtering';
+    case 1: return 'Advanced Vital Signs Filtering';
+    default: return 'Advanced Filtering';
+  }
+};
 
 const AdvancedLabValueFilter = ({ 
   patientId, 
@@ -207,7 +347,6 @@ const AdvancedLabValueFilter = ({
   const [savedFilters, setSavedFilters] = useState([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [filterName, setFilterName] = useState('');
-  // const [editingFilter, setEditingFilter] = useState(null);
   
   // Custom filter state
   const [selectedTest, setSelectedTest] = useState('');
@@ -217,6 +356,11 @@ const AdvancedLabValueFilter = ({
   const [rangeMin, setRangeMin] = useState('');
   const [rangeMax, setRangeMax] = useState('');
   const [useRange, setUseRange] = useState(false);
+
+  // Get tab-specific data
+  const currentPresets = getPresetsForTab(currentTab);
+  const currentTestOptions = getTestOptionsForTab(currentTab);
+  const filterTitle = getFilterTitleForTab(currentTab);
 
   // Load saved filters on mount
   useEffect(() => {
@@ -257,11 +401,26 @@ const AdvancedLabValueFilter = ({
           const obsCode = obs.code?.coding?.find(c => c.system === 'http://loinc.org')?.code;
           if (obsCode !== filter.testCode) return false;
 
-          // Check if observation has a value
-          if (!obs.valueQuantity?.value) return false;
-
-          const obsValue = obs.valueQuantity.value;
-          const obsUnit = obs.valueQuantity.unit;
+          // Check if observation has a value (either direct or in components for BP)
+          let obsValue, obsUnit;
+          
+          if (obs.valueQuantity?.value) {
+            obsValue = obs.valueQuantity.value;
+            obsUnit = obs.valueQuantity.unit;
+          } else if (obs.component && obs.component.length > 0) {
+            // Handle blood pressure components
+            const targetComponent = obs.component.find(c => 
+              c.code?.coding?.some(coding => coding.code === filter.testCode)
+            );
+            if (targetComponent?.valueQuantity?.value) {
+              obsValue = targetComponent.valueQuantity.value;
+              obsUnit = targetComponent.valueQuantity.unit;
+            } else {
+              return false;
+            }
+          } else {
+            return false;
+          }
 
           // Unit validation (basic check)
           if (filter.unit && obsUnit && obsUnit !== filter.unit) {
@@ -370,7 +529,7 @@ const AdvancedLabValueFilter = ({
       return;
     }
 
-    const testInfo = COMMON_LAB_TESTS.find(t => t.code === selectedTest);
+    const testInfo = currentTestOptions.find(t => t.code === selectedTest);
     if (!testInfo) {
       setError('Invalid test selection');
       return;
@@ -459,7 +618,7 @@ const AdvancedLabValueFilter = ({
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <FilterIcon />
-          Advanced Lab Value Filtering
+          {filterTitle}
           {isEnabled && (
             <Badge badgeContent={activeFilters.length} color="primary">
               <Chip label="Active" color="success" size="small" />
@@ -509,14 +668,16 @@ const AdvancedLabValueFilter = ({
       {/* Critical Value Presets */}
       <Accordion defaultExpanded={false}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="subtitle1">Critical Value Presets</Typography>
+          <Typography variant="subtitle1">
+            {currentTab === 0 ? 'Critical Lab Value Presets' : 'Critical Vital Sign Presets'}
+          </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Typography variant="body2" color="text.secondary" gutterBottom>
             Quick filters for clinically significant values that require immediate attention:
           </Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 1 }}>
-            {CRITICAL_VALUE_PRESETS.filter(p => p.category === 'critical').map((preset) => (
+            {currentPresets.filter(p => p.category === 'critical').map((preset) => (
               <Tooltip key={preset.id} title={preset.description}>
                 <Chip
                   label={preset.label}
@@ -536,7 +697,7 @@ const AdvancedLabValueFilter = ({
             Common abnormal value filters:
           </Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 1 }}>
-            {CRITICAL_VALUE_PRESETS.filter(p => p.category === 'abnormal').map((preset) => (
+            {currentPresets.filter(p => p.category === 'abnormal').map((preset) => (
               <Tooltip key={preset.id} title={preset.description}>
                 <Chip
                   label={preset.label}
@@ -555,24 +716,26 @@ const AdvancedLabValueFilter = ({
       {/* Custom Filter Builder */}
       <Accordion defaultExpanded={false}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="subtitle1">Custom Value Filter</Typography>
+          <Typography variant="subtitle1">
+            {currentTab === 0 ? 'Custom Lab Value Filter' : 'Custom Vital Sign Filter'}
+          </Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Lab Test</InputLabel>
+                <InputLabel>{currentTab === 0 ? 'Lab Test' : 'Vital Sign'}</InputLabel>
                 <Select
                   value={selectedTest}
                   onChange={(e) => {
                     setSelectedTest(e.target.value);
-                    const testInfo = COMMON_LAB_TESTS.find(t => t.code === e.target.value);
+                    const testInfo = currentTestOptions.find(t => t.code === e.target.value);
                     if (testInfo) {
                       setUnit(testInfo.commonUnits[0]);
                     }
                   }}
                 >
-                  {COMMON_LAB_TESTS.map(test => (
+                  {currentTestOptions.map(test => (
                     <MenuItem key={test.code} value={test.code}>
                       {test.display}
                     </MenuItem>
