@@ -51,6 +51,7 @@ import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
 import NetworkDiagram from '../visualization/NetworkDiagram';
+import PopulationAnalytics from '../visualization/PopulationAnalytics';
 
 // Application constants
 import {
@@ -283,14 +284,7 @@ function FHIRExplorerApp() {
           case VISUALIZATION_VIEWS.NETWORK:
             return <NetworkDiagram onNavigate={handleModeChange} fhirData={fhirData} />;
           case VISUALIZATION_VIEWS.ANALYTICS:
-            return (
-              <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Typography variant="h4" gutterBottom>Population Analytics</Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Population-level analytics coming in Phase 3
-                </Typography>
-              </Container>
-            );
+            return <PopulationAnalytics onNavigate={handleModeChange} fhirData={fhirData} />;
           default:
             return (
               <Container maxWidth="lg" sx={{ py: 4 }}>
