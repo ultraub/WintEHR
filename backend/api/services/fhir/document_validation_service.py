@@ -32,6 +32,31 @@ class DocumentValidationService:
     # Required LOINC system
     LOINC_SYSTEM = 'http://loinc.org'
     
+    @staticmethod
+    def _safe_get_attr(obj, attr_path):
+        """
+        Safely get nested attributes from an object that might contain dicts or objects
+        
+        Args:
+            obj: The object to get attributes from
+            attr_path: Dot-separated path like 'type.coding'
+            
+        Returns:
+            The value if found, None otherwise
+        """
+        try:
+            current = obj
+            for attr in attr_path.split('.'):
+                if hasattr(current, attr):
+                    current = getattr(current, attr)
+                elif isinstance(current, dict) and attr in current:
+                    current = current[attr]
+                else:
+                    return None
+            return current
+        except Exception:
+            return None
+    
     @classmethod
     def validate_document_reference(cls, doc_ref: DocumentReference, 
                                   strict: bool = False) -> Tuple[bool, List[Dict[str, Any]]]:
@@ -153,17 +178,23 @@ class DocumentValidationService:
             })
         
         # Validate type coding
-        if doc_ref.type and doc_ref.type.coding:
-            for coding in doc_ref.type.coding:
-                if coding.system == cls.LOINC_SYSTEM:
-                    if not coding.code:
+        type_coding = cls._safe_get_attr(doc_ref, 'type.coding')
+        if type_coding:
+            for coding in type_coding:
+                # Handle both object and dict coding
+                coding_system = coding.get('system') if isinstance(coding, dict) else getattr(coding, 'system', None)
+                coding_code = coding.get('code') if isinstance(coding, dict) else getattr(coding, 'code', None)
+                coding_display = coding.get('display') if isinstance(coding, dict) else getattr(coding, 'display', None)
+                
+                if coding_system == cls.LOINC_SYSTEM:
+                    if not coding_code:
                         issues.append({
                             'field': 'type.coding.code',
                             'severity': 'error',
                             'message': 'LOINC coding missing code',
                             'code': 'MISSING_CODING_FIELD'
                         })
-                    if not coding.display:
+                    if not coding_display:
                         issues.append({
                             'field': 'type.coding.display',
                             'severity': 'warning',
@@ -200,7 +231,10 @@ class DocumentValidationService:
         for i, content in enumerate(doc_ref.content):
             content_path = f'content[{i}]'
             
-            if not content.attachment:
+            # Handle both object and dict content
+            attachment = content.get('attachment') if isinstance(content, dict) else getattr(content, 'attachment', None)
+            
+            if not attachment:
                 issues.append({
                     'field': f'{content_path}.attachment',
                     'severity': 'critical',
@@ -209,10 +243,13 @@ class DocumentValidationService:
                 })
                 continue
             
-            attachment = content.attachment
+            # Handle both object and dict attachment
+            attachment_data = attachment.get('data') if isinstance(attachment, dict) else getattr(attachment, 'data', None)
+            attachment_url = attachment.get('url') if isinstance(attachment, dict) else getattr(attachment, 'url', None)
+            attachment_content_type = attachment.get('contentType') if isinstance(attachment, dict) else getattr(attachment, 'contentType', None)
             
             # Validate attachment data
-            if not attachment.data and not attachment.url:
+            if not attachment_data and not attachment_url:
                 issues.append({
                     'field': f'{content_path}.attachment',
                     'severity': 'critical',
@@ -221,8 +258,8 @@ class DocumentValidationService:
                 })
             
             # Validate base64 data if present
-            if attachment.data:
-                validation_result = cls._validate_base64_data(attachment.data)
+            if attachment_data:
+                validation_result = cls._validate_base64_data(attachment_data)
                 if not validation_result['valid']:
                     issues.append({
                         'field': f'{content_path}.attachment.data',
@@ -232,26 +269,26 @@ class DocumentValidationService:
                     })
             
             # Validate content type
-            if not attachment.contentType:
+            if not attachment_content_type:
                 issues.append({
                     'field': f'{content_path}.attachment.contentType',
                     'severity': 'warning',
                     'message': 'Attachment missing contentType',
                     'code': 'MISSING_CONTENT_TYPE'
                 })
-            elif attachment.contentType not in ['text/plain', 'application/json', 'text/html']:
+            elif attachment_content_type not in ['text/plain', 'application/json', 'text/html']:
                 issues.append({
                     'field': f'{content_path}.attachment.contentType',
                     'severity': 'warning',
-                    'message': f'Unusual contentType: {attachment.contentType}',
+                    'message': f'Unusual contentType: {attachment_content_type}',
                     'code': 'UNUSUAL_CONTENT_TYPE',
-                    'value': attachment.contentType
+                    'value': attachment_content_type
                 })
             
             # Validate JSON content if marked as JSON
-            if (attachment.contentType == 'application/json' and attachment.data):
+            if (attachment_content_type == 'application/json' and attachment_data):
                 try:
-                    decoded = base64.b64decode(attachment.data).decode('utf-8')
+                    decoded = base64.b64decode(attachment_data).decode('utf-8')
                     json.loads(decoded)
                 except json.JSONDecodeError as e:
                     issues.append({
@@ -277,47 +314,56 @@ class DocumentValidationService:
         
         # Validate subject reference
         if doc_ref.subject:
-            if not doc_ref.subject.reference:
+            # Handle both object and dict subject
+            subject_reference = doc_ref.subject.get('reference') if isinstance(doc_ref.subject, dict) else getattr(doc_ref.subject, 'reference', None)
+            
+            if not subject_reference:
                 issues.append({
                     'field': 'subject.reference',
                     'severity': 'error',
                     'message': 'Subject missing reference',
                     'code': 'MISSING_REFERENCE'
                 })
-            elif not doc_ref.subject.reference.startswith('Patient/'):
+            elif not subject_reference.startswith('Patient/'):
                 issues.append({
                     'field': 'subject.reference',
                     'severity': 'error',
-                    'message': f'Subject reference should start with "Patient/": {doc_ref.subject.reference}',
+                    'message': f'Subject reference should start with "Patient/": {subject_reference}',
                     'code': 'INVALID_REFERENCE_TYPE',
-                    'value': doc_ref.subject.reference
+                    'value': subject_reference
                 })
         
         # Validate author references
         if doc_ref.author:
             for i, author in enumerate(doc_ref.author):
-                if not author.reference:
+                # Handle both object and dict author
+                author_reference = author.get('reference') if isinstance(author, dict) else getattr(author, 'reference', None)
+                
+                if not author_reference:
                     issues.append({
                         'field': f'author[{i}].reference',
                         'severity': 'warning',
                         'message': 'Author missing reference',
                         'code': 'MISSING_REFERENCE'
                     })
-                elif not (author.reference.startswith('Practitioner/') or 
-                         author.reference.startswith('Organization/') or
-                         author.reference.startswith('Device/')):
+                elif not (author_reference.startswith('Practitioner/') or 
+                         author_reference.startswith('Organization/') or
+                         author_reference.startswith('Device/')):
                     issues.append({
                         'field': f'author[{i}].reference',
                         'severity': 'warning',
-                        'message': f'Unusual author reference type: {author.reference}',
+                        'message': f'Unusual author reference type: {author_reference}',
                         'code': 'UNUSUAL_REFERENCE_TYPE',
-                        'value': author.reference
+                        'value': author_reference
                     })
         
         # Validate context references
-        if doc_ref.context:
+        if hasattr(doc_ref, 'context') and doc_ref.context:
             for i, context in enumerate(doc_ref.context):
-                if not context.reference:
+                # Handle both object and dict context
+                context_reference = context.get('reference') if isinstance(context, dict) else getattr(context, 'reference', None)
+                
+                if not context_reference:
                     issues.append({
                         'field': f'context[{i}].reference',
                         'severity': 'warning',
@@ -379,12 +425,13 @@ class DocumentValidationService:
                 # Already a dict, use directly
                 doc_data = doc_ref.copy()
             elif hasattr(doc_ref, 'json') and callable(doc_ref.json):
+                # In our custom resources_r4b.py, json() returns a dict, not a JSON string
                 # Try with exclude_none parameter first (older versions)
                 try:
-                    doc_data = json.loads(doc_ref.json(exclude_none=True))
+                    doc_data = doc_ref.json(exclude_none=True)
                 except TypeError:
                     # Fallback for newer versions that don't support exclude_none
-                    doc_data = json.loads(doc_ref.json())
+                    doc_data = doc_ref.json()
                 except Exception:
                     # Last resort - try dict() method
                     try:
