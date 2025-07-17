@@ -95,6 +95,22 @@ module.exports = {
     allowedHosts: 'all',
     // Disable problematic features for Docker
     compress: false,
+    // Disable caching in development
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    },
+    // Ensure hot reload works properly
+    hot: true,
+    liveReload: true,
+    watchFiles: {
+      paths: ['src/**/*'],
+      options: {
+        usePolling: true,
+        interval: 1000
+      }
+    }
   },
   babel: {
     plugins: [

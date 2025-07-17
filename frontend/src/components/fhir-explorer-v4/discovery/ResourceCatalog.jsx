@@ -89,7 +89,7 @@ import { useFHIRData } from '../hooks/useFHIRData';
 import { useUserPreferences } from '../hooks/useUserPreferences';
 
 // Import mode constants
-import { APP_MODES, QUERY_VIEWS } from '../core/FHIRExplorerApp';
+import { APP_MODES, QUERY_VIEWS } from '../constants/appConstants';
 
 // Comprehensive FHIR resource catalog with metadata
 const FHIR_RESOURCES = {

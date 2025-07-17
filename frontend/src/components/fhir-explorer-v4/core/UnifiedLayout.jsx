@@ -69,7 +69,7 @@ import {
 import { alpha } from '@mui/material/styles';
 
 // Import mode constants
-import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from './FHIRExplorerApp';
+import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '../constants/appConstants';
 
 // Navigation structure with icons and descriptions
 const NAVIGATION_STRUCTURE = {
@@ -722,7 +722,7 @@ function UnifiedLayout({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          ml: isMobile ? 0 : (desktopDrawerOpen ? 0 : `${MINI_DRAWER_WIDTH}px`),
+          ml: isMobile ? 0 : (desktopDrawerOpen ? `${DRAWER_WIDTH}px` : `${MINI_DRAWER_WIDTH}px`),
           transition: (theme) => theme.transitions.create('margin-left', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen

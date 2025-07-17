@@ -68,7 +68,7 @@ import {
 import { alpha } from '@mui/material/styles';
 
 // Import mode constants
-import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from './FHIRExplorerApp';
+import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '../constants/appConstants';
 
 // Resource type configurations with colors and icons
 const RESOURCE_CONFIGS = {

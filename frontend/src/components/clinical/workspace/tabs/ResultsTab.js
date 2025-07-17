@@ -651,7 +651,9 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     try {
       // Create acknowledgment notes for each selected result
       const promises = Array.from(selectedResultIds).map(async (resultId) => {
-        const result = observations.find(o => o.id === resultId) || 
+        const currentObservations = tabValue === 0 ? labObservations.observations : 
+                                   tabValue === 1 ? vitalObservations.observations : [];
+        const result = currentObservations.find(o => o.id === resultId) || 
                       diagnosticReports.find(d => d.id === resultId);
         
         if (result) {

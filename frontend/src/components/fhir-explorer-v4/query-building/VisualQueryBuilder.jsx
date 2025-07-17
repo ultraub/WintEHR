@@ -118,8 +118,12 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState(null);
   
-  const { searchResources } = useFHIRData ? useFHIRData() : { searchResources: () => Promise.resolve([]) };
-  const { saveQuery } = useQueryHistory ? useQueryHistory() : { saveQuery: () => {} };
+  // Initialize hooks at the top level
+  const fhirDataHook = useFHIRData || (() => ({ searchResources: () => Promise.resolve([]) }));
+  const queryHistoryHook = useQueryHistory || (() => ({ saveQuery: () => {} }));
+  
+  const { searchResources } = fhirDataHook();
+  const { saveQuery } = queryHistoryHook();
 
   // Generate FHIR query URL from visual components
   const generateQueryUrl = useCallback(() => {

@@ -181,8 +181,12 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
   const [showQueryDialog, setShowQueryDialog] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
 
-  const { searchResources } = useFHIRData ? useFHIRData() : { searchResources: () => Promise.resolve([]) };
-  const { saveQuery } = useQueryHistory ? useQueryHistory() : { saveQuery: () => {} };
+  // Initialize hooks at the top level
+  const fhirDataHook = useFHIRData || (() => ({ searchResources: () => Promise.resolve([]) }));
+  const queryHistoryHook = useQueryHistory || (() => ({ saveQuery: () => {} }));
+  
+  const { searchResources } = fhirDataHook();
+  const { saveQuery } = queryHistoryHook();
 
   // Process natural language input and convert to FHIR query
   const processNaturalLanguage = useCallback((text) => {
