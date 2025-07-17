@@ -13,10 +13,7 @@ import {
   Alert,
   Button,
   Grid,
-  Card,
-  CardContent,
   TextField,
-  Autocomplete,
   Chip,
   Divider,
   List,
@@ -27,14 +24,7 @@ import {
   Tooltip,
   Tabs,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   InputAdornment,
-  LinearProgress,
   Badge,
   CircularProgress,
   Skeleton
@@ -42,8 +32,6 @@ import {
 // TreeView removed - using custom list-based implementation
 import {
   Schema as SchemaIcon,
-  ExpandMore as ExpandMoreIcon,
-  ChevronRight as ChevronRightIcon,
   Search as SearchIcon,
   ContentCopy as CopyIcon,
   Info as InfoIcon,
@@ -63,7 +51,7 @@ import {
   TrendingUp as TrendingUpIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
+// alpha import removed - not used in custom list implementation
 import { fhirSchemaService } from '../../../services/fhirSchemaService';
 
 // Enhanced color mapping for all FHIR data types
@@ -122,7 +110,6 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
   const [selectedResource, setSelectedResource] = useState('Patient');
   const [selectedElement, setSelectedElement] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedNodes, setExpandedNodes] = useState(['root']);
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -147,12 +134,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
     }
   }, [selectedResource]);
   
-  // Initialize expanded nodes
-  useEffect(() => {
-    if (!expandedNodes.includes('root')) {
-      setExpandedNodes(['root']);
-    }
-  }, []);
+  // Removed expandedNodes initialization - not needed for list-based implementation
 
   const loadResourceTypes = async () => {
     try {
@@ -185,11 +167,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       // Update schemas state
       setSchemas(prev => ({ ...prev, [resourceType]: schema }));
       
-      // Expand first few nodes for better UX
-      if (schema.elements) {
-        const firstKeys = Object.keys(schema.elements).slice(0, 3);
-        setExpandedNodes(['root', ...firstKeys]);
-      }
+      // Schema loaded successfully
       
     } catch (error) {
       console.error(`Failed to load schema for ${resourceType}:`, error);
@@ -286,153 +264,9 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
     return matches;
   }, [elementMatchesSearch]);
 
-  // Build tree structure for schema with search filtering
-  const buildTreeItems = useCallback((elements, parentId = '', searchTerm = '') => {
-    if (!elements || typeof elements !== 'object') {
-      return null;
-    }
-    
-    const entries = Object.entries(elements);
-    if (entries.length === 0) {
-      return null;
-    }
-    
-    return entries.map(([key, element]) => {
-      if (!element || typeof element !== 'object') {
-        return null;
-      }
-      
-      const nodeId = parentId ? `${parentId}.${key}` : key;
-      
-      // Check if this element or any of its children match the search
-      const hasMatchingChildren = element.elements && 
-        findMatchingElements(element.elements, nodeId, searchTerm).length > 0;
-      const elementMatches = elementMatchesSearch(key, element, searchTerm);
-      
-      // Hide element if it doesn't match and has no matching children
-      if (searchTerm && !elementMatches && !hasMatchingChildren) {
-        return null;
-      }
-      
-      // Handle choice elements
-      let displayKey = key;
-      let displayType = element.type || 'Element';
-      if (element.isChoice) {
-        displayKey = `${key}[x]`;
-        if (element.choices && element.choices.length > 0) {
-          displayType = element.choices.map(c => c.type).join(' | ');
-        }
-      }
-      
-      const dataType = DATA_TYPE_ICONS[element.type] || DATA_TYPE_ICONS.default;
-      
-      // Highlight matching text
-      const highlightText = (text, highlight) => {
-        if (!highlight) return text;
-        
-        const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
-        return parts.map((part, index) => 
-          part.toLowerCase() === highlight.toLowerCase() ? (
-            <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
-              {part}
-            </mark>
-          ) : part
-        );
-      };
-      
-      const labelContent = (
-        <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 1 }}>
-          <Box sx={{ color: dataType.color, display: 'flex', alignItems: 'center', minWidth: 24 }}>
-            {React.cloneElement(dataType.icon, { fontSize: 'small' })}
-          </Box>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontWeight: element.required ? 600 : 400,
-              flex: 1
-            }}
-          >
-            {searchTerm ? highlightText(displayKey, searchTerm) : displayKey}
-          </Typography>
-          {element.required && (
-            <Chip 
-              label="required" 
-              size="small" 
-              color="error" 
-              sx={{ 
-                height: 18, 
-                fontSize: '0.65rem',
-                '& .MuiChip-label': {
-                  px: 0.75
-                }
-              }} 
-            />
-          )}
-          {element.array && (
-            <Chip 
-              label="array" 
-              size="small" 
-              color="primary" 
-              sx={{ 
-                height: 18, 
-                fontSize: '0.65rem',
-                '& .MuiChip-label': {
-                  px: 0.75
-                }
-              }} 
-            />
-          )}
-          {element.binding && (
-            <Chip 
-              label={element.binding.strength} 
-              size="small" 
-              color="secondary" 
-              sx={{ 
-                height: 18, 
-                fontSize: '0.65rem',
-                '& .MuiChip-label': {
-                  px: 0.75
-                }
-              }}
-              title={element.binding.description || element.binding.valueSet}
-            />
-          )}
-          <Typography 
-            variant="caption" 
-            color="text.secondary" 
-            sx={{ 
-              fontStyle: 'italic',
-              minWidth: 80,
-              textAlign: 'right'
-            }}
-          >
-            {searchTerm ? highlightText(displayType, searchTerm) : displayType}
-          </Typography>
-        </Box>
-      );
-      
-      return (
-        <TreeItem
-          key={nodeId}
-          nodeId={nodeId}
-          label={labelContent}
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedElement({ key: displayKey, path: nodeId, ...element });
-          }}
-        >
-          {element.elements && buildTreeItems(element.elements, nodeId, searchTerm)}
-        </TreeItem>
-      );
-    }).filter(Boolean);
-  }, [elementMatchesSearch, findMatchingElements]);
+  // buildTreeItems function removed - now using custom list-based implementation
 
-  // Handle node toggle
-  const handleToggle = (event, nodeIds) => {
-    setExpandedNodes(nodeIds);
-  };
-
-  // Auto-expand logic not needed for list-based tree view
+  // TreeView-related functions removed - using custom list-based implementation
 
   // Copy to clipboard
   const copyToClipboard = useCallback((text) => {
@@ -607,43 +441,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
               <Typography variant="h6" sx={{ flex: 1 }}>
                 {selectedResource} Schema
               </Typography>
-              <Tooltip title="Expand all">
-                <span>
-                  <IconButton 
-                    size="small" 
-                    onClick={() => {
-                      if (currentSchema?.elements) {
-                        const allNodeIds = [];
-                        const collectNodeIds = (elements, parentId = '') => {
-                          Object.keys(elements).forEach(key => {
-                            const nodeId = parentId ? `${parentId}.${key}` : key;
-                            allNodeIds.push(nodeId);
-                            if (elements[key].elements) {
-                              collectNodeIds(elements[key].elements, nodeId);
-                            }
-                          });
-                        };
-                        collectNodeIds(currentSchema.elements);
-                        setExpandedNodes(['root', ...allNodeIds]);
-                      }
-                    }}
-                    disabled={!currentSchema}
-                  >
-                    <ExpandMoreIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Collapse all">
-                <span>
-                  <IconButton 
-                    size="small" 
-                    onClick={() => setExpandedNodes([])}
-                    disabled={!currentSchema}
-                  >
-                    <ChevronRightIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
+              {/* Expand/Collapse buttons removed - not needed for list-based implementation */}
               <Tooltip title="Export schema">
                 <span>
                   <IconButton size="small" onClick={exportSchema} disabled={!currentSchema}>
