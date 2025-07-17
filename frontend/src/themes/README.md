@@ -1,8 +1,26 @@
-# WintEHR Theme System Documentation
+# WintEHR Enhanced Theme System Documentation
 
 ## Overview
 
-WintEHR uses a sophisticated theme system based on Material-UI with extensive customizations for healthcare applications. The theme provides semantic tokens, consistent styling, and comprehensive component coverage.
+WintEHR uses a sophisticated, clinically-aware theme system based on Material-UI with extensive customizations for healthcare applications. The enhanced theme provides semantic tokens, clinical context awareness, department-specific theming, and comprehensive component coverage optimized for medical education and clinical workflows.
+
+## 🚀 New Features (v2.0)
+
+### Clinical Context Awareness
+- **Department-specific theming**: Emergency, Cardiology, Pediatrics, Oncology, Neurology
+- **Shift-based adaptations**: Day, Evening, Night modes with optimal colors for each shift
+- **Urgency indicators**: Visual cues for urgent clinical situations
+- **Severity-based coloring**: Smart color selection based on clinical severity levels
+
+### Enhanced Animations
+- **Clinical-appropriate transitions**: Smooth, professional animations that don't distract from clinical workflow
+- **Context-aware timing**: Faster animations in urgent situations, slower in routine care
+- **Micro-interactions**: Subtle feedback for user actions
+
+### Advanced Typography
+- **Clinical data font**: Optimized monospace fonts for lab values and clinical data
+- **Accessibility improvements**: Better contrast ratios and legibility
+- **Hierarchical text styles**: Clear visual hierarchy for clinical information
 
 ## Theme Structure
 
@@ -36,6 +54,32 @@ sx={{
   backgroundColor: theme.clinical.surfaces.error,      // Error surface
   backgroundColor: theme.clinical.surfaces.info,       // Info surface
   backgroundColor: theme.clinical.surfaces.success,    // Success surface
+}}
+```
+
+### Department-Specific Colors
+Access department-specific color schemes for contextual theming:
+
+```javascript
+// Department color usage
+sx={{
+  backgroundColor: theme.clinical.departments.emergency.surface,
+  color: theme.clinical.departments.emergency.primary,
+  borderColor: theme.clinical.departments.cardiology.accent,
+}}
+
+// Available departments: emergency, cardiology, pediatrics, oncology, neurology
+```
+
+### Shift-Based Theming
+Optimize interface colors based on time of day:
+
+```javascript
+// Shift-aware styling
+sx={{
+  backgroundColor: theme.clinical.shifts.night.background,
+  color: theme.clinical.shifts.night.text,
+  // Automatically adapts to current shift context
 }}
 ```
 
@@ -278,4 +322,162 @@ emergencyTheme.clinical.surfaces.primary = 'rgba(229, 57, 53, 0.05)';
 emergencyTheme.clinical.status.urgent = '#D32F2F';
 ```
 
-This documentation ensures consistent theming across the entire WintEHR application while providing flexibility for future enhancements and customizations.
+## Clinical Theme Utilities
+
+### Context-Aware Theming
+Use the clinical theme utilities for intelligent, context-aware styling:
+
+```javascript
+import { 
+  getClinicalContext, 
+  getSeverityColor, 
+  getClinicalAnimation,
+  getClinicalSpacing,
+  buildClinicalTheme 
+} from '../themes/clinicalThemeUtils';
+
+// Get clinical context automatically
+const context = getClinicalContext(
+  window.location.pathname,
+  new Date().getHours(),
+  'emergency'
+);
+
+// Get severity-based colors
+const severityColor = getSeverityColor(theme, 'critical', context);
+
+// Get context-aware animations
+const animation = getClinicalAnimation(theme, 'hover', context);
+
+// Get adaptive spacing
+const spacing = getClinicalSpacing(theme, context, 'comfortable');
+```
+
+### Enhanced Component Usage
+
+#### MetricCard with Clinical Context
+```javascript
+<MetricCard
+  title="Blood Pressure"
+  value={140}
+  severity="moderate"
+  department="cardiology"
+  urgency="urgent"
+  variant="clinical"
+  trend="up"
+  trendValue={10}
+/>
+```
+
+#### StatusChip with Department Context
+```javascript
+<StatusChip
+  status="pending"
+  variant="clinical"
+  department="emergency"
+  urgency="urgent"
+  clinicalContext={context}
+/>
+```
+
+#### ClinicalCard with Full Context
+```javascript
+<ClinicalCard
+  title="Patient Assessment"
+  status="completed"
+  severity="normal"
+  department="cardiology"
+  urgent={false}
+  expandable={true}
+  timestamp={new Date().toISOString()}
+>
+  Clinical content here...
+</ClinicalCard>
+```
+
+### ClinicalLayout Integration
+```javascript
+<ClinicalLayout
+  department="emergency"
+  urgency="urgent"
+  patientContext={patientData}
+  currentTheme="professional"
+  currentMode="light"
+  onThemeChange={handleThemeChange}
+  onModeChange={handleModeChange}
+>
+  {/* Your clinical content */}
+</ClinicalLayout>
+```
+
+## Performance Optimizations
+
+### Intelligent Caching
+- **Context caching**: Clinical contexts are cached to avoid recalculation
+- **Theme memoization**: Computed theme values are memoized for performance
+- **Animation optimization**: Reduced animation complexity in urgent situations
+
+### Memory Management
+- **Cleanup mechanisms**: Automatic cleanup of theme listeners and timers
+- **Optimized re-renders**: Minimal re-renders when theme context changes
+- **Efficient calculations**: Optimized color and spacing calculations
+
+## Migration Guide
+
+### From v1.0 to v2.0
+
+#### Enhanced Components
+Update your existing components to use the new clinical context features:
+
+```javascript
+// Before (v1.0)
+<MetricCard title="Lab Result" value={120} color="warning" />
+
+// After (v2.0)
+<MetricCard 
+  title="Lab Result" 
+  value={120} 
+  severity="moderate"
+  department="cardiology"
+  variant="clinical"
+/>
+```
+
+#### Theme Provider Updates
+Wrap your app with the enhanced theme provider:
+
+```javascript
+import { buildClinicalTheme } from './themes/clinicalThemeUtils';
+
+const clinicalTheme = buildClinicalTheme(baseTheme, clinicalContext);
+
+<ThemeProvider theme={clinicalTheme}>
+  <YourApp />
+</ThemeProvider>
+```
+
+## Testing Your Themes
+
+### Design System Showcase
+Use the built-in showcase component to test your theme implementations:
+
+```javascript
+import DesignSystemShowcase from './components/clinical/demo/DesignSystemShowcase';
+
+<DesignSystemShowcase />
+```
+
+### Accessibility Testing
+- **WCAG compliance**: All themes meet WCAG 2.1 AA standards
+- **Contrast ratios**: Minimum 4.5:1 for normal text, 3:1 for large text
+- **Color blindness**: Compatible with common color vision deficiencies
+
+## Best Practices
+
+1. **Use clinical context**: Always provide department and urgency context when possible
+2. **Leverage semantic tokens**: Use clinical semantic tokens instead of hardcoded values
+3. **Test across themes**: Ensure components work well in all theme variants
+4. **Consider accessibility**: Use the accessibility helpers for optimal contrast
+5. **Performance awareness**: Use memoization for expensive theme calculations
+
+This enhanced documentation ensures consistent, context-aware theming across the entire WintEHR application while providing powerful new capabilities for clinical workflows.

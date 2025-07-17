@@ -44,6 +44,7 @@ import {
   LocalHospital as MedicalIcon
 } from '@mui/icons-material';
 import { themePresets } from '../../themes/medicalTheme';
+import { getClinicalContext, getDepartmentContext } from '../../themes/clinicalThemeUtils';
 
 const ThemePreviewCard = ({ 
   theme, 
@@ -261,12 +262,23 @@ const ThemeSwitcher = ({
   currentTheme = 'professional', 
   currentMode = 'light', 
   onThemeChange,
-  onModeChange 
+  onModeChange,
+  department,
+  clinicalContext 
 }) => {
   const [open, setOpen] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState(currentTheme || 'professional');
   const [selectedMode, setSelectedMode] = useState(currentMode || 'light');
   const [showCustomization, setShowCustomization] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState(department || 'general');
+  const [autoShiftMode, setAutoShiftMode] = useState(false);
+  
+  // Get current clinical context
+  const currentContext = clinicalContext || getClinicalContext(
+    window.location.pathname,
+    new Date().getHours(),
+    selectedDepartment
+  );
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => {
@@ -278,8 +290,26 @@ const ThemeSwitcher = ({
   const handleApply = () => {
     onThemeChange?.(selectedTheme);
     onModeChange?.(selectedMode);
+    // Apply clinical context if callback provided
+    if (typeof onThemeChange === 'function') {
+      onThemeChange(selectedTheme, {
+        department: selectedDepartment,
+        autoShiftMode,
+        clinicalContext: currentContext
+      });
+    }
     setOpen(false);
   };
+  
+  // Department options
+  const departmentOptions = [
+    { value: 'general', label: 'General', icon: <MedicalIcon /> },
+    { value: 'emergency', label: 'Emergency', icon: <MedicalIcon /> },
+    { value: 'cardiology', label: 'Cardiology', icon: <MedicalIcon /> },
+    { value: 'pediatrics', label: 'Pediatrics', icon: <MedicalIcon /> },
+    { value: 'oncology', label: 'Oncology', icon: <MedicalIcon /> },
+    { value: 'neurology', label: 'Neurology', icon: <MedicalIcon /> }
+  ];
 
   const themes = Object.entries(themePresets).map(([key, preset]) => ({
     key,

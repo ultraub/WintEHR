@@ -23,6 +23,12 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
+import { 
+  getClinicalContext, 
+  getSeverityColor, 
+  getClinicalAnimation,
+  getClinicalSpacing 
+} from '../../../themes/clinicalThemeUtils';
 
 const MetricCard = ({
   title,
@@ -39,18 +45,49 @@ const MetricCard = ({
   showInfo = false,
   infoTooltip,
   variant = 'default',
+  severity,
+  clinicalContext,
+  department,
+  urgency = 'normal',
   ...props
 }) => {
   const theme = useTheme();
+  
+  // Get clinical context for enhanced theming
+  const context = clinicalContext || getClinicalContext(
+    window.location.pathname,
+    new Date().getHours(),
+    department
+  );
+  
+  // Enhanced clinical context with urgency
+  const enhancedContext = {
+    ...context,
+    urgency
+  };
 
-  // Get color from theme
+  // Get color from theme with clinical context
   const getColor = () => {
-    if (theme.palette[color]) {
-      return theme.palette[color].main;
+    // Use severity-based color if severity is provided
+    if (severity) {
+      return getSeverityColor(theme, severity, enhancedContext);
     }
+    
+    // Check for clinical status colors
     if (theme.clinical?.status?.[color]) {
       return theme.clinical.status[color];
     }
+    
+    // Use department-specific colors if available
+    if (enhancedContext.department !== 'general' && theme.clinical?.departments?.[enhancedContext.department]) {
+      return theme.clinical.departments[enhancedContext.department].primary;
+    }
+    
+    // Fall back to standard palette colors
+    if (theme.palette[color]) {
+      return theme.palette[color].main;
+    }
+    
     return theme.palette.primary.main;
   };
 
@@ -83,13 +120,23 @@ const MetricCard = ({
 
   const trendConfig = getTrendConfig();
 
-  // Determine card surface color based on variant
+  // Determine card surface color based on variant and context
   const getSurfaceColor = () => {
     if (variant === 'clinical') {
+      // Use department-specific surface if available
+      if (enhancedContext.department !== 'general' && theme.clinical?.departments?.[enhancedContext.department]) {
+        return theme.clinical.departments[enhancedContext.department].surface;
+      }
       return theme.clinical?.surfaces?.primary || alpha(cardColor, 0.05);
     }
     return theme.palette.background.paper;
   };
+  
+  // Get clinical spacing
+  const spacing = getClinicalSpacing(theme, enhancedContext, 'comfortable');
+  
+  // Get clinical animation
+  const hoverAnimation = getClinicalAnimation(theme, 'hover', enhancedContext);
 
   const cardSx = {
     height: '100%',
@@ -100,22 +147,30 @@ const MetricCard = ({
     color: variant === 'gradient' ? 'white' : 'inherit',
     border: variant === 'clinical' ? 1 : 0,
     borderColor: variant === 'clinical' ? alpha(cardColor, 0.2) : 'transparent',
-    transition: theme.animations?.duration?.standard ? 
-      `all ${theme.animations.duration.standard}ms ${theme.animations.easing.easeInOut}` : 
-      'all 0.3s ease-in-out',
+    borderRadius: theme.shape.borderRadius,
+    transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
     '&:hover': onClick ? {
-      transform: 'translateY(-2px)',
+      transform: hoverAnimation.transform,
       boxShadow: `0 8px 24px ${alpha(cardColor, 0.15)}`,
       borderColor: variant === 'clinical' ? alpha(cardColor, 0.4) : 'transparent'
     } : {},
+    // Add urgency styling for critical situations
+    ...(urgency === 'urgent' && {
+      borderLeft: `4px solid ${cardColor}`,
+      borderLeftColor: cardColor
+    }),
+    // Add subtle glow for severity indicators
+    ...(severity && ['severe', 'critical'].includes(severity) && {
+      boxShadow: `0 0 0 1px ${alpha(cardColor, 0.2)}, 0 2px 4px ${alpha(cardColor, 0.1)}`
+    }),
     ...props.sx
   };
 
   if (loading) {
     return (
       <Card sx={cardSx} {...props}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <CardContent sx={{ p: spacing }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: spacing / 4 }}>
             <Skeleton variant="text" width={120} height={20} />
             <Skeleton variant="circular" width={40} height={40} />
           </Box>
@@ -128,8 +183,8 @@ const MetricCard = ({
 
   return (
     <Card sx={cardSx} onClick={onClick} {...props}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+      <CardContent sx={{ p: spacing }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: spacing / 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography 
               variant="body2" 

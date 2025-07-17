@@ -201,6 +201,59 @@ const professionalMedicalPalette = {
       moderate: '#FF9800',
       severe: '#FF5722',
       critical: '#F44336'
+    },
+    // Department-specific color themes
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    // Time-based themes for clinical shifts
+    shifts: {
+      day: {
+        background: '#FAFBFC',
+        surface: '#F5F7FA',
+        text: '#1A202C'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    // Enhanced severity with psychological comfort levels
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#9E9E9E'
     }
   }
 };
@@ -293,6 +346,59 @@ const darkMedicalPalette = {
       moderate: '#FFB74D',
       severe: '#FF7043',
       critical: '#EF5350'
+    },
+    // Department-specific color themes (dark mode)
+    departments: {
+      emergency: {
+        primary: '#EF5350',
+        surface: 'rgba(239, 83, 80, 0.08)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#F06292',
+        surface: 'rgba(240, 98, 146, 0.08)',
+        accent: '#E91E63'
+      },
+      pediatrics: {
+        primary: '#FFB74D',
+        surface: 'rgba(255, 183, 77, 0.08)',
+        accent: '#FF9800'
+      },
+      oncology: {
+        primary: '#BA68C8',
+        surface: 'rgba(186, 104, 200, 0.08)',
+        accent: '#9C27B0'
+      },
+      neurology: {
+        primary: '#7986CB',
+        surface: 'rgba(121, 134, 203, 0.08)',
+        accent: '#3F51B5'
+      }
+    },
+    // Time-based themes for clinical shifts (dark mode)
+    shifts: {
+      day: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      night: {
+        background: '#0A0E13',
+        surface: '#1A202C',
+        text: '#E2E8F0'
+      },
+      emergency: {
+        background: '#2D1B14',
+        surface: '#4A2C17',
+        text: '#FFB74D'
+      }
+    },
+    // Enhanced severity with psychological comfort levels (dark mode)
+    comfort: {
+      reassuring: '#81C784',
+      concerning: '#FFB74D',
+      alarming: '#EF5350',
+      neutral: '#B0BEC5'
     }
   }
 };
@@ -706,7 +812,15 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       md: 16,   // 1rem
       lg: 24,   // 1.5rem
       xl: 32,   // 2rem
-      xxl: 48   // 3rem
+      xxl: 48,  // 3rem
+      // Clinical-specific spacing
+      clinical: {
+        compact: 4,     // Dense data lists
+        comfortable: 8, // Standard spacing
+        spacious: 16,   // Important sections
+        section: 24,    // Between major sections
+        page: 32        // Page-level spacing
+      }
     },
     // Animation system
     animations: {
@@ -724,6 +838,30 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
         easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
         easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
         sharp: 'cubic-bezier(0.4, 0, 0.6, 1)'
+      },
+      // Clinical-specific animations
+      clinical: {
+        dataUpdate: {
+          duration: 300,
+          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
+          transform: 'translateY(-2px)'
+        },
+        criticalAlert: {
+          duration: 600,
+          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          animation: 'pulse',
+          iterations: 3
+        },
+        success: {
+          duration: 400,
+          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
+          transform: 'scale(1.02)'
+        },
+        hover: {
+          duration: 150,
+          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
+          transform: 'translateY(-1px)'
+        }
       }
     },
     // Component sizing tokens
@@ -734,6 +872,34 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       avatarSize: 32,
       chipHeight: 24,
       inputHeight: 56
+    },
+    // Clinical typography system
+    clinicalTypography: {
+      label: {
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        lineHeight: 1.4
+      },
+      data: {
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        fontFamily: 'JetBrains Mono, SF Mono, Monaco, monospace',
+        lineHeight: 1.5
+      },
+      critical: {
+        fontSize: '1rem',
+        fontWeight: 700,
+        lineHeight: 1.3,
+        letterSpacing: '0.01em'
+      },
+      clinical: {
+        fontSize: '0.875rem',
+        fontWeight: 400,
+        fontFamily: 'Source Sans Pro, Inter, -apple-system, sans-serif',
+        lineHeight: 1.6
+      }
     },
     shadows: [
       'none',

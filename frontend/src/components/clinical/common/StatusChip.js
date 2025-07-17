@@ -13,15 +13,36 @@ import {
   Edit as DraftIcon,
   PlayArrow as InProgressIcon
 } from '@mui/icons-material';
+import { 
+  getClinicalContext, 
+  getStatusColor, 
+  getClinicalAnimation 
+} from '../../../themes/clinicalThemeUtils';
 
 const StatusChip = ({ 
   status, 
   variant = 'clinical', 
   size = 'small', 
   showIcon = true,
+  clinicalContext,
+  department,
+  urgency = 'normal',
   ...props 
 }) => {
   const theme = useTheme();
+  
+  // Get clinical context for enhanced theming
+  const context = clinicalContext || getClinicalContext(
+    window.location.pathname,
+    new Date().getHours(),
+    department
+  );
+  
+  // Enhanced clinical context with urgency
+  const enhancedContext = {
+    ...context,
+    urgency
+  };
 
   // Get status configuration
   const getStatusConfig = (status) => {
@@ -29,37 +50,37 @@ const StatusChip = ({
     
     const statusConfigs = {
       active: {
-        color: theme.clinical?.status?.active || theme.palette.success.main,
+        color: getStatusColor(theme, 'active', enhancedContext),
         icon: <ActiveIcon />,
         label: 'Active'
       },
       inactive: {
-        color: theme.clinical?.status?.inactive || theme.palette.grey[500],
+        color: getStatusColor(theme, 'inactive', enhancedContext),
         icon: <InactiveIcon />,
         label: 'Inactive'
       },
       pending: {
-        color: theme.clinical?.status?.pending || theme.palette.warning.main,
+        color: getStatusColor(theme, 'pending', enhancedContext),
         icon: <PendingIcon />,
         label: 'Pending'
       },
       completed: {
-        color: theme.clinical?.status?.completed || theme.palette.info.main,
+        color: getStatusColor(theme, 'completed', enhancedContext),
         icon: <CompletedIcon />,
         label: 'Completed'
       },
       cancelled: {
-        color: theme.clinical?.status?.cancelled || theme.palette.error.main,
+        color: getStatusColor(theme, 'cancelled', enhancedContext),
         icon: <CancelledIcon />,
         label: 'Cancelled'
       },
       draft: {
-        color: theme.clinical?.status?.draft || theme.palette.grey[600],
+        color: getStatusColor(theme, 'draft', enhancedContext),
         icon: <DraftIcon />,
         label: 'Draft'
       },
       'in-progress': {
-        color: theme.clinical?.status?.inProgress || theme.palette.primary.main,
+        color: getStatusColor(theme, 'inProgress', enhancedContext),
         icon: <InProgressIcon />,
         label: 'In Progress'
       }
@@ -73,6 +94,9 @@ const StatusChip = ({
   };
 
   const statusConfig = getStatusConfig(status);
+  
+  // Get clinical animation
+  const hoverAnimation = getClinicalAnimation(theme, 'hover', enhancedContext);
 
   // Get chip color based on variant
   const getChipColor = () => {
@@ -114,14 +138,26 @@ const StatusChip = ({
       '& .MuiChip-deleteIcon': {
         color: statusConfig.color
       },
-      transition: theme.animations?.duration?.short ? 
-        `all ${theme.animations.duration.short}ms ${theme.animations.easing.easeInOut}` : 
-        'all 0.25s ease-in-out',
+      transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
       '&:hover': {
         backgroundColor: `${statusConfig.color}30`,
-        transform: 'translateY(-1px)',
+        transform: hoverAnimation.transform,
         boxShadow: `0 2px 4px ${statusConfig.color}40`
       },
+      // Add urgency indicator
+      ...(urgency === 'urgent' && {
+        animation: 'pulse 2s infinite',
+        '@keyframes pulse': {
+          '0%': { opacity: 1 },
+          '50%': { opacity: 0.7 },
+          '100%': { opacity: 1 }
+        }
+      }),
+      // Add department-specific styling
+      ...(enhancedContext.department !== 'general' && {
+        borderColor: `${statusConfig.color}60`,
+        borderWidth: 2
+      }),
       ...props.sx
     };
   } else {
