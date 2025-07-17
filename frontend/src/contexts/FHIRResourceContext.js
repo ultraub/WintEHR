@@ -781,8 +781,8 @@ export function FHIRResourceProvider({ children }) {
     // Map priority to resource types for backward compatibility
     const resourceTypesByPriority = {
       critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
-      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage'],
-      optional: ['Immunization', 'CarePlan', 'CareTeam', 'DocumentReference', 'ImagingStudy']
+      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage', 'DocumentReference'],
+      optional: ['Immunization', 'CarePlan', 'CareTeam', 'ImagingStudy']
     };
     
     let types;

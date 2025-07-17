@@ -639,7 +639,7 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
 const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -665,6 +665,26 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Load DocumentReference resources when patient changes
+  useEffect(() => {
+    const loadDocuments = async () => {
+      if (patientId) {
+        try {
+          // Load DocumentReference resources - remove date filter to get all documents
+          await searchResources('DocumentReference', {
+            patient: patientId,
+            _count: 50, // Increase count to get more documents
+            _sort: '-date'
+          });
+        } catch (error) {
+          console.warn('Failed to load documents:', error);
+        }
+      }
+    };
+
+    loadDocuments();
+  }, [patientId, searchResources]);
 
   // Get documentation resources
   const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];
