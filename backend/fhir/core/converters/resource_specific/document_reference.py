@@ -184,7 +184,20 @@ class DocumentReferenceConverter:
         doc_ref_data.pop('resourceType', None)
         
         try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Creating DocumentReference with keys: {list(doc_ref_data.keys())}")
+            logger.info(f"ID in data: {'id' in doc_ref_data}")
+            if 'id' in doc_ref_data:
+                logger.info(f"ID value: {doc_ref_data['id']}")
+            
             doc_ref = DocumentReference(**doc_ref_data)
+            
+            # Check if ID attribute exists after creation
+            has_id = hasattr(doc_ref, 'id')
+            id_value = getattr(doc_ref, 'id', 'NOT_SET')
+            logger.info(f"DocumentReference created - has_id: {has_id}, id_value: {id_value}")
+            
             return doc_ref
         except Exception as e:
             # Log detailed error information

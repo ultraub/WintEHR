@@ -537,7 +537,9 @@ class FHIRStorageEngine:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True
                     )
-                    logging.info(f"DocumentReference validation passed for resource {fhir_resource.id}")
+                    # Get ID safely - it might not be set yet as ID generation happens later
+                    resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
+                    logging.info(f"DocumentReference validation passed for resource {resource_id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference validation failed: {validation_error}")
                     logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
@@ -820,7 +822,9 @@ class FHIRStorageEngine:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True
                     )
-                    logging.info(f"DocumentReference update validation passed for resource {fhir_resource.id}")
+                    # Get ID safely - it might not be set yet as ID generation happens later
+                    resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
+                    logging.info(f"DocumentReference update validation passed for resource {resource_id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference update validation failed: {validation_error}")
                     logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
