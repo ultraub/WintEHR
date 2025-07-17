@@ -551,7 +551,7 @@ const ClinicalWorkspaceV3 = () => {
               const currentIndex = TAB_CONFIG.findIndex(t => t.id === activeTab);
               
               // Define tabs that should not be pre-rendered due to heavy resource loading
-              const resourceHeavyTabs = ['imaging', 'results'];
+              const resourceHeavyTabs = ['imaging', 'results', 'documentation'];
               
               // Only render active tab and adjacent tabs to reduce DOM size
               // But exclude resource-heavy tabs from pre-rendering to prevent unnecessary API calls

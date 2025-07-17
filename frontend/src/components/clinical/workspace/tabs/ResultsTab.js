@@ -507,7 +507,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const observations = useMemo(() => {
     if (tabValue === 0) { // Lab Results
       return labObservations.observations;
-    } else if (tabValue === 2) { // Vitals
+    } else if (tabValue === 1) { // Vitals
       return vitalObservations.observations;
     } else {
       return [];
@@ -518,13 +518,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   
   // Get loading state based on active tab
   const loading = tabValue === 0 ? labObservations.loading : 
-                 tabValue === 1 ? diagnosticReportsData.loading :
-                 tabValue === 2 ? vitalObservations.loading : false;
+                 tabValue === 1 ? vitalObservations.loading :
+                 tabValue === 2 ? diagnosticReportsData.loading : false;
   
   // Get current page data based on tab
   const currentPageData = tabValue === 0 ? labObservations : 
-                         tabValue === 1 ? diagnosticReportsData :
-                         tabValue === 2 ? vitalObservations : null;
+                         tabValue === 1 ? vitalObservations :
+                         tabValue === 2 ? diagnosticReportsData : null;
 
   // Enhanced critical value monitoring with detection service
   useEffect(() => {
@@ -977,7 +977,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     
     switch (tabValue) {
       case 0: 
-        // Priority: Facility filter > Provider filter > Advanced filter > Regular results
+        // Lab Results - Priority: Facility filter > Provider filter > Advanced filter > Regular results
         if (filteredByFacility && facilityFilteredResults.length > 0) {
           currentResults = filterResults(facilityFilteredResults);
         } else if (filteredByFacility) {
@@ -994,14 +994,15 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           // Advanced filters active but no results found
           currentResults = [];
         } else {
-          currentResults = filterResults(labResults);
+          currentResults = filterResults(labObservations.observations);
         }
         break;
-      case 1:
-      case 2: 
-        currentResults = filterResults(vitalSigns);
+      case 1: 
+        // Vital Signs
+        currentResults = filterResults(vitalObservations.observations);
         break;
-      case 3: 
+      case 2: 
+        // Diagnostic Reports
         currentResults = diagnosticReports;
         break;
       default: 
@@ -1018,15 +1019,15 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       filteredResults: currentResults, 
       sortedResults: sorted 
     };
-  }, [tabValue, labResults, vitalSigns, diagnosticReports, filterResults, filteredByValue, advancedFilteredResults, advancedFilters, filteredByProvider, providerFilteredResults, filteredByFacility, facilityFilteredResults]);
+  }, [tabValue, labObservations.observations, vitalObservations.observations, diagnosticReports, filterResults, filteredByValue, advancedFilteredResults, advancedFilters, filteredByProvider, providerFilteredResults, filteredByFacility, facilityFilteredResults]);
 
   // Memoized abnormal count calculation
   const abnormalCount = useMemo(() => {
-    return labResults.filter(r => {
+    return labObservations.observations.filter(r => {
       const status = getResultStatus(r);
       return status.label && status.label !== 'Normal';
     }).length;
-  }, [labResults]);
+  }, [labObservations.observations]);
 
   if (loading) {
     return (
@@ -1161,7 +1162,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Lab Results" 
             icon={
-              <Badge badgeContent={labResults.length} color="primary">
+              <Badge 
+                badgeContent={labObservations.loading ? '...' : labObservations.totalCount} 
+                color="primary"
+              >
                 <LabIcon />
               </Badge>
             }
@@ -1170,7 +1174,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Vital Signs" 
             icon={
-              <Badge badgeContent={vitalSigns.length} color="primary">
+              <Badge 
+                badgeContent={vitalObservations.loading ? '...' : vitalObservations.totalCount} 
+                color="primary"
+              >
                 <DiagnosticIcon />
               </Badge>
             }
@@ -1179,7 +1186,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Reports" 
             icon={
-              <Badge badgeContent={diagnosticReports.length} color="primary">
+              <Badge 
+                badgeContent={diagnosticReportsData.loading ? '...' : diagnosticReportsData.totalCount} 
+                color="primary"
+              >
                 <AssessmentIcon />
               </Badge>
             }
@@ -1353,7 +1363,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         <Box sx={{ mb: 3 }}>
           <LabCareRecommendations
             patientId={patientId}
-            observations={labResults}
+            observations={labObservations.observations}
             carePlanId={carePlanId}
             onRecommendationApplied={(recommendation, result) => {
               setSnackbar({
@@ -1428,7 +1438,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         // Lab Trends View
         <LabTrendsChart 
           patientId={patientId}
-          observations={labResults}
+          observations={labObservations.observations}
           height={500}
         />
       ) : viewMode === 'table' && tabValue !== 1 ? (
@@ -1482,14 +1492,14 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       ) : tabValue === 1 ? (
         // Vital Signs
         <Box>
-          {vitalSigns.length === 0 ? (
+          {sortedResults.length === 0 ? (
             <Alert severity="info">
               No vital signs recorded for this patient
             </Alert>
           ) : viewMode === 'trends' ? (
             <VitalsOverview 
               patientId={patientId} 
-              vitalsData={vitalSigns}
+              vitalsData={vitalObservations.observations}
               compact={false}
             />
           ) : viewMode === 'table' ? (

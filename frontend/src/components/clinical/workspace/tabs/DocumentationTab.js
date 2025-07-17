@@ -666,25 +666,29 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
     setLoading(false);
   }, []);
 
-  // Load DocumentReference resources when patient changes
+  // Load DocumentReference resources on-demand when tab becomes active
+  // Since we moved this tab to resourceHeavyTabs, it's not pre-rendered
   useEffect(() => {
     const loadDocuments = async () => {
       if (patientId) {
-        try {
-          // Load DocumentReference resources - remove date filter to get all documents
-          await searchResources('DocumentReference', {
-            patient: patientId,
-            _count: 50, // Increase count to get more documents
-            _sort: '-date'
-          });
-        } catch (error) {
-          console.warn('Failed to load documents:', error);
+        // Check if we already have documents loaded
+        const existingDocs = getPatientResources(patientId, 'DocumentReference');
+        if (!existingDocs || existingDocs.length === 0) {
+          try {
+            await searchResources('DocumentReference', {
+              patient: patientId,
+              _count: 50,
+              _sort: '-date'
+            });
+          } catch (error) {
+            console.warn('Failed to load documents:', error);
+          }
         }
       }
     };
 
     loadDocuments();
-  }, [patientId, searchResources]);
+  }, [patientId, searchResources, getPatientResources]);
 
   // Get documentation resources
   const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];

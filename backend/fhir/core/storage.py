@@ -63,7 +63,13 @@ def safe_dict_conversion(obj: Any, exclude_none: bool = False) -> dict:
     
     # If it has a json method (some Pydantic v2 models), use it
     if hasattr(obj, 'json'):
-        return json.loads(obj.json())
+        json_result = obj.json()
+        # In our custom resources_r4b.py, json() returns a dict, not a JSON string
+        if isinstance(json_result, dict):
+            return json_result
+        else:
+            # Standard Pydantic returns JSON string
+            return json.loads(json_result)
     
     # Last resort: convert attributes to dict
     result = {}
@@ -537,9 +543,9 @@ class FHIRStorageEngine:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True
                     )
-                    # Get ID safely - it might not be set yet as ID generation happens later
-                    resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
-                    logging.info(f"DocumentReference validation passed for resource {resource_id}")
+                    # Get FHIR ID safely - it might not be set yet as ID generation happens later
+                    fhir_resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
+                    logging.info(f"DocumentReference validation passed for resource {fhir_resource_id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference validation failed: {validation_error}")
                     logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
@@ -831,9 +837,9 @@ class FHIRStorageEngine:
                     fhir_resource = DocumentValidationService.validate_before_save(
                         fhir_resource, auto_fix=True
                     )
-                    # Get ID safely - it might not be set yet as ID generation happens later
-                    resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
-                    logging.info(f"DocumentReference update validation passed for resource {resource_id}")
+                    # Get FHIR ID safely - it might not be set yet as ID generation happens later
+                    fhir_resource_id = getattr(fhir_resource, 'id', 'pending-id-generation')
+                    logging.info(f"DocumentReference update validation passed for resource {fhir_resource_id}")
                 except Exception as validation_error:
                     logging.error(f"DocumentReference update validation failed: {validation_error}")
                     logging.error(f"Resource data that failed validation: {json.dumps(resource_data, indent=2, default=str)}")
