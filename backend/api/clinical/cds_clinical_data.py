@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from database import get_db_session
-from services.dynamic_catalog_service import DynamicCatalogService
+from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
 
 router = APIRouter(prefix="/api/clinical", tags=["CDS Clinical Data"])
 

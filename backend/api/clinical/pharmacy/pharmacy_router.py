@@ -13,7 +13,7 @@ import uuid
 import json
 
 from database import get_db_session
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/clinical/pharmacy", tags=["pharmacy"])
@@ -239,6 +239,11 @@ async def update_pharmacy_status(
     """
     Update pharmacy workflow status for a medication request
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Updating pharmacy status for MedicationRequest ID: {medication_request_id}")
+    logger.info(f"New status: {status_update.status}")
+    
     try:
         storage = FHIRStorageEngine(db)
         

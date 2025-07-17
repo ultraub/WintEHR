@@ -22,7 +22,7 @@ import {
   Image as ImageIcon,
   Folder as FolderIcon
 } from '@mui/icons-material';
-import { downloadDICOMStudy, exportDICOMImages, formatFileSize } from '../../../utils/imagingUtils';
+import { downloadDICOMStudy, exportDICOMImages, formatFileSize } from '../../../core/imaging/imagingUtils';
 
 const DownloadDialog = ({ open, onClose, study }) => {
   const [downloadType, setDownloadType] = useState('dicom');

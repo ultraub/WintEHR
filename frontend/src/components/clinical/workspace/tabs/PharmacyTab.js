@@ -72,12 +72,19 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { printDocument } from '../../../../utils/printUtils';
-import { getMedicationDosageDisplay, getMedicationName } from '../../../../utils/medicationDisplayUtils';
+import { printDocument } from '../../../../core/export/printUtils';
+import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
+import { medicationDispenseService } from '../../../../services/medicationDispenseService';
+import { medicationAdministrationService } from '../../../../services/medicationAdministrationService';
+import { useMedicationDispense, useMedicationWorkflow } from '../../../../hooks/useMedicationDispense';
+import { useMedicationAdministration } from '../../../../hooks/useMedicationAdministration';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
+import AdministrationDialog from './components/AdministrationDialog';
+import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
 
 // Medication status definitions
 const MEDICATION_STATUSES = {
@@ -587,6 +594,13 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
+  // Enhanced medication hooks
+  const { dispenses, createDispense, refreshDispenses } = useMedicationDispense(patientId);
+  const { administrations, recordAdministration, refreshAdministrations } = useMedicationAdministration(patientId);
+  const [enhancedDispenseDialog, setEnhancedDispenseDialog] = useState(false);
+  const [administrationDialogOpen, setAdministrationDialogOpen] = useState(false);
+  const [administrationMode, setAdministrationMode] = useState('administer');
+  
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPharmacyStatus, setFilterPharmacyStatus] = useState('all');
@@ -639,7 +653,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     return getPatientResources(patientId, 'MedicationRequest') || [];
   }, [getPatientResources, patientId, patientFilter]);
 
-  // Categorize medication requests by pharmacy status
+  // Enhanced categorization with dispense information
   const categorizedRequests = useMemo(() => {
     const pending = [];
     const verified = [];
@@ -647,26 +661,35 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     const completed = [];
     
     medicationRequests.forEach(request => {
-      // Simplified status categorization for demo
       const status = request.status;
       const authoredDate = request.authoredOn;
       
-      if (status === 'completed') {
-        completed.push(request);
-      } else if (status === 'cancelled' || status === 'stopped') {
-        completed.push(request);
+      // Check for related dispenses
+      const relatedDispenses = dispenses.filter(dispense => 
+        dispense.authorizingPrescription?.some(prescription => 
+          prescription.reference === `MedicationRequest/${request.id}`
+        )
+      );
+      
+      // Enhanced categorization logic
+      if (status === 'completed' || status === 'cancelled' || status === 'stopped') {
+        completed.push({ ...request, relatedDispenses });
+      } else if (relatedDispenses.some(d => d.status === 'completed')) {
+        dispensed.push({ ...request, relatedDispenses });
+      } else if (relatedDispenses.some(d => d.status === 'in-progress' || d.status === 'preparation')) {
+        verified.push({ ...request, relatedDispenses });
       } else if (authoredDate && isWithinInterval(parseISO(authoredDate), {
         start: subDays(new Date(), 1),
         end: new Date()
       })) {
-        pending.push(request);
+        pending.push({ ...request, relatedDispenses });
       } else {
-        verified.push(request);
+        verified.push({ ...request, relatedDispenses });
       }
     });
     
     return { pending, verified, dispensed, completed };
-  }, [medicationRequests]);
+  }, [medicationRequests, dispenses]);
 
   // Filter requests based on current filters
   const filteredRequests = useMemo(() => {
@@ -762,97 +785,128 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [medicationRequests, refreshPatientResources, publish, patientId]);
 
-  // Handle dispensing
-  const handleDispense = useCallback(async (dispenseData) => {
+  // Enhanced dispensing with MedicationDispense service
+  const handleDispense = useCallback(async (medicationDispenseData) => {
     try {
-      // Create MedicationDispense FHIR resource
-      const dispenseResource = {
-        resourceType: 'MedicationDispense',
-        status: 'completed',
-        medicationCodeableConcept: dispenseData.medication,
-        subject: { reference: `Patient/${patientId}` },
-        authorizingPrescription: [{ reference: `MedicationRequest/${dispenseData.medicationRequestId}` }],
-        quantity: { value: dispenseData.quantity, unit: dispenseData.unit },
-        whenHandedOver: dispenseData.dispensedAt || new Date().toISOString(),
-        daysSupply: dispenseData.daysSupply ? {
-          value: dispenseData.daysSupply,
-          unit: 'days'
-        } : undefined,
-        performer: [{
-          actor: {
-            display: 'Pharmacy Staff' // In production, this would be the current user
-          }
-        }],
-        note: dispenseData.pharmacistNotes ? [{ text: dispenseData.pharmacistNotes }] : undefined
-      };
+      // Create the MedicationDispense resource using the enhanced service
+      const createdDispense = await medicationDispenseService.createMedicationDispense(medicationDispenseData);
       
-      // Create the MedicationDispense resource
-      const createdDispense = await fhirClient.create('MedicationDispense', dispenseResource);
-      
-      // Get the current medication request to update it
-      const currentRequest = medicationRequests.find(req => req.id === dispenseData.medicationRequestId);
-      if (currentRequest) {
-        // Update the medication request status to 'completed'
-        // Calculate remaining refills (don't go below 0)
-        const currentRefills = currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
-        const remainingRefills = Math.max(0, currentRefills - 1);
-        
-        const updatedRequest = {
-          ...currentRequest,
-          status: 'completed',
-          dispenseRequest: {
-            ...currentRequest.dispenseRequest,
-            numberOfRepeatsAllowed: remainingRefills
-          }
-        };
-        await fhirClient.update('MedicationRequest', dispenseData.medicationRequestId, updatedRequest);
+      // Update the originating MedicationRequest
+      const prescriptionId = medicationDispenseData.authorizingPrescription?.[0]?.reference?.split('/')[1];
+      if (prescriptionId) {
+        const currentRequest = medicationRequests.find(req => req.id === prescriptionId);
+        if (currentRequest) {
+          // Calculate remaining refills
+          const currentRefills = currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
+          const remainingRefills = Math.max(0, currentRefills - 1);
+          
+          const updatedRequest = {
+            ...currentRequest,
+            status: remainingRefills > 0 ? 'active' : 'completed',
+            dispenseRequest: {
+              ...currentRequest.dispenseRequest,
+              numberOfRepeatsAllowed: remainingRefills
+            }
+          };
+          
+          await fhirClient.update('MedicationRequest', prescriptionId, updatedRequest);
+        }
       }
       
-      // Refresh patient resources to update the UI
+      // Refresh patient resources and dispenses
       await refreshPatientResources(patientId);
+      await refreshDispenses();
       
-      // Publish MEDICATION_DISPENSED event
+      // Publish enhanced workflow events
       await publish(CLINICAL_EVENTS.MEDICATION_DISPENSED, {
-        ...createdDispense,
-        medicationName: dispenseData.medication?.text || 
-                       dispenseData.medication?.coding?.[0]?.display || 
-                       'Unknown medication',
-        patientId,
-        timestamp: new Date().toISOString()
+        medicationDispense: createdDispense,
+        prescriptionId: prescriptionId,
+        patientId: patientId,
+        medicationName: getMedicationName({ 
+          medicationCodeableConcept: medicationDispenseData.medicationCodeableConcept,
+          medicationReference: medicationDispenseData.medicationReference 
+        }),
+        timestamp: createdDispense.whenHandedOver || new Date().toISOString()
       });
       
-      // Publish workflow notification
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'prescription-dispense',
         step: 'completed',
         data: {
-          medicationName: dispenseData.medication?.text || 
-                         dispenseData.medication?.coding?.[0]?.display || 
-                         'Unknown medication',
-          quantity: dispenseData.quantity,
-          unit: dispenseData.unit,
-          daysSupply: dispenseData.daysSupply,
-          patientId,
-          timestamp: new Date().toISOString()
+          medicationName: getMedicationName({ 
+            medicationCodeableConcept: medicationDispenseData.medicationCodeableConcept,
+            medicationReference: medicationDispenseData.medicationReference 
+          }),
+          quantity: medicationDispenseData.quantity,
+          daysSupply: medicationDispenseData.daysSupply,
+          patientId: patientId,
+          timestamp: createdDispense.whenHandedOver || new Date().toISOString()
         }
       });
       
       setSnackbar({
         open: true,
-        message: 'Medication dispensed successfully',
+        message: 'Medication dispensed successfully and recorded in FHIR',
         severity: 'success'
       });
+      
       setSelectedRequest(null);
       setDispenseDialogOpen(false);
-    } catch (error) {
+      setEnhancedDispenseDialog(false);
       
+    } catch (error) {
       setSnackbar({
         open: true,
-        message: error.message || 'Failed to dispense medication',
+        message: `Failed to dispense medication: ${error.message}`,
         severity: 'error'
       });
     }
-  }, [onNotificationUpdate, patientId, medicationRequests, publish]);
+  }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses]);
+
+  // Handle medication administration
+  const handleAdminister = useCallback(async (medicationRequest, mode = 'administer') => {
+    setSelectedRequest(medicationRequest);
+    setAdministrationMode(mode);
+    setAdministrationDialogOpen(true);
+  }, []);
+
+  const handleRecordAdministration = useCallback(async (administrationData) => {
+    try {
+      await recordAdministration(administrationData);
+      await refreshAdministrations();
+      
+      setSnackbar({
+        open: true,
+        message: 'Medication administration recorded successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to record administration: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  }, [recordAdministration, refreshAdministrations]);
+
+  const handleRecordMissedDose = useCallback(async (missedDoseData) => {
+    try {
+      await recordAdministration(missedDoseData);
+      await refreshAdministrations();
+      
+      setSnackbar({
+        open: true,
+        message: 'Missed dose recorded successfully',
+        severity: 'info'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to record missed dose: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  }, [recordAdministration, refreshAdministrations]);
 
   // Handle refill request approval
   const handleApproveRefill = useCallback(async (refillRequestId, approvalData) => {
@@ -956,6 +1010,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       case 2: return categorizedRequests.dispensed;
       case 3: return categorizedRequests.completed;
       case 4: return pendingRefills; // Refill requests tab
+      case 5: return []; // MAR tab - handled separately
       default: return filteredRequests;
     }
   };
@@ -1177,6 +1232,11 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             }
             iconPosition="start"
           />
+          <Tab 
+            label="Medication Administration (MAR)" 
+            icon={<PharmacyIcon />}
+            iconPosition="start"
+          />
         </Tabs>
       </Paper>
 
@@ -1246,7 +1306,20 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       </Paper>
 
       {/* Medication Requests List */}
-      {currentRequests.length === 0 ? (
+      {tabValue === 5 ? (
+        // Render MAR (Medication Administration Record)
+        <MedicationAdministrationRecord
+          patientId={patientId}
+          onAdministrationComplete={(type, medicationRequestId) => {
+            setSnackbar({
+              open: true,
+              message: `Medication ${type} recorded successfully`,
+              severity: type === 'administered' ? 'success' : 'info'
+            });
+          }}
+          currentUser={{ id: 'current-user', name: 'Current User' }} // In real app, get from auth context
+        />
+      ) : currentRequests.length === 0 ? (
         <Alert severity="info">
           {patientFilter === 'current' && currentPatient
             ? `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
@@ -1281,8 +1354,8 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
         </Box>
       )}
 
-      {/* Dispense Dialog */}
-      <DispenseDialog
+      {/* Enhanced Dispense Dialog */}
+      <EnhancedDispenseDialog
         open={dispenseDialogOpen}
         onClose={() => setDispenseDialogOpen(false)}
         medicationRequest={selectedRequest}
@@ -1353,6 +1426,18 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Administration Dialog */}
+      <AdministrationDialog
+        open={administrationDialogOpen}
+        onClose={() => setAdministrationDialogOpen(false)}
+        medicationRequest={selectedRequest}
+        patientId={patientId}
+        mode={administrationMode}
+        onAdminister={handleRecordAdministration}
+        onMissedDose={handleRecordMissedDose}
+        currentUser={{ id: 'current-user', name: 'Current User' }} // In real app, get from auth context
+      />
 
       {/* Snackbar for notifications */}
       <Snackbar

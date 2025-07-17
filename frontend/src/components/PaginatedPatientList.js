@@ -39,7 +39,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
 import { fhirClient } from '../services/fhirClient';
 import PatientForm from './PatientForm';
-import { getPatientDetailUrl } from '../utils/navigationUtils';
+import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 import { debounce } from 'lodash';
 
 function PaginatedPatientList() {

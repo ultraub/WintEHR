@@ -117,6 +117,13 @@ class FHIRClient {
   supportsOperation(resourceType, operation) {
     if (!this.capabilities) return true; // Assume support if no capabilities
     
+    // For system-level operations (resourceType = null), check system interactions
+    if (resourceType === null) {
+      const systemInteractions = this.capabilities.rest?.[0]?.interaction || [];
+      return systemInteractions.some(i => i.code === operation);
+    }
+    
+    // For resource-specific operations, check resource interactions
     const resources = this.capabilities.rest?.[0]?.resource || [];
     const resource = resources.find(r => r.type === resourceType);
     if (!resource) return false;
@@ -245,8 +252,14 @@ class FHIRClient {
    * Process a batch/transaction bundle
    */
   async batch(bundle) {
-    if (!this.supportsOperation(null, 'transaction')) {
-      throw new Error('Server does not support transaction bundles');
+    // Ensure capabilities are loaded
+    if (!this.capabilities) {
+      await this.discoverCapabilities();
+    }
+    
+    // Check if server supports batch operations
+    if (!this.supportsOperation(null, 'batch') && !this.supportsOperation(null, 'transaction')) {
+      throw new Error('Server does not support batch or transaction bundles');
     }
 
     const response = await this.httpClient.post('/', bundle);

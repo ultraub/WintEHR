@@ -15,7 +15,7 @@ import {
   getAchievementStatusColor,
   getPriorityColor,
   getGoalDisplay
-} from '../../../../../utils/fhir/GoalConverter';
+} from '../../../../../core/fhir/converters/GoalConverter';
 
 // Re-export from converter for backward compatibility
 export {

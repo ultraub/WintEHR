@@ -14,7 +14,7 @@ import {
   getCriticalityColor,
   getAllergenDisplay,
   getStatusColor
-} from '../../../../../utils/fhir/AllergyConverter';
+} from '../../../../../core/fhir/converters/AllergyConverter';
 
 // Re-export from converter for backward compatibility
 export {

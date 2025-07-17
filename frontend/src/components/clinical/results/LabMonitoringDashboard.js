@@ -54,7 +54,7 @@ import {
 import { format, parseISO, differenceInDays, addDays } from 'date-fns';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
 import { fhirClient } from '../../../services/fhirClient';
-import { printDocument } from '../../../utils/printUtils';
+import { printDocument } from '../../../core/export/printUtils';
 
 const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
   const [protocols, setProtocols] = useState([]);

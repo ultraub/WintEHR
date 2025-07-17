@@ -51,7 +51,7 @@ import {
 // Contexts
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { decodeFhirId } from '../../utils/navigationUtils';
+import { decodeFhirId } from '../../core/navigation/navigationUtils';
 
 // Components
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';
@@ -549,8 +549,17 @@ const ClinicalWorkspaceV3 = () => {
           <Box sx={{ height: '100%' }}>
             {TAB_CONFIG.map((tab, index) => {
               const currentIndex = TAB_CONFIG.findIndex(t => t.id === activeTab);
+              
+              // Define tabs that should not be pre-rendered due to heavy resource loading
+              const resourceHeavyTabs = ['imaging', 'results', 'documentation'];
+              
               // Only render active tab and adjacent tabs to reduce DOM size
-              const shouldRender = Math.abs(index - currentIndex) <= 1;
+              // But exclude resource-heavy tabs from pre-rendering to prevent unnecessary API calls
+              const isActive = activeTab === tab.id;
+              const isAdjacent = Math.abs(index - currentIndex) <= 1;
+              const isResourceHeavy = resourceHeavyTabs.includes(tab.id);
+              
+              const shouldRender = isActive || (isAdjacent && !isResourceHeavy);
               
               return (
                 <Box

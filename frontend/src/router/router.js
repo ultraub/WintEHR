@@ -10,6 +10,8 @@ import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
 import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
+import FHIRExplorerApp from '../components/fhir-explorer-v4/core/FHIRExplorerApp';
+import { AppProviders } from '../providers/AppProviders';
 import Settings from '../pages/Settings';
 import Schedule from '../pages/Schedule';
 import NotFound from '../pages/NotFound';
@@ -198,6 +200,16 @@ export const router = createBrowserRouter([
         <LayoutV3>
           <FHIRExplorerRedesigned />
         </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/fhir-explorer-v4',
+    element: (
+      <ProtectedRoute>
+        <AppProviders>
+          <FHIRExplorerApp />
+        </AppProviders>
       </ProtectedRoute>
     )
   },

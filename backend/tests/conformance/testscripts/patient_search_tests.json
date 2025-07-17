@@ -1,0 +1,376 @@
+{
+  "resourceType": "TestScript",
+  "id": "patient-search-conformance",
+  "url": "http://example.org/fhir/TestScript/patient-search-conformance",
+  "name": "PatientSearchConformanceTests",
+  "title": "Patient Resource Search Parameter Conformance Tests",
+  "status": "active",
+  "experimental": true,
+  "date": "2025-01-16",
+  "publisher": "MedGenEMR Test Suite",
+  "description": "Comprehensive conformance tests for Patient resource search parameters per FHIR R4 specification",
+  "fixture": [
+    {
+      "id": "patient-fixture-1",
+      "autocreate": true,
+      "autodelete": true,
+      "resource": {
+        "reference": "Patient/example",
+        "display": "Test patient with all searchable fields"
+      }
+    }
+  ],
+  "setup": {
+    "action": [
+      {
+        "operation": {
+          "type": {
+            "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+            "code": "create"
+          },
+          "resource": "Patient",
+          "label": "Create test patient 1",
+          "description": "Create a patient with comprehensive data",
+          "accept": "json",
+          "contentType": "json",
+          "sourceId": "patient-1"
+        }
+      },
+      {
+        "operation": {
+          "type": {
+            "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+            "code": "create"
+          },
+          "resource": "Patient",
+          "label": "Create test patient 2",
+          "description": "Create a second patient for comparison",
+          "accept": "json",
+          "contentType": "json",
+          "sourceId": "patient-2"
+        }
+      }
+    ]
+  },
+  "test": [
+    {
+      "id": "01-search-by-id",
+      "name": "Search Patient by _id",
+      "description": "Verify that searching by _id returns exact match",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search by _id",
+            "description": "GET /Patient?_id={id}",
+            "accept": "json",
+            "params": "?_id=${patient-1-id}"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm bundle returned",
+            "description": "Confirm that the returned resource is a Bundle",
+            "resource": "Bundle"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm one match",
+            "description": "Confirm exactly one patient returned",
+            "expression": "Bundle.total = 1"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm correct patient",
+            "description": "Confirm the returned patient has correct id",
+            "expression": "Bundle.entry[0].resource.id = '${patient-1-id}'"
+          }
+        }
+      ]
+    },
+    {
+      "id": "02-search-by-identifier",
+      "name": "Search Patient by identifier",
+      "description": "Verify identifier search with system and value",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search by identifier",
+            "description": "GET /Patient?identifier=http://example.org/mrn|12345",
+            "accept": "json",
+            "params": "?identifier=http://example.org/mrn|12345"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm results",
+            "description": "Confirm search completes successfully",
+            "response": "okay"
+          }
+        }
+      ]
+    },
+    {
+      "id": "03-search-by-name",
+      "name": "Search Patient by name",
+      "description": "Verify name search with partial matching",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search by name",
+            "description": "GET /Patient?name=smith",
+            "accept": "json",
+            "params": "?name=smith"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm bundle",
+            "description": "Confirm Bundle returned",
+            "resource": "Bundle"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm name match",
+            "description": "All results should contain 'smith' in name",
+            "expression": "Bundle.entry.resource.all(name.exists() and (name.family.contains('smith') or name.given.contains('smith')))"
+          }
+        }
+      ]
+    },
+    {
+      "id": "04-search-by-birthdate",
+      "name": "Search Patient by birthdate",
+      "description": "Verify date search with prefixes",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search by birthdate range",
+            "description": "GET /Patient?birthdate=ge1980-01-01&birthdate=le1990-12-31",
+            "accept": "json",
+            "params": "?birthdate=ge1980-01-01&birthdate=le1990-12-31"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm date range",
+            "description": "All results should have birthdate in range",
+            "expression": "Bundle.entry.resource.all(birthDate >= '1980-01-01' and birthDate <= '1990-12-31')"
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-search-by-gender",
+      "name": "Search Patient by gender",
+      "description": "Verify token search for gender",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search by gender",
+            "description": "GET /Patient?gender=female",
+            "accept": "json",
+            "params": "?gender=female"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm gender match",
+            "description": "All results should be female",
+            "expression": "Bundle.entry.resource.all(gender = 'female')"
+          }
+        }
+      ]
+    },
+    {
+      "id": "06-search-with-include",
+      "name": "Search Patient with _include",
+      "description": "Verify _include parameter functionality",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search with include",
+            "description": "GET /Patient?_include=Patient:general-practitioner",
+            "accept": "json",
+            "params": "?_include=Patient:general-practitioner"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm includes",
+            "description": "Bundle should contain included resources",
+            "expression": "Bundle.entry.where(search.mode = 'include').exists()"
+          }
+        }
+      ]
+    },
+    {
+      "id": "07-search-with-revinclude",
+      "name": "Search Patient with _revinclude",
+      "description": "Verify _revinclude parameter functionality",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search with revinclude",
+            "description": "GET /Patient?_revinclude=Observation:patient",
+            "accept": "json",
+            "params": "?_revinclude=Observation:patient"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm revincludes",
+            "description": "Bundle may contain observations",
+            "expression": "Bundle.entry.resource.where(resourceType = 'Observation').all(subject.reference.contains('Patient/'))"
+          }
+        }
+      ]
+    },
+    {
+      "id": "08-chained-search",
+      "name": "Chained search on Patient",
+      "description": "Verify chained parameter search",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Chained search",
+            "description": "GET /Patient?general-practitioner.name=Smith",
+            "accept": "json",
+            "params": "?general-practitioner.name=Smith"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm response",
+            "description": "Should return valid bundle",
+            "response": "okay"
+          }
+        }
+      ]
+    },
+    {
+      "id": "09-search-with-count",
+      "name": "Search with _count",
+      "description": "Verify _count parameter limits results",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search with count",
+            "description": "GET /Patient?_count=5",
+            "accept": "json",
+            "params": "?_count=5"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm count limit",
+            "description": "Bundle should have at most 5 entries",
+            "expression": "Bundle.entry.count() <= 5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "10-search-with-sort",
+      "name": "Search with _sort",
+      "description": "Verify _sort parameter orders results",
+      "action": [
+        {
+          "operation": {
+            "type": {
+              "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+              "code": "search"
+            },
+            "resource": "Patient",
+            "label": "Search with sort",
+            "description": "GET /Patient?_sort=family",
+            "accept": "json",
+            "params": "?_sort=family"
+          }
+        },
+        {
+          "assert": {
+            "label": "Confirm sort order",
+            "description": "Results should be sorted by family name",
+            "expression": "Bundle.entry.resource.name[0].family"
+          }
+        }
+      ]
+    }
+  ],
+  "teardown": {
+    "action": [
+      {
+        "operation": {
+          "type": {
+            "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+            "code": "delete"
+          },
+          "resource": "Patient",
+          "label": "Delete test patient 1",
+          "description": "Delete the first test patient",
+          "targetId": "patient-1"
+        }
+      },
+      {
+        "operation": {
+          "type": {
+            "system": "http://terminology.hl7.org/CodeSystem/testscript-operation-codes",
+            "code": "delete"
+          },
+          "resource": "Patient",
+          "label": "Delete test patient 2",
+          "description": "Delete the second test patient",
+          "targetId": "patient-2"
+        }
+      }
+    ]
+  }
+}

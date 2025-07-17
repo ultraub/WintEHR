@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
-import { documentReferenceConverter } from '../utils/fhir/DocumentReferenceConverter';
+import { documentReferenceConverter } from '../core/fhir/converters/DocumentReferenceConverter';
 
 const DocumentationContext = createContext(undefined);
 

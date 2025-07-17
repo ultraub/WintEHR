@@ -72,9 +72,12 @@ import { format, parseISO, isWithinInterval, subDays, subMonths, subYears, start
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../../hooks/useDebounce';
-import { printDocument } from '../../../../utils/printUtils';
-import { getMedicationName, getMedicationDosageDisplay } from '../../../../utils/medicationDisplayUtils';
+import { printDocument } from '../../../../core/export/printUtils';
+import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import GeographicTimelineFilter from '../components/GeographicTimelineFilter';
+import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
+import { useProviderDirectory } from '../../../../hooks/useProviderDirectory';
 
 // Event type configuration
 const eventTypes = {
@@ -255,10 +258,18 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
   const getEventSubtitle = () => {
     switch (event.resourceType) {
       case 'Encounter':
-        const provider = event.participant?.find(p => 
-          p.type?.[0]?.coding?.[0]?.code === 'ATND'
-        )?.individual?.display;
-        return provider || event.status;
+        // Enhanced provider display with roles and locations
+        if (event.participant) {
+          return (
+            <EnhancedProviderDisplay
+              participants={event.participant}
+              encounter={event}
+              mode="compact"
+              showIcon={false}
+            />
+          );
+        }
+        return event.status;
       case 'MedicationRequest':
         return getMedicationDosageDisplay(event);
       case 'Observation':
@@ -427,8 +438,21 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
 const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { 
+    resources, 
+    fetchPatientBundle, 
+    fetchPatientEverything,
+    isResourceLoading, 
+    currentPatient,
+    isCacheWarm 
+  } = useFHIRResource();
   const { subscribe, notifications } = useClinicalWorkflow();
+  const { searchProvidersNearLocation, searchProviders, getLocationsByOrganization } = useProviderDirectory();
+  
+  // Progressive loading of resource types
+  const criticalTypes = ['Encounter', 'Condition', 'MedicationRequest', 'Procedure'];
+  const importantTypes = ['Observation', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization'];
+  const optionalTypes = ['DocumentReference', 'CarePlan', 'CareTeam', 'Coverage', 'ImagingStudy', 'Goal'];
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'compact'
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -442,6 +466,21 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [loadedTypes, setLoadedTypes] = useState(new Set(criticalTypes));
+  
+  // Geographic and administrative filter state
+  const [geographicFilters, setGeographicFilters] = useState({
+    useGeographicFilter: false,
+    organizations: [],
+    locations: [],
+    distanceKm: 25,
+    providers: [],
+    encounterTypes: [],
+    providerTypes: []
+  });
+  const [patientLocation, setPatientLocation] = useState(null);
+  const [availableLocations, setAvailableLocations] = useState([]);
+  const [availableOrganizations, setAvailableOrganizations] = useState([]);
 
   useEffect(() => {
     setLoading(false);
@@ -499,14 +538,214 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     };
   }, [subscribe, patientId]);
 
+  // Load available locations and organizations for filters
+  useEffect(() => {
+    if (patientId) {
+      loadGeographicData();
+    }
+  }, [patientId]);
+
+  const loadGeographicData = async () => {
+    try {
+      // Extract locations and organizations from patient's encounters and resources
+      const patientEncounters = Object.values(resources.Encounter || {}).filter(e => 
+        e.subject?.reference === `Patient/${patientId}` || 
+        e.patient?.reference === `Patient/${patientId}`
+      );
+      const locations = new Set();
+      const organizations = new Set();
+
+      // Extract from encounters
+      patientEncounters.forEach(encounter => {
+        encounter.location?.forEach(loc => {
+          if (loc.location?.display) {
+            locations.add(JSON.stringify({
+              id: loc.location.reference?.split('/')[1] || `loc-${Math.random()}`,
+              name: loc.location.display,
+              type: 'encounter-location'
+            }));
+          }
+        });
+
+        encounter.serviceProvider?.display && organizations.add(JSON.stringify({
+          id: encounter.serviceProvider.reference?.split('/')[1] || `org-${Math.random()}`,
+          name: encounter.serviceProvider.display,
+          type: 'healthcare-provider'
+        }));
+      });
+
+      // Try to search for more providers and locations
+      try {
+        const providers = await searchProviders('', { limit: 20 });
+        providers.forEach(provider => {
+          provider.organizations?.forEach(org => {
+            organizations.add(JSON.stringify({
+              id: org.id,
+              name: org.name,
+              type: 'provider-organization'
+            }));
+          });
+
+          provider.roles?.forEach(role => {
+            role.location?.forEach(loc => {
+              locations.add(JSON.stringify({
+                id: loc.reference?.split('/')[1] || `loc-${Math.random()}`,
+                name: loc.display,
+                type: 'provider-location'
+              }));
+            });
+          });
+        });
+      } catch (error) {
+        console.error('Error loading additional provider data:', error);
+      }
+
+      setAvailableLocations(Array.from(locations).map(loc => JSON.parse(loc)));
+      setAvailableOrganizations(Array.from(organizations).map(org => JSON.parse(org)));
+
+      // Try to extract patient location from address
+      if (currentPatient?.address?.[0]) {
+        const address = currentPatient.address[0];
+        setPatientLocation({
+          address: `${address.line?.join(' ') || ''} ${address.city || ''} ${address.state || ''} ${address.postalCode || ''}`.trim(),
+          city: address.city,
+          state: address.state,
+          postalCode: address.postalCode,
+          // Note: In a real implementation, you would geocode the address to get coordinates
+          latitude: null,
+          longitude: null
+        });
+      }
+    } catch (error) {
+      console.error('Error loading geographic data:', error);
+    }
+  };
+
+  const handleLocationSearch = async (searchLocation) => {
+    // In a real implementation, this would use a geocoding service
+    // For now, we'll simulate setting coordinates
+    if (searchLocation) {
+      setPatientLocation({
+        ...patientLocation,
+        ...searchLocation,
+        latitude: searchLocation.latitude || 42.3601, // Default to Boston coordinates
+        longitude: searchLocation.longitude || -71.0589
+      });
+    } else {
+      // Request current location from browser
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setPatientLocation({
+              ...patientLocation,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              address: patientLocation?.address || 'Current location'
+            });
+          },
+          (error) => {
+            console.error('Error getting location:', error);
+            setSnackbar({
+              open: true,
+              message: 'Unable to get current location',
+              severity: 'warning'
+            });
+          }
+        );
+      }
+    }
+  };
+
+  // Optimized loading with $everything operation
+  const loadTimelineDataOptimized = useCallback(async (filters = {}) => {
+    if (!patientId) return;
+    
+    setLoading(true);
+    
+    try {
+      // Determine which resource types to load based on selected types
+      const enabledTypes = Array.from(selectedTypes);
+      
+      // If no specific types enabled, load critical types first
+      const typesToLoad = enabledTypes.length > 0 ? enabledTypes : criticalTypes;
+      
+      // Use $everything operation with type filter and date range
+      const everythingOptions = {
+        types: typesToLoad,
+        count: 200, // Reasonable limit for timeline
+        forceRefresh: false
+      };
+      
+      // Add date filter if specified
+      if (filters.startDate) {
+        everythingOptions.since = filters.startDate;
+      }
+      
+      const result = await fetchPatientEverything(patientId, everythingOptions);
+      
+      // Update loaded types to reflect what was actually loaded
+      setLoadedTypes(new Set(typesToLoad));
+      
+      // If we loaded critical types and user wants more, load important types in background
+      if (typesToLoad === criticalTypes && !filters.startDate) {
+        setTimeout(() => {
+          const allTypes = [...criticalTypes, ...importantTypes, ...optionalTypes];
+          setLoadedTypes(new Set(allTypes));
+          fetchPatientEverything(patientId, { 
+            types: allTypes,
+            count: 300,
+            forceRefresh: false
+          });
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('Error loading timeline data:', error);
+      // Fallback to progressive loading
+      if (patientId && !isCacheWarm(patientId, criticalTypes)) {
+        fetchPatientBundle(patientId, false, 'critical').then(() => {
+          setTimeout(() => {
+            setLoadedTypes(prev => new Set([...prev, ...importantTypes]));
+            fetchPatientBundle(patientId, false, 'important');
+          }, 100);
+          setTimeout(() => {
+            setLoadedTypes(prev => new Set([...prev, ...optionalTypes]));
+            fetchPatientBundle(patientId, false, 'all');
+          }, 2000);
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId, selectedTypes, criticalTypes, importantTypes, optionalTypes, 
+      fetchPatientEverything, fetchPatientBundle, isCacheWarm]);
+
+  // Load timeline data when patient or filters change
+  useEffect(() => {
+    loadTimelineDataOptimized({ 
+      startDate: filterPeriod !== 'all' ? 
+        (() => {
+          const periodMap = {
+            '7d': subDays(new Date(), 7),
+            '30d': subDays(new Date(), 30),
+            '90d': subDays(new Date(), 90),
+            '6m': subMonths(new Date(), 6),
+            '1y': subYears(new Date(), 1),
+            '5y': subYears(new Date(), 5)
+          };
+          return periodMap[filterPeriod]?.toISOString().split('T')[0];
+        })() : undefined
+    });
+  }, [loadTimelineDataOptimized, filterPeriod]);
+
   // Memoized collection of all events to prevent recalculation on every render
   const allEvents = useMemo(() => {
     const events = [];
     const seenIds = new Set(); // Track unique IDs to prevent duplicates
     
     try {
-      // Add all resource types
-      Object.keys(eventTypes).forEach(resourceType => {
+      // Only process loaded resource types
+      loadedTypes.forEach(resourceType => {
         try {
           if (resourceType === 'WorkflowEvent') {
             // Add workflow events from state
@@ -517,10 +756,13 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
                 events.push(event);
               }
             });
-          } else {
-            // Add FHIR resources
-            const resources = getPatientResources(patientId, resourceType) || [];
-            resources.forEach(resource => {
+          } else if (resources[resourceType]) {
+            // Add FHIR resources from context
+            const patientResources = Object.values(resources[resourceType] || {}).filter(r => 
+              r.subject?.reference === `Patient/${patientId}` || 
+              r.patient?.reference === `Patient/${patientId}`
+            );
+            patientResources.forEach(resource => {
               const uniqueKey = `${resource.resourceType}-${resource.id}`;
               if (!seenIds.has(uniqueKey)) {
                 seenIds.add(uniqueKey);
@@ -540,7 +782,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
     }
 
     return events;
-  }, [patientId, getPatientResources, workflowEvents]); // Recalculate when patientId, resources, or workflow events update
+  }, [patientId, resources, workflowEvents, loadedTypes]); // Recalculate when patientId, resources, workflow events, or loaded types update
 
   // Optimized search function that doesn't use JSON.stringify
   const isEventMatchingSearch = useCallback((event, term) => {
@@ -570,6 +812,66 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       field && field.toLowerCase().includes(lowerTerm)
     );
   }, []);
+
+  // Geographic and administrative filtering function
+  const isEventMatchingFilters = useCallback((event) => {
+    // Organization filter
+    if (geographicFilters.organizations?.length > 0) {
+      let hasMatchingOrganization = false;
+      
+      // Check encounter service provider
+      if (event.resourceType === 'Encounter' && event.serviceProvider) {
+        const orgId = event.serviceProvider.reference?.split('/')[1];
+        if (orgId && geographicFilters.organizations.includes(orgId)) {
+          hasMatchingOrganization = true;
+        }
+      }
+      
+      // Check for organization references in other resources
+      if (!hasMatchingOrganization && event.performer) {
+        event.performer.forEach(performer => {
+          const orgId = performer.reference?.split('/')[1];
+          if (orgId && geographicFilters.organizations.includes(orgId)) {
+            hasMatchingOrganization = true;
+          }
+        });
+      }
+      
+      if (!hasMatchingOrganization) {
+        return false;
+      }
+    }
+
+    // Location filter
+    if (geographicFilters.locations?.length > 0) {
+      let hasMatchingLocation = false;
+      
+      if (event.resourceType === 'Encounter' && event.location) {
+        event.location.forEach(loc => {
+          const locId = loc.location?.reference?.split('/')[1];
+          if (locId && geographicFilters.locations.includes(locId)) {
+            hasMatchingLocation = true;
+          }
+        });
+      }
+      
+      if (!hasMatchingLocation) {
+        return false;
+      }
+    }
+
+    // Encounter type filter
+    if (geographicFilters.encounterTypes?.length > 0) {
+      if (event.resourceType === 'Encounter') {
+        const encounterClass = event.class?.code;
+        if (!encounterClass || !geographicFilters.encounterTypes.includes(encounterClass)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, [geographicFilters]);
 
   // Memoized filtering and sorting to prevent recalculation
   const filteredEvents = useMemo(() => {
@@ -604,10 +906,15 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         }
       }
 
+      // Geographic and administrative filters
+      if (!isEventMatchingFilters(event)) {
+        return false;
+      }
+
       // Optimized search filter with debounced search term
       return isEventMatchingSearch(event, debouncedSearchTerm);
     });
-  }, [allEvents, selectedTypes, filterPeriod, debouncedSearchTerm, isEventMatchingSearch]);
+  }, [allEvents, selectedTypes, filterPeriod, debouncedSearchTerm, isEventMatchingSearch, isEventMatchingFilters]);
 
   // Memoized sorting to prevent recalculation
   const sortedEvents = useMemo(() => {
@@ -883,6 +1190,16 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           </Collapse>
         </Stack>
       </Paper>
+
+      {/* Geographic and Administrative Filters */}
+      <GeographicTimelineFilter
+        filters={geographicFilters}
+        onFiltersChange={setGeographicFilters}
+        patientLocation={patientLocation}
+        onLocationSearch={handleLocationSearch}
+        availableLocations={availableLocations}
+        availableOrganizations={availableOrganizations}
+      />
 
       {/* Timeline Display */}
       {sortedEvents.length === 0 ? (

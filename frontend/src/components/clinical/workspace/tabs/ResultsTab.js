@@ -74,14 +74,17 @@ import {
   Assessment as AssessmentIcon,
   Close as CloseIcon,
   CheckCircle,
-  Timeline as TimelineIcon
+  Timeline as TimelineIcon,
+  Person as PersonIcon,
+  LocationOn as LocationIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { usePaginatedObservations, usePaginatedDiagnosticReports } from '../../../../hooks/usePaginatedObservations';
 import { useNavigate } from 'react-router-dom';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
-import { printDocument, formatLabResultsForPrint } from '../../../../utils/printUtils';
+import { printDocument, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { 
   getObservationCategory, 
@@ -91,16 +94,22 @@ import {
   getResourceDisplayText,
   getCodeableConceptDisplay,
   getReferenceId 
-} from '../../../../utils/fhirFieldUtils';
+} from '../../../../core/fhir/utils/fhirFieldUtils';
 import QuickResultNote from '../../results/QuickResultNote';
 import CriticalValueAlert from '../../results/CriticalValueAlert';
 import ResultAcknowledgmentPanel from '../../results/ResultAcknowledgmentPanel';
 import ResultTrendAnalysis from '../../results/ResultTrendAnalysis';
 import LabCareRecommendations from '../../results/LabCareRecommendations';
 import LabMonitoringDashboard from '../../results/LabMonitoringDashboard';
+import AdvancedLabValueFilter from './components/AdvancedLabValueFilter';
+import ProviderAccountabilityPanel from '../../results/ProviderAccountabilityPanel';
+import OrderContextPanel from '../../results/OrderContextPanel';
+import FacilityResultManager from '../../results/FacilityResultManager';
 import { resultsManagementService } from '../../../../services/resultsManagementService';
 import { labToCareIntegrationService } from '../../../../services/labToCareIntegrationService';
-import { fhirClient } from '../../../../services/fhirClient';
+import { criticalValueDetectionService } from '../../../../services/criticalValueDetectionService';
+import { providerAccountabilityService } from '../../../../services/providerAccountabilityService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -399,7 +408,7 @@ const ResultCard = ({ observation, onClick }) => {
 const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { currentPatient } = useFHIRResource();
   const { publish, createCriticalAlert } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -408,9 +417,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [loading, setLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [alertedResults, setAlertedResults] = useState(new Set());
@@ -429,87 +436,210 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
   const [showMonitoringDashboard, setShowMonitoringDashboard] = useState(false);
   const [patientConditions, setPatientConditions] = useState([]);
   const [carePlanId, setCarePlanId] = useState(null);
+  
+  // Advanced filtering state
+  const [advancedFilters, setAdvancedFilters] = useState([]);
+  const [filteredByValue, setFilteredByValue] = useState(false);
+  const [advancedFilteredResults, setAdvancedFilteredResults] = useState([]);
+  
+  // Provider filtering state
+  const [providerFilter, setProviderFilter] = useState(null);
+  const [providerFilteredResults, setProviderFilteredResults] = useState([]);
+  const [filteredByProvider, setFilteredByProvider] = useState(false);
+  const [showProviderPanel, setShowProviderPanel] = useState(false);
+  
+  // Facility filtering state
+  const [facilityFilter, setFacilityFilter] = useState(null);
+  const [facilityFilteredResults, setFacilityFilteredResults] = useState([]);
+  const [filteredByFacility, setFilteredByFacility] = useState(false);
+  const [showFacilityPanel, setShowFacilityPanel] = useState(false);
 
-  // Get observations and diagnostic reports early for monitoring
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const diagnosticReports = getPatientResources(patientId, 'DiagnosticReport') || [];
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  // Monitor for new abnormal results
-  useEffect(() => {
-    if (observations && observations.length > 0) {
-      // Check for recent abnormal results (within last 24 hours)
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      
-      const recentAbnormalResults = observations.filter(obs => {
-        // Skip if already alerted
-        if (alertedResults.has(obs.id)) return false;
-        
-        // Check if observation is recent
-        const obsDate = obs.effectiveDateTime ? new Date(obs.effectiveDateTime) : null;
-        if (!obsDate || obsDate < oneDayAgo) return false;
-        
-        // Check if observation is abnormal
-        const status = getResultStatus(obs);
-        return status.color === 'error' || status.color === 'warning';
-      });
-      
-      // Check specifically for critical values
-      const criticalResults = observations.filter(obs => {
-        const criticalCheck = resultsManagementService.checkCriticalValue(obs);
-        return criticalCheck.isCritical && !alertedResults.has(obs.id);
-      });
-      
-      // Show critical value alert for the first critical result
-      if (criticalResults.length > 0 && !criticalAlertOpen) {
-        setCriticalResult(criticalResults[0]);
-        setCriticalAlertOpen(true);
-      }
-      
-      // Publish critical alerts for abnormal results
-      if (recentAbnormalResults.length > 0) {
-        const newAlertedResults = new Set(alertedResults);
-        
-        recentAbnormalResults.forEach(async (result) => {
-          const status = getResultStatus(result);
-          const testName = getResourceDisplayText(result);
-          const value = result.valueQuantity ? 
-            `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 
-            'N/A';
-          
-          await createCriticalAlert({
-            type: 'abnormal_result',
-            severity: status.color === 'error' ? 'high' : 'medium',
-            message: `Abnormal ${testName}: ${value} (${status.label})`,
-            data: result,
-            actions: [
-              { label: 'Review Result', action: 'view', target: result.id },
-              { label: 'Add to Note', action: 'document', target: 'documentation' }
-            ]
-          });
-          
-          // Also publish RESULT_RECEIVED event
-          await publish(CLINICAL_EVENTS.RESULT_RECEIVED, {
-            ...result,
-            isAbnormal: true,
-            status: status.label,
-            patientId,
-            timestamp: new Date().toISOString()
-          });
-          
-          // Mark as alerted
-          newAlertedResults.add(result.id);
-        });
-        
-        // Update alerted results state
-        setAlertedResults(newAlertedResults);
-      }
+  // Calculate date range based on filter period
+  const dateRange = useMemo(() => {
+    if (filterPeriod === 'all') return null;
+    
+    const end = new Date();
+    let start = new Date();
+    
+    switch (filterPeriod) {
+      case '24h':
+        start = subDays(end, 1);
+        break;
+      case '7d':
+        start = subDays(end, 7);
+        break;
+      case '30d':
+        start = subDays(end, 30);
+        break;
+      case '90d':
+        start = subDays(end, 90);
+        break;
+      default:
+        return null;
     }
-  }, [observations, patientId, createCriticalAlert, publish, alertedResults]);
+    
+    return { start, end };
+  }, [filterPeriod]);
+  
+  // Use paginated hooks for observations - separate by category (for table views)
+  const labObservations = usePaginatedObservations(patientId, {
+    category: selectedCategory === 'laboratory' ? 'laboratory' : (selectedCategory === 'all' ? null : undefined),
+    pageSize: rowsPerPage,
+    dateRange,
+    status: filterStatus === 'all' ? null : filterStatus,
+    code: searchTerm || null
+  });
+  
+  const vitalObservations = usePaginatedObservations(patientId, {
+    category: 'vital-signs',
+    pageSize: rowsPerPage,
+    dateRange,
+    code: searchTerm || null
+  });
+
+  // Chart-specific hooks for complete historical data (no pagination limits)
+  const labObservationsForCharts = usePaginatedObservations(patientId, {
+    category: 'laboratory',
+    pageSize: 1000, // Large limit to get all historical data
+    dateRange: null, // Get all historical data for trends
+    status: null, // Include all statuses for comprehensive trends
+    code: null // Get all lab tests for trending
+  });
+  
+  const vitalObservationsForCharts = usePaginatedObservations(patientId, {
+    category: 'vital-signs',
+    pageSize: 1000, // Large limit to get all historical data
+    dateRange: null, // Get all historical data for trends
+    code: null // Get all vital signs for trending
+  });
+  
+  // Use paginated hook for diagnostic reports
+  const diagnosticReportsData = usePaginatedDiagnosticReports(patientId, {
+    pageSize: rowsPerPage,
+    status: filterStatus === 'all' ? null : filterStatus
+  });
+  const diagnosticReports = diagnosticReportsData.reports;
+  
+  // Get loading state based on active tab (include chart data for trends view)
+  const loading = tabValue === 0 ? (
+    viewMode === 'trends' ? (labObservations.loading || labObservationsForCharts.loading) : labObservations.loading
+  ) : tabValue === 1 ? (
+    viewMode === 'trends' ? (vitalObservations.loading || vitalObservationsForCharts.loading) : vitalObservations.loading
+  ) : tabValue === 2 ? diagnosticReportsData.loading : false;
+  
+  // Get current page data based on tab
+  const currentPageData = tabValue === 0 ? labObservations : 
+                         tabValue === 1 ? vitalObservations :
+                         tabValue === 2 ? diagnosticReportsData : null;
+
+  // Enhanced critical value monitoring with detection service
+  useEffect(() => {
+    const monitorCriticalValues = async () => {
+      const currentObservations = tabValue === 0 ? labObservations.observations : 
+                                 tabValue === 1 ? vitalObservations.observations : [];
+      
+      if (currentObservations && currentObservations.length > 0) {
+        try {
+          // Check for critical values in current observations
+          const criticalAssessments = [];
+          
+          for (const obs of currentObservations) {
+            const assessment = criticalValueDetectionService.isCriticalValue(obs);
+            if (assessment.isCritical) {
+              criticalAssessments.push({
+                observation: obs,
+                assessment
+              });
+            }
+          }
+
+          // Create alerts for new critical values
+          for (const { observation, assessment } of criticalAssessments) {
+            if (!alertedResults.has(observation.id)) {
+              await criticalValueDetectionService.createCriticalValueAlert(
+                observation,
+                assessment,
+                patientId,
+                publish
+              );
+              
+              // Show critical value alert dialog for immediate priority
+              if (assessment.priority === 'immediate' && !criticalAlertOpen) {
+                setCriticalResult(observation);
+                setCriticalAlertOpen(true);
+              }
+              
+              // Mark as alerted
+              const newAlertedResults = new Set(alertedResults);
+              newAlertedResults.add(observation.id);
+              setAlertedResults(newAlertedResults);
+            }
+          }
+
+          // Check for recent abnormal results (within last 24 hours)
+          const oneDayAgo = new Date();
+          oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+          
+          const recentAbnormalResults = currentObservations.filter(obs => {
+            // Skip if already alerted
+            if (alertedResults.has(obs.id)) return false;
+            
+            // Check if observation is recent
+            const obsDate = obs.effectiveDateTime ? new Date(obs.effectiveDateTime) : null;
+            if (!obsDate || obsDate < oneDayAgo) return false;
+            
+            // Check if observation is abnormal (but not critical - those are handled above)
+            const status = getResultStatus(obs);
+            const assessment = criticalValueDetectionService.isCriticalValue(obs);
+            return (status.color === 'error' || status.color === 'warning') && !assessment.isCritical;
+          });
+          
+          // Publish alerts for abnormal results
+          if (recentAbnormalResults.length > 0) {
+            const newAlertedResults = new Set(alertedResults);
+            
+            recentAbnormalResults.forEach(async (result) => {
+              const status = getResultStatus(result);
+              const testName = getResourceDisplayText(result);
+              const value = result.valueQuantity ? 
+                `${result.valueQuantity.value} ${result.valueQuantity.unit || ''}` : 
+                'N/A';
+              
+              await createCriticalAlert({
+                type: 'abnormal_result',
+                severity: status.color === 'error' ? 'high' : 'medium',
+                message: `Abnormal ${testName}: ${value} (${status.label})`,
+                data: result,
+                actions: [
+                  { label: 'Review Result', action: 'view', target: result.id },
+                  { label: 'Add to Note', action: 'document', target: 'documentation' }
+                ]
+              });
+              
+              // Also publish RESULT_RECEIVED event
+              await publish(CLINICAL_EVENTS.RESULT_RECEIVED, {
+                ...result,
+                isAbnormal: true,
+                status: status.label,
+                patientId,
+                timestamp: new Date().toISOString()
+              });
+              
+              // Mark as alerted
+              newAlertedResults.add(result.id);
+            });
+            
+            // Update alerted results state
+            setAlertedResults(newAlertedResults);
+          }
+        } catch (error) {
+          console.error('Error monitoring critical values:', error);
+        }
+      }
+    };
+
+    monitorCriticalValues();
+  }, [tabValue, labObservations.observations, vitalObservations.observations, patientId, createCriticalAlert, publish, alertedResults, criticalAlertOpen]);
 
   const handleViewDetails = (result) => {
     setSelectedResult(result);
@@ -521,7 +651,9 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     try {
       // Create acknowledgment notes for each selected result
       const promises = Array.from(selectedResultIds).map(async (resultId) => {
-        const result = observations.find(o => o.id === resultId) || 
+        const currentObservations = tabValue === 0 ? labObservations.observations : 
+                                   tabValue === 1 ? vitalObservations.observations : [];
+        const result = currentObservations.find(o => o.id === resultId) || 
                       diagnosticReports.find(d => d.id === resultId);
         
         if (result) {
@@ -688,6 +820,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     if (loincCode) {
       setSelectedTestForTrend(loincCode);
       setShowTrendAnalysis(true);
+      
+      // NOTE: With server-side pagination, the LabTrendsChart component
+      // will need to fetch ALL historical data for this specific test
+      // to show complete trends (not just the current page)
     } else {
       setSnackbar({
         open: true,
@@ -713,7 +849,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     if (patientId) {
       loadUnacknowledgedCount();
     }
-  }, [patientId, observations]);
+  }, [patientId]); // Only depend on patientId, not observations array
 
   // Load patient conditions and care plan for lab-to-care integration
   useEffect(() => {
@@ -747,28 +883,60 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId]);
 
-  // Memoized categorization to prevent recalculation on every render
-  const categorizedObservations = useMemo(() => {
-    const labResults = [];
-    const vitalSigns = [];
-    const otherResults = [];
+  // Handle advanced filter changes
+  const handleAdvancedFilterChange = (filters) => {
+    setAdvancedFilters(filters);
     
-    observations.forEach(o => {
+    if (filters.length === 0) {
+      setFilteredByValue(false);
+      setAdvancedFilteredResults([]);
+    }
+    
+    // The actual filtering is now handled by the AdvancedLabValueFilter component
+    // Results are passed back via onFilteredResultsChange callback
+  };
+
+  // Handle provider filter changes
+  const handleProviderFilter = (filter) => {
+    setProviderFilter(filter);
+    setFilteredByProvider(!!filter);
+  };
+
+  const handleProviderResultsUpdate = (results) => {
+    setProviderFilteredResults(results);
+  };
+
+  // Handle facility filter changes
+  const handleFacilityFilter = (filter) => {
+    setFacilityFilter(filter);
+    setFilteredByFacility(!!filter);
+  };
+
+  const handleFacilityResultsUpdate = (results) => {
+    setFacilityFilteredResults(results);
+  };
+
+  // Enhanced chart data with reference ranges and categorization
+  const enhancedChartData = useMemo(() => {
+    const labResultsForCharts = [];
+    const vitalSignsForCharts = [];
+    
+    // Process lab observations for charts
+    labObservationsForCharts.observations.forEach(o => {
       const enhancedObs = enhanceObservationWithReferenceRange(o);
-      const category = getObservationCategory(enhancedObs);
-      if (category === 'laboratory') {
-        labResults.push(enhancedObs);
-      } else if (category === 'vital-signs') {
-        vitalSigns.push(enhancedObs);
-      } else {
-        otherResults.push(enhancedObs);
-      }
+      labResultsForCharts.push(enhancedObs);
     });
     
-    return { labResults, vitalSigns, otherResults };
-  }, [observations]);
+    // Process vital observations for charts
+    vitalObservationsForCharts.observations.forEach(o => {
+      const enhancedObs = enhanceObservationWithReferenceRange(o);
+      vitalSignsForCharts.push(enhancedObs);
+    });
+    
+    return { labResultsForCharts, vitalSignsForCharts };
+  }, [labObservationsForCharts.observations, vitalObservationsForCharts.observations]);
   
-  const { labResults, vitalSigns, otherResults } = categorizedObservations;
+  const { labResultsForCharts, vitalSignsForCharts } = enhancedChartData;
 
   // Memoized filter function to prevent recalculation
   const filterResults = useCallback((results) => {
@@ -813,18 +981,45 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     });
   }, [filterPeriod, filterStatus, searchTerm]);
 
-  // Memoized result filtering and sorting
+  // Memoized result filtering and sorting with advanced filter support
   const { filteredResults, sortedResults } = useMemo(() => {
     let currentResults;
+    
     switch (tabValue) {
       case 0: 
-        currentResults = filterResults(labResults);
+        // Lab Results - Priority: Facility filter > Provider filter > Advanced filter > Regular results
+        if (filteredByFacility && facilityFilteredResults.length > 0) {
+          currentResults = filterResults(facilityFilteredResults);
+        } else if (filteredByFacility) {
+          // Facility filter active but no results found
+          currentResults = [];
+        } else if (filteredByProvider && providerFilteredResults.length > 0) {
+          currentResults = filterResults(providerFilteredResults);
+        } else if (filteredByProvider) {
+          // Provider filter active but no results found
+          currentResults = [];
+        } else if (filteredByValue && advancedFilteredResults.length > 0) {
+          currentResults = filterResults(advancedFilteredResults);
+        } else if (filteredByValue && advancedFilters.length > 0) {
+          // Advanced filters active but no results found
+          currentResults = [];
+        } else {
+          currentResults = filterResults(labObservations.observations);
+        }
         break;
-      case 1:
+      case 1: 
+        // Vital Signs - Support advanced filtering
+        if (filteredByValue && advancedFilteredResults.length > 0) {
+          currentResults = filterResults(advancedFilteredResults);
+        } else if (filteredByValue && advancedFilters.length > 0) {
+          // Advanced filters active but no results found
+          currentResults = [];
+        } else {
+          currentResults = filterResults(vitalObservations.observations);
+        }
+        break;
       case 2: 
-        currentResults = filterResults(vitalSigns);
-        break;
-      case 3: 
+        // Diagnostic Reports
         currentResults = diagnosticReports;
         break;
       default: 
@@ -841,15 +1036,15 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       filteredResults: currentResults, 
       sortedResults: sorted 
     };
-  }, [tabValue, labResults, vitalSigns, diagnosticReports, filterResults]);
+  }, [tabValue, labObservations.observations, vitalObservations.observations, diagnosticReports, filterResults, filteredByValue, advancedFilteredResults, advancedFilters, filteredByProvider, providerFilteredResults, filteredByFacility, facilityFilteredResults]);
 
   // Memoized abnormal count calculation
   const abnormalCount = useMemo(() => {
-    return labResults.filter(r => {
+    return labObservations.observations.filter(r => {
       const status = getResultStatus(r);
       return status.label && status.label !== 'Normal';
     }).length;
-  }, [labResults]);
+  }, [labObservations.observations]);
 
   if (loading) {
     return (
@@ -867,6 +1062,42 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           Test Results
         </Typography>
         <Stack direction="row" spacing={2}>
+          {/* Provider Accountability */}
+          <Button
+            variant={showProviderPanel ? "contained" : "outlined"}
+            onClick={() => setShowProviderPanel(!showProviderPanel)}
+            startIcon={<PersonIcon />}
+            color={filteredByProvider ? "primary" : "inherit"}
+          >
+            Providers
+            {filteredByProvider && (
+              <Chip 
+                label="Filtered" 
+                size="small" 
+                color="primary" 
+                sx={{ ml: 1 }} 
+              />
+            )}
+          </Button>
+
+          {/* Facility Management */}
+          <Button
+            variant={showFacilityPanel ? "contained" : "outlined"}
+            onClick={() => setShowFacilityPanel(!showFacilityPanel)}
+            startIcon={<LocationIcon />}
+            color={filteredByFacility ? "primary" : "inherit"}
+          >
+            Facilities
+            {filteredByFacility && (
+              <Chip 
+                label="Filtered" 
+                size="small" 
+                color="primary" 
+                sx={{ ml: 1 }} 
+              />
+            )}
+          </Button>
+          
           {/* Care Integration Buttons */}
           <Button
             variant={showCareRecommendations ? "contained" : "outlined"}
@@ -948,7 +1179,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Lab Results" 
             icon={
-              <Badge badgeContent={labResults.length} color="primary">
+              <Badge 
+                badgeContent={labObservations.loading ? '...' : labObservations.totalCount} 
+                color="primary"
+              >
                 <LabIcon />
               </Badge>
             }
@@ -957,7 +1191,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Vital Signs" 
             icon={
-              <Badge badgeContent={vitalSigns.length} color="primary">
+              <Badge 
+                badgeContent={vitalObservations.loading ? '...' : vitalObservations.totalCount} 
+                color="primary"
+              >
                 <DiagnosticIcon />
               </Badge>
             }
@@ -966,7 +1203,10 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <Tab 
             label="Reports" 
             icon={
-              <Badge badgeContent={diagnosticReports.length} color="primary">
+              <Badge 
+                badgeContent={diagnosticReportsData.loading ? '...' : diagnosticReportsData.totalCount} 
+                color="primary"
+              >
                 <AssessmentIcon />
               </Badge>
             }
@@ -1034,12 +1274,119 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         </Stack>
       </Paper>
 
+      {/* Advanced Value Filtering - Show for Lab Results and Vital Signs tabs */}
+      {(tabValue === 0 || tabValue === 1) && (
+        <AdvancedLabValueFilter
+          patientId={patientId}
+          observations={tabValue === 0 ? labObservations.observations : vitalObservations.observations}
+          currentTab={tabValue}
+          onFilterChange={handleAdvancedFilterChange}
+          onFilteredResultsChange={(results) => {
+            setAdvancedFilteredResults(results);
+            setFilteredByValue(results.length > 0);
+          }}
+          onCriticalValuesFound={(criticalValues) => {
+            // Handle critical values found during filtering
+            criticalValues.forEach(result => {
+              if (!alertedResults.has(result.id)) {
+                setCriticalResult(result);
+                setCriticalAlertOpen(true);
+              }
+            });
+          }}
+          initialFilters={advancedFilters}
+          isVisible={true}
+        />
+      )}
+
+      {/* Show provider filter status */}
+      {filteredByProvider && (
+        <Alert 
+          severity={providerFilteredResults.length > 0 ? "info" : "warning"} 
+          sx={{ mb: 2 }}
+          action={
+            <Button 
+              size="small" 
+              onClick={() => {
+                handleProviderFilter(null);
+                handleProviderResultsUpdate([]);
+              }}
+              color="inherit"
+            >
+              Clear Provider Filter
+            </Button>
+          }
+        >
+          <Typography variant="body2">
+            {providerFilteredResults.length > 0 ? (
+              <>
+                Showing {providerFilteredResults.length} results for provider: 
+                <Chip
+                  label={`${providerFilter.provider.name} (${providerFilter.type})`}
+                  size="small"
+                  color="primary"
+                  sx={{ ml: 1 }}
+                />
+              </>
+            ) : (
+              <>
+                No results found for provider: {providerFilter?.provider?.name}. 
+                This provider may not have ordered or performed lab tests for this patient.
+              </>
+            )}
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Show advanced filter status */}
+      {filteredByValue && !filteredByProvider && (
+        <Alert 
+          severity={advancedFilteredResults.length > 0 ? "success" : "warning"} 
+          sx={{ mb: 2 }}
+          action={
+            <Button 
+              size="small" 
+              onClick={() => handleAdvancedFilterChange([])}
+              color="inherit"
+            >
+              Clear Filters
+            </Button>
+          }
+        >
+          <Typography variant="body2">
+            {advancedFilteredResults.length > 0 ? (
+              <>
+                Found {advancedFilteredResults.length} results matching {advancedFilters.length} advanced filter(s):
+                {advancedFilters.map((f, i) => (
+                  <Chip
+                    key={i}
+                    label={f.testDisplay + ' ' + (
+                      f.operator === 'range' 
+                        ? `${f.rangeMin}-${f.rangeMax} ${f.unit}`
+                        : `${f.operator} ${f.value} ${f.unit}`
+                    )}
+                    size="small"
+                    color={f.category === 'critical' ? 'error' : 'warning'}
+                    sx={{ ml: 1, mb: 0.5 }}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
+                No results found matching {advancedFilters.length} advanced filter(s). 
+                Try adjusting the filter criteria or check if the patient has recent {tabValue === 0 ? 'lab results' : 'vital signs'}.
+              </>
+            )}
+          </Typography>
+        </Alert>
+      )}
+
       {/* Care Recommendations */}
       {showCareRecommendations && (
         <Box sx={{ mb: 3 }}>
           <LabCareRecommendations
             patientId={patientId}
-            observations={labResults}
+            observations={labResultsForCharts}
             carePlanId={carePlanId}
             onRecommendationApplied={(recommendation, result) => {
               setSnackbar({
@@ -1058,6 +1405,30 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           <LabMonitoringDashboard
             patientId={patientId}
             patientConditions={patientConditions}
+          />
+        </Box>
+      )}
+
+      {/* Provider Accountability Panel */}
+      {showProviderPanel && (
+        <Box sx={{ mb: 3 }}>
+          <ProviderAccountabilityPanel
+            patientId={patientId}
+            onProviderFilter={handleProviderFilter}
+            onResultsUpdate={handleProviderResultsUpdate}
+            selectedProvider={providerFilter?.provider?.id}
+          />
+        </Box>
+      )}
+
+      {/* Facility Result Manager Panel */}
+      {showFacilityPanel && (
+        <Box sx={{ mb: 3 }}>
+          <FacilityResultManager
+            patientId={patientId}
+            onFacilityFilter={handleFacilityFilter}
+            onResultsUpdate={handleFacilityResultsUpdate}
+            selectedFacility={facilityFilter?.facility?.id}
           />
         </Box>
       )}
@@ -1090,7 +1461,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
         // Lab Trends View
         <LabTrendsChart 
           patientId={patientId}
-          observations={labResults}
+          observations={labResultsForCharts}
           height={500}
         />
       ) : viewMode === 'table' && tabValue !== 1 ? (
@@ -1115,7 +1486,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             </TableHead>
             <TableBody>
               {sortedResults
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((result) => (
                   <ResultRow
                     key={result.id}
@@ -1132,27 +1502,27 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
           </Table>
           <TablePagination
             component="div"
-            count={sortedResults.length}
-            page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
+            count={labObservations.totalCount}
+            page={labObservations.currentPage}
+            onPageChange={(e, newPage) => labObservations.goToPage(newPage)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {
               setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
+              labObservations.goToPage(0);
             }}
           />
         </TableContainer>
       ) : tabValue === 1 ? (
         // Vital Signs
         <Box>
-          {vitalSigns.length === 0 ? (
+          {sortedResults.length === 0 ? (
             <Alert severity="info">
               No vital signs recorded for this patient
             </Alert>
           ) : viewMode === 'trends' ? (
             <VitalsOverview 
               patientId={patientId} 
-              vitalsData={vitalSigns}
+              vitalsData={vitalSignsForCharts}
               compact={false}
             />
           ) : viewMode === 'table' ? (
@@ -1170,7 +1540,6 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 </TableHead>
                 <TableBody>
                   {sortedResults
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((result) => (
                       <ResultRow
                         key={result.id}
@@ -1185,13 +1554,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
               </Table>
               <TablePagination
                 component="div"
-                count={sortedResults.length}
-                page={page}
-                onPageChange={(e, newPage) => setPage(newPage)}
+                count={vitalObservations.totalCount}
+                page={vitalObservations.currentPage}
+                onPageChange={(e, newPage) => vitalObservations.goToPage(newPage)}
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={(e) => {
                   setRowsPerPage(parseInt(e.target.value, 10));
-                  setPage(0);
+                  vitalObservations.goToPage(0);
                 }}
               />
             </TableContainer>
@@ -1455,6 +1824,14 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                   </Typography>
                 </Box>
               )}
+
+              {/* Order Context */}
+              <OrderContextPanel 
+                observation={selectedResult} 
+                onOrderSelect={(order) => {
+                  // Could open order details in a separate dialog
+                }}
+              />
             </Stack>
           )}
         </DialogContent>

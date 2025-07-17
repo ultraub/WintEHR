@@ -89,7 +89,9 @@ export function usePatientResourceType(patientId, resourceType, autoLoad = true)
     setLocalError(null);
 
     try {
-      const searchParams = { patient: patientId, _count: 1000, ...params };
+      // Use reasonable count to prevent memory issues
+      const defaultCount = resourceType === 'Observation' ? 100 : 50;
+      const searchParams = { patient: patientId, _count: params._count || defaultCount, ...params };
       const result = await searchResources(resourceType, searchParams, forceRefresh);
       return result;
     } catch (err) {

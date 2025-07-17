@@ -13,8 +13,8 @@ from datetime import datetime
 
 from database import get_db_session
 from scripts.document_reference_migration import DocumentReferenceMigrator
-from services.document_validation_service import DocumentValidationService
-from emr_api.auth import get_current_user, require_admin
+from api.services.fhir.document_validation_service import DocumentValidationService
+from api.auth import get_current_user, require_admin
 from core.database import get_database_url
 
 router = APIRouter(prefix="/admin/documents", tags=["Admin - Document Migration"])
@@ -158,7 +158,7 @@ async def validate_single_document(
     Requires admin privileges.
     """
     try:
-        from core.fhir.storage import FHIRStorageEngine
+        from fhir.core.storage import FHIRStorageEngine
         from sqlalchemy.ext.asyncio import AsyncSession
         
         # Get the document from database
@@ -230,7 +230,7 @@ async def document_service_health():
     """
     try:
         # Basic health check
-        from services.document_validation_service import DocumentValidationService
+        from api.services.fhir.document_validation_service import DocumentValidationService
         
         # Test that validation service can be imported and initialized
         validator = DocumentValidationService()

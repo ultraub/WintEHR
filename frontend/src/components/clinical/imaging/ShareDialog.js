@@ -30,7 +30,7 @@ import {
   Lock as LockIcon,
   Email as EmailIcon
 } from '@mui/icons-material';
-import { generateShareLink, copyShareLink } from '../../../utils/imagingUtils';
+import { generateShareLink, copyShareLink } from '../../../core/imaging/imagingUtils';
 import { format, addHours } from 'date-fns';
 
 const ShareDialog = ({ open, onClose, study }) => {

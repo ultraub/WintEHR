@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { fhirClient } from '../services/fhirClient';
+import { useFHIRResource } from '../contexts/FHIRResourceContext';
 
 // Cache for resolved medications to avoid repeated fetches
 const medicationCache = new Map();
@@ -12,6 +13,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
   const [resolvedMedications, setResolvedMedications] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { getResource } = useFHIRResource();
   
   // Memoize the medication requests array based on IDs to prevent unnecessary re-renders
   const medicationRequestIds = useMemo(() => {
@@ -61,9 +63,25 @@ export const useMedicationResolver = (medicationRequests = []) => {
           }
         });
 
-        // Fetch medications not in cache
-        const toFetch = Array.from(medicationRefs).filter(id => !medicationCache.has(id));
+        // Check context first, then cache, then fetch if needed
+        const toFetch = [];
         
+        for (const id of Array.from(medicationRefs)) {
+          // Check if already in cache
+          if (medicationCache.has(id)) {
+            continue;
+          }
+          
+          // Check if available in context store (from _include)
+          const contextMedication = getResource('Medication', id);
+          if (contextMedication) {
+            medicationCache.set(id, contextMedication);
+          } else {
+            toFetch.push(id);
+          }
+        }
+        
+        // Only fetch medications not in cache or context
         if (toFetch.length > 0) {
           // Sequential fetch to ensure cache operations complete properly
           for (const id of toFetch) {

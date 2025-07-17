@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import PatientSummaryV4 from '../components/clinical/dashboard/PatientSummaryV4';
-import { decodeFhirId } from '../utils/navigationUtils';
+import { decodeFhirId } from '../core/navigation/navigationUtils';
 
 const PatientDashboardV2Page = () => {
   const { id: encodedPatientId } = useParams();

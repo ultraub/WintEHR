@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from main import app
-from database.database import Base, get_db
+from database import Base, get_db_session as get_db
 from models.synthea_models import Patient, Encounter, Observation, Condition, Medication
 import logging
 

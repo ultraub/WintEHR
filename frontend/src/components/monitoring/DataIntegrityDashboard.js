@@ -71,7 +71,7 @@ import {
 } from '@mui/icons-material';
 import { format, subHours, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
-import { validateResource } from '../../utils/fhirValidation';
+import { validateResource } from '../../core/fhir/validators/fhirValidation';
 import { fhirClient } from '../../services/fhirClient';
 
 // Data integrity checks

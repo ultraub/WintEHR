@@ -3,7 +3,7 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from api.fhir.notifications import create_system_notification
+from fhir.api.notifications import create_system_notification
 import asyncio
 
 # Critical value ranges for common lab tests

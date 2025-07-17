@@ -6,7 +6,7 @@ import pytest
 from datetime import datetime, date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database.database import Base
+from database import Base
 from models.models import Patient, Provider, Location, Encounter, Observation, Condition, Medication
 
 

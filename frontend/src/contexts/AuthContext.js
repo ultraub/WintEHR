@@ -43,25 +43,27 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
-  const login = async (providerId) => {
+  const login = async (username, password = 'password') => {
     setLoading(true);
     try {
       const response = await api.post('/api/auth/login', {
-        provider_id: providerId
+        username: username,
+        password: password
       });
       
-      const { session_token, provider } = response.data;
+      const { session_token, user: userData, access_token, token_type } = response.data;
       
-      // Store token and user data
-      localStorage.setItem('auth_token', session_token);
-      localStorage.setItem('auth_user', JSON.stringify(provider));
+      // Store token (session_token for training mode, access_token for JWT mode)
+      const authToken = access_token || session_token;
+      localStorage.setItem('auth_token', authToken);
+      localStorage.setItem('auth_user', JSON.stringify(userData));
       
       // Set user data
-      setUser(provider);
+      setUser(userData);
       
-      return provider;
+      return userData;
     } catch (error) {
-      
+      console.error('Login failed:', error);
       throw error;
     } finally {
       setLoading(false);

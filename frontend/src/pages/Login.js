@@ -47,16 +47,27 @@ const Login = () => {
 
   const loadProviders = async () => {
     try {
-      const response = await api.get('/api/auth/providers');
-      // Extract providers array and map to expected format
-      const providerList = response.data.providers || [];
-      const formattedProviders = providerList.map(p => ({
-        ...p,
-        display_name: p.name || p.display_name
+      const response = await api.get('/api/auth/config');
+      // Extract available users from auth config
+      const availableUsers = response.data.available_users || [];
+      
+      // Map users to provider format with display names
+      const userDisplayNames = {
+        'demo': 'Dr. Demo User',
+        'nurse': 'Nurse Jane Smith',
+        'pharmacist': 'Pharmacist John Doe',
+        'admin': 'Administrator'
+      };
+      
+      const formattedProviders = availableUsers.map(username => ({
+        id: username,
+        username: username,
+        display_name: userDisplayNames[username] || username
       }));
+      
       setProviders(formattedProviders);
     } catch (error) {
-      
+      console.error('Failed to load auth config:', error);
       setError('Failed to load provider list. Please refresh and try again.');
     }
   };
@@ -71,10 +82,18 @@ const Login = () => {
     setError('');
 
     try {
-      await login(selectedProvider);
+      // Find the selected provider's username
+      const provider = providers.find(p => p.id === selectedProvider);
+      if (!provider) {
+        setError('Invalid provider selection');
+        return;
+      }
+      
+      // Login with username (password defaults to 'password' in training mode)
+      await login(provider.username);
       navigate('/patients');
     } catch (error) {
-      
+      console.error('Login error:', error);
       setError(error.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

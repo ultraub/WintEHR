@@ -3,7 +3,7 @@
  * Utilities for transforming FHIR data for UI consumption
  */
 
-import { formatDateForDisplay } from '../../../utils/dateUtils';
+import { formatFHIRDate as formatDateForDisplay } from '../../../core/fhir/utils/fhirFormatters';
 
 /**
  * Extract patient demographics from FHIR Patient resource

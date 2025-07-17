@@ -312,18 +312,36 @@ export const useCatalogMedicationSearch = (options = {}) => {
     try {
       const results = await cdsClinicalDataService.getDynamicMedicationCatalog(query, searchOpts.limit || 20);
       
-      // Transform to FHIR-like structure
-      return results.map(med => ({
-        resourceType: 'Medication',
-        id: med.id || `med-${Math.random().toString(36).substr(2, 9)}`,
-        code: {
-          text: med.display || med.name,
-          coding: med.coding ? [med.coding] : []
-        },
-        display: med.display || med.name,
-        frequency: med.frequency || 0,
-        searchSource: 'catalog'
-      }));
+      // Transform to match the format expected by medication search components
+      return results.map(med => {
+        // Create a consistent structure that matches what the Autocomplete expects
+        const code = med.rxnorm_code || med.id;
+        const system = med.rxnorm_code ? 'http://www.nlm.nih.gov/research/umls/rxnorm' : 
+                       'http://terminology.hl7.org/CodeSystem/medication-statement-category';
+        
+        return {
+          // These fields are used by the Autocomplete for matching
+          code: code,
+          display: med.generic_name || med.display || 'Unknown medication',
+          system: system,
+          source: 'catalog',
+          
+          // Additional medication-specific fields
+          id: med.id || `med-${code}`,
+          resourceType: 'Medication',
+          generic_name: med.generic_name,
+          brand_name: med.brand_name,
+          strength: med.strength,
+          dosage_form: med.dosage_form,
+          route: med.route,
+          
+          // Usage and catalog metadata
+          frequency: med.usage_count || 0,
+          usage_count: med.usage_count || 0,
+          common_dosages: med.common_dosages || [],
+          searchSource: 'catalog'
+        };
+      });
     } catch (error) {
       console.warn('Catalog medication search failed:', error);
       return [];
@@ -346,18 +364,32 @@ export const useCatalogConditionSearch = (options = {}) => {
     try {
       const results = await cdsClinicalDataService.getDynamicConditionCatalog(query, searchOpts.limit || 20);
       
-      // Transform to FHIR-like structure
-      return results.map(cond => ({
-        resourceType: 'Condition',
-        id: cond.id || `cond-${Math.random().toString(36).substr(2, 9)}`,
-        code: {
-          text: cond.display || cond.name,
-          coding: cond.coding ? [cond.coding] : []
-        },
-        display: cond.display || cond.name,
-        frequency: cond.frequency || 0,
-        searchSource: 'catalog'
-      }));
+      // Transform to match the format expected by ConditionFormFields
+      return results.map(cond => {
+        // Create a consistent structure that matches what the Autocomplete expects
+        const code = cond.snomed_code || cond.icd10_code || cond.id;
+        const system = cond.snomed_code ? 'http://snomed.info/sct' : 
+                       cond.icd10_code ? 'http://hl7.org/fhir/sid/icd-10' : 
+                       'http://terminology.hl7.org/CodeSystem/condition-clinical';
+        
+        return {
+          // These fields are used by the Autocomplete for matching
+          code: code,
+          display: cond.display_name || cond.display || 'Unknown condition',
+          system: system,
+          source: 'catalog',
+          
+          // Additional fields for compatibility
+          id: cond.id || `cond-${code}`,
+          resourceType: 'Condition',
+          frequency: cond.usage_count || 0,
+          category: cond.category,
+          
+          // For display in the dropdown
+          frequency_count: cond.usage_count || 0,
+          searchSource: 'catalog'
+        };
+      });
     } catch (error) {
       console.warn('Catalog condition search failed:', error);
       return [];
@@ -405,17 +437,64 @@ export const useHybridSearch = (resourceTypes, options = {}) => {
           if (Array.isArray(results)) {
             const transformedResults = results
               .filter(item => !fhirIds.has(item.id))
-              .map(item => ({
-                resourceType: type.charAt(0).toUpperCase() + type.slice(1),
-                id: item.id || `${type}-${Math.random().toString(36).substr(2, 9)}`,
-                code: {
-                  text: item.display || item.name,
-                  coding: item.coding ? [item.coding] : []
-                },
-                display: item.display || item.name,
-                frequency: item.frequency || 0,
-                searchSource: 'catalog'
-              }));
+              .map(item => {
+                // Get display name based on catalog type
+                let displayName = '';
+                let code = '';
+                let coding = [];
+                
+                if (type === 'medications') {
+                  displayName = item.generic_name || item.display || item.name || 'Unknown medication';
+                  code = item.rxnorm_code || item.code || '';
+                  if (code) {
+                    coding = [{
+                      system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else if (type === 'lab_tests') {
+                  displayName = item.test_name || item.display || item.name || 'Unknown test';
+                  code = item.loinc_code || item.test_code || item.code || '';
+                  if (code) {
+                    coding = [{
+                      system: 'http://loinc.org',
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else if (type === 'conditions') {
+                  displayName = item.display_name || item.display || item.name || 'Unknown condition';
+                  code = item.icd10_code || item.snomed_code || item.code || '';
+                  if (code) {
+                    const system = item.icd10_code ? 'http://hl7.org/fhir/sid/icd-10' : 'http://snomed.info/sct';
+                    coding = [{
+                      system: system,
+                      code: code,
+                      display: displayName
+                    }];
+                  }
+                } else {
+                  displayName = item.display || item.name || 'Unknown';
+                  code = item.code || '';
+                  if (item.coding) {
+                    coding = [item.coding];
+                  }
+                }
+                
+                return {
+                  resourceType: type === 'lab_tests' ? 'Observation' : type.charAt(0).toUpperCase() + type.slice(1),
+                  id: item.id || `${type}-${Math.random().toString(36).substr(2, 9)}`,
+                  code: {
+                    text: displayName,
+                    coding: coding
+                  },
+                  display: displayName,
+                  frequency: item.frequency || item.usage_count || 0,
+                  searchSource: 'catalog',
+                  category: item.category || type
+                };
+              });
             combinedResults.push(...transformedResults);
           }
         });
@@ -450,12 +529,16 @@ export const useLabTestSearch = (options = {}) => {
         resourceType: 'Observation',
         id: lab.id || `obs-${Math.random().toString(36).substr(2, 9)}`,
         code: {
-          text: lab.display || lab.name,
-          coding: lab.coding ? [lab.coding] : []
+          text: lab.test_name || lab.display || lab.name,
+          coding: lab.loinc_code ? [{
+            system: 'http://loinc.org',
+            code: lab.loinc_code,
+            display: lab.test_name || lab.display || lab.name
+          }] : []
         },
-        display: lab.display || lab.name,
+        display: lab.test_name || lab.display || lab.name,
         referenceRange: lab.reference_range,
-        category: lab.category,
+        category: lab.category || 'laboratory',
         searchSource: 'catalog'
       }));
     } catch (error) {

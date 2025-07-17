@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../services/fhirClient';
-import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
+import { intelligentCache, cacheUtils } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback, useStateGuard } from '../hooks/useStableReferences';
 
 // Action Types
@@ -333,6 +333,11 @@ const FHIRResourceContext = createContext();
 // Provider Component
 export function FHIRResourceProvider({ children }) {
   const [state, dispatch] = useReducer(fhirResourceReducer, initialState);
+  
+  // Track in-flight requests to prevent duplicates
+  const inFlightRequests = useRef(new Map());
+  // Track timeouts for cleanup
+  const timeoutRefs = useRef(new Set());
 
   // Enhanced cache utilities using intelligent cache
   const getCachedData = useCallback((cacheType, key) => {
@@ -376,13 +381,58 @@ export function FHIRResourceProvider({ children }) {
     });
   }, []);
 
+  // Cleanup old resources to prevent memory growth - more aggressive
+  const cleanupOldResources = useCallback(() => {
+    const MAX_RESOURCES_PER_TYPE = 50; // Reduced from 200 to 50
+    const resourceTypes = Object.keys(state.resources);
+    
+    resourceTypes.forEach(resourceType => {
+      const resources = state.resources[resourceType];
+      const resourceIds = Object.keys(resources);
+      
+      if (resourceIds.length > MAX_RESOURCES_PER_TYPE) {
+        // Sort by lastUpdated or meta.lastUpdated to keep recent ones
+        const sortedResources = resourceIds
+          .map(id => ({ id, resource: resources[id] }))
+          .sort((a, b) => {
+            const dateA = new Date(a.resource.meta?.lastUpdated || a.resource.lastUpdated || 0);
+            const dateB = new Date(b.resource.meta?.lastUpdated || b.resource.lastUpdated || 0);
+            return dateB - dateA;
+          });
+        
+        // Keep only the most recent resources
+        const resourcesToKeep = sortedResources.slice(0, MAX_RESOURCES_PER_TYPE);
+        const newResourceMap = {};
+        resourcesToKeep.forEach(({ id, resource }) => {
+          newResourceMap[id] = resource;
+        });
+        
+        dispatch({
+          type: FHIR_ACTIONS.CLEAR_RESOURCES,
+          payload: { resourceType }
+        });
+        
+        dispatch({
+          type: FHIR_ACTIONS.SET_RESOURCES,
+          payload: { resourceType, resources: Object.values(newResourceMap) }
+        });
+      }
+    });
+  }, [state.resources]);
+
   // Resource Management Functions
   const setResources = useCallback((resourceType, resources) => {
     dispatch({
       type: FHIR_ACTIONS.SET_RESOURCES,
       payload: { resourceType, resources }
     });
-  }, []);
+    
+    // Trigger cleanup if needed - more aggressive threshold
+    const resourceCount = Object.keys(state.resources[resourceType] || {}).length;
+    if (resourceCount > 30) { // Reduced from 150 to 30
+      setTimeout(cleanupOldResources, 0);
+    }
+  }, [state.resources, cleanupOldResources]);
 
   const addResource = useCallback((resourceType, resource) => {
     dispatch({
@@ -454,6 +504,13 @@ export function FHIRResourceProvider({ children }) {
   // FHIR Operations with Caching
   const fetchResource = useCallback(async (resourceType, resourceId, forceRefresh = false) => {
     const cacheKey = `${resourceType}/${resourceId}`;
+    const requestKey = `fetch_${cacheKey}`;
+    
+    // Check for in-flight request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
     
     if (!forceRefresh) {
       const cached = getCachedData('resources', cacheKey);
@@ -463,23 +520,42 @@ export function FHIRResourceProvider({ children }) {
     dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
     dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
 
-    try {
-      const resource = await fhirClient.read(resourceType, resourceId);
+    const fetchPromise = (async () => {
+      try {
+        const resource = await fhirClient.read(resourceType, resourceId);
       
       addResource(resourceType, resource);
       setCachedData('resources', cacheKey, resource, 600000, resourceType); // 10 minute default
       
-      return resource;
-    } catch (error) {
-      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
-      throw error;
-    } finally {
-      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
-    }
+        return resource;
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+        throw error;
+      } finally {
+        dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    inFlightRequests.current.set(requestKey, fetchPromise);
+    return fetchPromise;
   }, [getCachedData, setCachedData, addResource]);
 
   const searchResources = useCallback(async (resourceType, params = {}, forceRefresh = false) => {
-    const searchKey = `${resourceType}_${JSON.stringify(params)}`;
+    // Add automatic _include for MedicationRequest to reduce separate fetches
+    const enhancedParams = { ...params };
+    if (resourceType === 'MedicationRequest' && !params._include) {
+      enhancedParams._include = 'MedicationRequest:medication';
+    }
+    
+    const searchKey = `${resourceType}_${JSON.stringify(enhancedParams)}`;
+    const requestKey = `search_${searchKey}`;
+    
+    // Check for in-flight request first
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
     
     if (!forceRefresh) {
       const cached = getCachedData('searches', searchKey);
@@ -492,8 +568,10 @@ export function FHIRResourceProvider({ children }) {
     dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
     dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
 
-    try {
-      const result = await fhirClient.search(resourceType, params);
+    // Create the promise and store it
+    const searchPromise = (async () => {
+      try {
+        const result = await fhirClient.search(resourceType, enhancedParams);
       
       if (result.resources && result.resources.length > 0) {
         setResources(resourceType, result.resources);
@@ -514,150 +592,233 @@ export function FHIRResourceProvider({ children }) {
         }
       }
       
+      // Process included resources from _include parameter
+      if (result.bundle?.entry) {
+        const includedResources = {};
+        
+        result.bundle.entry.forEach(entry => {
+          const resource = entry.resource;
+          if (!resource || !resource.resourceType) return;
+          
+          // Skip the main resources we already processed
+          if (resource.resourceType === resourceType) return;
+          
+          // Group included resources by type
+          if (!includedResources[resource.resourceType]) {
+            includedResources[resource.resourceType] = [];
+          }
+          includedResources[resource.resourceType].push(resource);
+        });
+        
+        // Add included resources to state
+        Object.entries(includedResources).forEach(([includedType, resources]) => {
+          setResources(includedType, resources);
+        });
+        
+        // Store included resources info in result for easy access
+        result.includedResources = includedResources;
+      }
+      
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
       dispatch({ type: FHIR_ACTIONS.SET_SEARCH_RESULTS, payload: { searchKey, results: result } });
       
-      return result;
-    } catch (error) {
-      dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
-      throw error;
-    } finally {
-      dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
-    }
+        return result;
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
+        throw error;
+      } finally {
+        dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: false } });
+        // Clean up in-flight request
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    // Store the promise
+    inFlightRequests.current.set(requestKey, searchPromise);
+    
+    return searchPromise;
   }, [getCachedData, setCachedData, setResources]);
 
-  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
-    const cacheKey = `patient_bundle_${patientId}_${priority}`;
+  // Enhanced search with automatic _include support
+  const searchWithInclude = useCallback(async (resourceType, params = {}, includes = [], forceRefresh = false) => {
+    const enhancedParams = { ...params };
     
+    // Add _include parameters
+    if (includes.length > 0) {
+      enhancedParams._include = includes.join(',');
+    }
+    
+    // Use standard searchResources which now handles _include
+    return searchResources(resourceType, enhancedParams, forceRefresh);
+  }, [searchResources]);
+
+  // New optimized $everything-based patient bundle fetch
+  const fetchPatientEverything = useCallback(async (patientId, options = {}) => {
+    const { 
+      types = null, 
+      since = null, 
+      count = 50, // Reduced default from 200 to 50
+      offset = 0,
+      forceRefresh = false,
+      autoSince = true // Auto-calculate _since if not provided
+    } = options;
+    
+    // Build cache key from parameters
+    const cacheKey = `patient_everything_${patientId}_${types || 'all'}_${since || 'all'}_${count}_${offset}`;
+    const requestKey = `everything_${cacheKey}`;
+    
+    // Check for in-flight request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
+    
+    // Check cache
     if (!forceRefresh) {
-      const cached = getCachedData('bundles', cacheKey);
+      const cached = getCachedData('everything', cacheKey);
       if (cached) {
         return cached;
       }
     }
-
-    // Define resource types by priority for progressive loading
-    const resourceTypesByPriority = {
-      critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
-      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage'],
-      optional: ['Immunization', 'CarePlan', 'CareTeam', 'DocumentReference', 'ImagingStudy']
-    };
     
-    let resourceTypes;
-    if (priority === 'critical') {
-      resourceTypes = resourceTypesByPriority.critical;
-    } else if (priority === 'important') {
-      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
-    } else {
-      resourceTypes = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
+    // Build $everything parameters
+    const params = new URLSearchParams();
+    if (types) {
+      params.append('_type', Array.isArray(types) ? types.join(',') : types);
     }
-
-    try {
-      const promises = resourceTypes.map(resourceType => {
-        // Reduce initial count for better performance, increase for specific needs
-        const counts = {
-          critical: 100,
-          important: 200,
-          optional: 50
-        };
+    
+    // Auto-calculate _since parameter for better performance
+    let effectiveSince = since;
+    if (!since && autoSince) {
+      // Default to last 3 months for initial load
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      effectiveSince = threeMonthsAgo.toISOString();
+    }
+    if (effectiveSince) {
+      params.append('_since', effectiveSince);
+    }
+    
+    params.append('_count', count);
+    if (offset > 0) {
+      params.append('_offset', offset);
+    }
+    
+    const everythingPromise = (async () => {
+      try {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
         
-        let baseCount = priority === 'critical' ? counts.critical : 
-                       priority === 'important' ? counts.important : counts.optional;
+        // Call $everything operation with query parameters
+        const url = `/Patient/${patientId}/$everything${params.toString() ? `?${params.toString()}` : ''}`;
+        const response = await fhirClient.httpClient.get(url);
         
-        // Adjust count based on resource type
-        let resourceCount = baseCount;
-        if (resourceType === 'Observation' && priority !== 'critical') {
-          resourceCount = 500; // Observations are numerous but important
-        } else if (resourceType === 'Encounter') {
-          resourceCount = 50;  // Usually fewer encounters
-        }
+        const bundle = response.data || response;
         
-        let params;
-        if (resourceType === 'Patient') {
-          // Patient resource uses direct ID, not patient parameter
-          params = { _id: patientId, _count: 1 };
-        } else {
-          params = { patient: patientId, _count: resourceCount };
-        }
-        
-        // Add appropriate sort parameters for each resource type
-        switch (resourceType) {
-          case 'Procedure':
-            params._sort = '-performed-date';
-            break;
-          case 'Observation':
-            params._sort = '-date';
-            break;
-          case 'Encounter':
-            params._sort = '-date';
-            break;
-          case 'MedicationRequest':
-            params._sort = '-authored';
-            break;
-          case 'Condition':
-            params._sort = '-recorded-date';
-            break;
-          case 'DiagnosticReport':
-            params._sort = '-date';
-            break;
-          case 'DocumentReference':
-            params._sort = '-date';
-            break;
-          case 'ImagingStudy':
-            params._sort = '-started';
-            break;
-          case 'AllergyIntolerance':
-            params._sort = '-date';
-            break;
-          case 'Immunization':
-            params._sort = '-date';
-            break;
-          default:
-            // Most resources use -date as default
-            params._sort = '-date';
-        }
-        
-        return searchResources(resourceType, params, forceRefresh)
-          .then(result => {
-            // For Patient resource, manually add to relationships since it doesn't have a patient parameter
-            if (resourceType === 'Patient' && result.resources && result.resources.length > 0) {
-              result.resources.forEach(resource => {
+        // Process bundle entries and update state
+        const resourcesByType = {};
+        if (bundle.entry && bundle.entry.length > 0) {
+          
+          bundle.entry.forEach(entry => {
+            const resource = entry.resource;
+            if (!resource || !resource.resourceType) return;
+            
+            if (!resourcesByType[resource.resourceType]) {
+              resourcesByType[resource.resourceType] = [];
+            }
+            resourcesByType[resource.resourceType].push(resource);
+          });
+          
+          // Update state for each resource type
+          Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
+            setResources(resourceType, resources);
+            
+            // Update relationships
+            resources.forEach(resource => {
+              if (resource.subject?.reference === `Patient/${patientId}` ||
+                  resource.patient?.reference === `Patient/${patientId}`) {
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {
                     patientId,
-                    resourceType: 'Patient',
+                    resourceType,
                     resourceId: resource.id
                   }
                 });
-              });
-            }
-            return result;
-          })
-          .catch(err => ({ resourceType, error: err.message, resources: [] }));
-      });
-
-      const results = await Promise.all(promises);
-      const bundle = {};
-      
-      results.forEach(result => {
-        if (result.error) {
-          
+              }
+            });
+          });
         }
-        bundle[result.resourceType || 'unknown'] = result.resources || [];
-      });
+        
+        // Cache the bundle with metadata
+        const result = {
+          bundle,
+          total: bundle.total || 0,
+          hasMore: bundle.link?.some(link => link.relation === 'next') || false,
+          resourceTypes: Object.keys(resourcesByType || {}),
+          timestamp: new Date().toISOString()
+        };
+        
+        setCachedData('everything', cacheKey, result, 600000, 'Bundle'); // 10 min cache
+        
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+        return result;
+        
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+        dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType: 'Bundle', error: error.message } });
+        throw error;
+      } finally {
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    inFlightRequests.current.set(requestKey, everythingPromise);
+    return everythingPromise;
+  }, [setCachedData, getCachedData, setResources]);
 
-      // Cache with intelligent TTL based on priority
-      const cacheTTL = priority === 'critical' ? 900000 : // 15 minutes
-                      priority === 'important' ? 600000 : // 10 minutes  
-                      300000; // 5 minutes
-      setCachedData('bundles', cacheKey, bundle, cacheTTL, 'Bundle');
-      return bundle;
-    } catch (error) {
-      
-      throw error;
+  // Legacy fetchPatientBundle - now uses $everything internally
+  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
+    // Map priority to resource types for backward compatibility
+    const resourceTypesByPriority = {
+      critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
+      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage', 'DocumentReference'],
+      optional: ['Immunization', 'CarePlan', 'CareTeam', 'ImagingStudy']
+    };
+    
+    let types;
+    if (priority === 'critical') {
+      types = resourceTypesByPriority.critical;
+    } else if (priority === 'important') {
+      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
+    } else {
+      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
-  }, [searchResources, getCachedData, setCachedData]);
+
+    // Use $everything operation for better performance - reduced counts
+    const count = priority === 'critical' ? 30 : priority === 'important' ? 50 : 100; // Reduced from 100/200/300
+    
+    const result = await fetchPatientEverything(patientId, {
+      types,
+      count,
+      forceRefresh
+    });
+    
+    // Convert to legacy bundle format for backward compatibility
+    const bundle = {};
+    if (result.bundle?.entry) {
+      result.bundle.entry.forEach(entry => {
+        const resource = entry.resource;
+        if (!resource || !resource.resourceType) return;
+        
+        if (!bundle[resource.resourceType]) {
+          bundle[resource.resourceType] = [];
+        }
+        bundle[resource.resourceType].push(resource);
+      });
+    }
+    
+    return bundle;
+  }, [fetchPatientEverything]);
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {
@@ -683,18 +844,10 @@ export function FHIRResourceProvider({ children }) {
         Object.keys(state.relationships[patientId]).length > 0;
       
       if (!hasExistingData) {
-        // Progressive loading: Load critical resources first, then important ones in background
+        // Load only critical resources initially - components will load what they need
         await fetchPatientBundle(patientId, false, 'critical');
         
-        // Load important resources in background
-        setTimeout(() => {
-          fetchPatientBundle(patientId, false, 'important');
-        }, 100);
-        
-        // Load optional resources after a delay
-        setTimeout(() => {
-          fetchPatientBundle(patientId, false, 'all');
-        }, 2000);
+        // No progressive loading - let components request resources as needed
       }
       
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
@@ -789,7 +942,14 @@ export function FHIRResourceProvider({ children }) {
       ];
       
       resourceTypes.forEach(resourceType => {
-        let params = { patient: patientId, _count: 1000 };
+        // Use smaller counts for refresh to prevent memory issues
+        let refreshCount = 20; // Reduced default from 50 to 20
+        if (resourceType === 'Observation') {
+          refreshCount = 30; // Reduced from 100 to 30
+        } else if (resourceType === 'Encounter' || resourceType === 'Condition') {
+          refreshCount = 20; // Reduced from 30 to 20
+        }
+        let params = { patient: patientId, _count: refreshCount };
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {
@@ -798,6 +958,10 @@ export function FHIRResourceProvider({ children }) {
             break;
           case 'Observation':
             params._sort = '-date';
+            // Add date filter for observations - last 6 months only
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
             break;
           case 'Encounter':
             params._sort = '-date';
@@ -810,6 +974,10 @@ export function FHIRResourceProvider({ children }) {
             break;
           case 'DiagnosticReport':
             params._sort = '-date';
+            // Add date filter for diagnostic reports - last year only
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
             break;
           case 'DocumentReference':
             params._sort = '-date';
@@ -856,6 +1024,18 @@ export function FHIRResourceProvider({ children }) {
     };
   }, [state.currentPatient?.id]); // Only depend on patient ID, not the function
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all timeouts
+      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
+      timeoutRefs.current.clear();
+      
+      // Clear all in-flight requests
+      inFlightRequests.current.clear();
+    };
+  }, []);
+
   // Context Value
   const contextValue = {
     // State
@@ -873,7 +1053,9 @@ export function FHIRResourceProvider({ children }) {
     // FHIR Operations
     fetchResource,
     searchResources,
+    searchWithInclude,
     fetchPatientBundle,
+    fetchPatientEverything,
     refreshPatientResources,
     
     // Patient Context
@@ -910,7 +1092,7 @@ export function useFHIRResource() {
 
 // Convenience hooks for specific resource types
 export function usePatient(patientId) {
-  const { getResource, fetchResource, setCurrentPatient, currentPatient } = useFHIRResource();
+  const { getResource, setCurrentPatient, currentPatient } = useFHIRResource();
   
   const patient = patientId ? getResource('Patient', patientId) : currentPatient;
   
@@ -924,16 +1106,61 @@ export function usePatient(patientId) {
 }
 
 export function usePatientResources(patientId, resourceType = null) {
-  const { getPatientResources, fetchPatientBundle, isResourceLoading } = useFHIRResource();
+  const { getPatientResources, fetchPatientBundle, isResourceLoading, searchResources, getResourcesByType } = useFHIRResource();
   
-  const resources = getPatientResources(patientId, resourceType);
+  const resources = resourceType 
+    ? getPatientResources(patientId, resourceType) 
+    : getResourcesByType(resourceType);
   const loading = isResourceLoading(resourceType || 'Patient');
   
+  // Load resources on-demand for specific resource type
   const loadResources = useCallback(async (forceRefresh = false) => {
-    if (patientId) {
+    if (!patientId) return;
+    
+    if (resourceType) {
+      // Load specific resource type with optimized parameters
+      let count = 20; // Default small count
+      let params = { patient: patientId, _count: count };
+      
+      // Resource-specific optimizations
+      if (resourceType === 'Observation') {
+        count = 30;
+        params._count = count;
+        params._sort = '-date';
+        // Get only last 6 months of observations
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
+      } else if (resourceType === 'MedicationRequest') {
+        params._sort = '-authored';
+        params.status = 'active,on-hold'; // Only active medications
+      } else if (resourceType === 'Condition') {
+        params._sort = '-recorded-date';
+        params['clinical-status'] = 'active'; // Only active conditions
+      } else if (resourceType === 'DiagnosticReport') {
+        params._sort = '-date';
+        // Get only last year of reports
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
+      } else if (resourceType === 'Encounter') {
+        params._sort = '-date';
+        params._count = 10; // Fewer encounters needed
+      }
+      
+      return await searchResources(resourceType, params, forceRefresh);
+    } else {
+      // Load patient bundle if no specific type requested
       return await fetchPatientBundle(patientId, forceRefresh);
     }
-  }, [patientId, fetchPatientBundle]);
+  }, [patientId, resourceType, searchResources, fetchPatientBundle]);
+
+  // Auto-load resources on mount if not already loaded
+  useEffect(() => {
+    if (patientId && resourceType && resources.length === 0 && !loading) {
+      loadResources();
+    }
+  }, [patientId, resourceType, resources.length, loading, loadResources]);
 
   return { resources, loading, loadResources };
 }

@@ -370,9 +370,47 @@ const ResourceSearchAutocomplete = ({
         disabled={disabled}
         getOptionLabel={getOptionLabel || defaultGetOptionLabel}
         isOptionEqualToValue={(option, value) => {
-          const optionKey = (getOptionKey || defaultGetOptionKey)(option);
-          const valueKey = (getOptionKey || defaultGetOptionKey)(value);
-          return optionKey === valueKey;
+          // Handle null/undefined cases
+          if (!option || !value) return false;
+          
+          // If they're the same object reference
+          if (option === value) return true;
+          
+          // Try using the custom key generator first
+          if (getOptionKey) {
+            try {
+              const optionKey = getOptionKey(option);
+              const valueKey = getOptionKey(value);
+              if (optionKey && valueKey && optionKey === valueKey) return true;
+            } catch (e) {
+              // Fall through to other matching strategies
+            }
+          }
+          
+          // For catalog items with code/display/system structure
+          if (option.code && value.code) {
+            // Match by code and system (most specific)
+            if (option.code === value.code && option.system === value.system) return true;
+            // Match by code only (fallback)
+            if (option.code === value.code) return true;
+          }
+          
+          // For FHIR resources with id
+          if (option.id && value.id && option.id === value.id) return true;
+          
+          // For resources with resourceType and id
+          if (option.resourceType && value.resourceType && 
+              option.resourceType === value.resourceType &&
+              option.id && value.id && option.id === value.id) return true;
+          
+          // Try default key matching as last resort
+          try {
+            const optionKey = defaultGetOptionKey(option);
+            const valueKey = defaultGetOptionKey(value);
+            return optionKey === valueKey;
+          } catch (e) {
+            return false;
+          }
         }}
         groupBy={groupBy}
         renderOption={renderOption || defaultRenderOption}

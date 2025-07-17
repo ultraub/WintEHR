@@ -209,7 +209,7 @@ class MedicationSearchService {
       // First try backend search if available
       let backendResults = [];
       try {
-        const response = await fetch(`/api/clinical/medications/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+        const response = await fetch(`/api/catalogs/medications?search=${encodeURIComponent(query)}&limit=${limit}`);
         if (response.ok) {
           backendResults = await response.json();
         }

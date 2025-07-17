@@ -65,8 +65,7 @@ const PatientSummaryV4 = ({ patientId }) => {
     getPatientResources, 
     isLoading, 
     getError,
-    warmPatientCache,
-    isCacheWarm
+    warmPatientCache
   } = useFHIRResource();
   
   const [cdsAlerts, setCdsAlerts] = useState([]);
@@ -84,19 +83,23 @@ const PatientSummaryV4 = ({ patientId }) => {
       try {
         markInitializing();
         // Only set current patient if it's different
-        console.log('DEBUG PatientSummaryV4 - Setting current patient. Current:', currentPatient?.id, 'Target:', patientId);
         if (!currentPatient || currentPatient.id !== patientId) {
-          console.log('DEBUG PatientSummaryV4 - Calling setCurrentPatient for:', patientId);
           await setCurrentPatient(patientId);
-          // Wait for relationships to be populated
-          await warmPatientCache(patientId);
-        } else {
-          console.log('DEBUG PatientSummaryV4 - Patient already set');
+          // Try to warm cache but don't wait indefinitely
+          try {
+            await Promise.race([
+              warmPatientCache(patientId),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Cache warming timeout')), 5000))
+            ]);
+          } catch (cacheError) {
+            // Cache warming failed or timed out, but continue anyway
+            console.warn('Cache warming failed or timed out, continuing with available data');
+          }
         }
         setIsInitialLoad(false);
         markInitialized();
       } catch (err) {
-        console.error('DEBUG PatientSummaryV4 - Error setting patient:', err);
+        console.error('Error setting patient:', err);
         setIsInitialLoad(false);
         markInitialized();
       }
@@ -158,26 +161,26 @@ const PatientSummaryV4 = ({ patientId }) => {
     }
   }, [currentPatient, isInitialLoad]);
 
-  // Get patient resources using centralized context - only if cache is warm
+  // Get patient resources using centralized context - try to get data even if cache isn't fully warm
   const conditions = useMemo(() => {
-    return isCacheWarm(patientId) ? getPatientResources(patientId, 'Condition') : [];
-  }, [patientId, isCacheWarm]);
+    return getPatientResources(patientId, 'Condition') || [];
+  }, [patientId, getPatientResources]);
   
   const medications = useMemo(() => {
-    return isCacheWarm(patientId) ? getPatientResources(patientId, 'MedicationRequest') : [];
-  }, [patientId, isCacheWarm]);
+    return getPatientResources(patientId, 'MedicationRequest') || [];
+  }, [patientId, getPatientResources]);
   
   const observations = useMemo(() => {
-    return isCacheWarm(patientId) ? getPatientResources(patientId, 'Observation') : [];
-  }, [patientId, isCacheWarm]);
+    return getPatientResources(patientId, 'Observation') || [];
+  }, [patientId, getPatientResources]);
   
   const encounters = useMemo(() => {
-    return isCacheWarm(patientId) ? getPatientResources(patientId, 'Encounter') : [];
-  }, [patientId, isCacheWarm]);
+    return getPatientResources(patientId, 'Encounter') || [];
+  }, [patientId, getPatientResources]);
   
   const allergies = useMemo(() => {
-    return isCacheWarm(patientId) ? getPatientResources(patientId, 'AllergyIntolerance') : [];
-  }, [patientId, isCacheWarm]);
+    return getPatientResources(patientId, 'AllergyIntolerance') || [];
+  }, [patientId, getPatientResources]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {
@@ -251,7 +254,8 @@ const PatientSummaryV4 = ({ patientId }) => {
     navigate(`/patients/${patientId}/clinical`);
   };
 
-  if (isInitialLoad || isLoading || !isCacheWarm(patientId)) {
+  // Show loading only during initial load or when actively loading
+  if (isInitialLoad || (isLoading && !currentPatient)) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />

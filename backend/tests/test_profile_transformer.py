@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from core.fhir.profile_transformer import (
+from fhir.core.converters.profile_transformer import (
     ProfileAwareFHIRTransformer,
     SyntheaProfileHandler,
     USCoreProfileHandler

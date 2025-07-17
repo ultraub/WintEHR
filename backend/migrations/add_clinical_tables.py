@@ -2,7 +2,7 @@
 Add clinical workflow tables migration
 """
 from sqlalchemy import create_engine
-from database.database import DATABASE_URL, Base
+from database import DATABASE_URL, Base
 from models.clinical.notes import ClinicalNote, NoteTemplate
 from models.clinical.orders import Order, MedicationOrder, LaboratoryOrder, ImagingOrder, OrderSet
 from models.clinical.tasks import InboxItem, ClinicalTask, CareTeam, PatientList

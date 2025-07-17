@@ -537,15 +537,15 @@ export const OrderProvider = ({ children }) => {
   // Search medications using FHIR resources
   const searchMedications = async (query) => {
     try {
-      const response = await api.get('/api/emr/clinical/catalog/medications/search', {
-        params: { query, limit: 20 }
+      const response = await api.get('/api/catalogs/medications', {
+        params: { search: query, limit: 20 }
       });
       
-      return response.data.medications.map(med => ({
+      return response.data.map(med => ({
         name: med.name,
         code: med.code,
         display: med.name,
-        system: med.system,
+        system: med.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
         form: med.form
       }));
     } catch (error) {
@@ -562,15 +562,15 @@ export const OrderProvider = ({ children }) => {
   // Search laboratory tests using FHIR resources
   const searchLaboratoryTests = async (query) => {
     try {
-      const response = await api.get('/api/emr/clinical/catalog/lab-tests/search', {
-        params: { query, limit: 20 }
+      const response = await api.get('/api/catalogs/lab-tests', {
+        params: { search: query, limit: 20 }
       });
       
-      return response.data.labTests.map(test => ({
-        name: test.display,
+      return response.data.map(test => ({
+        name: test.display || test.name,
         code: test.code,
-        display: test.display,
-        system: test.system
+        display: test.display || test.name,
+        system: test.system || 'http://loinc.org'
       }));
     } catch (error) {
       
@@ -586,15 +586,15 @@ export const OrderProvider = ({ children }) => {
   // Search imaging studies using FHIR resources
   const searchImagingStudies = async (query) => {
     try {
-      const response = await api.get('/api/emr/clinical/catalog/imaging-procedures/search', {
-        params: { query, limit: 20 }
+      const response = await api.get('/api/catalogs/imaging-studies', {
+        params: { search: query, limit: 20 }
       });
       
-      return response.data.imagingProcedures.map(proc => ({
-        name: proc.display,
+      return response.data.map(proc => ({
+        name: proc.display || proc.name,
         code: proc.code,
-        display: proc.display,
-        system: proc.system
+        display: proc.display || proc.name,
+        system: proc.system || 'http://loinc.org/vs/radlex'
       }));
     } catch (error) {
       

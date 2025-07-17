@@ -6,7 +6,7 @@ Provides FHIR data access for UI Composer agents to make informed decisions
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.fhir.storage import FHIRStorageEngine
+from fhir.core.storage import FHIRStorageEngine
 from datetime import datetime, timedelta
 import json
 

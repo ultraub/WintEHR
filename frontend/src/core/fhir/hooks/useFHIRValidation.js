@@ -3,7 +3,7 @@
  * React hook for FHIR resource validation with caching and real-time feedback
  */
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { validateResource, validateReference, validateBundle, FHIRValidator } from '../utils/fhirValidation';
+import { validateResource, validateReference, validateBundle, FHIRValidator } from '../validators/fhirValidation';
 
 export const useFHIRValidation = (options = {}) => {
   const [validationCache, setValidationCache] = useState(new Map());

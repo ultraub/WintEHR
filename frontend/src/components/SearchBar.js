@@ -34,7 +34,7 @@ import {
 import { debounce } from 'lodash';
 import { fhirClient } from '../services/fhirClient';
 import { searchService } from '../services/searchService';
-import { getPatientDetailUrl } from '../utils/navigationUtils';
+import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 
 const SearchBar = ({ compact = false }) => {
   const navigate = useNavigate();

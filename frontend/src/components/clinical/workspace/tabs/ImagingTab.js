@@ -73,7 +73,7 @@ import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
-import { printDocument } from '../../../../utils/printUtils';
+import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Get modality icon
@@ -343,10 +343,12 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [patientId, getPatientResources]);
 
-  // Load imaging studies
+  // Load imaging studies when patient changes (removed separate useEffect to avoid circular dependency)
   useEffect(() => {
-    loadImagingStudies();
-  }, [loadImagingStudies]);
+    if (patientId) {
+      loadImagingStudies();
+    }
+  }, [patientId]); // Only depend on patientId to avoid circular dependency with loadImagingStudies
 
   // Subscribe to imaging-related events
   useEffect(() => {
@@ -388,7 +390,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [patientId, subscribe, loadImagingStudies]);
+  }, [patientId, subscribe]); // Removed loadImagingStudies dependency to avoid repeated subscriptions
 
   // Filter studies
   const filteredStudies = studies.filter(study => {

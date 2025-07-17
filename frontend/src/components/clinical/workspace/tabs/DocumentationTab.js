@@ -80,12 +80,12 @@ import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMo
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useNavigate } from 'react-router-dom';
-import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../utils/printUtils';
+import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
-import { documentReferenceConverter } from '../../../../utils/fhir/DocumentReferenceConverter';
+import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
 import { 
   extractDocumentContent, 
   formatDocumentForDisplay, 
@@ -93,7 +93,7 @@ import {
   updateDocumentReferencePayload,
   processDocumentForDisplay,
   validateDocumentData
-} from '../../../../utils/documentUtils';
+} from '../../../../core/documents/documentUtils';
 
 // Note type configuration
 const noteTypes = {
@@ -639,7 +639,7 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
 const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -665,6 +665,30 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // Load DocumentReference resources on-demand when tab becomes active
+  // Since we moved this tab to resourceHeavyTabs, it's not pre-rendered
+  useEffect(() => {
+    const loadDocuments = async () => {
+      if (patientId) {
+        // Check if we already have documents loaded
+        const existingDocs = getPatientResources(patientId, 'DocumentReference');
+        if (!existingDocs || existingDocs.length === 0) {
+          try {
+            await searchResources('DocumentReference', {
+              patient: patientId,
+              _count: 50,
+              _sort: '-date'
+            });
+          } catch (error) {
+            console.warn('Failed to load documents:', error);
+          }
+        }
+      }
+    };
+
+    loadDocuments();
+  }, [patientId, searchResources, getPatientResources]);
 
   // Get documentation resources
   const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];

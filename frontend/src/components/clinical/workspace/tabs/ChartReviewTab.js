@@ -2,11 +2,10 @@
  * Chart Review Tab Component
  * Comprehensive view of patient's problems, medications, and allergies
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   List,
   ListItem,
@@ -15,7 +14,6 @@ import {
   ListItemSecondaryAction,
   Chip,
   Stack,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
@@ -24,7 +22,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -32,10 +29,6 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Badge,
   useTheme,
   alpha,
   Snackbar,
@@ -45,7 +38,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -60,16 +55,19 @@ import {
   Edit as EditIcon,
   History as HistoryIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
-  Print as PrintIcon,
-  Timeline as TimelineIcon,
-  CheckCircle as ActiveIcon,
-  Cancel as InactiveIcon,
   ErrorOutline as SeverityIcon,
   Refresh as RefreshIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Tune as TuneIcon,
+  Sort as SortIcon,
+  CheckCircle as VerifiedIcon,
+  HelpOutline as UnconfirmedIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
@@ -86,11 +84,11 @@ import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
 import { fhirClient } from '../../../../services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
 import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
-import { intelligentCache } from '../../../../utils/intelligentCache';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../utils/medicationDisplayUtils';
+import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { 
   getConditionStatus, 
   getMedicationStatus, 
@@ -99,7 +97,8 @@ import {
   getResourceDisplayText, 
   getCodeableConceptDisplay, 
   FHIR_STATUS_VALUES 
-} from '../../../../utils/fhirFieldUtils';
+} from '../../../../core/fhir/utils/fhirFieldUtils';
+import StatusChip from '../../common/StatusChip';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -113,6 +112,18 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  
+  // Enhanced filtering state for new FHIR parameters
+  const [dateFilter, setDateFilter] = useState({
+    enabled: false,
+    startDate: null,
+    endDate: null,
+    operator: 'ge' // ge, le, gt, lt, eq
+  });
+  const [verificationFilter, setVerificationFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [sortBySeverity, setSortBySeverity] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -157,24 +168,126 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
     }
   };
 
-  const filteredConditions = conditions.filter(condition => {
-    const conditionStatus = getConditionStatus(condition);
-    const matchesFilter = filter === 'all' || 
-      (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
-      (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
+  // Enhanced FHIR parameter utility functions
+  const getVerificationStatus = (condition) => {
+    return condition.verificationStatus?.coding?.[0]?.code || 'unknown';
+  };
+
+  const getSeverityLevel = (severity) => {
+    if (!severity) return 'unknown';
+    const code = severity.coding?.[0]?.code?.toLowerCase();
+    const display = severity.coding?.[0]?.display?.toLowerCase() || severity.text?.toLowerCase();
     
-    const conditionDisplay = getResourceDisplayText(condition);
-    const matchesSearch = !searchTerm || 
-      conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
+    // SNOMED CT severity codes
+    if (code === '24484000' || display?.includes('severe')) return 'severe';
+    if (code === '6736007' || display?.includes('moderate')) return 'moderate'; 
+    if (code === '255604002' || display?.includes('mild')) return 'mild';
     
-    return matchesFilter && matchesSearch;
-  });
+    // Fallback to text analysis
+    if (display) {
+      if (display.includes('severe') || display.includes('critical')) return 'severe';
+      if (display.includes('moderate')) return 'moderate';
+      if (display.includes('mild') || display.includes('minor')) return 'mild';
+    }
+    
+    return 'unknown';
+  };
+
+  const getSeverityWeight = (severity) => {
+    switch(getSeverityLevel(severity)) {
+      case 'severe': return 3;
+      case 'moderate': return 2;
+      case 'mild': return 1;
+      default: return 0;
+    }
+  };
+
+  const matchesDateFilter = (condition) => {
+    if (!dateFilter.enabled || !dateFilter.startDate) return true;
+    
+    const onsetDate = condition.onsetDateTime || condition.onsetPeriod?.start;
+    if (!onsetDate) return false;
+    
+    const conditionDate = new Date(onsetDate);
+    const filterDate = new Date(dateFilter.startDate);
+    const endDate = dateFilter.endDate ? new Date(dateFilter.endDate) : null;
+    
+    switch(dateFilter.operator) {
+      case 'ge': // Greater than or equal (on or after)
+        return conditionDate >= filterDate;
+      case 'le': // Less than or equal (on or before)
+        return conditionDate <= filterDate;
+      case 'gt': // Greater than (after)
+        return conditionDate > filterDate;
+      case 'lt': // Less than (before)
+        return conditionDate < filterDate;
+      case 'eq': // Equal (exactly on)
+        return conditionDate.toDateString() === filterDate.toDateString();
+      case 'between': // Between two dates
+        return endDate ? (conditionDate >= filterDate && conditionDate <= endDate) : true;
+      default:
+        return true;
+    }
+  };
+
+  // Enhanced filtering and sorting with new FHIR parameters
+  const filteredAndSortedConditions = useMemo(() => {
+    let filtered = conditions.filter(condition => {
+      const conditionStatus = getConditionStatus(condition);
+      const matchesFilter = filter === 'all' || 
+        (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
+        (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
+      
+      const conditionDisplay = getResourceDisplayText(condition);
+      const matchesSearch = !searchTerm || 
+        conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Enhanced FHIR parameter filtering
+      const matchesDate = matchesDateFilter(condition);
+      
+      // Verification status filtering
+      const matchesVerification = verificationFilter === 'all' || 
+        getVerificationStatus(condition) === verificationFilter;
+      
+      // Severity filtering
+      const matchesSeverityFilter = severityFilter === 'all' || 
+        getSeverityLevel(condition.severity) === severityFilter;
+      
+      return matchesFilter && matchesSearch && matchesDate && 
+             matchesVerification && matchesSeverityFilter;
+    });
+    
+    // Severity-based sorting
+    if (sortBySeverity) {
+      filtered.sort((a, b) => {
+        const weightA = getSeverityWeight(a.severity);
+        const weightB = getSeverityWeight(b.severity);
+        return weightB - weightA; // Severe first
+      });
+    } else {
+      // Default sorting by onset date (most recent first)
+      filtered.sort((a, b) => {
+        const dateA = new Date(a.onsetDateTime || a.onsetPeriod?.start || '1900-01-01');
+        const dateB = new Date(b.onsetDateTime || b.onsetPeriod?.start || '1900-01-01');
+        return dateB - dateA;
+      });
+    }
+    
+    return filtered;
+  }, [conditions, filter, searchTerm, dateFilter, verificationFilter, severityFilter, sortBySeverity]);
 
   const activeCount = conditions.filter(c => isConditionActive(c)).length;
   const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -197,6 +310,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     setFilter('active');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
               <Chip 
                 label={`${resolvedCount} Resolved`} 
@@ -212,6 +331,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setFilter('resolved');
+                  }
+                }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
                   }
                 }}
               />
@@ -231,16 +356,63 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     setFilter('all');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
             </Stack>
           </Box>
           <Stack direction="row" spacing={1}>
+            <Tooltip title="Advanced Filters">
+              <IconButton 
+                size="small" 
+                color={showAdvancedFilters ? "primary" : "default"}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                aria-label="Toggle advanced filtering options"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
+              >
+                <TuneIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sort by Severity">
+              <IconButton 
+                size="small"
+                color={sortBySeverity ? "primary" : "default"}
+                onClick={() => setSortBySeverity(!sortBySeverity)}
+                aria-label="Sort problems by severity (severe first)"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
+              >
+                <SortIcon />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Add Problem">
               <IconButton 
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
                 aria-label="Add new problem to patient chart"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -249,6 +421,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <IconButton 
                 size="small"
                 aria-label="View problem history for this patient"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <HistoryIcon />
               </IconButton>
@@ -260,6 +439,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 aria-label="Export problem list data"
                 aria-haspopup="menu"
                 aria-expanded={Boolean(exportAnchorEl)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -283,20 +469,157 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           }}
         />
 
+        {/* Advanced Filters Panel */}
+        <Collapse in={showAdvancedFilters}>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Card variant="outlined" sx={{ 
+              mb: 2, 
+              p: 2,
+              transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+              }
+            }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Advanced Filters
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {/* Date Range Filter */}
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={dateFilter.enabled}
+                        onChange={(e) => setDateFilter(prev => ({ 
+                          ...prev, 
+                          enabled: e.target.checked 
+                        }))}
+                      />
+                    }
+                    label="Filter by Onset Date"
+                  />
+                  
+                  {dateFilter.enabled && (
+                    <Box sx={{ mt: 1 }}>
+                      <FormControl fullWidth size="small" sx={{ mb: 1 }}>
+                        <InputLabel>Date Operator</InputLabel>
+                        <Select
+                          value={dateFilter.operator}
+                          label="Date Operator"
+                          onChange={(e) => setDateFilter(prev => ({ 
+                            ...prev, 
+                            operator: e.target.value 
+                          }))}
+                        >
+                          <MenuItem value="ge">On or After</MenuItem>
+                          <MenuItem value="le">On or Before</MenuItem>
+                          <MenuItem value="gt">After</MenuItem>
+                          <MenuItem value="lt">Before</MenuItem>
+                          <MenuItem value="eq">Exactly On</MenuItem>
+                          <MenuItem value="between">Between Dates</MenuItem>
+                        </Select>
+                      </FormControl>
+                      
+                      <DatePicker
+                        label="Start Date"
+                        value={dateFilter.startDate}
+                        onChange={(date) => setDateFilter(prev => ({ 
+                          ...prev, 
+                          startDate: date 
+                        }))}
+                        renderInput={(params) => 
+                          <TextField {...params} fullWidth size="small" sx={{ mb: 1 }} />
+                        }
+                      />
+                      
+                      {dateFilter.operator === 'between' && (
+                        <DatePicker
+                          label="End Date"
+                          value={dateFilter.endDate}
+                          onChange={(date) => setDateFilter(prev => ({ 
+                            ...prev, 
+                            endDate: date 
+                          }))}
+                          renderInput={(params) => 
+                            <TextField {...params} fullWidth size="small" />
+                          }
+                        />
+                      )}
+                    </Box>
+                  )}
+                </Grid>
+                
+                {/* Verification Status Filter */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Verification Status</InputLabel>
+                    <Select
+                      value={verificationFilter}
+                      label="Verification Status"
+                      onChange={(e) => setVerificationFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="confirmed">Confirmed</MenuItem>
+                      <MenuItem value="provisional">Provisional</MenuItem>
+                      <MenuItem value="differential">Differential</MenuItem>
+                      <MenuItem value="unconfirmed">Unconfirmed</MenuItem>
+                      <MenuItem value="refuted">Refuted</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                {/* Severity Filter */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Severity</InputLabel>
+                    <Select
+                      value={severityFilter}
+                      label="Severity"
+                      onChange={(e) => setSeverityFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="severe">Severe</MenuItem>
+                      <MenuItem value="moderate">Moderate</MenuItem>
+                      <MenuItem value="mild">Mild</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              
+              {/* Filter Summary */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Showing {filteredAndSortedConditions.length} of {conditions.length} problems
+                  {dateFilter.enabled && ` • Date filtered`}
+                  {verificationFilter !== 'all' && ` • ${verificationFilter} only`}
+                  {severityFilter !== 'all' && ` • ${severityFilter} only`}
+                  {sortBySeverity && ` • Sorted by severity`}
+                </Typography>
+              </Box>
+            </Card>
+          </LocalizationProvider>
+        </Collapse>
+
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-          {filteredConditions.length === 0 ? (
+          {filteredAndSortedConditions.length === 0 ? (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
               No problems found
             </Typography>
           ) : (
-            filteredConditions.map((condition) => (
+            filteredAndSortedConditions.map((condition) => (
               <ListItem
                 key={condition.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1,
-                  backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: expandedItems[condition.id] ? (theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.05)) : 'transparent',
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: expandedItems[condition.id] ? (theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)) : 'action.hover',
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -304,15 +627,71 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 </ListItemIcon>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                       <Typography variant="body1">
                         {getResourceDisplayText(condition)}
                       </Typography>
+                      
+                      {/* Verification Status Indicator */}
+                      {(() => {
+                        const verificationStatus = getVerificationStatus(condition);
+                        if (verificationStatus !== 'unknown') {
+                          const getVerificationIcon = (status) => {
+                            switch(status) {
+                              case 'confirmed': return <VerifiedIcon fontSize="small" />;
+                              case 'provisional': return <InfoIcon fontSize="small" />;
+                              case 'differential': return <InfoIcon fontSize="small" />;
+                              case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
+                              case 'refuted': return <CancelIcon fontSize="small" />;
+                              default: return null;
+                            }
+                          };
+                          
+                          const getVerificationColor = (status) => {
+                            switch(status) {
+                              case 'confirmed': return 'success';
+                              case 'provisional': return 'warning';
+                              case 'differential': return 'info';
+                              case 'unconfirmed': return 'warning';
+                              case 'refuted': return 'error';
+                              default: return 'default';
+                            }
+                          };
+                          
+                          return (
+                            <Tooltip title={`Verification: ${verificationStatus}`}>
+                              <Chip
+                                icon={getVerificationIcon(verificationStatus)}
+                                label={verificationStatus.charAt(0).toUpperCase() + verificationStatus.slice(1)}
+                                size="small"
+                                color={getVerificationColor(verificationStatus)}
+                                variant="outlined"
+                                sx={{
+                                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                                  '&:hover': {
+                                    transform: 'scale(1.05)'
+                                  }
+                                }}
+                              />
+                            </Tooltip>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Severity Indicator */}
                       {condition.severity && (
                         <Chip 
-                          label={getCodeableConceptDisplay(condition.severity)} 
+                          label={getSeverityLevel(condition.severity).charAt(0).toUpperCase() + getSeverityLevel(condition.severity).slice(1)}
                           size="small" 
-                          color={getSeverityColor(getCodeableConceptDisplay(condition.severity))}
+                          color={getSeverityColor(getSeverityLevel(condition.severity))}
+                          variant={getSeverityLevel(condition.severity) === 'severe' ? 'filled' : 'outlined'}
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.05)'
+                            }
+                          }}
                         />
                       )}
                     </Box>
@@ -334,6 +713,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                       <IconButton 
                         size="small"
                         onClick={() => handleEditProblem(condition)}
+                        sx={{
+                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                          '&:hover': {
+                            transform: 'scale(1.1)',
+                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                          }
+                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -341,6 +727,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     <IconButton 
                       size="small"
                       onClick={() => toggleExpanded(condition.id)}
+                      sx={{
+                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                        '&:hover': {
+                          transform: 'scale(1.1)',
+                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                        }
+                      }}
                     >
                       {expandedItems[condition.id] ? <ExpandMoreIcon /> : <ExpandMoreIcon sx={{ transform: 'rotate(-90deg)' }} />}
                     </IconButton>
@@ -524,7 +917,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   }).length;
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -547,6 +947,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     setFilter('active');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
               <Chip 
                 label={`${stoppedCount} Stopped`} 
@@ -562,6 +968,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setFilter('stopped');
+                  }
+                }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
                   }
                 }}
               />
@@ -581,6 +993,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     setFilter('all');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -590,6 +1008,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 size="small" 
                 color="primary" 
                 onClick={() => setShowPrescribeDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -598,6 +1023,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small" 
                 onClick={() => setShowReconciliationDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <PharmacyIcon />
               </IconButton>
@@ -606,6 +1038,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small" 
                 onClick={() => setShowRefillDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <RefreshIcon />
               </IconButton>
@@ -614,6 +1053,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -632,7 +1078,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              backgroundColor: alpha(theme.palette.background.paper, 0.8),
               zIndex: 1
             }}>
               <CircularProgress size={24} />
@@ -647,11 +1093,15 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <ListItem
                 key={med.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1.5),
+                  py: theme.spacing(1.5),
+                  backgroundColor: isMedicationActive(med) ? (theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.05)) : 'transparent',
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: isMedicationActive(med) ? (theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)) : 'action.hover',
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -665,7 +1115,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                           {getMedicationDisplay(med)}
                         </Typography>
                         {!isMedicationActive(med) && (
-                          <Chip label={getMedicationStatus(med)} size="small" />
+                          <StatusChip status={getMedicationStatus(med)} size="small" />
                         )}
                         {med.priority && med.priority !== 'routine' && (
                           <Chip 
@@ -673,6 +1123,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                             size="small" 
                             color={med.priority === 'stat' ? 'error' : med.priority === 'urgent' ? 'warning' : 'default'}
                             variant="outlined"
+                            sx={{
+                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                              '&:hover': {
+                                transform: 'scale(1.05)'
+                              }
+                            }}
                           />
                         )}
                       </Stack>
@@ -755,6 +1211,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                       <IconButton 
                         size="small"
                         onClick={() => handleEditMedication(med)}
+                        sx={{
+                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                          '&:hover': {
+                            transform: 'scale(1.1)',
+                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                          }
+                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -768,6 +1231,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                             setShowDiscontinuationDialog(true);
                           }}
                           color="error"
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.1)',
+                              backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                            }
+                          }}
                         >
                           <CancelIcon fontSize="small" />
                         </IconButton>
@@ -893,12 +1363,42 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  
+  // Enhanced allergy management state
+  const [verificationFilter, setVerificationFilter] = useState('all');
+  const [criticalityFilter, setCriticalityFilter] = useState('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
       case 'high': return 'error';
       case 'low': return 'warning';
       default: return 'info';
+    }
+  };
+
+  // Enhanced FHIR allergy utility functions
+  const getAllergyVerificationStatus = (allergy) => {
+    return allergy.verificationStatus?.coding?.[0]?.code || 'unknown';
+  };
+
+  const getVerificationStatusColor = (status) => {
+    switch(status) {
+      case 'confirmed': return 'error'; // High alert for confirmed allergies
+      case 'unconfirmed': return 'warning';
+      case 'refuted': return 'success';
+      case 'entered-in-error': return 'default';
+      default: return 'info';
+    }
+  };
+
+  const getVerificationStatusIcon = (status) => {
+    switch(status) {
+      case 'confirmed': return <VerifiedIcon fontSize="small" />;
+      case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
+      case 'refuted': return <CancelIcon fontSize="small" />;
+      case 'entered-in-error': return <SeverityIcon fontSize="small" />;
+      default: return <InfoIcon fontSize="small" />;
     }
   };
 
@@ -932,10 +1432,59 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
     }
   };
 
+  // Enhanced allergy filtering and sorting
+  const filteredAndSortedAllergies = useMemo(() => {
+    let filtered = allergies.filter(allergy => {
+      // Verification status filtering
+      const matchesVerification = verificationFilter === 'all' || 
+        getAllergyVerificationStatus(allergy) === verificationFilter;
+      
+      // Criticality filtering
+      const matchesCriticality = criticalityFilter === 'all' || 
+        (allergy.criticality?.toLowerCase() || 'unknown') === criticalityFilter;
+      
+      return matchesVerification && matchesCriticality;
+    });
+    
+    // Sort by criticality (high first) then by verification status (confirmed first)
+    filtered.sort((a, b) => {
+      // First sort by criticality
+      const criticalityWeightA = a.criticality?.toLowerCase() === 'high' ? 3 : 
+                                a.criticality?.toLowerCase() === 'low' ? 2 : 1;
+      const criticalityWeightB = b.criticality?.toLowerCase() === 'high' ? 3 : 
+                                b.criticality?.toLowerCase() === 'low' ? 2 : 1;
+      
+      if (criticalityWeightA !== criticalityWeightB) {
+        return criticalityWeightB - criticalityWeightA;
+      }
+      
+      // Then sort by verification status (confirmed first)
+      const verificationA = getAllergyVerificationStatus(a);
+      const verificationB = getAllergyVerificationStatus(b);
+      const verificationWeightA = verificationA === 'confirmed' ? 2 : 1;
+      const verificationWeightB = verificationB === 'confirmed' ? 2 : 1;
+      
+      return verificationWeightB - verificationWeightA;
+    });
+    
+    return filtered;
+  }, [allergies, verificationFilter, criticalityFilter]);
+
   const activeAllergies = allergies.filter(a => getConditionStatus(a) === FHIR_STATUS_VALUES.CONDITION.ACTIVE);
+  const criticalAllergies = allergies.filter(a => 
+    a.criticality?.toLowerCase() === 'high' && 
+    getAllergyVerificationStatus(a) === 'confirmed'
+  );
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.error.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -945,6 +1494,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               label={`${activeAllergies.length} Active`} 
               size="small" 
               color={activeAllergies.length > 0 ? 'error' : 'default'}
+              sx={{
+                transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
             />
           </Box>
           <Stack direction="row" spacing={1}>
@@ -953,6 +1508,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -961,6 +1523,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -978,10 +1547,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <ListItem
                 key={allergy.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1,
-                  backgroundColor: alpha(theme.palette.error.main, 0.05),
-                  '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.1) }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: theme.clinical?.surfaces?.error || alpha(theme.palette.error.main, 0.05),
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.error.main, 0.08),
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -998,6 +1571,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                           label={allergy.criticality} 
                           size="small" 
                           color={getSeverityColor(allergy.criticality)}
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.05)'
+                            }
+                          }}
                         />
                       )}
                     </Box>
@@ -1012,7 +1591,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                             key={idx}
                             label={manifestationText} 
                             size="small" 
-                            sx={{ mr: 0.5, mb: 0.5 }}
+                            sx={{ 
+                              mr: 0.5, 
+                              mb: 0.5,
+                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                              '&:hover': {
+                                transform: 'scale(1.05)'
+                              }
+                            }}
                           />
                         ) : null;
                       })}
@@ -1030,6 +1616,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                       edge="end" 
                       size="small"
                       onClick={() => handleEditAllergy(allergy)}
+                      sx={{
+                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                        '&:hover': {
+                          transform: 'scale(1.1)',
+                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                        }
+                      }}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -1078,6 +1671,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
 
 // Social History Component
 const SocialHistory = ({ observations, patientId }) => {
+  const theme = useTheme();
   const socialObs = observations.filter(o => 
     o.category?.[0]?.coding?.[0]?.code === 'social-history'
   );
@@ -1086,7 +1680,13 @@ const SocialHistory = ({ observations, patientId }) => {
   const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
 
   return (
-    <Card>
+    <Card sx={{
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>Social History</Typography>
         <List>
@@ -1118,6 +1718,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const { 
     getPatientResources, 
     searchResources, 
+    searchWithInclude,
     isLoading,
     refreshPatientResources,
     currentPatient 
@@ -1156,7 +1757,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       const createdCondition = result.resource || condition;
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1192,7 +1793,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1221,7 +1822,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       });
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Refresh completed successfully
     } catch (error) {
@@ -1312,7 +1913,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       return result;
     } catch (error) {
@@ -1331,7 +1932,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       intelligentCache.clearPatient(patientId);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Publish event for medication deletion
       await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
@@ -1363,7 +1964,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       return result;
     } catch (error) {
@@ -1382,7 +1983,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       intelligentCache.clearPatient(patientId);
       
       // Trigger refresh of the resources
-      await refreshPatientResources(patientId);
+      await loadOptimizedResources();
       
       // Publish event for allergy deletion
       await publish(CLINICAL_EVENTS.ALLERGY_UPDATED, {
@@ -1475,32 +2076,157 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     });
   };
 
-  // Get resources using unified resource system
-  const conditions = getPatientResources(patientId, 'Condition') || [];
-  const medications = getPatientResources(patientId, 'MedicationRequest') || [];
-  const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
-  const observations = getPatientResources(patientId, 'Observation') || [];
-  const immunizations = getPatientResources(patientId, 'Immunization') || [];
-  
-  // Resources are now loaded automatically via getPatientResources hook
+  // State for optimized resource loading
+  const [conditions, setConditions] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const [observations, setObservations] = useState([]);
+  const [immunizations, setImmunizations] = useState([]);
+  const [loadingOptimized, setLoadingOptimized] = useState(false);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Optimized resource loading with batch requests and server-side filtering
+  const loadOptimizedResources = useCallback(async (filters = {}) => {
+    if (!patientId) return;
+    
+    setLoadingOptimized(true);
+    
+    try {
+      // Build batch bundle for all resources
+      const batchBundle = {
+        resourceType: "Bundle",
+        type: "batch",
+        entry: []
+      };
+
+      // Build condition search parameters with server-side filtering
+      let conditionQuery = `Condition?patient=${patientId}&_summary=data&_sort=-recorded-date&_count=50`;
+      if (filters.clinicalStatus && filters.clinicalStatus !== 'all') {
+        conditionQuery += `&clinical-status=${filters.clinicalStatus}`;
+      }
+      if (filters.verificationStatus && filters.verificationStatus !== 'all') {
+        conditionQuery += `&verification-status=${filters.verificationStatus}`;
+      }
+      if (filters.onsetDate) {
+        if (filters.onsetDateOperator === 'ge') {
+          conditionQuery += `&onset-date=ge${filters.onsetDate}`;
+        } else if (filters.onsetDateOperator === 'le') {
+          conditionQuery += `&onset-date=le${filters.onsetDate}`;
+        }
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: conditionQuery }
+      });
+
+      // Build medication search parameters with server-side filtering
+      let medicationQuery = `MedicationRequest?patient=${patientId}&_sort=-authored-on&_count=50&_include=MedicationRequest:medication,MedicationRequest:requester`;
+      if (filters.medicationStatus && filters.medicationStatus !== 'all') {
+        medicationQuery += `&status=${filters.medicationStatus}`;
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: medicationQuery }
+      });
+
+      // Build allergy search parameters with server-side filtering
+      let allergyQuery = `AllergyIntolerance?patient=${patientId}&_sort=-recorded-date`;
+      if (filters.allergyVerificationStatus && filters.allergyVerificationStatus !== 'all') {
+        allergyQuery += `&verification-status=${filters.allergyVerificationStatus}`;
+      }
+      if (filters.allergyCriticality && filters.allergyCriticality !== 'all') {
+        allergyQuery += `&criticality=${filters.allergyCriticality}`;
+      }
+      batchBundle.entry.push({
+        request: { method: "GET", url: allergyQuery }
+      });
+
+      // Add observations query
+      batchBundle.entry.push({
+        request: { 
+          method: "GET", 
+          url: `Observation?patient=${patientId}&category=vital-signs&_sort=-date&_count=20` 
+        }
+      });
+
+      // Add immunizations query
+      batchBundle.entry.push({
+        request: { 
+          method: "GET", 
+          url: `Immunization?patient=${patientId}&_sort=-date&_count=50` 
+        }
+      });
+
+      // Execute batch request
+      const batchResult = await fhirClient.batch(batchBundle);
+      
+      // Process batch response
+      const entries = batchResult.entry || [];
+      
+      // Extract conditions from first response
+      const conditionsBundle = entries[0]?.resource;
+      const conditionsResources = conditionsBundle?.entry?.map(e => e.resource) || [];
+      setConditions(conditionsResources);
+
+      // Extract medications from second response (including _include results)
+      const medicationsBundle = entries[1]?.resource;
+      const medicationsResources = medicationsBundle?.entry?.map(e => e.resource) || [];
+      const medicationRequests = medicationsResources.filter(r => r.resourceType === 'MedicationRequest');
+      setMedications(medicationRequests);
+
+      // Extract allergies from third response
+      const allergiesBundle = entries[2]?.resource;
+      const allergiesResources = allergiesBundle?.entry?.map(e => e.resource) || [];
+      setAllergies(allergiesResources);
+
+      // Extract observations from fourth response
+      const observationsBundle = entries[3]?.resource;
+      const observationsResources = observationsBundle?.entry?.map(e => e.resource) || [];
+      setObservations(observationsResources);
+
+      // Extract immunizations from fifth response
+      const immunizationsBundle = entries[4]?.resource;
+      const immunizationsResources = immunizationsBundle?.entry?.map(e => e.resource) || [];
+      setImmunizations(immunizationsResources);
+
+    } catch (error) {
+      console.error('Error loading optimized resources:', error);
+      // Fallback to original method if optimized fails
+      const fallbackConditions = getPatientResources(patientId, 'Condition') || [];
+      const fallbackMedications = getPatientResources(patientId, 'MedicationRequest') || [];
+      const fallbackAllergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
+      const fallbackObservations = getPatientResources(patientId, 'Observation') || [];
+      const fallbackImmunizations = getPatientResources(patientId, 'Immunization') || [];
+      
+      setConditions(fallbackConditions);
+      setMedications(fallbackMedications);
+      setAllergies(fallbackAllergies);
+      setObservations(fallbackObservations);
+      setImmunizations(fallbackImmunizations);
+    } finally {
+      setLoadingOptimized(false);
+    }
+  }, [patientId, searchResources, searchWithInclude, getPatientResources]);
+
+  // Load optimized resources on patient change
+  useEffect(() => {
+    loadOptimizedResources();
+  }, [loadOptimizedResources]);
+  
+  // Resources are now loaded automatically via optimized loading
 
   // Show skeleton loading while data is loading
-  if (isLoading || loading) {
+  if (loadingOptimized || isLoading || loading) {
     return (
       <Box sx={{ p: 3 }}>
         <Grid container spacing={isMobile ? 2 : 3}>
           {/* Skeleton for each section */}
           {[1, 2, 3, 4].map((item) => (
             <Grid item xs={12} md={6} key={item}>
-              <Card>
+              <Card sx={{
+                transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+                }
+              }}>
                 <CardContent>
                   <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
                   <Stack spacing={1}>
@@ -1516,7 +2242,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             </Grid>
           ))}
           <Grid item xs={12}>
-            <Card>
+            <Card sx={{
+              transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+              }
+            }}>
               <CardContent>
                 <Skeleton variant="text" width="40%" height={32} />
                 <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
@@ -1535,7 +2267,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         sx={{ 
           position: 'absolute',
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.7)'
+          backgroundColor: alpha(theme.palette.background.paper, 0.7)
         }}
         open={saveInProgress}
       >
@@ -1608,7 +2340,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Immunizations Summary */}
         <Grid item xs={12}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.success.main, 0.15)}`
+            }
+          }}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Immunizations</Typography>
@@ -1617,6 +2355,12 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
                   label={`${immunizations.length} recorded`} 
                   size="small" 
                   color="success"
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'scale(1.05)'
+                    }
+                  }}
                 />
               </Stack>
               {immunizations.length === 0 ? (
@@ -1638,7 +2382,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Prescription Status Dashboard */}
         <Grid item xs={12}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+            }
+          }}>
             <CardContent>
               <PrescriptionStatusDashboard patientId={patientId} />
             </CardContent>
@@ -1647,25 +2397,41 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Medication Effectiveness Monitoring */}
         <Grid item xs={12}>
-          <EffectivenessMonitoringPanel
-            patientId={patientId}
-            medications={medications}
-            onRefresh={async () => {
-              await refreshPatientResources(patientId);
-            }}
-          />
+          <Box sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
+            }
+          }}>
+            <EffectivenessMonitoringPanel
+              patientId={patientId}
+              medications={medications}
+              onRefresh={async () => {
+                await loadOptimizedResources();
+              }}
+            />
+          </Box>
         </Grid>
 
 
         {/* Clinical Safety Verification */}
         <Grid item xs={12}>
-          <ClinicalSafetyPanel
-            patientId={patientId}
-            medications={medications}
-            onRefresh={async () => {
-              await refreshPatientResources(patientId);
-            }}
-          />
+          <Box sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
+            }
+          }}>
+            <ClinicalSafetyPanel
+              patientId={patientId}
+              medications={medications}
+              onRefresh={async () => {
+                await loadOptimizedResources();
+              }}
+            />
+          </Box>
         </Grid>
       </Grid>
     </Box>

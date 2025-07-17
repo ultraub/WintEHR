@@ -57,7 +57,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { fhirClient } from '../../../../services/fhirClient';
 import { NOTE_TEMPLATES, noteAutoPopulationService } from '../../../../services/noteTemplatesService';
 import QualityMeasurePrompts from '../../quality/QualityMeasurePrompts';
-import { documentReferenceConverter } from '../../../../utils/fhir/DocumentReferenceConverter';
+import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
 
 // Template Selection Component
 const TemplateSelector = ({ selectedTemplate, onTemplateChange, onLoadTemplate, autoPopulateEnabled, onAutoPopulateToggle }) => {

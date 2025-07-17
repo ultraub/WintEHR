@@ -1,0 +1,110 @@
+[
+  {
+    "test": "Capability Statement",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.458628"
+  },
+  {
+    "test": "Create Observation",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.464029"
+  },
+  {
+    "test": "Basic patient search",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.470911"
+  },
+  {
+    "test": "Name search with modifier",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.476698"
+  },
+  {
+    "test": "Date range search",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.481153"
+  },
+  {
+    "test": "Missing modifier",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.484534"
+  },
+  {
+    "test": "Identifier search",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.489739"
+  },
+  {
+    "test": "Token system search",
+    "passed": false,
+    "details": "Total: 0",
+    "timestamp": "2025-07-15T19:22:25.494624"
+  },
+  {
+    "test": "Composite Search",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.499042"
+  },
+  {
+    "test": "_has Parameter",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.503720"
+  },
+  {
+    "test": "_include Parameter",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.508294"
+  },
+  {
+    "test": "_revinclude Parameter",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.513922"
+  },
+  {
+    "test": "MedicationDispense lot-number",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.521131"
+  },
+  {
+    "test": "Observation based-on",
+    "passed": false,
+    "details": "Status: 400",
+    "timestamp": "2025-07-15T19:22:25.524266"
+  },
+  {
+    "test": "Bundle Processing",
+    "passed": false,
+    "details": "Status: 307",
+    "timestamp": "2025-07-15T19:22:25.527505"
+  },
+  {
+    "test": "Compare /Patient/87a339d0-b790-0ec9-72ad-7b88a9accf13",
+    "passed": false,
+    "details": "Status mismatch - Beta: 400, Prod: 404",
+    "timestamp": "2025-07-15T19:22:25.552742"
+  },
+  {
+    "test": "Compare /Observation?patient=87a339d0-b790-0ec9-72ad-7b88a9accf13&_count=10",
+    "passed": false,
+    "details": "Status mismatch - Beta: 400, Prod: 200",
+    "timestamp": "2025-07-15T19:22:25.590771"
+  },
+  {
+    "test": "Compare /MedicationRequest?patient=87a339d0-b790-0ec9-72ad-7b88a9accf13",
+    "passed": false,
+    "details": "Status mismatch - Beta: 400, Prod: 200",
+    "timestamp": "2025-07-15T19:22:25.623972"
+  }
+]

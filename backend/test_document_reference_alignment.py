@@ -11,7 +11,7 @@ from datetime import datetime
 # Add the backend directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from api.fhir.converter_modules.document_reference import DocumentReferenceConverter
+from fhir.core.converters.resource_specific.document_reference import DocumentReferenceConverter
 
 def test_frontend_backend_alignment():
     """Test that frontend and backend converters handle the same data structures"""

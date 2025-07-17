@@ -84,16 +84,17 @@ class Patient(Base):
         Index('idx_patients_dob_gender', 'date_of_birth', 'gender'),
     )
     
-    # Relationships
-    encounters = relationship("Encounter", back_populates="patient")
-    conditions = relationship("Condition", back_populates="patient")
-    medications = relationship("Medication", back_populates="patient")
-    observations = relationship("Observation", back_populates="patient")
-    procedures = relationship("Procedure", back_populates="patient")
-    immunizations = relationship("Immunization", back_populates="patient")
-    allergies = relationship("Allergy", back_populates="patient")
-    careplans = relationship("CarePlan", back_populates="patient")
-    claims = relationship("Claim", back_populates="patient")
+    # Relationships - commented out as they reference non-existent models
+    # Use FHIR storage engine instead for these relationships
+    # encounters = relationship("Encounter", back_populates="patient")
+    # conditions = relationship("Condition", back_populates="patient")
+    # medications = relationship("Medication", back_populates="patient")
+    # observations = relationship("Observation", back_populates="patient")
+    # procedures = relationship("Procedure", back_populates="patient")
+    # immunizations = relationship("Immunization", back_populates="patient")
+    # allergies = relationship("Allergy", back_populates="patient")
+    # careplans = relationship("CarePlan", back_populates="patient")
+    # claims = relationship("Claim", back_populates="patient")
     managing_organization = relationship("Organization", foreign_keys=[managing_organization_id])
     general_practitioner = relationship("Provider", foreign_keys=[general_practitioner_id])
 

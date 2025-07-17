@@ -17,12 +17,12 @@ import uuid
 import json
 
 from database import get_db_session
-from .auth import require_auth
-from core.fhir.storage import FHIRStorageEngine
+from api.auth import get_current_user
+from fhir.core.storage import FHIRStorageEngine
 
 # Import drug interactions functionality
 from api.clinical.drug_interactions import router as drug_interactions_router, check_drug_interactions
-from api.clinical.catalog_search import router as catalog_search_router
+from api.catalogs import router as catalog_search_router
 
 router = APIRouter()
 
@@ -35,7 +35,7 @@ router.include_router(catalog_search_router, prefix="/catalog", tags=["Clinical 
 async def generate_note_assistance(
     context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Generate AI-assisted clinical note content.
@@ -146,7 +146,7 @@ async def generate_note_assistance(
 async def get_order_recommendations(
     context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get AI-powered order recommendations based on clinical context.
@@ -228,7 +228,7 @@ async def get_order_recommendations(
 async def calculate_risk_scores(
     risk_data: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Calculate various clinical risk scores.
@@ -315,7 +315,7 @@ async def calculate_risk_scores(
 async def check_drug_interactions(
     medications: List[Dict[str, Any]],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Check for drug-drug interactions.
@@ -348,7 +348,7 @@ async def check_drug_interactions(
 async def get_clinical_reminders(
     patient_id: str,
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get clinical reminders for a patient.
@@ -422,7 +422,7 @@ async def get_clinical_reminders(
 async def suggest_clinical_pathway(
     clinical_context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session),
-    user: Dict[str, Any] = Depends(require_auth)
+    user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Suggest appropriate clinical pathways based on presentation.

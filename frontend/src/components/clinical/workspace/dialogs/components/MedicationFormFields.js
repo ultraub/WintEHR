@@ -32,7 +32,7 @@ import {
   getStatusColor,
   getPriorityColor,
   getMedicationDisplay
-} from '../../../../../utils/fhir/MedicationConverter';
+} from '../../../../../core/fhir/converters/MedicationConverter';
 
 const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   // Use catalog-enhanced medication search hook
@@ -97,26 +97,41 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
             groupBy={(option) => option.searchSource || 'catalog'}
             getOptionLabel={(option) => {
               if (typeof option === 'string') return option;
-              return option.display || option.code?.text || option.id || 'Unknown medication';
+              // Handle both catalog format and FHIR format
+              const display = option.display || option.generic_name || option.code?.text || option.id || 'Unknown medication';
+              // Append strength if available
+              if (option.strength) {
+                return `${display} ${option.strength}`;
+              }
+              return display;
             }}
             getOptionKey={(option) => {
               if (typeof option === 'string') return option;
-              return `medication-${option.id || option.code?.coding?.[0]?.code || Math.random()}`;
+              // Handle both catalog format (code directly) and FHIR format (code.coding)
+              const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
+              return `medication-${code}-${option.system || ''}`;
             }}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
-              const display = option.display || option.code?.text || 'Unknown medication';
-              const code = option.code?.coding?.[0]?.code || option.id;
-              const frequency = option.frequency || 0;
-              const source = option.searchSource || 'catalog';
+              // Handle both catalog format and FHIR format
+              const display = option.display || option.generic_name || option.code?.text || 'Unknown medication';
+              const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
+              const frequency = option.frequency || option.usage_count || 0;
+              const source = option.source || option.searchSource || 'catalog';
               const strength = option.strength || '';
-              const form = option.form || '';
+              const form = option.dosage_form || option.form || '';
+              const route = option.route || '';
               
               return (
                 <Box component="li" key={key} {...otherProps}>
                   <Stack sx={{ width: '100%' }}>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {display}
+                      {option.brand_name && (
+                        <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                          ({option.brand_name})
+                        </Typography>
+                      )}
                     </Typography>
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                       {code && (
@@ -141,6 +156,13 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
                           size="small" 
                           variant="outlined"
                           color="info"
+                        />
+                      )}
+                      {route && (
+                        <Chip 
+                          label={route} 
+                          size="small" 
+                          variant="outlined"
                         />
                       )}
                       {frequency > 0 && (

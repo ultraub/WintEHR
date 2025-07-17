@@ -35,7 +35,7 @@ import {
   getAchievementStatusColor,
   getPriorityColor,
   getGoalDisplay
-} from '../../../../../utils/fhir/GoalConverter';
+} from '../../../../../core/fhir/converters/GoalConverter';
 
 const GoalFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   // Use condition search for linking goals to conditions

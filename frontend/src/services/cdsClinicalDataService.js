@@ -13,8 +13,8 @@ class CDSClinicalDataService {
     const backendHost = isInDocker ? 'http://backend:8000' : 'http://localhost:8000';
     
     this.baseUrl = process.env.REACT_APP_BACKEND_URL 
-      ? `${process.env.REACT_APP_BACKEND_URL}/api/clinical`
-      : (process.env.NODE_ENV === 'development' ? `${backendHost}/api/clinical` : '/api/clinical');
+      ? `${process.env.REACT_APP_BACKEND_URL}/api/catalogs`
+      : (process.env.NODE_ENV === 'development' ? `${backendHost}/api/catalogs` : '/api/catalogs');
     
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
@@ -48,7 +48,7 @@ class CDSClinicalDataService {
       if (category) params.category = category;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-catalog`, { params });
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -77,7 +77,7 @@ class CDSClinicalDataService {
       if (search) params.search = search;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/medications`, { params });
+      const response = await this.httpClient.get(`${this.baseUrl}/medications`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -106,7 +106,7 @@ class CDSClinicalDataService {
       if (search) params.search = search;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/conditions`, { params });
+      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -131,8 +131,8 @@ class CDSClinicalDataService {
     }
 
     try {
-      const params = { query, limit };
-      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/search`, { params });
+      const params = { q: query, limit_per_type: limit };
+      const response = await this.httpClient.get(`${this.baseUrl}/search`, { params });
       
       const data = response.data || {};
       this.setCache(cacheKey, data);
@@ -153,7 +153,7 @@ class CDSClinicalDataService {
       const params = {};
       if (limit) params.limit = limit;
 
-      const response = await this.httpClient.post(`${this.baseUrl}/dynamic-catalog/refresh`, null, { params });
+      const response = await this.httpClient.post(`${this.baseUrl}/refresh`, null, { params });
       
       // Clear our cache since catalogs have been refreshed
       this.clearCache();
@@ -171,7 +171,7 @@ class CDSClinicalDataService {
    */
   async getDynamicCatalogStatistics() {
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/dynamic-catalog/statistics`);
+      const response = await this.httpClient.get(`${this.baseUrl}/stats`);
       return response.data;
     } catch (error) {
       // Error fetching catalog statistics - re-throwing with context
@@ -192,7 +192,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-catalog/${labId}`);
+      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests/${labId}`);
       
       const data = response.data;
       this.setCache(cacheKey, data);
@@ -274,7 +274,7 @@ class CDSClinicalDataService {
       if (category) params.category = category;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/condition-catalog`, { params });
+      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);

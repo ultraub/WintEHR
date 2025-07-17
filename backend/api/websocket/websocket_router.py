@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from .connection_manager import manager
-from emr_api.auth import AuthService
+from api.auth import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

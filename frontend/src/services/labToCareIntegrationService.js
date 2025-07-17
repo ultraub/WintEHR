@@ -6,7 +6,7 @@
 import { fhirClient } from './fhirClient';
 import { cdsHooksClient } from './cdsHooksClient';
 import { resultsManagementService } from './resultsManagementService';
-import { REFERENCE_RANGES, getAdjustedReferenceRange } from '../utils/labReferenceRanges';
+import { REFERENCE_RANGES, getAdjustedReferenceRange } from '../core/fhir/utils/labReferenceRanges';
 
 class LabToCareIntegrationService {
   constructor() {

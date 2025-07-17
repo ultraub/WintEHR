@@ -41,8 +41,8 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { printDocument } from '../../../../utils/printUtils';
-import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../utils/medicationDisplayUtils';
+import { printDocument } from '../../../../core/export/printUtils';
+import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../core/fhir/utils/medicationDisplayUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {

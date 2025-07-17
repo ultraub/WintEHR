@@ -2,7 +2,7 @@
  * Orders Tab Component
  * Manage active orders, prescriptions, and order history
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -80,13 +80,16 @@ import { fhirClient } from '../../../../services/fhirClient';
 import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import VirtualizedList from '../../../common/VirtualizedList';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
-import { getMedicationName } from '../../../../utils/medicationDisplayUtils';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
+import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import CPOEDialog from '../dialogs/CPOEDialog';
 import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
+import AdvancedOrderFilters from './components/AdvancedOrderFilters';
+import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
+import { usePatientClinicalData } from '../../../../hooks/usePatientClinicalData';
 
 // Get order type icon
 const getOrderTypeIcon = (order) => {
@@ -488,7 +491,7 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
 
 const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { isLoading, currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -505,6 +508,26 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [editOrderDialog, setEditOrderDialog] = useState({ open: false, order: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // Enhanced order search with comprehensive FHIR R4 capabilities
+  const {
+    entries: searchResults,
+    total: totalResults,
+    loading: searchLoading,
+    error: searchError,
+    analytics,
+    hasActiveFilters,
+    updateFilters,
+    clearSearch,
+    search: executeSearch,
+    pagination
+  } = useAdvancedOrderSearch({
+    patientId,
+    autoSearch: true,
+    includeAnalytics: true,
+    debounceMs: 300
+  });
 
   // Use centralized CDS
   const { executeCDSHooks, getAlerts } = useCDS();
@@ -525,27 +548,155 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [getAlerts, onNotificationUpdate]);
 
-  // Get all orders
-  const medicationRequests = getPatientResources(patientId, 'MedicationRequest') || [];
-  const serviceRequests = getPatientResources(patientId, 'ServiceRequest') || [];
+  // State for optimized chained search results
+  const [chainedSearchResults, setChainedSearchResults] = useState([]);
+  const [loadingChainedSearch, setLoadingChainedSearch] = useState(false);
   
-  // Combine all orders
-  const allOrders = [...medicationRequests, ...serviceRequests];
+  // Use shared hook to get orders data as fallback
+  const { medications, serviceRequests, isLoading: clinicalDataLoading } = usePatientClinicalData(patientId, {
+    resourceTypes: ['MedicationRequest', 'ServiceRequest']
+  });
+  
+  // Optimized chained search function for orders
+  const performChainedSearch = useCallback(async (searchFilters = {}) => {
+    if (!patientId) return;
+    
+    setLoadingChainedSearch(true);
+    
+    try {
+      // Build batch bundle with chained searches
+      const batchBundle = {
+        resourceType: "Bundle",
+        type: "batch",
+        entry: []
+      };
+
+      // Standard medication requests with _include for requester and medication
+      batchBundle.entry.push({
+        request: {
+          method: "GET",
+          url: `MedicationRequest?patient=${patientId}&_include=MedicationRequest:medication,MedicationRequest:requester&_sort=-authored-on&_count=50`
+        }
+      });
+
+      // Service requests with _include for requester and performer
+      batchBundle.entry.push({
+        request: {
+          method: "GET",
+          url: `ServiceRequest?patient=${patientId}&_include=ServiceRequest:requester,ServiceRequest:performer&_sort=-authored-on&_count=50`
+        }
+      });
+
+      // If filtering by department, use chained search for organization
+      if (searchFilters.department) {
+        batchBundle.entry.push({
+          request: {
+            method: "GET",
+            url: `ServiceRequest?patient=${patientId}&performer.organization.name=${searchFilters.department}&_include=ServiceRequest:performer&_sort=-authored-on`
+          }
+        });
+      }
+
+      // If filtering by provider, use chained search for practitioner
+      if (searchFilters.provider) {
+        batchBundle.entry.push({
+          request: {
+            method: "GET",
+            url: `ServiceRequest?patient=${patientId}&requester.name=${searchFilters.provider}&_include=ServiceRequest:requester&_sort=-authored-on`
+          }
+        });
+      }
+
+      // Execute batch request
+      const batchResult = await fhirClient.batch(batchBundle);
+      const entries = batchResult.entry || [];
+      
+      // Process results
+      const allOrdersResults = [];
+      
+      // Extract medication requests from first batch entry
+      const medicationBundle = entries[0]?.resource;
+      if (medicationBundle?.entry) {
+        const medicationRequests = medicationBundle.entry
+          .filter(e => e.resource?.resourceType === 'MedicationRequest')
+          .map(e => e.resource);
+        allOrdersResults.push(...medicationRequests);
+      }
+
+      // Extract service requests from second batch entry
+      const serviceBundle = entries[1]?.resource;
+      if (serviceBundle?.entry) {
+        const serviceRequests = serviceBundle.entry
+          .filter(e => e.resource?.resourceType === 'ServiceRequest')
+          .map(e => e.resource);
+        allOrdersResults.push(...serviceRequests);
+      }
+
+      // Add filtered results from chained searches
+      if (entries.length > 2) {
+        for (let i = 2; i < entries.length; i++) {
+          const chainedBundle = entries[i]?.resource;
+          if (chainedBundle?.entry) {
+            const chainedResults = chainedBundle.entry
+              .filter(e => e.resource?.resourceType === 'ServiceRequest')
+              .map(e => e.resource);
+            allOrdersResults.push(...chainedResults);
+          }
+        }
+      }
+
+      // Remove duplicates based on resource ID
+      const uniqueOrders = allOrdersResults.filter((order, index, self) =>
+        index === self.findIndex(o => o.id === order.id)
+      );
+
+      setChainedSearchResults(uniqueOrders);
+      
+    } catch (error) {
+      console.error('Error performing chained search:', error);
+      setChainedSearchResults([]);
+    } finally {
+      setLoadingChainedSearch(false);
+    }
+  }, [patientId, fhirClient]);
+
+  // Load optimized chained search results on patient change
+  useEffect(() => {
+    performChainedSearch();
+  }, [performChainedSearch]);
+
+  // Get orders from enhanced search, chained search, or fallback to shared hook data
+  const enhancedOrders = searchResults?.map(entry => entry.resource) || [];
+  const fallbackOrders = [...medications, ...serviceRequests];
+  
+  // Use enhanced search results first, then chained search, then fallback
+  const allOrders = enhancedOrders.length > 0 ? enhancedOrders : 
+                   chainedSearchResults.length > 0 ? chainedSearchResults : 
+                   fallbackOrders;
   
   // Separate by category
-  const medicationOrders = medicationRequests;
-  const labOrders = serviceRequests.filter(sr => 
-    sr.category?.[0]?.coding?.[0]?.code === 'laboratory'
+  const medicationOrders = allOrders.filter(order => order.resourceType === 'MedicationRequest');
+  const labOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    order.category?.[0]?.coding?.[0]?.code === 'laboratory'
   );
-  const imagingOrders = serviceRequests.filter(sr => 
-    sr.category?.[0]?.coding?.[0]?.code === 'imaging'
+  const imagingOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    order.category?.[0]?.coding?.[0]?.code === 'imaging'
   );
-  const otherOrders = serviceRequests.filter(sr => 
-    !['laboratory', 'imaging'].includes(sr.category?.[0]?.coding?.[0]?.code)
+  const otherOrders = allOrders.filter(order => 
+    order.resourceType === 'ServiceRequest' && 
+    !['laboratory', 'imaging'].includes(order.category?.[0]?.coding?.[0]?.code)
   );
 
-  // Filter orders
+  // Filter orders (legacy filters for fallback when not using enhanced search)
   const filterOrders = (orders) => {
+    // If using enhanced search results, return as-is (filtering handled by search service)
+    if (enhancedOrders.length > 0) {
+      return orders;
+    }
+    
+    // Legacy filtering for fallback
     return orders.filter(order => {
       // Status filter
       if (filterStatus !== 'all' && order.status !== filterStatus) {
@@ -601,7 +752,8 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   };
 
   const currentOrders = getCurrentOrders();
-  const sortedOrders = [...currentOrders].sort((a, b) => {
+  // Enhanced search results are already sorted by service
+  const sortedOrders = enhancedOrders.length > 0 ? currentOrders : [...currentOrders].sort((a, b) => {
     const dateA = new Date(a.authoredOn || a.occurrenceDateTime || 0);
     const dateB = new Date(b.authoredOn || b.occurrenceDateTime || 0);
     return dateB - dateA;
@@ -1159,7 +1311,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   ];
 
-  if (loading) {
+  if (loading || loadingChainedSearch || clinicalDataLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
@@ -1272,13 +1424,40 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
         </Tabs>
       </Paper>
 
-      {/* Filters */}
+      {/* Enhanced Order Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">Search & Filters</Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {hasActiveFilters() && (
+              <Chip 
+                label={`${Object.keys(searchResults || {}).length} filters active`} 
+                size="small" 
+                color="primary"
+                onDelete={clearSearch}
+              />
+            )}
+            <Button
+              size="small"
+              startIcon={<FilterIcon />}
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              variant={showAdvancedFilters ? 'contained' : 'outlined'}
+            >
+              {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+            </Button>
+          </Stack>
+        </Stack>
+        
+        {/* Quick Filters Row */}
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mb={showAdvancedFilters ? 2 : 0}>
           <TextField
-            placeholder="Search orders..."
+            placeholder="Search orders, medications, procedures..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              // Update enhanced search with text
+              updateFilters({ freeText: e.target.value });
+            }}
             size="small"
             sx={{ flex: 1 }}
             InputProps={{
@@ -1294,7 +1473,10 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <InputLabel>Status</InputLabel>
             <Select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                updateFilters({ status: e.target.value !== 'all' ? e.target.value : '' });
+              }}
               label="Status"
             >
               <MenuItem value="all">All Status</MenuItem>
@@ -1309,13 +1491,17 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             <InputLabel>Period</InputLabel>
             <Select
               value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
+              onChange={(e) => {
+                setFilterPeriod(e.target.value);
+                updateFilters({ dateRange: e.target.value !== 'all' ? e.target.value : '' });
+              }}
               label="Period"
             >
               <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="7d">Last 7 Days</MenuItem>
-              <MenuItem value="30d">Last 30 Days</MenuItem>
-              <MenuItem value="90d">Last 90 Days</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="week">Last Week</MenuItem>
+              <MenuItem value="month">Last Month</MenuItem>
+              <MenuItem value="3months">Last 3 Months</MenuItem>
             </Select>
           </FormControl>
 
@@ -1335,12 +1521,48 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
             label="Select All"
           />
         </Stack>
+        
+        {/* Advanced Filters */}
+        {showAdvancedFilters && (
+          <AdvancedOrderFilters
+            onFiltersChange={updateFilters}
+            patientId={patientId}
+            showAdvanced={true}
+          />
+        )}
       </Paper>
 
+      {/* Search Results Info */}
+      {searchLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <CircularProgress size={24} />
+          <Typography sx={{ ml: 1 }}>Searching orders...</Typography>
+        </Box>
+      )}
+      
+      {searchError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Search Error: {searchError}
+        </Alert>
+      )}
+      
+      {analytics && (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>Search Analytics</Typography>
+          <Stack direction="row" spacing={2}>
+            <Chip label={`Total: ${analytics.summary.total}`} size="small" />
+            <Chip label={`Service Requests: ${analytics.summary.byResourceType?.ServiceRequest || 0}`} size="small" color="info" />
+            <Chip label={`Medications: ${analytics.summary.byResourceType?.MedicationRequest || 0}`} size="small" color="secondary" />
+            <Chip label={`Active: ${analytics.summary.byStatus?.active || 0}`} size="small" color="success" />
+            <Chip label={`Urgent: ${analytics.summary.byPriority?.urgent || 0}`} size="small" color="warning" />
+          </Stack>
+        </Paper>
+      )}
+      
       {/* Orders List */}
       {sortedOrders.length === 0 ? (
         <Alert severity="info">
-          No orders found matching your criteria
+          {searchLoading ? 'Searching...' : (enhancedOrders.length > 0 ? 'No orders match your search criteria' : 'No orders found')}
         </Alert>
       ) : sortedOrders.length > 20 ? (
         // Use virtual scrolling for large lists

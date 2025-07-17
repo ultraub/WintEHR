@@ -51,7 +51,7 @@ import {
   getActivityStatusColor,
   getIntentColor,
   getCarePlanDisplay
-} from '../../../../../utils/fhir/CarePlanConverter';
+} from '../../../../../core/fhir/converters/CarePlanConverter';
 
 const CarePlanFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
   const [expandedActivity, setExpandedActivity] = useState(null);
