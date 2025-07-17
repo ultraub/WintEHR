@@ -231,6 +231,7 @@ def construct_fhir_element(name, data):
             'ParametersParameter': ParametersParameter,
             'OperationOutcome': OperationOutcome,
             'OperationOutcomeIssue': OperationOutcomeIssue,
+            'DocumentReference': DocumentReference,
             # Add more mappings as needed
         }
         
