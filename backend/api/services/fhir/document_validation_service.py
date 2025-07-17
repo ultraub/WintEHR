@@ -374,7 +374,17 @@ class DocumentValidationService:
         
         try:
             # Convert to dict for modification
-            doc_data = json.loads(doc_ref.json(exclude_none=True))
+            # Handle different FHIR library versions
+            if hasattr(doc_ref, 'json') and callable(doc_ref.json):
+                # Try with exclude_none parameter first (older versions)
+                try:
+                    doc_data = json.loads(doc_ref.json(exclude_none=True))
+                except TypeError:
+                    # Fallback for newer versions that don't support exclude_none
+                    doc_data = json.loads(doc_ref.json())
+            else:
+                # If json() method not available, use dict()
+                doc_data = doc_ref.dict(exclude_none=True)
             fixes_applied = []
             
             # Fix missing date

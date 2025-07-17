@@ -550,7 +550,16 @@ class FHIRStorageEngine:
                 if isinstance(fhir_resource, dict):
                     resource_dict = fhir_resource
                 else:
-                    resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                    # Handle different FHIR library versions
+                    if hasattr(fhir_resource, 'json') and callable(fhir_resource.json):
+                        try:
+                            resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                        except TypeError:
+                            # Fallback for newer versions that don't support exclude_none
+                            resource_dict = json_module.loads(fhir_resource.json())
+                    else:
+                        # If json() method not available, use dict()
+                        resource_dict = fhir_resource.dict(exclude_none=True)
             else:
                 # Use safe dict conversion
                 resource_dict = safe_dict_conversion(fhir_resource, exclude_none=True)
@@ -824,7 +833,16 @@ class FHIRStorageEngine:
                 if isinstance(fhir_resource, dict):
                     resource_dict = fhir_resource
                 else:
-                    resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                    # Handle different FHIR library versions
+                    if hasattr(fhir_resource, 'json') and callable(fhir_resource.json):
+                        try:
+                            resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                        except TypeError:
+                            # Fallback for newer versions that don't support exclude_none
+                            resource_dict = json_module.loads(fhir_resource.json())
+                    else:
+                        # If json() method not available, use dict()
+                        resource_dict = fhir_resource.dict(exclude_none=True)
             else:
                 # Use safe dict conversion
                 resource_dict = safe_dict_conversion(fhir_resource, exclude_none=True)
