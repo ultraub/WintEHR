@@ -1261,6 +1261,8 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
       {tabValue === 0 && (
         <AdvancedLabValueFilter
           patientId={patientId}
+          observations={labObservations.observations}
+          currentTab={tabValue}
           onFilterChange={handleAdvancedFilterChange}
           onFilteredResultsChange={(results) => {
             setAdvancedFilteredResults(results);

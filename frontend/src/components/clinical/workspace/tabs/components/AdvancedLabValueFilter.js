@@ -50,8 +50,8 @@ import {
 } from '@mui/icons-material';
 import { fhirClient } from '../../../../../core/fhir/services/fhirClient';
 
-// Critical value presets based on common clinical thresholds
-const CRITICAL_VALUE_PRESETS = [
+// Critical value presets for laboratory tests
+const LAB_VALUE_PRESETS = [
   { 
     id: 'glucose_high', 
     label: 'Glucose > 250', 
@@ -332,7 +332,7 @@ const AdvancedLabValueFilter = ({
     }
   }, [filters, observations, onFilteredResultsChange, onFilterChange, onCriticalValuesFound]);
 
-  // Apply filters when enabled state or filters change
+  // Apply filters when enabled state, filters, or observations change
   useEffect(() => {
     if (isEnabled && filters.length > 0) {
       applyFiltersCallback();
@@ -342,7 +342,7 @@ const AdvancedLabValueFilter = ({
       onFilteredResultsChange([]);
       onFilterChange([]);
     }
-  }, [isEnabled, filters, patientId, applyFiltersCallback, onFilteredResultsChange, onFilterChange]);
+  }, [isEnabled, filters, observations, applyFiltersCallback, onFilteredResultsChange, onFilterChange]);
 
   // Apply preset filter
   const applyPreset = (preset) => {
