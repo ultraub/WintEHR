@@ -31,23 +31,30 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
         echo "❌ Database schema not initialized, attempting manual initialization..."
         
-        # Fallback: Run Alembic migration
-        echo "Running Alembic database migration..."
+        # Fallback: Use consolidated initialization script
+        echo "Running consolidated database initialization..."
         export DATABASE_URL="postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
         
-        # Check if migration is needed
-        if alembic current 2>/dev/null | grep -q "head"; then
-            echo "✅ Database already up to date"
-        else
-            echo "Running initial migration..."
-            alembic upgrade head || {
-                echo "⚠️  Alembic migration failed, trying direct SQL..."
-                
-                # Final fallback: Direct SQL execution
-                if [ -f "/app/scripts/init_complete.sql" ]; then
-                    PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f /app/scripts/init_complete.sql || echo "⚠️  SQL initialization failed"
-                fi
-            }
+        # Use our consolidated initialization script
+        cd /app/scripts
+        python setup/init_database_definitive.py --mode production || {
+            echo "⚠️  Consolidated initialization failed, trying Alembic fallback..."
+            
+            # Check if migration is needed
+            if alembic current 2>/dev/null | grep -q "head"; then
+                echo "✅ Database already up to date"
+            else
+                echo "Running initial migration..."
+                alembic upgrade head || {
+                    echo "⚠️  Alembic migration failed, trying direct SQL..."
+                    
+                    # Final fallback: Direct SQL execution
+                    if [ -f "/app/scripts/init_complete.sql" ]; then
+                        PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f /app/scripts/init_complete.sql || echo "⚠️  SQL initialization failed"
+                    fi
+                }
+            fi
+        }
         fi
         break
     fi

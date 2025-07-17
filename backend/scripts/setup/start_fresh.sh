@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fresh start script for WintEHR with comprehensive cleanup
+# Fresh start script for WintEHR with consolidated build system
 
 set -e  # Exit on error
 
@@ -9,6 +9,7 @@ STOP_SERVICES=true
 CLEAN_FILES=false
 PATIENT_COUNT=20
 SKIP_CONFIRM=false
+BUILD_TYPE=quick
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -27,6 +28,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --patients)
             PATIENT_COUNT="$2"
+            shift 2
+            ;;
+        --build-type)
+            BUILD_TYPE="$2"
             shift 2
             ;;
         --yes|-y)
@@ -104,17 +109,23 @@ if [ "$WIPE_DB" = true ]; then
     echo "✓ Database wiped and recreated"
 fi
 
-# Run complete initialization
-echo -e "\n🏥 Running complete initialization..."
-./scripts/init_complete.sh
+# Run consolidated build process
+echo -e "\n🏥 Running consolidated build process..."
+cd scripts/active
 
-# Generate and import data
-echo -e "\n📊 Generating and importing data..."
-python scripts/synthea_master.py full \
-    --count $PATIENT_COUNT \
-    --include-dicom \
-    --clean-names \
-    --validation-mode transform_only
+if [ "$BUILD_TYPE" = "full" ]; then
+    echo "🔧 Running full build with $PATIENT_COUNT patients..."
+    python master_build.py --full-build --patient-count $PATIENT_COUNT --environment production
+elif [ "$BUILD_TYPE" = "quick" ]; then
+    echo "⚡ Running quick build with $PATIENT_COUNT patients..."
+    python master_build.py --quick-build --patient-count $PATIENT_COUNT --environment production
+else
+    echo "❌ Unknown build type: $BUILD_TYPE"
+    echo "Available types: full, quick"
+    exit 1
+fi
+
+cd ../..
 
 # Start all services
 echo -e "\n🚀 Starting all services..."
