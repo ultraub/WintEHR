@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
+import { useStableCallback } from '../../../../hooks/useStableReferences';
 import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../../../services/fhirClient';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
@@ -306,25 +307,21 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       s.patient?.reference === `Patient/${patientId}`
     ), [resources.ServiceRequest, patientId]);
 
-  // Define loadDashboardData function before it's used
-  const loadDashboardData = useCallback(async () => {
+  // Define loadDashboardData function with stable callback to prevent infinite loops
+  const loadDashboardData = useStableCallback(async () => {
     try {
-      setLoading(true);
+      // Don't set loading if we're just refreshing data we already have
+      if (conditions.length === 0 && medications.length === 0 && observations.length === 0) {
+        setLoading(true);
+      }
       
-      // Use already loaded resources from context instead of making new API calls
-      const conditionsData = conditions;
-      const medicationsData = medications;
-      const observationsData = observations;
-      const encountersData = encounters;
-      const allergiesData = allergies;
-      
-
+      // Use current resource arrays directly - no need to reassign
       // Calculate stats using resilient field access utilities
-      const activeConditions = conditionsData.filter(isConditionActive);
-      const activeMeds = medicationsData.filter(isMedicationActive);
+      const activeConditions = conditions.filter(isConditionActive);
+      const activeMeds = medications.filter(isMedicationActive);
       
       // Recent labs (last 7 days)
-      const recentLabs = observationsData.filter(o => {
+      const recentLabs = observations.filter(o => {
         if (isObservationLaboratory(o)) {
           const date = o.effectiveDateTime || o.issued;
           if (date) {
@@ -338,7 +335,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       });
 
       // Count upcoming appointments (encounters with future dates)
-      const upcomingAppointments = encountersData.filter(enc => {
+      const upcomingAppointments = encounters.filter(enc => {
         const startDate = enc.period?.start;
         return startDate && new Date(startDate) > new Date() && enc.status === 'planned';
       }).length;
@@ -347,7 +344,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       let overdueCount = 0;
       
       // Check for medications that might need refills
-      medicationsData.forEach(med => {
+      medications.forEach(med => {
         if (isMedicationActive(med) && med.dispenseRequest?.validityPeriod?.end) {
           const endDate = new Date(med.dispenseRequest.validityPeriod.end);
           if (endDate < new Date()) {
@@ -357,8 +354,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       });
 
       // Check for overdue lab orders (use already loaded service requests)
-      const labOrders = serviceRequests;
-      labOrders.forEach(order => {
+      serviceRequests.forEach(order => {
         if (order.status === 'active' && order.occurrenceDateTime) {
           const dueDate = new Date(order.occurrenceDateTime);
           if (dueDate < new Date()) {
@@ -388,16 +384,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [conditions, medications, observations, encounters, allergies, serviceRequests, onNotificationUpdate]);
+  });
 
-  // Update dashboard when resources change
+  // Update dashboard when resources change - removed loadDashboardData from deps to prevent infinite loops
   useEffect(() => {
-    if (patientId && isCacheWarm(patientId)) {
+    if (!patientId) return;
+    
+    // Check if we have any resources loaded for this patient
+    const hasAnyResources = conditions.length > 0 || medications.length > 0 || observations.length > 0 || encounters.length > 0;
+    
+    if (hasAnyResources) {
+      // We have resources, process them
       loadDashboardData();
-    } else if (patientId) {
-      setLoading(true);
+      setLoading(false);
+    } else {
+      // No resources yet, show loading if cache isn't warm
+      if (!isCacheWarm(patientId)) {
+        setLoading(true);
+      }
     }
-  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length, loadDashboardData]);
+  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length]);
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below

@@ -97,6 +97,10 @@ class DocumentReferenceConverter:
             ]
         }
         
+        # Add ID if provided - this is crucial for FHIR object construction
+        if data.get('id'):
+            doc_ref_dict["id"] = str(data['id'])
+        
         # Add Type (required)
         doc_ref_dict["type"] = {
             "coding": [
@@ -175,8 +179,21 @@ class DocumentReferenceConverter:
             doc_ref_dict["description"] = data['description']
         
         # Create DocumentReference from complete dict
-        doc_ref = DocumentReference(**doc_ref_dict)
-        return doc_ref
+        # Remove resourceType before construction as it's not a constructor parameter
+        doc_ref_data = doc_ref_dict.copy()
+        doc_ref_data.pop('resourceType', None)
+        
+        try:
+            doc_ref = DocumentReference(**doc_ref_data)
+            return doc_ref
+        except Exception as e:
+            # Log detailed error information
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to create DocumentReference: {e}")
+            logger.error(f"Data keys: {list(doc_ref_data.keys())}")
+            logger.error(f"Data: {doc_ref_data}")
+            raise ValueError(f"DocumentReference construction failed: {e}")
     
     @staticmethod
     def from_fhir(doc_ref: DocumentReference) -> Dict[str, Any]:
