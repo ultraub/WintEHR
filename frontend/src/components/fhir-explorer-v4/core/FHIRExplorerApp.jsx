@@ -49,6 +49,7 @@ import NaturalLanguageInterface from '../query-building/NaturalLanguageInterface
 import AIQueryAssistant from '../query-building/AIQueryAssistant';
 import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
+import DataCharts from '../visualization/DataCharts';
 
 // Application constants
 import {
@@ -275,14 +276,7 @@ function FHIRExplorerApp() {
       case APP_MODES.VISUALIZATION:
         switch (currentView) {
           case VISUALIZATION_VIEWS.CHARTS:
-            return (
-              <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Typography variant="h4" gutterBottom>Data Charts</Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Interactive charts and graphs coming in Phase 3
-                </Typography>
-              </Container>
-            );
+            return <DataCharts onNavigate={handleModeChange} fhirData={fhirData} />;
           case VISUALIZATION_VIEWS.TIMELINE:
             return <PatientTimeline fhirData={fhirData} onNavigate={handleModeChange} />;
           case VISUALIZATION_VIEWS.NETWORK:
