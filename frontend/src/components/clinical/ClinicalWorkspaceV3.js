@@ -57,6 +57,8 @@ import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import EnhancedPatientHeader from './workspace/EnhancedPatientHeader';
 import WorkspaceContent from './workspace/WorkspaceContent';
 import { usePatientCDSAlerts } from '../../contexts/CDSContext';
+import ClinicalLayout from './layouts/ClinicalLayout';
+import { getClinicalContext } from '../../themes/clinicalThemeUtils';
 
 // Lazy-loaded Components
 const LayoutBuilder = React.lazy(() => import('./workspace/LayoutBuilder'));
@@ -264,6 +266,25 @@ const ClinicalWorkspaceV3 = () => {
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [tabNotifications, setTabNotifications] = useState({});
   const [newNoteDialogOpen, setNewNoteDialogOpen] = useState(false);
+  
+  // Detect department from user role or location
+  const department = useMemo(() => {
+    const role = currentUser?.role?.toLowerCase();
+    const path = location.pathname.toLowerCase();
+    
+    if (role?.includes('emergency') || path.includes('emergency')) return 'emergency';
+    if (role?.includes('cardio') || path.includes('cardio')) return 'cardiology';
+    if (role?.includes('pedia') || path.includes('pedia')) return 'pediatrics';
+    if (role?.includes('onco') || path.includes('onco')) return 'oncology';
+    if (role?.includes('psych') || path.includes('psych')) return 'psychiatry';
+    return 'general';
+  }, [currentUser, location]);
+  
+  // Get clinical context
+  const clinicalContext = useMemo(() => 
+    getClinicalContext(location.pathname, new Date().getHours(), department),
+    [location.pathname, department]
+  );
   const [newOrderDialogOpen, setNewOrderDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
@@ -436,19 +457,24 @@ const ClinicalWorkspaceV3 = () => {
   }
 
   return (
-    <Box sx={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      backgroundColor: 'background.default',
-      overflow: 'hidden'
-    }}>
-      {/* Enhanced Patient Header */}
-      <EnhancedPatientHeader 
-        patientId={patientId} 
-        onPrint={handlePrint}
-        onNavigateToTab={handleTabChange}
-      />
+    <ClinicalLayout
+      patient={currentPatient}
+      department={department}
+      clinicalContext={clinicalContext}
+    >
+      <Box sx={{ 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        backgroundColor: 'background.default',
+        overflow: 'hidden'
+      }}>
+        {/* Enhanced Patient Header */}
+        <EnhancedPatientHeader 
+          patientId={patientId} 
+          onPrint={handlePrint}
+          onNavigateToTab={handleTabChange}
+        />
 
       {/* CDS Alerts Display - Using Centralized CDS System */}
       <CDSAlertsDisplay patientId={patientId} compact={true} maxAlerts={3} />
@@ -580,6 +606,8 @@ const ClinicalWorkspaceV3 = () => {
                         onNewNoteDialogClose={() => setNewNoteDialogOpen(false)}
                         newOrderDialogOpen={tab.id === 'orders' ? newOrderDialogOpen : false}
                         onNewOrderDialogClose={() => setNewOrderDialogOpen(false)}
+                        department={department}
+                        clinicalContext={clinicalContext}
                       />
                     </Suspense>
                   ) : null}
@@ -671,7 +699,8 @@ const ClinicalWorkspaceV3 = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+      </Box>
+    </ClinicalLayout>
   );
 };
 

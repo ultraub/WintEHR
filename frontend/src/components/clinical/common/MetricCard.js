@@ -84,11 +84,11 @@ const MetricCard = ({
     }
     
     // Fall back to standard palette colors
-    if (theme.palette[color]) {
+    if (theme.palette[color]?.main) {
       return theme.palette[color].main;
     }
     
-    return theme.palette.primary.main;
+    return theme.palette.primary?.main || '#1976D2';
   };
 
   const cardColor = getColor();
@@ -100,17 +100,17 @@ const MetricCard = ({
     const trendConfigs = {
       up: {
         icon: <TrendingUpIcon fontSize="small" />,
-        color: theme.palette.success.main,
+        color: theme.palette.success?.main || '#4caf50',
         label: 'Trending up'
       },
       down: {
         icon: <TrendingDownIcon fontSize="small" />,
-        color: theme.palette.error.main,
+        color: theme.palette.error?.main || '#f44336',
         label: 'Trending down'
       },
       flat: {
         icon: <TrendingFlatIcon fontSize="small" />,
-        color: theme.palette.grey[600],
+        color: theme.palette.grey?.[600] || '#757575',
         label: 'Stable'
       }
     };

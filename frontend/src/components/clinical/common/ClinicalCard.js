@@ -89,10 +89,10 @@ const ClinicalCard = ({
   // Get priority color
   const getPriorityColor = () => {
     const priorityColors = {
-      low: theme.palette.success.main,
-      normal: theme.palette.info.main,
-      high: theme.palette.warning.main,
-      urgent: theme.palette.error.main
+      low: theme.palette.success?.main || '#4caf50',
+      normal: theme.palette.info?.main || '#2196f3',
+      high: theme.palette.warning?.main || '#ff9800',
+      urgent: theme.palette.error?.main || '#f44336'
     };
     return priorityColors[priority] || priorityColors.normal;
   };
@@ -115,16 +115,16 @@ const ClinicalCard = ({
       if (enhancedContext.department !== 'general' && theme.clinical?.departments?.[enhancedContext.department]) {
         return theme.clinical.departments[enhancedContext.department].surface;
       }
-      return theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.05);
+      return theme.clinical?.surfaces?.primary || alpha(theme.palette.primary?.main || '#1976D2', 0.05);
     }
     return theme.palette.background.paper;
   };
   
   // Get border color for clinical importance
   const getBorderColor = () => {
-    if (urgent) return theme.palette.error.main;
+    if (urgent) return theme.palette.error?.main || '#f44336';
     if (severityColor) return severityColor;
-    if (priority === 'high') return theme.palette.warning.main;
+    if (priority === 'high') return theme.palette.warning?.main || '#ff9800';
     return theme.palette.divider;
   };
   
@@ -147,7 +147,7 @@ const ClinicalCard = ({
     // Add urgency indicator
     ...(urgent && {
       borderLeftWidth: 4,
-      borderLeftColor: theme.palette.error.main,
+      borderLeftColor: theme.palette.error?.main || '#f44336',
       '&::before': {
         content: '""',
         position: 'absolute',
@@ -155,7 +155,7 @@ const ClinicalCard = ({
         left: 0,
         right: 0,
         height: 3,
-        backgroundColor: theme.palette.error.main,
+        backgroundColor: theme.palette.error?.main || '#f44336',
         borderRadius: `${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0 0`
       }
     }),

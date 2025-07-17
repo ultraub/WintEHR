@@ -62,8 +62,8 @@ class HookPersistenceManager:
             
             # Then create indexes - one at a time to avoid multi-statement error
             await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_type ON cds_hooks.hook_configurations(hook_type)"))
-            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(is_active)"))
-            await self.db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS hook_configurations_hook_id_key ON cds_hooks.hook_configurations(hook_id)"))
+            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(enabled)"))
+            # Note: The id column in the table serves as the hook_id, no separate index needed
             await self.db.commit()
             
             logger.debug("CDS hooks table created or verified")

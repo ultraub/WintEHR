@@ -101,9 +101,13 @@ import {
 import StatusChip from '../../common/StatusChip';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
+import ClinicalCard from '../../common/ClinicalCard';
+import ClinicalDataTable from '../../common/ClinicalDataTable';
+import MetricCard from '../../common/MetricCard';
+import { getClinicalContext } from '../../../../themes/clinicalThemeUtils';
 
 // Problem List Component
-const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
+const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport, department }) => {
   const theme = useTheme();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('all');
@@ -280,19 +284,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
 
   return (
-    <Card sx={{ 
-      height: '100%',
-      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-      '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
-      }
-    }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h6" gutterBottom>Problem List</Typography>
-            <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
+    <ClinicalCard
+      title="Problem List"
+      icon={<ProblemIcon />}
+      department={department}
+      variant="clinical"
+      expandable={false}
+      subtitle={
+        <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
@@ -364,9 +363,10 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 }}
               />
             </Stack>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Advanced Filters">
+      }
+      actions={
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="Advanced Filters">
               <IconButton 
                 size="small" 
                 color={showAdvancedFilters ? "primary" : "default"}
@@ -450,9 +450,10 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 <ExportIcon />
               </IconButton>
             </Tooltip>
-          </Stack>
         </Stack>
-
+      }
+    >
+      <Box>
         <TextField
           fullWidth
           size="small"
@@ -743,7 +744,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
             ))
           )}
         </List>
-      </CardContent>
+      </Box>
       
       <AddProblemDialog
         open={showAddDialog}
@@ -776,12 +777,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           Export as PDF
         </MenuItem>
       </Menu>
-    </Card>
+    </ClinicalCard>
   );
 };
 
 // Medication List Component
-const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
+const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport, department }) => {
   const theme = useTheme();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
@@ -917,19 +918,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   }).length;
 
   return (
-    <Card sx={{ 
-      height: '100%',
-      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-      '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
-      }
-    }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h6" gutterBottom>Medications</Typography>
-            <Stack direction="row" spacing={1} role="group" aria-label="Medication list filters">
+    <ClinicalCard
+      title="Medications"
+      icon={<MedicationIcon />}
+      department={department}
+      variant="clinical"
+      expandable={false}
+      subtitle={
+        <Stack direction="row" spacing={1} role="group" aria-label="Medication list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
@@ -1001,8 +997,9 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 }}
               />
             </Stack>
-          </Box>
-          <Stack direction="row" spacing={1}>
+      }
+      actions={
+        <Stack direction="row" spacing={0.5}>
             <Tooltip title="Prescribe Medication">
               <IconButton 
                 size="small" 
@@ -1064,9 +1061,10 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 <ExportIcon />
               </IconButton>
             </Tooltip>
-          </Stack>
         </Stack>
-
+      }
+    >
+      <Box>
         <List sx={{ maxHeight: 400, overflow: 'auto', position: 'relative' }}>
           {resolvingMeds && (
             <Box sx={{ 
@@ -1115,7 +1113,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                           {getMedicationDisplay(med)}
                         </Typography>
                         {!isMedicationActive(med) && (
-                          <StatusChip status={getMedicationStatus(med)} size="small" />
+                          <StatusChip status={getMedicationStatus(med)} size="small" department={department} />
                         )}
                         {med.priority && med.priority !== 'routine' && (
                           <Chip 
@@ -1249,7 +1247,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             ))
           )}
         </List>
-      </CardContent>
+      </Box>
       
       <PrescribeMedicationDialog
         open={showPrescribeDialog}
@@ -1351,13 +1349,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           Export as PDF
         </MenuItem>
       </Menu>
-    </Card>
+    </ClinicalCard>
   );
 };
 
 
 // Allergy List Component
-const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
+const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport, department }) => {
   const theme = useTheme();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -1477,19 +1475,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   );
 
   return (
-    <Card sx={{ 
-      height: '100%',
-      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-      '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: `0 8px 24px ${alpha(theme.palette.error.main, 0.15)}`
-      }
-    }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h6" gutterBottom>Allergies & Intolerances</Typography>
-            <Chip 
+    <ClinicalCard
+      title="Allergies & Intolerances"
+      icon={<WarningIcon />}
+      department={department}
+      variant="clinical"
+      expandable={false}
+      subtitle={
+        <Chip 
               icon={<WarningIcon />}
               label={`${activeAllergies.length} Active`} 
               size="small" 
@@ -1501,8 +1494,9 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                 }
               }}
             />
-          </Box>
-          <Stack direction="row" spacing={1}>
+      }
+      actions={
+        <Stack direction="row" spacing={0.5}>
             <Tooltip title="Add Allergy">
               <IconButton 
                 size="small" 
@@ -1534,9 +1528,10 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                 <ExportIcon />
               </IconButton>
             </Tooltip>
-          </Stack>
         </Stack>
-
+      }
+    >
+      <Box>
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {allergies.length === 0 ? (
             <Alert severity="success" sx={{ mt: 2 }}>
@@ -1632,7 +1627,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
             ))
           )}
         </List>
-      </CardContent>
+      </Box>
       
       <AddAllergyDialog
         open={showAddDialog}
@@ -1665,12 +1660,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
           Export as PDF
         </MenuItem>
       </Menu>
-    </Card>
+    </ClinicalCard>
   );
 };
 
 // Social History Component
-const SocialHistory = ({ observations, patientId }) => {
+const SocialHistory = ({ observations, patientId, department }) => {
   const theme = useTheme();
   const socialObs = observations.filter(o => 
     o.category?.[0]?.coding?.[0]?.code === 'social-history'
@@ -1680,41 +1675,38 @@ const SocialHistory = ({ observations, patientId }) => {
   const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
 
   return (
-    <Card sx={{
-      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-      '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
-      }
-    }}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>Social History</Typography>
-        <List>
-          <ListItem>
-            <ListItemIcon>
-              <SmokingIcon />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Smoking Status"
-              secondary={smokingStatus?.valueCodeableConcept?.text || 'Not documented'}
-            />
-          </ListItem>
-          <ListItem>
-            <ListItemIcon>
-              <AlcoholIcon />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Alcohol Use"
-              secondary={alcoholUse?.valueCodeableConcept?.text || 'Not documented'}
-            />
-          </ListItem>
-        </List>
-      </CardContent>
-    </Card>
+    <ClinicalCard
+      title="Social History"
+      icon={<InfoIcon />}
+      department={department}
+      variant="clinical"
+      expandable={false}
+    >
+      <List>
+        <ListItem>
+          <ListItemIcon>
+            <SmokingIcon color={smokingStatus ? "action" : "disabled"} />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Smoking Status"
+            secondary={smokingStatus?.valueCodeableConcept?.text || 'Not documented'}
+          />
+        </ListItem>
+        <ListItem>
+          <ListItemIcon>
+            <AlcoholIcon color={alcoholUse ? "action" : "disabled"} />
+          </ListItemIcon>
+          <ListItemText 
+            primary="Alcohol Use"
+            secondary={alcoholUse?.valueCodeableConcept?.text || 'Not documented'}
+          />
+        </ListItem>
+      </List>
+    </ClinicalCard>
   );
 };
 
-const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
+const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const { 
     getPatientResources, 
     searchResources, 
@@ -1727,6 +1719,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // Get clinical context for enhanced theming
+  const clinicalContext = getClinicalContext(
+    window.location.pathname,
+    new Date().getHours(),
+    department
+  );
   
   const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
@@ -2306,6 +2305,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onEditProblem={handleEditProblem}
             onDeleteProblem={handleDeleteProblem}
             onExport={handleExportProblems}
+            department={department}
           />
         </Grid>
 
@@ -2318,6 +2318,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onEditMedication={handleEditMedication}
             onDeleteMedication={handleDeleteMedication}
             onExport={handleExportMedications}
+            department={department}
           />
         </Grid>
 
@@ -2330,69 +2331,59 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             onEditAllergy={handleEditAllergy}
             onDeleteAllergy={handleDeleteAllergy}
             onExport={handleExportAllergies}
+            department={department}
           />
         </Grid>
 
         {/* Social History */}
         <Grid item xs={12} md={6}>
-          <SocialHistory observations={observations} patientId={patientId} />
+          <SocialHistory observations={observations} patientId={patientId} department={department} />
         </Grid>
 
         {/* Immunizations Summary */}
         <Grid item xs={12}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.success.main, 0.15)}`
+          <ClinicalCard
+            title="Immunizations"
+            icon={<ImmunizationIcon />}
+            status="active"
+            department={department}
+            variant="clinical"
+            headerAction={
+              <Chip 
+                icon={<ImmunizationIcon />}
+                label={`${immunizations.length} recorded`} 
+                size="small" 
+                color="success"
+              />
             }
-          }}>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">Immunizations</Typography>
-                <Chip 
-                  icon={<ImmunizationIcon />}
-                  label={`${immunizations.length} recorded`} 
-                  size="small" 
-                  color="success"
-                  sx={{
-                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                    '&:hover': {
-                      transform: 'scale(1.05)'
-                    }
-                  }}
-                />
-              </Stack>
-              {immunizations.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No immunization records found
-                </Typography>
-              ) : (
-                <Typography variant="body2">
-                  Last immunization: {
-                    immunizations[0]?.occurrenceDateTime ? 
-                    format(parseISO(immunizations[0].occurrenceDateTime), 'MMM d, yyyy') : 
-                    'Unknown'
-                  }
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
+          >
+            {immunizations.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No immunization records found
+              </Typography>
+            ) : (
+              <Typography variant="body2">
+                Last immunization: {
+                  immunizations[0]?.occurrenceDateTime ? 
+                  format(parseISO(immunizations[0].occurrenceDateTime), 'MMM d, yyyy') : 
+                  'Unknown'
+                }
+              </Typography>
+            )}
+          </ClinicalCard>
         </Grid>
 
         {/* Prescription Status Dashboard */}
         <Grid item xs={12}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
-            }
-          }}>
-            <CardContent>
-              <PrescriptionStatusDashboard patientId={patientId} />
-            </CardContent>
-          </Card>
+          <ClinicalCard
+            title="Prescription Status"
+            icon={<PharmacyIcon />}
+            department={department}
+            variant="clinical"
+            expandable={false}
+          >
+            <PrescriptionStatusDashboard patientId={patientId} />
+          </ClinicalCard>
         </Grid>
 
         {/* Medication Effectiveness Monitoring */}

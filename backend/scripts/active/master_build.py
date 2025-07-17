@@ -273,12 +273,15 @@ class MasterBuildOrchestrator:
         try:
             logger.info(f"🔧 Executing: {' '.join(cmd)}")
             
-            # Execute the script
+            # Execute the script with proper environment
+            env = os.environ.copy()
+            env['PYTHONPATH'] = '/app'
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=script_path.parent
+                cwd=script_path.parent,
+                env=env
             )
             
             stdout, stderr = await process.communicate()

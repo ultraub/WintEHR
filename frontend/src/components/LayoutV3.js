@@ -114,6 +114,7 @@ const navigationConfig = {
       { text: 'FHIR Explorer v4', icon: <ApiIcon />, path: '/fhir-explorer-v4', description: 'Next-gen FHIR exploration with AI', badge: 'New' },
       { text: 'UI Composer', icon: <DashboardCustomizeIcon />, path: '/ui-composer', description: 'Dynamic UI generation', badge: 'Experimental' },
       { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' },
+      { text: 'Design System', icon: <DashboardCustomizeIcon />, path: '/design-system', description: 'Component showcase & patterns', badge: 'New' },
       { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }
     ]
   },

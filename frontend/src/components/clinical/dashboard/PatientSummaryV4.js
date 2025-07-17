@@ -54,8 +54,10 @@ import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useInitializationGuard } from '../../../hooks/useStableReferences';
+import MetricCard from '../common/MetricCard';
+import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 
-const PatientSummaryV4 = ({ patientId }) => {
+const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
   const theme = useTheme();
   const navigate = useNavigate();
@@ -71,6 +73,12 @@ const PatientSummaryV4 = ({ patientId }) => {
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [cdsLoading, setCdsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Get clinical context
+  const clinicalContext = useMemo(() => 
+    getClinicalContext(window.location.pathname, new Date().getHours(), department),
+    [department]
+  );
   
   // Initialization guard to prevent multiple loads
   const { isInitialized, isInitializing, markInitialized, markInitializing } = useInitializationGuard();
@@ -370,155 +378,172 @@ const PatientSummaryV4 = ({ patientId }) => {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Active Problems */}
         <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={activeConditions.length} color="error">
-                  <ConditionIcon color="error" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Active Problems
-                </Typography>
-              </Stack>
-              
-              {activeConditions.length > 0 ? (
-                <List dense>
-                  {activeConditions.map((condition, index) => (
-                    <ListItem key={condition.id} disablePadding>
-                      <ListItemText
-                        primary={condition.code?.text || 'Unknown condition'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No active problems recorded
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Active Problems"
+            value={activeConditions.length}
+            icon={<ConditionIcon />}
+            trend={activeConditions.length > 0 ? 'critical' : 'healthy'}
+            severity={activeConditions.length > 3 ? 'high' : activeConditions.length > 0 ? 'medium' : 'low'}
+            clinicalContext={clinicalContext}
+            department={department}
+            expandable
+            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
+          >
+            {activeConditions.length > 0 ? (
+              <List dense sx={{ mt: 1 }}>
+                {activeConditions.slice(0, 3).map((condition, index) => (
+                  <ListItem key={condition.id} disablePadding>
+                    <ListItemText
+                      primary={condition.code?.text || 'Unknown condition'}
+                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                      secondary={condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                  </ListItem>
+                ))}
+                {activeConditions.length > 3 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    +{activeConditions.length - 3} more problems
+                  </Typography>
+                )}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                No active problems recorded
+              </Typography>
+            )}
+          </MetricCard>
         </Grid>
 
         {/* Current Medications */}
         <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={currentMedications.length} color="primary">
-                  <MedicationIcon color="primary" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Medications
-                </Typography>
-              </Stack>
-              
-              {currentMedications.length > 0 ? (
-                <List dense>
-                  {currentMedications.map((med, index) => (
-                    <ListItem key={med.id} disablePadding>
-                      <ListItemText
-                        primary={
-                          // Try direct medication concept first
-                          med.medicationCodeableConcept?.text ||
-                          med.medicationCodeableConcept?.coding?.[0]?.display ||
-                          // Handle FHIR R5 structure (medication.concept)
-                          med.medication?.concept?.text ||
-                          med.medication?.concept?.coding?.[0]?.display ||
-                          med.medication?.display ||
-                          // Try resolved medication reference
-                          med._resolvedMedication?.code?.text ||
-                          med._resolvedMedication?.code?.coding?.[0]?.display ||
-                          // Fallback for unresolved references
-                          (med.medication?.reference?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
-                        }
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No current medications
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Current Medications"
+            value={currentMedications.length}
+            icon={<MedicationIcon />}
+            trend={currentMedications.length > 5 ? 'warning' : 'stable'}
+            severity={currentMedications.length > 10 ? 'high' : currentMedications.length > 5 ? 'medium' : 'low'}
+            clinicalContext={clinicalContext}
+            department={department}
+            expandable
+            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
+          >
+            {currentMedications.length > 0 ? (
+              <List dense sx={{ mt: 1 }}>
+                {currentMedications.slice(0, 3).map((med, index) => (
+                  <ListItem key={med.id} disablePadding>
+                    <ListItemText
+                      primary={
+                        // Try direct medication concept first
+                        med.medicationCodeableConcept?.text ||
+                        med.medicationCodeableConcept?.coding?.[0]?.display ||
+                        // Handle FHIR R5 structure (medication.concept)
+                        med.medication?.concept?.text ||
+                        med.medication?.concept?.coding?.[0]?.display ||
+                        med.medication?.display ||
+                        // Try resolved medication reference
+                        med._resolvedMedication?.code?.text ||
+                        med._resolvedMedication?.code?.coding?.[0]?.display ||
+                        // Fallback for unresolved references
+                        (med.medication?.reference?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
+                      }
+                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                      secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                  </ListItem>
+                ))}
+                {currentMedications.length > 3 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    +{currentMedications.length - 3} more medications
+                  </Typography>
+                )}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                No current medications
+              </Typography>
+            )}
+          </MetricCard>
         </Grid>
 
         {/* Recent Vitals */}
         <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={recentVitals.length} color="success">
-                  <VitalsIcon color="success" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Recent Vitals
-                </Typography>
-              </Stack>
-              
-              {recentVitals.length > 0 ? (
-                <List dense>
-                  {recentVitals.map((vital, index) => (
-                    <ListItem key={vital.id} disablePadding>
-                      <ListItemText
-                        primary={vital.code?.text || 'Unknown vital'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={`${vital.valueQuantity?.value || '--'} ${vital.valueQuantity?.unit || ''}`}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No recent vitals
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Recent Vitals"
+            value={recentVitals.length}
+            icon={<VitalsIcon />}
+            trend={recentVitals.length > 0 ? 'stable' : 'warning'}
+            severity="low"
+            clinicalContext={clinicalContext}
+            department={department}
+            expandable
+            onClick={() => navigate(`/patients/${patientId}/workspace?tab=results`)}
+          >
+            {recentVitals.length > 0 ? (
+              <List dense sx={{ mt: 1 }}>
+                {recentVitals.slice(0, 3).map((vital, index) => (
+                  <ListItem key={vital.id} disablePadding>
+                    <ListItemText
+                      primary={vital.code?.text || 'Unknown vital'}
+                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                      secondary={`${vital.valueQuantity?.value || '--'} ${vital.valueQuantity?.unit || ''}`}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                  </ListItem>
+                ))}
+                {recentVitals.length > 3 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    +{recentVitals.length - 3} more vitals
+                  </Typography>
+                )}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                No recent vitals
+              </Typography>
+            )}
+          </MetricCard>
         </Grid>
 
         {/* Allergies & Alerts */}
         <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={activeAllergies.length} color="warning">
-                  <WarningIcon color="warning" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Allergies
-                </Typography>
-              </Stack>
-              
-              {activeAllergies.length > 0 ? (
-                <List dense>
-                  {activeAllergies.map((allergy, index) => (
-                    <ListItem key={allergy.id} disablePadding>
-                      <ListItemText
-                        primary={allergy.code?.text || 'Unknown allergen'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={`${allergy.criticality || 'Unknown'} severity`}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  NKDA - No known allergies
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Allergies"
+            value={activeAllergies.length}
+            icon={<WarningIcon />}
+            trend={activeAllergies.length > 0 ? 'critical' : 'healthy'}
+            severity={activeAllergies.some(a => a.criticality === 'high') ? 'high' : activeAllergies.length > 0 ? 'medium' : 'low'}
+            clinicalContext={clinicalContext}
+            department={department}
+            expandable
+            urgency={activeAllergies.some(a => a.criticality === 'high') ? 'critical' : 'normal'}
+            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
+          >
+            {activeAllergies.length > 0 ? (
+              <List dense sx={{ mt: 1 }}>
+                {activeAllergies.slice(0, 3).map((allergy, index) => (
+                  <ListItem key={allergy.id} disablePadding>
+                    <ListItemText
+                      primary={allergy.code?.text || 'Unknown allergen'}
+                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                      secondary={`${allergy.criticality || 'Unknown'} severity`}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                  </ListItem>
+                ))}
+                {activeAllergies.length > 3 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    +{activeAllergies.length - 3} more allergies
+                  </Typography>
+                )}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                NKDA - No known allergies
+              </Typography>
+            )}
+          </MetricCard>
         </Grid>
       </Grid>
 

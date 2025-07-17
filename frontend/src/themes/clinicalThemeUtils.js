@@ -271,6 +271,49 @@ export const buildClinicalTheme = (baseTheme, clinicalContext) => {
   };
 };
 
+// Apply department-specific theme enhancements
+export const applyDepartmentTheme = (theme, department) => {
+  const deptContext = getDepartmentContext(department);
+  const deptColors = getClinicalColors(theme, { department });
+  
+  return {
+    ...theme,
+    palette: {
+      ...theme.palette,
+      ...deptColors.palette,
+      department: deptColors.palette
+    },
+    clinical: {
+      ...theme.clinical,
+      department: deptContext,
+      currentDepartment: department
+    }
+  };
+};
+
+// Apply shift-based theme adjustments
+export const applyShiftTheme = (theme, shift) => {
+  const shiftContext = getShiftContext(shift);
+  
+  // Adjust brightness and contrast based on shift
+  const adjustments = {
+    day: { brightness: 1, contrast: 1 },
+    night: { brightness: 0.85, contrast: 1.1 },
+    emergency: { brightness: 1.1, contrast: 1.2 }
+  };
+  
+  const adjustment = adjustments[shiftContext.type] || adjustments.day;
+  
+  return {
+    ...theme,
+    clinical: {
+      ...theme.clinical,
+      shift: shiftContext,
+      currentShift: shift
+    }
+  };
+};
+
 export default {
   getClinicalContext,
   getShiftContext,
@@ -284,5 +327,7 @@ export default {
   getClinicalAnimation,
   getAccessibleColor,
   getContrastRatio,
-  buildClinicalTheme
+  buildClinicalTheme,
+  applyDepartmentTheme,
+  applyShiftTheme
 };
