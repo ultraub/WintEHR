@@ -50,6 +50,7 @@ import AIQueryAssistant from '../query-building/AIQueryAssistant';
 import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
+import NetworkDiagram from '../visualization/NetworkDiagram';
 
 // Application constants
 import {
@@ -280,14 +281,7 @@ function FHIRExplorerApp() {
           case VISUALIZATION_VIEWS.TIMELINE:
             return <PatientTimeline fhirData={fhirData} onNavigate={handleModeChange} />;
           case VISUALIZATION_VIEWS.NETWORK:
-            return (
-              <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Typography variant="h4" gutterBottom>Network Diagram</Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Network visualization coming in Phase 3
-                </Typography>
-              </Container>
-            );
+            return <NetworkDiagram onNavigate={handleModeChange} fhirData={fhirData} />;
           case VISUALIZATION_VIEWS.ANALYTICS:
             return (
               <Container maxWidth="lg" sx={{ py: 4 }}>
