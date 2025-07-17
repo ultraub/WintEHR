@@ -164,7 +164,8 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
       if (queryHistory && queryHistory.addToHistory) {
         queryHistory.addToHistory({
           query,
-          resultCount: result.data?.total || 0,
+          resultCount: result.data?.entry?.length || 0,
+          totalCount: result.data?.total || 0,
           executionTime: Math.round(endTime - startTime),
           resourceType: parsedQuery.resourceType
         });
@@ -365,10 +366,17 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                         />
                       )}
                       <Chip
-                        label={`${results.data?.total || 0} results`}
+                        label={`${results.data?.entry?.length || 0} returned`}
                         size="small"
                         color="secondary"
                       />
+                      {results.data?.total && results.data.total !== (results.data?.entry?.length || 0) && (
+                        <Chip
+                          label={`${results.data.total} total`}
+                          size="small"
+                          color="info"
+                        />
+                      )}
                       <IconButton size="small" onClick={exportResults}>
                         <DownloadIcon />
                       </IconButton>
@@ -470,7 +478,7 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                     >
                       <ListItemText
                         primary={item.query}
-                        secondary={`${item.resultCount} results • ${item.executionTime}ms`}
+                        secondary={`${item.resultCount} returned${item.totalCount && item.totalCount !== item.resultCount ? ` (${item.totalCount} total)` : ''} • ${item.executionTime}ms`}
                         primaryTypographyProps={{
                           style: { fontFamily: 'monospace', fontSize: '12px' }
                         }}
