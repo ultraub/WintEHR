@@ -102,7 +102,7 @@ class MasterBuildOrchestrator:
                 "name": "generate_synthea_data",
                 "description": "Generate synthetic patient data with Synthea",
                 "script": "synthea_master.py",
-                "args": ["full", "--count", "20"],
+                "args": ["full", "--count", str(self.args.patient_count)],
                 "required": True,
                 "estimated_time": 600
             },

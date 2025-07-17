@@ -154,6 +154,7 @@ run_build() {
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Build completed successfully${NC}"
+        return 0
     else
         echo -e "${RED}❌ Build failed${NC}"
         echo -e "${YELLOW}You can still start services and run the build manually later${NC}"

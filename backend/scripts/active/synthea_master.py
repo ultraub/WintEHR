@@ -388,7 +388,7 @@ class SyntheaMaster:
                     ["./gradlew", "build", "-x", "test"],
                     cwd=self.synthea_dir,
                     capture_output=True, text=True,
-                    timeout=600
+                    timeout=1800
                 )
                 
                 if result.returncode != 0:
@@ -908,7 +908,7 @@ generate.demographics.default_state = Massachusetts
         self.log("🖼️  Generating DICOM files")
         self.log("=" * 60)
         
-        dicom_script = self.script_dir / "generate_dicom_for_synthea.py"
+        dicom_script = self.script_dir / ".." / "archive" / "generate_dicom_for_synthea.py"
         if not dicom_script.exists():
             self.log("DICOM generation script not found", "ERROR")
             return False
@@ -939,10 +939,11 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run the cleaning script
             result = subprocess.run(
-                [sys.executable, str(self.script_dir / "clean_fhir_names.py")],
+                [sys.executable, str(self.script_dir / ".." / "migrations" / "clean_fhir_names.py")],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=300
             )
             
             if result.returncode != 0:
@@ -972,10 +973,11 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run the lab enhancement script
             result = subprocess.run(
-                [sys.executable, str(self.script_dir / "enhance_lab_results.py")],
+                [sys.executable, str(self.script_dir / ".." / "setup" / "enhance_lab_results.py")],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=300
             )
             
             if result.returncode != 0:

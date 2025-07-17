@@ -114,7 +114,7 @@ class DefinitiveDatabaseInitializer:
                 CREATE TABLE fhir.resources (
                     id BIGSERIAL PRIMARY KEY,
                     resource_type VARCHAR(255) NOT NULL,
-                fhir_id VARCHAR(255) NOT NULL,
+                fhir_id VARCHAR(255) NOT NULL UNIQUE,
                 version_id INTEGER NOT NULL DEFAULT 1,
                 last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 resource JSONB NOT NULL,
