@@ -555,10 +555,19 @@ class FHIRStorageEngine:
                     # Handle different FHIR library versions
                     if hasattr(fhir_resource, 'json') and callable(fhir_resource.json):
                         try:
-                            resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                            # In our custom resources_r4b.py, json() returns a dict, not a JSON string
+                            json_result = fhir_resource.json(exclude_none=True)
+                            if isinstance(json_result, dict):
+                                resource_dict = json_result
+                            else:
+                                resource_dict = json_module.loads(json_result)
                         except TypeError:
                             # Fallback for newer versions that don't support exclude_none
-                            resource_dict = json_module.loads(fhir_resource.json())
+                            json_result = fhir_resource.json()
+                            if isinstance(json_result, dict):
+                                resource_dict = json_result
+                            else:
+                                resource_dict = json_module.loads(json_result)
                     else:
                         # If json() method not available, use dict()
                         resource_dict = fhir_resource.dict(exclude_none=True)
@@ -840,10 +849,19 @@ class FHIRStorageEngine:
                     # Handle different FHIR library versions
                     if hasattr(fhir_resource, 'json') and callable(fhir_resource.json):
                         try:
-                            resource_dict = json_module.loads(fhir_resource.json(exclude_none=True))
+                            # In our custom resources_r4b.py, json() returns a dict, not a JSON string
+                            json_result = fhir_resource.json(exclude_none=True)
+                            if isinstance(json_result, dict):
+                                resource_dict = json_result
+                            else:
+                                resource_dict = json_module.loads(json_result)
                         except TypeError:
                             # Fallback for newer versions that don't support exclude_none
-                            resource_dict = json_module.loads(fhir_resource.json())
+                            json_result = fhir_resource.json()
+                            if isinstance(json_result, dict):
+                                resource_dict = json_result
+                            else:
+                                resource_dict = json_module.loads(json_result)
                     else:
                         # If json() method not available, use dict()
                         resource_dict = fhir_resource.dict(exclude_none=True)

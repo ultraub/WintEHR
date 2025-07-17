@@ -68,7 +68,7 @@ const DICOMViewer = ({ study, onClose }) => {
     if (study) {
       loadStudyData();
     }
-  }, [study]);
+  }, [study]); // Remove loadStudyData from dependencies to prevent infinite loops
 
   // Auto-play animation
   useEffect(() => {
@@ -92,10 +92,10 @@ const DICOMViewer = ({ study, onClose }) => {
 
   // Load current instance image
   useEffect(() => {
-    if (instances.length > 0 && currentInstanceIndex < instances.length) {
+    if (instances.length > 0 && currentInstanceIndex < instances.length && !error) {
       loadInstanceImage(instances[currentInstanceIndex]);
     }
-  }, [currentInstanceIndex, windowCenter, windowWidth]);
+  }, [currentInstanceIndex, windowCenter, windowWidth, error]);
 
   // Render current image
   useEffect(() => {
@@ -138,8 +138,11 @@ const DICOMViewer = ({ study, onClose }) => {
       setCurrentInstanceIndex(0);
       
     } catch (err) {
+      const errorMessage = err.response?.status === 404 
+        ? 'DICOM study not found. This study may not have imaging data available.'
+        : err.message || 'Failed to load DICOM study';
       
-      setError(err.message || 'Failed to load DICOM study');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -214,8 +217,11 @@ const DICOMViewer = ({ study, onClose }) => {
       img.src = imageUrl;
       
     } catch (err) {
+      const errorMessage = err.response?.status === 404 
+        ? 'DICOM image not found'
+        : 'Failed to load DICOM image';
       
-      setError('Failed to load DICOM image');
+      setError(errorMessage);
     }
   };
 
