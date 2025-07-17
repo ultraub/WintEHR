@@ -190,6 +190,8 @@ const COMPARISON_OPERATORS = [
 
 const AdvancedLabValueFilter = ({ 
   patientId, 
+  observations = [], // Receive observations from parent instead of fetching
+  currentTab = 0, // Know which tab we're filtering for
   onFilterChange, 
   onFilteredResultsChange, 
   onCriticalValuesFound,
@@ -231,9 +233,15 @@ const AdvancedLabValueFilter = ({
     loadSavedFilters();
   }, []);
 
-  // Apply filters function wrapped in useCallback
-  const applyFiltersCallback = useCallback(async () => {
-    if (!patientId || filters.length === 0) return;
+  // Client-side filtering function
+  const applyFiltersCallback = useCallback(() => {
+    if (filters.length === 0 || observations.length === 0) {
+      setFilteredResults([]);
+      setActiveFilters([]);
+      onFilteredResultsChange([]);
+      onFilterChange([]);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -242,47 +250,62 @@ const AdvancedLabValueFilter = ({
       const allResults = [];
       const criticalValues = [];
 
+      // Filter observations client-side based on active filters
       for (const filter of filters) {
-        let searchParams = {
-          patient: patientId,
-          code: filter.testCode,
-          _sort: '-date',
-          _count: 100
-        };
+        const matchingObservations = observations.filter(obs => {
+          // Match by LOINC code
+          const obsCode = obs.code?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+          if (obsCode !== filter.testCode) return false;
 
-        // Build value-quantity search parameter
-        if (filter.operator === 'range') {
-          if (filter.rangeMin && filter.rangeMax) {
-            searchParams['value-quantity'] = `ge${filter.rangeMin}|${filter.unit},le${filter.rangeMax}|${filter.unit}`;
+          // Check if observation has a value
+          if (!obs.valueQuantity?.value) return false;
+
+          const obsValue = obs.valueQuantity.value;
+          const obsUnit = obs.valueQuantity.unit;
+
+          // Unit validation (basic check)
+          if (filter.unit && obsUnit && obsUnit !== filter.unit) {
+            // Allow common unit variations
+            const unitMatch = (
+              (filter.unit === 'mg/dL' && ['mg/dl', 'mg/dL'].includes(obsUnit)) ||
+              (filter.unit === 'mEq/L' && ['mEq/L', 'mmol/L'].includes(obsUnit)) ||
+              (filter.unit === obsUnit)
+            );
+            if (!unitMatch) return false;
           }
-        } else {
-          searchParams['value-quantity'] = `${filter.operator}${filter.value}|${filter.unit}`;
-        }
 
-        try {
-          const response = await fhirClient.searchObservations(searchParams);
-          const results = response.entry?.map(e => e.resource) || [];
-          
-          // Tag results with filter info
-          const taggedResults = results.map(result => ({
-            ...result,
-            _filterInfo: {
-              filterId: filter.id,
-              filterType: filter.type,
-              filterDescription: filter.description,
-              category: filter.category
+          // Apply filter logic
+          if (filter.operator === 'range') {
+            return obsValue >= filter.rangeMin && obsValue <= filter.rangeMax;
+          } else {
+            switch (filter.operator) {
+              case 'gt': return obsValue > filter.value;
+              case 'ge': return obsValue >= filter.value;
+              case 'lt': return obsValue < filter.value;
+              case 'le': return obsValue <= filter.value;
+              case 'eq': return obsValue === filter.value;
+              case 'ne': return obsValue !== filter.value;
+              default: return false;
             }
-          }));
+          }
+        });
 
-          allResults.push(...taggedResults);
+        // Tag results with filter info
+        const taggedResults = matchingObservations.map(result => ({
+          ...result,
+          _filterInfo: {
+            filterId: filter.id,
+            filterType: filter.type,
+            filterDescription: filter.description,
+            category: filter.category
+          }
+        }));
 
-          // Check for critical values
-          const critical = taggedResults.filter(r => filter.category === 'critical');
-          criticalValues.push(...critical);
+        allResults.push(...taggedResults);
 
-        } catch (searchError) {
-          console.warn(`Filter ${filter.id} failed:`, searchError);
-        }
+        // Check for critical values
+        const critical = taggedResults.filter(r => filter.category === 'critical');
+        criticalValues.push(...critical);
       }
 
       // Remove duplicates and sort by date
@@ -307,7 +330,7 @@ const AdvancedLabValueFilter = ({
     } finally {
       setLoading(false);
     }
-  }, [filters, patientId, onFilteredResultsChange, onFilterChange, onCriticalValuesFound]);
+  }, [filters, observations, onFilteredResultsChange, onFilterChange, onCriticalValuesFound]);
 
   // Apply filters when enabled state or filters change
   useEffect(() => {
@@ -484,7 +507,7 @@ const AdvancedLabValueFilter = ({
       )}
 
       {/* Critical Value Presets */}
-      <Accordion defaultExpanded>
+      <Accordion defaultExpanded={false}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle1">Critical Value Presets</Typography>
         </AccordionSummary>
@@ -530,7 +553,7 @@ const AdvancedLabValueFilter = ({
       </Accordion>
 
       {/* Custom Filter Builder */}
-      <Accordion>
+      <Accordion defaultExpanded={false}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle1">Custom Value Filter</Typography>
         </AccordionSummary>
@@ -708,7 +731,7 @@ const AdvancedLabValueFilter = ({
 
       {/* Saved Filters */}
       {savedFilters.length > 0 && (
-        <Accordion>
+        <Accordion defaultExpanded={false}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle1">Saved Filter Presets</Typography>
           </AccordionSummary>
