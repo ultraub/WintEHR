@@ -98,6 +98,7 @@ import {
   getCodeableConceptDisplay, 
   FHIR_STATUS_VALUES 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
+import StatusChip from '../../common/StatusChip';
 import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
 import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
 
@@ -279,7 +280,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -302,6 +310,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     setFilter('active');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
               <Chip 
                 label={`${resolvedCount} Resolved`} 
@@ -317,6 +331,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setFilter('resolved');
+                  }
+                }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
                   }
                 }}
               />
@@ -336,6 +356,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     setFilter('all');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -346,6 +372,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 color={showAdvancedFilters ? "primary" : "default"}
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 aria-label="Toggle advanced filtering options"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <TuneIcon />
               </IconButton>
@@ -356,6 +389,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 color={sortBySeverity ? "primary" : "default"}
                 onClick={() => setSortBySeverity(!sortBySeverity)}
                 aria-label="Sort problems by severity (severe first)"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <SortIcon />
               </IconButton>
@@ -366,6 +406,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
                 aria-label="Add new problem to patient chart"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -374,6 +421,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <IconButton 
                 size="small"
                 aria-label="View problem history for this patient"
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <HistoryIcon />
               </IconButton>
@@ -385,6 +439,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 aria-label="Export problem list data"
                 aria-haspopup="menu"
                 aria-expanded={Boolean(exportAnchorEl)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -411,7 +472,15 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         {/* Advanced Filters Panel */}
         <Collapse in={showAdvancedFilters}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Card variant="outlined" sx={{ mb: 2, p: 2 }}>
+            <Card variant="outlined" sx={{ 
+              mb: 2, 
+              p: 2,
+              transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+              }
+            }}>
               <Typography variant="subtitle2" gutterBottom>
                 Advanced Filters
               </Typography>
@@ -543,10 +612,14 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <ListItem
                 key={condition.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1,
-                  backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: expandedItems[condition.id] ? (theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.05)) : 'transparent',
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: expandedItems[condition.id] ? (theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)) : 'action.hover',
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -593,6 +666,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                                 size="small"
                                 color={getVerificationColor(verificationStatus)}
                                 variant="outlined"
+                                sx={{
+                                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                                  '&:hover': {
+                                    transform: 'scale(1.05)'
+                                  }
+                                }}
                               />
                             </Tooltip>
                           );
@@ -607,6 +686,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                           size="small" 
                           color={getSeverityColor(getSeverityLevel(condition.severity))}
                           variant={getSeverityLevel(condition.severity) === 'severe' ? 'filled' : 'outlined'}
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.05)'
+                            }
+                          }}
                         />
                       )}
                     </Box>
@@ -628,6 +713,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                       <IconButton 
                         size="small"
                         onClick={() => handleEditProblem(condition)}
+                        sx={{
+                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                          '&:hover': {
+                            transform: 'scale(1.1)',
+                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                          }
+                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -635,6 +727,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     <IconButton 
                       size="small"
                       onClick={() => toggleExpanded(condition.id)}
+                      sx={{
+                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                        '&:hover': {
+                          transform: 'scale(1.1)',
+                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                        }
+                      }}
                     >
                       {expandedItems[condition.id] ? <ExpandMoreIcon /> : <ExpandMoreIcon sx={{ transform: 'rotate(-90deg)' }} />}
                     </IconButton>
@@ -818,7 +917,14 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   }).length;
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -841,6 +947,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     setFilter('active');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
               <Chip 
                 label={`${stoppedCount} Stopped`} 
@@ -856,6 +968,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setFilter('stopped');
+                  }
+                }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
                   }
                 }}
               />
@@ -875,6 +993,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                     setFilter('all');
                   }
                 }}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.05)'
+                  }
+                }}
               />
             </Stack>
           </Box>
@@ -884,6 +1008,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                 size="small" 
                 color="primary" 
                 onClick={() => setShowPrescribeDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -892,6 +1023,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small" 
                 onClick={() => setShowReconciliationDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <PharmacyIcon />
               </IconButton>
@@ -900,6 +1038,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small" 
                 onClick={() => setShowRefillDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <RefreshIcon />
               </IconButton>
@@ -908,6 +1053,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -926,7 +1078,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              backgroundColor: alpha(theme.palette.background.paper, 0.8),
               zIndex: 1
             }}>
               <CircularProgress size={24} />
@@ -941,11 +1093,15 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <ListItem
                 key={med.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1.5,
-                  py: 1.5,
-                  backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1.5),
+                  py: theme.spacing(1.5),
+                  backgroundColor: isMedicationActive(med) ? (theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.05)) : 'transparent',
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: isMedicationActive(med) ? (theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)) : 'action.hover',
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -959,7 +1115,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                           {getMedicationDisplay(med)}
                         </Typography>
                         {!isMedicationActive(med) && (
-                          <Chip label={getMedicationStatus(med)} size="small" />
+                          <StatusChip status={getMedicationStatus(med)} size="small" />
                         )}
                         {med.priority && med.priority !== 'routine' && (
                           <Chip 
@@ -967,6 +1123,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                             size="small" 
                             color={med.priority === 'stat' ? 'error' : med.priority === 'urgent' ? 'warning' : 'default'}
                             variant="outlined"
+                            sx={{
+                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                              '&:hover': {
+                                transform: 'scale(1.05)'
+                              }
+                            }}
                           />
                         )}
                       </Stack>
@@ -1049,6 +1211,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                       <IconButton 
                         size="small"
                         onClick={() => handleEditMedication(med)}
+                        sx={{
+                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                          '&:hover': {
+                            transform: 'scale(1.1)',
+                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                          }
+                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -1062,6 +1231,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                             setShowDiscontinuationDialog(true);
                           }}
                           color="error"
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.1)',
+                              backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                            }
+                          }}
                         >
                           <CancelIcon fontSize="small" />
                         </IconButton>
@@ -1301,7 +1477,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   );
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ 
+      height: '100%',
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.error.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -1311,6 +1494,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               label={`${activeAllergies.length} Active`} 
               size="small" 
               color={activeAllergies.length > 0 ? 'error' : 'default'}
+              sx={{
+                transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
             />
           </Box>
           <Stack direction="row" spacing={1}>
@@ -1319,6 +1508,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <AddIcon />
               </IconButton>
@@ -1327,6 +1523,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                sx={{
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                  }
+                }}
               >
                 <ExportIcon />
               </IconButton>
@@ -1344,10 +1547,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <ListItem
                 key={allergy.id}
                 sx={{
-                  borderRadius: 1,
-                  mb: 1,
-                  backgroundColor: alpha(theme.palette.error.main, 0.05),
-                  '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.1) }
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: theme.clinical?.surfaces?.error || alpha(theme.palette.error.main, 0.05),
+                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  '&:hover': { 
+                    backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.error.main, 0.08),
+                    transform: 'translateY(-1px)'
+                  }
                 }}
               >
                 <ListItemIcon>
@@ -1364,6 +1571,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                           label={allergy.criticality} 
                           size="small" 
                           color={getSeverityColor(allergy.criticality)}
+                          sx={{
+                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                            '&:hover': {
+                              transform: 'scale(1.05)'
+                            }
+                          }}
                         />
                       )}
                     </Box>
@@ -1378,7 +1591,14 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                             key={idx}
                             label={manifestationText} 
                             size="small" 
-                            sx={{ mr: 0.5, mb: 0.5 }}
+                            sx={{ 
+                              mr: 0.5, 
+                              mb: 0.5,
+                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                              '&:hover': {
+                                transform: 'scale(1.05)'
+                              }
+                            }}
                           />
                         ) : null;
                       })}
@@ -1396,6 +1616,13 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                       edge="end" 
                       size="small"
                       onClick={() => handleEditAllergy(allergy)}
+                      sx={{
+                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                        '&:hover': {
+                          transform: 'scale(1.1)',
+                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                        }
+                      }}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -1444,6 +1671,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
 
 // Social History Component
 const SocialHistory = ({ observations, patientId }) => {
+  const theme = useTheme();
   const socialObs = observations.filter(o => 
     o.category?.[0]?.coding?.[0]?.code === 'social-history'
   );
@@ -1452,7 +1680,13 @@ const SocialHistory = ({ observations, patientId }) => {
   const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
 
   return (
-    <Card>
+    <Card sx={{
+      transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
+      }
+    }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>Social History</Typography>
         <List>
@@ -1986,7 +2220,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
           {/* Skeleton for each section */}
           {[1, 2, 3, 4].map((item) => (
             <Grid item xs={12} md={6} key={item}>
-              <Card>
+              <Card sx={{
+                transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+                }
+              }}>
                 <CardContent>
                   <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
                   <Stack spacing={1}>
@@ -2002,7 +2242,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
             </Grid>
           ))}
           <Grid item xs={12}>
-            <Card>
+            <Card sx={{
+              transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
+              }
+            }}>
               <CardContent>
                 <Skeleton variant="text" width="40%" height={32} />
                 <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
@@ -2021,7 +2267,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         sx={{ 
           position: 'absolute',
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.7)'
+          backgroundColor: alpha(theme.palette.background.paper, 0.7)
         }}
         open={saveInProgress}
       >
@@ -2094,7 +2340,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Immunizations Summary */}
         <Grid item xs={12}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.success.main, 0.15)}`
+            }
+          }}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Immunizations</Typography>
@@ -2103,6 +2355,12 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
                   label={`${immunizations.length} recorded`} 
                   size="small" 
                   color="success"
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'scale(1.05)'
+                    }
+                  }}
                 />
               </Stack>
               {immunizations.length === 0 ? (
@@ -2124,7 +2382,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Prescription Status Dashboard */}
         <Grid item xs={12}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+            }
+          }}>
             <CardContent>
               <PrescriptionStatusDashboard patientId={patientId} />
             </CardContent>
@@ -2133,25 +2397,41 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Medication Effectiveness Monitoring */}
         <Grid item xs={12}>
-          <EffectivenessMonitoringPanel
-            patientId={patientId}
-            medications={medications}
-            onRefresh={async () => {
-              await loadOptimizedResources();
-            }}
-          />
+          <Box sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
+            }
+          }}>
+            <EffectivenessMonitoringPanel
+              patientId={patientId}
+              medications={medications}
+              onRefresh={async () => {
+                await loadOptimizedResources();
+              }}
+            />
+          </Box>
         </Grid>
 
 
         {/* Clinical Safety Verification */}
         <Grid item xs={12}>
-          <ClinicalSafetyPanel
-            patientId={patientId}
-            medications={medications}
-            onRefresh={async () => {
-              await loadOptimizedResources();
-            }}
-          />
+          <Box sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
+            }
+          }}>
+            <ClinicalSafetyPanel
+              patientId={patientId}
+              medications={medications}
+              onRefresh={async () => {
+                await loadOptimizedResources();
+              }}
+            />
+          </Box>
         </Grid>
       </Grid>
     </Box>

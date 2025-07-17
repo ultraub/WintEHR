@@ -62,6 +62,9 @@ import {
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useQueryHistory } from '../hooks/useQueryHistory';
 
+// FHIR Services
+import fhirServiceCompat from '../../../core/fhir/services/fhirService';
+
 // FHIR Explorer v4 Theme
 const createFHIRTheme = (mode) => createTheme({
   palette: {
@@ -177,7 +180,40 @@ function FHIRExplorerApp() {
       hasData: Object.values(resources).some(arr => arr.length > 0),
       totalResources,
       resourceTypes: Object.keys(resources),
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      
+      // Add FHIR query functions for Query Playground and Visual Builder
+      searchResources: async (resourceType, params) => {
+        try {
+          const result = await fhirServiceCompat.searchResources(resourceType, params);
+          return result.entry ? result.entry.map(e => e.resource) : [];
+        } catch (error) {
+          console.error('Search error:', error);
+          throw error;
+        }
+      },
+      
+      executeQuery: async (queryUrl) => {
+        try {
+          // Parse the query URL to extract resource type and parameters
+          const match = queryUrl.match(/^\/([A-Z][a-zA-Z]+)(\?.*)?$/);
+          if (!match) {
+            throw new Error('Invalid query format');
+          }
+          
+          const resourceType = match[1];
+          const params = match[2] ? Object.fromEntries(new URLSearchParams(match[2].substring(1))) : {};
+          
+          const result = await fhirServiceCompat.searchResources(resourceType, params);
+          return {
+            data: result,
+            total: result.total || (result.entry ? result.entry.length : 0)
+          };
+        } catch (error) {
+          console.error('Execute query error:', error);
+          throw error;
+        }
+      }
     };
   }, [fhirContext]);
 

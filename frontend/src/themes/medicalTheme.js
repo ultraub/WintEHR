@@ -169,6 +169,39 @@ const professionalMedicalPalette = {
     selected: 'rgba(21, 101, 192, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  // Clinical-specific semantic tokens
+  clinical: {
+    surfaces: {
+      primary: 'rgba(21, 101, 192, 0.05)',
+      secondary: 'rgba(46, 125, 50, 0.05)',
+      warning: 'rgba(245, 124, 0, 0.05)',
+      error: 'rgba(211, 47, 47, 0.05)',
+      info: 'rgba(2, 136, 209, 0.05)',
+      success: 'rgba(56, 142, 60, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(21, 101, 192, 0.08)',
+      pressed: 'rgba(21, 101, 192, 0.12)',
+      focus: 'rgba(21, 101, 192, 0.16)',
+      selected: 'rgba(21, 101, 192, 0.08)'
+    },
+    status: {
+      active: '#4CAF50',
+      inactive: '#9E9E9E',
+      pending: '#FF9800',
+      completed: '#2196F3',
+      cancelled: '#F44336',
+      draft: '#757575',
+      inProgress: '#3F51B5'
+    },
+    severity: {
+      normal: '#4CAF50',
+      mild: '#8BC34A',
+      moderate: '#FF9800',
+      severe: '#FF5722',
+      critical: '#F44336'
+    }
   }
 };
 
@@ -228,6 +261,39 @@ const darkMedicalPalette = {
     selected: 'rgba(66, 165, 245, 0.12)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)'
+  },
+  // Clinical-specific semantic tokens (dark mode)
+  clinical: {
+    surfaces: {
+      primary: 'rgba(66, 165, 245, 0.08)',
+      secondary: 'rgba(102, 187, 106, 0.08)',
+      warning: 'rgba(255, 183, 77, 0.08)',
+      error: 'rgba(239, 83, 80, 0.08)',
+      info: 'rgba(79, 195, 247, 0.08)',
+      success: 'rgba(129, 199, 132, 0.08)'
+    },
+    interactions: {
+      hover: 'rgba(66, 165, 245, 0.12)',
+      pressed: 'rgba(66, 165, 245, 0.16)',
+      focus: 'rgba(66, 165, 245, 0.20)',
+      selected: 'rgba(66, 165, 245, 0.12)'
+    },
+    status: {
+      active: '#81C784',
+      inactive: '#9E9E9E',
+      pending: '#FFB74D',
+      completed: '#4FC3F7',
+      cancelled: '#EF5350',
+      draft: '#B0BEC5',
+      inProgress: '#7986CB'
+    },
+    severity: {
+      normal: '#81C784',
+      mild: '#AED581',
+      moderate: '#FFB74D',
+      severe: '#FF7043',
+      critical: '#EF5350'
+    }
   }
 };
 
@@ -287,6 +353,39 @@ const accessiblePalette = {
     selected: 'rgba(0, 102, 204, 0.12)',
     disabled: 'rgba(0, 0, 0, 0.38)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  // Clinical-specific semantic tokens (accessible)
+  clinical: {
+    surfaces: {
+      primary: 'rgba(0, 102, 204, 0.05)',
+      secondary: 'rgba(0, 102, 0, 0.05)',
+      warning: 'rgba(255, 102, 0, 0.05)',
+      error: 'rgba(204, 0, 0, 0.05)',
+      info: 'rgba(0, 153, 204, 0.05)',
+      success: 'rgba(0, 153, 0, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(0, 102, 204, 0.08)',
+      pressed: 'rgba(0, 102, 204, 0.12)',
+      focus: 'rgba(0, 102, 204, 0.16)',
+      selected: 'rgba(0, 102, 204, 0.08)'
+    },
+    status: {
+      active: '#009900',
+      inactive: '#666666',
+      pending: '#FF6600',
+      completed: '#0099CC',
+      cancelled: '#CC0000',
+      draft: '#666666',
+      inProgress: '#0066CC'
+    },
+    severity: {
+      normal: '#009900',
+      mild: '#66CC00',
+      moderate: '#FF6600',
+      severe: '#FF3300',
+      critical: '#CC0000'
+    }
   }
 };
 
@@ -346,6 +445,39 @@ const warmClinicalPalette = {
     selected: 'rgba(124, 77, 255, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  // Clinical-specific semantic tokens (warm)
+  clinical: {
+    surfaces: {
+      primary: 'rgba(124, 77, 255, 0.05)',
+      secondary: 'rgba(255, 112, 67, 0.05)',
+      warning: 'rgba(221, 107, 32, 0.05)',
+      error: 'rgba(229, 62, 62, 0.05)',
+      info: 'rgba(49, 130, 206, 0.05)',
+      success: 'rgba(56, 161, 105, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(124, 77, 255, 0.08)',
+      pressed: 'rgba(124, 77, 255, 0.12)',
+      focus: 'rgba(124, 77, 255, 0.16)',
+      selected: 'rgba(124, 77, 255, 0.08)'
+    },
+    status: {
+      active: '#38A169',
+      inactive: '#A0AEC0',
+      pending: '#DD6B20',
+      completed: '#3182CE',
+      cancelled: '#E53E3E',
+      draft: '#718096',
+      inProgress: '#7C4DFF'
+    },
+    severity: {
+      normal: '#38A169',
+      mild: '#68D391',
+      moderate: '#DD6B20',
+      severe: '#F56500',
+      critical: '#E53E3E'
+    }
   }
 };
 
@@ -566,6 +698,42 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
         lg: 1280,
         xl: 1920
       }
+    },
+    // Enhanced clinical spacing system
+    clinicalSpacing: {
+      xs: 4,    // 0.25rem
+      sm: 8,    // 0.5rem
+      md: 16,   // 1rem
+      lg: 24,   // 1.5rem
+      xl: 32,   // 2rem
+      xxl: 48   // 3rem
+    },
+    // Animation system
+    animations: {
+      duration: {
+        shortest: 150,
+        shorter: 200,
+        short: 250,
+        standard: 300,
+        complex: 375,
+        enteringScreen: 225,
+        leavingScreen: 195
+      },
+      easing: {
+        easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+        easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+        sharp: 'cubic-bezier(0.4, 0, 0.6, 1)'
+      }
+    },
+    // Component sizing tokens
+    components: {
+      cardPadding: 24,
+      buttonHeight: 40,
+      iconSize: 20,
+      avatarSize: 32,
+      chipHeight: 24,
+      inputHeight: 56
     },
     shadows: [
       'none',

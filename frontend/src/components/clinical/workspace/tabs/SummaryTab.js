@@ -62,122 +62,56 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
+import MetricCard from '../../common/MetricCard';
+import StatusChip from '../../common/StatusChip';
 
-// Metric Card Component
-const MetricCard = ({ title, value, subValue, icon, color = 'primary', trend, onClick }) => {
-  const theme = useTheme();
-  
-  const CardComponent = onClick ? 'button' : 'div';
-  
-  return (
-    <Card 
-      component={CardComponent}
-      sx={{ 
-        height: '100%', 
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'transform 0.2s',
-        border: 'none',
-        background: 'transparent',
-        padding: 0,
-        textAlign: 'left',
-        '&:hover': onClick ? {
-          transform: 'translateY(-2px)',
-          boxShadow: 3
-        } : {},
-        '&:focus': onClick ? {
-          outline: `2px solid ${theme.palette.primary.main}`,
-          outlineOffset: '2px'
-        } : {}
-      }}
-      onClick={onClick}
-      tabIndex={onClick ? 0 : -1}
-      role={onClick ? 'button' : undefined}
-      aria-label={onClick ? `${title}: ${value}. Click for more details.` : undefined}
-    >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: color && theme.palette[color]?.main 
-                ? alpha(theme.palette[color].main, 0.1)
-                : alpha(theme.palette.primary.main, 0.1),
-              color: color && theme.palette[color]?.main 
-                ? theme.palette[color].main 
-                : theme.palette.primary.main
-            }}
-          >
-            {icon}
-          </Box>
-          {trend && (
-            <Chip
-              size="small"
-              icon={trend === 'up' ? <TrendingUpIcon /> : <TrendingDownIcon />}
-              label={`${trend === 'up' ? '+' : '-'}${Math.abs(trend)}%`}
-              color={trend === 'up' ? 'success' : 'error'}
-              variant="outlined"
-            />
-          )}
-        </Box>
-        <Typography variant="h4" fontWeight="bold" gutterBottom>
-          {value}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {title}
-        </Typography>
-        {subValue && (
-          <Typography variant="caption" color="text.secondary">
-            {subValue}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
+// Use the new MetricCard component from common components
 
 // Recent Item Component
-const RecentItem = ({ primary, secondary, icon, status, onClick }) => (
-  <ListItem 
-    component="button"
-    onClick={onClick}
-    sx={{ 
-      borderRadius: 1,
-      mb: 1,
-      '&:hover': { backgroundColor: 'action.hover' },
-      cursor: 'pointer',
-      border: 'none',
-      width: '100%',
-      textAlign: 'left',
-      background: 'transparent',
-      '&:focus': {
-        outline: '2px solid',
-        outlineColor: 'primary.main',
-        outlineOffset: '2px'
-      }
-    }}
-    role="button"
-    tabIndex={0}
-    aria-label={`View details for ${primary}. ${secondary}${status ? `. Status: ${status}` : ''}`}
-  >
-    <ListItemIcon>{icon}</ListItemIcon>
-    <ListItemText 
-      primary={primary}
-      secondary={secondary}
-    />
-    {status && (
-      <Chip 
-        label={status} 
-        size="small" 
-        color={status === 'Critical' ? 'error' : 'default'}
+const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
+  const theme = useTheme();
+  
+  return (
+    <ListItem 
+      component="button"
+      onClick={onClick}
+      sx={{ 
+        borderRadius: theme.shape.borderRadius / 8,
+        mb: theme.spacing(1),
+        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+        '&:hover': { 
+          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',
+          transform: 'translateY(-1px)'
+        },
+        cursor: 'pointer',
+        border: 'none',
+        width: '100%',
+        textAlign: 'left',
+        background: 'transparent',
+        '&:focus': {
+          outline: '2px solid',
+          outlineColor: 'primary.main',
+          outlineOffset: '2px'
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${primary}. ${secondary}${status ? `. Status: ${status}` : ''}`}
+    >
+      <ListItemIcon>{icon}</ListItemIcon>
+      <ListItemText 
+        primary={primary}
+        secondary={secondary}
       />
-    )}
-  </ListItem>
-);
+      {status && (
+        <StatusChip 
+          status={status}
+          size="small"
+        />
+      )}
+    </ListItem>
+  );
+};
 
 const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
@@ -550,22 +484,40 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
       {refreshing && <LinearProgress sx={{ mb: 2 }} />}
       
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', md: 'center' }, 
+        mb: 3,
+        flexDirection: { xs: 'column', md: 'row' },
+        gap: { xs: 2, md: 0 }
+      }}>
         <Typography variant="h5" fontWeight="bold">
           Clinical Summary
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography 
+            variant="caption" 
+            color="text.secondary"
+            sx={{ display: { xs: 'none', sm: 'block' } }}
+          >
             Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
           </Typography>
           <IconButton 
             onClick={handlePrintSummary} 
             title="Print Summary"
             aria-label="Print clinical summary for this patient"
+            sx={{
+              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'scale(1.1)',
+                backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)
+              }
+            }}
           >
             <PrintIcon />
           </IconButton>
@@ -573,6 +525,20 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             onClick={handleRefresh} 
             disabled={refreshing}
             aria-label={refreshing ? "Refreshing summary data..." : "Refresh summary data"}
+            sx={{
+              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+              '&:hover': {
+                transform: 'scale(1.1)',
+                backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)
+              },
+              ...(refreshing && {
+                animation: 'spin 1s linear infinite',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              })
+            }}
           >
             <RefreshIcon />
           </IconButton>
@@ -580,40 +546,77 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       </Box>
 
       {/* Metric Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Active Problems"
-            value={stats.activeProblems}
-            icon={<ProblemIcon />}
-            color="warning"
-          />
+          <Box sx={{
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.1s both',
+            '@keyframes slideInUp': {
+              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '100%': { transform: 'translateY(0)', opacity: 1 }
+            }
+          }}>
+            <MetricCard
+              title="Active Problems"
+              value={stats.activeProblems}
+              icon={<ProblemIcon />}
+              color="warning"
+              variant="clinical"
+            />
+          </Box>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Active Medications"
-            value={stats.activeMedications}
-            icon={<MedicationIcon />}
-            color="primary"
-          />
+          <Box sx={{
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.2s both',
+            '@keyframes slideInUp': {
+              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '100%': { transform: 'translateY(0)', opacity: 1 }
+            }
+          }}>
+            <MetricCard
+              title="Active Medications"
+              value={stats.activeMedications}
+              icon={<MedicationIcon />}
+              color="primary"
+              variant="clinical"
+            />
+          </Box>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Recent Labs"
-            value={stats.recentLabs}
-            subValue="Last 7 days"
-            icon={<LabIcon />}
-            color="info"
-          />
+          <Box sx={{
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.3s both',
+            '@keyframes slideInUp': {
+              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '100%': { transform: 'translateY(0)', opacity: 1 }
+            }
+          }}>
+            <MetricCard
+              title="Recent Labs"
+              value={stats.recentLabs}
+              subtitle="Last 7 days"
+              icon={<LabIcon />}
+              color="info"
+              variant="clinical"
+            />
+          </Box>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Overdue Items"
-            value={stats.overdueItems}
-            icon={<WarningIcon />}
-            color="error"
-            trend={-25}
-          />
+          <Box sx={{
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.4s both',
+            '@keyframes slideInUp': {
+              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '100%': { transform: 'translateY(0)', opacity: 1 }
+            }
+          }}>
+            <MetricCard
+              title="Overdue Items"
+              value={stats.overdueItems}
+              icon={<WarningIcon />}
+              color="error"
+              trend="down"
+              trendValue={-25}
+              variant="clinical"
+            />
+          </Box>
         </Grid>
       </Grid>
 
@@ -642,14 +645,29 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       )}
 
       {/* Recent Activity Grid */}
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Recent Problems */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
+            }
+          }}>
             <CardHeader
               title="Recent Problems"
               action={
-                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
+                <IconButton 
+                  onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'rotate(45deg)',
+                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                    }
+                  }}
+                >
                   <ArrowIcon />
                 </IconButton>
               }
@@ -682,11 +700,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Recent Medications */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+            }
+          }}>
             <CardHeader
               title="Active Medications"
               action={
-                <IconButton onClick={() => navigate(`/medications`)}>
+                <IconButton 
+                  onClick={() => navigate(`/medications`)}
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'rotate(45deg)',
+                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                    }
+                  }}
+                >
                   <ArrowIcon />
                 </IconButton>
               }
@@ -715,11 +748,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Recent Labs */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
+            }
+          }}>
             <CardHeader
               title="Recent Lab Results"
               action={
-                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=results`)}>
+                <IconButton 
+                  onClick={() => navigate(`/clinical/${patientId}?tab=results`)}
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'rotate(45deg)',
+                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                    }
+                  }}
+                >
                   <ArrowIcon />
                 </IconButton>
               }
@@ -762,11 +810,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
         {/* Recent Encounters */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={{
+            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
+            }
+          }}>
             <CardHeader
               title="Recent Encounters"
               action={
-                <IconButton onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}>
+                <IconButton 
+                  onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
+                  sx={{
+                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                    '&:hover': {
+                      transform: 'rotate(45deg)',
+                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
+                    }
+                  }}
+                >
                   <ArrowIcon />
                 </IconButton>
               }
@@ -780,9 +843,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       component="button"
                       onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
                       sx={{ 
-                        borderRadius: 1,
-                        mb: 1,
-                        '&:hover': { backgroundColor: 'action.hover' },
+                        borderRadius: theme.shape.borderRadius / 8,
+                        mb: theme.clinicalSpacing?.sm || 1,
+                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                        '&:hover': { 
+                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',
+                          transform: 'translateY(-1px)',
+                          boxShadow: `0 2px 8px ${alpha(theme.palette.secondary.main, 0.1)}`
+                        },
                         cursor: 'pointer',
                         border: 'none',
                         width: '100%',
@@ -821,10 +889,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                           </Box>
                         }
                       />
-                      <Chip 
-                        label={getEncounterStatus(encounter)} 
-                        size="small" 
-                        color={getEncounterStatus(encounter) === 'finished' ? 'success' : 'default'}
+                      <StatusChip 
+                        status={getEncounterStatus(encounter)}
+                        size="small"
+                        variant="clinical"
                       />
                     </ListItem>
                   ))
