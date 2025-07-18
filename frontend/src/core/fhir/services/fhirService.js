@@ -25,7 +25,9 @@ const fhirServiceCompat = {
   },
 
   async searchResources(resourceType, params) {
-    return fhirClient.search(resourceType, params);
+    const result = await fhirClient.search(resourceType, params);
+    // Return the bundle directly for compatibility
+    return result.bundle || result;
   },
 
   // Patient-specific methods

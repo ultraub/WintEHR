@@ -301,7 +301,9 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
       const params = urlParts[1] ? Object.fromEntries(new URLSearchParams(urlParts[1])) : {};
       
       // Execute the query
+      console.log('Executing query with params:', params);
       const result = await executeFHIRQuery(query.resourceType, params);
+      console.log('Query result:', result);
       
       const executionTime = Date.now() - startTime;
       
@@ -313,11 +315,17 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
         // FHIR Bundle format
         count = result.total || (result.entry ? result.entry.length : 0);
         resources = result.entry ? result.entry.map(e => e.resource) : [];
+        console.log('Bundle format detected. Total:', result.total, 'Entry count:', result.entry?.length);
       } else if (Array.isArray(result)) {
         // Array format
         count = result.length;
         resources = result;
+        console.log('Array format detected. Count:', count);
+      } else {
+        console.log('Unknown result format:', result);
       }
+      
+      console.log('Setting results - count:', count, 'resources:', resources.length);
       
       setResults({
         data: result,

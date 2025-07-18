@@ -189,7 +189,8 @@ function FHIRExplorerApp() {
       searchResources: async (resourceType, params) => {
         try {
           const result = await fhirServiceCompat.searchResources(resourceType, params);
-          return result.entry ? result.entry.map(e => e.resource) : [];
+          // Return the full Bundle response, not just the resources
+          return result;
         } catch (error) {
           console.error('Search error:', error);
           throw error;
