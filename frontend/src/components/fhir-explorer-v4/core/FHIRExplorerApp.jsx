@@ -50,6 +50,7 @@ import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
 import NetworkDiagram from '../visualization/NetworkDiagram';
+import QueryWorkspace from '../workspace/QueryWorkspace';
 
 // Application constants
 import {
@@ -138,6 +139,7 @@ function FHIRExplorerApp() {
   const [currentView, setCurrentView] = useState('');
   const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState('light');
+  const [loadedQuery, setLoadedQuery] = useState(null);
   
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
   const isMobile = useMediaQuery('(max-width:768px)');
@@ -267,6 +269,15 @@ function FHIRExplorerApp() {
             return <NaturalLanguageInterface onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.PLAYGROUND:
             return <QueryPlayground onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
+          case QUERY_VIEWS.WORKSPACE:
+            return <QueryWorkspace 
+              onNavigate={handleModeChange} 
+              onLoadQuery={(query) => {
+                // Set the loaded query in the appropriate component
+                setLoadedQuery(query);
+                handleModeChange(APP_MODES.DISCOVERY, DISCOVERY_VIEWS.CATALOG);
+              }}
+            />;
           default:
             return <VisualQueryBuilder onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
         }

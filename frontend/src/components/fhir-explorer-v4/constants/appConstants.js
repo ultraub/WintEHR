@@ -21,7 +21,8 @@ export const DISCOVERY_VIEWS = {
 export const QUERY_VIEWS = {
   VISUAL: 'visual',
   NATURAL_LANGUAGE: 'natural-language',
-  PLAYGROUND: 'playground'
+  PLAYGROUND: 'playground',
+  WORKSPACE: 'workspace'
 };
 
 export const VISUALIZATION_VIEWS = {

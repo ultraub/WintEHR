@@ -119,6 +119,11 @@ const NAVIGATION_STRUCTURE = {
         label: 'Playground',
         icon: <CodeIcon />,
         description: 'Advanced query testing'
+      },
+      [QUERY_VIEWS.WORKSPACE]: {
+        label: 'Workspace',
+        icon: <WorkspaceIcon />,
+        description: 'Save and manage queries'
       }
     }
   },
@@ -144,12 +149,6 @@ const NAVIGATION_STRUCTURE = {
         description: 'Resource relationship networks'
       },
     }
-  },
-  [APP_MODES.WORKSPACE]: {
-    label: 'Workspace',
-    icon: <WorkspaceIcon />,
-    description: 'Save and manage queries',
-    color: '#5d4037'
   }
 };
 
