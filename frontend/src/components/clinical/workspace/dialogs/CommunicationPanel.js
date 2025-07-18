@@ -331,7 +331,7 @@ const CommunicationPanel = ({
 
       setAvailableRecipients(recipients);
     } catch (err) {
-      console.error('Failed to load recipients:', err);
+      // Failed to load recipients - recipient list will be limited
     }
   };
 

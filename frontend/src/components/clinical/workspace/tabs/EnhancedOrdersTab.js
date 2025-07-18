@@ -112,7 +112,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         { id: 'practitioner-4', name: 'Dr. Emily Davis' }
       ]);
     } catch (error) {
-      console.error('Error loading providers:', error);
+      // Error loading providers - filter options will be limited
     }
   };
 
@@ -126,7 +126,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         { id: 'location-4', name: 'ICU - Floor 3' }
       ]);
     } catch (error) {
-      console.error('Error loading locations:', error);
+      // Error loading locations - filter options will be limited
     }
   };
 
@@ -140,7 +140,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         { id: 'org-4', name: 'Laboratory Services' }
       ]);
     } catch (error) {
-      console.error('Error loading organizations:', error);
+      // Error loading organizations - filter options will be limited
     }
   };
 
@@ -217,7 +217,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         severity: 'success'
       });
     } catch (error) {
-      console.error('Error saving filter preset:', error);
+      // Error saving filter preset - showing user notification
       setSnackbar({
         open: true,
         message: 'Failed to save filter preset',
@@ -270,7 +270,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
           break;
       }
     } catch (error) {
-      console.error('Order action error:', error);
+      // Order action error - showing user notification
       setSnackbar({
         open: true,
         message: `Failed to ${action} order: ${error.message}`,

@@ -36,9 +36,21 @@ import {
   LocalHospital as HospitalIcon,
   Refresh as RefreshIcon,
   CenterFocusStrong as CenterIcon,
-  Hub as HubIcon
+  Hub as HubIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+  Fullscreen as FullscreenIcon
 } from '@mui/icons-material';
 import * as d3 from 'd3';
+import NetworkControls from './components/NetworkControls';
+import {
+  initializeForceSimulation,
+  createZoomBehavior,
+  calculateClusters,
+  calculateNetworkMetrics,
+  exportNetworkAsImage,
+  applyClusteringForce
+} from './utils/forceNetwork';
 
 // Network visualization constants
 const NODE_TYPES = {
@@ -79,9 +91,18 @@ function NetworkDiagram({ onNavigate, fhirData }) {
   const [visibleNodeTypes, setVisibleNodeTypes] = useState(new Set(Object.values(NODE_TYPES)));
   const [selectedNode, setSelectedNode] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [isSimulationRunning, setIsSimulationRunning] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isClustering, setIsClustering] = useState(false);
+  const [linkDistance, setLinkDistance] = useState(50);
+  const [chargeStrength, setChargeStrength] = useState(-300);
+  const [currentLayout, setCurrentLayout] = useState('force');
+  const [networkMetrics, setNetworkMetrics] = useState(null);
   
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
+  const zoomRef = useRef(null);
+  const containerRef = useRef(null);
 
   // Get available patients
   const patients = fhirData?.resources?.Patient || [];
@@ -271,16 +292,7 @@ function NetworkDiagram({ onNavigate, fhirData }) {
     const width = 800;
     const height = 600;
 
-    // Create zoom behavior
-    const zoom = d3.zoom()
-      .scaleExtent([0.1, 4])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform);
-        setZoomLevel(event.transform.k);
-      });
-
-    svg.call(zoom);
-
+    // Create container group
     const g = svg.append('g');
 
     // Filter data based on visibility
@@ -290,28 +302,33 @@ function NetworkDiagram({ onNavigate, fhirData }) {
       visibleNodes.some(n => n.id === link.target || n.id === link.target.id)
     );
 
-    // Create simulation
-    const simulation = d3.forceSimulation(visibleNodes)
-      .force('link', d3.forceLink(visibleLinks).id(d => d.id).distance(d => {
-        // Vary link distance based on relationship type
-        const distances = {
-          'has_encounter': 50,
-          'has_condition': 60,
-          'prescribed': 70,
-          'has_observation': 80,
-          'has_participant': 40,
-          'at_organization': 60,
-          'documented_in': 30,
-          'prescribed_in': 30,
-          'observed_in': 30
-        };
-        return distances[d.type] || 50;
-      }))
-      .force('charge', d3.forceManyBody().strength(-200))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(d => d.size + 2));
+    // Add radius to nodes for collision detection
+    visibleNodes.forEach(node => {
+      node.radius = node.size;
+    });
+
+    // Initialize force simulation with our utility
+    const simulation = initializeForceSimulation(visibleNodes, visibleLinks, { width, height });
+    
+    // Update force parameters based on controls
+    simulation.force('link')
+      .distance(linkDistance)
+      .strength(d => d.strength || 0.5);
+    
+    simulation.force('charge')
+      .strength(chargeStrength);
+
+    // Apply clustering if enabled
+    if (isClustering && currentLayout === 'cluster') {
+      const { clusters, clusterCenters } = calculateClusters(visibleNodes, visibleLinks);
+      applyClusteringForce(simulation, clusterCenters);
+    }
 
     simulationRef.current = simulation;
+
+    // Create zoom behavior with our utility
+    const zoomBehavior = createZoomBehavior(svg, g, setZoomLevel);
+    zoomRef.current = zoomBehavior;
 
     // Create links
     const link = g.append('g')
@@ -386,7 +403,7 @@ function NetworkDiagram({ onNavigate, fhirData }) {
       d.fy = null;
     }
 
-  }, [networkData, visibleNodeTypes]);
+  }, [networkData, visibleNodeTypes, linkDistance, chargeStrength, isClustering, currentLayout]);
 
   // Load network data for selected patient
   useEffect(() => {
@@ -394,6 +411,11 @@ function NetworkDiagram({ onNavigate, fhirData }) {
       setLoading(true);
       const data = buildNetworkData(selectedPatient.id);
       setNetworkData(data);
+      
+      // Calculate network metrics
+      const metrics = calculateNetworkMetrics(data.nodes, data.links);
+      setNetworkMetrics(metrics);
+      
       setLoading(false);
     }
   }, [selectedPatient, buildNetworkData]);
@@ -416,14 +438,71 @@ function NetworkDiagram({ onNavigate, fhirData }) {
     setVisibleNodeTypes(newVisibleTypes);
   };
 
-  // Center and reset zoom
-  const resetZoom = () => {
-    const svg = d3.select(svgRef.current);
-    svg.transition().duration(750).call(
-      d3.zoom().transform,
-      d3.zoomIdentity
-    );
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (zoomRef.current) zoomRef.current.zoomIn();
   };
+
+  const handleZoomOut = () => {
+    if (zoomRef.current) zoomRef.current.zoomOut();
+  };
+
+  const handleResetZoom = () => {
+    if (zoomRef.current) zoomRef.current.resetZoom();
+  };
+
+  // Toggle simulation
+  const toggleSimulation = () => {
+    if (simulationRef.current) {
+      if (isSimulationRunning) {
+        simulationRef.current.stop();
+      } else {
+        simulationRef.current.restart();
+      }
+      setIsSimulationRunning(!isSimulationRunning);
+    }
+  };
+
+  // Refresh network
+  const refreshNetwork = () => {
+    if (selectedPatient) {
+      const data = buildNetworkData(selectedPatient.id);
+      setNetworkData(data);
+    }
+  };
+
+  // Export network
+  const exportNetwork = async () => {
+    if (svgRef.current) {
+      await exportNetworkAsImage(svgRef.current, 'png');
+    }
+  };
+
+  // Toggle fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  // Update force parameters
+  const updateSimulationForces = useCallback(() => {
+    if (simulationRef.current) {
+      simulationRef.current.force('link')
+        .distance(linkDistance);
+      simulationRef.current.force('charge')
+        .strength(chargeStrength);
+      simulationRef.current.alpha(0.3).restart();
+    }
+  }, [linkDistance, chargeStrength]);
+
+  useEffect(() => {
+    updateSimulationForces();
+  }, [updateSimulationForces]);
 
   return (
     <Box>
@@ -448,31 +527,45 @@ function NetworkDiagram({ onNavigate, fhirData }) {
       <Grid container spacing={3}>
         {/* Network Visualization */}
         <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, height: '700px' }}>
-            {/* Controls */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Paper sx={{ p: 2, height: '900px' }} ref={containerRef}>
+            {/* Patient Selection */}
+            <Box sx={{ mb: 2 }}>
               <Autocomplete
                 options={patients}
                 getOptionLabel={(option) => `${option.name?.[0]?.given?.[0] || ''} ${option.name?.[0]?.family || ''}`.trim() || 'Patient'}
                 value={selectedPatient}
                 onChange={(_, newValue) => setSelectedPatient(newValue)}
                 renderInput={(params) => (
-                  <TextField {...params} label="Select Patient" sx={{ minWidth: 300 }} />
+                  <TextField {...params} label="Select Patient" fullWidth />
                 )}
               />
-              
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <IconButton onClick={resetZoom}>
-                  <CenterIcon />
-                </IconButton>
-                <Typography variant="body2" sx={{ alignSelf: 'center' }}>
-                  Zoom: {(zoomLevel * 100).toFixed(0)}%
-                </Typography>
-              </Box>
             </Box>
 
+            {/* Network Controls */}
+            {selectedPatient && (
+              <NetworkControls
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onResetZoom={handleResetZoom}
+                onToggleSimulation={toggleSimulation}
+                isSimulationRunning={isSimulationRunning}
+                onRefresh={refreshNetwork}
+                onExport={exportNetwork}
+                onToggleFullscreen={toggleFullscreen}
+                isFullscreen={isFullscreen}
+                onToggleClustering={setIsClustering}
+                isClustering={isClustering}
+                linkDistance={linkDistance}
+                onLinkDistanceChange={setLinkDistance}
+                chargeStrength={chargeStrength}
+                onChargeStrengthChange={setChargeStrength}
+                onLayoutChange={setCurrentLayout}
+                currentLayout={currentLayout}
+              />
+            )}
+
             {/* Network SVG */}
-            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, height: '600px', overflow: 'hidden' }}>
+            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, height: '600px', overflow: 'hidden', backgroundColor: '#f5f5f5' }}>
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                   <CircularProgress />
@@ -568,6 +661,20 @@ function NetworkDiagram({ onNavigate, fhirData }) {
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   Visible Nodes: {networkData.nodes.filter(n => visibleNodeTypes.has(n.type)).length}
                 </Typography>
+                
+                {networkMetrics && (
+                  <>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Network Density: {(networkMetrics.density * 100).toFixed(1)}%
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Average Degree: {networkMetrics.avgDegree.toFixed(1)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Connected Components: {networkMetrics.components.length}
+                    </Typography>
+                  </>
+                )}
                 
                 <Divider sx={{ my: 2 }} />
                 

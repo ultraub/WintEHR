@@ -233,7 +233,7 @@ const AdministrationDialog = ({
       await onAdminister(administrationRecord);
       onClose();
     } catch (error) {
-      console.error('Error recording administration:', error);
+      // Error recording administration - user will need to retry
     } finally {
       setAdministering(false);
     }
@@ -283,7 +283,7 @@ const AdministrationDialog = ({
       await onMissedDose(missedRecord);
       onClose();
     } catch (error) {
-      console.error('Error recording missed dose:', error);
+      // Error recording missed dose - user will need to retry
     } finally {
       setAdministering(false);
     }

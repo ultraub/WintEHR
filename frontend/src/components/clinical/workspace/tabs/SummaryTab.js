@@ -193,7 +193,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         overdueItems: 0 // Will be calculated separately
       });
     } catch (error) {
-      console.error('Error loading summary stats:', error);
+      // Error loading summary stats - stats will not be displayed
       // Fallback to original method
       if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
         fetchPatientBundle(patientId, false, 'critical');
@@ -208,26 +208,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
   // Get resources from context - these are already cached and shared
   const conditions = useMemo(() => {
-    console.log('[SummaryTab] Raw Condition resources:', resources.Condition);
+    // Processing raw Condition resources
     const filtered = Object.values(resources.Condition || {}).filter(c => 
       c.subject?.reference === `Patient/${patientId}` || 
       c.subject?.reference === `urn:uuid:${patientId}` ||
       c.patient?.reference === `Patient/${patientId}` ||
       c.patient?.reference === `urn:uuid:${patientId}`
     );
-    console.log('[SummaryTab] Filtered conditions:', filtered);
+    // Conditions filtered by status
     return filtered;
   }, [resources.Condition, patientId]);
   
   const medications = useMemo(() => {
-    console.log('[SummaryTab] Raw MedicationRequest resources:', resources.MedicationRequest);
+    // Processing raw MedicationRequest resources
     const filtered = Object.values(resources.MedicationRequest || {}).filter(m => 
       m.subject?.reference === `Patient/${patientId}` || 
       m.subject?.reference === `urn:uuid:${patientId}` ||
       m.patient?.reference === `Patient/${patientId}` ||
       m.patient?.reference === `urn:uuid:${patientId}`
     );
-    console.log('[SummaryTab] Filtered medications:', filtered);
+    // Medications filtered by status
     return filtered;
   }, [resources.MedicationRequest, patientId]);
   
@@ -344,37 +344,29 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   useEffect(() => {
     if (!patientId) return;
     
-    console.log('[SummaryTab] Resource check:', {
-      patientId,
-      conditions: conditions.length,
-      medications: medications.length,
-      observations: observations.length,
-      encounters: encounters.length,
-      isLoading: isResourceLoading(patientId),
-      isCacheWarm: isCacheWarm(patientId)
-    });
+    // Resource check: tracking patient resources and cache status
     
     // Check if we have any resources loaded for this patient
     const hasAnyResources = conditions.length > 0 || medications.length > 0 || observations.length > 0 || encounters.length > 0;
     
     if (hasAnyResources) {
       // We have resources, process them
-      console.log('[SummaryTab] Processing resources...');
+      // Processing resources from context
       loadDashboardData();
       setLoading(false);
     } else {
       // No resources yet, check if we're already loading from context
       if (isResourceLoading(patientId)) {
-        console.log('[SummaryTab] Resources are loading from context...');
+        // Resources are loading from context
         setLoading(true);
       } else if (!isCacheWarm(patientId)) {
         // Cache isn't warm and we're not loading, trigger a fetch
-        console.log('[SummaryTab] Cache not warm, fetching patient bundle...');
+        // Cache not warm, fetching patient bundle
         setLoading(true);
         fetchPatientBundle(patientId, false, 'critical');
       } else {
         // Cache is warm but no resources - patient might have no data
-        console.log('[SummaryTab] Cache is warm but no resources found');
+        // Cache is warm but no resources found
         setLoading(false);
       }
     }

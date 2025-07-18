@@ -2200,8 +2200,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       // The batch request results are ignored since we use shared resources
 
     } catch (error) {
-      console.error('Error loading optimized resources:', error);
-      // Fallback - resources are already available from context
+      // Error loading optimized resources - resources are already available from context
+      // Fallback to context-provided resources
     } finally {
       setLoadingOptimized(false);
     }

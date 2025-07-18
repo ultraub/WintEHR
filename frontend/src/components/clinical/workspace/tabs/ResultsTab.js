@@ -633,7 +633,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             setAlertedResults(newAlertedResults);
           }
         } catch (error) {
-          console.error('Error monitoring critical values:', error);
+          // Error monitoring critical values - alerts may not be generated
         }
       }
     };

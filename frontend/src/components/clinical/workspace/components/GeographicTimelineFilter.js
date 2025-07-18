@@ -83,7 +83,7 @@ const GeographicTimelineFilter = ({
         });
       }
     } catch (error) {
-      console.error('Error loading nearby providers:', error);
+      // Error loading nearby providers - geographic filter will be unavailable
     } finally {
       setLoadingNearby(false);
     }

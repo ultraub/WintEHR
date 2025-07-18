@@ -78,7 +78,7 @@ const ImagingReportDialog = ({
 
       setExistingReport(linkedReport || null);
     } catch (error) {
-      console.error('Error finding existing report:', error);
+      // Error finding existing report - will create new report
       setExistingReport(null);
     } finally {
       setLoading(false);

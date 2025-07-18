@@ -3,13 +3,57 @@
  * Supports CSV, JSON, and PDF export formats
  */
 
-import { format, parseISO } from 'date-fns';
-import { createPrintDocument, printDocument } from './printUtils';
+import { format } from 'date-fns';
+import { printDocument } from './printUtils';
+
+/**
+ * Get nested object value by dot notation path
+ * @param {Object} obj - Object to get value from
+ * @param {string} path - Dot notation path (e.g., 'code.text' or 'coding[0].code')
+ * @returns {*} Value at path
+ */
+const getNestedValue = (obj, path) => {
+  if (!obj || !path) return null;
+  
+  // Handle array notation like 'coding[0].code'
+  const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1');
+  
+  return normalizedPath.split('.').reduce((current, key) => {
+    return current?.[key];
+  }, obj);
+};
+
+/**
+ * Format value based on type
+ * @param {*} value - Value to format
+ * @param {string} format - Format type ('date', 'datetime', etc.)
+ * @returns {string} Formatted value
+ */
+const formatValue = (value, formatType) => {
+  if (!value) return '';
+  
+  switch (formatType) {
+    case 'date':
+      try {
+        return format(new Date(value), 'MM/dd/yyyy');
+      } catch {
+        return value;
+      }
+    case 'datetime':
+      try {
+        return format(new Date(value), 'MM/dd/yyyy HH:mm');
+      } catch {
+        return value;
+      }
+    default:
+      return String(value);
+  }
+};
 
 /**
  * Convert data to CSV format
  * @param {Array} data - Array of objects to convert
- * @param {Array} columns - Column configuration [{key: 'field', label: 'Header'}]
+ * @param {Array} columns - Column configuration [{key: 'field', label: 'Header', format: 'date'}]
  * @returns {string} CSV string
  */
 export const generateCSV = (data, columns) => {
@@ -22,25 +66,14 @@ export const generateCSV = (data, columns) => {
   const rows = data.map(item => {
     return columns.map(col => {
       const value = getNestedValue(item, col.key);
+      const formattedValue = formatValue(value, col.format);
       // Escape quotes and wrap in quotes
-      const escaped = String(value || '').replace(/"/g, '""');
+      const escaped = String(formattedValue || '').replace(/"/g, '""');
       return `"${escaped}"`;
     }).join(',');
   });
   
   return [headers, ...rows].join('\n');
-};
-
-/**
- * Get nested object value by dot notation path
- * @param {Object} obj - Object to get value from
- * @param {string} path - Dot notation path (e.g., 'code.text')
- * @returns {*} Value at path
- */
-const getNestedValue = (obj, path) => {
-  return path.split('.').reduce((current, key) => {
-    return current?.[key];
-  }, obj);
 };
 
 /**
@@ -59,9 +92,10 @@ export const downloadCSV = (data, columns, filename) => {
  * Download data as JSON file
  * @param {*} data - Data to export
  * @param {string} filename - Filename without extension
+ * @param {boolean} prettyPrint - Whether to format JSON
  */
-export const downloadJSON = (data, filename) => {
-  const json = JSON.stringify(data, null, 2);
+export const downloadJSON = (data, filename, prettyPrint = true) => {
+  const json = JSON.stringify(data, null, prettyPrint ? 2 : 0);
   const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
   downloadBlob(blob, `${filename}.json`);
 };
@@ -83,69 +117,57 @@ const downloadBlob = (blob, filename) => {
 };
 
 /**
- * Export clinical data with patient header
+ * Export clinical data with options
  * @param {Object} options - Export options
- * @param {Object} options.patient - Patient information
  * @param {Array} options.data - Data to export
- * @param {Array} options.columns - Column configuration for CSV
  * @param {string} options.format - Export format ('csv', 'json', 'pdf')
- * @param {string} options.title - Export title
- * @param {Function} options.formatForPrint - Function to format data for PDF
+ * @param {string} options.filename - Filename without extension
+ * @param {Array} options.columns - Column configuration for CSV
+ * @param {string} options.title - Title for PDF export
+ * @param {boolean} options.prettyPrint - Pretty print JSON
+ * @param {Function} options.formatForPrint - Custom format function for PDF
  */
-export const exportClinicalData = ({
-  patient,
-  data,
-  columns,
-  format,
-  title,
-  formatForPrint
-}) => {
-  const timestamp = format(new Date(), 'yyyy-MM-dd_HHmm');
-  const filename = `${title.replace(/\s+/g, '_')}_${patient?.name?.[0]?.family || 'Patient'}_${timestamp}`;
+export const exportClinicalData = async (options) => {
+  const {
+    data,
+    format = 'csv',
+    filename = 'clinical_data',
+    columns = [],
+    title = 'Clinical Data Export',
+    prettyPrint = true,
+    formatForPrint
+  } = options;
+  
+  if (!data || data.length === 0) {
+    throw new Error('No data to export');
+  }
   
   switch (format) {
     case 'csv':
+      if (!columns || columns.length === 0) {
+        throw new Error('Columns configuration required for CSV export');
+      }
       downloadCSV(data, columns, filename);
       break;
       
     case 'json':
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        title,
-        patient: {
-          id: patient?.id,
-          name: patient?.name,
-          birthDate: patient?.birthDate,
-          gender: patient?.gender,
-          mrn: patient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value
-        },
-        data
-      };
-      downloadJSON(exportData, filename);
+      downloadJSON(data, filename, prettyPrint);
       break;
       
     case 'pdf':
-      const patientInfo = {
-        name: patient ? 
-          `${patient.name?.[0]?.given?.join(' ') || ''} ${patient.name?.[0]?.family || ''}`.trim() : 
-          'Unknown Patient',
-        mrn: patient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || patient?.id,
-        birthDate: patient?.birthDate,
-        gender: patient?.gender,
-        phone: patient?.telecom?.find(t => t.system === 'phone')?.value
-      };
-      
-      const content = formatForPrint ? formatForPrint(data) : generateTableHTML(data, columns);
+      const content = formatForPrint ? 
+        formatForPrint(data) : 
+        generateTableHTML(data, columns);
       
       printDocument({
         title,
-        patient: patientInfo,
-        content
+        content,
+        filename
       });
       break;
       
     default:
-      
+      throw new Error(`Unsupported export format: ${format}`);
   }
 };
 
@@ -164,64 +186,20 @@ const generateTableHTML = (data, columns) => {
   const rows = data.map(item => {
     const cells = columns.map(col => {
       const value = getNestedValue(item, col.key);
-      return `<td>${value || ''}</td>`;
+      const formattedValue = formatValue(value, col.format);
+      return `<td>${formattedValue || ''}</td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
   
   return `
-    <table>
+    <table style="width: 100%; border-collapse: collapse;">
       <thead>
-        <tr>${headers}</tr>
+        <tr style="background-color: #f5f5f5;">${headers}</tr>
       </thead>
       <tbody>
         ${rows}
       </tbody>
     </table>
   `;
-};
-
-// Column configurations for common clinical data types
-export const EXPORT_COLUMNS = {
-  conditions: [
-    { key: 'code.text', label: 'Condition' },
-    { key: 'clinicalStatus.coding.0.code', label: 'Status' },
-    { key: 'severity.text', label: 'Severity' },
-    { key: 'onsetDateTime', label: 'Onset Date' },
-    { key: 'recordedDate', label: 'Recorded Date' }
-  ],
-  
-  medications: [
-    { key: 'medicationCodeableConcept.text', label: 'Medication' },
-    { key: 'status', label: 'Status' },
-    { key: 'dosageInstruction.0.text', label: 'Dosage' },
-    { key: 'authoredOn', label: 'Prescribed Date' },
-    { key: 'requester.display', label: 'Prescriber' }
-  ],
-  
-  allergies: [
-    { key: 'code.text', label: 'Allergen' },
-    { key: 'criticality', label: 'Criticality' },
-    { key: 'type', label: 'Type' },
-    { key: 'reaction.0.manifestation.0.text', label: 'Reaction' },
-    { key: 'recordedDate', label: 'Recorded Date' }
-  ],
-  
-  encounters: [
-    { key: 'type.0.text', label: 'Type' },
-    { key: 'status', label: 'Status' },
-    { key: 'period.start', label: 'Start Date' },
-    { key: 'period.end', label: 'End Date' },
-    { key: 'participant.0.individual.display', label: 'Provider' },
-    { key: 'location.0.location.display', label: 'Location' }
-  ],
-  
-  orders: [
-    { key: 'code.text', label: 'Order' },
-    { key: 'resourceType', label: 'Type' },
-    { key: 'status', label: 'Status' },
-    { key: 'priority', label: 'Priority' },
-    { key: 'authoredOn', label: 'Ordered Date' },
-    { key: 'requester.display', label: 'Ordered By' }
-  ]
 };

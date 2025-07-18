@@ -106,7 +106,7 @@ const OrderContextPanel = ({ observation, onOrderSelect = null }) => {
       }
 
     } catch (err) {
-      console.error('Error loading order context:', err);
+      // Error loading order context - displaying user-friendly message
       setError('Failed to load order information');
     } finally {
       setLoading(false);

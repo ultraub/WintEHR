@@ -681,7 +681,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
               _sort: '-date'
             });
           } catch (error) {
-            console.warn('Failed to load documents:', error);
+            // Failed to load documents - will use cached data if available
           }
         }
       }

@@ -400,6 +400,25 @@ const darkMedicalPalette = {
       alarming: '#EF5350',
       neutral: '#B0BEC5'
     }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    }
   }
 };
 
@@ -491,6 +510,25 @@ const accessiblePalette = {
       moderate: '#FF6600',
       severe: '#FF3300',
       critical: '#CC0000'
+    }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
     }
   }
 };
@@ -590,6 +628,25 @@ const warmClinicalPalette = {
       severe: '#F56500',
       critical: '#E53E3E'
     }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    }
   }
 };
 
@@ -623,7 +680,7 @@ const getComponentOverrides = (palette) => ({
         borderRadius: 12,
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)',
         border: `1px solid ${palette.divider}`,
-        transition: 'all 0.2s ease-in-out',
+        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': {
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08)'
         }
@@ -655,7 +712,7 @@ const getComponentOverrides = (palette) => ({
         fontWeight: 500,
         fontSize: '0.875rem',
         padding: '8px 16px',
-        transition: 'all 0.2s ease-in-out',
+        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': {
           transform: 'translateY(-1px)',
           boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12)'
@@ -684,7 +741,7 @@ const getComponentOverrides = (palette) => ({
       root: {
         '& .MuiOutlinedInput-root': {
           borderRadius: 8,
-          transition: 'all 0.2s ease-in-out',
+          transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
           '&:hover': {
             transform: 'translateY(-1px)',
             boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'

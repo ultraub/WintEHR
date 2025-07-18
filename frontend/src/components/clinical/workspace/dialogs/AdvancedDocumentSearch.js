@@ -103,7 +103,7 @@ const AdvancedDocumentSearch = ({
       });
       setFacilities(response.resources || []);
     } catch (error) {
-      console.error('Failed to load facilities:', error);
+      // Failed to load facilities - facility filter will be unavailable
     }
   };
 
@@ -114,7 +114,7 @@ const AdvancedDocumentSearch = ({
       });
       setAuthors(response.resources || []);
     } catch (error) {
-      console.error('Failed to load authors:', error);
+      // Failed to load authors - author filter will be unavailable
     }
   };
 
@@ -214,7 +214,7 @@ const AdvancedDocumentSearch = ({
 
     } catch (err) {
       setError(`Search failed: ${err.message}`);
-      console.error('Document search error:', err);
+      // Document search error - displaying user-friendly error message
     } finally {
       setLoading(false);
     }

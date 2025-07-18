@@ -61,7 +61,7 @@ const AllergyFormFields = ({
         const results = await searchService.searchAllergens(query);
         return results || [];
       } catch (error) {
-        console.error('Allergen search error:', error);
+        // Allergen search error - returning empty results
         return [];
       }
     }

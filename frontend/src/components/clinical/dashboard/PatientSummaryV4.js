@@ -101,13 +101,13 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             ]);
           } catch (cacheError) {
             // Cache warming failed or timed out, but continue anyway
-            console.warn('Cache warming failed or timed out, continuing with available data');
+            // Cache warming failed or timed out, continuing with available data
           }
         }
         setIsInitialLoad(false);
         markInitialized();
       } catch (err) {
-        console.error('Error setting patient:', err);
+        // Error setting patient - continuing with initialization
         setIsInitialLoad(false);
         markInitialized();
       }

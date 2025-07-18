@@ -653,7 +653,7 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       setChainedSearchResults(uniqueOrders);
       
     } catch (error) {
-      console.error('Error performing chained search:', error);
+      // Error performing chained search - defaulting to empty results
       setChainedSearchResults([]);
     } finally {
       setLoadingChainedSearch(false);

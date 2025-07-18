@@ -54,7 +54,7 @@ const EnhancedProviderDisplay = ({ encounter, compact = false, showActions = fal
           const profile = await getProviderProfile(providerId);
           setProviderDetails(profile);
         } catch (err) {
-          console.error('Failed to load provider profile:', err);
+          // Failed to load provider profile - will show basic info only
         } finally {
           setLoadingProfile(false);
         }

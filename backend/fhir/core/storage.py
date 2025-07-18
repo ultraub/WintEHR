@@ -2042,6 +2042,96 @@ class FHIRStorageEngine:
                     except (ValueError, TypeError) as e:
                         logging.warning(f"WARNING: Could not parse valueQuantity.value: {value_quantity.get('value')} - {e}")
         
+        
+            # Based on reference
+            if 'basedOn' in resource_data:
+                for based_on in resource_data.get('basedOn', []):
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_reference': based_on['reference']
+                        })
+            
+            # Derived from references
+            if 'derivedFrom' in resource_data:
+                for derived in resource_data.get('derivedFrom', []):
+                    if 'reference' in derived:
+                        params_to_extract.append({
+                            'param_name': 'derived-from',
+                            'param_type': 'reference',
+                            'value_reference': derived['reference']
+                        })
+            
+            # Has member references
+            if 'hasMember' in resource_data:
+                for member in resource_data.get('hasMember', []):
+                    if 'reference' in member:
+                        params_to_extract.append({
+                            'param_name': 'has-member',
+                            'param_type': 'reference',
+                            'value_reference': member['reference']
+                        })
+            
+            # Part of reference
+            if 'partOf' in resource_data:
+                for part in resource_data.get('partOf', []):
+                    if 'reference' in part:
+                        params_to_extract.append({
+                            'param_name': 'part-of',
+                            'param_type': 'reference',
+                            'value_reference': part['reference']
+                        })
+            
+            # Specimen reference
+            if 'specimen' in resource_data and 'reference' in resource_data['specimen']:
+                params_to_extract.append({
+                    'param_name': 'specimen',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['specimen']['reference']
+                })
+            
+            # Device reference
+            if 'device' in resource_data and 'reference' in resource_data['device']:
+                params_to_extract.append({
+                    'param_name': 'device',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['device']['reference']
+                })
+            
+            # Focus references
+            if 'focus' in resource_data:
+                for focus in resource_data.get('focus', []):
+                    if 'reference' in focus:
+                        params_to_extract.append({
+                            'param_name': 'focus',
+                            'param_type': 'reference',
+                            'value_reference': focus['reference']
+                        })
+            
+            # Method
+            if 'method' in resource_data and 'coding' in resource_data['method']:
+                for coding in resource_data['method']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'method',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Data absent reason
+            if 'dataAbsentReason' in resource_data and 'coding' in resource_data['dataAbsentReason']:
+                for coding in resource_data['dataAbsentReason']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'data-absent-reason',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+        
+        
         elif resource_type == 'Condition':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -2127,6 +2217,14 @@ class FHIRStorageEngine:
                             'value_token_code': coding['code']
                         })
             
+            # Medication reference
+            elif 'medicationReference' in resource_data and 'reference' in resource_data['medicationReference']:
+                params_to_extract.append({
+                    'param_name': 'medication',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['medicationReference']['reference']
+                })
+            
             # Status
             if 'status' in resource_data:
                 params_to_extract.append({
@@ -2185,6 +2283,71 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} (type: {type(resource_data.get('authoredOn'))}) - {e}")
+            
+            # Intent
+            if 'intent' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'intent',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['intent']
+                })
+            
+            # Category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Priority
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['priority']
+                })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['encounter']['reference']
+                })
+            
+            # Intended dispenser (pharmacy)
+            if 'dispenseRequest' in resource_data and 'performer' in resource_data['dispenseRequest']:
+                if 'reference' in resource_data['dispenseRequest']['performer']:
+                    params_to_extract.append({
+                        'param_name': 'intended-dispenser',
+                        'param_type': 'reference',
+                        'value_reference': resource_data['dispenseRequest']['performer']['reference']
+                    })
+            
+            # Intended performer
+            if 'performer' in resource_data and 'reference' in resource_data['performer']:
+                params_to_extract.append({
+                    'param_name': 'intended-performer',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['performer']['reference']
+                })
+            
+            # Intended performer type
+            if 'performerType' in resource_data and 'coding' in resource_data['performerType']:
+                for coding in resource_data['performerType']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'intended-performertype',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
         
         elif resource_type == 'MedicationDispense':
             # Status

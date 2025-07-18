@@ -47,8 +47,9 @@ import logging
 from collections import defaultdict
 import uuid
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path for local execution
+if '/app' not in sys.path:
+    sys.path.insert(0, '/app')
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession

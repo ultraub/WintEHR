@@ -257,7 +257,7 @@ const AdvancedOrderFilters = ({
         encounters: [] // Would be populated from recent encounters
       });
     } catch (error) {
-      console.error('Error loading filter options:', error);
+      // Error loading filter options - fallback to basic options
       // Fallback to basic options if dynamic loading fails
       setAvailableOptions({
         categories: [{ code: 'procedure', display: 'Procedure' }],

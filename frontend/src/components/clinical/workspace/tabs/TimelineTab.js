@@ -599,7 +599,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           });
         });
       } catch (error) {
-        console.error('Error loading additional provider data:', error);
+        // Error loading additional provider data - continuing with basic info
       }
 
       setAvailableLocations(Array.from(locations).map(loc => JSON.parse(loc)));
@@ -619,7 +619,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
         });
       }
     } catch (error) {
-      console.error('Error loading geographic data:', error);
+      // Error loading geographic data - map features will be limited
     }
   };
 
@@ -646,7 +646,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             });
           },
           (error) => {
-            console.error('Error getting location:', error);
+            // Error getting location - showing user notification
             setSnackbar({
               open: true,
               message: 'Unable to get current location',
@@ -702,7 +702,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       }
       
     } catch (error) {
-      console.error('Error loading timeline data:', error);
+      // Error loading timeline data - falling back to progressive loading
       // Fallback to progressive loading
       if (patientId && !isCacheWarm(patientId, criticalTypes)) {
         fetchPatientBundle(patientId, false, 'critical').then(() => {

@@ -371,7 +371,7 @@ const AdvancedLabValueFilter = ({
           setSavedFilters(JSON.parse(saved));
         }
       } catch (error) {
-        console.warn('Failed to load saved filters:', error);
+        // Failed to load saved filters - will use defaults
       }
     };
     loadSavedFilters();
@@ -484,7 +484,7 @@ const AdvancedLabValueFilter = ({
       }
 
     } catch (error) {
-      console.error('Error applying lab value filters:', error);
+      // Error applying lab value filters - displaying user error
       setError(`Failed to apply filters: ${error.message}`);
     } finally {
       setLoading(false);

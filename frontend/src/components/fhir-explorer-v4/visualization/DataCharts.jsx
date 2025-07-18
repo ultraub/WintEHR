@@ -27,7 +27,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Box,
   ToggleButtonGroup,
   ToggleButton
 } from '@mui/material';
@@ -232,52 +231,6 @@ function DataCharts({ onNavigate, fhirData }) {
     URL.revokeObjectURL(url);
   }, []);
 
-  // Format demographics data for charts
-  const formatDemographicsData = useCallback((data) => {
-    if (!data) return null;
-    
-    return {
-      ageGroups: data.age_groups?.map(group => ({
-        name: group.age_group,
-        value: group.count,
-        percentage: group.percentage
-      })) || [],
-      
-      genderDistribution: data.gender_distribution?.map(gender => ({
-        name: gender.gender,
-        value: gender.count,
-        percentage: gender.percentage
-      })) || [],
-      
-      raceDistribution: data.race_distribution?.map(race => ({
-        name: race.race,
-        value: race.count,
-        percentage: race.percentage
-      })) || []
-    };
-  }, []);
-
-  // Format disease prevalence data
-  const formatDiseaseData = useCallback((data) => {
-    if (!data) return null;
-    
-    return data.top_conditions?.map(condition => ({
-      name: condition.condition_name,
-      value: condition.patient_count,
-      percentage: condition.percentage
-    })) || [];
-  }, []);
-
-  // Format medication patterns data
-  const formatMedicationData = useCallback((data) => {
-    if (!data) return null;
-    
-    return data.medication_classes?.map(medClass => ({
-      name: medClass.medication_class,
-      value: medClass.prescription_count,
-      percentage: medClass.percentage
-    })) || [];
-  }, []);
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
@@ -298,8 +251,17 @@ function DataCharts({ onNavigate, fhirData }) {
 
   // Demographics Charts Tab
   const DemographicsTab = () => {
-    const formattedData = formatDemographicsData(demographicsData);
-    if (!formattedData) return <CircularProgress />;
+    if (!demographicsData) return <CircularProgress />;
+    
+    const totalPatients = demographicsData.totalPatients || 1;
+    const ageGroupsWithPercentages = demographicsData.ageGroups.map(item => ({
+      ...item,
+      percentage: (item.value / totalPatients * 100)
+    }));
+    const genderWithPercentages = demographicsData.genderDistribution.map(item => ({
+      ...item,  
+      percentage: (item.value / totalPatients * 100)
+    }));
 
     return (
       <Grid container spacing={3}>
@@ -316,7 +278,7 @@ function DataCharts({ onNavigate, fhirData }) {
                     onChange={setSelectedChartType}
                     availableTypes={['bar', 'line', 'area', 'pie']}
                   />
-                  <IconButton size="small" onClick={() => exportChartData(formattedData.ageGroups, 'age-distribution')}>
+                  <IconButton size="small" onClick={() => exportChartData(ageGroupsWithPercentages, 'age-distribution')}>
                     <DownloadIcon />
                   </IconButton>
                 </Box>
@@ -325,7 +287,7 @@ function DataCharts({ onNavigate, fhirData }) {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 {selectedChartType === 'bar' && (
-                  <BarChart data={formattedData.ageGroups}>
+                  <BarChart data={ageGroupsWithPercentages}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -334,7 +296,7 @@ function DataCharts({ onNavigate, fhirData }) {
                   </BarChart>
                 )}
                 {selectedChartType === 'line' && (
-                  <LineChart data={formattedData.ageGroups}>
+                  <LineChart data={ageGroupsWithPercentages}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -343,7 +305,7 @@ function DataCharts({ onNavigate, fhirData }) {
                   </LineChart>
                 )}
                 {selectedChartType === 'area' && (
-                  <AreaChart data={formattedData.ageGroups}>
+                  <AreaChart data={ageGroupsWithPercentages}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -354,7 +316,7 @@ function DataCharts({ onNavigate, fhirData }) {
                 {selectedChartType === 'pie' && (
                   <PieChart>
                     <Pie
-                      data={formattedData.ageGroups}
+                      data={ageGroupsWithPercentages}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -363,7 +325,7 @@ function DataCharts({ onNavigate, fhirData }) {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {formattedData.ageGroups.map((entry, index) => (
+                      {ageGroupsWithPercentages.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
@@ -382,7 +344,7 @@ function DataCharts({ onNavigate, fhirData }) {
               title="Gender Distribution"
               avatar={<DonutIcon color="secondary" />}
               action={
-                <IconButton size="small" onClick={() => exportChartData(formattedData.genderDistribution, 'gender-distribution')}>
+                <IconButton size="small" onClick={() => exportChartData(genderWithPercentages, 'gender-distribution')}>
                   <DownloadIcon />
                 </IconButton>
               }
@@ -391,7 +353,7 @@ function DataCharts({ onNavigate, fhirData }) {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={formattedData.genderDistribution}
+                    data={genderWithPercentages}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -400,38 +362,12 @@ function DataCharts({ onNavigate, fhirData }) {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {formattedData.genderDistribution.map((entry, index) => (
+                    {genderWithPercentages.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
                   </Pie>
                   <RechartsTooltip content={<CustomTooltip />} />
                 </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Race Distribution */}
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader
-              title="Race/Ethnicity Distribution"
-              avatar={<PeopleIcon color="info" />}
-              action={
-                <IconButton size="small" onClick={() => exportChartData(formattedData.raceDistribution, 'race-distribution')}>
-                  <DownloadIcon />
-                </IconButton>
-              }
-            />
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={formattedData.raceDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" fill={CHART_COLORS[2]} />
-                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -442,8 +378,8 @@ function DataCharts({ onNavigate, fhirData }) {
 
   // Clinical Analytics Tab
   const ClinicalAnalyticsTab = () => {
-    const diseaseData = formatDiseaseData(diseasePrevalenceData);
-    const medicationData = formatMedicationData(medicationPatternsData);
+    const diseaseData = diseasePrevalenceData;
+    const medicationData = medicationPatternsData;
 
     return (
       <Grid container spacing={3}>
@@ -461,7 +397,7 @@ function DataCharts({ onNavigate, fhirData }) {
             />
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={diseaseData?.slice(0, 10)} layout="horizontal">
+                <BarChart data={diseaseData} layout="horizontal">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis dataKey="name" type="category" width={120} />
@@ -489,7 +425,7 @@ function DataCharts({ onNavigate, fhirData }) {
               <ResponsiveContainer width="100%" height={400}>
                 <PieChart>
                   <Pie
-                    data={medicationData?.slice(0, 8)}
+                    data={medicationData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -498,7 +434,7 @@ function DataCharts({ onNavigate, fhirData }) {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {medicationData?.slice(0, 8).map((entry, index) => (
+                    {medicationData?.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
                   </Pie>

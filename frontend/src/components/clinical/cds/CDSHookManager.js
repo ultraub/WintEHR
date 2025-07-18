@@ -112,7 +112,7 @@ const CDSHookManager = forwardRef(({
 
   // Load configurations on mount
   useEffect(() => {
-    console.log('🔧 CDSHookManager: Loading hook configurations with display behavior support');
+    // Loading hook configurations with display behavior support
     loadHookConfigurations();
   }, [loadHookConfigurations]);
 

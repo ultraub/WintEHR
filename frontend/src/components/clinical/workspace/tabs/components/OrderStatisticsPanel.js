@@ -133,7 +133,7 @@ const OrderStatisticsPanel = ({
       setStatistics(stats);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error('Error calculating order statistics:', err);
+      // Error calculating order statistics - displaying error message
       setError('Failed to calculate order statistics');
     } finally {
       setLoading(false);
