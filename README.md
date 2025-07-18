@@ -22,8 +22,8 @@ WintEHR is a comprehensive, open-source Electronic Medical Record (EMR) system d
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/MedGenEMR.git
-    cd MedGenEMR
+    git clone https://github.com/your-username/WintEHR.git
+    cd WintEHR
     ```
 
 2.  **Run the deployment script:**

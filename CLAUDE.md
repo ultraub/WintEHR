@@ -1,12 +1,12 @@
-# CLAUDE.md - MedGenEMR AI Agent Quick Reference
+# CLAUDE.md - WintEHR AI Agent Quick Reference
 
-**Purpose**: This is the primary operational guide for AI agents working with MedGenEMR. It provides essential context, critical rules, and quick references for effective development.
+**Purpose**: This is the primary operational guide for AI agents working with WintEHR. It provides essential context, critical rules, and quick references for effective development.
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
 ## 🎯 Project Overview
 
-**MedGenEMR** is a production-ready Electronic Medical Records system with:
+**WintEHR** is a production-ready Electronic Medical Records system with:
 - Full FHIR R4 implementation (38 resource types)
 - Real-time clinical workflows (WebSocket + event-driven)
 - Dynamic clinical catalogs from actual patient data
@@ -17,17 +17,14 @@
 
 ### Development Environment (Recommended)
 ```bash
-# Fresh deployment with 20 patients and hot reload
+# Fresh deployment with 20 patients (creates all 6 FHIR tables)
 ./fresh-deploy.sh
 
-# Quick start (preserves existing data)
-./dev-start.sh
+# Custom patient count
+./fresh-deploy.sh --patients 50
 
-# Load additional patients
-./load-patients.sh 50
-
-# Stop services
-./dev-start.sh --stop
+# Alternative: Master deployment (full modular process)
+./scripts/master-deploy.sh
 ```
 
 ### Production Deployment
@@ -35,8 +32,20 @@
 # Production deployment with 100 patients
 ./fresh-deploy.sh --mode production --patients 100
 
-# Standard production start
-./start.sh
+# Alternative: Master deployment in production mode
+./scripts/master-deploy.sh --production --patients=100
+```
+
+### Validation Commands
+```bash
+# Validate deployment (use --docker flag when running in container)
+docker exec emr-backend python scripts/validate_deployment.py --docker --verbose
+
+# Verify all 6 FHIR tables
+docker exec emr-backend python scripts/verify_all_fhir_tables.py
+
+# Check search parameter health
+docker exec emr-backend python scripts/monitor_search_params.py
 ```
 
 ### Authentication Modes
@@ -66,7 +75,7 @@
 ## 📁 Project Structure
 
 ```
-MedGenEMR/
+WintEHR/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/clinical/    # Clinical UI components
@@ -156,6 +165,21 @@ await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
 // Subscriber
 subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 ```
+
+## 🗄️ Database Architecture
+
+WintEHR uses 6 critical FHIR tables:
+
+| Table | Purpose | Population Method |
+|-------|---------|-------------------|
+| `fhir.resources` | Main resource storage | Direct during import |
+| `fhir.resource_history` | Version tracking | Auto on create/update |
+| `fhir.search_params` | Search indexes | During import + re-indexing |
+| `fhir.references` | Resource relationships | Auto on create/update |
+| `fhir.compartments` | Patient compartments | Script after import |
+| `fhir.audit_logs` | Audit trail | Requires code implementation |
+
+All tables are created by `init_database_definitive.py` during deployment.
 
 ## 🔎 FHIR Search Parameter Indexing
 
@@ -274,12 +298,23 @@ GROUP BY r.resource_type;"
 
 ## 🔍 Where to Find Things
 
+### Frontend Services
 - **FHIR Operations**: `frontend/src/services/fhirService.js`
 - **Clinical Catalogs**: `frontend/src/services/cdsClinicalDataService.js`
 - **Event System**: `frontend/src/contexts/ClinicalWorkflowContext.js`
 - **WebSocket**: `frontend/src/contexts/WebSocketContext.js`
+
+### Backend Services
 - **Auth System**: `backend/api/auth_enhanced.py`
 - **FHIR Storage**: `backend/fhir/core/storage.py`
+- **Database Init**: `backend/scripts/setup/init_database_definitive.py`
+
+### Critical Scripts
+- **Data Management**: `backend/scripts/active/synthea_master.py`
+- **Search Indexing**: `backend/scripts/consolidated_search_indexing.py`
+- **Compartments**: `backend/scripts/populate_compartments.py`
+- **Table Verification**: `backend/scripts/verify_all_fhir_tables.py`
+- **CDS Fix**: `backend/scripts/fix_cds_hooks_enabled_column.py`
 
 ## 🤖 AI Agent Resources
 
@@ -288,36 +323,12 @@ GROUP BY r.resource_type;"
 - **Hook System**: [.claude/hooks/](.claude/hooks/)
 - **Knowledge Base**: [.claude/knowledge/](.claude/knowledge/)
 
-## 🚀 Deployment Scripts
-
-### Core Scripts
-- **`fresh-deploy.sh`**: Complete clean deployment with patient data
-- **`dev-start.sh`**: Quick development startup with hot reload
-- **`load-patients.sh`**: Add or replace patient data
-- **`start.sh`**: Production deployment
-
-### Script Options
-```bash
-# fresh-deploy.sh
-./fresh-deploy.sh                    # Dev mode, 20 patients
-./fresh-deploy.sh --patients 50      # Custom patient count
-./fresh-deploy.sh --mode production  # Production deployment
-
-# dev-start.sh  
-./dev-start.sh              # Start with hot reload
-./dev-start.sh --logs       # Start and tail logs
-./dev-start.sh --stop       # Stop services
-
-# load-patients.sh
-./load-patients.sh          # Load 20 patients
-./load-patients.sh 50       # Load 50 patients
-./load-patients.sh --wipe 30  # Clear data, load 30 patients
-```
-
 ## 📚 Additional Documentation
 
-- **Deployment Guide**: [docs/DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md) - Complete deployment instructions
-- **Detailed Reference**: [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md) - Complete patterns, troubleshooting, architecture
+- **Deployment Checklist**: [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) - Complete deployment guide
+- **Build Process Analysis**: [docs/BUILD_PROCESS_ANALYSIS.md](docs/BUILD_PROCESS_ANALYSIS.md) - Deep dive into build system
+- **Search Parameter Summary**: [docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)
+- **Detailed Reference**: [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md) - Patterns, troubleshooting, architecture
 - **API Documentation**: [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)
 - **Module Guides**: [docs/modules/](docs/modules/)
 - **Integration Guide**: [docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)

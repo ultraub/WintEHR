@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Fresh Deploy Script for MedGenEMR
+# Fresh Deploy Script for WintEHR
 # Performs a complete clean deployment with patient data
 #
 # Usage:
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Fresh Deploy Script for MedGenEMR"
+            echo "Fresh Deploy Script for WintEHR"
             echo ""
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -116,6 +116,12 @@ check_prerequisites() {
         "docker-compose.yml"
         "backend/requirements.txt"
         "frontend/package.json"
+        "backend/scripts/setup/init_database_definitive.py"
+        "backend/scripts/active/synthea_master.py"
+        "backend/scripts/consolidated_search_indexing.py"
+        "backend/scripts/populate_compartments.py"
+        "backend/scripts/fix_cds_hooks_enabled_column.py"
+        "backend/scripts/verify_all_fhir_tables.py"
     )
     
     for file in "${required_files[@]}"; do
@@ -123,6 +129,11 @@ check_prerequisites() {
             error "Required file missing: $file"
         fi
     done
+    
+    # Check for critical scripts in alternative locations
+    if [ ! -f "$PROJECT_ROOT/backend/scripts/setup/init_database_definitive.py" ] && [ ! -f "$PROJECT_ROOT/backend/scripts/init_database_definitive.py" ]; then
+        error "Database initialization script not found in any expected location"
+    fi
     
     success "Prerequisites check passed"
 }
@@ -271,6 +282,18 @@ generate_patient_data() {
     else
         warning "Search parameter indexing script not found - searches may not work properly"
     fi
+    
+    # Populate compartments for Patient/$everything operations
+    log "Populating patient compartments..."
+    
+    if docker exec emr-backend test -f /app/scripts/populate_compartments.py; then
+        docker exec emr-backend python scripts/populate_compartments.py || {
+            warning "Compartment population failed - Patient/$everything may not work properly"
+        }
+        success "Patient compartments populated"
+    else
+        warning "Compartment population script not found - Patient/$everything may not work properly"
+    fi
 }
 
 # Function to start frontend
@@ -326,8 +349,16 @@ validate_deployment() {
     # Run validation script if available
     if [ -f "scripts/validate_deployment.py" ]; then
         log "Running deployment validation..."
-        docker exec emr-backend python scripts/validate_deployment.py --verbose || {
+        docker exec emr-backend python scripts/validate_deployment.py --docker --verbose || {
             warning "Validation script reported issues"
+        }
+    fi
+    
+    # Run comprehensive FHIR table verification
+    if docker exec emr-backend test -f /app/scripts/verify_all_fhir_tables.py; then
+        log "Running FHIR table verification..."
+        docker exec emr-backend python scripts/verify_all_fhir_tables.py || {
+            warning "FHIR table verification reported issues"
         }
     fi
 }
@@ -336,7 +367,7 @@ validate_deployment() {
 show_deployment_info() {
     echo ""
     echo "======================================"
-    echo "  MedGenEMR Deployment Complete!"
+    echo "  WintEHR Deployment Complete!"
     echo "======================================"
     echo ""
     echo "Mode: $MODE"
@@ -380,7 +411,7 @@ show_deployment_info() {
 
 # Main execution
 main() {
-    echo "🏥 MedGenEMR Fresh Deployment"
+    echo "🏥 WintEHR Fresh Deployment"
     echo "============================="
     echo ""
     

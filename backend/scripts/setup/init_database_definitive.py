@@ -91,6 +91,8 @@ class DefinitiveDatabaseInitializer:
             logger.info("🧹 Cleaning up any existing schema...")
             await self.connection.execute("""
                 -- Drop all FHIR tables if they exist
+                DROP TABLE IF EXISTS fhir.audit_logs CASCADE;
+                DROP TABLE IF EXISTS fhir.compartments CASCADE;
                 DROP TABLE IF EXISTS fhir.references CASCADE;
                 DROP TABLE IF EXISTS fhir.resource_history CASCADE;
                 DROP TABLE IF EXISTS fhir.search_params CASCADE;
@@ -189,6 +191,46 @@ class DefinitiveDatabaseInitializer:
                     ON DELETE CASCADE
             );
             
+            -- Create compartments table for Patient/$everything operations
+            CREATE TABLE fhir.compartments (
+                id BIGSERIAL PRIMARY KEY,
+                compartment_type VARCHAR(50) NOT NULL,
+                compartment_id VARCHAR(255) NOT NULL,
+                resource_id BIGINT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Foreign key
+                CONSTRAINT fk_compartments_resource 
+                    FOREIGN KEY (resource_id) 
+                    REFERENCES fhir.resources(id) 
+                    ON DELETE CASCADE,
+                
+                -- Ensure uniqueness
+                CONSTRAINT compartments_unique 
+                    UNIQUE (compartment_type, compartment_id, resource_id)
+            );
+            
+            -- Create audit_logs table for FHIR operation auditing
+            CREATE TABLE fhir.audit_logs (
+                id BIGSERIAL PRIMARY KEY,
+                resource_type VARCHAR(50),
+                resource_id VARCHAR(255),
+                operation VARCHAR(20) NOT NULL,
+                user_id VARCHAR(255),
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                request_id VARCHAR(255),
+                http_method VARCHAR(10),
+                url_path TEXT,
+                query_params TEXT,
+                request_body TEXT,
+                response_status INTEGER,
+                response_body TEXT,
+                error_message TEXT,
+                duration_ms INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            
             -- Create CDS Hooks configuration table
             CREATE TABLE cds_hooks.hook_configurations (
                 id VARCHAR(255) PRIMARY KEY,
@@ -240,6 +282,17 @@ class DefinitiveDatabaseInitializer:
             CREATE INDEX idx_references_target ON fhir.references(target_type, target_id);
             CREATE INDEX idx_references_path ON fhir.references(reference_path);
             
+            -- Compartments indexes
+            CREATE INDEX idx_compartments_compartment ON fhir.compartments(compartment_type, compartment_id);
+            CREATE INDEX idx_compartments_resource ON fhir.compartments(resource_id);
+            CREATE INDEX idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_id);
+            
+            -- Audit logs indexes
+            CREATE INDEX idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
+            CREATE INDEX idx_audit_logs_operation ON fhir.audit_logs(operation);
+            CREATE INDEX idx_audit_logs_created_at ON fhir.audit_logs(created_at);
+            CREATE INDEX idx_audit_logs_user ON fhir.audit_logs(user_id);
+            
             -- CDS Hooks indexes
             CREATE INDEX idx_hook_configurations_type ON cds_hooks.hook_configurations(hook_type);
             CREATE INDEX idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
@@ -261,6 +314,12 @@ class DefinitiveDatabaseInitializer:
             
             result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.references")
             logger.info(f"✅ References table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.compartments")
+            logger.info(f"✅ Compartments table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.audit_logs")
+            logger.info(f"✅ Audit logs table accessible (count: {result})")
             
             result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.hook_configurations")
             logger.info(f"✅ CDS Hooks table accessible (count: {result})")
@@ -298,7 +357,7 @@ class DefinitiveDatabaseInitializer:
             """)
             
             existing_tables = [row['table_name'] for row in fhir_tables]
-            expected_tables = ['resources', 'search_params', 'resource_history', 'references']
+            expected_tables = ['resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs']
             missing_tables = set(expected_tables) - set(existing_tables)
             
             if missing_tables:

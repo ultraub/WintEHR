@@ -76,7 +76,7 @@ class DeploymentValidator:
             table_names = {row['table_name'] for row in tables}
             
             required_tables = {
-                'resources', 'search_params', 'resource_history', 'references'
+                'resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs'
             }
             
             missing_tables = required_tables - table_names

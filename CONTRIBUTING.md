@@ -1,10 +1,10 @@
-# Contributing to MedGenEMR
+# Contributing to WintEHR
 
 We welcome contributions to the WintEHR project! This guide outlines the high-level process for contributing. For detailed development protocols, coding standards, and system operational guidelines, please refer to the `CLAUDE.md` file.
 
 ## How to Contribute
 
-1.  **Understand the Project**: Familiarize yourself with the MedGenEMR system by reading the main `README.md` and the `docs/ARCHITECTURE.md`.
+1.  **Understand the Project**: Familiarize yourself with the WintEHR system by reading the main `README.md` and the `docs/ARCHITECTURE.md`.
 
 2.  **Set up Your Development Environment**: Follow the instructions in `docs/DEVELOPMENT_GUIDE.md` to get your local environment running.
 

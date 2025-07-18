@@ -208,20 +208,6 @@ const PharmacyPage = () => {
     });
   }, [queueCategories, pharmacyQueue.length]);
 
-  // Subscribe to clinical workflow events
-  useEffect(() => {
-    const unsubscribeNewPrescription = subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
-      if (data.category === 'medication') {
-        // Refresh the queue when new prescriptions arrive
-        handleRefresh();
-      }
-    });
-
-    return () => {
-      unsubscribeNewPrescription();
-    };
-  }, [subscribe]);
-
   // Handle queue refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -235,6 +221,20 @@ const PharmacyPage = () => {
       setRefreshing(false);
     }
   }, []);
+
+  // Subscribe to clinical workflow events
+  useEffect(() => {
+    const unsubscribeNewPrescription = subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
+      if (data.category === 'medication') {
+        // Refresh the queue when new prescriptions arrive
+        handleRefresh();
+      }
+    });
+
+    return () => {
+      unsubscribeNewPrescription();
+    };
+  }, [subscribe, handleRefresh, CLINICAL_EVENTS.ORDER_PLACED]);
 
   // Handle status change for medication request
   const handleStatusChange = useCallback(async (medicationRequestId, newStatus, category) => {
@@ -268,7 +268,7 @@ const PharmacyPage = () => {
     } catch (error) {
       
     }
-  }, [publish, handleRefresh]);
+  }, [publish, handleRefresh, CLINICAL_EVENTS.WORKFLOW_NOTIFICATION]);
 
   // Speed dial actions
   const speedDialActions = [

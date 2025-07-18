@@ -490,7 +490,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
               </Typography>
               <List>
                 {safetyReport.recommendations.map((recommendation, index) => (
-                  <ListItem key={`rec-${recommendation.substring(0, 20)}-${index}`}>
+                  <ListItem key={`rec-${recommendation.message?.substring(0, 20) || index}-${index}`}>
                     <ListItemIcon>
                       <InfoIcon color="info" />
                     </ListItemIcon>

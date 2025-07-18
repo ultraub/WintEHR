@@ -140,7 +140,7 @@ async def discover_relationships(
     
     try:
         # Get the source resource
-        source_resource = await storage.get_resource(resource_type, resource_id)
+        source_resource = await storage.read_resource(resource_type, resource_id)
         if not source_resource:
             raise HTTPException(status_code=404, detail=f"{resource_type}/{resource_id} not found")
         
@@ -229,29 +229,37 @@ async def get_relationship_statistics(
             stats["totalRelationships"] += row.count
         
         # Find most connected resources
+        # Note: source_id is BIGINT (internal ID), target_id is VARCHAR (FHIR ID)
+        # We need to join with resources table to get consistent IDs
         connected_query = """
-            WITH connection_counts AS (
+            WITH outgoing_connections AS (
                 SELECT 
-                    source_type as resource_type,
-                    source_id as resource_id,
-                    COUNT(*) as outgoing_count
-                FROM fhir.references
-                GROUP BY source_type, source_id
-                
+                    r.resource_type,
+                    r.fhir_id as resource_id,
+                    COUNT(*) as connection_count
+                FROM fhir.references ref
+                JOIN fhir.resources r ON ref.source_id = r.id
+                WHERE r.deleted = false
+                GROUP BY r.resource_type, r.fhir_id
+            ),
+            incoming_connections AS (
+                SELECT 
+                    ref.target_type as resource_type,
+                    ref.target_id as resource_id,
+                    COUNT(*) as connection_count
+                FROM fhir.references ref
+                GROUP BY ref.target_type, ref.target_id
+            ),
+            all_connections AS (
+                SELECT resource_type, resource_id, connection_count FROM outgoing_connections
                 UNION ALL
-                
-                SELECT 
-                    target_type as resource_type,
-                    target_id as resource_id,
-                    COUNT(*) as incoming_count
-                FROM fhir.references
-                GROUP BY target_type, target_id
+                SELECT resource_type, resource_id, connection_count FROM incoming_connections
             )
             SELECT 
                 resource_type,
                 resource_id,
-                SUM(outgoing_count) as total_connections
-            FROM connection_counts
+                SUM(connection_count) as total_connections
+            FROM all_connections
             GROUP BY resource_type, resource_id
             ORDER BY total_connections DESC
             LIMIT 10
@@ -288,8 +296,8 @@ async def find_relationship_paths(
     
     try:
         # Verify both resources exist
-        source = await storage.get_resource(source_type, source_id)
-        target = await storage.get_resource(target_type, target_id)
+        source = await storage.read_resource(source_type, source_id)
+        target = await storage.read_resource(target_type, target_id)
         
         if not source or not target:
             raise HTTPException(status_code=404, detail="Source or target resource not found")
@@ -400,7 +408,7 @@ async def _discover_relationships_recursive(
                         if target_node_id not in visited and current_depth < max_depth:
                             visited.add(target_node_id)
                             try:
-                                target_resource = await storage.get_resource(target_type, target_id)
+                                target_resource = await storage.read_resource(target_type, target_id)
                                 if target_resource:
                                     await _discover_relationships_recursive(
                                         storage,
@@ -419,13 +427,15 @@ async def _discover_relationships_recursive(
     # Also check for reverse relationships (resources that reference this one)
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
-            SELECT source_type, source_id, field_path
-            FROM fhir.references
-            WHERE target_type = :target_type AND target_id = :target_id
+            SELECT r.resource_type as source_type, r.fhir_id as source_id, ref.reference_path as field_path
+            FROM fhir.references ref
+            JOIN fhir.resources r ON ref.source_id = r.id
+            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
+            AND (r.deleted = false OR r.deleted IS NULL)
             LIMIT 50
         """
         
-        result_refs = await storage.db.execute(
+        result_refs = await storage.session.execute(
             text(reverse_refs_query),
             {"target_type": resource_type, "target_id": resource_id}
         )
@@ -445,7 +455,7 @@ async def _discover_relationships_recursive(
             if source_node_id not in visited:
                 visited.add(source_node_id)
                 try:
-                    source_resource = await storage.get_resource(row.source_type, row.source_id)
+                    source_resource = await storage.read_resource(row.source_type, row.source_id)
                     if source_resource:
                         await _discover_relationships_recursive(
                             storage,
@@ -499,7 +509,7 @@ async def _find_paths_bfs(
         current_type, current_id = current.split("/")
         
         # Check forward references
-        resource = await storage.get_resource(current_type, current_id)
+        resource = await storage.read_resource(current_type, current_id)
         if resource:
             reference_fields = REFERENCE_FIELDS.get(current_type, {})
             for field_name, field_config in reference_fields.items():
@@ -516,13 +526,15 @@ async def _find_paths_bfs(
         
         # Check reverse references
         reverse_refs_query = """
-            SELECT source_type || '/' || source_id as source
-            FROM fhir.references
-            WHERE target_type = :target_type AND target_id = :target_id
+            SELECT r.resource_type || '/' || r.fhir_id as source
+            FROM fhir.references ref
+            JOIN fhir.resources r ON ref.source_id = r.id
+            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
+            AND (r.deleted = false OR r.deleted IS NULL)
             LIMIT 20
         """
         
-        result_refs = await storage.db.execute(
+        result_refs = await storage.session.execute(
             text(reverse_refs_query),
             {"target_type": current_type, "target_id": current_id}
         )

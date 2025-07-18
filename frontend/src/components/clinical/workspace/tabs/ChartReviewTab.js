@@ -534,9 +534,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                           ...prev, 
                           startDate: date 
                         }))}
-                        renderInput={(params) => 
-                          <TextField {...params} fullWidth size="small" sx={{ mb: 1 }} />
-                        }
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            size: "small",
+                            sx: { mb: 1 }
+                          }
+                        }}
                       />
                       
                       {dateFilter.operator === 'between' && (
@@ -547,9 +551,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                             ...prev, 
                             endDate: date 
                           }))}
-                          renderInput={(params) => 
-                            <TextField {...params} fullWidth size="small" />
-                          }
+                          slotProps={{
+                            textField: {
+                              fullWidth: true,
+                              size: "small"
+                            }
+                          }}
                         />
                       )}
                     </Box>
@@ -617,7 +624,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <ListItem
                 key={condition.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius / 8,
+                  borderRadius: 0,
                   mb: theme.spacing(1),
                   backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
                   transition: theme.transitions.create(['background-color', 'transform'], {
@@ -1064,7 +1071,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <ListItem
                 key={med.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius / 8,
+                  borderRadius: 0,
                   mb: theme.spacing(1.5),
                   py: theme.spacing(1.5),
                   backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
@@ -1324,7 +1331,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           Export as PDF
         </MenuItem>
       </Menu>
-      </Box>
     </Paper>
   );
 };
@@ -1539,39 +1545,11 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                 }
               }}
             />
-      }
-      actions={
-        <Stack direction="row" spacing={0.5}>
-            <Tooltip title="Add Allergy">
-              <IconButton 
-                size="small" 
-                color="primary" 
-                onClick={() => setShowAddDialog(true)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Export">
-              <IconButton 
-                size="small"
-                onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <ExportIcon />
-              </IconButton>
+        </Stack>
+      </Box>
+      
+      {/* Content */}
+      <Box sx={{ p: 2 }}>
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {allergies.length === 0 ? (
             <Alert severity="success" sx={{ mt: 2 }}>
@@ -1582,7 +1560,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <ListItem
                 key={allergy.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius / 8,
+                  borderRadius: 0,
                   mb: theme.spacing(1),
                   backgroundColor: alpha(theme.palette.error.main, 0.05),
                   transition: theme.transitions.create(['background-color', 'transform'], {
@@ -1702,7 +1680,6 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
           Export as PDF
         </MenuItem>
       </Menu>
-      </Box>
     </Paper>
   );
 };

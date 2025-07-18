@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Load Patients Script for MedGenEMR
+# Load Patients Script for WintEHR
 # Simple script to generate and load patient data
 #
 # Usage:
@@ -37,7 +37,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     exit 0
 fi
 
-echo -e "${BLUE}🏥 MedGenEMR Patient Data Loader${NC}"
+echo -e "${BLUE}🏥 WintEHR Patient Data Loader${NC}"
 echo "=================================="
 
 # Check if backend is running

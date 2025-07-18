@@ -1,4 +1,4 @@
-# MedGenEMR Quick Reference Card
+# WintEHR Quick Reference Card
 
 ## 🚀 Essential Commands
 

@@ -1,6 +1,6 @@
 # Changelog
 
-This file documents significant changes and updates to the MedGenEMR project.
+This file documents significant changes and updates to the WintEHR project.
 
 ## 2025-07-17
 - **Documentation Overhaul**: Comprehensive review and cleanup of project documentation.
