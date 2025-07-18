@@ -86,7 +86,9 @@ export const WebSocketProvider = ({ children }) => {
       const token = localStorage.getItem('auth_token');
       
       // Check if we're in simple mode (no JWT required)
-      if (!token || token === 'null') {
+      const isSimpleMode = !token || token === 'null' || token === 'undefined';
+      
+      if (isSimpleMode) {
         // Try connecting without authentication for simple mode
         wsRef.current = new WebSocket(WS_URL);
         

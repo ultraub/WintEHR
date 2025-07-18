@@ -244,6 +244,10 @@ class ConnectionManager:
                 data.get("subscription_id")
             )
             
+        elif msg_type == "authenticate":
+            # Authentication is handled in the WebSocket endpoint, ignore here
+            logger.debug(f"Ignoring authenticate message from client {client_id} (handled by endpoint)")
+            
         else:
             logger.warning(f"Unknown message type from client {client_id}: {msg_type}")
             
