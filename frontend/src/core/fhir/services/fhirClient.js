@@ -9,9 +9,8 @@ import axios from 'axios';
 
 class FHIRClient {
   constructor(config = {}) {
-    // Use backend URL directly for FHIR endpoints
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-    this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || `${backendUrl}/fhir/R4`;
+    // Use relative URL to work with proxy in development and direct routing in production
+    this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
     this.auth = config.auth || null;
     this.capabilities = null;
     this.httpClient = axios.create({
@@ -32,8 +31,9 @@ class FHIRClient {
       });
     }
 
-    // Initialize capabilities on creation
-    this.discoverCapabilities();
+    // Initialize capabilities on creation - DISABLED to prevent duplicate calls
+    // Capabilities will be discovered on first use if needed
+    // this.discoverCapabilities();
   }
 
   /**

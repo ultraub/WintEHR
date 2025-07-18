@@ -550,7 +550,9 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       // Extract locations and organizations from patient's encounters and resources
       const patientEncounters = Object.values(resources.Encounter || {}).filter(e => 
         e.subject?.reference === `Patient/${patientId}` || 
-        e.patient?.reference === `Patient/${patientId}`
+        e.subject?.reference === `urn:uuid:${patientId}` ||
+        e.patient?.reference === `Patient/${patientId}` ||
+        e.patient?.reference === `urn:uuid:${patientId}`
       );
       const locations = new Set();
       const organizations = new Set();
@@ -760,7 +762,9 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
             // Add FHIR resources from context
             const patientResources = Object.values(resources[resourceType] || {}).filter(r => 
               r.subject?.reference === `Patient/${patientId}` || 
-              r.patient?.reference === `Patient/${patientId}`
+              r.subject?.reference === `urn:uuid:${patientId}` ||
+              r.patient?.reference === `Patient/${patientId}` ||
+              r.patient?.reference === `urn:uuid:${patientId}`
             );
             patientResources.forEach(resource => {
               const uniqueKey = `${resource.resourceType}-${resource.id}`;

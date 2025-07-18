@@ -9,7 +9,6 @@ import {
   Paper,
   Tabs,
   Tab,
-  Badge,
   IconButton,
   Tooltip,
   Menu,
@@ -28,6 +27,7 @@ import {
   SpeedDialAction,
   Snackbar
 } from '@mui/material';
+import SafeBadge from '../common/SafeBadge';
 import {
   Dashboard as DashboardIcon,
   Assignment as ChartIcon,
@@ -458,16 +458,25 @@ const ClinicalWorkspaceV3 = () => {
 
   return (
     <ClinicalLayout
-      patient={currentPatient}
+      patientContext={currentPatient ? {
+        id: currentPatient.id,
+        name: `${currentPatient.name?.[0]?.given?.[0] || ''} ${currentPatient.name?.[0]?.family || ''}`,
+        birthDate: currentPatient.birthDate,
+        status: 'active'
+      } : null}
       department={department}
-      clinicalContext={clinicalContext}
+      shift={clinicalContext?.shift}
+      showPatientInfo={!!currentPatient}
+      showDepartmentInfo={true}
+      showTimeInfo={true}
+      title="Clinical Workspace"
+      subtitle={currentPatient ? `Patient: ${currentPatient.id}` : 'No patient selected'}
     >
       <Box sx={{ 
-        height: '100vh', 
         display: 'flex', 
         flexDirection: 'column',
-        backgroundColor: 'background.default',
-        overflow: 'hidden'
+        height: '100%',
+        backgroundColor: 'background.default'
       }}>
         {/* Enhanced Patient Header */}
         <EnhancedPatientHeader 
@@ -509,7 +518,7 @@ const ClinicalWorkspaceV3 = () => {
                   key={tab.id}
                   value={tab.id}
                   label={
-                    <Badge 
+                    <SafeBadge 
                       badgeContent={tabNotifications[tab.id] || 0} 
                       color="error"
                       max={99}
@@ -522,7 +531,7 @@ const ClinicalWorkspaceV3 = () => {
                           </Typography>
                         )}
                       </Box>
-                    </Badge>
+                    </SafeBadge>
                   }
                 />
               ))}

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { intelligentCache, cacheUtils } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback, useStateGuard } from '../hooks/useStableReferences';
 
@@ -441,7 +441,7 @@ export function FHIRResourceProvider({ children }) {
     });
     
     // Add relationship if patient context exists
-    if (state.currentPatient && resource.subject?.reference === `Patient/${state.currentPatient.id}`) {
+    if (state.currentPatient && (resource.subject?.reference === `Patient/${state.currentPatient.id}` || resource.subject?.reference === `urn:uuid:${state.currentPatient.id}`)) {
       dispatch({
         type: FHIR_ACTIONS.ADD_RELATIONSHIP,
         payload: {
@@ -572,8 +572,10 @@ export function FHIRResourceProvider({ children }) {
     const searchPromise = (async () => {
       try {
         const result = await fhirClient.search(resourceType, enhancedParams);
+      console.log(`[FHIRResourceContext] Search result for ${resourceType}:`, result);
       
       if (result.resources && result.resources.length > 0) {
+        console.log(`[FHIRResourceContext] Setting ${result.resources.length} ${resourceType} resources`);
         setResources(resourceType, result.resources);
         
         // Build relationships for patient resources
@@ -735,7 +737,9 @@ export function FHIRResourceProvider({ children }) {
             // Update relationships
             resources.forEach(resource => {
               if (resource.subject?.reference === `Patient/${patientId}` ||
-                  resource.patient?.reference === `Patient/${patientId}`) {
+                  resource.subject?.reference === `urn:uuid:${patientId}` ||
+                  resource.patient?.reference === `Patient/${patientId}` ||
+                  resource.patient?.reference === `urn:uuid:${patientId}`) {
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {
@@ -776,7 +780,7 @@ export function FHIRResourceProvider({ children }) {
     return everythingPromise;
   }, [setCachedData, getCachedData, setResources]);
 
-  // Legacy fetchPatientBundle - now uses $everything internally
+  // Legacy fetchPatientBundle - now uses individual searches
   const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
     // Map priority to resource types for backward compatibility
     const resourceTypesByPriority = {
@@ -794,31 +798,61 @@ export function FHIRResourceProvider({ children }) {
       types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
 
-    // Use $everything operation for better performance - reduced counts
-    const count = priority === 'critical' ? 30 : priority === 'important' ? 50 : 100; // Reduced from 100/200/300
     
-    const result = await fetchPatientEverything(patientId, {
-      types,
-      count,
-      forceRefresh
+    // Fetch resources individually for reliability
+    const promises = types.map(async (resourceType) => {
+      if (resourceType === 'Patient') {
+        // Fetch patient directly
+        const patient = await fetchResource('Patient', patientId, forceRefresh);
+        if (patient) {
+          setResources('Patient', [patient]);
+        }
+        return patient;
+      } else {
+        // Search for other resources
+        const params = { 
+          patient: patientId,
+          _count: priority === 'critical' ? 20 : 50
+        };
+        
+        // Add resource-specific parameters
+        if (resourceType === 'Condition') {
+          params['clinical-status'] = 'active,recurrence,relapse';
+        } else if (resourceType === 'MedicationRequest') {
+          params.status = 'active,completed';
+        } else if (resourceType === 'Observation') {
+          params._sort = '-date';
+          params._count = 30;
+        }
+        
+        console.log(`[FHIRResourceContext] Searching ${resourceType} with params:`, params);
+        const result = await searchResources(resourceType, params, forceRefresh);
+        console.log(`[FHIRResourceContext] ${resourceType} search returned:`, result);
+        return result;
+      }
     });
     
-    // Convert to legacy bundle format for backward compatibility
-    const bundle = {};
-    if (result.bundle?.entry) {
-      result.bundle.entry.forEach(entry => {
-        const resource = entry.resource;
-        if (!resource || !resource.resourceType) return;
-        
-        if (!bundle[resource.resourceType]) {
-          bundle[resource.resourceType] = [];
-        }
-        bundle[resource.resourceType].push(resource);
-      });
-    }
+    const results = await Promise.all(promises);
     
-    return bundle;
-  }, [fetchPatientEverything]);
+    // Count total resources
+    let totalResources = 0;
+    types.forEach(type => {
+      const resourceCount = Object.keys(state.resources[type] || {}).filter(id => {
+        const resource = state.resources[type][id];
+        return resource.patient?.reference === `Patient/${patientId}` ||
+               resource.patient?.reference === `urn:uuid:${patientId}` ||
+               resource.subject?.reference === `Patient/${patientId}` ||
+               resource.subject?.reference === `urn:uuid:${patientId}`;
+      }).length;
+      totalResources += resourceCount;
+    });
+    
+    return { 
+      success: true, 
+      total: totalResources,
+      resourceTypes: types 
+    };
+  }, [fetchResource, searchResources, setResources, state.resources]);
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {

@@ -15,13 +15,13 @@ import {
   DialogContent,
   Tabs,
   Tab,
-  Badge,
   Tooltip,
   CircularProgress,
   TablePagination,
   LinearProgress,
   Stack
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -495,9 +495,9 @@ function PatientList() {
           <Tab 
             icon={<PeopleIcon />} 
             label={
-              <Badge badgeContent={myPatientsCount} color="primary">
+              <SafeBadge badgeContent={myPatientsCount} color="primary">
                 My Patients
-              </Badge>
+              </SafeBadge>
             }
             iconPosition="start"
           />

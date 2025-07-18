@@ -28,9 +28,10 @@ import {
   FormControlLabel,
   Divider,
   CircularProgress,
-  Badge,
+  
   LinearProgress
 } from '@mui/material';
+import SafeBadge from '../common/SafeBadge';
 import {
   Error as ErrorIcon,
   Warning as WarningIcon,
@@ -146,7 +147,7 @@ const ValidationIssuesList = ({ issues, severity, expanded = false }) => {
       case 'error': return 'error';
       case 'warning': return 'warning';
       case 'information': return 'info';
-      default: return 'default';
+      default: return 'primary'; // Use primary color for default badges
     }
   };
 
@@ -165,9 +166,9 @@ const ValidationIssuesList = ({ issues, severity, expanded = false }) => {
           {issues.map((issue, index) => (
             <ListItem key={index}>
               <ListItemIcon>
-                <Badge badgeContent={index + 1} color={getColor()} max={999}>
+                <SafeBadge badgeContent={index + 1} color={getColor()} max={999}>
                   {getIcon()}
-                </Badge>
+                </SafeBadge>
               </ListItemIcon>
               <ListItemText
                 primary={issue.message}

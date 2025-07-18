@@ -340,7 +340,8 @@ const CommunicationPanel = ({
       const communication = data.data;
       
       // Check if this communication is relevant to current context
-      if (communication.subject?.reference === `Patient/${patientId}`) {
+      if (communication.subject?.reference === `Patient/${patientId}` || 
+          communication.subject?.reference === `urn:uuid:${patientId}`) {
         setMessages(prev => [...prev, communication]);
         
         // Increment unread count if not from current user

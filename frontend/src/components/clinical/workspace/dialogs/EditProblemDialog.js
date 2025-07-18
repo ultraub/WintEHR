@@ -1,14 +1,14 @@
 /**
- * Edit Problem Dialog Component (Migrated to BaseResourceDialog)
- * Uses the new BaseResourceDialog pattern for consistent UX
+ * Edit Problem Dialog Component (Enhanced with Clinical Theming)
+ * Uses the new EnhancedBaseResourceDialog for clinical context-aware theming
  */
 import React, { useMemo } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Button } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
-import BaseResourceDialog from '../../../base/BaseResourceDialog';
-import ConditionFormFields from './components/ConditionFormFields';
+import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';
+import EnhancedConditionFormFields from './components/EnhancedConditionFormFields';
 import {
   validationRules,
   parseConditionResource,
@@ -73,7 +73,7 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <BaseResourceDialog
+      <EnhancedBaseResourceDialog
         // Force re-mount when condition changes to prevent state conflicts
         key={`edit-condition-${condition?.id || 'new'}`}
         
@@ -101,9 +101,18 @@ const EditProblemDialog = ({ open, onClose, onSave, onDelete, condition, patient
         showPreview={true}
         showCancel={true}
         customActions={customActions}
+        
+        // Clinical context
+        clinicalContext="emergency"
+        patientId={patientId}
+        
+        // Enhanced features
+        showCDSHooks={true}
+        showResourceInfo={true}
+        enableAutoSave={false}
       >
-        <ConditionFormFields />
-      </BaseResourceDialog>
+        <EnhancedConditionFormFields />
+      </EnhancedBaseResourceDialog>
     </LocalizationProvider>
   );
 };

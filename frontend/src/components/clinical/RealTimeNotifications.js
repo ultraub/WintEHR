@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Badge,
   IconButton,
   Popover,
   List,
@@ -17,6 +16,7 @@ import {
   Divider,
   Alert
 } from '@mui/material';
+import SafeBadge from '../common/SafeBadge';
 import {
   Notifications as NotificationsIcon,
   Science as LabIcon,
@@ -163,9 +163,9 @@ const RealTimeNotifications = () => {
         onClick={handleClick}
         sx={{ position: 'relative' }}
       >
-        <Badge badgeContent={unreadCount} color="error">
+        <SafeBadge badgeContent={unreadCount} color="error">
           <NotificationsIcon />
-        </Badge>
+        </SafeBadge>
         {wsConnected && (
           <Box
             sx={{

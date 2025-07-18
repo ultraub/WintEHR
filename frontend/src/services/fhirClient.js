@@ -9,7 +9,7 @@ import axios from 'axios';
 
 class FHIRClient {
   constructor(config = {}) {
-    this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
+    this.baseUrl = config.baseUrl || 'http://localhost:8000/fhir/R4'; // Temporarily hardcoded for debugging
     this.auth = config.auth || null;
     this.capabilities = null;
     this.httpClient = axios.create({
@@ -30,8 +30,9 @@ class FHIRClient {
       });
     }
 
-    // Initialize capabilities on creation
-    this.discoverCapabilities();
+    // Initialize capabilities on creation - DISABLED to prevent duplicate calls
+    // Capabilities will be discovered on first use if needed
+    // this.discoverCapabilities();
   }
 
   /**
@@ -248,23 +249,6 @@ class FHIRClient {
     return response.data;
   }
 
-  /**
-   * Process a batch/transaction bundle
-   */
-  async batch(bundle) {
-    // Ensure capabilities are loaded
-    if (!this.capabilities) {
-      await this.discoverCapabilities();
-    }
-    
-    // Check if server supports batch operations
-    if (!this.supportsOperation(null, 'batch') && !this.supportsOperation(null, 'transaction')) {
-      throw new Error('Server does not support batch or transaction bundles');
-    }
-
-    const response = await this.httpClient.post('/', bundle);
-    return response.data;
-  }
 
   /**
    * Get resource history

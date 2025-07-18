@@ -32,11 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add FHIR content negotiation middleware
-from fhir.api.content_negotiation import content_negotiation_middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-app.add_middleware(BaseHTTPMiddleware, dispatch=content_negotiation_middleware)
-
 # Register all routers using centralized registration
 register_all_routers(app)
 

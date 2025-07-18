@@ -25,10 +25,8 @@ def register_all_routers(app: FastAPI) -> None:
     # 1. Core FHIR APIs
     try:
         from fhir.api.router import fhir_router
-        from api.notifications import router as notifications_router
         
         app.include_router(fhir_router, tags=["FHIR R4"])
-        app.include_router(notifications_router, prefix="/fhir/R4", tags=["FHIR Notifications"])
         logger.info("✓ FHIR routers registered")
     except Exception as e:
         logger.error(f"Failed to register FHIR routers: {e}")

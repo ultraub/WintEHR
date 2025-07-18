@@ -18,7 +18,6 @@ import {
   InputLabel,
   Card,
   CardContent,
-  Badge,
   Stack,
   Chip,
   Alert,
@@ -30,6 +29,7 @@ import {
   SpeedDialAction,
   SpeedDialIcon
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import {
   LocalPharmacy as PharmacyIcon,
   Search as SearchIcon,
@@ -315,9 +315,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), border: `1px solid ${theme.palette.warning.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.newOrders} color="warning" max={99}>
+              <SafeBadge badgeContent={queueStats.newOrders} color="warning" max={99}>
                 <PendingIcon color="warning" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="warning.main" mt={1}>
                 New Orders
               </Typography>
@@ -331,9 +331,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.info.main, 0.1), border: `1px solid ${theme.palette.info.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.verification} color="info" max={99}>
+              <SafeBadge badgeContent={queueStats.verification} color="info" max={99}>
                 <VerifyIcon color="info" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="info.main" mt={1}>
                 Verification
               </Typography>
@@ -347,9 +347,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${theme.palette.primary.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.dispensing} color="primary" max={99}>
+              <SafeBadge badgeContent={queueStats.dispensing} color="primary" max={99}>
                 <DispenseIcon color="primary" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="primary.main" mt={1}>
                 Dispensing
               </Typography>
@@ -363,9 +363,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), border: `1px solid ${theme.palette.success.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.ready} color="success" max={99}>
+              <SafeBadge badgeContent={queueStats.ready} color="success" max={99}>
                 <ReadyIcon color="success" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="success.main" mt={1}>
                 Ready
               </Typography>
@@ -379,9 +379,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.grey[500], 0.1), border: `1px solid ${theme.palette.grey[500]}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.total} color="default" max={999}>
+              <SafeBadge badgeContent={queueStats.total} color="primary" max={999}>
                 <OrderIcon color="action" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="text.primary" mt={1}>
                 Total
               </Typography>

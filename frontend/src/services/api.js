@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL === undefined ? 'http://localhost:8000' : process.env.REACT_APP_API_URL;
+// Use relative URL to work with proxy in development and direct routing in production
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

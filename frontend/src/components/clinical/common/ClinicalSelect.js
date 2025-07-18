@@ -88,7 +88,7 @@ const ClinicalSelect = ({
   const animation = getClinicalAnimation(theme, 'hover', enhancedContext);
   
   // Filter options based on search
-  const filteredOptions = options.filter(option => {
+  const filteredOptions = (options || []).filter(option => {
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -143,7 +143,7 @@ const ClinicalSelect = ({
       return optionRenderer(option);
     }
     
-    const isFrequent = frequentOptions.includes(option.value);
+    const isFrequent = (frequentOptions || []).includes(option.value);
     const severityColor = showSeverityIndicators && option.severity 
       ? getSeverityColor(theme, option.severity, enhancedContext)
       : null;
@@ -293,7 +293,7 @@ const ClinicalSelect = ({
         )}
         
         {/* Frequent options */}
-        {showFrequent && frequentOptions.length > 0 && !searchTerm && (
+        {showFrequent && frequentOptions && frequentOptions.length > 0 && !searchTerm && (
           <>
             <ListSubheader sx={{ backgroundColor: 'background.paper' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -304,7 +304,7 @@ const ClinicalSelect = ({
               </Box>
             </ListSubheader>
             {options
-              .filter(opt => frequentOptions.includes(opt.value))
+              .filter(opt => (frequentOptions || []).includes(opt.value))
               .map(option => (
                 <MenuItem key={option.value} value={option.value}>
                   {renderOption(option)}

@@ -387,8 +387,8 @@ const EnhancedConditionFormFields = ({
           }}
         >
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-            <InfoIcon fontSize="small" color="info" />
-            <Typography variant="subtitle2" color="info.main">
+            <InfoIcon fontSize="small" sx={{ color: theme.palette.info?.main || '#2196f3' }} />
+            <Typography variant="subtitle2" sx={{ color: theme.palette.info?.main || '#2196f3' }}>
               Condition Summary
             </Typography>
           </Stack>

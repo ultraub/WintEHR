@@ -81,7 +81,7 @@ import RefillManagement from '../../medications/RefillManagement';
 import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
 import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
 import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
 import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
 import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
@@ -1708,6 +1708,7 @@ const SocialHistory = ({ observations, patientId, department }) => {
 
 const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const { 
+    resources,
     getPatientResources, 
     searchResources, 
     searchWithInclude,
@@ -2075,12 +2076,42 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     });
   };
 
-  // State for optimized resource loading
-  const [conditions, setConditions] = useState([]);
-  const [medications, setMedications] = useState([]);
-  const [allergies, setAllergies] = useState([]);
-  const [observations, setObservations] = useState([]);
-  const [immunizations, setImmunizations] = useState([]);
+  // Get resources from context instead of loading separately
+  const conditions = useMemo(() => 
+    Object.values(resources.Condition || {}).filter(c => 
+      c.subject?.reference === `Patient/${patientId}` || 
+      c.subject?.reference === `urn:uuid:${patientId}` ||
+      c.patient?.reference === `Patient/${patientId}` ||
+      c.patient?.reference === `urn:uuid:${patientId}`
+    ), [resources.Condition, patientId]);
+    
+  const medications = useMemo(() => 
+    Object.values(resources.MedicationRequest || {}).filter(m => 
+      m.subject?.reference === `Patient/${patientId}` || 
+      m.subject?.reference === `urn:uuid:${patientId}` ||
+      m.patient?.reference === `Patient/${patientId}` ||
+      m.patient?.reference === `urn:uuid:${patientId}`
+    ), [resources.MedicationRequest, patientId]);
+    
+  const allergies = useMemo(() => 
+    Object.values(resources.AllergyIntolerance || {}).filter(a => 
+      a.patient?.reference === `Patient/${patientId}` ||
+      a.patient?.reference === `urn:uuid:${patientId}`
+    ), [resources.AllergyIntolerance, patientId]);
+    
+  const observations = useMemo(() => 
+    Object.values(resources.Observation || {}).filter(o => 
+      o.subject?.reference === `Patient/${patientId}` || 
+      o.subject?.reference === `urn:uuid:${patientId}` ||
+      o.patient?.reference === `Patient/${patientId}` ||
+      o.patient?.reference === `urn:uuid:${patientId}`
+    ), [resources.Observation, patientId]);
+    
+  const immunizations = useMemo(() => 
+    Object.values(resources.Immunization || {}).filter(i => 
+      i.patient?.reference === `Patient/${patientId}`
+    ), [resources.Immunization, patientId]);
+    
   const [loadingOptimized, setLoadingOptimized] = useState(false);
 
   // Optimized resource loading with batch requests and server-side filtering
@@ -2159,55 +2190,22 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       // Process batch response
       const entries = batchResult.entry || [];
       
-      // Extract conditions from first response
-      const conditionsBundle = entries[0]?.resource;
-      const conditionsResources = conditionsBundle?.entry?.map(e => e.resource) || [];
-      setConditions(conditionsResources);
-
-      // Extract medications from second response (including _include results)
-      const medicationsBundle = entries[1]?.resource;
-      const medicationsResources = medicationsBundle?.entry?.map(e => e.resource) || [];
-      const medicationRequests = medicationsResources.filter(r => r.resourceType === 'MedicationRequest');
-      setMedications(medicationRequests);
-
-      // Extract allergies from third response
-      const allergiesBundle = entries[2]?.resource;
-      const allergiesResources = allergiesBundle?.entry?.map(e => e.resource) || [];
-      setAllergies(allergiesResources);
-
-      // Extract observations from fourth response
-      const observationsBundle = entries[3]?.resource;
-      const observationsResources = observationsBundle?.entry?.map(e => e.resource) || [];
-      setObservations(observationsResources);
-
-      // Extract immunizations from fifth response
-      const immunizationsBundle = entries[4]?.resource;
-      const immunizationsResources = immunizationsBundle?.entry?.map(e => e.resource) || [];
-      setImmunizations(immunizationsResources);
+      // Resources are now loaded from context, no need to set local state
+      // The batch request results are ignored since we use shared resources
 
     } catch (error) {
       console.error('Error loading optimized resources:', error);
-      // Fallback to original method if optimized fails
-      const fallbackConditions = getPatientResources(patientId, 'Condition') || [];
-      const fallbackMedications = getPatientResources(patientId, 'MedicationRequest') || [];
-      const fallbackAllergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
-      const fallbackObservations = getPatientResources(patientId, 'Observation') || [];
-      const fallbackImmunizations = getPatientResources(patientId, 'Immunization') || [];
-      
-      setConditions(fallbackConditions);
-      setMedications(fallbackMedications);
-      setAllergies(fallbackAllergies);
-      setObservations(fallbackObservations);
-      setImmunizations(fallbackImmunizations);
+      // Fallback - resources are already available from context
     } finally {
       setLoadingOptimized(false);
     }
   }, [patientId, searchResources, searchWithInclude, getPatientResources]);
 
-  // Load optimized resources on patient change
-  useEffect(() => {
-    loadOptimizedResources();
-  }, [loadOptimizedResources]);
+  // Load optimized resources on patient change - DISABLED to prevent duplicate requests
+  // Resources are already loaded by the parent component through fetchPatientBundle
+  // useEffect(() => {
+  //   loadOptimizedResources();
+  // }, [loadOptimizedResources]);
   
   // Resources are now loaded automatically via optimized loading
 

@@ -20,10 +20,10 @@ import {
   DialogActions,
   Alert,
   Tooltip,
-  Badge,
   useTheme,
   alpha
 } from '@mui/material';
+import SafeBadge from '../common/SafeBadge';
 import {
   Schedule as PendingIcon,
   VerifiedUser as VerifyIcon,
@@ -323,7 +323,7 @@ const QueueColumn = ({ column, prescriptions, onStatusChange, onViewDetails }) =
             <Typography variant="h6" fontWeight="bold">
               {columnConfig.title}
             </Typography>
-            <Badge 
+            <SafeBadge 
               badgeContent={prescriptions.length} 
               color={columnConfig.color}
               max={99}

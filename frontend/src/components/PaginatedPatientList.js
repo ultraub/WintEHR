@@ -15,7 +15,6 @@ import {
   DialogContent,
   Tabs,
   Tab,
-  Badge,
   Tooltip,
   CircularProgress,
   TablePagination,
@@ -25,6 +24,7 @@ import {
   useMediaQuery,
   useTheme
 } from '@mui/material';
+import SafeBadge from './common/SafeBadge';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -328,7 +328,7 @@ function PaginatedPatientList() {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 My Patients
-                <Badge badgeContent={myPatientsCount} color="primary" />
+                <SafeBadge badgeContent={myPatientsCount} color="primary" />
               </Box>
             } 
           />

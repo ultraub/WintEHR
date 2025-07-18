@@ -62,9 +62,13 @@ export const getClinicalColors = (theme, context) => {
   
   // Apply department-specific colors
   if (theme.clinical?.departments?.[department]) {
+    const deptColor = theme.clinical.departments[department].primary;
+    // Ensure we maintain the full color structure that MUI expects
     colors.primary = {
-      ...colors.primary,
-      main: theme.clinical.departments[department].primary
+      main: deptColor,
+      light: theme.palette.primary?.light || deptColor,
+      dark: theme.palette.primary?.dark || deptColor,
+      contrastText: theme.palette.primary?.contrastText || '#FFFFFF'
     };
     colors.clinical = {
       ...colors.clinical,
@@ -84,8 +88,10 @@ export const getClinicalColors = (theme, context) => {
   // Apply urgency adjustments
   if (urgency === 'urgent') {
     colors.error = {
-      ...colors.error,
-      main: lighten(colors.error.main, 0.1)
+      main: lighten(colors.error.main, 0.1),
+      light: colors.error.light ? lighten(colors.error.light, 0.1) : lighten(colors.error.main, 0.2),
+      dark: colors.error.dark ? lighten(colors.error.dark, 0.1) : colors.error.main,
+      contrastText: colors.error.contrastText || '#FFFFFF'
     };
   }
   
@@ -276,13 +282,11 @@ export const applyDepartmentTheme = (theme, department) => {
   const deptContext = getDepartmentContext(department);
   const deptColors = getClinicalColors(theme, { department });
   
+  // getClinicalColors returns just the colors object, not { palette: colors }
+  // So we need to use deptColors directly
   return {
     ...theme,
-    palette: {
-      ...theme.palette,
-      ...deptColors.palette,
-      department: deptColors.palette
-    },
+    palette: deptColors,
     clinical: {
       ...theme.clinical,
       department: deptContext,

@@ -1,13 +1,13 @@
 /**
- * Edit Medication Dialog Component (Migrated to BaseResourceDialog)
- * Uses the new BaseResourceDialog pattern for consistent UX
+ * Edit Medication Dialog Component (Enhanced with Clinical Theming)
+ * Uses the new EnhancedBaseResourceDialog for clinical context-aware theming
  */
 import React from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Button } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
-import BaseResourceDialog from '../../../base/BaseResourceDialog';
+import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';
 import MedicationFormFields from './components/MedicationFormFields';
 import {
   validationRules,
@@ -93,7 +93,7 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <BaseResourceDialog
+      <EnhancedBaseResourceDialog
         // Dialog props
         open={open}
         onClose={onClose}
@@ -118,9 +118,21 @@ const EditMedicationDialog = ({ open, onClose, onSave, onDelete, medicationReque
         showPreview={true}
         showCancel={true}
         customActions={customActions}
+        
+        // Clinical context
+        clinicalContext="pharmacy"
+        patientId={patientId}
+        
+        // Enhanced features
+        showCDSHooks={true}
+        showResourceInfo={true}
+        enableAutoSave={false}
+        
+        // Pharmacy-specific theming
+        primaryColor="pharmacy"
       >
         <MedicationFormFields />
-      </BaseResourceDialog>
+      </EnhancedBaseResourceDialog>
     </LocalizationProvider>
   );
 };

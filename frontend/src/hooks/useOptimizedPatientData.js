@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { subDays } from 'date-fns';
 
 export function useOptimizedPatientData(patientId, tabName, options = {}) {

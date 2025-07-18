@@ -76,7 +76,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import axios from 'axios';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import VirtualizedList from '../../../common/VirtualizedList';

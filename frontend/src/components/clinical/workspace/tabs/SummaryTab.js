@@ -43,7 +43,7 @@ import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from
 import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
 import { useStableCallback } from '../../../../hooks/useStableReferences';
 import { useNavigate } from 'react-router-dom';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -124,6 +124,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     relationships,
     isCacheWarm 
   } = useFHIRResource();
+  
   const { subscribe, publish } = useClinicalWorkflow();
   
   const [loading, setLoading] = useState(true);
@@ -206,39 +207,58 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }, [loadSummaryStats]);
 
   // Get resources from context - these are already cached and shared
-  const conditions = useMemo(() => 
-    Object.values(resources.Condition || {}).filter(c => 
+  const conditions = useMemo(() => {
+    console.log('[SummaryTab] Raw Condition resources:', resources.Condition);
+    const filtered = Object.values(resources.Condition || {}).filter(c => 
       c.subject?.reference === `Patient/${patientId}` || 
-      c.patient?.reference === `Patient/${patientId}`
-    ), [resources.Condition, patientId]);
+      c.subject?.reference === `urn:uuid:${patientId}` ||
+      c.patient?.reference === `Patient/${patientId}` ||
+      c.patient?.reference === `urn:uuid:${patientId}`
+    );
+    console.log('[SummaryTab] Filtered conditions:', filtered);
+    return filtered;
+  }, [resources.Condition, patientId]);
   
-  const medications = useMemo(() => 
-    Object.values(resources.MedicationRequest || {}).filter(m => 
+  const medications = useMemo(() => {
+    console.log('[SummaryTab] Raw MedicationRequest resources:', resources.MedicationRequest);
+    const filtered = Object.values(resources.MedicationRequest || {}).filter(m => 
       m.subject?.reference === `Patient/${patientId}` || 
-      m.patient?.reference === `Patient/${patientId}`
-    ), [resources.MedicationRequest, patientId]);
+      m.subject?.reference === `urn:uuid:${patientId}` ||
+      m.patient?.reference === `Patient/${patientId}` ||
+      m.patient?.reference === `urn:uuid:${patientId}`
+    );
+    console.log('[SummaryTab] Filtered medications:', filtered);
+    return filtered;
+  }, [resources.MedicationRequest, patientId]);
   
   const observations = useMemo(() => 
     Object.values(resources.Observation || {}).filter(o => 
       o.subject?.reference === `Patient/${patientId}` || 
-      o.patient?.reference === `Patient/${patientId}`
+      o.subject?.reference === `urn:uuid:${patientId}` ||
+      o.patient?.reference === `Patient/${patientId}` ||
+      o.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.Observation, patientId]);
   
   const encounters = useMemo(() => 
     Object.values(resources.Encounter || {}).filter(e => 
       e.subject?.reference === `Patient/${patientId}` || 
-      e.patient?.reference === `Patient/${patientId}`
+      e.subject?.reference === `urn:uuid:${patientId}` ||
+      e.patient?.reference === `Patient/${patientId}` ||
+      e.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.Encounter, patientId]);
   
   const allergies = useMemo(() => 
     Object.values(resources.AllergyIntolerance || {}).filter(a => 
-      a.patient?.reference === `Patient/${patientId}`
+      a.patient?.reference === `Patient/${patientId}` ||
+      a.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.AllergyIntolerance, patientId]);
 
   const serviceRequests = useMemo(() => 
     Object.values(resources.ServiceRequest || {}).filter(s => 
       s.subject?.reference === `Patient/${patientId}` || 
-      s.patient?.reference === `Patient/${patientId}`
+      s.subject?.reference === `urn:uuid:${patientId}` ||
+      s.patient?.reference === `Patient/${patientId}` ||
+      s.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.ServiceRequest, patientId]);
 
   // Define loadDashboardData function with stable callback to prevent infinite loops
@@ -324,17 +344,38 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   useEffect(() => {
     if (!patientId) return;
     
+    console.log('[SummaryTab] Resource check:', {
+      patientId,
+      conditions: conditions.length,
+      medications: medications.length,
+      observations: observations.length,
+      encounters: encounters.length,
+      isLoading: isResourceLoading(patientId),
+      isCacheWarm: isCacheWarm(patientId)
+    });
+    
     // Check if we have any resources loaded for this patient
     const hasAnyResources = conditions.length > 0 || medications.length > 0 || observations.length > 0 || encounters.length > 0;
     
     if (hasAnyResources) {
       // We have resources, process them
+      console.log('[SummaryTab] Processing resources...');
       loadDashboardData();
       setLoading(false);
     } else {
-      // No resources yet, show loading if cache isn't warm
-      if (!isCacheWarm(patientId)) {
+      // No resources yet, check if we're already loading from context
+      if (isResourceLoading(patientId)) {
+        console.log('[SummaryTab] Resources are loading from context...');
         setLoading(true);
+      } else if (!isCacheWarm(patientId)) {
+        // Cache isn't warm and we're not loading, trigger a fetch
+        console.log('[SummaryTab] Cache not warm, fetching patient bundle...');
+        setLoading(true);
+        fetchPatientBundle(patientId, false, 'critical');
+      } else {
+        // Cache is warm but no resources - patient might have no data
+        console.log('[SummaryTab] Cache is warm but no resources found');
+        setLoading(false);
       }
     }
   }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length]);

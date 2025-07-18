@@ -552,6 +552,12 @@ const warmClinicalPalette = {
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
+  default: {
+    main: '#718096', // A neutral gray for default badges in warm mode
+    light: '#A0AEC0',
+    dark: '#4A5568',
+    contrastText: '#FFFFFF'
+  },
   // Clinical-specific semantic tokens (warm)
   clinical: {
     surfaces: {

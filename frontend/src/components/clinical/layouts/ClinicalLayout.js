@@ -136,7 +136,7 @@ const ClinicalLayout = ({
   };
   
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Enhanced App Bar */}
       <AppBar 
         position="fixed" 
@@ -241,16 +241,16 @@ const ClinicalLayout = ({
         sx={{
           flexGrow: 1,
           p: spacing,
-          mt: 8, // Account for AppBar height
+          overflowY: 'auto', // Enable scrolling
+          mt: '64px', // Fixed AppBar height
           backgroundColor: clinicalTheme.palette.background.default,
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 64px)', // Subtract AppBar height
           transition: `all ${headerAnimation.duration}ms ${headerAnimation.easing}`
         }}
       >
         {/* Patient Context Bar */}
         {showPatientInfo && patientContext && (
-          <Slide direction="down" in timeout={600}>
-            <Paper
+          <Paper
               elevation={1}
               sx={{
                 p: spacing,
@@ -276,27 +276,14 @@ const ClinicalLayout = ({
                 />
               </Stack>
             </Paper>
-          </Slide>
         )}
         
-        {/* Welcome Message */}
-        <Fade in timeout={1200}>
-          <Box sx={{ mb: spacing * 2 }}>
-            <Typography variant="h4" gutterBottom sx={{ color: departmentColor }}>
-              {getGreeting()}
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              {department !== 'general' ? `${department.charAt(0).toUpperCase() + department.slice(1)} Department` : 'General Clinical View'}
-            </Typography>
-          </Box>
-        </Fade>
+        {/* Removed Welcome Message to save space and focus on clinical data */}
         
-        {/* Main Content */}
-        <Fade in timeout={1500}>
-          <Box>
-            {children}
-          </Box>
-        </Fade>
+        {/* Main Content - Removed fade animation for faster rendering */}
+        <Box>
+          {children}
+        </Box>
       </Box>
     </Box>
   );

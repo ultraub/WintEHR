@@ -16,8 +16,8 @@ import {
   Alert,
   Button,
   IconButton,
-  Badge,
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import {
   People as PeopleIcon,
   EventNote as EventNoteIcon,
@@ -620,11 +620,11 @@ function Dashboard() {
           </Typography>
         </div>
         {criticalAlerts.length > 0 && (
-          <Badge badgeContent={criticalAlerts.length} color="error">
+          <SafeBadge badgeContent={criticalAlerts.length} color="error">
             <IconButton color="error" onClick={() => navigate('/alerts')}>
               <NotificationsIcon />
             </IconButton>
-          </Badge>
+          </SafeBadge>
         )}
       </Box>
 
