@@ -56,7 +56,6 @@ import {
   Explore as ExploreIcon,
   Build as BuildIcon,
   Visibility as VisibilityIcon,
-  School as SchoolIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
   Share as ShareIcon,
@@ -107,13 +106,6 @@ const QUICK_ACTIONS = [
     color: '#7b1fa2',
     mode: APP_MODES.VISUALIZATION,
     view: VISUALIZATION_VIEWS.CHARTS
-  },
-  {
-    title: 'Start Learning',
-    description: 'Interactive FHIR tutorials and guides',
-    icon: <SchoolIcon />,
-    color: '#c2185b',
-    mode: APP_MODES.LEARNING
   }
 ];
 

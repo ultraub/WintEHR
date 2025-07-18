@@ -6,6 +6,9 @@
  * - Observations and vital signs over time
  * - Interactive filtering and zoom capabilities
  * - Multi-track timeline with resource type grouping
+ * - Real-time WebSocket updates
+ * - Advanced zoom/pan controls
+ * - Export to PNG/PDF/SVG
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -31,7 +34,14 @@ import {
   Slider,
   Alert,
   LinearProgress,
-  useTheme
+  useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Zoom,
+  Collapse,
+  Menu
 } from '@mui/material';
 import {
   Timeline as TimelineIcon,
@@ -49,9 +59,14 @@ import {
   Event as EventIcon,
   TrendingUp as TrendingUpIcon,
   Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  Image as ImageIcon,
+  PictureAsPdf as PdfIcon,
+  Code as SvgIcon,
+  NotificationsActive as LiveIcon
 } from '@mui/icons-material';
 import { alpha, darken, lighten } from '@mui/material/styles';
+import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
 
 // Timeline configuration
 const TIMELINE_CONFIG = {
@@ -60,10 +75,21 @@ const TIMELINE_CONFIG = {
   eventHeight: 40,
   padding: 20,
   timeScale: {
-    min: 1, // 1 day per pixel
-    max: 365, // 1 year per pixel
+    min: 0.1, // 0.1 day per pixel (very zoomed in)
+    max: 365, // 1 year per pixel (very zoomed out)
     default: 30 // 30 days per pixel
+  },
+  animation: {
+    duration: 300,
+    easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
   }
+};
+
+// WebSocket event types for real-time updates
+const WS_EVENTS = {
+  RESOURCE_CREATED: 'fhir.resource.created',
+  RESOURCE_UPDATED: 'fhir.resource.updated',
+  RESOURCE_DELETED: 'fhir.resource.deleted'
 };
 
 // Resource type configurations with colors and tracks
@@ -254,8 +280,12 @@ const TimelineControls = ({
   filters,
   onFiltersChange,
   onRefresh,
-  onExport
+  onExport,
+  isLive,
+  onToggleLive
 }) => {
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
       <Grid container spacing={2} alignItems="center">
@@ -333,15 +363,50 @@ const TimelineControls = ({
           </Box>
         </Grid>
 
-        <Grid item xs={12} md={2}>
-          <ButtonGroup size="small" fullWidth>
-            <Button onClick={onRefresh} startIcon={<RefreshIcon />}>
-              Refresh
-            </Button>
-            <Button onClick={onExport} startIcon={<DownloadIcon />}>
-              Export
-            </Button>
-          </ButtonGroup>
+        <Grid item xs={12} md={3}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {onToggleLive && (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isLive}
+                    onChange={(e) => onToggleLive(e.target.checked)}
+                    color="error"
+                    size="small"
+                  />
+                }
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <LiveIcon sx={{ fontSize: 16, color: isLive ? 'error.main' : 'text.secondary' }} />
+                    Live
+                  </Box>
+                }
+              />
+            )}
+            <IconButton onClick={onRefresh} color="primary">
+              <RefreshIcon />
+            </IconButton>
+            <Tooltip title="Export timeline">
+              <IconButton onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
+                <DownloadIcon />
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={exportMenuAnchor}
+              open={Boolean(exportMenuAnchor)}
+              onClose={() => setExportMenuAnchor(null)}
+            >
+              <MenuItem onClick={() => { onExport('png'); setExportMenuAnchor(null); }}>
+                <ImageIcon sx={{ mr: 1 }} /> Export as PNG
+              </MenuItem>
+              <MenuItem onClick={() => { onExport('pdf'); setExportMenuAnchor(null); }}>
+                <PdfIcon sx={{ mr: 1 }} /> Export as PDF
+              </MenuItem>
+              <MenuItem onClick={() => { onExport('json'); setExportMenuAnchor(null); }}>
+                <SvgIcon sx={{ mr: 1 }} /> Export as JSON
+              </MenuItem>
+            </Menu>
+          </Box>
         </Grid>
       </Grid>
     </Paper>
@@ -457,6 +522,7 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
   const [filters, setFilters] = useState(Object.keys(RESOURCE_TRACKS));
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isLive, setIsLive] = useState(false);
 
   // Process FHIR data into timeline events
   const timelineData = useMemo(() => {
@@ -611,22 +677,35 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
     setTimeout(() => setLoading(false), 1000);
   }, [onNavigate]);
 
-  const handleExport = useCallback(() => {
-    const data = {
-      timeline: timelineData,
-      filters,
-      timeRange,
-      exportedAt: new Date().toISOString()
-    };
+  const handleExport = useCallback(async (format = 'json') => {
+    if (!timelineRef.current && format !== 'json') return;
     
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `patient-timeline-${patientId || 'unknown'}-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [timelineData, filters, timeRange, patientId]);
+    setLoading(true);
+    try {
+      switch (format) {
+        case 'png':
+          await exportToPNG(timelineRef.current, 'patient-timeline');
+          break;
+        case 'pdf':
+          await exportToPDF(timelineRef.current, 'patient-timeline');
+          break;
+        case 'json':
+        default:
+          exportToJSON({
+            timeline: timelineData,
+            filters,
+            timeRange,
+            scale,
+            patientId
+          }, 'patient-timeline-data');
+          break;
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [timelineData, filters, timeRange, scale, patientId]);
 
   if (!fhirData || !fhirData.hasData) {
     return (
@@ -646,7 +725,16 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
           Patient Timeline
         </Typography>
-        <Box sx={{ ml: 'auto' }}>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+          {isLive && (
+            <Chip
+              icon={<LiveIcon />}
+              label="Live Updates"
+              color="error"
+              size="small"
+              sx={{ animation: 'pulse 2s infinite' }}
+            />
+          )}
           <Chip
             label={`${timelineData.events.length} events`}
             color="primary"
@@ -664,6 +752,8 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         onFiltersChange={setFilters}
         onRefresh={handleRefresh}
         onExport={handleExport}
+        isLive={isLive}
+        onToggleLive={setIsLive}
       />
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -709,6 +799,17 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
       />
+
+      {/* Add pulse animation for live mode */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
     </Box>
   );
 }

@@ -40,7 +40,6 @@ import {
   Build as BuildIcon,
   Visibility as VisibilityIcon,
   Work as WorkspaceIcon,
-  School as SchoolIcon,
   Lightbulb as LightbulbIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
@@ -52,14 +51,12 @@ import {
   ExpandMore,
   ExpandLess,
   FiberManualRecord,
-  Analytics as AnalyticsIcon,
   Memory as MemoryIcon,
   Share as ShareIcon,
   Code as CodeIcon,
   Timeline as TimelineIcon,
   Hub as HubIcon,
   Schema as SchemaIcon,
-  Psychology as PsychologyIcon,
   Chat as ChatIcon,
   Playground as PlaygroundIcon,
   BarChart as ChartIcon,
@@ -118,11 +115,6 @@ const NAVIGATION_STRUCTURE = {
         icon: <ChatIcon />,
         description: 'Query in plain English'
       },
-      [QUERY_VIEWS.AI_ASSISTANT]: {
-        label: 'AI Assistant',
-        icon: <PsychologyIcon />,
-        description: 'AI-powered query help'
-      },
       [QUERY_VIEWS.PLAYGROUND]: {
         label: 'Playground',
         icon: <CodeIcon />,
@@ -151,11 +143,6 @@ const NAVIGATION_STRUCTURE = {
         icon: <NetworkIcon />,
         description: 'Resource relationship networks'
       },
-      [VISUALIZATION_VIEWS.ANALYTICS]: {
-        label: 'Population Analytics',
-        icon: <AnalyticsIcon />,
-        description: 'Population health insights'
-      }
     }
   },
   [APP_MODES.WORKSPACE]: {
@@ -163,12 +150,6 @@ const NAVIGATION_STRUCTURE = {
     icon: <WorkspaceIcon />,
     description: 'Save and manage queries',
     color: '#5d4037'
-  },
-  [APP_MODES.LEARNING]: {
-    label: 'Learning',
-    icon: <SchoolIcon />,
-    description: 'Tutorials and guidance',
-    color: '#c2185b'
   }
 };
 
