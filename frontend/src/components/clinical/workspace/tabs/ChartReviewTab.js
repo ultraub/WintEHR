@@ -383,7 +383,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         
         {/* Filter Chips */}
         <Stack direction="row" spacing={1} sx={{ mt: 2 }} role="group" aria-label="Problem list filters">
-        <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
               <Chip 
                 label={`${activeCount} Active`} 
                 size="small" 
@@ -454,119 +453,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   }
                 }}
               />
-            </Stack>
-      }
-      actions={
-        <Stack direction="row" spacing={0.5}>
-          <Tooltip title="Advanced Filters">
-              <IconButton 
-                size="small" 
-                color={showAdvancedFilters ? "primary" : "default"}
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                aria-label="Toggle advanced filtering options"
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <TuneIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Sort by Severity">
-              <IconButton 
-                size="small"
-                color={sortBySeverity ? "primary" : "default"}
-                onClick={() => setSortBySeverity(!sortBySeverity)}
-                aria-label="Sort problems by severity (severe first)"
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <SortIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Add Problem">
-              <IconButton 
-                size="small" 
-                color="primary" 
-                onClick={() => setShowAddDialog(true)}
-                aria-label="Add new problem to patient chart"
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="View History">
-              <IconButton 
-                size="small"
-                aria-label="View problem history for this patient"
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <HistoryIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Export">
-              <IconButton 
-                size="small"
-                onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                aria-label="Export problem list data"
-                aria-haspopup="menu"
-                aria-expanded={Boolean(exportAnchorEl)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <ExportIcon />
-              </IconButton>
-            </Tooltip>
-          <Chip 
-            label={`${activeCount} Active`} 
-            size="small" 
-            color="primary"
-            variant={filter === 'active' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('active')}
-            component="button"
-            sx={{ borderRadius: 1 }}
-          />
-          <Chip 
-            label={`${resolvedCount} Resolved`} 
-            size="small" 
-            variant={filter === 'resolved' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('resolved')}
-            component="button"
-            sx={{ borderRadius: 1 }}
-          />
-          <Chip 
-            label="All" 
-            size="small" 
-            variant={filter === 'all' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('all')}
-            component="button"
-            sx={{ borderRadius: 1 }}
-          />
         </Stack>
       </Box>
       
@@ -897,7 +783,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           Export as PDF
         </MenuItem>
       </Menu>
-      </Box>
     </Paper>
   );
 };

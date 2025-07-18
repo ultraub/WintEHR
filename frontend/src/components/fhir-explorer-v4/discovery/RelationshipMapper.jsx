@@ -154,8 +154,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const simulationRef = useRef(null);
   const zoomRef = useRef(null);
 
-  // Get FHIR data hook
-  const { resources } = useFHIRData ? useFHIRData() : { resources: {} };
+  // Get FHIR data - useFHIRData is a hook function passed as prop
+  const fhirData = useFHIRData?.();
+  const resources = fhirData?.resources || {};
 
   // Fetch relationship schema on mount
   useEffect(() => {

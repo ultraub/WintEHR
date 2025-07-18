@@ -269,7 +269,12 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       maxWidth="lg"
       fullWidth
       PaperProps={{
-        sx: { height: '80vh' }
+        sx: { 
+          height: '80vh',
+          borderRadius: 0,
+          border: '1px solid',
+          borderColor: 'divider'
+        }
       }}
     >
       <DialogTitle sx={{ 
@@ -282,7 +287,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           <Stack direction="row" spacing={2} alignItems="center">
             <Box sx={{ 
               p: 1.5, 
-              borderRadius: 2, 
+              borderRadius: 0, 
               bgcolor: theme.palette.background.paper,
               color: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main,
               boxShadow: theme.shadows[1]
@@ -320,7 +325,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               <Box sx={{ 
                 width: 6, 
                 height: 40, 
-                borderRadius: 1,
+                borderRadius: 0,
                 bgcolor: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main 
               }} />
               <Typography variant="h6" fontWeight="600">
@@ -459,7 +464,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               <Box sx={{ 
                 width: 6, 
                 height: 40, 
-                borderRadius: 1,
+                borderRadius: 0,
                 bgcolor: theme.palette.secondary.main 
               }} />
               <Typography variant="h6" fontWeight="600">
@@ -470,7 +475,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Observations */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -489,7 +494,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.primary.main + '20',
                       color: theme.palette.primary.main,
                       display: 'flex',
@@ -598,7 +603,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Procedures */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -617,7 +622,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.secondary.main + '20',
                       color: theme.palette.secondary.main,
                       display: 'flex',
@@ -724,7 +729,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Medications */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -743,7 +748,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.success.main + '20',
                       color: theme.palette.success.main,
                       display: 'flex',
@@ -859,7 +864,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
 
             {/* Diagnoses */}
             <Card sx={{ 
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -878,7 +883,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.warning.main + '20',
                       color: theme.palette.warning.main,
                       display: 'flex',
@@ -1012,7 +1017,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Box sx={{ 
                     p: 1, 
-                    borderRadius: 1.5,
+                    borderRadius: 0,
                     bgcolor: theme.palette.info.main + '20',
                     color: theme.palette.info.main,
                     display: 'flex',

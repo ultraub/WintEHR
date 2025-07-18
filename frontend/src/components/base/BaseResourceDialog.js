@@ -259,6 +259,13 @@ const BaseResourceDialog = ({
       onClose={handleClose}
       maxWidth={maxWidth}
       fullWidth={fullWidth}
+      sx={{
+        '& .MuiDialog-paper': {
+          borderRadius: 0,
+          border: '1px solid',
+          borderColor: 'divider'
+        }
+      }}
       {...dialogProps}
     >
       {/* Dialog Title */}
@@ -306,7 +313,7 @@ const BaseResourceDialog = ({
             <Alert severity="info" sx={{ mb: 2 }}>
               Review the information below before saving.
             </Alert>
-            <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 0 }}>
               {renderPreview ? (
                 renderPreview(formData)
               ) : (

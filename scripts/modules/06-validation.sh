@@ -404,7 +404,74 @@ else
 fi
 
 # =============================================================================
-# Phase 3: API Endpoint Validation
+# Phase 3: Comprehensive FHIR Table Validation
+# =============================================================================
+
+section "🗄️ Comprehensive FHIR Table Validation"
+
+log "Running comprehensive FHIR table verification..."
+
+# Check if comprehensive verification script exists
+if docker exec emr-backend test -f /app/scripts/verify_all_fhir_tables.py; then
+    FHIR_TABLE_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/verify_all_fhir_tables.py" 2>&1)
+    FHIR_TABLE_EXIT_CODE=$?
+    
+    if [ "$FHIR_TABLE_EXIT_CODE" -eq "0" ]; then
+        if echo "$FHIR_TABLE_RESULT" | grep -q "All FHIR tables are healthy"; then
+            validate_test "FHIR Table Health" "PASS" "All tables healthy"
+        else
+            validate_test "FHIR Table Health" "WARN" "Tables have minor issues"
+        fi
+    else
+        validate_test "FHIR Table Health" "FAIL" "Critical table issues found"
+        
+        # Extract specific issues
+        if echo "$FHIR_TABLE_RESULT" | grep -q "No compartments found"; then
+            warning "Compartments table is empty - Patient/\$everything will not work"
+        fi
+        if echo "$FHIR_TABLE_RESULT" | grep -q "No search parameters found"; then
+            warning "Search parameters missing - searches will not work"
+        fi
+        if echo "$FHIR_TABLE_RESULT" | grep -q "No audit logs found"; then
+            warning "FHIR operations are not being audited"
+        fi
+    fi
+    
+    # Show table statistics
+    log "FHIR Table Statistics:"
+    echo "$FHIR_TABLE_RESULT" | grep "✅" | while read -r line; do
+        log "  $line"
+    done
+    
+else
+    warning "Comprehensive FHIR table verification script not found"
+fi
+
+# Check individual table health
+log "Checking individual FHIR tables..."
+
+# Check resources table
+RESOURCES_COUNT=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM fhir.resources WHERE deleted = false OR deleted IS NULL" 2>/dev/null | tr -d ' ' || echo "0")
+validate_test "Resources Table" $([ "$RESOURCES_COUNT" -gt "0" ] && echo "PASS" || echo "FAIL") "Count: $RESOURCES_COUNT"
+
+# Check resource_history table
+HISTORY_COUNT=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM fhir.resource_history" 2>/dev/null | tr -d ' ' || echo "0")
+validate_test "Resource History Table" $([ "$HISTORY_COUNT" -gt "0" ] && echo "PASS" || echo "WARN") "Count: $HISTORY_COUNT"
+
+# Check references table
+REFERENCES_COUNT=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM fhir.references" 2>/dev/null | tr -d ' ' || echo "0")
+validate_test "References Table" $([ "$REFERENCES_COUNT" -gt "0" ] && echo "PASS" || echo "WARN") "Count: $REFERENCES_COUNT"
+
+# Check compartments table
+COMPARTMENTS_COUNT=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM fhir.compartments WHERE compartment_type = 'Patient'" 2>/dev/null | tr -d ' ' || echo "0")
+validate_test "Compartments Table" $([ "$COMPARTMENTS_COUNT" -gt "0" ] && echo "PASS" || echo "FAIL") "Patient compartments: $COMPARTMENTS_COUNT"
+
+# Check audit_logs table
+AUDIT_COUNT=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM fhir.audit_logs" 2>/dev/null | tr -d ' ' || echo "0")
+validate_test "Audit Logs Table" $([ "$AUDIT_COUNT" -gt "0" ] && echo "PASS" || echo "WARN") "Count: $AUDIT_COUNT (FHIR auditing may be disabled)"
+
+# =============================================================================
+# Phase 4: API Endpoint Validation
 # =============================================================================
 
 section "🌐 API Endpoint Validation"

@@ -348,26 +348,7 @@ else
     fi
 fi
 
-# Step 5: Populate patient compartments
-log "👥 Populating patient compartments..."
-
-COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
-
-if echo "$COMPARTMENT_RESULT" | grep -q "Successfully created .* compartment entries"; then
-    # Extract statistics if available
-    COMPARTMENTS_CREATED=$(echo "$COMPARTMENT_RESULT" | grep -o "Successfully created [0-9]* compartment entries" | grep -o "[0-9]*" | head -1 || echo "unknown")
-    
-    success "Patient compartment population completed"
-    log "  Compartment entries created: $COMPARTMENTS_CREATED"
-elif echo "$COMPARTMENT_RESULT" | grep -q "COMPARTMENT_POPULATION_FAILED"; then
-    warning "Compartment population failed"
-    warning "System will continue but Patient/$everything operations may not work properly"
-    log "Error: $COMPARTMENT_RESULT"
-else
-    log "Compartment population output: $COMPARTMENT_RESULT"
-fi
-
-# Step 6: Populate compartments table
+# Step 5: Populate compartments table
 log "📦 Populating patient compartments for all resources..."
 
 COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
@@ -396,7 +377,7 @@ else
     log "Compartment population output: $COMPARTMENT_RESULT"
 fi
 
-# Fix CDS hooks schema if needed
+# Step 6: Fix CDS hooks schema if needed
 log "🔧 Checking CDS hooks schema..."
 
 CDS_HOOKS_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_cds_hooks_enabled_column.py" 2>&1 || echo "CDS_HOOKS_FIX_FAILED")
@@ -431,7 +412,7 @@ else
     warning "DICOM generation completed with warnings: $DICOM_GENERATION_RESULT"
 fi
 
-# Step 7: Validate cross-references and data integrity
+# Step 8: Validate cross-references and data integrity
 log "🔗 Validating data cross-references..."
 
 REFERENCE_VALIDATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -522,7 +503,7 @@ else
     warning "Reference validation completed with warnings: $REFERENCE_VALIDATION_RESULT"
 fi
 
-# Step 8: Performance optimizations based on mode
+# Step 9: Performance optimizations based on mode
 if [ "$MODE" = "production" ]; then
     log "⚡ Applying production performance optimizations..."
     
@@ -537,7 +518,7 @@ else
     log "Development mode - skipping heavy optimizations"
 fi
 
-# Step 9: Create processing summary
+# Step 10: Create processing summary
 log "📋 Creating data processing summary..."
 
 docker exec emr-backend bash -c "cd /app && python -c '
@@ -570,7 +551,7 @@ with open(\"/app/backend/data/processing_summary.json\", \"w\") as f:
 
 success "Processing summary created"
 
-# Step 10: Final data validation
+# Step 11: Final data validation
 log "🔍 Running final data validation..."
 
 FINAL_VALIDATION=$(docker exec emr-backend bash -c "cd /app && python -c '
