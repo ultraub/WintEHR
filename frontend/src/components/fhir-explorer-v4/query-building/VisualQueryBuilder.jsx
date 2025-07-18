@@ -296,20 +296,40 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
       const url = generateQueryUrl();
       
       // Execute using the FHIR service
-      const result = await executeFHIRQuery(query.resourceType, Object.fromEntries(new URLSearchParams(url.split('?')[1])));
+      // Parse parameters from URL if they exist
+      const urlParts = url.split('?');
+      const params = urlParts[1] ? Object.fromEntries(new URLSearchParams(urlParts[1])) : {};
+      
+      // Execute the query
+      const result = await executeFHIRQuery(query.resourceType, params);
       
       const executionTime = Date.now() - startTime;
       
+      // Handle both Bundle and array formats
+      let count = 0;
+      let resources = [];
+      
+      if (result && result.resourceType === 'Bundle') {
+        // FHIR Bundle format
+        count = result.total || (result.entry ? result.entry.length : 0);
+        resources = result.entry ? result.entry.map(e => e.resource) : [];
+      } else if (Array.isArray(result)) {
+        // Array format
+        count = result.length;
+        resources = result;
+      }
+      
       setResults({
         data: result,
-        count: result.total || result.entry?.length || 0,
+        resources: resources,
+        count: count,
         executionTime
       });
 
       // Add to history
       addToHistory({
         query: url,
-        resultCount: result.total || result.entry?.length || 0,
+        resultCount: count,
         executionTime,
         resourceType: query.resourceType
       });
