@@ -378,7 +378,7 @@ function QueryTemplates({ onLoadTemplate, onNavigate }) {
               {Object.entries(TEMPLATE_CATEGORIES).map(([key, category]) => (
                 <MenuItem key={key} value={key}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <category.icon sx={{ fontSize: 20, color: category.color }} />
+                    {React.createElement(category.icon, { sx: { fontSize: 20, color: category.color } })}
                     <Typography>{category.name}</Typography>
                   </Stack>
                 </MenuItem>
@@ -401,7 +401,7 @@ function QueryTemplates({ onLoadTemplate, onNavigate }) {
         <Box key={category} sx={{ mb: 4 }}>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
             <Avatar sx={{ bgcolor: TEMPLATE_CATEGORIES[category].color, width: 32, height: 32 }}>
-              <TEMPLATE_CATEGORIES[category].icon sx={{ fontSize: 20 }} />
+              {React.createElement(TEMPLATE_CATEGORIES[category].icon, { sx: { fontSize: 20 } })}
             </Avatar>
             <Box>
               <Typography variant="h6">{TEMPLATE_CATEGORIES[category].name}</Typography>

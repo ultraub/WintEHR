@@ -516,7 +516,7 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
                 {Object.entries(EXAMPLE_QUERIES).map(([category, data]) => (
                   <Box key={category}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <data.icon sx={{ fontSize: 18, mr: 1, color: 'primary.main' }} />
+                      {React.createElement(data.icon, { sx: { fontSize: 18, mr: 1, color: 'primary.main' } })}
                       <Typography variant="subtitle2">{data.title}</Typography>
                     </Box>
                     <Stack spacing={0.5}>
