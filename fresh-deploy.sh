@@ -255,6 +255,22 @@ generate_patient_data() {
     }
     
     success "Generated $PATIENT_COUNT patients with complete data"
+    
+    # Index search parameters for all resources
+    log "Indexing search parameters for FHIR resources..."
+    
+    # Check if consolidated script exists
+    if docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
+        docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index || {
+            warning "Search parameter indexing failed, trying to fix..."
+            docker exec emr-backend python scripts/consolidated_search_indexing.py --mode fix || {
+                warning "Search parameter fixing failed - searches may not work properly"
+            }
+        }
+        success "Search parameters indexed"
+    else
+        warning "Search parameter indexing script not found - searches may not work properly"
+    fi
 }
 
 # Function to start frontend

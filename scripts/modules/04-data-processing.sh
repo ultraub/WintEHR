@@ -289,22 +289,63 @@ fi
 # Step 4: Re-index search parameters for all resources
 log "🔍 Re-indexing search parameters for all resources..."
 
-SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/active/run_migration.py" 2>&1 || echo "SEARCH_PARAM_MIGRATION_FAILED")
-
-if echo "$SEARCH_PARAM_RESULT" | grep -q "Migration completed successfully\|Search parameter migration completed"; then
-    # Extract statistics if available
-    RESOURCES_MIGRATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Migrated [0-9]* resources" | grep -o "[0-9]*" | head -1 || echo "unknown")
-    PARAMS_CREATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Created [0-9]* search parameters" | grep -o "[0-9]*" | head -1 || echo "unknown")
+# First check if consolidated script exists, use it if available
+if docker exec emr-backend test -f "/app/scripts/consolidated_search_indexing.py"; then
+    log "Using consolidated search indexing script..."
+    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode index" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
     
-    success "Search parameter migration completed"
-    log "  Resources migrated: $RESOURCES_MIGRATED"
-    log "  Search parameters created: $PARAMS_CREATED"
-elif echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_MIGRATION_FAILED"; then
-    warning "Search parameter migration failed"
-    warning "System will continue but searches may not work properly"
-    log "Error: $SEARCH_PARAM_RESULT"
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "Indexing complete:"; then
+        # Extract statistics from new format
+        RESOURCES_INDEXED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* indexed" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        RESOURCES_SKIPPED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* skipped" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        INDEXING_ERRORS=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* errors" | grep -o "[0-9]*" | head -1 || echo "0")
+        
+        if [ "$INDEXING_ERRORS" = "0" ]; then
+            success "Search parameter indexing completed successfully"
+        else
+            warning "Search parameter indexing completed with $INDEXING_ERRORS errors"
+        fi
+        log "  Resources indexed: $RESOURCES_INDEXED"
+        log "  Resources skipped: $RESOURCES_SKIPPED"
+        
+        # Run verification
+        log "Verifying search parameter indexing..."
+        VERIFY_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode verify" 2>&1 || true)
+        if echo "$VERIFY_RESULT" | grep -q "All critical search parameters are properly indexed"; then
+            success "Search parameter verification passed"
+        else
+            warning "Some search parameters may need attention - running fix..."
+            # Try to fix any missing parameters
+            FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode fix" 2>&1 || true)
+            if echo "$FIX_RESULT" | grep -q "Fixed [0-9]* resources"; then
+                RESOURCES_FIXED=$(echo "$FIX_RESULT" | grep -o "Fixed [0-9]* resources" | grep -o "[0-9]*" | head -1)
+                success "Fixed $RESOURCES_FIXED resources with missing parameters"
+            fi
+        fi
+    else
+        warning "Search parameter indexing may have failed"
+        log "Output: $SEARCH_PARAM_RESULT"
+    fi
 else
-    log "Search parameter migration output: $SEARCH_PARAM_RESULT"
+    # Fallback to old method if new script doesn't exist
+    warning "Consolidated search indexing script not found, trying legacy method..."
+    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/active/run_migration.py" 2>&1 || echo "SEARCH_PARAM_MIGRATION_FAILED")
+    
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "Migration completed successfully\|Search parameter migration completed"; then
+        # Extract statistics if available
+        RESOURCES_MIGRATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Migrated [0-9]* resources" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        PARAMS_CREATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Created [0-9]* search parameters" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        
+        success "Search parameter migration completed"
+        log "  Resources migrated: $RESOURCES_MIGRATED"
+        log "  Search parameters created: $PARAMS_CREATED"
+    elif echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_MIGRATION_FAILED"; then
+        warning "Search parameter migration failed"
+        warning "System will continue but searches may not work properly"
+        log "Error: $SEARCH_PARAM_RESULT"
+    else
+        log "Search parameter migration output: $SEARCH_PARAM_RESULT"
+    fi
 fi
 
 # Step 5: Generate DICOM files for imaging studies

@@ -107,6 +107,14 @@ class MasterBuildOrchestrator:
                 "estimated_time": 600
             },
             {
+                "name": "index_search_parameters",
+                "description": "Index search parameters for all FHIR resources",
+                "script": "consolidated_search_indexing.py",
+                "args": ["--mode", "index"],
+                "required": True,
+                "estimated_time": 180
+            },
+            {
                 "name": "enhance_fhir_data",
                 "description": "Enhance FHIR data with organizations and providers",
                 "script": "consolidated_enhancement.py",
@@ -154,6 +162,7 @@ class MasterBuildOrchestrator:
             "initialize_database", 
             "run_migrations",
             "generate_synthea_data",
+            "index_search_parameters",
             "enhance_fhir_data",
             "final_validation"
         ]
