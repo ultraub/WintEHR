@@ -367,7 +367,50 @@ else
     log "Compartment population output: $COMPARTMENT_RESULT"
 fi
 
-# Step 6: Generate DICOM files for imaging studies
+# Step 6: Populate compartments table
+log "📦 Populating patient compartments for all resources..."
+
+COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
+
+if echo "$COMPARTMENT_RESULT" | grep -q "Population complete:"; then
+    # Extract statistics
+    RESOURCES_PROCESSED=$(echo "$COMPARTMENT_RESULT" | grep "Resources processed:" | grep -o "[0-9]*" || echo "0")
+    COMPARTMENTS_CREATED=$(echo "$COMPARTMENT_RESULT" | grep "Compartments created:" | grep -o "[0-9]*" || echo "0")
+    
+    success "Compartment population completed"
+    log "  Resources processed: $RESOURCES_PROCESSED"
+    log "  Compartments created: $COMPARTMENTS_CREATED"
+    
+    # Get total compartments
+    TOTAL_COMPARTMENTS=$(echo "$COMPARTMENT_RESULT" | grep "Total patient compartments:" | grep -o "[0-9]*" || echo "0")
+    if [ "$TOTAL_COMPARTMENTS" -gt "0" ]; then
+        log "  Total patient compartments: $TOTAL_COMPARTMENTS"
+    else
+        warning "No patient compartments found - Patient/$everything operations may not work"
+    fi
+elif echo "$COMPARTMENT_RESULT" | grep -q "COMPARTMENT_POPULATION_FAILED"; then
+    warning "Compartment population failed"
+    warning "Patient/$everything operations may not work properly"
+    log "Error: $COMPARTMENT_RESULT"
+else
+    log "Compartment population output: $COMPARTMENT_RESULT"
+fi
+
+# Fix CDS hooks schema if needed
+log "🔧 Checking CDS hooks schema..."
+
+CDS_HOOKS_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_cds_hooks_enabled_column.py" 2>&1 || echo "CDS_HOOKS_FIX_FAILED")
+
+if echo "$CDS_HOOKS_FIX_RESULT" | grep -q "Schema fix completed successfully"; then
+    success "CDS hooks schema verified/fixed"
+elif echo "$CDS_HOOKS_FIX_RESULT" | grep -q "already exists"; then
+    success "CDS hooks schema already correct"
+else
+    warning "Could not verify/fix CDS hooks schema"
+    warning "CDS hooks may not work properly"
+fi
+
+# Step 7: Generate DICOM files for imaging studies
 log "🏥 Generating DICOM files for imaging studies..."
 
 DICOM_GENERATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/generate_dicom_for_studies.py" 2>&1 || echo "DICOM_GENERATION_FAILED")
@@ -542,8 +585,8 @@ async def final_check():
         total_resources = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE deleted = FALSE OR deleted IS NULL\")
         total_patients = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\' AND (deleted = FALSE OR deleted IS NULL)\")
         total_search_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params\")
+        total_compartments = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.compartments WHERE compartment_type = \\'Patient\\'\")
         total_cds_hooks = await conn.fetchval(\"SELECT COUNT(*) FROM cds_hooks.hook_configurations WHERE enabled = true\")
-        total_compartments = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.compartments\")
         
         # Validate patient search parameters exist
         patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE param_name IN (\\'patient\\', \\'subject\\') AND param_type = \\'reference\\'\")
@@ -601,6 +644,7 @@ log "🎉 Data processing completed successfully!"
 log "✅ Name cleaning: Complete"
 log "✅ CDS hooks: $HOOKS_CREATED created"
 log "✅ Search parameters: $FINAL_SEARCH_PARAMS indexed"
+log "✅ Compartments: $FINAL_COMPARTMENTS populated"
 log "✅ DICOM generation: $DICOM_FILES_CREATED files"
 log "✅ Data validation: Passed"
 log "✅ Final resource count: $FINAL_RESOURCES"

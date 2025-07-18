@@ -136,7 +136,7 @@ const ClinicalCard = ({
     position: 'relative',
     backgroundColor: getCardBackground(),
     border: `1px solid ${getBorderColor()}`,
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 0,
     transition: `all ${animation.duration}ms ${animation.easing}`,
     cursor: onCardClick ? 'pointer' : 'default',
     '&:hover': onCardClick ? {

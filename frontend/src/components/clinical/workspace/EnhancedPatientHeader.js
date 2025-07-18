@@ -189,234 +189,406 @@ const EnhancedPatientHeader = ({
   if (!currentPatient) return null;
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        backgroundColor: theme.palette.background.paper,
-        borderRadius: 0,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        position: 'relative',
-        overflow: 'hidden'
-      }}
-    >
-      <Box sx={{ p: 1.5 }}>
-        <Grid container spacing={1.5} alignItems="center">
-          {/* Patient Photo and Basic Info */}
-          <Grid item xs={12} md={5}>
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-              <Avatar
-                sx={{
-                  width: 48,
-                  height: 48,
-                  bgcolor: theme.palette.primary.main,
-                  color: 'white',
-                  fontSize: '1rem'
+    <>
+      {/* Top Application Bar */}
+      <AppBar 
+        position="fixed" 
+        elevation={0}
+        sx={{
+          zIndex: theme.zIndex.drawer + 1,
+          backgroundColor: 'background.paper',
+          borderBottom: 1,
+          borderColor: 'divider',
+          backdropFilter: 'blur(8px)',
+          backgroundColor: alpha(theme.palette.background.paper, 0.9)
+        }}
+      >
+        {dataLoading && (
+          <LinearProgress 
+            sx={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2
+            }} 
+          />
+        )}
+        
+        <Toolbar sx={{ minHeight: 56 }}>
+          {/* Logo and Title */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 1,
+                background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 2
+              }}
+            >
+              <HospitalIcon sx={{ color: 'white', fontSize: 24 }} />
+            </Box>
+            {!isMobile && (
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: 'text.primary'
                 }}
               >
-                <PersonIcon sx={{ fontSize: 28 }} />
-              </Avatar>
-              <Box sx={{ flex: 1 }}>
-                <Stack direction="row" spacing={2} alignItems="baseline">
-                  <Typography variant="subtitle1" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                    {currentPatient.name?.[0]?.given?.join(' ')} {currentPatient.name?.[0]?.family}
+                Clinical Workspace
+              </Typography>
+            )}
+          </Box>
+          
+          {/* Spacer */}
+          <Box sx={{ flexGrow: 1 }} />
+          
+          {/* User Actions */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            {/* Notifications */}
+            <Tooltip title="Notifications">
+              <IconButton size="small">
+                <Badge badgeContent={3} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            
+            {/* Settings */}
+            {!isMobile && (
+              <Tooltip title="Settings">
+                <IconButton size="small">
+                  <SettingsIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            
+            {/* User Menu */}
+            <Button
+              onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+              startIcon={
+                <Avatar 
+                  sx={{ 
+                    width: 32, 
+                    height: 32,
+                    bgcolor: 'primary.main'
+                  }}
+                >
+                  <PersonIcon fontSize="small" />
+                </Avatar>
+              }
+              endIcon={<ExpandMoreIcon />}
+              sx={{
+                ml: 2,
+                textTransform: 'none',
+                color: 'text.primary'
+              }}
+            >
+              {!isMobile && (
+                <Box sx={{ textAlign: 'left' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {user?.name || 'Clinical User'}
                   </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user?.role || 'Healthcare Provider'}
+                  </Typography>
+                </Box>
+              )}
+            </Button>
+          </Stack>
+        </Toolbar>
+      </AppBar>
+      
+      {/* Patient Information Banner */}
+      <Paper
+        elevation={0}
+        sx={{
+          position: 'fixed',
+          top: 56,
+          left: 0,
+          right: 0,
+          zIndex: theme.zIndex.appBar - 1,
+          borderBottom: 1,
+          borderColor: 'divider',
+          backgroundColor: 'background.paper'
+        }}
+      >
+        {/* Main Patient Bar */}
+        <Box sx={{ p: 2 }}>
+          <Grid container spacing={2} alignItems="center">
+            {/* Patient Identity */}
+            <Grid item xs={12} md={4}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    bgcolor: 'primary.main',
+                    fontSize: '1.25rem'
+                  }}
+                >
+                  {patientName.charAt(0)}
+                </Avatar>
+                <Box sx={{ minWidth: 0 }}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    {activeAllergies.length > 0 && (
-                      <Chip
-                        icon={<WarningIcon />}
-                        label={`${activeAllergies.length}`}
-                        color="error"
-                        size="small"
-                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
-                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
-                      />
-                    )}
-                    {activeConditions.length > 0 && (
-                      <Chip
-                        icon={<AssignmentIcon />}
-                        label={`${activeConditions.length}`}
-                        color="warning"
-                        size="small"
-                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
-                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
-                      />
-                    )}
-                    {activeMedications.length > 0 && (
-                      <Chip
-                        icon={<MedicationIcon />}
-                        label={`${activeMedications.length}`}
-                        size="small"
-                        onClick={() => onNavigateToTab ? onNavigateToTab('chart') : null}
-                        sx={{ cursor: onNavigateToTab ? 'pointer' : 'default', height: 20 }}
-                      />
-                    )}
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {patientName}
+                    </Typography>
+                    <Chip
+                      icon={<ActiveIcon sx={{ fontSize: 12 }} />}
+                      label="Active"
+                      size="small"
+                      color="success"
+                      sx={{ height: 24 }}
+                    />
                   </Stack>
-                </Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" color="text.secondary">
-                    {formatMRN(currentPatient)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">•</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {currentPatient.gender || 'Unknown'}, {calculateAge(currentPatient.birthDate)}y
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">•</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    DOB: {formatDate(currentPatient.birthDate)}
-                  </Typography>
-                </Stack>
-              </Box>
-            </Box>
-          </Grid>
-
-          {/* Contact Information */}
-          <Grid item xs={12} md={4}>
-            <Stack spacing={0.5}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <HomeIcon sx={{ fontSize: 16 }} color="action" />
-                  <Typography variant="caption">{getAddress(currentPatient)}</Typography>
-                </Stack>
-              </Stack>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <PhoneIcon sx={{ fontSize: 16 }} color="action" />
-                  <Typography variant="caption">{getPhone(currentPatient)}</Typography>
-                </Stack>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <InsuranceIcon sx={{ fontSize: 16 }} color="action" />
-                  <Typography variant="caption">{getInsurance(currentPatient)}</Typography>
-                </Stack>
-              </Stack>
-            </Stack>
-          </Grid>
-
-          {/* Clinical Summary */}
-          <Grid item xs={12} md={3}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                {lastEncounter && (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <CalendarIcon sx={{ fontSize: 16 }} color="action" />
-                    <Typography variant="caption" color="text.secondary">
-                      Last: {formatDate(lastEncounter.period?.start || lastEncounter.period?.end, 'MMM d')}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Typography variant="body2" color="text.secondary">
+                      {currentPatient.gender || 'Unknown'}, {calculateAge(currentPatient.birthDate)} years
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      DOB: {formatDate(currentPatient.birthDate)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      MRN: {formatMRN(currentPatient)}
                     </Typography>
                   </Stack>
-                )}
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <TeamIcon sx={{ fontSize: 16 }} color="action" />
-                  <Typography variant="caption" color="text.secondary">
-                    {getPCP(currentPatient)}
-                  </Typography>
-                </Stack>
-                <Chip
-                  icon={<EmergencyIcon />}
-                  label="Full Code"
-                  size="small"
-                  color="success"
-                  sx={{ height: 20 }}
-                />
+                </Box>
               </Stack>
+            </Grid>
 
-              {/* Action Buttons */}
-              <Stack direction="row" spacing={0.5}>
-                <Tooltip title="Print Patient Summary">
-                  <IconButton 
-                    size="small" 
-                    onClick={onPrint}
-                    sx={{ padding: 0.5 }}
-                  >
-                    <PrintIcon fontSize="small" />
-                  </IconButton>
+            {/* Clinical Summary */}
+            <Grid item xs={12} md={5}>
+              <Stack direction="row" spacing={3} sx={{ overflowX: 'auto' }}>
+                <Tooltip title="Active Conditions">
+                  <Chip
+                    icon={<AssignmentIcon />}
+                    label={`${activeConditions.length} Conditions`}
+                    color={activeConditions.length > 0 ? 'warning' : 'default'}
+                    onClick={() => onNavigateToTab?.('chart')}
+                    sx={{ cursor: 'pointer' }}
+                  />
                 </Tooltip>
-                <Tooltip title="More Options">
+                <Tooltip title="Active Medications">
+                  <Chip
+                    icon={<MedicationIcon />}
+                    label={`${activeMedications.length} Medications`}
+                    color={activeMedications.length > 0 ? 'info' : 'default'}
+                    onClick={() => onNavigateToTab?.('chart')}
+                    sx={{ cursor: 'pointer' }}
+                  />
+                </Tooltip>
+                <Tooltip title="Active Allergies">
+                  <Chip
+                    icon={<WarningIcon />}
+                    label={`${activeAllergies.length} Allergies`}
+                    color={activeAllergies.length > 0 ? 'error' : 'default'}
+                    onClick={() => onNavigateToTab?.('chart')}
+                    sx={{ cursor: 'pointer' }}
+                  />
+                </Tooltip>
+              </Stack>
+            </Grid>
+            
+            {/* Quick Actions */}
+            <Grid item xs={12} md={3}>
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                {!isMobile && (
+                  <>
+                    <Tooltip title="Print">
+                      <IconButton size="small" onClick={onPrint}>
+                        <PrintIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Share">
+                      <IconButton size="small">
+                        <ShareIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
+                <Tooltip title="View Details">
                   <IconButton 
                     size="small"
-                    sx={{ padding: 0.5 }}
+                    onClick={() => setShowPatientDetails(!showPatientDetails)}
+                  >
+                    {showPatientDetails ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="More Actions">
+                  <IconButton 
+                    size="small"
                     onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
                   >
-                    <MoreIcon fontSize="small" />
+                    <MoreIcon />
                   </IconButton>
                 </Tooltip>
               </Stack>
-            </Box>
+            </Grid>
           </Grid>
-        </Grid>
-      </Box>
+        </Box>
+        
+        {/* Expandable Details Section */}
+        <Collapse in={showPatientDetails}>
+          <Divider />
+          <Box sx={{ p: 2, bgcolor: 'background.default' }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Contact Information
+                </Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <PhoneIcon fontSize="small" color="action" />
+                    <Typography variant="body2">{getPhone(currentPatient)}</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <EmailIcon fontSize="small" color="action" />
+                    <Typography variant="body2">{getEmail(currentPatient)}</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <HomeIcon fontSize="small" color="action" />
+                    <Typography variant="body2">{getAddress(currentPatient)}</Typography>
+                  </Stack>
+                </Stack>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Care Team
+                </Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TeamIcon fontSize="small" color="action" />
+                    <Typography variant="body2">Dr. Sarah Johnson (PCP)</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <PharmacyIcon fontSize="small" color="action" />
+                    <Typography variant="body2">Main Street Pharmacy</Typography>
+                  </Stack>
+                </Stack>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Insurance
+                </Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <SecurityIcon fontSize="small" color="action" />
+                    <Typography variant="body2">Blue Cross Blue Shield</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <BadgeIcon fontSize="small" color="action" />
+                    <Typography variant="body2">Member ID: BCBS123456</Typography>
+                  </Stack>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Box>
+        </Collapse>
+        
+        {/* Critical Alerts Bar */}
+        {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
+          <>
+            <Divider />
+            <Box sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ overflowX: 'auto' }}>
+                {criticalAlerts.map((alert) => (
+                  <Alert
+                    key={alert.uuid}
+                    severity="error"
+                    variant="outlined"
+                    sx={{ 
+                      py: 0.5,
+                      minWidth: 'fit-content',
+                      flexShrink: 0
+                    }}
+                  >
+                    {alert.summary}
+                  </Alert>
+                ))}
+                {warningAlerts.slice(0, 2).map((alert) => (
+                  <Alert
+                    key={alert.uuid}
+                    severity="warning"
+                    variant="outlined"
+                    sx={{ 
+                      py: 0.5,
+                      minWidth: 'fit-content',
+                      flexShrink: 0
+                    }}
+                  >
+                    {alert.summary}
+                  </Alert>
+                ))}
+              </Stack>
+            </Box>
+          </>
+        )}
+      </Paper>
 
-      {/* More Options Menu */}
+      
+      {/* User Menu */}
+      <Menu
+        anchorEl={userMenuAnchor}
+        open={Boolean(userMenuAnchor)}
+        onClose={() => setUserMenuAnchor(null)}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => setUserMenuAnchor(null)}>
+          <ListItemIcon><PersonIcon /></ListItemIcon>
+          <ListItemText>My Profile</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => setUserMenuAnchor(null)}>
+          <ListItemIcon><SettingsIcon /></ListItemIcon>
+          <ListItemText>Preferences</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { setUserMenuAnchor(null); logout(); }}>
+          <ListItemIcon><LogoutIcon /></ListItemIcon>
+          <ListItemText>Sign Out</ListItemText>
+        </MenuItem>
+      </Menu>
+      
+      {/* More Actions Menu */}
       <Menu
         anchorEl={moreMenuAnchor}
         open={Boolean(moreMenuAnchor)}
         onClose={() => setMoreMenuAnchor(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={() => {
-          setMoreMenuAnchor(null);
-          navigate(`/patients/${patientId}/edit`);
-        }}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit Demographics</ListItemText>
+        <MenuItem onClick={() => { setMoreMenuAnchor(null); onPrint?.(); }}>
+          <ListItemIcon><PrintIcon /></ListItemIcon>
+          <ListItemText>Print Summary</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => {
-          setMoreMenuAnchor(null);
-          onNavigateToTab('timeline');
-        }}>
-          <ListItemIcon>
-            <HistoryIcon fontSize="small" />
-          </ListItemIcon>
+        <MenuItem onClick={() => setMoreMenuAnchor(null)}>
+          <ListItemIcon><ShareIcon /></ListItemIcon>
+          <ListItemText>Share Chart</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => setMoreMenuAnchor(null)}>
+          <ListItemIcon><HistoryIcon /></ListItemIcon>
           <ListItemText>View History</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => {
-          setMoreMenuAnchor(null);
-          // Generate shareable link
-          const shareUrl = `${window.location.origin}/patients/${patientId}/view?readonly=true`;
-          if (navigator.share) {
-            navigator.share({
-              title: `Patient: ${currentPatient.name?.[0]?.given?.join(' ')} ${currentPatient.name?.[0]?.family}`,
-              text: 'Patient medical record',
-              url: shareUrl
-            }).catch(err => {});
-          } else {
-            // Fallback: copy to clipboard
-            navigator.clipboard.writeText(shareUrl);
-          }
-        }}>
-          <ListItemIcon>
-            <ShareIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Share Patient Info</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          setMoreMenuAnchor(null);
-          onNavigateToTab('documentation');
-        }}>
-          <ListItemIcon>
-            <DocumentIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>View Documents</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          setMoreMenuAnchor(null);
-          // Navigate to privacy settings page
-          navigate(`/patients/${patientId}/privacy`);
-        }}>
-          <ListItemIcon>
-            <SecurityIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Privacy Settings</ListItemText>
+        <MenuItem onClick={() => setMoreMenuAnchor(null)}>
+          <ListItemIcon><EditIcon /></ListItemIcon>
+          <ListItemText>Edit Demographics</ListItemText>
         </MenuItem>
       </Menu>
-    </Paper>
+    </>
   );
 };
 

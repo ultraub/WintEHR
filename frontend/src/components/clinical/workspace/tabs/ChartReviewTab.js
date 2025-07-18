@@ -40,7 +40,10 @@ import {
   DialogContent,
   DialogActions,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Paper,
+  Avatar,
+  Divider
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -284,13 +287,102 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
 
   return (
-    <ClinicalCard
-      title="Problem List"
-      icon={<ProblemIcon />}
-      department={department}
-      variant="clinical"
-      expandable={false}
-      subtitle={
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 0,
+        overflow: 'hidden'
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.default'
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText'
+              }}
+            >
+              <ProblemIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                Problem List
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {conditions.length} total conditions
+              </Typography>
+            </Box>
+          </Stack>
+          
+          {/* Action Buttons */}
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Advanced Filters">
+              <IconButton 
+                size="small" 
+                color={showAdvancedFilters ? "primary" : "default"}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                aria-label="Toggle advanced filtering options"
+              >
+                <TuneIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sort by Severity">
+              <IconButton 
+                size="small"
+                color={sortBySeverity ? "primary" : "default"}
+                onClick={() => setSortBySeverity(!sortBySeverity)}
+                aria-label="Sort problems by severity (severe first)"
+              >
+                <SortIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Add Problem">
+              <IconButton 
+                size="small" 
+                color="primary" 
+                onClick={() => setShowAddDialog(true)}
+                aria-label="Add new problem to patient chart"
+              >
+                <AddIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="View History">
+              <IconButton 
+                size="small"
+                aria-label="View problem history for this patient"
+              >
+                <HistoryIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export">
+              <IconButton 
+                size="small"
+                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                aria-label="Export problem list data"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(exportAnchorEl)}
+              >
+                <ExportIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Stack>
+        
+        {/* Filter Chips */}
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }} role="group" aria-label="Problem list filters">
         <Stack direction="row" spacing={1} role="group" aria-label="Problem list filters">
               <Chip 
                 label={`${activeCount} Active`} 
@@ -450,10 +542,36 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 <ExportIcon />
               </IconButton>
             </Tooltip>
+          <Chip 
+            label={`${activeCount} Active`} 
+            size="small" 
+            color="primary"
+            variant={filter === 'active' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('active')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
+          <Chip 
+            label={`${resolvedCount} Resolved`} 
+            size="small" 
+            variant={filter === 'resolved' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('resolved')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
+          <Chip 
+            label="All" 
+            size="small" 
+            variant={filter === 'all' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('all')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
         </Stack>
-      }
-    >
-      <Box>
+      </Box>
+      
+      {/* Content */}
+      <Box sx={{ p: 2 }}>
         <TextField
           fullWidth
           size="small"
@@ -779,7 +897,8 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           Export as PDF
         </MenuItem>
       </Menu>
-    </ClinicalCard>
+      </Box>
+    </Paper>
   );
 };
 
@@ -920,153 +1039,119 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   }).length;
 
   return (
-    <ClinicalCard
-      title="Medications"
-      icon={<MedicationIcon />}
-      department={department}
-      variant="clinical"
-      expandable={false}
-      subtitle={
-        <Stack direction="row" spacing={1} role="group" aria-label="Medication list filters">
-              <Chip 
-                label={`${activeCount} Active`} 
-                size="small" 
-                color="primary" 
-                variant={filter === 'active' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('active')}
-                component="button"
-                role="button"
-                aria-label={`Filter to show active medications only. ${activeCount} active medications found.`}
-                aria-pressed={filter === 'active'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('active');
-                  }
-                }}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Chip 
-                label={`${stoppedCount} Stopped`} 
-                size="small" 
-                variant={filter === 'stopped' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('stopped')}
-                component="button"
-                role="button"
-                aria-label={`Filter to show stopped medications only. ${stoppedCount} stopped medications found.`}
-                aria-pressed={filter === 'stopped'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('stopped');
-                  }
-                }}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Chip 
-                label="All" 
-                size="small" 
-                variant={filter === 'all' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('all')}
-                component="button"
-                role="button"
-                aria-label={`Show all medications. ${medications.length} total medications found.`}
-                aria-pressed={filter === 'all'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('all');
-                  }
-                }}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-            </Stack>
-      }
-      actions={
-        <Stack direction="row" spacing={0.5}>
-            <Tooltip title="Prescribe Medication">
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 0,
+        overflow: 'hidden'
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.default'
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: 'info.main',
+                color: 'info.contrastText'
+              }}
+            >
+              <MedicationIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                Medications
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {medications.length} total medications
+              </Typography>
+            </Box>
+          </Stack>
+          
+          {/* Action Buttons */}
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Medication Reconciliation">
+              <IconButton 
+                size="small"
+                onClick={() => setShowReconciliationDialog(true)}
+                aria-label="Start medication reconciliation"
+              >
+                <MedicationIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Add Medication">
               <IconButton 
                 size="small" 
                 color="primary" 
                 onClick={() => setShowPrescribeDialog(true)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
+                aria-label="Prescribe new medication"
               >
                 <AddIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Medication Reconciliation">
+            <Tooltip title="View History">
               <IconButton 
-                size="small" 
-                onClick={() => setShowReconciliationDialog(true)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
+                size="small"
+                aria-label="View medication history"
               >
-                <PharmacyIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Refill Management">
-              <IconButton 
-                size="small" 
-                onClick={() => setShowRefillDialog(true)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
-              >
-                <RefreshIcon />
+                <HistoryIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export">
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                sx={{
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.1)',
-                    backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                  }
-                }}
+                aria-label="Export medication list"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
             </Tooltip>
+          </Stack>
         </Stack>
-      }
-    >
-      <Box>
+        
+          <Chip 
+            label={`${activeCount} Active`} 
+            size="small" 
+            color="primary"
+            variant={filter === 'active' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('active')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
+          <Chip 
+            label={`${stoppedCount} Stopped`} 
+            size="small" 
+            variant={filter === 'stopped' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('stopped')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
+          <Chip 
+            label="All" 
+            size="small" 
+            variant={filter === 'all' ? 'filled' : 'outlined'}
+            onClick={() => setFilter('all')}
+            component="button"
+            sx={{ borderRadius: 1 }}
+          />
+        </Stack>
+      </Box>
+      
+      {/* Content */}
+      <Box sx={{ p: 2 }}>
         <List sx={{ maxHeight: 400, overflow: 'auto', position: 'relative' }}>
           {resolvingMeds && (
             <Box sx={{ 
@@ -1353,7 +1438,8 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           Export as PDF
         </MenuItem>
       </Menu>
-    </ClinicalCard>
+      </Box>
+    </Paper>
   );
 };
 
@@ -1479,13 +1565,82 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   );
 
   return (
-    <ClinicalCard
-      title="Allergies & Intolerances"
-      icon={<WarningIcon />}
-      department={department}
-      variant="clinical"
-      expandable={false}
-      subtitle={
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 0,
+        overflow: 'hidden'
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.default'
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: 'error.main',
+                color: 'error.contrastText'
+              }}
+            >
+              <WarningIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                Allergies & Intolerances
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {allergies.length} total allergies
+              </Typography>
+            </Box>
+          </Stack>
+          
+          {/* Action Buttons */}
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Add Allergy">
+              <IconButton 
+                size="small" 
+                color="primary" 
+                onClick={() => setShowAddDialog(true)}
+                aria-label="Add new allergy"
+              >
+                <AddIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="View History">
+              <IconButton 
+                size="small"
+                aria-label="View allergy history"
+              >
+                <HistoryIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export">
+              <IconButton 
+                size="small"
+                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                aria-label="Export allergy list"
+                aria-haspopup="menu"
+                aria-expanded={Boolean(exportAnchorEl)}
+              >
+                <ExportIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Stack>
+        
+        {/* Filter Chip */}
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }} role="group" aria-label="Allergy list filters">
         <Chip 
               icon={<WarningIcon />}
               label={`${activeAllergies.length} Active`} 
@@ -1531,11 +1686,6 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               >
                 <ExportIcon />
               </IconButton>
-            </Tooltip>
-        </Stack>
-      }
-    >
-      <Box>
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {allergies.length === 0 ? (
             <Alert severity="success" sx={{ mt: 2 }}>
@@ -1666,7 +1816,8 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
           Export as PDF
         </MenuItem>
       </Menu>
-    </ClinicalCard>
+      </Box>
+    </Paper>
   );
 };
 
@@ -1681,13 +1832,48 @@ const SocialHistory = ({ observations, patientId, department }) => {
   const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
 
   return (
-    <ClinicalCard
-      title="Social History"
-      icon={<InfoIcon />}
-      department={department}
-      variant="clinical"
-      expandable={false}
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 0,
+        overflow: 'hidden'
+      }}
     >
+      {/* Header */}
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.default'
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Avatar
+            sx={{
+              width: 40,
+              height: 40,
+              bgcolor: 'info.main',
+              color: 'info.contrastText'
+            }}
+          >
+            <InfoIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+              Social History
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Lifestyle factors
+            </Typography>
+          </Box>
+        </Stack>
+      </Box>
+      
+      {/* Content */}
+      <Box sx={{ p: 2 }}>
       <List>
         <ListItem>
           <ListItemIcon>
@@ -1708,7 +1894,8 @@ const SocialHistory = ({ observations, patientId, department }) => {
           />
         </ListItem>
       </List>
-    </ClinicalCard>
+      </Box>
+    </Paper>
   );
 };
 
@@ -2334,48 +2521,115 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
         {/* Immunizations Summary */}
         <Grid item xs={12}>
-          <ClinicalCard
-            title="Immunizations"
-            icon={<ImmunizationIcon />}
-            status="active"
-            department={department}
-            variant="clinical"
-            headerAction={
-              <Chip 
-                icon={<ImmunizationIcon />}
-                label={`${immunizations.length} recorded`} 
-                size="small" 
-                color="success"
-              />
-            }
+          <Paper
+            elevation={0}
+            sx={{
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 0,
+              overflow: 'hidden'
+            }}
           >
-            {immunizations.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No immunization records found
-              </Typography>
-            ) : (
-              <Typography variant="body2">
-                Last immunization: {
-                  immunizations[0]?.occurrenceDateTime ? 
-                  format(parseISO(immunizations[0].occurrenceDateTime), 'MMM d, yyyy') : 
-                  'Unknown'
-                }
-              </Typography>
-            )}
-          </ClinicalCard>
+            <Box
+              sx={{
+                p: 2,
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'background.default'
+              }}
+            >
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Stack direction="row" alignItems="center" spacing={2}>
+                  <Avatar
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      bgcolor: 'success.main',
+                      color: 'success.contrastText'
+                    }}
+                  >
+                    <ImmunizationIcon />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                      Immunizations
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Vaccination history
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Chip 
+                  icon={<ImmunizationIcon />}
+                  label={`${immunizations.length} recorded`} 
+                  size="small" 
+                  color="success"
+                  sx={{ borderRadius: 1 }}
+                />
+              </Stack>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              {immunizations.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No immunization records found
+                </Typography>
+              ) : (
+                <Typography variant="body2">
+                  Last immunization: {
+                    immunizations[0]?.occurrenceDateTime ? 
+                    format(parseISO(immunizations[0].occurrenceDateTime), 'MMM d, yyyy') : 
+                    'Unknown'
+                  }
+                </Typography>
+              )}
+            </Box>
+          </Paper>
         </Grid>
 
         {/* Prescription Status Dashboard */}
         <Grid item xs={12}>
-          <ClinicalCard
-            title="Prescription Status"
-            icon={<PharmacyIcon />}
-            department={department}
-            variant="clinical"
-            expandable={false}
+          <Paper
+            elevation={0}
+            sx={{
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 0,
+              overflow: 'hidden'
+            }}
           >
-            <PrescriptionStatusDashboard patientId={patientId} />
-          </ClinicalCard>
+            <Box
+              sx={{
+                p: 2,
+                borderBottom: 1,
+                borderColor: 'divider',
+                bgcolor: 'background.default'
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Avatar
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    bgcolor: 'secondary.main',
+                    color: 'secondary.contrastText'
+                  }}
+                >
+                  <PharmacyIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                    Prescription Status
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Active prescriptions and refills
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <PrescriptionStatusDashboard patientId={patientId} />
+            </Box>
+          </Paper>
         </Grid>
 
         {/* Medication Effectiveness Monitoring */}

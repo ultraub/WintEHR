@@ -1,297 +1,330 @@
 #!/usr/bin/env python3
 """
-Populate the fhir.compartments table for patient compartments.
+Populate compartments table for existing FHIR resources.
 
-This script identifies all resources that belong to patient compartments and
-creates the appropriate entries in the compartments table.
+This script populates the fhir.compartments table with patient compartment
+relationships for all existing resources. This is necessary for resources
+that were imported before compartment extraction was implemented.
+
+Usage:
+    python populate_compartments.py
+    python populate_compartments.py --verify-only
 """
 
 import asyncio
-import logging
+import asyncpg
+import json
 import sys
+import argparse
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Set
-
-# Add the backend directory to Python path
-sys.path.append(str(Path(__file__).parent.parent))
-
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from backend.config import settings
+from typing import Dict, List, Set, Tuple
+import logging
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Define which resource types belong to patient compartments and their patient reference paths
-PATIENT_COMPARTMENT_DEFINITIONS = {
-    # Core clinical resources with 'patient' reference
-    "AllergyIntolerance": ["patient"],
-    "CarePlan": ["patient"],
-    "CareTeam": ["patient"],
-    "ClinicalImpression": ["patient"],
-    "Condition": ["patient"],
-    "DiagnosticReport": ["patient"],
-    "DocumentReference": ["patient"],
-    "Encounter": ["patient"],
-    "Goal": ["patient"],
-    "ImagingStudy": ["patient"],
-    "Immunization": ["patient"],
-    "MedicationAdministration": ["patient"],
-    "MedicationDispense": ["patient"],
-    "MedicationRequest": ["patient"],
-    "MedicationStatement": ["patient"],
-    "Observation": ["patient"],
-    "Procedure": ["patient"],
-    "RiskAssessment": ["patient"],
-    "ServiceRequest": ["patient"],
-    
-    # Resources that use 'subject' as patient reference
-    "Basic": ["subject"],
-    "BodyStructure": ["subject"],
-    "Consent": ["subject"],
-    "DetectedIssue": ["subject"],
-    "Media": ["subject"],
-    "QuestionnaireResponse": ["subject"],
-    
-    # Administrative resources
-    "Account": ["patient"],
-    "AdverseEvent": ["patient"],
-    "Appointment": ["patient"],
-    "AppointmentResponse": ["patient"],
-    "ChargeItem": ["patient"],
-    "Claim": ["patient"],
-    "ClaimResponse": ["patient"],
-    "Communication": ["patient"],
-    "CommunicationRequest": ["patient"],
-    "Composition": ["patient"],
-    "Coverage": ["patient"],
-    "DeviceRequest": ["patient"],
-    "DeviceUseStatement": ["patient"],
-    "EpisodeOfCare": ["patient"],
-    "ExplanationOfBenefit": ["patient"],
-    "FamilyMemberHistory": ["patient"],
-    "Flag": ["patient"],
-    "Invoice": ["patient"],
-    "List": ["patient"],
-    "NutritionOrder": ["patient"],
-    "Person": ["patient"],
-    "Provenance": ["patient"],
-    "RelatedPerson": ["patient"],
-    "RequestGroup": ["patient"],
-    "ResearchSubject": ["patient"],
-    "Schedule": ["patient"],
-    "Specimen": ["patient"],
-    "SupplyDelivery": ["patient"],
-    "SupplyRequest": ["patient"],
-    "VisionPrescription": ["patient"]
-}
-
 
 class CompartmentPopulator:
-    def __init__(self):
-        # Create async engine
-        self.engine = create_async_engine(
-            settings.database_url.replace('postgresql://', 'postgresql+asyncpg://'),
-            echo=False,
-            pool_size=5,
-            max_overflow=10
-        )
-        self.async_session = sessionmaker(
-            self.engine, 
-            class_=AsyncSession, 
-            expire_on_commit=False
-        )
+    """Populates compartments table for existing FHIR resources."""
     
-    async def populate_compartments(self):
-        """Main method to populate compartments table."""
-        async with self.async_session() as session:
-            try:
-                # First, check if compartments table is already populated
-                existing_count = await self._get_existing_compartment_count(session)
-                logger.info(f"Found {existing_count} existing compartment entries")
-                
-                if existing_count > 0:
-                    logger.info("Clearing existing compartment entries...")
-                    await self._clear_compartments(session)
-                
-                # Process each resource type
-                total_compartments = 0
-                for resource_type, reference_paths in PATIENT_COMPARTMENT_DEFINITIONS.items():
-                    count = await self._process_resource_type(session, resource_type, reference_paths)
-                    total_compartments += count
-                    if count > 0:
-                        logger.info(f"Created {count} compartment entries for {resource_type}")
-                
-                await session.commit()
-                logger.info(f"Successfully created {total_compartments} compartment entries")
-                
-                # Verify the population
-                await self._verify_compartments(session)
-                
-            except Exception as e:
-                logger.error(f"Error populating compartments: {e}")
-                await session.rollback()
-                raise
-            finally:
-                await self.engine.dispose()
-    
-    async def _get_existing_compartment_count(self, session: AsyncSession) -> int:
-        """Get count of existing compartment entries."""
-        query = text("SELECT COUNT(*) FROM fhir.compartments")
-        result = await session.execute(query)
-        return result.scalar()
-    
-    async def _clear_compartments(self, session: AsyncSession):
-        """Clear existing compartment entries."""
-        query = text("DELETE FROM fhir.compartments")
-        await session.execute(query)
-    
-    async def _process_resource_type(
-        self, 
-        session: AsyncSession, 
-        resource_type: str, 
-        reference_paths: List[str]
-    ) -> int:
-        """Process a single resource type and create compartment entries."""
-        # Query all resources of this type
-        query = text("""
-            SELECT id, fhir_id, resource
-            FROM fhir.resources
-            WHERE resource_type = :resource_type
-            AND deleted = false
-        """)
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or 'postgresql://emr_user:emr_password@postgres:5432/emr_db'
+        self.conn = None
+        self.stats = {
+            'processed': 0,
+            'compartments_created': 0,
+            'resources_with_compartments': 0,
+            'errors': 0
+        }
         
-        result = await session.execute(query, {"resource_type": resource_type})
-        rows = result.fetchall()
-        
-        compartment_count = 0
-        for row in rows:
-            resource_id = row.id
-            fhir_id = row.fhir_id
-            resource_data = row.resource
+        # Define patient compartment reference fields by resource type
+        # This matches the definition in storage.py
+        self.patient_reference_fields = {
+            # Core clinical resources with 'patient' reference
+            "AllergyIntolerance": ["patient"],
+            "CarePlan": ["patient", "subject"],
+            "CareTeam": ["patient", "subject"],
+            "ClinicalImpression": ["patient", "subject"],
+            "Condition": ["patient", "subject"],
+            "DiagnosticReport": ["patient", "subject"],
+            "DocumentReference": ["patient", "subject"],
+            "Encounter": ["patient", "subject"],
+            "Goal": ["patient", "subject"],
+            "ImagingStudy": ["patient", "subject"],
+            "Immunization": ["patient"],
+            "MedicationAdministration": ["patient", "subject"],
+            "MedicationDispense": ["patient", "subject"],
+            "MedicationRequest": ["patient", "subject"],
+            "MedicationStatement": ["patient", "subject"],
+            "Observation": ["patient", "subject"],
+            "Procedure": ["patient", "subject"],
+            "RiskAssessment": ["patient", "subject"],
+            "ServiceRequest": ["patient", "subject"],
             
-            # Extract patient references
-            patient_ids = self._extract_patient_references(resource_data, reference_paths)
+            # Resources that use 'subject' as patient reference
+            "Basic": ["subject"],
+            "BodyStructure": ["patient"],
+            "Consent": ["patient"],
+            "DetectedIssue": ["patient"],
+            "Media": ["subject"],
+            "QuestionnaireResponse": ["subject"],
             
-            # Create compartment entries
-            for patient_id in patient_ids:
-                await self._create_compartment_entry(
-                    session, 
-                    "Patient", 
-                    patient_id, 
-                    resource_id
-                )
-                compartment_count += 1
-        
-        return compartment_count
+            # Administrative resources
+            "Account": ["patient", "subject"],
+            "AdverseEvent": ["patient", "subject"],
+            "Appointment": ["participant"],  # Special handling needed
+            "AppointmentResponse": ["actor"],  # If actor is Patient
+            "ChargeItem": ["subject"],
+            "Claim": ["patient"],
+            "ClaimResponse": ["patient"],
+            "Communication": ["patient", "subject"],
+            "CommunicationRequest": ["patient", "subject"],
+            "Composition": ["subject"],
+            "Coverage": ["beneficiary"],
+            "DeviceRequest": ["subject"],
+            "DeviceUseStatement": ["patient", "subject"],
+            "EpisodeOfCare": ["patient"],
+            "ExplanationOfBenefit": ["patient"],
+            "FamilyMemberHistory": ["patient"],
+            "Flag": ["patient", "subject"],
+            "Invoice": ["patient", "subject"],
+            "List": ["patient", "subject"],
+            "NutritionOrder": ["patient"],
+            "Person": ["link"],  # If link target is Patient
+            "Provenance": ["patient"],  # If target is patient-related
+            "RelatedPerson": ["patient"],
+            "RequestGroup": ["patient", "subject"],
+            "ResearchSubject": ["individual"],  # If individual is Patient
+            "Schedule": ["actor"],  # If actor is Patient
+            "Specimen": ["subject"],
+            "SupplyDelivery": ["patient"],
+            "SupplyRequest": ["deliverFor"],
+            "VisionPrescription": ["patient"]
+        }
     
-    def _extract_patient_references(
-        self, 
-        resource_data: Dict, 
-        reference_paths: List[str]
-    ) -> Set[str]:
-        """Extract patient IDs from resource data."""
+    async def connect(self):
+        """Connect to the database."""
+        try:
+            self.conn = await asyncpg.connect(self.database_url)
+            logger.info("Connected to database")
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            raise
+    
+    async def disconnect(self):
+        """Disconnect from the database."""
+        if self.conn:
+            await self.conn.close()
+            logger.info("Disconnected from database")
+    
+    def extract_patient_references(self, resource_type: str, resource_data: dict) -> Set[str]:
+        """Extract patient references from a resource."""
         patient_ids = set()
+        reference_fields = self.patient_reference_fields.get(resource_type, [])
         
-        for path in reference_paths:
-            value = resource_data.get(path)
-            if value:
-                patient_id = self._extract_reference_id(value)
-                if patient_id:
-                    patient_ids.add(patient_id)
+        for field in reference_fields:
+            if field in resource_data:
+                ref_value = resource_data[field]
+                
+                # Handle different field structures
+                if isinstance(ref_value, dict) and 'reference' in ref_value:
+                    ref = ref_value['reference']
+                    # Handle different reference formats
+                    if ref.startswith('Patient/'):
+                        patient_id = ref.split('/', 1)[1]
+                        patient_ids.add(patient_id)
+                    elif ref.startswith('urn:uuid:'):
+                        # For urn:uuid references, extract the UUID
+                        patient_id = ref.replace('urn:uuid:', '')
+                        patient_ids.add(patient_id)
+                
+                # Handle array fields (e.g., Appointment.participant)
+                elif isinstance(ref_value, list):
+                    for item in ref_value:
+                        if isinstance(item, dict):
+                            # Check for actor/individual fields
+                            for sub_field in ['actor', 'individual', 'reference']:
+                                if sub_field in item:
+                                    sub_ref = item[sub_field]
+                                    if isinstance(sub_ref, dict) and 'reference' in sub_ref:
+                                        ref = sub_ref['reference']
+                                    elif isinstance(sub_ref, str):
+                                        ref = sub_ref
+                                    else:
+                                        continue
+                                    
+                                    if ref.startswith('Patient/'):
+                                        patient_id = ref.split('/', 1)[1]
+                                        patient_ids.add(patient_id)
+                                    elif ref.startswith('urn:uuid:'):
+                                        patient_id = ref.replace('urn:uuid:', '')
+                                        patient_ids.add(patient_id)
         
         return patient_ids
     
-    def _extract_reference_id(self, reference_value) -> Optional[str]:
-        """Extract patient ID from a reference value."""
-        if isinstance(reference_value, dict) and 'reference' in reference_value:
-            ref = reference_value['reference']
+    async def populate_compartments(self):
+        """Populate compartments for all existing resources."""
+        logger.info("Starting compartment population...")
+        
+        # Get resource types that can belong to patient compartments
+        resource_types = list(self.patient_reference_fields.keys())
+        
+        for resource_type in resource_types:
+            logger.info(f"Processing {resource_type} resources...")
             
-            # Handle different reference formats
-            if ref.startswith('Patient/'):
-                return ref.split('/', 1)[1]
-            elif ref.startswith('urn:uuid:'):
-                # For urn:uuid references, we need to resolve them
-                # This would require looking up the actual Patient resource
-                # For now, we'll skip these
-                return None
-        
-        return None
+            # Get all resources of this type
+            resources = await self.conn.fetch("""
+                SELECT id, resource
+                FROM fhir.resources
+                WHERE resource_type = $1
+                AND (deleted = false OR deleted IS NULL)
+                ORDER BY id
+            """, resource_type)
+            
+            if not resources:
+                logger.info(f"  No {resource_type} resources found")
+                continue
+            
+            type_stats = {
+                'total': len(resources),
+                'with_compartments': 0,
+                'compartments_created': 0,
+                'errors': 0
+            }
+            
+            for resource in resources:
+                self.stats['processed'] += 1
+                
+                try:
+                    # Extract patient references
+                    patient_ids = self.extract_patient_references(resource_type, resource['resource'])
+                    
+                    if patient_ids:
+                        type_stats['with_compartments'] += 1
+                        self.stats['resources_with_compartments'] += 1
+                        
+                        # Insert compartment entries
+                        for patient_id in patient_ids:
+                            result = await self.conn.execute("""
+                                INSERT INTO fhir.compartments (
+                                    compartment_type, compartment_id, resource_id
+                                ) VALUES (
+                                    'Patient', $1, $2
+                                )
+                                ON CONFLICT (compartment_type, compartment_id, resource_id) 
+                                DO NOTHING
+                                RETURNING id
+                            """, patient_id, resource['id'])
+                            
+                            if result:
+                                type_stats['compartments_created'] += 1
+                                self.stats['compartments_created'] += 1
+                
+                except Exception as e:
+                    logger.error(f"Error processing {resource_type} resource {resource['id']}: {e}")
+                    type_stats['errors'] += 1
+                    self.stats['errors'] += 1
+            
+            logger.info(f"  {resource_type}: {type_stats['total']} total, "
+                       f"{type_stats['with_compartments']} with patient refs, "
+                       f"{type_stats['compartments_created']} compartments created, "
+                       f"{type_stats['errors']} errors")
     
-    async def _create_compartment_entry(
-        self,
-        session: AsyncSession,
-        compartment_type: str,
-        compartment_id: str,
-        resource_id: int
-    ):
-        """Create a single compartment entry."""
-        query = text("""
-            INSERT INTO fhir.compartments (
-                compartment_type, compartment_id, resource_id, created_at
-            ) VALUES (
-                :compartment_type, :compartment_id, :resource_id, :created_at
-            )
-            ON CONFLICT DO NOTHING
-        """)
-        
-        await session.execute(query, {
-            "compartment_type": compartment_type,
-            "compartment_id": compartment_id,
-            "resource_id": resource_id,
-            "created_at": datetime.utcnow()
-        })
-    
-    async def _verify_compartments(self, session: AsyncSession):
+    async def verify_compartments(self):
         """Verify compartment population."""
-        # Count compartments by resource type
-        query = text("""
-            SELECT r.resource_type, COUNT(DISTINCT c.id) as compartment_count
-            FROM fhir.compartments c
-            JOIN fhir.resources r ON c.resource_id = r.id
-            GROUP BY r.resource_type
-            ORDER BY r.resource_type
+        logger.info("\nVerifying compartment population...")
+        
+        # Get total compartments
+        total_compartments = await self.conn.fetchval("""
+            SELECT COUNT(*) FROM fhir.compartments
+            WHERE compartment_type = 'Patient'
         """)
         
-        result = await session.execute(query)
-        rows = result.fetchall()
+        logger.info(f"Total patient compartments: {total_compartments}")
         
-        logger.info("\nCompartment summary by resource type:")
-        for row in rows:
-            logger.info(f"  {row.resource_type}: {row.compartment_count} compartments")
-        
-        # Sample check: verify a few resources have correct compartments
-        sample_query = text("""
-            SELECT r.resource_type, r.fhir_id, c.compartment_id
+        # Get compartments by resource type
+        logger.info("\nCompartments by resource type:")
+        type_stats = await self.conn.fetch("""
+            SELECT r.resource_type, COUNT(DISTINCT c.resource_id) as count
             FROM fhir.compartments c
             JOIN fhir.resources r ON c.resource_id = r.id
             WHERE c.compartment_type = 'Patient'
-            LIMIT 10
+            AND (r.deleted = false OR r.deleted IS NULL)
+            GROUP BY r.resource_type
+            ORDER BY count DESC
         """)
         
-        result = await session.execute(sample_query)
-        rows = result.fetchall()
+        for stat in type_stats:
+            logger.info(f"  {stat['resource_type']}: {stat['count']}")
         
-        logger.info("\nSample compartment entries:")
-        for row in rows:
-            logger.info(f"  {row.resource_type}/{row.fhir_id} -> Patient/{row.compartment_id}")
+        # Check for resources that should have compartments but don't
+        logger.info("\nChecking for missing compartments...")
+        
+        for resource_type in ['Condition', 'Observation', 'MedicationRequest', 'Procedure', 'Encounter']:
+            missing = await self.conn.fetchval("""
+                SELECT COUNT(*)
+                FROM fhir.resources r
+                WHERE r.resource_type = $1
+                AND (r.deleted = false OR r.deleted IS NULL)
+                AND NOT EXISTS (
+                    SELECT 1 FROM fhir.compartments c
+                    WHERE c.resource_id = r.id
+                    AND c.compartment_type = 'Patient'
+                )
+            """, resource_type)
+            
+            if missing > 0:
+                logger.warning(f"  {resource_type}: {missing} resources without compartments")
+        
+        # Get sample patient compartment
+        sample = await self.conn.fetchrow("""
+            SELECT c.compartment_id, COUNT(*) as resource_count
+            FROM fhir.compartments c
+            WHERE c.compartment_type = 'Patient'
+            GROUP BY c.compartment_id
+            ORDER BY resource_count DESC
+            LIMIT 1
+        """)
+        
+        if sample:
+            logger.info(f"\nSample: Patient/{sample['compartment_id']} has {sample['resource_count']} resources")
+    
+    async def run(self, verify_only: bool = False):
+        """Run the compartment populator."""
+        await self.connect()
+        
+        try:
+            if not verify_only:
+                await self.populate_compartments()
+                
+                logger.info(f"\nPopulation complete:")
+                logger.info(f"  Resources processed: {self.stats['processed']}")
+                logger.info(f"  Resources with compartments: {self.stats['resources_with_compartments']}")
+                logger.info(f"  Compartments created: {self.stats['compartments_created']}")
+                logger.info(f"  Errors: {self.stats['errors']}")
+            
+            await self.verify_compartments()
+            
+        finally:
+            await self.disconnect()
 
 
 async def main():
     """Main entry point."""
-    logger.info("Starting compartment population...")
+    parser = argparse.ArgumentParser(description='Populate FHIR compartments table')
+    parser.add_argument('--verify-only', action='store_true', 
+                       help='Only verify compartments without populating')
+    parser.add_argument('--database-url', help='Database connection URL')
     
-    populator = CompartmentPopulator()
-    await populator.populate_compartments()
+    args = parser.parse_args()
     
-    logger.info("Compartment population completed!")
+    populator = CompartmentPopulator(database_url=args.database_url)
+    await populator.run(verify_only=args.verify_only)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

@@ -1,8 +1,8 @@
 /**
  * Relationship Mapper Component for FHIR Explorer v4
  * 
- * Interactive visualization of FHIR resource relationships
- * Helps users understand complex interconnections between healthcare data
+ * Enhanced version with D3.js visualization and dynamic relationship discovery
+ * Shows actual relationships from the FHIR data using the backend API
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -24,9 +24,9 @@ import {
   Alert,
   IconButton,
   Tooltip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Autocomplete,
+  TextField,
+  Divider,
   List,
   ListItem,
   ListItemText,
@@ -38,10 +38,19 @@ import {
   Switch,
   FormControlLabel,
   Slider,
-  Divider
+  CircularProgress,
+  LinearProgress,
+  Tab,
+  Tabs,
+  Badge,
+  Menu,
+  ListItemButton,
+  Collapse,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
-  AccountTree as RelationshipIcon,
+  AccountTree,
   Hub as HubIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
@@ -49,6 +58,7 @@ import {
   Refresh as RefreshIcon,
   Settings as SettingsIcon,
   ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
   Person as PersonIcon,
   LocalHospital as HospitalIcon,
   Science as ScienceIcon,
@@ -57,498 +67,854 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
   FilterList as FilterIcon,
-  Share as ShareIcon
+  Share as ShareIcon,
+  Download as DownloadIcon,
+  Search as SearchIcon,
+  Timeline as TimelineIcon,
+  BubbleChart as BubbleIcon,
+  DeviceHub as NetworkIcon,
+  Category as CategoryIcon,
+  Analytics as AnalyticsIcon,
+  Route as RouteIcon,
+  AutoGraph as GraphIcon,
+  Info as InfoIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckIcon,
+  Error as ErrorIcon,
+  MoreVert as MoreIcon,
+  Close as CloseIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
+  PhotoCamera as ScreenshotIcon,
+  RadioButtonUnchecked as RadioButtonUncheckedIcon,
+  Circle as CircleIcon
 } from '@mui/icons-material';
+import * as d3 from 'd3';
 
-// FHIR Resource relationship definitions
-const RESOURCE_RELATIONSHIPS = {
-  Patient: {
-    icon: <PersonIcon />,
-    color: '#2196f3',
-    connections: [
-      { target: 'Observation', field: 'subject', type: 'one-to-many', label: 'observations' },
-      { target: 'Condition', field: 'subject', type: 'one-to-many', label: 'conditions' },
-      { target: 'MedicationRequest', field: 'subject', type: 'one-to-many', label: 'prescriptions' },
-      { target: 'Encounter', field: 'subject', type: 'one-to-many', label: 'encounters' },
-      { target: 'AllergyIntolerance', field: 'patient', type: 'one-to-many', label: 'allergies' },
-      { target: 'CarePlan', field: 'subject', type: 'one-to-many', label: 'care plans' },
-      { target: 'Practitioner', field: 'general-practitioner', type: 'many-to-one', label: 'primary care' }
-    ]
-  },
-  Observation: {
-    icon: <ScienceIcon />,
-    color: '#4caf50',
-    connections: [
-      { target: 'Patient', field: 'subject', type: 'many-to-one', label: 'patient' },
-      { target: 'Encounter', field: 'encounter', type: 'many-to-one', label: 'encounter' },
-      { target: 'Practitioner', field: 'performer', type: 'many-to-one', label: 'performer' },
-      { target: 'DiagnosticReport', field: 'result', type: 'many-to-one', label: 'diagnostic report' }
-    ]
-  },
-  Condition: {
-    icon: <HospitalIcon />,
-    color: '#f44336',
-    connections: [
-      { target: 'Patient', field: 'subject', type: 'many-to-one', label: 'patient' },
-      { target: 'Encounter', field: 'encounter', type: 'many-to-one', label: 'encounter' },
-      { target: 'Practitioner', field: 'asserter', type: 'many-to-one', label: 'asserter' },
-      { target: 'Observation', field: 'evidence-detail', type: 'one-to-many', label: 'evidence' }
-    ]
-  },
-  MedicationRequest: {
-    icon: <MedicationIcon />,
-    color: '#ff9800',
-    connections: [
-      { target: 'Patient', field: 'subject', type: 'many-to-one', label: 'patient' },
-      { target: 'Practitioner', field: 'requester', type: 'many-to-one', label: 'requester' },
-      { target: 'Encounter', field: 'encounter', type: 'many-to-one', label: 'encounter' },
-      { target: 'Medication', field: 'medication', type: 'many-to-one', label: 'medication' },
-      { target: 'MedicationDispense', field: 'prescription', type: 'one-to-many', label: 'dispensing' }
-    ]
-  },
-  Encounter: {
-    icon: <AssignmentIcon />,
-    color: '#9c27b0',
-    connections: [
-      { target: 'Patient', field: 'subject', type: 'many-to-one', label: 'patient' },
-      { target: 'Practitioner', field: 'participant', type: 'many-to-many', label: 'participants' },
-      { target: 'Organization', field: 'serviceProvider', type: 'many-to-one', label: 'provider' },
-      { target: 'Observation', field: 'encounter', type: 'one-to-many', label: 'observations' },
-      { target: 'Condition', field: 'encounter', type: 'one-to-many', label: 'conditions' },
-      { target: 'Procedure', field: 'encounter', type: 'one-to-many', label: 'procedures' }
-    ]
-  }
+// Import services
+import { fhirRelationshipService } from '../../../services/fhirRelationshipService';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+
+// Visualization constants
+const NODE_RADIUS = {
+  MIN: 8,
+  MAX: 20,
+  DEFAULT: 12
 };
 
-// Predefined relationship patterns for common scenarios
-const RELATIONSHIP_PATTERNS = [
-  {
-    name: 'Patient Care Journey',
-    description: 'Complete patient care workflow',
-    resources: ['Patient', 'Encounter', 'Observation', 'Condition', 'MedicationRequest'],
-    focus: 'Patient'
-  },
-  {
-    name: 'Diagnostic Workflow',
-    description: 'From observation to diagnosis',
-    resources: ['Patient', 'Observation', 'DiagnosticReport', 'Condition'],
-    focus: 'Observation'
-  },
-  {
-    name: 'Medication Management',
-    description: 'Prescription to dispensing flow',
-    resources: ['Patient', 'MedicationRequest', 'Medication', 'MedicationDispense', 'Practitioner'],
-    focus: 'MedicationRequest'
-  },
-  {
-    name: 'Care Team Structure',
-    description: 'Healthcare provider relationships',
-    resources: ['Patient', 'Practitioner', 'Organization', 'CareTeam'],
-    focus: 'Practitioner'
-  }
-];
+const LINK_DISTANCE = {
+  MIN: 50,
+  MAX: 200,
+  DEFAULT: 100
+};
+
+const CHARGE_STRENGTH = {
+  MIN: -500,
+  MAX: -100,
+  DEFAULT: -300
+};
+
+const LAYOUTS = {
+  FORCE: 'force',
+  RADIAL: 'radial',
+  HIERARCHICAL: 'hierarchical',
+  CIRCULAR: 'circular'
+};
 
 function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData }) {
-  const [currentPattern, setCurrentPattern] = useState('');
-  const [visibleResources, setVisibleResources] = useState(new Set(['Patient', 'Observation', 'Condition']));
-  const [layoutSettings, setLayoutSettings] = useState({
-    showLabels: true,
-    showConnections: true,
-    nodeSize: 50,
-    linkDistance: 150
-  });
-  const [hoveredNode, setHoveredNode] = useState(null);
+  // State management
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentResource, setCurrentResource] = useState(null);
+  const [relationshipData, setRelationshipData] = useState(null);
+  const [visibleNodeTypes, setVisibleNodeTypes] = useState(new Set());
   const [selectedNode, setSelectedNode] = useState(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [hoveredNode, setHoveredNode] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const canvasRef = useRef(null);
-  const [relationships, setRelationships] = useState([]);
+  const [currentLayout, setCurrentLayout] = useState(LAYOUTS.FORCE);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [statistics, setStatistics] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentTab, setCurrentTab] = useState(0);
+  const [layoutSettings, setLayoutSettings] = useState({
+    nodeSize: NODE_RADIUS.DEFAULT,
+    linkDistance: LINK_DISTANCE.DEFAULT,
+    chargeStrength: CHARGE_STRENGTH.DEFAULT,
+    showLabels: true,
+    showLinkLabels: false,
+    curved: true,
+    animate: true
+  });
 
-  // Generate visual network data
-  const generateNetworkData = useCallback(() => {
-    const nodes = [];
-    const links = [];
-    const processedLinks = new Set();
+  // Refs
+  const svgRef = useRef(null);
+  const containerRef = useRef(null);
+  const simulationRef = useRef(null);
+  const zoomRef = useRef(null);
 
-    // Create nodes for visible resources
-    Array.from(visibleResources).forEach((resourceType, index) => {
-      const resource = RESOURCE_RELATIONSHIPS[resourceType];
-      if (resource) {
-        nodes.push({
-          id: resourceType,
-          type: resourceType,
-          label: resourceType,
-          icon: resource.icon,
-          color: resource.color,
-          x: Math.cos((index * 2 * Math.PI) / visibleResources.size) * 200,
-          y: Math.sin((index * 2 * Math.PI) / visibleResources.size) * 200,
-          isSelected: selectedNode === resourceType,
-          isHovered: hoveredNode === resourceType
-        });
-      }
-    });
+  // Get FHIR data hook
+  const { resources } = useFHIRData ? useFHIRData() : { resources: {} };
 
-    // Create links between visible resources
-    Array.from(visibleResources).forEach(sourceType => {
-      const sourceResource = RESOURCE_RELATIONSHIPS[sourceType];
-      if (sourceResource) {
-        sourceResource.connections.forEach(connection => {
-          if (visibleResources.has(connection.target)) {
-            const linkId = `${sourceType}-${connection.target}`;
-            const reverseLinkId = `${connection.target}-${sourceType}`;
-            
-            if (!processedLinks.has(linkId) && !processedLinks.has(reverseLinkId)) {
-              links.push({
-                id: linkId,
-                source: sourceType,
-                target: connection.target,
-                type: connection.type,
-                label: connection.label,
-                field: connection.field
-              });
-              processedLinks.add(linkId);
-            }
-          }
-        });
-      }
-    });
+  // Fetch relationship schema on mount
+  useEffect(() => {
+    fetchRelationshipSchema();
+    fetchStatistics();
+  }, []);
 
-    return { nodes, links };
-  }, [visibleResources, selectedNode, hoveredNode]);
+  // Fetch relationship schema
+  const fetchRelationshipSchema = async () => {
+    try {
+      const schema = await fhirRelationshipService.getRelationshipSchema();
+      // Initialize visible node types with common ones
+      setVisibleNodeTypes(new Set([
+        'Patient', 'Observation', 'Condition', 'MedicationRequest', 
+        'Encounter', 'Practitioner', 'Organization'
+      ]));
+    } catch (err) {
+      console.error('Error fetching relationship schema:', err);
+    }
+  };
 
-  // Draw the network visualization
-  const drawNetwork = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Fetch statistics
+  const fetchStatistics = async () => {
+    try {
+      const stats = await fhirRelationshipService.getRelationshipStatistics();
+      setStatistics(stats);
+    } catch (err) {
+      console.error('Error fetching statistics:', err);
+    }
+  };
 
-    const ctx = canvas.getContext('2d');
-    const { nodes, links } = generateNetworkData();
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply zoom and center
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(zoomLevel, zoomLevel);
+  // Load relationships for a resource
+  const loadRelationships = useCallback(async (resourceType, resourceId, depth = 2) => {
+    setLoading(true);
+    setError(null);
 
-    // Draw links
-    if (layoutSettings.showConnections) {
-      links.forEach(link => {
-        const sourceNode = nodes.find(n => n.id === link.source);
-        const targetNode = nodes.find(n => n.id === link.target);
-        
-        if (sourceNode && targetNode) {
-          ctx.strokeStyle = '#999';
-          ctx.lineWidth = 2;
-          ctx.setLineDash(link.type === 'one-to-many' ? [5, 5] : []);
-          
-          ctx.beginPath();
-          ctx.moveTo(sourceNode.x, sourceNode.y);
-          ctx.lineTo(targetNode.x, targetNode.y);
-          ctx.stroke();
-          
-          // Draw arrow
-          const angle = Math.atan2(targetNode.y - sourceNode.y, targetNode.x - sourceNode.x);
-          const arrowX = targetNode.x - Math.cos(angle) * 30;
-          const arrowY = targetNode.y - Math.sin(angle) * 30;
-          
-          ctx.fillStyle = '#999';
-          ctx.beginPath();
-          ctx.moveTo(arrowX, arrowY);
-          ctx.lineTo(arrowX - 10 * Math.cos(angle - 0.5), arrowY - 10 * Math.sin(angle - 0.5));
-          ctx.lineTo(arrowX - 10 * Math.cos(angle + 0.5), arrowY - 10 * Math.sin(angle + 0.5));
-          ctx.closePath();
-          ctx.fill();
-          
-          // Draw label
-          if (layoutSettings.showLabels) {
-            ctx.fillStyle = '#666';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            const midX = (sourceNode.x + targetNode.x) / 2;
-            const midY = (sourceNode.y + targetNode.y) / 2;
-            ctx.fillText(link.label, midX, midY - 5);
-          }
+    try {
+      // Fetch relationships from API
+      const data = await fhirRelationshipService.discoverRelationships(
+        resourceType, 
+        resourceId, 
+        { depth, includeCounts: true }
+      );
+
+      // Transform to D3 format
+      const d3Data = fhirRelationshipService.transformToD3Format(data);
+      
+      setRelationshipData(d3Data);
+      setCurrentResource({ resourceType, resourceId, display: data.source.display });
+      
+      // Update visible node types
+      const nodeTypes = new Set(d3Data.nodes.map(n => n.resourceType));
+      setVisibleNodeTypes(nodeTypes);
+
+      // Initialize visualization
+      initializeVisualization(d3Data);
+    } catch (err) {
+      setError(`Failed to load relationships: ${err.message}`);
+      console.error('Error loading relationships:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initialize D3 visualization
+  const initializeVisualization = useCallback((data) => {
+    if (!svgRef.current || !data) return;
+
+    const svg = d3.select(svgRef.current);
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+
+    // Clear previous visualization
+    svg.selectAll('*').remove();
+
+    // Create container groups
+    const g = svg.append('g').attr('class', 'main-group');
+    const linksGroup = g.append('g').attr('class', 'links');
+    const nodesGroup = g.append('g').attr('class', 'nodes');
+    const labelsGroup = g.append('g').attr('class', 'labels');
+
+    // Create zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 4])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+        setZoomLevel(event.transform.k);
+      });
+
+    svg.call(zoom);
+    zoomRef.current = zoom;
+
+    // Initialize force simulation
+    const simulation = d3.forceSimulation(data.nodes)
+      .force('link', d3.forceLink(data.links)
+        .id(d => d.id)
+        .distance(layoutSettings.linkDistance)
+      )
+      .force('charge', d3.forceManyBody()
+        .strength(layoutSettings.chargeStrength)
+      )
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide()
+        .radius(d => getNodeRadius(d) + 5)
+      );
+
+    simulationRef.current = simulation;
+
+    // Create links
+    const links = linksGroup.selectAll('path')
+      .data(data.links)
+      .enter().append('path')
+      .attr('class', 'link')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', d => d.type === 'reverse' ? 1 : 2)
+      .attr('stroke-dasharray', d => d.type === 'one-to-many' ? '5,5' : null)
+      .attr('fill', 'none')
+      .attr('marker-end', 'url(#arrowhead)');
+
+    // Create arrow markers
+    svg.append('defs').append('marker')
+      .attr('id', 'arrowhead')
+      .attr('viewBox', '-0 -5 10 10')
+      .attr('refX', 20)
+      .attr('refY', 0)
+      .attr('orient', 'auto')
+      .attr('markerWidth', 8)
+      .attr('markerHeight', 8)
+      .append('path')
+      .attr('d', 'M 0,-5 L 10,0 L 0,5')
+      .attr('fill', '#999');
+
+    // Create nodes
+    const nodes = nodesGroup.selectAll('circle')
+      .data(data.nodes)
+      .enter().append('circle')
+      .attr('class', 'node')
+      .attr('r', d => getNodeRadius(d))
+      .attr('fill', d => fhirRelationshipService.getResourceColor(d.resourceType))
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+      .style('cursor', 'pointer')
+      .call(drag(simulation));
+
+    // Add labels if enabled
+    if (layoutSettings.showLabels) {
+      const labels = labelsGroup.selectAll('text')
+        .data(data.nodes)
+        .enter().append('text')
+        .attr('class', 'label')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '.35em')
+        .attr('font-size', '12px')
+        .attr('pointer-events', 'none')
+        .text(d => d.display || d.id);
+    }
+
+    // Add interactions
+    nodes
+      .on('click', handleNodeClick)
+      .on('mouseenter', handleNodeHover)
+      .on('mouseleave', () => setHoveredNode(null));
+
+    // Add tooltip
+    nodes.append('title')
+      .text(d => `${d.resourceType}: ${d.display || d.id}`);
+
+    // Update positions on simulation tick
+    simulation.on('tick', () => {
+      // Update link positions
+      links.attr('d', d => {
+        if (layoutSettings.curved) {
+          const dx = d.target.x - d.source.x;
+          const dy = d.target.y - d.source.y;
+          const dr = Math.sqrt(dx * dx + dy * dy);
+          return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        } else {
+          return `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`;
         }
       });
-    }
 
-    // Draw nodes
-    nodes.forEach(node => {
-      const radius = layoutSettings.nodeSize / 2;
-      
-      // Node circle
-      ctx.fillStyle = node.isSelected ? '#1976d2' : node.isHovered ? '#42a5f5' : node.color;
-      ctx.strokeStyle = node.isSelected ? '#0d47a1' : '#fff';
-      ctx.lineWidth = node.isSelected ? 3 : 2;
-      
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Node label
+      // Update node positions
+      nodes
+        .attr('cx', d => d.x)
+        .attr('cy', d => d.y);
+
+      // Update label positions
       if (layoutSettings.showLabels) {
-        ctx.fillStyle = '#333';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(node.label, node.x, node.y + radius + 20);
+        labelsGroup.selectAll('text')
+          .attr('x', d => d.x)
+          .attr('y', d => d.y + getNodeRadius(d) + 15);
       }
     });
 
-    ctx.restore();
-  }, [generateNetworkData, layoutSettings, zoomLevel]);
+    // Apply initial layout
+    applyLayout(currentLayout, data, simulation);
+  }, [currentLayout, layoutSettings]);
 
-  // Handle canvas interactions
-  const handleCanvasClick = (event) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Get node radius based on connections
+  const getNodeRadius = (node) => {
+    if (!relationshipData) return layoutSettings.nodeSize;
+    
+    const connections = relationshipData.links.filter(
+      l => l.source.id === node.id || l.target.id === node.id
+    ).length;
+    
+    const scale = d3.scaleLinear()
+      .domain([0, 10])
+      .range([layoutSettings.nodeSize * 0.8, layoutSettings.nodeSize * 1.5])
+      .clamp(true);
+    
+    return scale(connections);
+  };
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left - canvas.width / 2) / zoomLevel;
-    const y = (event.clientY - rect.top - canvas.height / 2) / zoomLevel;
+  // Drag behavior
+  const drag = (simulation) => {
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
 
-    const { nodes } = generateNetworkData();
-    const clickedNode = nodes.find(node => {
-      const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-      return distance <= layoutSettings.nodeSize / 2;
-    });
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
 
-    if (clickedNode) {
-      setSelectedNode(clickedNode.id);
-      if (onResourceSelect) {
-        onResourceSelect(clickedNode.id);
-      }
-    } else {
-      setSelectedNode(null);
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    return d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended);
+  };
+
+  // Handle node click
+  const handleNodeClick = (event, node) => {
+    setSelectedNode(node);
+    if (onResourceSelect) {
+      onResourceSelect(node.resourceType, node.id.split('/')[1]);
     }
   };
 
-  const handleCanvasMouseMove = (event) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left - canvas.width / 2) / zoomLevel;
-    const y = (event.clientY - rect.top - canvas.height / 2) / zoomLevel;
-
-    const { nodes } = generateNetworkData();
-    const hoveredNode = nodes.find(node => {
-      const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-      return distance <= layoutSettings.nodeSize / 2;
-    });
-
-    setHoveredNode(hoveredNode ? hoveredNode.id : null);
-    canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
-  };
-
-  // Load pattern
-  const loadPattern = (pattern) => {
-    setCurrentPattern(pattern.name);
-    setVisibleResources(new Set(pattern.resources));
-    setSelectedNode(pattern.focus);
-  };
-
-  // Toggle resource visibility
-  const toggleResourceVisibility = (resourceType) => {
-    setVisibleResources(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(resourceType)) {
-        newSet.delete(resourceType);
-      } else {
-        newSet.add(resourceType);
-      }
-      return newSet;
-    });
-  };
-
-  // Effect to redraw canvas
-  useEffect(() => {
-    drawNetwork();
-  }, [drawNetwork]);
-
-  // Get relationship details for selected node
-  const getSelectedNodeDetails = () => {
-    if (!selectedNode) return null;
+  // Handle node hover
+  const handleNodeHover = (event, node) => {
+    setHoveredNode(node);
     
-    const resource = RESOURCE_RELATIONSHIPS[selectedNode];
-    if (!resource) return null;
+    // Highlight connected nodes and links
+    const svg = d3.select(svgRef.current);
+    const connectedNodes = new Set([node.id]);
+    
+    relationshipData.links.forEach(link => {
+      if (link.source.id === node.id) connectedNodes.add(link.target.id);
+      if (link.target.id === node.id) connectedNodes.add(link.source.id);
+    });
 
-    const visibleConnections = resource.connections.filter(conn => 
-      visibleResources.has(conn.target)
-    );
+    // Dim non-connected nodes
+    svg.selectAll('.node')
+      .style('opacity', d => connectedNodes.has(d.id) ? 1 : 0.3);
+    
+    svg.selectAll('.link')
+      .style('opacity', d => 
+        d.source.id === node.id || d.target.id === node.id ? 1 : 0.1
+      );
+  };
 
-    return {
-      type: selectedNode,
-      ...resource,
-      visibleConnections
+  // Apply layout algorithm
+  const applyLayout = (layout, data, simulation) => {
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+
+    switch (layout) {
+      case LAYOUTS.RADIAL:
+        // Radial layout with selected node at center
+        const centerNode = selectedNode || data.nodes[0];
+        
+        // Apply radial positions
+        data.nodes.forEach((node, i) => {
+          if (node.id === centerNode.id) {
+            node.x = width / 2;
+            node.y = height / 2;
+          } else {
+            const angle = (i / data.nodes.length) * 2 * Math.PI;
+            const radius = 150 + (node.depth || 0) * 100;
+            node.x = width / 2 + radius * Math.cos(angle);
+            node.y = height / 2 + radius * Math.sin(angle);
+          }
+        });
+        break;
+
+      case LAYOUTS.HIERARCHICAL:
+        // Hierarchical tree layout
+        try {
+          // Create a simple tree layout based on depth
+          const depthGroups = {};
+          data.nodes.forEach(node => {
+            const depth = node.depth || 0;
+            if (!depthGroups[depth]) {
+              depthGroups[depth] = [];
+            }
+            depthGroups[depth].push(node);
+          });
+          
+          const maxDepth = Math.max(...Object.keys(depthGroups).map(Number));
+          const yStep = (height - 100) / (maxDepth + 1);
+          
+          Object.entries(depthGroups).forEach(([depth, nodes]) => {
+            const xStep = (width - 100) / (nodes.length + 1);
+            nodes.forEach((node, i) => {
+              node.x = xStep * (i + 1);
+              node.y = 50 + yStep * Number(depth);
+            });
+          });
+        } catch (error) {
+          console.error('Error applying hierarchical layout:', error);
+          // Fall back to force layout
+        }
+        break;
+
+      case LAYOUTS.CIRCULAR:
+        // Circular layout
+        const radius = Math.min(width, height) / 2 - 50;
+        data.nodes.forEach((node, i) => {
+          const angle = (i / data.nodes.length) * 2 * Math.PI;
+          node.x = width / 2 + radius * Math.cos(angle);
+          node.y = height / 2 + radius * Math.sin(angle);
+        });
+        break;
+
+      default:
+        // Force layout - let simulation handle it
+        break;
+    }
+
+    // Restart simulation with new positions
+    simulation.nodes(data.nodes);
+    simulation.alpha(1).restart();
+  };
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomRef.current.scaleBy, 1.3);
+  };
+
+  const handleZoomOut = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomRef.current.scaleBy, 0.7);
+  };
+
+  const handleZoomReset = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomRef.current.transform, d3.zoomIdentity);
+  };
+
+  // Export visualization as image
+  const exportAsImage = () => {
+    if (!svgRef.current) return;
+    
+    const svgElement = svgRef.current;
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    canvas.width = svgElement.clientWidth;
+    canvas.height = svgElement.clientHeight;
+    
+    img.onload = () => {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `fhir-relationships-${Date.now()}.png`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
     };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+  };
+
+  // Search for resources
+  const handleSearch = async () => {
+    if (!searchQuery) return;
+    
+    try {
+      // Search for patients by name
+      const results = await fhirClient.searchPatients({ name: searchQuery });
+      
+      if (results.resources && results.resources.length > 0) {
+        const patient = results.resources[0];
+        loadRelationships('Patient', patient.id);
+      }
+    } catch (err) {
+      setError(`Search failed: ${err.message}`);
+    }
+  };
+
+  // Render statistics
+  const renderStatistics = () => {
+    if (!statistics) return null;
+
+    return (
+      <Card>
+        <CardHeader 
+          title="Relationship Statistics" 
+          avatar={<AnalyticsIcon />}
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Typography variant="h6">{statistics.totalResources}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Resources
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="h6">{statistics.totalRelationships}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Relationships
+              </Typography>
+            </Grid>
+          </Grid>
+          
+          <Divider sx={{ my: 2 }} />
+          
+          <Typography variant="subtitle2" gutterBottom>
+            Most Connected Resources
+          </Typography>
+          <List dense>
+            {statistics.mostConnectedResources?.slice(0, 5).map((resource, index) => (
+              <ListItem key={index}>
+                <ListItemText
+                  primary={`${resource.resourceType}/${resource.id}`}
+                  secondary={`${resource.connectionCount} connections`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <RelationshipIcon color="primary" />
-          Resource Relationship Mapper
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <IconButton onClick={() => setZoomLevel(prev => Math.min(prev + 0.2, 3))}>
-            <ZoomInIcon />
-          </IconButton>
-          <IconButton onClick={() => setZoomLevel(prev => Math.max(prev - 0.2, 0.5))}>
-            <ZoomOutIcon />
-          </IconButton>
-          <IconButton onClick={() => setZoomLevel(1)}>
-            <CenterIcon />
-          </IconButton>
-          <IconButton onClick={() => setShowSettings(true)}>
-            <SettingsIcon />
-          </IconButton>
-        </Stack>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Grid container alignItems="center" spacing={2}>
+          <Grid item xs>
+            <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <NetworkIcon color="primary" />
+              Resource Relationship Mapper
+            </Typography>
+          </Grid>
+          <Grid item>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                size="small"
+                placeholder="Search resources..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                }}
+              />
+              <ToggleButtonGroup
+                value={currentLayout}
+                exclusive
+                onChange={(e, layout) => layout && setCurrentLayout(layout)}
+                size="small"
+              >
+                <ToggleButton value={LAYOUTS.FORCE}>
+                  <Tooltip title="Force Layout">
+                    <BubbleIcon />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value={LAYOUTS.RADIAL}>
+                  <Tooltip title="Radial Layout">
+                    <HubIcon />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value={LAYOUTS.HIERARCHICAL}>
+                  <Tooltip title="Tree Layout">
+                    <AccountTree />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value={LAYOUTS.CIRCULAR}>
+                  <Tooltip title="Circular Layout">
+                    <RadioButtonUncheckedIcon />
+                  </Tooltip>
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <IconButton onClick={handleZoomIn} size="small">
+                <ZoomInIcon />
+              </IconButton>
+              <IconButton onClick={handleZoomOut} size="small">
+                <ZoomOutIcon />
+              </IconButton>
+              <IconButton onClick={handleZoomReset} size="small">
+                <CenterIcon />
+              </IconButton>
+              <IconButton onClick={() => setIsFullscreen(!isFullscreen)} size="small">
+                {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+              </IconButton>
+              <IconButton onClick={exportAsImage} size="small">
+                <ScreenshotIcon />
+              </IconButton>
+              <IconButton onClick={() => setShowSettings(true)} size="small">
+                <SettingsIcon />
+              </IconButton>
+            </Stack>
+          </Grid>
+        </Grid>
       </Box>
 
-      <Grid container spacing={3}>
-        {/* Controls Panel */}
-        <Grid item xs={12} lg={3}>
-          {/* Pattern Selection */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Relationship Patterns" />
-            <CardContent>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Select Pattern</InputLabel>
-                <Select
-                  value={currentPattern}
-                  label="Select Pattern"
-                  onChange={(e) => {
-                    const pattern = RELATIONSHIP_PATTERNS.find(p => p.name === e.target.value);
-                    if (pattern) loadPattern(pattern);
-                  }}
-                >
-                  <MenuItem value="">Custom</MenuItem>
-                  {RELATIONSHIP_PATTERNS.map(pattern => (
-                    <MenuItem key={pattern.name} value={pattern.name}>
-                      {pattern.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              {currentPattern && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  {RELATIONSHIP_PATTERNS.find(p => p.name === currentPattern)?.description}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+      {/* Main Content */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Grid container sx={{ height: '100%' }}>
+          {/* Left Panel */}
+          <Grid item xs={12} md={3} sx={{ borderRight: 1, borderColor: 'divider', overflow: 'auto' }}>
+            <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} variant="fullWidth">
+              <Tab label="Explorer" />
+              <Tab label="Statistics" />
+            </Tabs>
 
-          {/* Resource Visibility */}
-          <Card sx={{ mb: 3 }}>
-            <CardHeader title="Visible Resources" />
-            <CardContent>
-              <Stack spacing={1}>
-                {Object.entries(RESOURCE_RELATIONSHIPS).map(([type, resource]) => (
-                  <FormControlLabel
-                    key={type}
-                    control={
-                      <Switch
-                        checked={visibleResources.has(type)}
-                        onChange={() => toggleResourceVisibility(type)}
-                        size="small"
-                      />
+            {currentTab === 0 && (
+              <Box sx={{ p: 2 }}>
+                {/* Resource selector */}
+                <Autocomplete
+                  options={Object.keys(resources)}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Select Resource Type" size="small" />
+                  )}
+                  onChange={(e, resourceType) => {
+                    if (resourceType && resources[resourceType]?.length > 0) {
+                      const resource = resources[resourceType][0];
+                      loadRelationships(resourceType, resource.id);
                     }
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {resource.icon}
-                        <Typography variant="body2">{type}</Typography>
-                      </Box>
-                    }
-                  />
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-
-          {/* Selected Resource Details */}
-          {getSelectedNodeDetails() && (
-            <Card>
-              <CardHeader title={`${getSelectedNodeDetails().type} Details`} />
-              <CardContent>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  Connections to other resources:
-                </Typography>
-                <List dense>
-                  {getSelectedNodeDetails().visibleConnections.map((conn, index) => (
-                    <ListItem key={index}>
-                      <ListItemIcon>
-                        {RESOURCE_RELATIONSHIPS[conn.target]?.icon}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={conn.target}
-                        secondary={`${conn.type} - ${conn.label}`}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
-          )}
-        </Grid>
-
-        {/* Visualization Panel */}
-        <Grid item xs={12} lg={9}>
-          <Card>
-            <CardHeader 
-              title="Resource Relationship Network"
-              action={
-                <Typography variant="body2" color="text.secondary">
-                  Click nodes to explore • Zoom: {Math.round(zoomLevel * 100)}%
-                </Typography>
-              }
-            />
-            <CardContent>
-              <Paper sx={{ position: 'relative', bgcolor: '#fafafa' }}>
-                <canvas
-                  ref={canvasRef}
-                  width={800}
-                  height={600}
-                  onClick={handleCanvasClick}
-                  onMouseMove={handleCanvasMouseMove}
-                  style={{ 
-                    width: '100%', 
-                    height: '600px', 
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
                   }}
+                  sx={{ mb: 2 }}
                 />
-                
-                {/* Legend */}
-                <Paper sx={{ position: 'absolute', top: 16, right: 16, p: 2, bgcolor: 'rgba(255,255,255,0.95)' }}>
-                  <Typography variant="subtitle2" gutterBottom>Legend</Typography>
-                  <Stack spacing={1}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 12, height: 2, bgcolor: '#999' }} />
-                      <Typography variant="caption">One-to-one</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 12, height: 2, bgcolor: '#999', borderStyle: 'dashed', borderWidth: '1px 0' }} />
-                      <Typography variant="caption">One-to-many</Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
+
+                {/* Current resource info */}
+                {currentResource && (
+                  <Card sx={{ mb: 2 }}>
+                    <CardHeader
+                      title="Current Resource"
+                      subheader={`${currentResource.resourceType}/${currentResource.resourceId}`}
+                    />
+                    <CardContent>
+                      <Typography variant="body2">
+                        {currentResource.display}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Selected node details */}
+                {selectedNode && (
+                  <Card sx={{ mb: 2 }}>
+                    <CardHeader
+                      title="Selected Node"
+                      action={
+                        <IconButton 
+                          size="small"
+                          onClick={() => loadRelationships(
+                            selectedNode.resourceType, 
+                            selectedNode.id.split('/')[1]
+                          )}
+                        >
+                          <RefreshIcon />
+                        </IconButton>
+                      }
+                    />
+                    <CardContent>
+                      <Typography variant="body2">
+                        <strong>Type:</strong> {selectedNode.resourceType}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>ID:</strong> {selectedNode.id}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Display:</strong> {selectedNode.display}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Depth:</strong> {selectedNode.depth}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Relationship summary */}
+                {relationshipData && (
+                  <Card>
+                    <CardHeader title="Relationship Summary" />
+                    <CardContent>
+                      <Typography variant="body2">
+                        <strong>Nodes:</strong> {relationshipData.nodes.length}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Links:</strong> {relationshipData.links.length}
+                      </Typography>
+                      <Divider sx={{ my: 1 }} />
+                      <Typography variant="subtitle2" gutterBottom>
+                        Resource Types
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                        {Array.from(visibleNodeTypes).map(type => (
+                          <Chip
+                            key={type}
+                            label={type}
+                            size="small"
+                            sx={{
+                              bgcolor: fhirRelationshipService.getResourceColor(type),
+                              color: 'white'
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
+              </Box>
+            )}
+
+            {currentTab === 1 && (
+              <Box sx={{ p: 2 }}>
+                {renderStatistics()}
+              </Box>
+            )}
+          </Grid>
+
+          {/* Visualization Panel */}
+          <Grid item xs={12} md={9} sx={{ position: 'relative' }}>
+            {loading && (
+              <Box sx={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                bgcolor: 'rgba(255,255,255,0.8)',
+                zIndex: 10
+              }}>
+                <CircularProgress />
+              </Box>
+            )}
+
+            {error && (
+              <Alert severity="error" sx={{ m: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Box
+              ref={containerRef}
+              sx={{ 
+                width: '100%', 
+                height: '100%',
+                position: isFullscreen ? 'fixed' : 'relative',
+                top: isFullscreen ? 0 : 'auto',
+                left: isFullscreen ? 0 : 'auto',
+                right: isFullscreen ? 0 : 'auto',
+                bottom: isFullscreen ? 0 : 'auto',
+                zIndex: isFullscreen ? 1300 : 'auto',
+                bgcolor: 'background.paper'
+              }}
+            >
+              <svg
+                ref={svgRef}
+                width="100%"
+                height="100%"
+                style={{ cursor: 'grab' }}
+              />
+
+              {/* Zoom indicator */}
+              <Paper sx={{ 
+                position: 'absolute', 
+                bottom: 16, 
+                right: 16, 
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Typography variant="caption">
+                  Zoom: {Math.round(zoomLevel * 100)}%
+                </Typography>
               </Paper>
-            </CardContent>
-          </Card>
+            </Box>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
 
       {/* Settings Dialog */}
       <Dialog open={showSettings} onClose={() => setShowSettings(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Visualization Settings</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
+            <Box>
+              <Typography gutterBottom>Node Size</Typography>
+              <Slider
+                value={layoutSettings.nodeSize}
+                onChange={(e, value) => setLayoutSettings(prev => ({ ...prev, nodeSize: value }))}
+                min={NODE_RADIUS.MIN}
+                max={NODE_RADIUS.MAX}
+                marks
+                valueLabelDisplay="auto"
+              />
+            </Box>
+
+            <Box>
+              <Typography gutterBottom>Link Distance</Typography>
+              <Slider
+                value={layoutSettings.linkDistance}
+                onChange={(e, value) => setLayoutSettings(prev => ({ ...prev, linkDistance: value }))}
+                min={LINK_DISTANCE.MIN}
+                max={LINK_DISTANCE.MAX}
+                marks
+                valueLabelDisplay="auto"
+              />
+            </Box>
+
+            <Box>
+              <Typography gutterBottom>Charge Strength</Typography>
+              <Slider
+                value={layoutSettings.chargeStrength}
+                onChange={(e, value) => setLayoutSettings(prev => ({ ...prev, chargeStrength: value }))}
+                min={CHARGE_STRENGTH.MIN}
+                max={CHARGE_STRENGTH.MAX}
+                marks
+                valueLabelDisplay="auto"
+              />
+            </Box>
+
             <FormControlLabel
               control={
                 <Switch
@@ -556,46 +922,53 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   onChange={(e) => setLayoutSettings(prev => ({ ...prev, showLabels: e.target.checked }))}
                 />
               }
-              label="Show Labels"
+              label="Show Node Labels"
             />
-            
+
             <FormControlLabel
               control={
                 <Switch
-                  checked={layoutSettings.showConnections}
-                  onChange={(e) => setLayoutSettings(prev => ({ ...prev, showConnections: e.target.checked }))}
+                  checked={layoutSettings.showLinkLabels}
+                  onChange={(e) => setLayoutSettings(prev => ({ ...prev, showLinkLabels: e.target.checked }))}
                 />
               }
-              label="Show Connections"
+              label="Show Link Labels"
             />
-            
-            <Box>
-              <Typography gutterBottom>Node Size</Typography>
-              <Slider
-                value={layoutSettings.nodeSize}
-                onChange={(e, value) => setLayoutSettings(prev => ({ ...prev, nodeSize: value }))}
-                min={30}
-                max={80}
-                marks
-                valueLabelDisplay="auto"
-              />
-            </Box>
-            
-            <Box>
-              <Typography gutterBottom>Link Distance</Typography>
-              <Slider
-                value={layoutSettings.linkDistance}
-                onChange={(e, value) => setLayoutSettings(prev => ({ ...prev, linkDistance: value }))}
-                min={100}
-                max={300}
-                marks
-                valueLabelDisplay="auto"
-              />
-            </Box>
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={layoutSettings.curved}
+                  onChange={(e) => setLayoutSettings(prev => ({ ...prev, curved: e.target.checked }))}
+                />
+              }
+              label="Curved Links"
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={layoutSettings.animate}
+                  onChange={(e) => setLayoutSettings(prev => ({ ...prev, animate: e.target.checked }))}
+                />
+              }
+              label="Animate Transitions"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowSettings(false)}>Close</Button>
+          <Button 
+            onClick={() => {
+              setShowSettings(false);
+              if (relationshipData) {
+                initializeVisualization(relationshipData);
+              }
+            }}
+            variant="contained"
+          >
+            Apply
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
