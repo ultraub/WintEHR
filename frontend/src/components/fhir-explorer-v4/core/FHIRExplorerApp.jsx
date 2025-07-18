@@ -152,6 +152,57 @@ function FHIRExplorerApp() {
   // Initialize FHIR data and query history hooks
   const fhirContext = useFHIRResource();
   const queryHistoryHook = useQueryHistory();
+
+  // Load initial data when the explorer opens
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        // Check if we already have data
+        const existingPatients = fhirContext.getResourcesByType('Patient');
+        console.log('[FHIRExplorerApp] Existing patients:', existingPatients.length);
+        
+        if (existingPatients.length === 0) {
+          console.log('[FHIRExplorerApp] No patients found, loading initial data...');
+          
+          // Add a small delay to ensure context is ready
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Load some initial patients
+          const patientResult = await fhirContext.searchResources('Patient', { 
+            _count: 20,
+            _sort: '-_lastUpdated'
+          });
+          
+          console.log('[FHIRExplorerApp] Loaded patients:', patientResult);
+          
+          // If we got patients, load some resources for the first patient
+          if (patientResult?.resources?.length > 0) {
+            const firstPatient = patientResult.resources[0];
+            console.log('[FHIRExplorerApp] Loading resources for first patient:', firstPatient.id);
+            
+            // Load some common resource types for the first patient
+            const resourceTypes = ['Condition', 'Observation', 'MedicationRequest', 'Encounter'];
+            
+            await Promise.all(resourceTypes.map(async (resourceType) => {
+              try {
+                const result = await fhirContext.searchResources(resourceType, {
+                  patient: firstPatient.id,
+                  _count: 10
+                });
+                console.log(`[FHIRExplorerApp] Loaded ${resourceType}:`, result);
+              } catch (err) {
+                console.error(`[FHIRExplorerApp] Error loading ${resourceType}:`, err);
+              }
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('[FHIRExplorerApp] Error loading initial data:', error);
+      }
+    };
+
+    loadInitialData();
+  }, []); // Only run once on mount
   
   // Load initial patient data when the explorer starts
   useEffect(() => {

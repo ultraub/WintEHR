@@ -834,7 +834,7 @@ export function FHIRResourceProvider({ children }) {
       }
     });
     
-    const results = await Promise.all(promises);
+    await Promise.all(promises);
     
     // Count total resources
     let totalResources = 0;
