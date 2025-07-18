@@ -218,13 +218,40 @@ const EnhancedBaseResourceDialog = ({
   // Enhanced dialog styles
   const dialogSx = {
     '& .MuiDialog-paper': {
-      borderRadius: theme.shape.borderRadius * 2,
+      borderRadius: theme.shape.borderRadius * 2.5,
+      background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.clinical?.surfaces?.primary || theme.palette.primary.main, 0.02)} 100%)`,
+      border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+      boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}, 0 0 80px ${alpha(theme.palette.primary.main, 0.03)}`,
+      overflow: 'hidden',
+      position: 'relative',
       ...(severityColor && {
-        borderTop: `4px solid ${severityColor}`,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: `linear-gradient(90deg, ${severityColor} 0%, ${alpha(severityColor, 0.5)} 100%)`,
+        }
       }),
       ...(urgency === 'urgent' && {
-        boxShadow: `0 0 0 2px ${alpha(theme.palette.error?.main || '#f44336', 0.2)}`,
-      })
+        animation: 'urgentPulse 2s ease-in-out infinite',
+        '@keyframes urgentPulse': {
+          '0%, 100%': { 
+            boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}, 0 0 80px ${alpha(theme.palette.error.main, 0.15)}` 
+          },
+          '50%': { 
+            boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.12)}, 0 0 100px ${alpha(theme.palette.error.main, 0.25)}` 
+          }
+        }
+      }),
+      // Mobile responsive
+      [theme.breakpoints.down('sm')]: {
+        margin: theme.spacing(2),
+        borderRadius: theme.shape.borderRadius * 2,
+        maxHeight: `calc(100vh - ${theme.spacing(4)})`,
+      }
     }
   };
 
@@ -307,7 +334,26 @@ const EnhancedBaseResourceDialog = ({
       
       <Divider />
       
-      <DialogContent sx={{ pt: spacing, pb: spacing }}>
+      <DialogContent sx={{ 
+        pt: spacing, 
+        pb: spacing,
+        px: { xs: 2, sm: 3 },
+        backgroundColor: 'transparent',
+        '&::-webkit-scrollbar': {
+          width: '8px',
+        },
+        '&::-webkit-scrollbar-track': {
+          backgroundColor: alpha(theme.palette.divider, 0.1),
+          borderRadius: '4px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          backgroundColor: alpha(theme.palette.primary.main, 0.2),
+          borderRadius: '4px',
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.3),
+          }
+        }
+      }}>
         {/* Error display */}
         {(error || saveError) && (
           <Alert 
@@ -384,7 +430,19 @@ const EnhancedBaseResourceDialog = ({
       
       <Divider />
       
-      <DialogActions sx={{ p: spacing, gap: 1 }}>
+      <DialogActions sx={{ 
+        p: { xs: 2, sm: spacing }, 
+        gap: 1,
+        backgroundColor: alpha(theme.palette.action.hover, 0.02),
+        borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+        '& .MuiButton-root': {
+          minWidth: { xs: '100%', sm: 'auto' },
+          [theme.breakpoints.down('sm')]: {
+            flex: '1 1 45%'
+          }
+        }
+      }}>
         {/* Custom actions */}
         {customActions}
         
