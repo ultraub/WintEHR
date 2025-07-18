@@ -143,29 +143,71 @@ run_build() {
         return 0
     fi
     
-    echo -e "${BLUE}🔧 Running consolidated build process...${NC}"
+    echo -e "${BLUE}🔧 Running build process...${NC}"
     
-    # Run build inside backend container
+    # First, ensure database is initialized
+    echo -e "${YELLOW}Initializing database...${NC}"
+    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+        cd /app
+        python scripts/setup/init_database_definitive.py --mode development 2>/dev/null || \
+        python scripts/init_database_definitive.py --mode development
+    "
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Database initialization failed${NC}"
+        return 1
+    fi
+    
+    # Try master_build.py first
+    echo -e "${BLUE}Attempting consolidated build...${NC}"
     docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
         export PYTHONPATH=/app
-        cd /app/scripts/active
-        python master_build.py --${BUILD_TYPE}-build --patient-count ${PATIENT_COUNT} --environment development
+        cd /app
+        if [ -f scripts/active/master_build.py ]; then
+            python scripts/active/master_build.py --${BUILD_TYPE}-build --patient-count ${PATIENT_COUNT} --environment development
+        else
+            exit 1
+        fi
     "
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Build completed successfully${NC}"
         return 0
-    else
-        echo -e "${RED}❌ Build failed${NC}"
-        echo -e "${YELLOW}You can still start services and run the build manually later${NC}"
-        
-        # Ask if user wants to continue
-        if [ "$SKIP_CONFIRM" != "true" ]; then
-            echo -e "${YELLOW}Continue with service startup? (y/N)${NC}"
-            read -r response
-            if [[ ! "$response" =~ ^[Yy]$ ]]; then
-                exit 1
-            fi
+    fi
+    
+    # Fallback to synthea_master.py
+    echo -e "${YELLOW}⚠️ Master build failed, trying synthea_master.py...${NC}"
+    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+        export PYTHONPATH=/app
+        cd /app
+        python scripts/active/synthea_master.py full --count ${PATIENT_COUNT} --validation-mode light
+    "
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Build completed with synthea_master${NC}"
+        return 0
+    fi
+    
+    # Final fallback - just generate patients
+    echo -e "${YELLOW}⚠️ Full build failed, attempting basic patient generation...${NC}"
+    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+        export PYTHONPATH=/app
+        cd /app
+        # Try to at least get some patients
+        python scripts/active/synthea_master.py generate --count ${PATIENT_COUNT} || \
+        python scripts/generate_test_patients.py --count ${PATIENT_COUNT} || \
+        echo 'Patient generation failed'
+    "
+    
+    echo -e "${YELLOW}⚠️ Build process encountered issues${NC}"
+    echo -e "${YELLOW}You can still start services and load data manually${NC}"
+    
+    # Ask if user wants to continue
+    if [ "$SKIP_CONFIRM" != "true" ]; then
+        echo -e "${YELLOW}Continue with service startup? (y/N)${NC}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            exit 1
         fi
     fi
 }
@@ -193,14 +235,25 @@ start_all_services() {
     # Start frontend with hot reload
     docker-compose -f docker-compose.dev.yml up -d frontend
     
-    # Wait for frontend to be ready (up to 120s)
-    echo -e "${YELLOW}⏳ Waiting for frontend to be ready...${NC}"
+    # Wait for frontend to be ready (up to 180s for initial npm install)
+    echo -e "${YELLOW}⏳ Waiting for frontend to be ready (this may take a few minutes)...${NC}"
     start_ts=$(date +%s)
-    while ! curl -sf http://localhost:3000 >/dev/null; do
-        sleep 3
-        if (( $(date +%s) - start_ts > 120 )); then
-            echo -e "${YELLOW}⚠️ Frontend may still be starting (this can take a few minutes)${NC}"
-            break
+    frontend_ready=false
+    while [ "$frontend_ready" = false ]; do
+        if curl -sf http://localhost:3000 >/dev/null 2>&1; then
+            frontend_ready=true
+            echo -e "${GREEN}✅ Frontend is ready${NC}"
+        else
+            elapsed=$(( $(date +%s) - start_ts ))
+            if (( elapsed > 180 )); then
+                echo -e "${YELLOW}⚠️ Frontend is taking longer than expected${NC}"
+                echo -e "${YELLOW}This is normal for first-time startup. Check logs with:${NC}"
+                echo "  docker-compose -f docker-compose.dev.yml logs -f frontend"
+                break
+            elif (( elapsed % 30 == 0 )); then
+                echo -e "${YELLOW}Still waiting... ($elapsed seconds elapsed)${NC}"
+            fi
+            sleep 3
         fi
     done
 }

@@ -1,6 +1,6 @@
-# MedGenEMR - A Modern, FHIR-Native Electronic Medical Record System
+# WintEHR - A Modern, FHIR-Native Electronic Medical Record System
 
-MedGenEMR is a comprehensive, open-source Electronic Medical Record (EMR) system designed for educational and research purposes. It is built on a modern technology stack, featuring a React-based frontend and a Python FastAPI backend. The system is fully compliant with the FHIR R4 standard, providing a real-world environment for learning and experimenting with clinical workflows, medical imaging, and health data interoperability.
+WintEHR is a comprehensive, open-source Electronic Medical Record (EMR) system designed for educational and research purposes. It is built on a modern technology stack, featuring a React-based frontend and a Python FastAPI backend. The system is fully compliant with the FHIR R4 standard, providing a real-world environment for learning and experimenting with clinical workflows, medical imaging, and health data interoperability.
 
 ## 🌟 Key Features
 
@@ -39,7 +39,7 @@ MedGenEMR is a comprehensive, open-source Electronic Medical Record (EMR) system
 
 ## 🏗️ Architecture
 
-MedGenEMR is built with a modern, container-based architecture that separates the frontend and backend services.
+WintEHR is built with a modern, container-based architecture that separates the frontend and backend services.
 
 *   **Frontend**: A React single-page application (SPA) using the Material-UI component library.
 *   **Backend**: A FastAPI application that provides a complete FHIR R4 REST API, as well as other EMR-specific services.

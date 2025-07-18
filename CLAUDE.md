@@ -15,25 +15,33 @@
 
 ## 🚀 Quick Start
 
+### Development Environment (Recommended)
 ```bash
-# Start system
-./start.sh
-
-# Fresh deployment with data
+# Fresh deployment with 20 patients and hot reload
 ./fresh-deploy.sh
 
-# Validate deployment
-python scripts/validate_deployment.py --verbose
+# Quick start (preserves existing data)
+./dev-start.sh
 
-# View logs
-docker-compose logs backend -f
+# Load additional patients
+./load-patients.sh 50
+
+# Stop services
+./dev-start.sh --stop
+```
+
+### Production Deployment
+```bash
+# Production deployment with 100 patients
+./fresh-deploy.sh --mode production --patients 100
+
+# Standard production start
+./start.sh
 ```
 
 ### Authentication Modes
-```bash
-export JWT_ENABLED=false  # Dev mode (users: demo/nurse/pharmacist/admin, password: password)
-export JWT_ENABLED=true   # Production JWT mode
-```
+- **Development**: JWT disabled, demo users (demo/nurse/pharmacist/admin, password: password)
+- **Production**: JWT enabled, secure authentication required
 
 ## ⚠️ CRITICAL RULES (MUST FOLLOW)
 
@@ -80,19 +88,33 @@ MedGenEMR/
 
 ## 🔧 Common Commands
 
-### Development
+### Development Workflow
 ```bash
+# Start development environment
+./dev-start.sh
+
+# Load patient data
+./load-patients.sh 20              # Add 20 patients
+./load-patients.sh --wipe 50       # Clear and load 50 patients
+
 # Run tests
 docker exec emr-backend pytest tests/ -v
-cd frontend && npm test
+docker exec emr-frontend npm test
 
-# Data management
-python backend/scripts/synthea_master.py full --count 10
-python backend/scripts/generate_dicom_for_studies.py
+# View logs
+docker-compose logs -f backend     # Backend logs
+docker-compose logs -f frontend    # Frontend logs
+```
 
-# Quality checks
-python .claude/agents/qa-agent.py --report
-python .claude/agents/fhir-integration-checker.py
+### Data Management
+```bash
+# Using synthea_master.py directly
+docker exec emr-backend python scripts/active/synthea_master.py full --count 20
+docker exec emr-backend python scripts/active/synthea_master.py wipe
+docker exec emr-backend python scripts/active/synthea_master.py validate
+
+# DICOM generation
+docker exec emr-backend python scripts/generate_dicom_for_studies.py
 ```
 
 ### Git Workflow
@@ -101,6 +123,7 @@ python .claude/agents/fhir-integration-checker.py
 git commit -m "feat: Add medication interaction checking"
 git commit -m "fix: Handle null medication references"
 git commit -m "docs: Update pharmacy module guide"
+git commit -m "chore: Update deployment scripts"
 ```
 
 ## 🏗️ Key Patterns
@@ -134,57 +157,44 @@ await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
 subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 ```
 
-## 🔎 FHIR Search Parameter Indexing
+## 🔎 FHIR Search Parameters
 
-### Important Requirements
-- **Search parameters MUST be indexed** for all FHIR resources during deployment
-- The backend extracts search params during resource creation/update
-- A migration step re-indexes existing resources during deployment
+### Key Points
+- Search parameters are automatically extracted during resource storage
+- All FHIR R4 standard search parameters are supported
+- Token parameters use `value_token_code` column (not `value_string`)
+- Reference parameters use `value_reference` column
 
-### Key Search Parameters
-- **patient/subject**: Required for Condition, Observation, MedicationRequest, etc.
-- **_id**: Resource identifier
-- **code**: Clinical codes (conditions, medications, observations)
-- **status**: Resource status
-- **date**: Temporal queries
-
-### Build Process Integration
-The deployment automatically runs search parameter migration:
-1. Data import (Phase 3)
-2. **Search parameter indexing** (Phase 4) - NEW
-3. DICOM generation (Phase 5)
-
-### Troubleshooting
-If searches return empty results:
+### Common Search Examples
 ```bash
-# Manually re-index search parameters
-docker exec emr-backend python scripts/active/run_migration.py
+# Patient searches
+/fhir/R4/Patient?name=Smith
+/fhir/R4/Patient?birthdate=1970-01-01
 
-# Verify search parameters exist
-docker exec emr-postgres psql -U emr_user -d emr_db -c "
-SELECT param_name, COUNT(*) 
-FROM fhir.search_params 
-WHERE param_name IN ('patient', 'subject') 
-GROUP BY param_name;"
+# Clinical searches
+/fhir/R4/Condition?patient=Patient/123&clinical-status=active
+/fhir/R4/MedicationRequest?patient=Patient/123&status=active
+/fhir/R4/Observation?patient=Patient/123&category=vital-signs
 
-# Monitor search parameter health
-docker exec emr-backend python scripts/monitor_search_params.py
-
-# Auto-fix search parameter issues
-docker exec emr-backend python scripts/monitor_search_params.py --fix
-
-# Verify after import
-docker exec emr-backend python scripts/verify_search_params_after_import.py
-
-# Test integration
-docker exec emr-backend python scripts/test_search_param_integration.py
+# Date range searches
+/fhir/R4/Encounter?patient=Patient/123&date=ge2024-01-01&date=le2024-12-31
 ```
 
-### Monitoring & Maintenance
-The build process automatically maintains search parameters, but you can monitor health:
-- **During import**: Step 6 verifies and auto-fixes missing parameters
-- **After deployment**: Validation includes search parameter checks
-- **Production**: Run `monitor_search_params.py` periodically
+### Troubleshooting Search Issues
+```bash
+# Check search parameter extraction
+docker exec emr-backend python scripts/validate_search_params.py
+
+# Fix search parameter issues (if any)
+docker exec emr-backend python scripts/fix_search_params_tokens.py
+
+# Verify specific resource search params
+docker exec emr-postgres psql -U emr_user -d emr_db -c "
+SELECT param_name, param_type, COUNT(*) 
+FROM fhir.search_params 
+WHERE resource_type = 'MedicationRequest' 
+GROUP BY param_name, param_type;"
+```
 
 ## 📋 Clinical Modules
 
@@ -212,8 +222,35 @@ The build process automatically maintains search parameters, but you can monitor
 - **Hook System**: [.claude/hooks/](.claude/hooks/)
 - **Knowledge Base**: [.claude/knowledge/](.claude/knowledge/)
 
+## 🚀 Deployment Scripts
+
+### Core Scripts
+- **`fresh-deploy.sh`**: Complete clean deployment with patient data
+- **`dev-start.sh`**: Quick development startup with hot reload
+- **`load-patients.sh`**: Add or replace patient data
+- **`start.sh`**: Production deployment
+
+### Script Options
+```bash
+# fresh-deploy.sh
+./fresh-deploy.sh                    # Dev mode, 20 patients
+./fresh-deploy.sh --patients 50      # Custom patient count
+./fresh-deploy.sh --mode production  # Production deployment
+
+# dev-start.sh  
+./dev-start.sh              # Start with hot reload
+./dev-start.sh --logs       # Start and tail logs
+./dev-start.sh --stop       # Stop services
+
+# load-patients.sh
+./load-patients.sh          # Load 20 patients
+./load-patients.sh 50       # Load 50 patients
+./load-patients.sh --wipe 30  # Clear data, load 30 patients
+```
+
 ## 📚 Additional Documentation
 
+- **Deployment Guide**: [docs/DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md) - Complete deployment instructions
 - **Detailed Reference**: [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md) - Complete patterns, troubleshooting, architecture
 - **API Documentation**: [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)
 - **Module Guides**: [docs/modules/](docs/modules/)
