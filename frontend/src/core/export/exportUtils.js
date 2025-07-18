@@ -7,6 +7,64 @@ import { format } from 'date-fns';
 import { printDocument } from './printUtils';
 
 /**
+ * Predefined export column configurations for different resource types
+ */
+export const EXPORT_COLUMNS = {
+  conditions: [
+    { key: 'code.text', label: 'Condition', format: 'text' },
+    { key: 'clinicalStatus.coding[0].code', label: 'Status', format: 'text' },
+    { key: 'verificationStatus.coding[0].code', label: 'Verification', format: 'text' },
+    { key: 'category[0].coding[0].display', label: 'Category', format: 'text' },
+    { key: 'severity.coding[0].display', label: 'Severity', format: 'text' },
+    { key: 'onsetDateTime', label: 'Onset Date', format: 'date' },
+    { key: 'recordedDate', label: 'Recorded Date', format: 'date' }
+  ],
+  medications: [
+    { key: 'medicationCodeableConcept.text', label: 'Medication', format: 'text' },
+    { key: 'status', label: 'Status', format: 'text' },
+    { key: 'dosageInstruction[0].text', label: 'Dosage', format: 'text' },
+    { key: 'dosageInstruction[0].route.text', label: 'Route', format: 'text' },
+    { key: 'dispenseRequest.numberOfRepeatsAllowed', label: 'Refills', format: 'text' },
+    { key: 'authoredOn', label: 'Prescribed Date', format: 'date' },
+    { key: 'dispenseRequest.validityPeriod.end', label: 'Expires', format: 'date' }
+  ],
+  allergies: [
+    { key: 'code.text', label: 'Allergen', format: 'text' },
+    { key: 'reaction[0].manifestation[0].text', label: 'Reaction', format: 'text' },
+    { key: 'reaction[0].severity', label: 'Severity', format: 'text' },
+    { key: 'criticality', label: 'Criticality', format: 'text' },
+    { key: 'clinicalStatus.coding[0].code', label: 'Status', format: 'text' },
+    { key: 'type', label: 'Type', format: 'text' },
+    { key: 'recordedDate', label: 'Recorded Date', format: 'date' }
+  ],
+  encounters: [
+    { key: 'type[0].text', label: 'Type', format: 'text' },
+    { key: 'status', label: 'Status', format: 'text' },
+    { key: 'class.display', label: 'Class', format: 'text' },
+    { key: 'reasonCode[0].text', label: 'Reason', format: 'text' },
+    { key: 'period.start', label: 'Start Date', format: 'datetime' },
+    { key: 'period.end', label: 'End Date', format: 'datetime' },
+    { key: 'location[0].location.display', label: 'Location', format: 'text' }
+  ],
+  orders: [
+    { key: 'code.text', label: 'Order', format: 'text' },
+    { key: 'status', label: 'Status', format: 'text' },
+    { key: 'priority', label: 'Priority', format: 'text' },
+    { key: 'category[0].text', label: 'Category', format: 'text' },
+    { key: 'authoredOn', label: 'Ordered Date', format: 'datetime' },
+    { key: 'occurrenceDateTime', label: 'Scheduled', format: 'datetime' }
+  ],
+  observations: [
+    { key: 'code.text', label: 'Test', format: 'text' },
+    { key: 'valueQuantity.value', label: 'Value', format: 'text' },
+    { key: 'valueQuantity.unit', label: 'Unit', format: 'text' },
+    { key: 'interpretation[0].text', label: 'Interpretation', format: 'text' },
+    { key: 'status', label: 'Status', format: 'text' },
+    { key: 'effectiveDateTime', label: 'Date', format: 'datetime' }
+  ]
+};
+
+/**
  * Get nested object value by dot notation path
  * @param {Object} obj - Object to get value from
  * @param {string} path - Dot notation path (e.g., 'code.text' or 'coding[0].code')

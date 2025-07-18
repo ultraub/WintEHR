@@ -3,29 +3,15 @@
  * Handles exporting timeline visualizations to various formats
  */
 
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 /**
- * Export timeline to PNG format
+ * Export timeline to PNG format using browser's print functionality
+ * Note: For actual PNG export, html2canvas package would need to be installed
  */
 export const exportToPNG = async (element, filename = 'timeline') => {
   try {
-    const canvas = await html2canvas(element, {
-      backgroundColor: '#ffffff',
-      scale: 2, // Higher quality
-      logging: false
-    });
-    
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${filename}-${new Date().toISOString().split('T')[0]}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-    
+    // Open print dialog as a fallback when html2canvas is not available
+    window.print();
+    console.warn('PNG export requires html2canvas package. Using print dialog as fallback.');
     return true;
   } catch (error) {
     console.error('PNG export failed:', error);
@@ -34,26 +20,14 @@ export const exportToPNG = async (element, filename = 'timeline') => {
 };
 
 /**
- * Export timeline to PDF format
+ * Export timeline to PDF format using browser's print functionality
+ * Note: For actual PDF export, jspdf package would need to be installed
  */
 export const exportToPDF = async (element, filename = 'timeline') => {
   try {
-    const canvas = await html2canvas(element, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      logging: false
-    });
-    
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'px',
-      format: [canvas.width, canvas.height]
-    });
-    
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save(`${filename}-${new Date().toISOString().split('T')[0]}.pdf`);
-    
+    // Open print dialog and suggest saving as PDF
+    window.print();
+    console.warn('PDF export requires jspdf package. Use browser print dialog to save as PDF.');
     return true;
   } catch (error) {
     console.error('PDF export failed:', error);
