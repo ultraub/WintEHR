@@ -70,7 +70,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     warmPatientCache,
     refreshPatientResources
   } = useFHIRResource();
-  const { subscribe, unsubscribe } = useClinicalWorkflow();
+  const { subscribe } = useClinicalWorkflow();
   
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [cdsLoading, setCdsLoading] = useState(false);
@@ -175,52 +175,56 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   useEffect(() => {
     if (!patientId) return;
 
-    const subscriptions = [];
+    const unsubscribers = [];
 
     // Subscribe to condition changes
-    const conditionSub = subscribe(CLINICAL_EVENTS.CONDITION_ADDED, (data) => {
+    const unsubCondition = subscribe(CLINICAL_EVENTS.CONDITION_ADDED, (data) => {
       if (data.patientId === patientId) {
         refreshPatientResources(patientId, 'Condition');
       }
     });
-    subscriptions.push(conditionSub);
+    unsubscribers.push(unsubCondition);
 
     // Subscribe to medication changes
-    const medAddSub = subscribe(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, (data) => {
+    const unsubMedAdd = subscribe(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, (data) => {
       if (data.patientId === patientId) {
         refreshPatientResources(patientId, 'MedicationRequest');
       }
     });
-    subscriptions.push(medAddSub);
+    unsubscribers.push(unsubMedAdd);
 
-    const medDiscSub = subscribe(CLINICAL_EVENTS.MEDICATION_DISCONTINUED, (data) => {
+    const unsubMedDisc = subscribe(CLINICAL_EVENTS.MEDICATION_DISCONTINUED, (data) => {
       if (data.patientId === patientId) {
         refreshPatientResources(patientId, 'MedicationRequest');
       }
     });
-    subscriptions.push(medDiscSub);
+    unsubscribers.push(unsubMedDisc);
 
     // Subscribe to allergy changes
-    const allergySub = subscribe(CLINICAL_EVENTS.ALLERGY_ADDED, (data) => {
+    const unsubAllergy = subscribe(CLINICAL_EVENTS.ALLERGY_ADDED, (data) => {
       if (data.patientId === patientId) {
         refreshPatientResources(patientId, 'AllergyIntolerance');
       }
     });
-    subscriptions.push(allergySub);
+    unsubscribers.push(unsubAllergy);
 
     // Subscribe to observation changes
-    const obsSub = subscribe(CLINICAL_EVENTS.RESULT_ADDED, (data) => {
+    const unsubObs = subscribe(CLINICAL_EVENTS.RESULT_ADDED, (data) => {
       if (data.patientId === patientId) {
         refreshPatientResources(patientId, 'Observation');
       }
     });
-    subscriptions.push(obsSub);
+    unsubscribers.push(unsubObs);
 
     // Cleanup subscriptions on unmount
     return () => {
-      subscriptions.forEach(unsubscribe);
+      unsubscribers.forEach(unsub => {
+        if (typeof unsub === 'function') {
+          unsub();
+        }
+      });
     };
-  }, [patientId, subscribe, unsubscribe, refreshPatientResources]);
+  }, [patientId, subscribe, refreshPatientResources]);
 
   // Get patient resources using centralized context - try to get data even if cache isn't fully warm
   const conditions = useMemo(() => {
@@ -345,7 +349,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
           backgroundColor: 'background.paper',
           position: 'sticky',
           top: 0,
-          zIndex: theme.zIndex.appBar - 1
+          zIndex: theme.zIndex.appBar - 1,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       >
         {/* Top Bar */}
@@ -388,7 +393,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   height: 64,
                   fontSize: '1.5rem',
                   bgcolor: theme.palette.primary.main,
-                  borderRadius: 0
+                  borderRadius: 1,
+                  boxShadow: '0 3px 6px rgba(0,0,0,0.16)'
                 }}
               >
                 {patientInfo.firstName.charAt(0)}{patientInfo.lastName.charAt(0)}
@@ -427,10 +433,16 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   startIcon={<WorkspaceIcon />}
                   onClick={handleLaunchWorkspace}
                   sx={{
-                    borderRadius: 0,
+                    borderRadius: 1,
                     fontWeight: 600,
                     px: 3,
-                    textTransform: 'none'
+                    textTransform: 'none',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 8px rgba(0,0,0,0.25)'
+                    }
                   }}
                 >
                   Open Clinical Workspace
@@ -439,7 +451,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   <Button
                     size="small"
                     startIcon={<EditIcon />}
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0.5 }}
                   >
                     Edit
                   </Button>
@@ -447,7 +459,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     size="small"
                     startIcon={<TimelineIcon />}
                     onClick={() => navigate(`/patients/${patientId}/timeline`)}
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0.5 }}
                   >
                     Timeline
                   </Button>
@@ -470,14 +482,14 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               sx={{
                 p: 2,
                 height: '100%',
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 0,
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
                 '&:hover': {
-                  borderColor: theme.palette.primary.main,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
@@ -496,7 +508,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     bgcolor: alpha(theme.palette.warning.main, 0.1),
                     width: 40,
                     height: 40,
-                    borderRadius: 0
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}
                 >
                   <ConditionIcon sx={{ color: theme.palette.warning.main }} />
@@ -536,14 +549,14 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               sx={{
                 p: 2,
                 height: '100%',
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 0,
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
                 '&:hover': {
-                  borderColor: theme.palette.primary.main,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
@@ -562,7 +575,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     bgcolor: alpha(theme.palette.info.main, 0.1),
                     width: 40,
                     height: 40,
-                    borderRadius: 0
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}
                 >
                   <MedicationIcon sx={{ color: theme.palette.info.main }} />
@@ -607,14 +621,14 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               sx={{
                 p: 2,
                 height: '100%',
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 0,
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.success.main, 0.02)} 100%)`,
                 '&:hover': {
-                  borderColor: theme.palette.primary.main,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=results`)}
@@ -633,7 +647,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     bgcolor: alpha(theme.palette.success.main, 0.1),
                     width: 40,
                     height: 40,
-                    borderRadius: 0
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}
                 >
                   <VitalsIcon sx={{ color: theme.palette.success.main }} />
@@ -673,15 +688,16 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               sx={{
                 p: 2,
                 height: '100%',
-                border: 1,
-                borderColor: activeAllergies.length > 0 ? theme.palette.error.main : 'divider',
-                borderRadius: 0,
+                borderRadius: 1,
+                boxShadow: activeAllergies.length > 0 ? '0 1px 3px rgba(244,67,54,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
-                backgroundColor: activeAllergies.length > 0 ? alpha(theme.palette.error.main, 0.02) : 'background.paper',
+                transition: 'all 0.2s ease',
+                background: activeAllergies.length > 0 
+                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[200], 0.3)} 100%)`,
                 '&:hover': {
-                  borderColor: theme.palette.error.main,
-                  backgroundColor: alpha(theme.palette.error.main, 0.05)
+                  boxShadow: activeAllergies.length > 0 ? '0 4px 6px rgba(244,67,54,0.4)' : '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
@@ -700,7 +716,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     bgcolor: alpha(theme.palette.error.main, 0.1),
                     width: 40,
                     height: 40,
-                    borderRadius: 0
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}
                 >
                   <WarningIcon sx={{ color: theme.palette.error.main }} />
@@ -740,10 +757,10 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             elevation={0}
             sx={{ 
               p: 3, 
-              borderRadius: 0, 
+              borderRadius: 1, 
               mb: 3,
-              border: 1,
-              borderColor: 'divider'
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`
             }}
           >
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
@@ -757,7 +774,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
                   color="warning"
                   size="small"
-                  sx={{ borderRadius: 0 }}
+                  sx={{ borderRadius: 0.5 }}
                 />
               )}
             </Stack>
@@ -765,7 +782,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             {cdsLoading && (
               <Alert 
                 severity="info"
-                sx={{ borderRadius: 0 }}
+                sx={{ borderRadius: 0.5 }}
               >
                 Evaluating clinical decision support rules...
               </Alert>
@@ -777,13 +794,13 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
                 sx={{ 
                   mb: index < cdsAlerts.length - 1 ? 1 : 0,
-                  borderRadius: 0
+                  borderRadius: 0.5
                 }}
                 action={
                   <Button 
                     size="small" 
                     variant="outlined"
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0.5 }}
                     onClick={() => navigate('/cds-studio')}
                   >
                     View Details
@@ -809,9 +826,12 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
           elevation={0}
           sx={{ 
             p: 3, 
-            borderRadius: 0,
-            border: 1,
-            borderColor: 'divider'
+            borderRadius: 1,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+            }
           }}
         >
           <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>

@@ -358,7 +358,12 @@ function RelationshipFilterPanel({
                   ...prev, 
                   dateRange: { ...prev.dateRange, start: date }
                 }))}
-                renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    fullWidth: true
+                  }
+                }}
               />
               <DatePicker
                 label="End Date"
@@ -367,7 +372,12 @@ function RelationshipFilterPanel({
                   ...prev, 
                   dateRange: { ...prev.dateRange, end: date }
                 }))}
-                renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    fullWidth: true
+                  }
+                }}
               />
             </Stack>
           </AccordionDetails>

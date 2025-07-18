@@ -290,9 +290,12 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
     <Paper
       elevation={0}
       sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 0,
+        borderRadius: 1,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+        },
         overflow: 'hidden'
       }}
     >
@@ -312,7 +315,8 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                 width: 40,
                 height: 40,
                 bgcolor: 'primary.main',
-                color: 'primary.contrastText'
+                color: 'primary.contrastText',
+                borderRadius: 1
               }}
             >
               <ProblemIcon />
@@ -401,9 +405,11 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   }
                 }}
                 sx={{
+                  borderRadius: 0.5,
                   transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
                   '&:hover': {
-                    transform: 'scale(1.05)'
+                    transform: 'scale(1.05)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }
                 }}
               />
@@ -424,9 +430,11 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   }
                 }}
                 sx={{
+                  borderRadius: 0.5,
                   transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
                   '&:hover': {
-                    transform: 'scale(1.05)'
+                    transform: 'scale(1.05)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }
                 }}
               />
@@ -447,9 +455,11 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   }
                 }}
                 sx={{
+                  borderRadius: 0.5,
                   transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
                   '&:hover': {
-                    transform: 'scale(1.05)'
+                    transform: 'scale(1.05)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }
                 }}
               />
@@ -934,9 +944,12 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     <Paper
       elevation={0}
       sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 0,
+        borderRadius: 1,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+        },
         overflow: 'hidden'
       }}
     >
@@ -1460,9 +1473,12 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
     <Paper
       elevation={0}
       sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 0,
+        borderRadius: 1,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+        },
         overflow: 'hidden'
       }}
     >
@@ -1698,9 +1714,12 @@ const SocialHistory = ({ observations, patientId, department }) => {
     <Paper
       elevation={0}
       sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 0,
+        borderRadius: 1,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+        },
         overflow: 'hidden'
       }}
     >
@@ -1805,7 +1824,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       const criticalCount = cdsAlerts.filter(alert => alert.indicator === 'critical').length;
       onNotificationUpdate(criticalCount || cdsAlerts.length);
     }
-  }, [cdsAlerts, onNotificationUpdate]);
+  }, [cdsAlerts.length]); // Only depend on the length, not the full array or callback
 
   const handleAddProblem = async (condition) => {
     try {

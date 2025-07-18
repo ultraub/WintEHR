@@ -52,7 +52,7 @@ import {
   LocalHospital as HospitalIcon,
   Science as ObservationIcon,
   Medication as MedicationIcon,
-  Assignment as ConditionIcon,
+  Assignment as AssignmentIcon,
   CalendarToday as EncounterIcon,
   Description as DocumentIcon,
   Code as CodeIcon,
@@ -64,7 +64,8 @@ import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   Refresh as RefreshIcon,
-  AccountTree as RelationshipIcon
+  AccountTree as RelationshipIcon,
+  Warning as ConditionIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';

@@ -67,6 +67,7 @@ import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
 import { useNavigate } from 'react-router-dom';
+import ThemeSwitcher from '../../theme/ThemeSwitcher';
 
 const EnhancedPatientHeader = ({ 
   patientId, 
@@ -216,32 +217,48 @@ const EnhancedPatientHeader = ({
         )}
         
         <Toolbar sx={{ minHeight: 56 }}>
-          {/* Logo and Title */}
+          {/* Logo and Title with Navigation */}
           <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
-            <Box
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 1,
-                background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                mr: 2
-              }}
-            >
-              <HospitalIcon sx={{ color: 'white', fontSize: 24 }} />
-            </Box>
-            {!isMobile && (
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  color: 'text.primary'
-                }}
+            <Tooltip title="Return to Dashboard">
+              <IconButton
+                onClick={() => navigate('/dashboard')}
+                sx={{ mr: 1 }}
               >
-                Clinical Workspace
-              </Typography>
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 1,
+                    background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      transform: 'scale(1.05)',
+                      boxShadow: '0 2px 8px rgba(25, 118, 210, 0.3)'
+                    }
+                  }}
+                >
+                  <HospitalIcon sx={{ color: 'white', fontSize: 24 }} />
+                </Box>
+              </IconButton>
+            </Tooltip>
+            {!isMobile && (
+              <Box>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600,
+                    color: 'text.primary'
+                  }}
+                >
+                  Clinical Workspace
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {patientName} • {currentPatient?.birthDate ? `${calculateAge(currentPatient.birthDate)} years` : 'Age unknown'}
+                </Typography>
+              </Box>
             )}
           </Box>
           
@@ -258,6 +275,11 @@ const EnhancedPatientHeader = ({
                 </Badge>
               </IconButton>
             </Tooltip>
+            
+            {/* Theme Switcher */}
+            {!isMobile && (
+              <ThemeSwitcher />
+            )}
             
             {/* Settings */}
             {!isMobile && (
@@ -352,7 +374,7 @@ const EnhancedPatientHeader = ({
                       label="Active"
                       size="small"
                       color="success"
-                      sx={{ height: 24 }}
+                      sx={{ height: 24, borderRadius: 0.5 }}
                     />
                   </Stack>
                   <Stack direction="row" spacing={2} alignItems="center">
@@ -379,7 +401,7 @@ const EnhancedPatientHeader = ({
                     label={`${activeConditions.length} Conditions`}
                     color={activeConditions.length > 0 ? 'warning' : 'default'}
                     onClick={() => onNavigateToTab?.('chart')}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', borderRadius: 0.5, transition: 'all 0.2s ease', '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } }}
                   />
                 </Tooltip>
                 <Tooltip title="Active Medications">
@@ -388,7 +410,7 @@ const EnhancedPatientHeader = ({
                     label={`${activeMedications.length} Medications`}
                     color={activeMedications.length > 0 ? 'info' : 'default'}
                     onClick={() => onNavigateToTab?.('chart')}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', borderRadius: 0.5, transition: 'all 0.2s ease', '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } }}
                   />
                 </Tooltip>
                 <Tooltip title="Active Allergies">
@@ -397,7 +419,7 @@ const EnhancedPatientHeader = ({
                     label={`${activeAllergies.length} Allergies`}
                     color={activeAllergies.length > 0 ? 'error' : 'default'}
                     onClick={() => onNavigateToTab?.('chart')}
-                    sx={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer', borderRadius: 0.5, transition: 'all 0.2s ease', '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } }}
                   />
                 </Tooltip>
               </Stack>

@@ -50,6 +50,11 @@ import {
   ToggleButtonGroup
 } from '@mui/material';
 import {
+  Stepper,
+  Step,
+  StepLabel
+} from '@mui/material';
+import {
   AccountTree,
   Hub as HubIcon,
   ZoomIn as ZoomInIcon,
@@ -71,6 +76,9 @@ import {
   Download as DownloadIcon,
   Search as SearchIcon,
   Timeline as TimelineIcon,
+  Route as PathIcon,
+  RadioButtonChecked as SourceIcon,
+  FiberManualRecord as TargetIcon,
   BubbleChart as BubbleIcon,
   DeviceHub as NetworkIcon,
   Category as CategoryIcon,
@@ -150,6 +158,11 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [comparisonNodes, setComparisonNodes] = useState([]);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [activeFilters, setActiveFilters] = useState({});
+  const [pathFindingMode, setPathFindingMode] = useState(false);
+  const [pathSource, setPathSource] = useState(null);
+  const [pathTarget, setPathTarget] = useState(null);
+  const [discoveredPaths, setDiscoveredPaths] = useState(null);
+  const [selectedPath, setSelectedPath] = useState(null);
   const [layoutSettings, setLayoutSettings] = useState({
     nodeSize: NODE_RADIUS.DEFAULT,
     linkDistance: LINK_DISTANCE.DEFAULT,
@@ -169,14 +182,27 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
   const resources = fhirData?.resources || {};
-  console.log('RelationshipMapper - fhirData:', fhirData);
-  console.log('RelationshipMapper - resources:', resources);
 
-  // Fetch relationship schema on mount
+  // Fetch relationship schema on mount and load initial data
   useEffect(() => {
     fetchRelationshipSchema();
     fetchStatistics();
-  }, []);
+    
+    // Auto-load first available patient if we have data
+    const loadInitialData = () => {
+      if (resources.Patient && resources.Patient.length > 0) {
+        const firstPatient = resources.Patient[0];
+        const patientId = firstPatient.id.includes('/') ? 
+          firstPatient.id.split('/').pop() : 
+          firstPatient.id;
+        loadRelationships('Patient', patientId);
+      }
+    };
+    
+    // Wait a bit for resources to load
+    const timer = setTimeout(loadInitialData, 1000);
+    return () => clearTimeout(timer);
+  }, [resources]);
 
   // Fetch relationship schema
   const fetchRelationshipSchema = async () => {
@@ -188,7 +214,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         'Encounter', 'Practitioner', 'Organization'
       ]));
     } catch (err) {
-      console.error('Error fetching relationship schema:', err);
+      // Error fetching relationship schema
     }
   };
 
@@ -198,16 +224,64 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       const stats = await fhirRelationshipService.getRelationshipStatistics();
       setStatistics(stats);
     } catch (err) {
-      console.error('Error fetching statistics:', err);
+      // Error fetching statistics
     }
   };
+
+  // Apply filters to visualization data
+  const getFilteredData = useCallback(() => {
+    if (!relationshipData || Object.keys(activeFilters).length === 0) {
+      return relationshipData;
+    }
+
+    let filteredNodes = [...relationshipData.nodes];
+    let filteredLinks = [...relationshipData.links];
+
+    // Filter by resource types
+    if (activeFilters.resourceTypes?.size > 0) {
+      filteredNodes = filteredNodes.filter(node => 
+        activeFilters.resourceTypes.has(node.resourceType)
+      );
+      const nodeIds = new Set(filteredNodes.map(n => n.id));
+      filteredLinks = filteredLinks.filter(link => 
+        nodeIds.has(link.source.id || link.source) && 
+        nodeIds.has(link.target.id || link.target)
+      );
+    }
+
+    // Filter by relationship types
+    if (activeFilters.relationshipTypes?.size > 0) {
+      filteredLinks = filteredLinks.filter(link => 
+        activeFilters.relationshipTypes.has(link.field)
+      );
+      // Remove orphaned nodes
+      if (!activeFilters.showOrphans) {
+        const connectedNodeIds = new Set();
+        filteredLinks.forEach(link => {
+          connectedNodeIds.add(link.source.id || link.source);
+          connectedNodeIds.add(link.target.id || link.target);
+        });
+        filteredNodes = filteredNodes.filter(node => connectedNodeIds.has(node.id));
+      }
+    }
+
+    // Apply date range filter if available
+    if (activeFilters.dateRange?.start || activeFilters.dateRange?.end) {
+      // This would require resource data to have dates
+      // For now, we'll skip this implementation
+    }
+
+    return {
+      nodes: filteredNodes,
+      links: filteredLinks
+    };
+  }, [relationshipData, activeFilters]);
 
   // Use ref to store the latest initialization function
   const initializeVisualizationRef = useRef(null);
   
   // Load relationships for a resource
   const loadRelationships = useCallback(async (resourceType, resourceId, depth = 2) => {
-    console.log('loadRelationships called with:', { resourceType, resourceId, depth });
     setLoading(true);
     setError(null);
 
@@ -218,11 +292,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         resourceId, 
         { depth, includeCounts: true }
       );
-      console.log('API response:', data);
 
       // Transform to D3 format
       const d3Data = fhirRelationshipService.transformToD3Format(data);
-      console.log('D3 data:', d3Data);
       
       setRelationshipData(d3Data);
       setCurrentResource({ resourceType, resourceId, display: data.source.display });
@@ -241,12 +313,80 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       }, 100);
     } catch (err) {
       setError(`Failed to load relationships: ${err.message}`);
-      console.error('Error loading relationships:', err);
-      console.error('Full error:', err.response?.data || err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Apply layout to nodes
+  const applyLayout = (layout, data, simulation) => {
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    switch (layout) {
+      case LAYOUTS.RADIAL:
+        // Radial layout
+        const radius = Math.min(width, height) / 3;
+        const angleStep = (2 * Math.PI) / data.nodes.length;
+        data.nodes.forEach((node, i) => {
+          const angle = i * angleStep;
+          node.fx = centerX + radius * Math.cos(angle);
+          node.fy = centerY + radius * Math.sin(angle);
+        });
+        break;
+        
+      case LAYOUTS.HIERARCHICAL:
+        // Tree layout
+        const tree = d3.tree()
+          .size([width - 100, height - 100]);
+        
+        // Create hierarchy - use first node as root if no clear hierarchy
+        const rootNode = data.nodes[0];
+        const hierarchyData = {
+          id: rootNode.id,
+          children: data.nodes.slice(1).map(n => ({ id: n.id }))
+        };
+        
+        const root = d3.hierarchy(hierarchyData);
+        tree(root);
+        
+        // Apply positions
+        const allNodes = [root, ...root.descendants()];
+        allNodes.forEach(d => {
+          const node = data.nodes.find(n => n.id === d.data.id);
+          if (node) {
+            node.fx = d.x + 50;
+            node.fy = d.y + 50;
+          }
+        });
+        break;
+        
+      case LAYOUTS.CIRCULAR:
+        // Circular layout
+        const circleRadius = Math.min(width, height) / 2.5;
+        const circleAngleStep = (2 * Math.PI) / data.nodes.length;
+        data.nodes.forEach((node, i) => {
+          const angle = i * circleAngleStep;
+          node.fx = centerX + circleRadius * Math.cos(angle);
+          node.fy = centerY + circleRadius * Math.sin(angle);
+        });
+        break;
+        
+      case LAYOUTS.FORCE:
+      default:
+        // Force layout - release fixed positions
+        data.nodes.forEach(node => {
+          node.fx = null;
+          node.fy = null;
+        });
+        break;
+    }
+    
+    // Restart simulation
+    simulation.alpha(1).restart();
+  };
 
   // Initialize D3 visualization
   const initializeVisualization = useCallback((data) => {
@@ -263,10 +403,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       const container = containerRef.current;
       const width = container ? container.clientWidth : svgRef.current.clientWidth;
       const height = container ? container.clientHeight : svgRef.current.clientHeight;
-      console.log('SVG dimensions:', { width, height });
       
       if (width === 0 || height === 0 || width < 100 || height < 100) {
-        console.warn('SVG has insufficient dimensions, waiting for next frame...');
         requestAnimationFrame(checkAndInitialize);
         return;
       }
@@ -277,6 +415,21 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     // Set the SVG viewBox to ensure all content is visible
     svg.attr('viewBox', `0 0 ${width} ${height}`)
        .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    // Add CSS styles for path highlighting
+    const defs = svg.append('defs');
+    defs.append('style').text(`
+      .node { cursor: pointer; }
+      .node:hover { stroke-width: 3px; }
+      .link { fill: none; stroke: #999; stroke-opacity: 0.6; }
+      .link:hover { stroke-opacity: 1; }
+      .label { pointer-events: none; user-select: none; }
+      
+      /* Path highlighting styles */
+      .path-node { stroke: #ff9800 !important; stroke-width: 4px !important; }
+      .path-endpoint { stroke: #2196f3 !important; stroke-width: 5px !important; }
+      .path-link { stroke: #ff9800 !important; stroke-width: 3px !important; stroke-opacity: 1 !important; }
+    `);
 
     // Create container groups
     const g = svg.append('g').attr('class', 'main-group');
@@ -351,8 +504,16 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       .data(data.nodes)
       .enter().append('circle')
       .attr('class', 'node')
+      .attr('data-node-id', d => d.id)
       .attr('r', d => getNodeRadius(d))
-      .attr('fill', d => fhirRelationshipService.getResourceColor(d.resourceType))
+      .attr('fill', d => {
+        // Special colors for path finding mode
+        if (pathFindingMode) {
+          if (pathSource && d.id === pathSource.id) return '#4caf50'; // Green for source
+          if (pathTarget && d.id === pathTarget.id) return '#f44336'; // Red for target
+        }
+        return fhirRelationshipService.getResourceColor(d.resourceType);
+      })
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
@@ -501,55 +662,6 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     };
   }, [relationshipData]);
 
-  // Apply filters to visualization data
-  const getFilteredData = useCallback(() => {
-    if (!relationshipData || Object.keys(activeFilters).length === 0) {
-      return relationshipData;
-    }
-
-    let filteredNodes = [...relationshipData.nodes];
-    let filteredLinks = [...relationshipData.links];
-
-    // Filter by resource types
-    if (activeFilters.resourceTypes?.size > 0) {
-      filteredNodes = filteredNodes.filter(node => 
-        activeFilters.resourceTypes.has(node.resourceType)
-      );
-      const nodeIds = new Set(filteredNodes.map(n => n.id));
-      filteredLinks = filteredLinks.filter(link => 
-        nodeIds.has(link.source.id || link.source) && 
-        nodeIds.has(link.target.id || link.target)
-      );
-    }
-
-    // Filter by relationship types
-    if (activeFilters.relationshipTypes?.size > 0) {
-      filteredLinks = filteredLinks.filter(link => 
-        activeFilters.relationshipTypes.has(link.field)
-      );
-      // Remove orphaned nodes
-      if (!activeFilters.showOrphans) {
-        const connectedNodeIds = new Set();
-        filteredLinks.forEach(link => {
-          connectedNodeIds.add(link.source.id || link.source);
-          connectedNodeIds.add(link.target.id || link.target);
-        });
-        filteredNodes = filteredNodes.filter(node => connectedNodeIds.has(node.id));
-      }
-    }
-
-    // Apply date range filter if available
-    if (activeFilters.dateRange?.start || activeFilters.dateRange?.end) {
-      // This would require resource data to have dates
-      // For now, we'll skip this implementation
-    }
-
-    return {
-      nodes: filteredNodes,
-      links: filteredLinks
-    };
-  }, [relationshipData, activeFilters]);
-
   // Get node radius based on connections
   const getNodeRadius = (node) => {
     if (!relationshipData) return layoutSettings.nodeSize;
@@ -593,7 +705,22 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Handle node click
   const handleNodeClick = (event, node) => {
-    if (multiSelectMode || event.ctrlKey || event.metaKey) {
+    if (pathFindingMode) {
+      // Path finding mode
+      if (!pathSource) {
+        setPathSource(node);
+      } else if (!pathTarget && node.id !== pathSource.id) {
+        setPathTarget(node);
+        // Automatically find paths when both are selected
+        findPaths(pathSource, node);
+      } else {
+        // Reset selection
+        setPathSource(node);
+        setPathTarget(null);
+        setDiscoveredPaths(null);
+        setSelectedPath(null);
+      }
+    } else if (multiSelectMode || event.ctrlKey || event.metaKey) {
       // Multi-select mode
       const newSelectedNodes = new Set(selectedNodes);
       if (newSelectedNodes.has(node.id)) {
@@ -635,6 +762,191 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       .style('stroke-width', d => selectedSet.has(d.id) ? 3 : 2);
   };
 
+  // Find paths between two nodes
+  const findPaths = async (source, target) => {
+    if (!source || !target) return;
+    
+    try {
+      setLoading(true);
+      const [sourceType, sourceId] = source.id.split('/');
+      const [targetType, targetId] = target.id.split('/');
+      
+      const paths = await fhirRelationshipService.findRelationshipPaths(
+        sourceType, sourceId, targetType, targetId, 3
+      );
+      
+      setDiscoveredPaths(paths);
+      if (paths.paths && paths.paths.length > 0) {
+        // Auto-select the first (shortest) path
+        setSelectedPath(0);
+        highlightPath(paths.paths[0]);
+      }
+    } catch (error) {
+      console.error('Error finding paths:', error);
+      setError('Failed to find paths between resources');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Highlight a specific path
+  const highlightPath = (path) => {
+    if (!svgRef.current || !path) return;
+    
+    const svg = d3.select(svgRef.current);
+    
+    // Reset all highlights
+    svg.selectAll('.node').classed('path-node', false).classed('path-endpoint', false);
+    svg.selectAll('.link').classed('path-link', false);
+    
+    // Extract all nodes in the path
+    const pathNodes = new Set();
+    path.forEach(step => {
+      pathNodes.add(step.from);
+      pathNodes.add(step.to);
+    });
+    
+    // Highlight nodes
+    svg.selectAll('.node')
+      .classed('path-node', d => pathNodes.has(d.id))
+      .classed('path-endpoint', d => 
+        d.id === path[0].from || d.id === path[path.length - 1].to
+      );
+    
+    // Highlight links
+    svg.selectAll('.link')
+      .classed('path-link', d => {
+        return path.some(step => 
+          (d.source.id === step.from && d.target.id === step.to) ||
+          (d.target.id === step.from && d.source.id === step.to)
+        );
+      });
+  };
+
+  // Toggle path finding mode
+  const togglePathFindingMode = () => {
+    setPathFindingMode(!pathFindingMode);
+    setPathSource(null);
+    setPathTarget(null);
+    setDiscoveredPaths(null);
+    setSelectedPath(null);
+    setSelectedNodes(new Set());
+    
+    // Reset highlights
+    if (svgRef.current) {
+      const svg = d3.select(svgRef.current);
+      svg.selectAll('.node').classed('path-node', false).classed('path-endpoint', false);
+      svg.selectAll('.link').classed('path-link', false);
+    }
+  };
+
+  // Handle zoom functions
+  const handleZoomIn = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(300).call(
+      zoomRef.current.scaleBy, 1.3
+    );
+  };
+
+  const handleZoomOut = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(300).call(
+      zoomRef.current.scaleBy, 0.7
+    );
+  };
+
+  const handleZoomReset = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    const svg = d3.select(svgRef.current);
+    const bounds = svgRef.current.getBBox();
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+    const dx = bounds.width;
+    const dy = bounds.height;
+    const x = bounds.x;
+    const y = bounds.y;
+    const scale = 0.9 / Math.max(dx / width, dy / height);
+    const translate = [width / 2 - scale * (x + dx / 2), height / 2 - scale * (y + dy / 2)];
+    
+    svg.transition().duration(750).call(
+      zoomRef.current.transform,
+      d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+    );
+  };
+
+  // Export as image
+  const exportAsImage = () => {
+    if (!svgRef.current) return;
+    
+    const svg = svgRef.current;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    canvas.width = svg.clientWidth;
+    canvas.height = svg.clientHeight;
+    
+    img.onload = () => {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relationship-map-${new Date().toISOString()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  // Handle search
+  const handleSearch = () => {
+    if (!searchQuery || !relationshipData) return;
+    
+    const query = searchQuery.toLowerCase();
+    const matchingNodes = relationshipData.nodes.filter(node => 
+      node.id.toLowerCase().includes(query) ||
+      node.display?.toLowerCase().includes(query) ||
+      node.resourceType.toLowerCase().includes(query)
+    );
+    
+    if (matchingNodes.length > 0) {
+      // Select first matching node
+      const firstMatch = matchingNodes[0];
+      setSelectedNode(firstMatch);
+      setSelectedNodes(new Set([firstMatch.id]));
+      updateNodeSelection(new Set([firstMatch.id]));
+      
+      // Focus on the node
+      if (svgRef.current && zoomRef.current) {
+        const svg = d3.select(svgRef.current);
+        const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
+        if (!node.empty()) {
+          const transform = d3.zoomTransform(svg.node());
+          const x = firstMatch.x * transform.k + transform.x;
+          const y = firstMatch.y * transform.k + transform.y;
+          const targetX = svgRef.current.clientWidth / 2 - x;
+          const targetY = svgRef.current.clientHeight / 2 - y;
+          
+          svg.transition().duration(750).call(
+            zoomRef.current.transform,
+            d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
+          );
+        }
+      }
+    }
+  };
+
   // Handle node hover
   const handleNodeHover = (event, node) => {
     setHoveredNode(node);
@@ -661,180 +973,13 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       );
   };
 
-  // Apply layout algorithm
-  const applyLayout = (layout, data, simulation) => {
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
+  // Duplicate applyLayout removed - using the one defined earlier
 
-    switch (layout) {
-      case LAYOUTS.RADIAL:
-        // Radial layout with selected node at center
-        const centerNode = selectedNode || data.nodes[0];
-        
-        // Apply radial positions
-        data.nodes.forEach((node, i) => {
-          if (node.id === centerNode.id) {
-            node.x = width / 2;
-            node.y = height / 2;
-          } else {
-            const angle = (i / data.nodes.length) * 2 * Math.PI;
-            const radius = 150 + (node.depth || 0) * 100;
-            node.x = width / 2 + radius * Math.cos(angle);
-            node.y = height / 2 + radius * Math.sin(angle);
-          }
-        });
-        break;
+  // Duplicate zoom controls removed - using the ones defined earlier
 
-      case LAYOUTS.HIERARCHICAL:
-        // Hierarchical tree layout
-        try {
-          // Create a simple tree layout based on depth
-          const depthGroups = {};
-          data.nodes.forEach(node => {
-            const depth = node.depth || 0;
-            if (!depthGroups[depth]) {
-              depthGroups[depth] = [];
-            }
-            depthGroups[depth].push(node);
-          });
-          
-          const maxDepth = Math.max(...Object.keys(depthGroups).map(Number));
-          const yStep = (height - 100) / (maxDepth + 1);
-          
-          Object.entries(depthGroups).forEach(([depth, nodes]) => {
-            const xStep = (width - 100) / (nodes.length + 1);
-            nodes.forEach((node, i) => {
-              node.x = xStep * (i + 1);
-              node.y = 50 + yStep * Number(depth);
-            });
-          });
-        } catch (error) {
-          console.error('Error applying hierarchical layout:', error);
-          // Fall back to force layout
-        }
-        break;
+  // Export visualization as image - already defined earlier
 
-      case LAYOUTS.CIRCULAR:
-        // Circular layout
-        const radius = Math.min(width, height) / 2 - 50;
-        data.nodes.forEach((node, i) => {
-          const angle = (i / data.nodes.length) * 2 * Math.PI;
-          node.x = width / 2 + radius * Math.cos(angle);
-          node.y = height / 2 + radius * Math.sin(angle);
-        });
-        break;
-
-      default:
-        // Force layout - let simulation handle it
-        break;
-    }
-
-    // Restart simulation with new positions
-    simulation.nodes(data.nodes);
-    simulation.alpha(1).restart();
-  };
-
-  // Zoom controls
-  const handleZoomIn = () => {
-    if (!svgRef.current || !zoomRef.current) return;
-    d3.select(svgRef.current)
-      .transition()
-      .duration(300)
-      .call(zoomRef.current.scaleBy, 1.3);
-  };
-
-  const handleZoomOut = () => {
-    if (!svgRef.current || !zoomRef.current) return;
-    d3.select(svgRef.current)
-      .transition()
-      .duration(300)
-      .call(zoomRef.current.scaleBy, 0.7);
-  };
-
-  const handleZoomReset = () => {
-    if (!svgRef.current || !zoomRef.current || !relationshipData) return;
-    
-    // Calculate bounds and fit to view
-    const svg = d3.select(svgRef.current);
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
-    
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    relationshipData.nodes.forEach(node => {
-      const r = getNodeRadius(node);
-      minX = Math.min(minX, node.x - r);
-      minY = Math.min(minY, node.y - r);
-      maxX = Math.max(maxX, node.x + r);
-      maxY = Math.max(maxY, node.y + r);
-    });
-    
-    const viewPadding = 40;
-    minX -= viewPadding;
-    minY -= viewPadding;
-    maxX += viewPadding;
-    maxY += viewPadding;
-    
-    const fullWidth = maxX - minX;
-    const fullHeight = maxY - minY;
-    const scale = Math.min(width / fullWidth, height / fullHeight) * 0.9;
-    
-    const translateX = (width - fullWidth * scale) / 2 - minX * scale;
-    const translateY = (height - fullHeight * scale) / 2 - minY * scale;
-    
-    svg.transition()
-      .duration(300)
-      .call(zoomRef.current.transform, d3.zoomIdentity
-        .translate(translateX, translateY)
-        .scale(scale));
-  };
-
-  // Export visualization as image
-  const exportAsImage = () => {
-    if (!svgRef.current) return;
-    
-    const svgElement = svgRef.current;
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    
-    canvas.width = svgElement.clientWidth;
-    canvas.height = svgElement.clientHeight;
-    
-    img.onload = () => {
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-      
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = `fhir-relationships-${Date.now()}.png`;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-      });
-    };
-    
-    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
-  };
-
-  // Search for resources
-  const handleSearch = async () => {
-    if (!searchQuery) return;
-    
-    try {
-      // Search for patients by name
-      const results = await fhirClient.searchPatients({ name: searchQuery });
-      
-      if (results.resources && results.resources.length > 0) {
-        const patient = results.resources[0];
-        loadRelationships('Patient', patient.id);
-      }
-    } catch (err) {
-      setError(`Search failed: ${err.message}`);
-    }
-  };
+  // Search for resources - already defined earlier
 
   // Render statistics
   const renderStatistics = () => {
@@ -989,6 +1134,15 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   </Badge>
                 </IconButton>
               </Tooltip>
+              <Tooltip title={pathFindingMode ? "Exit Path Finding" : "Find Path Between Resources"}>
+                <IconButton 
+                  onClick={togglePathFindingMode}
+                  size="small"
+                  color={pathFindingMode ? "primary" : "default"}
+                >
+                  <PathIcon />
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Grid>
         </Grid>
@@ -1009,8 +1163,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 onFiltersChange={setActiveFilters}
                 availableResourceTypes={Array.from(visibleNodeTypes)}
                 currentFilters={activeFilters}
-                nodeCount={getFilteredData()?.nodes?.length || 0}
-                linkCount={getFilteredData()?.links?.length || 0}
+                nodeCount={relationshipData?.nodes?.length || 0}
+                linkCount={relationshipData?.links?.length || 0}
               />
             </Grid>
           )}
@@ -1238,28 +1392,107 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             </Box>
           </Grid>
 
-          {/* Resource Details Panel */}
-          {showDetailsPanel && selectedNode && (
+          {/* Resource Details Panel or Path Finding Panel */}
+          {(pathFindingMode || (showDetailsPanel && selectedNode)) && (
             <Grid item xs={12} md={3} sx={{ 
               height: '100%',
               overflow: 'hidden',
               borderLeft: 1,
               borderColor: 'divider'
             }}>
-              <ResourceDetailsPanel
-                selectedNode={selectedNode}
-                onClose={() => setSelectedNode(null)}
-                onResourceSelect={(resourceType, resourceId) => {
-                  loadRelationships(resourceType, resourceId);
-                }}
-                onAddToComparison={(node) => {
-                  setComparisonNodes(prev => [...prev, node]);
-                }}
-                onFindPath={(source, target) => {
-                  console.log('Find path from', source, 'to', target);
-                  // TODO: Implement path finding
-                }}
-              />
+              {pathFindingMode ? (
+                <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+                  <Typography variant="h6" gutterBottom>
+                    Path Finding Mode
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <Stack spacing={2}>
+                    <Alert severity="info">
+                      Click on two resources to find paths between them
+                    </Alert>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Source Resource:
+                      </Typography>
+                      {pathSource ? (
+                        <Chip 
+                          icon={<SourceIcon />}
+                          label={`${pathSource.resourceType}: ${pathSource.display || pathSource.id}`}
+                          color="primary"
+                          onDelete={() => {
+                            setPathSource(null);
+                            setPathTarget(null);
+                            setDiscoveredPaths(null);
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Click a resource to select as source
+                        </Typography>
+                      )}
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Target Resource:
+                      </Typography>
+                      {pathTarget ? (
+                        <Chip 
+                          icon={<TargetIcon />}
+                          label={`${pathTarget.resourceType}: ${pathTarget.display || pathTarget.id}`}
+                          color="secondary"
+                          onDelete={() => {
+                            setPathTarget(null);
+                            setDiscoveredPaths(null);
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          {pathSource ? 'Click another resource to select as target' : 'Select source first'}
+                        </Typography>
+                      )}
+                    </Box>
+                    
+                    {pathSource && pathTarget && (
+                      <Button 
+                        variant="contained" 
+                        startIcon={<RouteIcon />}
+                        onClick={() => findPaths(pathSource, pathTarget)}
+                        fullWidth
+                      >
+                        Find Paths
+                      </Button>
+                    )}
+                    
+                    <Button 
+                      variant="outlined" 
+                      onClick={togglePathFindingMode}
+                      fullWidth
+                    >
+                      Exit Path Finding Mode
+                    </Button>
+                  </Stack>
+                </Paper>
+              ) : (
+                <ResourceDetailsPanel
+                  selectedNode={selectedNode}
+                  onClose={() => setSelectedNode(null)}
+                  onResourceSelect={(resourceType, resourceId) => {
+                    loadRelationships(resourceType, resourceId);
+                  }}
+                  onAddToComparison={(node) => {
+                    setComparisonNodes(prev => [...prev, node]);
+                  }}
+                  onFindPath={(source, target) => {
+                    setPathFindingMode(true);
+                    setPathSource(source);
+                    setPathTarget(target);
+                    findPaths(source, target);
+                  }}
+                />
+              )}
             </Grid>
           )}
         </Grid>
@@ -1359,6 +1592,101 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             variant="contained"
           >
             Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Path Finding Dialog */}
+      <Dialog 
+        open={discoveredPaths !== null} 
+        onClose={() => {
+          setDiscoveredPaths(null);
+          setSelectedPath(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Relationship Paths</Typography>
+            <IconButton onClick={() => {
+              setDiscoveredPaths(null);
+              setSelectedPath(null);
+            }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {discoveredPaths && (
+            <Box>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Found {discoveredPaths.pathCount} path{discoveredPaths.pathCount !== 1 ? 's' : ''} between:
+                <Box sx={{ mt: 1 }}>
+                  <Chip 
+                    icon={<SourceIcon />} 
+                    label={`${discoveredPaths.source.resourceType}: ${discoveredPaths.source.display}`}
+                    color="primary"
+                    sx={{ mr: 1 }}
+                  />
+                  <RouteIcon sx={{ mx: 1, verticalAlign: 'middle' }} />
+                  <Chip 
+                    icon={<TargetIcon />} 
+                    label={`${discoveredPaths.target.resourceType}: ${discoveredPaths.target.display}`}
+                    color="secondary"
+                  />
+                </Box>
+              </Alert>
+              
+              {discoveredPaths.paths.length > 0 ? (
+                <List>
+                  {discoveredPaths.paths.map((path, index) => (
+                    <ListItem 
+                      key={index}
+                      button
+                      selected={selectedPath === index}
+                      onClick={() => {
+                        setSelectedPath(index);
+                        highlightPath(path);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Badge badgeContent={path.length} color="primary">
+                          <RouteIcon />
+                        </Badge>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={`Path ${index + 1} (${path.length} step${path.length !== 1 ? 's' : ''})`}
+                        secondary={
+                          <Stepper orientation="horizontal" sx={{ mt: 1 }}>
+                            {path.map((step, stepIndex) => (
+                              <Step key={stepIndex} completed>
+                                <StepLabel>
+                                  {stepIndex === 0 && step.from.split('/')[0]}
+                                  {stepIndex > 0 && step.to.split('/')[0]}
+                                </StepLabel>
+                              </Step>
+                            ))}
+                          </Stepper>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="warning">
+                  No paths found between these resources within the search depth.
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setDiscoveredPaths(null);
+            setSelectedPath(null);
+          }}>
+            Close
           </Button>
         </DialogActions>
       </Dialog>
