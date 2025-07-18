@@ -286,7 +286,28 @@ else
     warning "CDS hooks creation completed with warnings: $CDS_HOOKS_RESULT"
 fi
 
-# Step 4: Generate DICOM files for imaging studies
+# Step 4: Re-index search parameters for all resources
+log "🔍 Re-indexing search parameters for all resources..."
+
+SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/active/run_migration.py" 2>&1 || echo "SEARCH_PARAM_MIGRATION_FAILED")
+
+if echo "$SEARCH_PARAM_RESULT" | grep -q "Migration completed successfully\|Search parameter migration completed"; then
+    # Extract statistics if available
+    RESOURCES_MIGRATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Migrated [0-9]* resources" | grep -o "[0-9]*" | head -1 || echo "unknown")
+    PARAMS_CREATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Created [0-9]* search parameters" | grep -o "[0-9]*" | head -1 || echo "unknown")
+    
+    success "Search parameter migration completed"
+    log "  Resources migrated: $RESOURCES_MIGRATED"
+    log "  Search parameters created: $PARAMS_CREATED"
+elif echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_MIGRATION_FAILED"; then
+    warning "Search parameter migration failed"
+    warning "System will continue but searches may not work properly"
+    log "Error: $SEARCH_PARAM_RESULT"
+else
+    log "Search parameter migration output: $SEARCH_PARAM_RESULT"
+fi
+
+# Step 5: Generate DICOM files for imaging studies
 log "🏥 Generating DICOM files for imaging studies..."
 
 DICOM_GENERATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/generate_dicom_for_studies.py" 2>&1 || echo "DICOM_GENERATION_FAILED")
@@ -307,7 +328,7 @@ else
     warning "DICOM generation completed with warnings: $DICOM_GENERATION_RESULT"
 fi
 
-# Step 4: Validate cross-references and data integrity
+# Step 6: Validate cross-references and data integrity
 log "🔗 Validating data cross-references..."
 
 REFERENCE_VALIDATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -398,7 +419,7 @@ else
     warning "Reference validation completed with warnings: $REFERENCE_VALIDATION_RESULT"
 fi
 
-# Step 5: Performance optimizations based on mode
+# Step 7: Performance optimizations based on mode
 if [ "$MODE" = "production" ]; then
     log "⚡ Applying production performance optimizations..."
     
@@ -413,7 +434,7 @@ else
     log "Development mode - skipping heavy optimizations"
 fi
 
-# Step 6: Create processing summary
+# Step 8: Create processing summary
 log "📋 Creating data processing summary..."
 
 docker exec emr-backend bash -c "cd /app && python -c '
@@ -446,7 +467,7 @@ with open(\"/app/backend/data/processing_summary.json\", \"w\") as f:
 
 success "Processing summary created"
 
-# Step 7: Final data validation
+# Step 9: Final data validation
 log "🔍 Running final data validation..."
 
 FINAL_VALIDATION=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -463,9 +484,13 @@ async def final_check():
         total_search_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params\")
         total_cds_hooks = await conn.fetchval(\"SELECT COUNT(*) FROM cds_hooks.hook_configurations WHERE enabled = true\")
         
+        # Validate patient search parameters exist
+        patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE param_name IN (\\'patient\\', \\'subject\\') AND param_type = \\'reference\\'\")
+        condition_patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE resource_type = \\'Condition\\' AND param_name = \\'patient\\'\")
+        
         await conn.close()
         
-        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks}\")
+        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks},patient_params={patient_params},condition_patient_params={condition_patient_params}\")
         
     except Exception as e:
         print(f\"FINAL_VALIDATION_ERROR:{e}\")
@@ -478,11 +503,15 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
     FINAL_PATIENTS=$(echo "$FINAL_VALIDATION" | grep -o "patients=[0-9]*" | cut -d= -f2)
     FINAL_SEARCH_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "search_params=[0-9]*" | cut -d= -f2)
     FINAL_CDS_HOOKS=$(echo "$FINAL_VALIDATION" | grep -o "cds_hooks=[0-9]*" | cut -d= -f2)
+    PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "patient_params=[0-9]*" | cut -d= -f2)
+    CONDITION_PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "condition_patient_params=[0-9]*" | cut -d= -f2)
     
     success "Final validation passed"
     log "  Total resources: $FINAL_RESOURCES"
     log "  Patients: $FINAL_PATIENTS"
     log "  Search parameters: $FINAL_SEARCH_PARAMS"
+    log "  Patient/subject params: $PATIENT_PARAMS"
+    log "  Condition patient params: $CONDITION_PATIENT_PARAMS"
     log "  CDS hooks: $FINAL_CDS_HOOKS"
     
     if [ "$FINAL_RESOURCES" -eq "0" ]; then
@@ -493,6 +522,10 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
         error "No patients found after processing"
     fi
     
+    if [ "$PATIENT_PARAMS" -eq "0" ]; then
+        warning "No patient/subject search parameters found - searches may not work properly"
+    fi
+    
 else
     error "Final validation failed: $FINAL_VALIDATION"
 fi
@@ -500,6 +533,7 @@ fi
 log "🎉 Data processing completed successfully!"
 log "✅ Name cleaning: Complete"
 log "✅ CDS hooks: $HOOKS_CREATED created"
+log "✅ Search parameters: $FINAL_SEARCH_PARAMS indexed"
 log "✅ DICOM generation: $DICOM_FILES_CREATED files"
 log "✅ Data validation: Passed"
 log "✅ Final resource count: $FINAL_RESOURCES"

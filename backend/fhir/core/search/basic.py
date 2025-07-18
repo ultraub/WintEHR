@@ -781,8 +781,9 @@ class SearchParameterHandler:
                     condition_parts = [f"{alias}.value_reference = :{ref_key}"]
                     sql_params[ref_key] = ref_id
                     
-                    # Add URN format check
+                    # Add URN format check in both fields (data might be in either)
                     urn_key = f"ref_urn_{counter}_{i}"
+                    condition_parts.append(f"{alias}.value_reference = :{urn_key}")
                     condition_parts.append(f"{alias}.value_string = :{urn_key}")
                     sql_params[urn_key] = f"urn:uuid:{ref_id}"
                     

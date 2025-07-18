@@ -817,9 +817,11 @@ export function FHIRResourceProvider({ children }) {
         
         // Add resource-specific parameters
         if (resourceType === 'Condition') {
-          params['clinical-status'] = 'active,recurrence,relapse';
+          // Get all conditions, not just active ones - components will filter as needed
+          // params['clinical-status'] = 'active,recurrence,relapse';
         } else if (resourceType === 'MedicationRequest') {
-          params.status = 'active,completed';
+          // Get all medication requests to show complete medication history
+          // params.status = 'active,completed';
         } else if (resourceType === 'Observation') {
           params._sort = '-date';
           params._count = 30;

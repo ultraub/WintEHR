@@ -134,33 +134,16 @@ const ClinicalCard = ({
   
   const cardSx = {
     position: 'relative',
-    background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(getCardBackground(), 0.7)} 100%)`,
-    border: `1px solid ${alpha(getBorderColor(), 0.12)}`,
-    borderRadius: theme.shape.borderRadius * 2,
-    boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.04)}, 0 0 24px ${alpha(theme.palette.primary.main, 0.01)}`,
-    overflow: 'hidden',
+    backgroundColor: getCardBackground(),
+    border: `1px solid ${getBorderColor()}`,
+    borderRadius: theme.shape.borderRadius,
     transition: `all ${animation.duration}ms ${animation.easing}`,
     cursor: onCardClick ? 'pointer' : 'default',
-    '&:hover': {
-      transform: onCardClick ? animation.transform : 'translateY(-2px)',
-      boxShadow: `0 8px 24px ${alpha(theme.palette.common.black, 0.08)}, 0 0 48px ${alpha(getBorderColor(), 0.08)}`,
-      borderColor: alpha(getBorderColor(), 0.3),
-      '& .card-hover-overlay': {
-        opacity: 1
-      }
-    },
-    // Subtle gradient overlay for depth
-    '&::after': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: `linear-gradient(180deg, transparent 0%, ${alpha(theme.palette.common.black, 0.01)} 100%)`,
-      pointerEvents: 'none',
-      borderRadius: theme.shape.borderRadius * 2
-    },
+    '&:hover': onCardClick ? {
+      transform: animation.transform,
+      boxShadow: theme.shadows[4],
+      borderColor: alpha(getBorderColor(), 0.4)
+    } : {},
     // Add urgency indicator
     ...(urgent && {
       borderLeftWidth: 4,
@@ -171,14 +154,14 @@ const ClinicalCard = ({
         top: 0,
         left: 0,
         right: 0,
-        height: 4,
-        background: `linear-gradient(90deg, ${theme.palette.error?.main || '#f44336'} 0%, ${alpha(theme.palette.error?.main || '#f44336', 0.5)} 100%)`,
-        borderRadius: `${theme.shape.borderRadius * 2}px ${theme.shape.borderRadius * 2}px 0 0`
+        height: 3,
+        backgroundColor: theme.palette.error?.main || '#f44336',
+        borderRadius: `${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0 0`
       }
     }),
     // Add severity glow
     ...(severity && ['severe', 'critical'].includes(severity) && {
-      boxShadow: `0 0 0 1px ${alpha(severityColor, 0.3)}, 0 4px 16px ${alpha(severityColor, 0.15)}, 0 0 32px ${alpha(severityColor, 0.1)}`
+      boxShadow: `0 0 0 1px ${alpha(severityColor, 0.3)}, 0 2px 4px ${alpha(severityColor, 0.1)}`
     }),
     ...props.sx
   };
@@ -190,25 +173,14 @@ const ClinicalCard = ({
           <Box sx={{ 
             color: severityColor || getPriorityColor(),
             display: 'flex',
-            alignItems: 'center',
-            p: 1,
-            borderRadius: 2,
-            backgroundColor: alpha(severityColor || getPriorityColor(), 0.08),
-            border: `1px solid ${alpha(severityColor || getPriorityColor(), 0.2)}`
+            alignItems: 'center'
           }}>
             {icon}
           </Box>
         )}
         title={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="h6" component="div" sx={{
-              fontWeight: 600,
-              background: `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${alpha(theme.palette.primary.main, 0.9)} 100%)`,
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              letterSpacing: '-0.01em'
-            }}>
+            <Typography variant="h6" component="div">
               {title}
             </Typography>
             {urgent && (
@@ -218,13 +190,10 @@ const ClinicalCard = ({
                 color="error"
                 sx={{
                   animation: 'pulse 2s infinite',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  background: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
                   '@keyframes pulse': {
-                    '0%': { opacity: 1, transform: 'scale(1)' },
-                    '50%': { opacity: 0.8, transform: 'scale(0.98)' },
-                    '100%': { opacity: 1, transform: 'scale(1)' }
+                    '0%': { opacity: 1 },
+                    '50%': { opacity: 0.7 },
+                    '100%': { opacity: 1 }
                   }
                 }}
               />
@@ -293,11 +262,7 @@ const ClinicalCard = ({
         sx={{ pb: 0 }}
       />
       
-      <CardContent sx={{ 
-        pt: spacing / 2,
-        px: { xs: 2, sm: 3 },
-        pb: { xs: 2, sm: 3 }
-      }}>
+      <CardContent sx={{ pt: spacing / 2 }}>
         {children}
       </CardContent>
       

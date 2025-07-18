@@ -1985,7 +1985,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -1996,7 +1996,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date (effectiveDateTime or effectivePeriod)
@@ -2071,7 +2071,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2080,7 +2080,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Onset date (CRIT-001-CON)
@@ -2141,7 +2141,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2150,7 +2150,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Requester reference
@@ -2158,7 +2158,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Authored on date
@@ -2215,7 +2215,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'medication',
                     'param_type': 'reference',
-                    'value_string': resource_data['medicationReference']['reference']
+                    'value_reference': resource_data['medicationReference']['reference']
                 })
             
             # Subject/Patient reference
@@ -2224,13 +2224,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Context/Encounter reference
@@ -2238,13 +2238,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'context',
                     'param_type': 'reference',
-                    'value_string': resource_data['context']['reference']
+                    'value_reference': resource_data['context']['reference']
                 })
                 if resource_data['context']['reference'].startswith('Encounter/'):
                     params_to_extract.append({
                         'param_name': 'encounter',
                         'param_type': 'reference',
-                        'value_string': resource_data['context']['reference']
+                        'value_reference': resource_data['context']['reference']
                     })
             
             # Performer reference
@@ -2254,7 +2254,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['actor']['reference']
+                            'value_reference': performer['actor']['reference']
                         })
             
             # Prescription reference
@@ -2264,7 +2264,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'prescription',
                             'param_type': 'reference',
-                            'value_string': prescription['reference']
+                            'value_reference': prescription['reference']
                         })
             
             # When handed over
@@ -2340,7 +2340,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'medication',
                     'param_type': 'reference',
-                    'value_string': resource_data['medicationReference']['reference']
+                    'value_reference': resource_data['medicationReference']['reference']
                 })
             
             # Subject/Patient reference
@@ -2349,13 +2349,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Context/Encounter reference
@@ -2363,13 +2363,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'context',
                     'param_type': 'reference',
-                    'value_string': resource_data['context']['reference']
+                    'value_reference': resource_data['context']['reference']
                 })
                 if resource_data['context']['reference'].startswith('Encounter/'):
                     params_to_extract.append({
                         'param_name': 'encounter',
                         'param_type': 'reference',
-                        'value_string': resource_data['context']['reference']
+                        'value_reference': resource_data['context']['reference']
                     })
             
             # Effective time
@@ -2411,7 +2411,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['actor']['reference']
+                            'value_reference': performer['actor']['reference']
                         })
             
             # Request reference
@@ -2419,7 +2419,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'request',
                     'param_type': 'reference',
-                    'value_string': resource_data['request']['reference']
+                    'value_reference': resource_data['request']['reference']
                 })
             
             # Device reference
@@ -2429,7 +2429,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'device',
                             'param_type': 'reference',
-                            'value_string': device['reference']
+                            'value_reference': device['reference']
                         })
         
         elif resource_type == 'Encounter':
@@ -2469,7 +2469,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2478,7 +2478,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date/Period
@@ -2504,14 +2504,14 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'participant',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
                         # Also extract as practitioner if reference is to Practitioner
                         if ref.startswith('Practitioner/'):
                             params_to_extract.append({
                                 'param_name': 'practitioner',
                                 'param_type': 'reference',
-                                'value_string': ref
+                                'value_reference': ref
                             })
         
         elif resource_type == 'Procedure':
@@ -2540,7 +2540,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2549,7 +2549,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Performed date
@@ -2586,7 +2586,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'Immunization':
@@ -2615,7 +2615,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
             
             # Date
@@ -2640,7 +2640,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'AllergyIntolerance':
@@ -2691,7 +2691,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
         
         elif resource_type == 'DiagnosticReport':
@@ -2720,7 +2720,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2729,7 +2729,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date
@@ -2754,7 +2754,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'CarePlan':
@@ -2772,7 +2772,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2781,7 +2781,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date
@@ -2813,7 +2813,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2822,7 +2822,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Started date
@@ -2849,7 +2849,7 @@ class FHIRStorageEngine:
                                 params_to_extract.append({
                                     'param_name': 'performer',
                                     'param_type': 'reference',
-                                    'value_string': ref
+                                    'value_reference': ref
                                 })
         
         elif resource_type == 'Coverage':
@@ -2869,7 +2869,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'beneficiary',
                     'param_type': 'reference',
-                    'value_string': resource_data['beneficiary']['reference']
+                    'value_reference': resource_data['beneficiary']['reference']
                 })
             
             # Subscriber - the subscriber to the plan
@@ -2877,7 +2877,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subscriber',
                     'param_type': 'reference',
-                    'value_string': resource_data['subscriber']['reference']
+                    'value_reference': resource_data['subscriber']['reference']
                 })
             
             # PolicyHolder - owner of the policy
@@ -2885,7 +2885,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'policy-holder',
                     'param_type': 'reference',
-                    'value_string': resource_data['policyHolder']['reference']
+                    'value_reference': resource_data['policyHolder']['reference']
                 })
             
             # Payor - the insurer/payor
@@ -2895,7 +2895,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'payor',
                             'param_type': 'reference',
-                            'value_string': payor['reference']
+                            'value_reference': payor['reference']
                         })
             
             # Type - coverage category
@@ -2977,7 +2977,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Insurer (required) - the insurer organization
@@ -2985,7 +2985,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'insurer',
                     'param_type': 'reference',
-                    'value_string': resource_data['insurer']['reference']
+                    'value_reference': resource_data['insurer']['reference']
                 })
             
             # Provider (required) - the provider of services
@@ -2993,7 +2993,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'provider',
                     'param_type': 'reference',
-                    'value_string': resource_data['provider']['reference']
+                    'value_reference': resource_data['provider']['reference']
                 })
             
             # Created date (required)
@@ -3026,7 +3026,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Care team members
@@ -3036,7 +3036,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'care-team',
                             'param_type': 'reference',
-                            'value_string': care_team_member['provider']['reference']
+                            'value_reference': care_team_member['provider']['reference']
                         })
             
             # Insurance references
@@ -3046,7 +3046,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'coverage',
                             'param_type': 'reference',
-                            'value_string': insurance['coverage']['reference']
+                            'value_reference': insurance['coverage']['reference']
                         })
             
             # Identifiers
@@ -3077,7 +3077,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Insurer (required) - the insurer organization
@@ -3085,7 +3085,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'insurer',
                     'param_type': 'reference',
-                    'value_string': resource_data['insurer']['reference']
+                    'value_reference': resource_data['insurer']['reference']
                 })
             
             # Provider - the provider of services
@@ -3093,7 +3093,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'provider',
                     'param_type': 'reference',
-                    'value_string': resource_data['provider']['reference']
+                    'value_reference': resource_data['provider']['reference']
                 })
             
             # Created date (required)
@@ -3115,7 +3115,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'claim',
                     'param_type': 'reference',
-                    'value_string': resource_data['claim']['reference']
+                    'value_reference': resource_data['claim']['reference']
                 })
             
             # Coverage references
@@ -3125,7 +3125,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'coverage',
                             'param_type': 'reference',
-                            'value_string': insurance['coverage']['reference']
+                            'value_reference': insurance['coverage']['reference']
                         })
             
             # Disposition - claim disposition
@@ -3149,7 +3149,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Identifiers
@@ -3180,7 +3180,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Location reference - current location of device
@@ -3188,7 +3188,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'location',
                     'param_type': 'reference',
-                    'value_string': resource_data['location']['reference']
+                    'value_reference': resource_data['location']['reference']
                 })
             
             # Organization reference - owning organization
@@ -3196,7 +3196,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['owner']['reference']
+                    'value_reference': resource_data['owner']['reference']
                 })
             
             # Device type
@@ -3282,13 +3282,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Category - goal category
@@ -3359,13 +3359,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Type - photo, video, audio
@@ -3409,7 +3409,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'operator',
                     'param_type': 'reference',
-                    'value_string': resource_data['operator']['reference']
+                    'value_reference': resource_data['operator']['reference']
                 })
             
             # Encounter reference
@@ -3417,7 +3417,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # BasedOn - what the media is based on (ServiceRequest, etc.)
@@ -3427,7 +3427,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Identifiers
@@ -3510,7 +3510,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'agent',
                             'param_type': 'reference',
-                            'value_string': agent['who']['reference']
+                            'value_reference': agent['who']['reference']
                         })
                     
                     # Agent name
@@ -3539,7 +3539,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'source',
                         'param_type': 'reference',
-                        'value_string': source['observer']['reference']
+                        'value_reference': source['observer']['reference']
                     })
                 
                 # Source site
@@ -3557,7 +3557,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'entity',
                             'param_type': 'reference',
-                            'value_string': entity['what']['reference']
+                            'value_reference': entity['what']['reference']
                         })
                     
                     # Entity name
@@ -3748,7 +3748,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'partof',
                     'param_type': 'reference',
-                    'value_string': resource_data['partOf']['reference']
+                    'value_reference': resource_data['partOf']['reference']
                 })
             
             # Address
@@ -3784,7 +3784,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'PractitionerRole':
@@ -3804,7 +3804,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'practitioner',
                     'param_type': 'reference',
-                    'value_string': resource_data['practitioner']['reference']
+                    'value_reference': resource_data['practitioner']['reference']
                 })
             
             # Organization reference
@@ -3812,7 +3812,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['organization']['reference']
+                    'value_reference': resource_data['organization']['reference']
                 })
             
             # Location references
@@ -3822,7 +3822,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'location',
                             'param_type': 'reference',
-                            'value_string': location['reference']
+                            'value_reference': location['reference']
                         })
             
             # Specialty
@@ -3858,7 +3858,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'service',
                             'param_type': 'reference',
-                            'value_string': service['reference']
+                            'value_reference': service['reference']
                         })
             
             # Active status
@@ -3896,7 +3896,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'Location':
@@ -3993,7 +3993,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['managingOrganization']['reference']
+                    'value_reference': resource_data['managingOrganization']['reference']
                 })
             
             # Part of (location hierarchy)
@@ -4001,7 +4001,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'partof',
                     'param_type': 'reference',
-                    'value_string': resource_data['partOf']['reference']
+                    'value_reference': resource_data['partOf']['reference']
                 })
             
             # Endpoint references
@@ -4011,7 +4011,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'DocumentReference':
@@ -4061,13 +4061,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Author references
@@ -4077,7 +4077,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'author',
                             'param_type': 'reference',
-                            'value_string': author['reference']
+                            'value_reference': author['reference']
                         })
             
             # Date
@@ -4101,7 +4101,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'encounter',
                             'param_type': 'reference',
-                            'value_string': encounter['reference']
+                            'value_reference': encounter['reference']
                         })
             
             # Facility (from context.facilityType)
@@ -4152,7 +4152,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'relatesto',
                             'param_type': 'reference',
-                            'value_string': relates['target']['reference']
+                            'value_reference': relates['target']['reference']
                         })
             
             # Security label
@@ -4228,13 +4228,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Encounter reference
@@ -4242,7 +4242,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Sender reference
@@ -4250,7 +4250,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'sender',
                     'param_type': 'reference',
-                    'value_string': resource_data['sender']['reference']
+                    'value_reference': resource_data['sender']['reference']
                 })
             
             # Recipient references
@@ -4260,7 +4260,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'recipient',
                             'param_type': 'reference',
-                            'value_string': recipient['reference']
+                            'value_reference': recipient['reference']
                         })
             
             # Sent date
@@ -4322,7 +4322,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Part of references
@@ -4332,7 +4332,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'part-of',
                             'param_type': 'reference',
-                            'value_string': part_of['reference']
+                            'value_reference': part_of['reference']
                         })
             
             # Reason references
@@ -4342,7 +4342,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason['reference']
+                            'value_reference': reason['reference']
                         })
         
         elif resource_type == 'Task':
@@ -4398,18 +4398,18 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'for',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Owner reference
@@ -4417,7 +4417,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'owner',
                     'param_type': 'reference',
-                    'value_string': resource_data['owner']['reference']
+                    'value_reference': resource_data['owner']['reference']
                 })
             
             # Requester reference
@@ -4425,7 +4425,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Focus reference
@@ -4433,7 +4433,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'focus',
                     'param_type': 'reference',
-                    'value_string': resource_data['focus']['reference']
+                    'value_reference': resource_data['focus']['reference']
                 })
             
             # Encounter reference
@@ -4441,7 +4441,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Authored on date
@@ -4490,7 +4490,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'part-of',
                             'param_type': 'reference',
-                            'value_string': part_of['reference']
+                            'value_reference': part_of['reference']
                         })
             
             # Based on references
@@ -4500,7 +4500,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Reason references
@@ -4510,7 +4510,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason['reference']
+                            'value_reference': reason['reference']
                         })
         
         elif resource_type == 'ServiceRequest':
@@ -4585,13 +4585,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Encounter reference - link to clinical encounter
@@ -4599,7 +4599,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Authored date - when the order was created
@@ -4657,7 +4657,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Performer - who should perform the service
@@ -4667,7 +4667,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['reference']
+                            'value_reference': performer['reference']
                         })
             
             # PerformerType - type of performer
@@ -4690,7 +4690,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'specimen',
                             'param_type': 'reference',
-                            'value_string': specimen['reference']
+                            'value_reference': specimen['reference']
                         })
             
             # BodySite - anatomical location
@@ -4732,7 +4732,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason_ref['reference']
+                            'value_reference': reason_ref['reference']
                         })
             
             # Insurance references
@@ -4742,7 +4742,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'insurance',
                             'param_type': 'reference',
-                            'value_string': insurance['reference']
+                            'value_reference': insurance['reference']
                         })
             
             # Supporting info references
@@ -4752,7 +4752,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'supporting-info',
                             'param_type': 'reference',
-                            'value_string': supporting_info['reference']
+                            'value_reference': supporting_info['reference']
                         })
             
             # BasedOn - references to other requests this is based on
@@ -4762,7 +4762,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Replaces - references to requests this replaces
@@ -4772,7 +4772,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'replaces',
                             'param_type': 'reference',
-                            'value_string': replaces['reference']
+                            'value_reference': replaces['reference']
                         })
             
             # Identifiers - external identifiers for the service request
@@ -4902,7 +4902,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'participant',
                             'param_type': 'reference',
-                            'value_string': actor_ref
+                            'value_reference': actor_ref
                         })
                         
                         # Specific participant type searches
@@ -4910,31 +4910,31 @@ class FHIRStorageEngine:
                             params_to_extract.append({
                                 'param_name': 'patient',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Practitioner/'):
                             params_to_extract.append({
                                 'param_name': 'practitioner',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Location/'):
                             params_to_extract.append({
                                 'param_name': 'location',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Device/'):
                             params_to_extract.append({
                                 'param_name': 'device',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('HealthcareService/'):
                             params_to_extract.append({
                                 'param_name': 'healthcare-service',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                     
                     # Participant status
@@ -4960,7 +4960,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'slot',
                             'param_type': 'reference',
-                            'value_string': slot['reference']
+                            'value_reference': slot['reference']
                         })
             
             # Reason codes
@@ -4983,7 +4983,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason_ref['reference']
+                            'value_reference': reason_ref['reference']
                         })
             
             # Supporting information
@@ -4993,7 +4993,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'supporting-information',
                             'param_type': 'reference',
-                            'value_string': supporting_info['reference']
+                            'value_reference': supporting_info['reference']
                         })
             
             # Identifiers
@@ -5154,7 +5154,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'value-reference',
                             'param_type': 'reference',
-                            'value_string': param['valueReference']['reference']
+                            'value_reference': param['valueReference']['reference']
                         })
                     
                     # Quantity values

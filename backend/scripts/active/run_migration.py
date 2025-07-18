@@ -7,9 +7,9 @@ import asyncio
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from scripts.migrate_search_params import SearchParamMigrator
+from scripts.migrations.migrate_search_params import SearchParamMigrator
 
 
 async def main():

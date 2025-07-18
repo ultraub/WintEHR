@@ -46,12 +46,10 @@ import SchemaExplorer from '../discovery/SchemaExplorer';
 import RelationshipMapper from '../discovery/RelationshipMapper';
 import VisualQueryBuilder from '../query-building/VisualQueryBuilder';
 import NaturalLanguageInterface from '../query-building/NaturalLanguageInterface';
-import AIQueryAssistant from '../query-building/AIQueryAssistant';
 import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
 import NetworkDiagram from '../visualization/NetworkDiagram';
-import PopulationAnalytics from '../visualization/PopulationAnalytics';
 
 // Application constants
 import {
@@ -267,8 +265,6 @@ function FHIRExplorerApp() {
             return <VisualQueryBuilder onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.NATURAL_LANGUAGE:
             return <NaturalLanguageInterface onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
-          case QUERY_VIEWS.AI_ASSISTANT:
-            return <AIQueryAssistant onNavigate={handleModeChange} />;
           case QUERY_VIEWS.PLAYGROUND:
             return <QueryPlayground onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           default:
@@ -283,8 +279,6 @@ function FHIRExplorerApp() {
             return <PatientTimeline fhirData={fhirData} onNavigate={handleModeChange} />;
           case VISUALIZATION_VIEWS.NETWORK:
             return <NetworkDiagram onNavigate={handleModeChange} fhirData={fhirData} />;
-          case VISUALIZATION_VIEWS.ANALYTICS:
-            return <PopulationAnalytics onNavigate={handleModeChange} fhirData={fhirData} />;
           default:
             return (
               <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -296,15 +290,6 @@ function FHIRExplorerApp() {
             );
         }
         
-      case APP_MODES.LEARNING:
-        return (
-          <Container maxWidth="lg" sx={{ py: 4 }}>
-            <Typography variant="h4" gutterBottom>Learning Center</Typography>
-            <Typography variant="body1" color="text.secondary">
-              Interactive tutorials and learning materials coming in Phase 4
-            </Typography>
-          </Container>
-        );
         
       default:
         return <DashboardHome onNavigate={handleModeChange} fhirData={fhirData} queryHistory={queryHistoryHook.queryHistory} />;

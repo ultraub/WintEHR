@@ -603,68 +603,25 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           </LocalizationProvider>
         </Collapse>
 
-        <List sx={{ 
-          maxHeight: { xs: 300, sm: 400 }, 
-          overflow: 'auto',
-          px: { xs: 0, sm: 1 },
-          '&::-webkit-scrollbar': {
-            width: '8px',
-          },
-          '&::-webkit-scrollbar-track': {
-            backgroundColor: alpha(theme.palette.divider, 0.1),
-            borderRadius: '4px',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: alpha(theme.palette.primary.main, 0.2),
-            borderRadius: '4px',
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.primary.main, 0.3),
-            }
-          }
-        }}>
+        <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {filteredAndSortedConditions.length === 0 ? (
-            <Box sx={{ 
-              py: 6, 
-              px: 3,
-              textAlign: 'center',
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.02)} 0%, transparent 100%)`,
-              borderRadius: theme.shape.borderRadius * 2,
-              border: `1px dashed ${alpha(theme.palette.divider, 0.3)}`
-            }}>
-              <ProblemIcon sx={{ 
-                fontSize: 48, 
-                color: alpha(theme.palette.text.secondary, 0.3),
-                mb: 2
-              }} />
-              <Typography variant="body1" color="text.secondary">
-                No problems found
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {searchTerm ? 'Try adjusting your search criteria' : 'Add problems using the + button above'}
-              </Typography>
-            </Box>
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+              No problems found
+            </Typography>
           ) : (
             filteredAndSortedConditions.map((condition) => (
               <ListItem
                 key={condition.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius * 1.5,
-                  mb: theme.spacing(1.5),
-                  background: expandedItems[condition.id] 
-                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.04)} 100%)`
-                    : theme.palette.background.paper,
-                  border: `1px solid ${expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.divider, 0.08)}`,
-                  boxShadow: expandedItems[condition.id] 
-                    ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.08)}, 0 0 24px ${alpha(theme.palette.primary.main, 0.02)}`
-                    : `0 1px 4px ${alpha(theme.palette.common.black, 0.02)}`,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                  transition: theme.transitions.create(['background-color', 'transform'], {
+                    duration: theme.transitions.duration.short
+                  }),
                   '&:hover': { 
-                    backgroundColor: expandedItems[condition.id] 
-                      ? theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08) 
-                      : alpha(theme.palette.action.hover, 0.02),
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 6px 16px ${alpha(theme.palette.common.black, 0.06)}, 0 0 32px ${alpha(theme.palette.primary.main, 0.04)}`,
-                    borderColor: alpha(theme.palette.primary.main, 0.2)
+                    backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.08) : 'action.hover',
+                    transform: 'translateY(-1px)'
                   }
                 }}
               >
@@ -1128,49 +1085,24 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             </Box>
           )}
           {filteredMedications.length === 0 ? (
-            <Box sx={{ 
-              py: 6, 
-              px: 3,
-              textAlign: 'center',
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.02)} 0%, transparent 100%)`,
-              borderRadius: theme.shape.borderRadius * 2,
-              border: `1px dashed ${alpha(theme.palette.divider, 0.3)}`
-            }}>
-              <MedicationIcon sx={{ 
-                fontSize: 48, 
-                color: alpha(theme.palette.text.secondary, 0.3),
-                mb: 2
-              }} />
-              <Typography variant="body1" color="text.secondary">
-                No medications found
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {filter !== 'all' ? 'Try changing the filter or ' : ''}Prescribe medications using the + button above
-              </Typography>
-            </Box>
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+              No medications found
+            </Typography>
           ) : (
             filteredMedications.map((med) => (
               <ListItem
                 key={med.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius * 1.5,
+                  borderRadius: theme.shape.borderRadius / 8,
                   mb: theme.spacing(1.5),
-                  py: theme.spacing(2),
-                  background: isMedicationActive(med) 
-                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.clinical?.surfaces?.primary || alpha(theme.palette.primary.main, 0.04)} 100%)`
-                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[100], 0.5)} 100%)`,
-                  border: `1px solid ${isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.divider, 0.08)}`,
-                  boxShadow: isMedicationActive(med) 
-                    ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.08)}, 0 0 24px ${alpha(theme.palette.primary.main, 0.02)}`
-                    : `0 1px 4px ${alpha(theme.palette.common.black, 0.02)}`,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  py: theme.spacing(1.5),
+                  backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                  transition: theme.transitions.create(['background-color', 'transform'], {
+                    duration: theme.transitions.duration.short
+                  }),
                   '&:hover': { 
-                    backgroundColor: isMedicationActive(med) 
-                      ? theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08) 
-                      : alpha(theme.palette.action.hover, 0.02),
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 6px 16px ${alpha(theme.palette.common.black, 0.06)}, 0 0 32px ${alpha(theme.palette.primary.main, 0.04)}`,
-                    borderColor: alpha(theme.palette.primary.main, 0.2)
+                    backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.08) : 'action.hover',
+                    transform: 'translateY(-1px)'
                   }
                 }}
               >
@@ -1604,63 +1536,25 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
       }
     >
       <Box>
-        <List sx={{ 
-          maxHeight: { xs: 300, sm: 400 }, 
-          overflow: 'auto',
-          px: { xs: 0, sm: 1 },
-          '&::-webkit-scrollbar': {
-            width: '8px',
-          },
-          '&::-webkit-scrollbar-track': {
-            backgroundColor: alpha(theme.palette.divider, 0.1),
-            borderRadius: '4px',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: alpha(theme.palette.primary.main, 0.2),
-            borderRadius: '4px',
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.primary.main, 0.3),
-            }
-          }
-        }}>
+        <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {allergies.length === 0 ? (
-            <Box sx={{ 
-              py: 6, 
-              px: 3,
-              textAlign: 'center',
-              background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.02)} 0%, transparent 100%)`,
-              borderRadius: theme.shape.borderRadius * 2,
-              border: `1px dashed ${alpha(theme.palette.success.main, 0.3)}`
-            }}>
-              <VerifiedIcon sx={{ 
-                fontSize: 48, 
-                color: alpha(theme.palette.success.main, 0.4),
-                mb: 2
-              }} />
-              <Typography variant="body1" color="text.secondary">
-                No known allergies
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                This patient has no documented allergies or intolerances
-              </Typography>
-            </Box>
+            <Alert severity="success" sx={{ mt: 2 }}>
+              No known allergies
+            </Alert>
           ) : (
             allergies.map((allergy) => (
               <ListItem
                 key={allergy.id}
                 sx={{
-                  borderRadius: theme.shape.borderRadius * 1.5,
-                  mb: theme.spacing(1.5),
-                  py: theme.spacing(1.5),
-                  background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.clinical?.surfaces?.error || alpha(theme.palette.error.main, 0.03)} 100%)`,
-                  border: `1px solid ${alpha(theme.palette.error.main, 0.15)}`,
-                  boxShadow: `0 4px 12px ${alpha(theme.palette.error.main, 0.08)}, 0 0 24px ${alpha(theme.palette.error.main, 0.02)}`,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
+                  borderRadius: theme.shape.borderRadius / 8,
+                  mb: theme.spacing(1),
+                  backgroundColor: alpha(theme.palette.error.main, 0.05),
+                  transition: theme.transitions.create(['background-color', 'transform'], {
+                    duration: theme.transitions.duration.short
+                  }),
                   '&:hover': { 
-                    backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.error.main, 0.08),
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 6px 16px ${alpha(theme.palette.error.main, 0.12)}, 0 0 32px ${alpha(theme.palette.error.main, 0.04)}`,
-                    borderColor: alpha(theme.palette.error.main, 0.25)
+                    backgroundColor: alpha(theme.palette.error.main, 0.08),
+                    transform: 'translateY(-1px)'
                   }
                 }}
               >
@@ -2324,48 +2218,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
   // Show skeleton loading while data is loading
   if (loadingOptimized || isLoading || loading) {
     return (
-      <Box sx={{ 
-        p: { xs: 2, sm: 3 },
-        backgroundColor: theme.palette.background.default,
-        minHeight: '100vh'
-      }}>
+      <Box sx={{ p: 3 }}>
         <Grid container spacing={isMobile ? 2 : 3}>
           {/* Skeleton for each section */}
           {[1, 2, 3, 4].map((item) => (
             <Grid item xs={12} md={6} key={item}>
-              <Card sx={{
-                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.clinical?.surfaces?.primary || theme.palette.primary.main, 0.02)} 100%)`,
-                borderRadius: theme.shape.borderRadius * 2,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.04)}`,
-                overflow: 'hidden',
-                position: 'relative',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '4px',
-                  background: `linear-gradient(90deg, 
-                    ${theme.palette.primary.main} 0%, 
-                    ${theme.palette.primary.light} 50%, 
-                    ${theme.palette.primary.main} 100%)`,
-                  backgroundSize: '200% 100%',
-                  animation: 'shimmer 2s ease-in-out infinite',
-                },
-                '@keyframes shimmer': {
-                  '0%': { backgroundPosition: '200% 0' },
-                  '100%': { backgroundPosition: '-200% 0' }
-                }
-              }}>
-                <CardContent sx={{ p: 3 }}>
+              <Card>
+                <CardContent>
                   <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
-                  <Stack spacing={2}>
+                  <Stack spacing={1}>
                     {[1, 2, 3].map((i) => (
                       <Box key={i}>
                         <Skeleton variant="text" width="100%" height={24} />
-                        <Skeleton variant="text" width="80%" height={20} sx={{ opacity: 0.6 }} />
+                        <Skeleton variant="text" width="80%" height={20} />
                       </Box>
                     ))}
                   </Stack>
@@ -2374,16 +2239,10 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
             </Grid>
           ))}
           <Grid item xs={12}>
-            <Card sx={{
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.clinical?.surfaces?.info || theme.palette.info.main, 0.02)} 100%)`,
-              borderRadius: theme.shape.borderRadius * 2,
-              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.04)}`,
-              overflow: 'hidden'
-            }}>
-              <CardContent sx={{ p: 3 }}>
+            <Card>
+              <CardContent>
                 <Skeleton variant="text" width="40%" height={32} />
-                <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1, opacity: 0.6 }} />
+                <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
               </CardContent>
             </Card>
           </Grid>
@@ -2393,21 +2252,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
   }
 
   return (
-    <Box sx={{ 
-      p: { xs: 2, sm: 3 },
-      position: 'relative',
-      backgroundColor: theme.palette.background.default,
-      minHeight: '100vh',
-      borderRadius: { xs: 0, sm: theme.shape.borderRadius },
-      overflow: 'hidden'
-    }}>
+    <Box sx={{ p: 3, position: 'relative' }}>
       {/* Save Progress Overlay */}
       <Backdrop
         sx={{ 
           position: 'absolute',
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: alpha(theme.palette.background.paper, 0.85),
-          backdropFilter: 'blur(4px)'
+          backgroundColor: alpha(theme.palette.background.paper, 0.7)
         }}
         open={saveInProgress}
       >
@@ -2436,14 +2287,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
           {saveError || 'Failed to save changes'}
         </Alert>
       </Snackbar>
-      <Grid container spacing={isMobile ? 1.5 : 3} sx={{
-        '& > .MuiGrid-item': {
-          // Add smooth transitions for grid items
-          transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`
-        }
-      }}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {/* Problem List */}
-        <Grid item xs={12} md={6} sx={{ order: { xs: 3, md: 1 } }}>
+        <Grid item xs={12} md={6}>
           <ProblemList 
             conditions={conditions} 
             patientId={patientId} 
@@ -2455,8 +2301,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
           />
         </Grid>
 
-        {/* Medications - Second on mobile */}
-        <Grid item xs={12} md={6} sx={{ order: { xs: 2, md: 2 } }}>
+        {/* Medications */}
+        <Grid item xs={12} md={6}>
           <MedicationList 
             medications={medications} 
             patientId={patientId} 
@@ -2468,8 +2314,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
           />
         </Grid>
 
-        {/* Allergies - Show first on mobile for safety */}
-        <Grid item xs={12} md={6} sx={{ order: { xs: 1, md: 3 } }}>
+        {/* Allergies */}
+        <Grid item xs={12} md={6}>
           <AllergyList 
             allergies={allergies} 
             patientId={patientId} 

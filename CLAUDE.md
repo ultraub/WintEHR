@@ -134,6 +134,58 @@ await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
 subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 ```
 
+## 🔎 FHIR Search Parameter Indexing
+
+### Important Requirements
+- **Search parameters MUST be indexed** for all FHIR resources during deployment
+- The backend extracts search params during resource creation/update
+- A migration step re-indexes existing resources during deployment
+
+### Key Search Parameters
+- **patient/subject**: Required for Condition, Observation, MedicationRequest, etc.
+- **_id**: Resource identifier
+- **code**: Clinical codes (conditions, medications, observations)
+- **status**: Resource status
+- **date**: Temporal queries
+
+### Build Process Integration
+The deployment automatically runs search parameter migration:
+1. Data import (Phase 3)
+2. **Search parameter indexing** (Phase 4) - NEW
+3. DICOM generation (Phase 5)
+
+### Troubleshooting
+If searches return empty results:
+```bash
+# Manually re-index search parameters
+docker exec emr-backend python scripts/active/run_migration.py
+
+# Verify search parameters exist
+docker exec emr-postgres psql -U emr_user -d emr_db -c "
+SELECT param_name, COUNT(*) 
+FROM fhir.search_params 
+WHERE param_name IN ('patient', 'subject') 
+GROUP BY param_name;"
+
+# Monitor search parameter health
+docker exec emr-backend python scripts/monitor_search_params.py
+
+# Auto-fix search parameter issues
+docker exec emr-backend python scripts/monitor_search_params.py --fix
+
+# Verify after import
+docker exec emr-backend python scripts/verify_search_params_after_import.py
+
+# Test integration
+docker exec emr-backend python scripts/test_search_param_integration.py
+```
+
+### Monitoring & Maintenance
+The build process automatically maintains search parameters, but you can monitor health:
+- **During import**: Step 6 verifies and auto-fixes missing parameters
+- **After deployment**: Validation includes search parameter checks
+- **Production**: Run `monitor_search_params.py` periodically
+
 ## 📋 Clinical Modules
 
 | Module | Location | Key Features |

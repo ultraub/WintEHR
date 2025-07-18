@@ -278,6 +278,76 @@ else
     validate_test "Data Presence" "FAIL" "$DATA_CHECK"
 fi
 
+# Validate search parameters
+SEARCH_PARAM_CHECK=$(docker exec emr-backend bash -c "cd /app && python -c '
+import asyncio
+import asyncpg
+
+async def check_search_params():
+    try:
+        conn = await asyncpg.connect(\"postgresql://emr_user:emr_password@postgres:5432/emr_db\")
+        
+        # Check total search parameters
+        total_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params\")
+        
+        # Check patient/subject reference parameters
+        patient_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) FROM fhir.search_params 
+            WHERE param_name IN (\\'patient\\', \\'subject\\') 
+            AND param_type = \\'reference\\'
+        \"\"\")
+        
+        # Check specific resource types
+        condition_patient_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) FROM fhir.search_params 
+            WHERE resource_type = \\'Condition\\' 
+            AND param_name = \\'patient\\' 
+            AND param_type = \\'reference\\'
+        \"\"\")
+        
+        observation_patient_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) FROM fhir.search_params 
+            WHERE resource_type = \\'Observation\\' 
+            AND param_name = \\'patient\\' 
+            AND param_type = \\'reference\\'
+        \"\"\")
+        
+        medication_patient_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) FROM fhir.search_params 
+            WHERE resource_type = \\'MedicationRequest\\' 
+            AND param_name = \\'patient\\' 
+            AND param_type = \\'reference\\'
+        \"\"\")
+        
+        await conn.close()
+        
+        print(f\"SEARCH_PARAMS:total={total_params},patient_refs={patient_params},condition_patient={condition_patient_params},observation_patient={observation_patient_params},medication_patient={medication_patient_params}\")
+        
+    except Exception as e:
+        print(f\"SEARCH_PARAM_ERROR:{e}\")
+
+asyncio.run(check_search_params())
+'" 2>&1)
+
+if echo "$SEARCH_PARAM_CHECK" | grep -q "SEARCH_PARAMS"; then
+    TOTAL_PARAMS=$(echo "$SEARCH_PARAM_CHECK" | grep -o "total=[0-9]*" | cut -d= -f2)
+    PATIENT_REFS=$(echo "$SEARCH_PARAM_CHECK" | grep -o "patient_refs=[0-9]*" | cut -d= -f2)
+    CONDITION_PATIENT=$(echo "$SEARCH_PARAM_CHECK" | grep -o "condition_patient=[0-9]*" | cut -d= -f2)
+    OBSERVATION_PATIENT=$(echo "$SEARCH_PARAM_CHECK" | grep -o "observation_patient=[0-9]*" | cut -d= -f2)
+    MEDICATION_PATIENT=$(echo "$SEARCH_PARAM_CHECK" | grep -o "medication_patient=[0-9]*" | cut -d= -f2)
+    
+    validate_test "Search Parameters" "PASS" "Total: $TOTAL_PARAMS, Patient refs: $PATIENT_REFS"
+    
+    # Validate critical search parameters
+    if [ "$PATIENT_REFS" -gt "0" ]; then
+        validate_test "Patient Search Params" "PASS" "Condition: $CONDITION_PATIENT, Observation: $OBSERVATION_PATIENT, MedicationRequest: $MEDICATION_PATIENT"
+    else
+        validate_test "Patient Search Params" "FAIL" "No patient/subject search parameters found"
+    fi
+else
+    validate_test "Search Parameters" "FAIL" "$SEARCH_PARAM_CHECK"
+fi
+
 # =============================================================================
 # Phase 3: API Endpoint Validation
 # =============================================================================
@@ -327,7 +397,37 @@ STATIC_ASSETS=$(curl -s -I http://localhost/ | grep -c "Content-Encoding\|Cache-
 validate_test "Static Asset Optimization" $([ "$STATIC_ASSETS" -gt "0" ] && echo "PASS" || echo "WARN") "Headers found: $STATIC_ASSETS"
 
 # =============================================================================
-# Phase 5: Integration Testing
+# Phase 5: Search Parameter Integration Testing
+# =============================================================================
+
+section "🔍 Search Parameter Integration Testing"
+
+log "Testing search parameter extraction for new resources..."
+
+# Run the integration test
+SEARCH_INTEGRATION_TEST=$(docker exec emr-backend bash -c "cd /app && python scripts/test_search_param_integration.py" 2>&1 || echo "INTEGRATION_TEST_FAILED")
+
+if echo "$SEARCH_INTEGRATION_TEST" | grep -q "All tests passed"; then
+    validate_test "Search Parameter Integration" "PASS" "All search parameter tests passed"
+else
+    # Parse the test results
+    TESTS_PASSED=$(echo "$SEARCH_INTEGRATION_TEST" | grep -o "[0-9]*/[0-9]* tests passed" | cut -d/ -f1 || echo "0")
+    TESTS_TOTAL=$(echo "$SEARCH_INTEGRATION_TEST" | grep -o "[0-9]*/[0-9]* tests passed" | cut -d/ -f2 | cut -d' ' -f1 || echo "0")
+    
+    if [ "$TESTS_PASSED" -gt "0" ]; then
+        validate_test "Search Parameter Integration" "WARN" "$TESTS_PASSED/$TESTS_TOTAL tests passed"
+    else
+        validate_test "Search Parameter Integration" "FAIL" "Integration tests failed"
+    fi
+    
+    # Show failed tests
+    echo "$SEARCH_INTEGRATION_TEST" | grep "❌" | while read -r line; do
+        log "  $line"
+    done
+fi
+
+# =============================================================================
+# Phase 6: Integration Testing
 # =============================================================================
 
 section "🔗 Integration Testing"
@@ -364,6 +464,28 @@ if echo "$PATIENT_FLOW_TEST" | grep -q "PATIENT_FLOW_SUCCESS"; then
     
     PATIENT_CONDITIONS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/fhir/R4/Condition?patient=$PATIENT_ID&_count=1" || echo "000")
     validate_test "Patient Conditions" $([ "$PATIENT_CONDITIONS" = "200" ] && echo "PASS" || echo "WARN") "Status: $PATIENT_CONDITIONS"
+    
+    # Test search functionality with actual results
+    CONDITION_SEARCH_RESULT=$(curl -s "http://localhost:8000/fhir/R4/Condition?patient=$PATIENT_ID&_count=10" 2>/dev/null)
+    if echo "$CONDITION_SEARCH_RESULT" | grep -q '"resourceType":"Bundle"' && echo "$CONDITION_SEARCH_RESULT" | grep -q '"total":'; then
+        CONDITION_COUNT=$(echo "$CONDITION_SEARCH_RESULT" | python3 -c "import json,sys; data=json.load(sys.stdin); print(data.get('total',0))" 2>/dev/null || echo "0")
+        if [ "$CONDITION_COUNT" -gt "0" ]; then
+            validate_test "Condition Search Results" "PASS" "Found $CONDITION_COUNT conditions for patient"
+        else
+            validate_test "Condition Search Results" "WARN" "No conditions found for patient (may be test data issue)"
+        fi
+    else
+        validate_test "Condition Search Results" "FAIL" "Search returned invalid response"
+    fi
+    
+    # Test MedicationRequest search
+    MEDICATION_SEARCH_RESULT=$(curl -s "http://localhost:8000/fhir/R4/MedicationRequest?patient=$PATIENT_ID&_count=10" 2>/dev/null)
+    if echo "$MEDICATION_SEARCH_RESULT" | grep -q '"resourceType":"Bundle"'; then
+        MEDICATION_COUNT=$(echo "$MEDICATION_SEARCH_RESULT" | python3 -c "import json,sys; data=json.load(sys.stdin); print(data.get('total',0))" 2>/dev/null || echo "0")
+        validate_test "MedicationRequest Search" "PASS" "Found $MEDICATION_COUNT medication requests"
+    else
+        validate_test "MedicationRequest Search" "WARN" "Could not retrieve medication requests"
+    fi
     
 else
     validate_test "Patient Data Flow" "FAIL" "$PATIENT_FLOW_TEST"
