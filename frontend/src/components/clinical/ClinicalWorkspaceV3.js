@@ -96,7 +96,7 @@ const TabLoadingFallback = () => (
       {/* Content List Skeleton */}
       <Stack spacing={1}>
         {Array.from({ length: 5 }, (_, index) => (
-          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1 }}>
+          <Box key={`skeleton-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1 }}>
             <Box sx={{ width: 40, height: 40, bgcolor: 'grey.200', borderRadius: '50%' }} />
             <Box sx={{ flex: 1 }}>
               <Box sx={{ width: '60%', height: 20, bgcolor: 'grey.200', borderRadius: 1, mb: 0.5 }} />
@@ -135,19 +135,14 @@ const CDSAlertsDisplay = ({ patientId, compact = false, maxAlerts = 5 }) => {
       grouped[mode].push(alert);
     });
     
-    // Log the grouped alerts for debugging only when grouping changes
-    if (Object.keys(grouped).length > 0) {
-      console.log(`🎭 CDSAlertsDisplay: Alerts grouped by mode:`, Object.fromEntries(
-        Object.entries(grouped).map(([mode, alerts]) => [mode, alerts.map(a => a.summary)])
-      ));
-    }
+    // Grouped alerts are now available in 'grouped' object for debugging if needed
     
     return grouped;
   }, [visibleAlerts]);
   
-  // Only log when visible alerts count changes
+  // Track when visible alerts count changes
   if (visibleAlerts.length !== prevVisibleCountRef.current) {
-    console.log(`🖥️ CDSAlertsDisplay: Alert count changed from ${prevVisibleCountRef.current} to ${visibleAlerts.length} for patient ${patientId}`);
+    // Alert count changed from prevVisibleCountRef.current to visibleAlerts.length
     prevVisibleCountRef.current = visibleAlerts.length;
   }
   

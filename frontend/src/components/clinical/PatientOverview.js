@@ -452,7 +452,7 @@ const PatientOverview = () => {
               {currentPatient.allergies && currentPatient.allergies.length > 0 ? (
                 <List dense>
                   {currentPatient.allergies.slice(0, 5).map((allergy, index) => (
-                    <ListItem key={index}>
+                    <ListItem key={allergy.id || `allergy-${allergy.allergen}-${index}`}>
                       <ListItemText
                         primary={
                           <>

@@ -258,7 +258,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
               </Typography>
               <List dense>
                 {alerts.map((alert, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`alert-${alert.type}-${alert.message.substring(0, 20)}-${index}`}>
                     <ListItemIcon>
                       {alert.severity === 'high' ? 
                         <WarningIcon color="error" /> : 
@@ -356,7 +356,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                                 <span style={{ display: 'block', marginTop: '4px' }}>
                                   {prompts.targetConditions.map((condition, index) => (
                                     <span 
-                                      key={index}
+                                      key={`condition-${condition}-${index}`}
                                       style={{
                                         display: 'inline-block',
                                         fontSize: '0.7rem',
@@ -404,7 +404,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                             secondary={
                               <span>
                                 {prompts.recommendations.map((rec, index) => (
-                                  <span key={index} style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                                  <span key={`rec-${rec.substring(0, 20)}-${index}`} style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
                                     • {rec}
                                   </span>
                                 ))}

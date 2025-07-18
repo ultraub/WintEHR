@@ -152,7 +152,7 @@ const VitalSignsChart = ({ patientId, vitalSigns, selectedVitalType = 'bloodPres
             {label}
           </Typography>
           {payload.map((entry, index) => (
-            <Typography key={index} variant="body2" sx={{ color: entry.color }}>
+            <Typography key={`${entry.name}-${entry.value}-${index}`} variant="body2" sx={{ color: entry.color }}>
               {entry.name}: {entry.value} {vitalConfig.unit}
             </Typography>
           ))}

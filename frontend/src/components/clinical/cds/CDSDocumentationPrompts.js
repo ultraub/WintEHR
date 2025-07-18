@@ -238,7 +238,7 @@ const CDSDocumentationPrompts = ({
                           <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
                             {prompt.suggestedActions.slice(0, 2).map((action, idx) => (
                               <Chip
-                                key={idx}
+                                key={`action-${action.description?.substring(0, 20) || ''}-${idx}`}
                                 label={action.description}
                                 size="small"
                                 variant="outlined"
@@ -345,7 +345,7 @@ const CDSDocumentationPrompts = ({
               <Stack spacing={1}>
                 {selectedPrompt.suggestedActions.map((action, index) => (
                   <Chip
-                    key={index}
+                    key={`bullet-${bullet.substring(0, 20)}-${index}`}
                     label={action.description}
                     variant="outlined"
                     color="primary"

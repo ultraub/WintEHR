@@ -435,7 +435,7 @@ const EncounterSigningDialog = ({
                 <Typography variant="subtitle2">Required items:</Typography>
                 <ul>
                   {errors.map((error, idx) => (
-                    <li key={idx}>{error}</li>
+                    <li key={`error-${error.substring(0, 30)}-${idx}`}>{error}</li>
                   ))}
                 </ul>
               </Alert>
@@ -446,7 +446,7 @@ const EncounterSigningDialog = ({
                 <Typography variant="subtitle2">Warnings:</Typography>
                 <ul>
                   {warnings.map((warning, idx) => (
-                    <li key={idx}>{warning}</li>
+                    <li key={`warning-${warning.substring(0, 30)}-${idx}`}>{warning}</li>
                   ))}
                 </ul>
               </Alert>
@@ -465,7 +465,7 @@ const EncounterSigningDialog = ({
             </Stack>
             
             {diagnosesData.map((diagnosis, index) => (
-              <Card key={index} sx={{ mb: 2 }}>
+              <Card key={`diagnosis-${diagnosis.code?.display || diagnosis.condition?.display || ''}-${index}`} sx={{ mb: 2 }}>
                 <CardContent>
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>

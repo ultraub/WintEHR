@@ -298,7 +298,7 @@ const DesignSystemShowcase = () => {
             </Typography>
             <Grid container spacing={3}>
               {sampleMetrics.map((metric, index) => (
-                <Grid item xs={12} sm={6} md={3} key={index}>
+                <Grid item xs={12} sm={6} md={3} key={`metric-${metric.title}-${index}`}>
                   <MetricCard
                     title={metric.title}
                     value={metric.value}
@@ -310,7 +310,7 @@ const DesignSystemShowcase = () => {
                     variant="clinical"
                     department={selectedDepartment}
                     urgency={urgencyMode ? 'urgent' : 'normal'}
-                    onClick={() => console.log('Metric clicked:', metric.title)}
+                    onClick={() => {}}
                   />
                 </Grid>
               ))}
@@ -401,8 +401,8 @@ const DesignSystemShowcase = () => {
               showSeverityIndicators={true}
               showStatusChips={true}
               showTrendIndicators={true}
-              onRowClick={(row) => console.log('Row clicked:', row)}
-              onRowAction={(row, action) => console.log('Action:', action, 'on row:', row)}
+              onRowClick={(row) => {}}
+              onRowAction={(row, action) => {}}
             />
           </Box>
           

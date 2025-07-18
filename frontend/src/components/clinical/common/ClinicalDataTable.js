@@ -242,7 +242,7 @@ const ClinicalDataTable = ({
           </IconButton>
           {column.actions?.map((action, index) => (
             <IconButton
-              key={index}
+              key={`action-${action.type}-${index}`}
               size="small"
               onClick={() => onRowAction?.(row, action.type)}
               sx={{ color: action.color || theme.palette.text.secondary }}

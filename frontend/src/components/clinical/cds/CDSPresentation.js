@@ -167,7 +167,7 @@ const CDSPresentation = ({
   const renderLinks = (links) => 
     links?.map((link, index) => (
       <Button
-        key={index}
+        key={`link-${link.label}-${link.url || ''}-${index}`}
         size="small"
         variant="text"
         startIcon={link.type === 'smart' ? <LaunchIcon /> : <LinkIcon />}
@@ -243,7 +243,7 @@ const CDSPresentation = ({
           const { content, actions } = renderAlert(alert);
           return (
             <Alert
-              key={index}
+              key={`critical-${alert.summary}-${index}`}
               severity="error"
               action={actions}
               sx={{ borderRadius: 0 }}
@@ -262,7 +262,7 @@ const CDSPresentation = ({
       <>
         {visibleAlerts.map((alert, index) => (
           <Snackbar
-            key={index}
+            key={`toast-${alert.summary}-${index}`}
             open={open}
             autoHideDuration={autoHide ? hideDelay : null}
             onClose={() => setOpen(false)}
@@ -290,7 +290,7 @@ const CDSPresentation = ({
             {visibleAlerts.map((alert, index) => {
               const { content, actions } = renderAlert(alert);
               return (
-                <Card key={index} variant="outlined">
+                <Card key={`dialog-${alert.summary}-${index}`} variant="outlined">
                   <CardContent>
                     <Stack direction="row" spacing={1} alignItems="flex-start">
                       {getSeverityIcon(alert.indicator)}
@@ -355,7 +355,7 @@ const CDSPresentation = ({
               {visibleAlerts.map((alert, index) => {
                 const { content, actions } = renderAlert(alert);
                 return (
-                  <Card key={index} variant="outlined" sx={{ border: '2px solid', borderColor: 'error.main' }}>
+                  <Card key={`critical-dialog-${alert.summary}-${index}`} variant="outlined" sx={{ border: '2px solid', borderColor: 'error.main' }}>
                     <CardContent>
                       <Stack direction="row" spacing={1} alignItems="flex-start">
                         {getSeverityIcon(alert.indicator)}
@@ -373,7 +373,7 @@ const CDSPresentation = ({
           <DialogActions>
             {visibleAlerts.map((alert, index) => (
               <Button 
-                key={index}
+                key={`ack-button-${alert.summary}-${index}`}
                 variant="contained" 
                 color="primary"
                 onClick={() => handleAcknowledge(alert)}
@@ -438,7 +438,7 @@ const CDSPresentation = ({
               const { content, actions } = renderAlert(alert);
               return (
                 <Alert
-                  key={index}
+                  key={`standard-${alert.summary}-${index}`}
                   severity={getSeverityColor(alert.indicator)}
                   action={actions}
                 >
@@ -482,7 +482,7 @@ const CDSPresentation = ({
         const { content, actions } = renderAlert(alert);
         return (
           <Alert
-            key={index}
+            key={`inline-${alert.summary}-${index}`}
             severity={getSeverityColor(alert.indicator)}
             action={actions}
           >
@@ -507,7 +507,7 @@ const CDSPresentation = ({
               {selectedAlert.suggestion.description || 'No description available'}
             </Typography>
             {selectedAlert.suggestion.actions?.map((action, index) => (
-              <Typography key={index} variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography key={`action-${action.description?.substring(0, 20) || ''}-${index}`} variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 {action.description}
               </Typography>
             ))}

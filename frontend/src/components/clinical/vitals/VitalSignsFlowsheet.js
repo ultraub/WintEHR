@@ -427,7 +427,7 @@ const VitalSignsFlowsheet = ({ patientId, height = '600px' }) => {
               </TableHead>
               <TableBody>
                 {tableData.map((row, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={`row-${row.date.toISOString()}-${index}`}>
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
                         {format(row.date, 'MM/dd/yyyy')}

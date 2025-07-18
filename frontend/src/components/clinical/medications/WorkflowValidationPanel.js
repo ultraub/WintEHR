@@ -312,7 +312,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
             </Typography>
             <List dense>
               {validationReport.criticalIssues.slice(0, 3).map((issue, index) => (
-                <ListItem key={index} sx={{ pl: 0 }}>
+                <ListItem key={`critical-${issue.message.substring(0, 20)}-${index}`} sx={{ pl: 0 }}>
                   <ListItemText
                     primary={issue.message}
                     secondary={issue.medicationName && `Medication: ${issue.medicationName}`}
@@ -394,7 +394,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
                             ) : (
                               <List dense>
                                 {workflow.issues.map((issue, index) => (
-                                  <ListItem key={index} sx={{ pl: 0 }}>
+                                  <ListItem key={`workflow-${issue.severity}-${issue.message?.substring(0, 20) || ''}-${index}`} sx={{ pl: 0 }}>
                                     <ListItemIcon sx={{ minWidth: 24 }}>
                                       {getSeverityIcon(issue.severity)}
                                     </ListItemIcon>
@@ -431,7 +431,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
               </Typography>
               <List>
                 {validationReport.crossWorkflow.map((issue, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`cross-${issue.severity}-${issue.message?.substring(0, 20) || ''}-${index}`}>
                     <ListItemIcon>
                       {getSeverityIcon(issue.severity)}
                     </ListItemIcon>
@@ -463,7 +463,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
               </Typography>
               <List>
                 {validationReport.recommendations.map((recommendation, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`rec-${recommendation.message?.substring(0, 20) || recommendation.substring(0, 20)}-${index}`}>
                     <ListItemIcon>
                       <InfoIcon color="info" />
                     </ListItemIcon>

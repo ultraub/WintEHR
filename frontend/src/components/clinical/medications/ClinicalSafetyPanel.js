@@ -392,7 +392,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   {safetyReport.patientSpecific.riskFactors.map((factor, index) => (
                     <Chip 
-                      key={index}
+                      key={`factor-${factor.description.substring(0, 20)}-${factor.risk}-${index}`}
                       label={factor.description}
                       color={getRiskLevelColor(factor.risk)}
                       size="small"
@@ -444,7 +444,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                   ) : (
                     <List>
                       {category.issues.map((issue, index) => (
-                        <ListItem key={index}>
+                        <ListItem key={`issue-${issue.type}-${issue.risk}-${index}`}>
                           <ListItemIcon>
                             {getRiskLevelIcon(issue.risk)}
                           </ListItemIcon>
@@ -490,7 +490,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
               </Typography>
               <List>
                 {safetyReport.recommendations.map((recommendation, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`rec-${recommendation.substring(0, 20)}-${index}`}>
                     <ListItemIcon>
                       <InfoIcon color="info" />
                     </ListItemIcon>
@@ -523,7 +523,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
               </Typography>
               <List>
                 {safetyReport.actions.map((action, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`action-${action.type || 'action'}-${action.description?.substring(0, 20) || ''}-${index}`}>
                     <ListItemIcon>
                       <ScheduleIcon color="warning" />
                     </ListItemIcon>

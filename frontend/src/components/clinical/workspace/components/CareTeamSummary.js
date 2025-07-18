@@ -130,7 +130,7 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
                 .sort((a, b) => new Date(b) - new Date(a))[0]
             };
           } catch (error) {
-            console.error(`Error resolving provider ${ref}:`, error);
+            // Error resolving provider - skipping this provider
             return null;
           }
         })
@@ -153,7 +153,7 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
       setCareTeamProviders(validProviders);
       
     } catch (error) {
-      console.error('Error loading care team:', error);
+      // Error loading care team - displaying user-friendly error
       setError('Failed to load care team information');
     } finally {
       setLoading(false);
@@ -236,7 +236,7 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
         <CardContent>
           <Stack spacing={2}>
             {[1, 2, 3].map(i => (
-              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box key={`skeleton-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Skeleton variant="circular" width={40} height={40} />
                 <Box sx={{ flex: 1 }}>
                   <Skeleton variant="text" width="60%" />

@@ -230,7 +230,7 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
             
             return (
               <Typography 
-                key={index} 
+                key={`${entry.name}-${entry.value}-${label}-${index}`} 
                 variant="body2" 
                 sx={{ 
                   color: isAbnormal ? 'error.main' : entry.color,
