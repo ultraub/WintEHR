@@ -375,7 +375,11 @@ const EnhancedBaseResourceDialog = ({
                   errors,
                   mode,
                   clinicalContext: enhancedContext,
-                  department: enhancedContext.department
+                  department: enhancedContext.department,
+                  // Also provide onChange for components that expect it
+                  onChange: (field, value) => {
+                    setFormData(prev => ({ ...prev, [field]: value }));
+                  }
                 });
               }
               return child;

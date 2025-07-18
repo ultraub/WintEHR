@@ -172,6 +172,15 @@ run_build() {
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Build completed successfully${NC}"
+        
+        # Fix CDS hooks schema if needed
+        echo -e "${BLUE}Checking CDS hooks schema...${NC}"
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            if [ -f scripts/fix_cds_hooks_enabled_column.py ]; then
+                python scripts/fix_cds_hooks_enabled_column.py || echo 'CDS hooks fix failed'
+            fi
+        "
+        
         return 0
     fi
     
@@ -185,6 +194,15 @@ run_build() {
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Build completed with synthea_master${NC}"
+        
+        # Fix CDS hooks schema if needed
+        echo -e "${BLUE}Checking CDS hooks schema...${NC}"
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            if [ -f scripts/fix_cds_hooks_enabled_column.py ]; then
+                python scripts/fix_cds_hooks_enabled_column.py || echo 'CDS hooks fix failed'
+            fi
+        "
+        
         return 0
     fi
     

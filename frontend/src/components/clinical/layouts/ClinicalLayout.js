@@ -248,35 +248,7 @@ const ClinicalLayout = ({
           transition: `all ${headerAnimation.duration}ms ${headerAnimation.easing}`
         }}
       >
-        {/* Patient Context Bar */}
-        {showPatientInfo && patientContext && (
-          <Paper
-              elevation={1}
-              sx={{
-                p: spacing,
-                mb: spacing,
-                backgroundColor: departmentSurface,
-                border: `1px solid ${alpha(departmentColor, 0.2)}`,
-                borderRadius: theme.shape.borderRadius
-              }}
-            >
-              <Stack direction="row" spacing={2} alignItems="center">
-                <PersonIcon sx={{ color: departmentColor }} />
-                <Typography variant="h6" sx={{ color: departmentColor }}>
-                  {patientContext.name}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ID: {patientContext.id} • DOB: {patientContext.birthDate}
-                </Typography>
-                <Box sx={{ flexGrow: 1 }} />
-                <StatusChip
-                  status={patientContext.status || 'active'}
-                  variant="clinical"
-                  department={department}
-                />
-              </Stack>
-            </Paper>
-        )}
+        {/* Patient Context Bar - Removed as redundant with EnhancedPatientHeader */}
         
         {/* Removed Welcome Message to save space and focus on clinical data */}
         

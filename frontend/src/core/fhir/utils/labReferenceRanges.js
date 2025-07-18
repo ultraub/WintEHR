@@ -136,7 +136,7 @@ export const REFERENCE_RANGES = {
     name: 'Cholesterol, Total',
     desirable: '<200',
     borderline: '200-239',
-    high: '≥240'
+    highLevel: '≥240'
   },
   '2085-9': { // HDL Cholesterol
     low: 40,
@@ -156,7 +156,7 @@ export const REFERENCE_RANGES = {
     optimal: '<100',
     nearOptimal: '100-129',
     borderline: '130-159',
-    high: '160-189',
+    highLevel: '160-189',
     veryHigh: '≥190'
   },
   '2571-8': { // Triglycerides

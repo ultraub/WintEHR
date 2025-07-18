@@ -2339,7 +2339,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       </Snackbar>
       <Grid container spacing={isMobile ? 2 : 3}>
         {/* Problem List */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={6}>
           <ProblemList 
             conditions={conditions} 
             patientId={patientId} 
@@ -2352,7 +2352,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         </Grid>
 
         {/* Medications */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={6}>
           <MedicationList 
             medications={medications} 
             patientId={patientId} 
@@ -2365,7 +2365,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         </Grid>
 
         {/* Allergies */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={6}>
           <AllergyList 
             allergies={allergies} 
             patientId={patientId} 
@@ -2378,7 +2378,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         </Grid>
 
         {/* Social History */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} lg={6}>
           <SocialHistory observations={observations} patientId={patientId} department={department} />
         </Grid>
 

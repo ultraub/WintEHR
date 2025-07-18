@@ -61,6 +61,16 @@ docker exec emr-backend python scripts/active/synthea_master.py full \
 
 echo -e "${GREEN}✅ Successfully loaded $PATIENT_COUNT patients!${NC}"
 
+# Populate FHIR references
+echo -e "${BLUE}Populating FHIR references for relationship visualization...${NC}"
+if docker exec emr-backend test -f /app/scripts/populate_references_urn_uuid.py; then
+    docker exec emr-backend python scripts/populate_references_urn_uuid.py || {
+        echo -e "${YELLOW}⚠️  Reference population failed - relationship viewer may not work${NC}"
+    }
+else
+    echo -e "${YELLOW}⚠️  Reference population script not found${NC}"
+fi
+
 # Show patient count
 echo -e "${BLUE}Verifying data...${NC}"
 docker exec emr-backend python -c "
@@ -76,12 +86,23 @@ async def show_counts():
         for resource_type in ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'Observation', 'Procedure']:
             result = await conn.execute(text(f'SELECT COUNT(*) FROM fhir.resources WHERE resource_type = :type'), {'type': resource_type})
             counts[resource_type] = result.scalar()
+        
+        # Count references
+        result = await conn.execute(text('SELECT COUNT(*) FROM fhir.references'))
+        ref_count = result.scalar()
+        
+        # Count search params
+        result = await conn.execute(text('SELECT COUNT(*) FROM fhir.search_params'))
+        search_count = result.scalar()
     await engine.dispose()
     
     print('\\nResource Counts:')
     print('-' * 30)
     for rtype, count in counts.items():
         print(f'{rtype:<20} {count:>8}')
+    print('-' * 30)
+    print(f'Total References:    {ref_count:>8}')
+    print(f'Search Parameters:   {search_count:>8}')
     print('-' * 30)
 
 asyncio.run(show_counts())

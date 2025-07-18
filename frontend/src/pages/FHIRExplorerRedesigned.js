@@ -455,45 +455,6 @@ function FHIRExplorerRedesigned() {
             </Box>
           );
         
-        case 'resources':
-          return (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Understanding FHIR Resources 📋
-              </Typography>
-              <Typography paragraph>
-                FHIR organizes healthcare data into "Resources" - standardized 
-                chunks of information. Each resource type represents a specific 
-                aspect of healthcare.
-              </Typography>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                {Object.entries(RESOURCE_TYPES).slice(0, 4).map(([type, config]) => (
-                  <Grid item xs={12} sm={6} key={type}>
-                    <Card variant="outlined">
-                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ bgcolor: config.color }}>
-                          {config.icon}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="subtitle1">{type}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {config.description}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-              <Alert severity="success">
-                <Typography variant="body2">
-                  💡 <strong>Remember:</strong> Resources are connected! A Patient has 
-                  Observations, MedicationRequests, and Conditions associated with them.
-                </Typography>
-              </Alert>
-            </Box>
-          );
-        
         case 'simple-search':
           return <SimpleSearchTutorial onComplete={handleStepComplete} />;
         

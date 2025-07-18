@@ -70,12 +70,14 @@ async def fix_cds_hooks_schema():
         logger.info("Successfully added 'enabled' column")
         
         # Update existing records to be enabled by default
-        updated = await conn.fetchval("""
+        result = await conn.execute("""
             UPDATE cds_hooks.hook_configurations 
             SET enabled = true 
             WHERE enabled IS NULL
-            RETURNING COUNT(*)
         """)
+        
+        # Get the number of updated rows
+        updated = int(result.split()[-1]) if result else 0
         
         if updated:
             logger.info(f"Updated {updated} existing records to enabled=true")

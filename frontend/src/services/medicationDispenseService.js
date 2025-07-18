@@ -250,7 +250,6 @@ class MedicationDispenseService {
     };
     
     let totalQuantity = 0;
-    let preparationTimes = [];
     let handoverTimes = [];
     
     dispenses.forEach(dispense => {

@@ -4,7 +4,7 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
+import { addDays, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
 
 class MedicationEffectivenessService {
   constructor() {
@@ -645,7 +645,7 @@ class MedicationEffectivenessService {
         note: [
           ...(monitoringPlan.note || []),
           {
-            text: `Assessment completed: ${assessmentData.overallEffectiveness}. Next review: ${format(parseISO(assessmentData.nextReviewDate), 'MMM d, yyyy')}`,
+            text: `Assessment completed: ${assessmentData.overallEffectiveness}. Next review: ${new Date(assessmentData.nextReviewDate).toLocaleDateString()}`,
             time: new Date().toISOString()
           }
         ]

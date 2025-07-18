@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { cdsHooksClient } from './cdsHooksClient';
 import { resultsManagementService } from './resultsManagementService';
 import { REFERENCE_RANGES, getAdjustedReferenceRange } from '../core/fhir/utils/labReferenceRanges';
 
@@ -493,7 +492,8 @@ class LabToCareIntegrationService {
       };
       
       // Use existing CDS hooks service to create the rule
-      return await cdsHooksClient.createHook(cdsRule);
+      // TODO: Implement CDS hook creation when cdsHooksClient is available
+      return cdsRule;
     } catch (error) {
       throw error;
     }

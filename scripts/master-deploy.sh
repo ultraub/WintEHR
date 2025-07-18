@@ -185,6 +185,7 @@ preflight_checks() {
         "02-data-generation.sh"
         "03-data-import.sh"
         "04-data-processing.sh"
+        "04a-reference-indexing.sh"
         "05-nginx-config.sh"
         "06-validation.sh"
     )
@@ -265,6 +266,10 @@ run_deployment() {
     # Phase 5: Data Processing
     section "🔄 Phase 5: Data Processing"
     execute_module "04-data-processing.sh"
+    
+    # Phase 5a: Reference Indexing
+    section "🔗 Phase 5a: Reference Indexing"
+    execute_module "04a-reference-indexing.sh"
     
     # Phase 6: Configuration
     section "⚙️ Phase 6: System Configuration"

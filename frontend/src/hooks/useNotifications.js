@@ -22,6 +22,8 @@ export const useNotifications = () => {
       setCount(0);
       return;
       
+      // The following code is temporarily commented out until the notifications endpoint is implemented
+      /*
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/fhir/R4/notifications/count`, {
         headers: {
@@ -37,6 +39,7 @@ export const useNotifications = () => {
         // Notifications endpoint not yet implemented - set count to 0
         setCount(0);
       }
+      */
     } catch (error) {
       // Silently handle error since notifications are not critical
       

@@ -152,6 +152,60 @@ function FHIRExplorerApp() {
   // Initialize FHIR data and query history hooks
   const fhirContext = useFHIRResource();
   const queryHistoryHook = useQueryHistory();
+  
+  // Load initial patient data when the explorer starts
+  useEffect(() => {
+    const loadInitialData = async () => {
+      // Small delay to ensure context is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!fhirContext.getResourcesByType('Patient').length) {
+        setLoading(true);
+        try {
+          // Load initial patients (limited to 20 for performance)
+          const patientsBundle = await fhirServiceCompat.searchResources('Patient', { 
+            _count: 20,
+            _sort: '-_lastUpdated'
+          });
+          
+          if (patientsBundle && patientsBundle.entry) {
+            const patients = patientsBundle.entry.map(entry => entry.resource);
+            // Add patients to context
+            fhirContext.setResources('Patient', patients);
+            
+            // For the RelationshipMapper, load some related resources for the first few patients
+            const firstPatientId = patients[0]?.id;
+            if (firstPatientId) {
+              // Load some related resources for demonstration
+              const resourceTypesToLoad = ['Condition', 'Observation', 'MedicationRequest', 'Encounter'];
+              
+              for (const resourceType of resourceTypesToLoad) {
+                try {
+                  const relatedBundle = await fhirServiceCompat.searchResources(resourceType, {
+                    patient: firstPatientId,
+                    _count: 10
+                  });
+                  
+                  if (relatedBundle && relatedBundle.entry) {
+                    const resources = relatedBundle.entry.map(entry => entry.resource);
+                    fhirContext.setResources(resourceType, resources);
+                  }
+                } catch (err) {
+                  console.warn(`Failed to load ${resourceType} resources:`, err);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load initial patients:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadInitialData();
+  }, []); // Run only once on mount
 
   // Create a compatible data structure for the components
   const fhirData = useMemo(() => {
@@ -171,6 +225,12 @@ function FHIRExplorerApp() {
         lastUpdated: new Date().toISOString()
       };
     });
+    
+    // Log data for debugging
+    console.log('[FHIRExplorerApp] Resources loaded:', Object.keys(resources).reduce((acc, key) => {
+      acc[key] = resources[key].length;
+      return acc;
+    }, {}));
 
     // Calculate totals
     const totalResources = Object.values(resources).reduce((sum, arr) => sum + arr.length, 0);

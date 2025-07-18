@@ -328,8 +328,7 @@ class ProviderAccountabilityService {
       // Get providers from service requests
       const serviceRequests = await fhirClient.search('ServiceRequest', {
         patient: patientId,
-        _include: 'ServiceRequest:requester',
-        _include: 'ServiceRequest:performer',
+        _include: ['ServiceRequest:requester', 'ServiceRequest:performer'],
         _sort: '-authored'
       });
 

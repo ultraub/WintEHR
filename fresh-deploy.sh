@@ -294,6 +294,37 @@ generate_patient_data() {
     else
         warning "Compartment population script not found - Patient/$everything may not work properly"
     fi
+    
+    # Populate FHIR references table for relationship visualization
+    log "Populating FHIR references table..."
+    
+    if docker exec emr-backend test -f /app/scripts/populate_references_urn_uuid.py; then
+        docker exec emr-backend python scripts/populate_references_urn_uuid.py || {
+            warning "Reference population failed - relationship viewer will not work properly"
+            # Try the basic version as fallback
+            if docker exec emr-backend test -f /app/scripts/populate_references_table.py; then
+                log "Trying basic reference population as fallback..."
+                docker exec emr-backend python scripts/populate_references_table.py || {
+                    warning "Fallback reference population also failed"
+                }
+            fi
+        }
+        success "FHIR references populated"
+    else
+        warning "Reference population script not found - relationship viewer will not work properly"
+    fi
+    
+    # Fix CDS hooks schema if needed
+    log "Checking CDS hooks schema..."
+    
+    if docker exec emr-backend test -f /app/scripts/fix_cds_hooks_enabled_column.py; then
+        docker exec emr-backend python scripts/fix_cds_hooks_enabled_column.py || {
+            warning "CDS hooks schema fix failed - CDS hooks may not work properly"
+        }
+        success "CDS hooks schema verified"
+    else
+        warning "CDS hooks fix script not found"
+    fi
 }
 
 # Function to start frontend

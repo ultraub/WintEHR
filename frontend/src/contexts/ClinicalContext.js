@@ -3,7 +3,7 @@
  * Manages clinical workflow state including current patient, encounter, and workspace
  * Now uses FHIR APIs directly for all clinical data
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { fhirClient } from '../services/fhirClient';
 import { usePatientUpdates } from '../hooks/useWebSocket';

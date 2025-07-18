@@ -295,7 +295,7 @@ class FHIRClient {
   /**
    * Process a batch/transaction bundle
    */
-  async batch(bundle) {
+  async transaction(bundle) {
     if (!this.supportsOperation(null, 'transaction')) {
       throw new Error('Server does not support transaction bundles');
     }

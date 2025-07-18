@@ -40,7 +40,7 @@ export const WORKFLOW_TYPES = {
 };
 
 export const ClinicalWorkflowProvider = ({ children }) => {
-  const { currentPatient, getPatientResources, refreshPatientResources } = useFHIRResource();
+  const { currentPatient, getPatientResources } = useFHIRResource();
   const { currentUser } = useAuth();
   
   // Clinical context state

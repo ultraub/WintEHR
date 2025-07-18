@@ -480,6 +480,9 @@ const ClinicalWorkspaceV3 = () => {
           onNavigateToTab={handleTabChange}
         />
 
+      {/* Spacer for fixed header - adjust based on whether patient details are expanded */}
+      <Box sx={{ height: { xs: 120, md: 140 } }} />
+
       {/* CDS Alerts Display - Using Centralized CDS System */}
       <CDSAlertsDisplay patientId={patientId} compact={true} maxAlerts={3} />
 

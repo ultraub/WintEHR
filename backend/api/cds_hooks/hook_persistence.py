@@ -25,8 +25,8 @@ class HookPersistenceManager:
         """Create the CDS hooks table if it doesn't exist"""
         # Create table SQL without schema creation
         # Table already exists with different schema - don't recreate
-        # Actual schema has: id (serial), hook_id, title, description, hook_type,
-        # prefetch, configuration, is_active, created_at, updated_at, display_behavior
+        # Actual schema has: id (varchar), title, description, hook_type,
+        # conditions, actions, prefetch, enabled, created_at, updated_at, display_behavior
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
             id SERIAL PRIMARY KEY,
@@ -36,7 +36,7 @@ class HookPersistenceManager:
             hook_type VARCHAR(100) NOT NULL,
             prefetch JSONB DEFAULT '{}'::jsonb,
             configuration JSONB NOT NULL,
-            is_active BOOLEAN DEFAULT true,
+            enabled BOOLEAN DEFAULT true,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             display_behavior JSONB DEFAULT NULL
@@ -85,21 +85,16 @@ class HookPersistenceManager:
                     SET hook_type = :hook_type,
                         title = :title,
                         description = :description,
-                        is_active = :enabled,
-                        configuration = :configuration,
+                        enabled = :enabled,
+                        conditions = :conditions,
+                        actions = :actions,
+                        usage_requirements = :usage_requirements,
                         prefetch = :prefetch,
                         display_behavior = :display_behavior,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE hook_id = :hook_id
+                    WHERE id = :hook_id
                     RETURNING *
                 """)
-                
-                # Combine conditions and actions into configuration
-                configuration = {
-                    'conditions': [c.dict() for c in hook_config.conditions],
-                    'actions': [a.dict() for a in hook_config.actions],
-                    'usageRequirements': hook_config.usageRequirements
-                }
                 
                 result = await self.db.execute(update_sql, {
                     'hook_id': hook_config.id,
@@ -107,7 +102,9 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'configuration': json.dumps(configuration),
+                    'conditions': json.dumps([c.dict() for c in hook_config.conditions]),
+                    'actions': json.dumps([a.dict() for a in hook_config.actions]),
+                    'usage_requirements': hook_config.usageRequirements,
                     'prefetch': json.dumps(hook_config.prefetch or {}),
                     'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
                 })
@@ -115,19 +112,12 @@ class HookPersistenceManager:
                 # Insert new hook
                 insert_sql = text("""
                     INSERT INTO cds_hooks.hook_configurations 
-                    (hook_id, hook_type, title, description, is_active, configuration, 
+                    (id, hook_type, title, description, enabled, conditions, actions, usage_requirements,
                      prefetch, display_behavior)
-                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :configuration, 
+                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :conditions, :actions, :usage_requirements,
                             :prefetch, :display_behavior)
                     RETURNING *
                 """)
-                
-                # Combine conditions and actions into configuration
-                configuration = {
-                    'conditions': [c.dict() for c in hook_config.conditions],
-                    'actions': [a.dict() for a in hook_config.actions],
-                    'usageRequirements': hook_config.usageRequirements
-                }
                 
                 result = await self.db.execute(insert_sql, {
                     'hook_id': hook_config.id,
@@ -135,7 +125,9 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'configuration': json.dumps(configuration),
+                    'conditions': json.dumps([c.dict() for c in hook_config.conditions]),
+                    'actions': json.dumps([a.dict() for a in hook_config.actions]),
+                    'usage_requirements': hook_config.usageRequirements,
                     'prefetch': json.dumps(hook_config.prefetch or {}),
                     'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
                 })
@@ -161,7 +153,7 @@ class HookPersistenceManager:
         try:
             query = text("""
                 SELECT * FROM cds_hooks.hook_configurations 
-                WHERE hook_id = :hook_id
+                WHERE id = :hook_id
             """)
             
             result = await self.db.execute(query, {'hook_id': hook_id})
@@ -185,7 +177,7 @@ class HookPersistenceManager:
             params = {}
             
             if enabled_only:
-                where_clauses.append("is_active = true")
+                where_clauses.append("enabled = true")
             
             if hook_type:
                 where_clauses.append("hook_type = :hook_type")
@@ -217,7 +209,7 @@ class HookPersistenceManager:
         try:
             delete_sql = text("""
                 DELETE FROM cds_hooks.hook_configurations 
-                WHERE hook_id = :hook_id
+                WHERE id = :hook_id
             """)
             
             result = await self.db.execute(delete_sql, {'hook_id': hook_id})
@@ -235,8 +227,8 @@ class HookPersistenceManager:
         try:
             update_sql = text("""
                 UPDATE cds_hooks.hook_configurations 
-                SET is_active = :enabled, updated_at = CURRENT_TIMESTAMP
-                WHERE hook_id = :hook_id
+                SET enabled = :enabled, updated_at = CURRENT_TIMESTAMP
+                WHERE id = :hook_id
             """)
             
             result = await self.db.execute(update_sql, {
@@ -292,11 +284,10 @@ class HookPersistenceManager:
         """Convert database row to HookConfiguration object"""
         from .models import HookType, HookCondition, HookAction
         
-        # Parse JSON fields from configuration
-        config_data = row.configuration if isinstance(row.configuration, dict) else json.loads(row.configuration or '{}')
-        conditions_data = config_data.get('conditions', [])
-        actions_data = config_data.get('actions', [])
-        usage_requirements = config_data.get('usageRequirements')
+        # Parse JSON fields
+        conditions_data = row.conditions if isinstance(row.conditions, (dict, list)) else json.loads(row.conditions or '[]')
+        actions_data = row.actions if isinstance(row.actions, (dict, list)) else json.loads(row.actions or '[]')
+        usage_requirements = row.usage_requirements if hasattr(row, 'usage_requirements') else None
         
         prefetch_data = row.prefetch if isinstance(row.prefetch, dict) else json.loads(row.prefetch or '{}')
         display_behavior_data = None
@@ -304,11 +295,11 @@ class HookPersistenceManager:
             display_behavior_data = row.display_behavior if isinstance(row.display_behavior, dict) else json.loads(row.display_behavior)
         
         return HookConfiguration(
-            id=row.hook_id,
+            id=row.id,
             hook=HookType(row.hook_type),
             title=row.title,
             description=row.description or "",
-            enabled=row.is_active,
+            enabled=row.enabled if hasattr(row, 'enabled') else row.is_active if hasattr(row, 'is_active') else True,
             conditions=[HookCondition(**cond) for cond in conditions_data],
             actions=[HookAction(**action) for action in actions_data],
             prefetch=prefetch_data if prefetch_data else None,

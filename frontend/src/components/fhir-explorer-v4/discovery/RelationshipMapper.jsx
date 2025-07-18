@@ -157,6 +157,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
   const resources = fhirData?.resources || {};
+  console.log('RelationshipMapper - fhirData:', fhirData);
+  console.log('RelationshipMapper - resources:', resources);
 
   // Fetch relationship schema on mount
   useEffect(() => {
@@ -188,8 +190,12 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     }
   };
 
+  // Use ref to store the latest initialization function
+  const initializeVisualizationRef = useRef(null);
+  
   // Load relationships for a resource
   const loadRelationships = useCallback(async (resourceType, resourceId, depth = 2) => {
+    console.log('loadRelationships called with:', { resourceType, resourceId, depth });
     setLoading(true);
     setError(null);
 
@@ -200,9 +206,11 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         resourceId, 
         { depth, includeCounts: true }
       );
+      console.log('API response:', data);
 
       // Transform to D3 format
       const d3Data = fhirRelationshipService.transformToD3Format(data);
+      console.log('D3 data:', d3Data);
       
       setRelationshipData(d3Data);
       setCurrentResource({ resourceType, resourceId, display: data.source.display });
@@ -211,11 +219,17 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       const nodeTypes = new Set(d3Data.nodes.map(n => n.resourceType));
       setVisibleNodeTypes(nodeTypes);
 
-      // Initialize visualization
-      initializeVisualization(d3Data);
+      // Initialize visualization after a short delay to ensure DOM is ready
+      console.log('Initializing visualization with data:', d3Data);
+      setTimeout(() => {
+        if (svgRef.current && initializeVisualizationRef.current) {
+          initializeVisualizationRef.current(d3Data);
+        }
+      }, 100);
     } catch (err) {
       setError(`Failed to load relationships: ${err.message}`);
       console.error('Error loading relationships:', err);
+      console.error('Full error:', err.response?.data || err);
     } finally {
       setLoading(false);
     }
@@ -223,11 +237,24 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Initialize D3 visualization
   const initializeVisualization = useCallback((data) => {
-    if (!svgRef.current || !data) return;
+    console.log('initializeVisualization called, svgRef:', svgRef.current, 'data:', data);
+    if (!svgRef.current || !data) {
+      console.warn('Cannot initialize visualization - missing svgRef or data');
+      return;
+    }
 
-    const svg = d3.select(svgRef.current);
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
+    // Ensure the SVG has dimensions - wait a frame if needed
+    const checkAndInitialize = () => {
+      const svg = d3.select(svgRef.current);
+      const width = svgRef.current.clientWidth;
+      const height = svgRef.current.clientHeight;
+      console.log('SVG dimensions:', { width, height });
+      
+      if (width === 0 || height === 0) {
+        console.warn('SVG has no dimensions, waiting for next frame...');
+        requestAnimationFrame(checkAndInitialize);
+        return;
+      }
 
     // Clear previous visualization
     svg.selectAll('*').remove();
@@ -354,7 +381,16 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
     // Apply initial layout
     applyLayout(currentLayout, data, simulation);
+    };
+    
+    // Start the initialization check
+    checkAndInitialize();
   }, [currentLayout, layoutSettings]);
+  
+  // Update the ref whenever initializeVisualization changes
+  useEffect(() => {
+    initializeVisualizationRef.current = initializeVisualization;
+  }, [initializeVisualization]);
 
   // Get node radius based on connections
   const getNodeRadius = (node) => {
@@ -705,19 +741,40 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
             {currentTab === 0 && (
               <Box sx={{ p: 2 }}>
+                {/* Show loading or empty state message */}
+                {Object.values(resources).every(arr => arr.length === 0) && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      Loading FHIR resources... If this message persists, please check your data connection.
+                    </Typography>
+                  </Alert>
+                )}
+                
                 {/* Resource selector */}
                 <Autocomplete
-                  options={Object.keys(resources)}
+                  options={Object.keys(resources).filter(key => resources[key]?.length > 0)}
                   renderInput={(params) => (
-                    <TextField {...params} label="Select Resource Type" size="small" />
+                    <TextField 
+                      {...params} 
+                      label="Select Resource Type" 
+                      size="small"
+                      helperText={Object.values(resources).every(arr => arr.length === 0) ? 
+                        "Loading resources..." : undefined}
+                    />
                   )}
                   onChange={(e, resourceType) => {
                     if (resourceType && resources[resourceType]?.length > 0) {
                       const resource = resources[resourceType][0];
-                      loadRelationships(resourceType, resource.id);
+                      console.log('Selected resource:', resourceType, resource);
+                      // Extract just the ID part if it's prefixed
+                      const resourceId = resource.id.includes('/') ? 
+                        resource.id.split('/').pop() : 
+                        resource.id;
+                      loadRelationships(resourceType, resourceId);
                     }
                   }}
                   sx={{ mb: 2 }}
+                  noOptionsText="No resources available. Please wait for data to load."
                 />
 
                 {/* Current resource info */}
@@ -811,7 +868,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           </Grid>
 
           {/* Visualization Panel */}
-          <Grid item xs={12} md={9} sx={{ position: 'relative' }}>
+          <Grid item xs={12} md={9} sx={{ position: 'relative', height: '100%', minHeight: '600px' }}>
             {loading && (
               <Box sx={{ 
                 position: 'absolute', 
