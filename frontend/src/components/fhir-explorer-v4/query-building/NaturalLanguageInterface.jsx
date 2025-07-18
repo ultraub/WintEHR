@@ -48,8 +48,14 @@ import {
   ContentCopy as CopyIcon,
   Psychology as PsychologyIcon,
   AutoAwesome as AutoAwesomeIcon,
-  QuestionAnswer as QuestionIcon
+  QuestionAnswer as QuestionIcon,
+  LocalHospital as MedicalIcon,
+  Science as LabIcon,
+  Medication as MedicationIcon
 } from '@mui/icons-material';
+
+// Import enhanced natural language processor
+import { processNaturalLanguage, getMedicalTerms } from './utils/naturalLanguageProcessor';
 
 // Natural language patterns and their FHIR query translations
 const QUERY_PATTERNS = [
@@ -128,16 +134,39 @@ const QUERY_PATTERNS = [
   }
 ];
 
-// Common healthcare examples
-const EXAMPLE_QUERIES = [
-  "Find all patients aged 65-75 years",
-  "Show me patients with diabetes",
-  "Recent blood pressure observations in the last 30 days", 
-  "Medications for John Smith",
-  "Lab results for Mary Johnson",
-  "Encounters for patients in 2024",
-  "Patients with glucose between 100 and 200"
-];
+// Common healthcare examples with categories
+const EXAMPLE_QUERIES = {
+  clinical: {
+    title: 'Clinical Queries',
+    icon: MedicalIcon,
+    examples: [
+      "Show patients with diabetes",
+      "Find patients with hypertension and diabetes",
+      "Active conditions for John Smith",
+      "Patients with uncontrolled A1C over 8"
+    ]
+  },
+  laboratory: {
+    title: 'Lab Results',
+    icon: LabIcon,
+    examples: [
+      "Recent glucose results above 200",
+      "A1C results in the last 6 months",
+      "Abnormal creatinine levels",
+      "Blood pressure readings today"
+    ]
+  },
+  medications: {
+    title: 'Medications',
+    icon: MedicationIcon,
+    examples: [
+      "Active medications for Mary Johnson",
+      "Patients on metformin",
+      "Recent insulin prescriptions",
+      "Medications prescribed yesterday"
+    ]
+  }
+};
 
 // Follow-up suggestions based on query type
 const FOLLOW_UP_SUGGESTIONS = {
@@ -180,6 +209,8 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
   const [currentQuery, setCurrentQuery] = useState(null);
   const [showQueryDialog, setShowQueryDialog] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
 
   // Initialize hooks at the top level
   const fhirDataHook = useFHIRData || (() => ({ searchResources: () => Promise.resolve([]) }));
@@ -188,25 +219,39 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
   const { searchResources } = fhirDataHook();
   const { saveQuery } = queryHistoryHook();
 
-  // Process natural language input and convert to FHIR query
-  const processNaturalLanguage = useCallback((text) => {
-    const normalizedText = text.toLowerCase().trim();
+  // Enhanced natural language processing
+  const processNaturalLanguageQuery = useCallback((text) => {
+    // Use the enhanced processor
+    const result = processNaturalLanguage(text);
     
-    // Try to match against patterns
-    for (const pattern of QUERY_PATTERNS) {
-      const match = normalizedText.match(pattern.pattern);
-      if (match) {
-        return pattern.template(match);
-      }
+    // Convert to FHIR query URL
+    const params = new URLSearchParams();
+    result.query.parameters.forEach(param => {
+      const key = param.operator ? `${param.name}:${param.operator}` : param.name;
+      params.append(key, param.value);
+    });
+    
+    result.query.includes.forEach(include => {
+      params.append('_include', include);
+    });
+    
+    if (result.query.sort) {
+      params.append('_sort', result.query.sort);
     }
     
-    // Fallback: general search
+    if (result.query.count !== 20) {
+      params.append('_count', result.query.count);
+    }
+    
+    const queryUrl = `/${result.query.resourceType}?${params.toString()}`;
+    
     return {
-      resourceType: 'Patient',
-      query: `/Patient?name:contains=${encodeURIComponent(text)}`,
-      description: `General search for: ${text}`,
-      confidence: 0.5,
-      suggestion: 'Try being more specific about what you\'re looking for'
+      resourceType: result.query.resourceType,
+      query: queryUrl,
+      description: result.interpretation,
+      confidence: result.confidence,
+      suggestions: result.suggestions,
+      parameters: result.query.parameters
     };
   }, []);
 
@@ -219,19 +264,27 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
     
     try {
       // Process the natural language
-      const queryResult = processNaturalLanguage(input);
+      const queryResult = processNaturalLanguageQuery(input);
       
       // Add user message and AI response to conversation
       const aiMessage = {
         type: 'ai',
-        content: `I understand you want to ${queryResult.description.toLowerCase()}. Let me convert that to a FHIR query.`,
+        content: queryResult.confidence > 0.7 ? 
+          `I understand you want to ${queryResult.description.toLowerCase()}. Let me convert that to a FHIR query.` :
+          `I interpreted your request as: ${queryResult.description}. Let me know if this isn't quite right.`,
         query: queryResult,
         timestamp: new Date()
       };
       
       setConversation(prev => [...prev, userMessage, aiMessage]);
       setCurrentQuery(queryResult);
-      setSuggestions(FOLLOW_UP_SUGGESTIONS[queryResult.resourceType] || []);
+      
+      // Set suggestions based on query result
+      if (queryResult.suggestions && queryResult.suggestions.length > 0) {
+        setSuggestions(queryResult.suggestions.map(s => s.text));
+      } else {
+        setSuggestions(FOLLOW_UP_SUGGESTIONS[queryResult.resourceType] || []);
+      }
       
     } catch (error) {
       const errorMessage = {
@@ -459,16 +512,26 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
               avatar={<LightbulbIcon color="warning" />}
             />
             <CardContent>
-              <Stack spacing={1}>
-                {EXAMPLE_QUERIES.map((example, index) => (
-                  <Chip
-                    key={index}
-                    label={example}
-                    onClick={() => setInput(example)}
-                    variant="outlined"
-                    size="small"
-                    sx={{ justifyContent: 'flex-start', height: 'auto', py: 1 }}
-                  />
+              <Stack spacing={2}>
+                {Object.entries(EXAMPLE_QUERIES).map(([category, data]) => (
+                  <Box key={category}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <data.icon sx={{ fontSize: 18, mr: 1, color: 'primary.main' }} />
+                      <Typography variant="subtitle2">{data.title}</Typography>
+                    </Box>
+                    <Stack spacing={0.5}>
+                      {data.examples.map((example, index) => (
+                        <Chip
+                          key={index}
+                          label={example}
+                          onClick={() => setInput(example)}
+                          variant="outlined"
+                          size="small"
+                          sx={{ justifyContent: 'flex-start', height: 'auto', py: 0.5 }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
                 ))}
               </Stack>
             </CardContent>
