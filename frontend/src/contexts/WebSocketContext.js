@@ -219,7 +219,7 @@ export const WebSocketProvider = ({ children }) => {
     } catch (error) {
       // Connection error handled silently
     }
-  }, [user, subscriptions, subscribe, sendMessage, isConnected, isOnline]);
+  }, [isConnected, isOnline]); // Minimal dependencies to prevent recreating
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -237,9 +237,13 @@ export const WebSocketProvider = ({ children }) => {
     reconnectAttempts.current = 0;
   }, []);
 
-  // Connect when user logs in
+  // Connect when user logs in (or in simple mode)
   useEffect(() => {
-    if (user) {
+    // Check if we're in simple auth mode (no JWT)
+    const token = localStorage.getItem('auth_token');
+    const isSimpleMode = !token || token === 'null' || token === 'undefined';
+    
+    if (user || isSimpleMode) {
       connect();
     } else {
       disconnect();
@@ -248,13 +252,16 @@ export const WebSocketProvider = ({ children }) => {
     return () => {
       disconnect();
     };
-  }, [user, connect, disconnect]);
+  }, [user]); // Only depend on user changes
 
   // Handle online/offline events
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (user) {
+      const token = localStorage.getItem('auth_token');
+      const isSimpleMode = !token || token === 'null' || token === 'undefined';
+      
+      if (user || isSimpleMode) {
         connect();
       }
     };
@@ -270,7 +277,7 @@ export const WebSocketProvider = ({ children }) => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [user, connect]);
+  }, [user]); // Only depend on user changes
 
   // Cleanup on unmount
   useEffect(() => {

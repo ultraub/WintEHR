@@ -54,8 +54,8 @@ import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useInitializationGuard } from '../../../hooks/useStableReferences';
-import MetricCard from '../common/MetricCard';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
@@ -67,8 +67,10 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     getPatientResources, 
     isLoading, 
     getError,
-    warmPatientCache
+    warmPatientCache,
+    refreshPatientResources
   } = useFHIRResource();
+  const { subscribe, unsubscribe } = useClinicalWorkflow();
   
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [cdsLoading, setCdsLoading] = useState(false);
@@ -168,6 +170,57 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
       loadCDSAlerts();
     }
   }, [currentPatient, isInitialLoad]);
+
+  // Subscribe to clinical workflow events for real-time updates
+  useEffect(() => {
+    if (!patientId) return;
+
+    const subscriptions = [];
+
+    // Subscribe to condition changes
+    const conditionSub = subscribe(CLINICAL_EVENTS.CONDITION_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'Condition');
+      }
+    });
+    subscriptions.push(conditionSub);
+
+    // Subscribe to medication changes
+    const medAddSub = subscribe(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'MedicationRequest');
+      }
+    });
+    subscriptions.push(medAddSub);
+
+    const medDiscSub = subscribe(CLINICAL_EVENTS.MEDICATION_DISCONTINUED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'MedicationRequest');
+      }
+    });
+    subscriptions.push(medDiscSub);
+
+    // Subscribe to allergy changes
+    const allergySub = subscribe(CLINICAL_EVENTS.ALLERGY_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'AllergyIntolerance');
+      }
+    });
+    subscriptions.push(allergySub);
+
+    // Subscribe to observation changes
+    const obsSub = subscribe(CLINICAL_EVENTS.RESULT_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'Observation');
+      }
+    });
+    subscriptions.push(obsSub);
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      subscriptions.forEach(unsubscribe);
+    };
+  }, [patientId, subscribe, unsubscribe, refreshPatientResources]);
 
   // Get patient resources using centralized context - try to get data even if cache isn't fully warm
   const conditions = useMemo(() => {
@@ -281,29 +334,61 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
-      {/* Patient Header */}
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      {/* Modern Layered Header */}
       <Paper
         elevation={0}
         sx={{
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-          color: 'white',
-          borderRadius: 3,
-          mb: 3,
-          overflow: 'hidden',
-          position: 'relative'
+          borderRadius: 0,
+          borderBottom: 1,
+          borderColor: 'divider',
+          backgroundColor: 'background.paper',
+          position: 'sticky',
+          top: 0,
+          zIndex: theme.zIndex.appBar - 1
         }}
       >
-        <Box sx={{ p: 4 }}>
+        {/* Top Bar */}
+        <Box 
+          sx={{ 
+            backgroundColor: theme.palette.grey[50],
+            borderBottom: 1,
+            borderColor: 'divider',
+            px: 3,
+            py: 1
+          }}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="overline" color="text.secondary">
+              Patient Summary
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Chip 
+                label="Patient View" 
+                size="small" 
+                sx={{ borderRadius: 0 }}
+              />
+              <Chip 
+                label={`ID: ${patientId}`} 
+                size="small" 
+                variant="outlined"
+                sx={{ borderRadius: 0 }}
+              />
+            </Stack>
+          </Stack>
+        </Box>
+
+        {/* Main Patient Information */}
+        <Box sx={{ p: 3 }}>
           <Grid container spacing={3} alignItems="center">
             <Grid item>
               <Avatar
                 sx={{
-                  width: 80,
-                  height: 80,
-                  fontSize: '2rem',
-                  bgcolor: alpha(theme.palette.common.white, 0.2),
-                  backdropFilter: 'blur(10px)'
+                  width: 64,
+                  height: 64,
+                  fontSize: '1.5rem',
+                  bgcolor: theme.palette.primary.main,
+                  borderRadius: 0
                 }}
               >
                 {patientInfo.firstName.charAt(0)}{patientInfo.lastName.charAt(0)}
@@ -311,62 +396,61 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             </Grid>
             
             <Grid item xs>
-              <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
                 {patientInfo.fullName}
               </Typography>
-              <Stack direction="row" spacing={3} flexWrap="wrap">
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <PersonIcon fontSize="small" />
-                  <Typography variant="body1">
-                    {patientInfo.age ? `${patientInfo.age} years old` : 'Age unknown'} • {patientInfo.gender}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CalendarIcon fontSize="small" />
-                  <Typography variant="body1">
-                    {patientInfo.birthDate ? format(new Date(patientInfo.birthDate), 'MMM d, yyyy') : 'DOB unknown'}
-                  </Typography>
-                </Stack>
+              <Stack direction="row" spacing={2} flexWrap="wrap">
+                <Typography variant="body2" color="text.secondary">
+                  {patientInfo.age ? `${patientInfo.age} years` : 'Age unknown'} • {patientInfo.gender}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  DOB: {patientInfo.birthDate ? format(new Date(patientInfo.birthDate), 'MMM d, yyyy') : 'Unknown'}
+                </Typography>
                 {patientInfo.phone && (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <PhoneIcon fontSize="small" />
-                    <Typography variant="body1">{patientInfo.phone}</Typography>
-                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {patientInfo.phone}
+                  </Typography>
+                )}
+                {patientInfo.email && (
+                  <Typography variant="body2" color="text.secondary">
+                    {patientInfo.email}
+                  </Typography>
                 )}
               </Stack>
             </Grid>
 
             <Grid item>
-              <Stack spacing={2} alignItems="flex-end">
+              <Stack spacing={1} alignItems="flex-end">
                 <Button
                   variant="contained"
                   size="large"
                   startIcon={<WorkspaceIcon />}
                   onClick={handleLaunchWorkspace}
                   sx={{
-                    bgcolor: 'white',
-                    color: theme.palette.primary.main,
+                    borderRadius: 0,
                     fontWeight: 600,
                     px: 3,
-                    py: 1.5,
-                    '&:hover': {
-                      bgcolor: alpha(theme.palette.common.white, 0.9)
-                    }
+                    textTransform: 'none'
                   }}
                 >
-                  Launch Clinical Workspace
+                  Open Clinical Workspace
                 </Button>
                 <Stack direction="row" spacing={1}>
-                  <Tooltip title="Edit Patient">
-                    <IconButton sx={{ color: 'white' }}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="View Timeline">
-                    <IconButton sx={{ color: 'white' }}>
-                      <TimelineIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Button
+                    size="small"
+                    startIcon={<EditIcon />}
+                    sx={{ borderRadius: 0 }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    startIcon={<TimelineIcon />}
+                    onClick={() => navigate(`/patients/${patientId}/timeline`)}
+                    sx={{ borderRadius: 0 }}
+                  >
+                    Timeline
+                  </Button>
                 </Stack>
               </Stack>
             </Grid>
@@ -374,283 +458,401 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
         </Box>
       </Paper>
 
-      {/* Quick Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Active Problems */}
-        <Grid item xs={12} md={6} lg={3}>
-          <MetricCard
-            title="Active Problems"
-            value={activeConditions.length}
-            icon={<ConditionIcon />}
-            trend={activeConditions.length > 0 ? 'critical' : 'healthy'}
-            severity={activeConditions.length > 3 ? 'high' : activeConditions.length > 0 ? 'medium' : 'low'}
-            clinicalContext={clinicalContext}
-            department={department}
-            expandable
-            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
-          >
-            {activeConditions.length > 0 ? (
-              <List dense sx={{ mt: 1 }}>
-                {activeConditions.slice(0, 3).map((condition, index) => (
-                  <ListItem key={condition.id} disablePadding>
-                    <ListItemText
-                      primary={condition.code?.text || 'Unknown condition'}
-                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                      secondary={condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                  </ListItem>
-                ))}
-                {activeConditions.length > 3 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    +{activeConditions.length - 3} more problems
-                  </Typography>
-                )}
-              </List>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                No active problems recorded
-              </Typography>
-            )}
-          </MetricCard>
-        </Grid>
+      {/* Main Content */}
+      <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
 
-        {/* Current Medications */}
-        <Grid item xs={12} md={6} lg={3}>
-          <MetricCard
-            title="Current Medications"
-            value={currentMedications.length}
-            icon={<MedicationIcon />}
-            trend={currentMedications.length > 5 ? 'warning' : 'stable'}
-            severity={currentMedications.length > 10 ? 'high' : currentMedications.length > 5 ? 'medium' : 'low'}
-            clinicalContext={clinicalContext}
-            department={department}
-            expandable
-            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
-          >
-            {currentMedications.length > 0 ? (
-              <List dense sx={{ mt: 1 }}>
-                {currentMedications.slice(0, 3).map((med, index) => (
-                  <ListItem key={med.id} disablePadding>
-                    <ListItemText
-                      primary={
-                        // Try direct medication concept first
-                        med.medicationCodeableConcept?.text ||
-                        med.medicationCodeableConcept?.coding?.[0]?.display ||
-                        // Handle FHIR R5 structure (medication.concept)
-                        med.medication?.concept?.text ||
-                        med.medication?.concept?.coding?.[0]?.display ||
-                        med.medication?.display ||
-                        // Try resolved medication reference
-                        med._resolvedMedication?.code?.text ||
-                        med._resolvedMedication?.code?.coding?.[0]?.display ||
-                        // Fallback for unresolved references
-                        (med.medication?.reference?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
-                      }
-                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                      secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                  </ListItem>
-                ))}
-                {currentMedications.length > 3 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    +{currentMedications.length - 3} more medications
-                  </Typography>
-                )}
-              </List>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                No current medications
-              </Typography>
-            )}
-          </MetricCard>
-        </Grid>
-
-        {/* Recent Vitals */}
-        <Grid item xs={12} md={6} lg={3}>
-          <MetricCard
-            title="Recent Vitals"
-            value={recentVitals.length}
-            icon={<VitalsIcon />}
-            trend={recentVitals.length > 0 ? 'stable' : 'warning'}
-            severity="low"
-            clinicalContext={clinicalContext}
-            department={department}
-            expandable
-            onClick={() => navigate(`/patients/${patientId}/workspace?tab=results`)}
-          >
-            {recentVitals.length > 0 ? (
-              <List dense sx={{ mt: 1 }}>
-                {recentVitals.slice(0, 3).map((vital, index) => (
-                  <ListItem key={vital.id} disablePadding>
-                    <ListItemText
-                      primary={vital.code?.text || 'Unknown vital'}
-                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                      secondary={`${vital.valueQuantity?.value || '--'} ${vital.valueQuantity?.unit || ''}`}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                  </ListItem>
-                ))}
-                {recentVitals.length > 3 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    +{recentVitals.length - 3} more vitals
-                  </Typography>
-                )}
-              </List>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                No recent vitals
-              </Typography>
-            )}
-          </MetricCard>
-        </Grid>
-
-        {/* Allergies & Alerts */}
-        <Grid item xs={12} md={6} lg={3}>
-          <MetricCard
-            title="Allergies"
-            value={activeAllergies.length}
-            icon={<WarningIcon />}
-            trend={activeAllergies.length > 0 ? 'critical' : 'healthy'}
-            severity={activeAllergies.some(a => a.criticality === 'high') ? 'high' : activeAllergies.length > 0 ? 'medium' : 'low'}
-            clinicalContext={clinicalContext}
-            department={department}
-            expandable
-            urgency={activeAllergies.some(a => a.criticality === 'high') ? 'critical' : 'normal'}
-            onClick={() => navigate(`/patients/${patientId}/workspace?tab=chart`)}
-          >
-            {activeAllergies.length > 0 ? (
-              <List dense sx={{ mt: 1 }}>
-                {activeAllergies.slice(0, 3).map((allergy, index) => (
-                  <ListItem key={allergy.id} disablePadding>
-                    <ListItemText
-                      primary={allergy.code?.text || 'Unknown allergen'}
-                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                      secondary={`${allergy.criticality || 'Unknown'} severity`}
-                      secondaryTypographyProps={{ variant: 'caption' }}
-                    />
-                  </ListItem>
-                ))}
-                {activeAllergies.length > 3 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    +{activeAllergies.length - 3} more allergies
-                  </Typography>
-                )}
-              </List>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                NKDA - No known allergies
-              </Typography>
-            )}
-          </MetricCard>
-        </Grid>
-      </Grid>
-
-      {/* CDS Alerts */}
-      {(cdsLoading || cdsAlerts.length > 0) && (
-        <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            <CDSIcon color="warning" />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Clinical Decision Support
-            </Typography>
-            {cdsLoading && <CircularProgress size={20} />}
-            {cdsAlerts.length > 0 && (
-              <Chip 
-                label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
-                color="warning"
-                size="small"
-              />
-            )}
-          </Stack>
-          
-          {cdsLoading && (
-            <Alert severity="info">
-              Evaluating clinical decision support rules...
-            </Alert>
-          )}
-          
-          {cdsAlerts.map((alert, index) => (
-            <Alert 
-              key={index}
-              severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
-              sx={{ mb: index < cdsAlerts.length - 1 ? 1 : 0 }}
-              action={
-                <Button 
-                  size="small" 
-                  variant="outlined"
-                  onClick={() => window.open('/cds-studio', '_blank')}
-                >
-                  View Details
-                </Button>
-              }
+        {/* Quick Summary Cards */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          {/* Active Problems */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
             >
-              <Typography variant="subtitle2" gutterBottom>
-                {alert.summary}
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Active Problems
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: activeConditions.length > 0 ? theme.palette.warning.main : 'text.primary' }}>
+                    {activeConditions.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.warning.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 0
+                  }}
+                >
+                  <ConditionIcon sx={{ color: theme.palette.warning.main }} />
+                </Avatar>
+              </Stack>
+              
+              {activeConditions.length > 0 ? (
+                <Box>
+                  {activeConditions.slice(0, 3).map((condition, index) => (
+                    <Box key={condition.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {condition.code?.text || 'Unknown condition'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
+                      </Typography>
+                    </Box>
+                  ))}
+                  {activeConditions.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{activeConditions.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No active problems recorded
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Current Medications */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Current Medications
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: currentMedications.length > 5 ? theme.palette.info.main : 'text.primary' }}>
+                    {currentMedications.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 0
+                  }}
+                >
+                  <MedicationIcon sx={{ color: theme.palette.info.main }} />
+                </Avatar>
+              </Stack>
+              
+              {currentMedications.length > 0 ? (
+                <Box>
+                  {currentMedications.slice(0, 3).map((med, index) => (
+                    <Box key={med.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {med.medicationCodeableConcept?.text ||
+                         med.medicationCodeableConcept?.coding?.[0]?.display ||
+                         med.medication?.concept?.text ||
+                         med.medication?.concept?.coding?.[0]?.display ||
+                         med.medication?.display ||
+                         'Unknown medication'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {med.dosageInstruction?.[0]?.text || 'See instructions'}
+                      </Typography>
+                    </Box>
+                  ))}
+                  {currentMedications.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{currentMedications.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No current medications
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Recent Vitals */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02)
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=results`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Recent Vitals
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600 }}>
+                    {recentVitals.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 0
+                  }}
+                >
+                  <VitalsIcon sx={{ color: theme.palette.success.main }} />
+                </Avatar>
+              </Stack>
+              
+              {recentVitals.length > 0 ? (
+                <Box>
+                  {recentVitals.slice(0, 3).map((vital, index) => (
+                    <Box key={vital.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {vital.code?.text || 'Unknown vital'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {vital.valueQuantity?.value || '--'} {vital.valueQuantity?.unit || ''}
+                      </Typography>
+                    </Box>
+                  ))}
+                  {recentVitals.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{recentVitals.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent vitals
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Allergies */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                border: 1,
+                borderColor: activeAllergies.length > 0 ? theme.palette.error.main : 'divider',
+                borderRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                backgroundColor: activeAllergies.length > 0 ? alpha(theme.palette.error.main, 0.02) : 'background.paper',
+                '&:hover': {
+                  borderColor: theme.palette.error.main,
+                  backgroundColor: alpha(theme.palette.error.main, 0.05)
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Allergies
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: activeAllergies.length > 0 ? theme.palette.error.main : 'text.primary' }}>
+                    {activeAllergies.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 0
+                  }}
+                >
+                  <WarningIcon sx={{ color: theme.palette.error.main }} />
+                </Avatar>
+              </Stack>
+              
+              {activeAllergies.length > 0 ? (
+                <Box>
+                  {activeAllergies.slice(0, 3).map((allergy, index) => (
+                    <Box key={allergy.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {allergy.code?.text || 'Unknown allergen'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {allergy.criticality || 'Unknown'} severity
+                      </Typography>
+                    </Box>
+                  ))}
+                  {activeAllergies.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{activeAllergies.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  NKDA - No known allergies
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* CDS Alerts */}
+        {(cdsLoading || cdsAlerts.length > 0) && (
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 0, 
+              mb: 3,
+              border: 1,
+              borderColor: 'divider'
+            }}
+          >
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+              <CDSIcon color="warning" />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Clinical Decision Support
               </Typography>
-              <Typography variant="body2">
-                {alert.detail}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Source: {alert.serviceName}
-              </Typography>
-            </Alert>
-          ))}
+              {cdsLoading && <CircularProgress size={20} />}
+              {cdsAlerts.length > 0 && (
+                <Chip 
+                  label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
+                  color="warning"
+                  size="small"
+                  sx={{ borderRadius: 0 }}
+                />
+              )}
+            </Stack>
+            
+            {cdsLoading && (
+              <Alert 
+                severity="info"
+                sx={{ borderRadius: 0 }}
+              >
+                Evaluating clinical decision support rules...
+              </Alert>
+            )}
+            
+            {cdsAlerts.map((alert, index) => (
+              <Alert 
+                key={index}
+                severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
+                sx={{ 
+                  mb: index < cdsAlerts.length - 1 ? 1 : 0,
+                  borderRadius: 0
+                }}
+                action={
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    sx={{ borderRadius: 0 }}
+                    onClick={() => navigate('/cds-studio')}
+                  >
+                    View Details
+                  </Button>
+                }
+              >
+                <Typography variant="subtitle2" gutterBottom>
+                  {alert.summary}
+                </Typography>
+                <Typography variant="body2">
+                  {alert.detail}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Source: {alert.serviceName}
+                </Typography>
+              </Alert>
+            ))}
+          </Paper>
+        )}
+
+        {/* Quick Actions */}
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 3, 
+            borderRadius: 0,
+            border: 1,
+            borderColor: 'divider'
+          }}
+        >
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Quick Actions
+          </Typography>
+          <Stack direction="row" spacing={2} flexWrap="wrap">
+            <Button 
+              variant="outlined" 
+              startIcon={<EncounterIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/encounters`)}
+            >
+              View Encounters
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<LabIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/lab-results`)}
+            >
+              Lab Results
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<MedicationIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/medications`)}
+            >
+              Medication History
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<TimelineIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/timeline`)}
+            >
+              Clinical Timeline
+            </Button>
+          </Stack>
         </Paper>
-      )}
-
-      {/* Quick Actions */}
-      <Paper sx={{ p: 3, borderRadius: 2 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-          Quick Actions
-        </Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
-          <Button 
-            variant="outlined" 
-            startIcon={<EncounterIcon />}
-            onClick={() => navigate(`/patients/${patientId}/encounters`)}
-          >
-            View Encounters
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<LabIcon />}
-            onClick={() => navigate(`/patients/${patientId}/lab-results`)}
-          >
-            Lab Results
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<MedicationIcon />}
-            onClick={() => navigate(`/patients/${patientId}/medications`)}
-          >
-            Medication History
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<TimelineIcon />}
-            onClick={() => navigate(`/patients/${patientId}/timeline`)}
-          >
-            Clinical Timeline
-          </Button>
-        </Stack>
-      </Paper>
-
-      {/* Floating Action Button */}
-      <Fab
-        color="primary"
-        aria-label="clinical workspace"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          zIndex: 1000
-        }}
-        onClick={handleLaunchWorkspace}
-      >
-        <LaunchIcon />
-      </Fab>
+      </Box>
     </Box>
   );
 };

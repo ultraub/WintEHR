@@ -572,10 +572,8 @@ export function FHIRResourceProvider({ children }) {
     const searchPromise = (async () => {
       try {
         const result = await fhirClient.search(resourceType, enhancedParams);
-      console.log(`[FHIRResourceContext] Search result for ${resourceType}:`, result);
       
       if (result.resources && result.resources.length > 0) {
-        console.log(`[FHIRResourceContext] Setting ${result.resources.length} ${resourceType} resources`);
         setResources(resourceType, result.resources);
         
         // Build relationships for patient resources
@@ -827,9 +825,7 @@ export function FHIRResourceProvider({ children }) {
           params._count = 30;
         }
         
-        console.log(`[FHIRResourceContext] Searching ${resourceType} with params:`, params);
         const result = await searchResources(resourceType, params, forceRefresh);
-        console.log(`[FHIRResourceContext] ${resourceType} search returned:`, result);
         return result;
       }
     });

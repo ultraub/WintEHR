@@ -87,13 +87,19 @@ import {
   FullscreenExit as FullscreenExitIcon,
   PhotoCamera as ScreenshotIcon,
   RadioButtonUnchecked as RadioButtonUncheckedIcon,
-  Circle as CircleIcon
+  Circle as CircleIcon,
+  CheckBox as CheckBoxIcon,
+  CompareArrows as CompareIcon
 } from '@mui/icons-material';
 import * as d3 from 'd3';
 
 // Import services
 import { fhirRelationshipService } from '../../../services/fhirRelationshipService';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
+
+// Import components
+import ResourceDetailsPanel from './ResourceDetailsPanel';
+import RelationshipFilterPanel from './RelationshipFilterPanel';
 
 // Visualization constants
 const NODE_RADIUS = {
@@ -129,6 +135,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [relationshipData, setRelationshipData] = useState(null);
   const [visibleNodeTypes, setVisibleNodeTypes] = useState(new Set());
   const [selectedNode, setSelectedNode] = useState(null);
+  const [selectedNodes, setSelectedNodes] = useState(new Set());
   const [hoveredNode, setHoveredNode] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [currentLayout, setCurrentLayout] = useState(LAYOUTS.FORCE);
@@ -138,6 +145,11 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [statistics, setStatistics] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
+  const [showDetailsPanel, setShowDetailsPanel] = useState(true);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [comparisonNodes, setComparisonNodes] = useState([]);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({});
   const [layoutSettings, setLayoutSettings] = useState({
     nodeSize: NODE_RADIUS.DEFAULT,
     linkDistance: LINK_DISTANCE.DEFAULT,
@@ -223,7 +235,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       console.log('Initializing visualization with data:', d3Data);
       setTimeout(() => {
         if (svgRef.current && initializeVisualizationRef.current) {
-          initializeVisualizationRef.current(d3Data);
+          const filteredData = getFilteredData() || d3Data;
+          initializeVisualizationRef.current(filteredData);
         }
       }, 100);
     } catch (err) {
@@ -448,6 +461,16 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     initializeVisualizationRef.current = initializeVisualization;
   }, [initializeVisualization]);
 
+  // Re-render visualization when filters change
+  useEffect(() => {
+    if (relationshipData && svgRef.current && initializeVisualizationRef.current) {
+      const filteredData = getFilteredData();
+      if (filteredData) {
+        initializeVisualizationRef.current(filteredData);
+      }
+    }
+  }, [activeFilters, relationshipData, getFilteredData]);
+
   // Add resize observer to handle container size changes
   useEffect(() => {
     if (!containerRef.current) return;
@@ -477,6 +500,55 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       }
     };
   }, [relationshipData]);
+
+  // Apply filters to visualization data
+  const getFilteredData = useCallback(() => {
+    if (!relationshipData || Object.keys(activeFilters).length === 0) {
+      return relationshipData;
+    }
+
+    let filteredNodes = [...relationshipData.nodes];
+    let filteredLinks = [...relationshipData.links];
+
+    // Filter by resource types
+    if (activeFilters.resourceTypes?.size > 0) {
+      filteredNodes = filteredNodes.filter(node => 
+        activeFilters.resourceTypes.has(node.resourceType)
+      );
+      const nodeIds = new Set(filteredNodes.map(n => n.id));
+      filteredLinks = filteredLinks.filter(link => 
+        nodeIds.has(link.source.id || link.source) && 
+        nodeIds.has(link.target.id || link.target)
+      );
+    }
+
+    // Filter by relationship types
+    if (activeFilters.relationshipTypes?.size > 0) {
+      filteredLinks = filteredLinks.filter(link => 
+        activeFilters.relationshipTypes.has(link.field)
+      );
+      // Remove orphaned nodes
+      if (!activeFilters.showOrphans) {
+        const connectedNodeIds = new Set();
+        filteredLinks.forEach(link => {
+          connectedNodeIds.add(link.source.id || link.source);
+          connectedNodeIds.add(link.target.id || link.target);
+        });
+        filteredNodes = filteredNodes.filter(node => connectedNodeIds.has(node.id));
+      }
+    }
+
+    // Apply date range filter if available
+    if (activeFilters.dateRange?.start || activeFilters.dateRange?.end) {
+      // This would require resource data to have dates
+      // For now, we'll skip this implementation
+    }
+
+    return {
+      nodes: filteredNodes,
+      links: filteredLinks
+    };
+  }, [relationshipData, activeFilters]);
 
   // Get node radius based on connections
   const getNodeRadius = (node) => {
@@ -521,10 +593,46 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Handle node click
   const handleNodeClick = (event, node) => {
-    setSelectedNode(node);
-    if (onResourceSelect) {
-      onResourceSelect(node.resourceType, node.id.split('/')[1]);
+    if (multiSelectMode || event.ctrlKey || event.metaKey) {
+      // Multi-select mode
+      const newSelectedNodes = new Set(selectedNodes);
+      if (newSelectedNodes.has(node.id)) {
+        newSelectedNodes.delete(node.id);
+        if (selectedNode?.id === node.id) {
+          // If unselecting the primary selected node, pick another one
+          const remaining = Array.from(newSelectedNodes);
+          setSelectedNode(remaining.length > 0 ? relationshipData.nodes.find(n => n.id === remaining[0]) : null);
+        }
+      } else {
+        newSelectedNodes.add(node.id);
+        if (!selectedNode) {
+          setSelectedNode(node);
+        }
+      }
+      setSelectedNodes(newSelectedNodes);
+      
+      // Update node styling
+      updateNodeSelection(newSelectedNodes);
+    } else {
+      // Single select mode
+      setSelectedNode(node);
+      setSelectedNodes(new Set([node.id]));
+      updateNodeSelection(new Set([node.id]));
+      
+      if (onResourceSelect) {
+        onResourceSelect(node.resourceType, node.id.split('/')[1]);
+      }
     }
+  };
+
+  // Update node selection styling
+  const updateNodeSelection = (selectedSet) => {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('.node')
+      .style('stroke', d => selectedSet.has(d.id) ? '#000' : '#fff')
+      .style('stroke-width', d => selectedSet.has(d.id) ? 3 : 2);
   };
 
   // Handle node hover
@@ -848,6 +956,39 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
               <IconButton onClick={() => setShowSettings(true)} size="small">
                 <SettingsIcon />
               </IconButton>
+              <Divider orientation="vertical" flexItem />
+              <Tooltip title="Multi-select mode (or hold Ctrl/Cmd)">
+                <ToggleButton
+                  value="multiselect"
+                  selected={multiSelectMode}
+                  onChange={() => setMultiSelectMode(!multiSelectMode)}
+                  size="small"
+                >
+                  <Badge badgeContent={selectedNodes.size > 1 ? selectedNodes.size : 0} color="primary">
+                    <CheckBoxIcon />
+                  </Badge>
+                </ToggleButton>
+              </Tooltip>
+              <Tooltip title={showDetailsPanel ? "Hide Details" : "Show Details"}>
+                <IconButton 
+                  onClick={() => setShowDetailsPanel(!showDetailsPanel)} 
+                  size="small"
+                  color={showDetailsPanel ? "primary" : "default"}
+                >
+                  <InfoIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Filter Options">
+                <IconButton 
+                  onClick={() => setShowFilterPanel(!showFilterPanel)} 
+                  size="small"
+                  color={showFilterPanel ? "primary" : "default"}
+                >
+                  <Badge badgeContent={Object.keys(activeFilters).length} color="secondary">
+                    <FilterIcon />
+                  </Badge>
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Grid>
         </Grid>
@@ -856,8 +997,26 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       {/* Main Content */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Grid container sx={{ height: '100%' }} spacing={0}>
+          {/* Filter Panel */}
+          {showFilterPanel && (
+            <Grid item xs={12} md={2} sx={{ 
+              height: '100%',
+              overflow: 'hidden',
+              borderRight: 1,
+              borderColor: 'divider'
+            }}>
+              <RelationshipFilterPanel
+                onFiltersChange={setActiveFilters}
+                availableResourceTypes={Array.from(visibleNodeTypes)}
+                currentFilters={activeFilters}
+                nodeCount={getFilteredData()?.nodes?.length || 0}
+                linkCount={getFilteredData()?.links?.length || 0}
+              />
+            </Grid>
+          )}
+
           {/* Left Panel */}
-          <Grid item xs={12} md={3} sx={{ 
+          <Grid item xs={12} md={showFilterPanel ? 2 : 3} sx={{ 
             borderRight: 1, 
             borderColor: 'divider', 
             overflow: 'auto',
@@ -999,12 +1158,17 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           </Grid>
 
           {/* Visualization Panel */}
-          <Grid item xs={12} md={9} sx={{ 
+          <Grid item xs={12} md={
+            showFilterPanel 
+              ? (showDetailsPanel && selectedNode ? 5 : 8) 
+              : (showDetailsPanel && selectedNode ? 6 : 9)
+          } sx={{ 
             position: 'relative', 
             height: '100%', 
             minHeight: '600px',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            transition: 'all 0.3s ease'
           }}>
             {loading && (
               <Box sx={{ 
@@ -1073,6 +1237,31 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
               </Paper>
             </Box>
           </Grid>
+
+          {/* Resource Details Panel */}
+          {showDetailsPanel && selectedNode && (
+            <Grid item xs={12} md={3} sx={{ 
+              height: '100%',
+              overflow: 'hidden',
+              borderLeft: 1,
+              borderColor: 'divider'
+            }}>
+              <ResourceDetailsPanel
+                selectedNode={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onResourceSelect={(resourceType, resourceId) => {
+                  loadRelationships(resourceType, resourceId);
+                }}
+                onAddToComparison={(node) => {
+                  setComparisonNodes(prev => [...prev, node]);
+                }}
+                onFindPath={(source, target) => {
+                  console.log('Find path from', source, 'to', target);
+                  // TODO: Implement path finding
+                }}
+              />
+            </Grid>
+          )}
         </Grid>
       </Box>
 

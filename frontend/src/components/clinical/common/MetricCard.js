@@ -49,6 +49,7 @@ const MetricCard = ({
   clinicalContext,
   department,
   urgency = 'normal',
+  expandable, // Extract but don't use
   ...props
 }) => {
   const theme = useTheme();
