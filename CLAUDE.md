@@ -220,6 +220,48 @@ GROUP BY param_name;"
 - **After deployment**: Run verification script to check health
 - **Production**: Monitor with `consolidated_search_indexing.py --mode monitor`
 
+## 🔎 Patient Compartments
+
+### Overview
+Patient compartments group all resources related to a specific patient, enabling efficient Patient/$everything operations.
+
+### Automatic Population
+- Compartments are automatically populated during resource creation/update
+- The `fhir.compartments` table tracks patient-resource relationships
+- Build process includes compartment population (Step 5 in data processing)
+
+### Manual Operations
+```bash
+# Populate compartments for existing resources
+docker exec emr-backend python scripts/populate_compartments.py
+
+# Verify compartment health
+docker exec emr-backend python scripts/verify_compartments.py
+
+# Test compartment functionality
+docker exec emr-backend python scripts/test_compartment_functionality.py
+```
+
+### Troubleshooting Compartments
+If Patient/$everything returns incomplete results:
+```bash
+# Check compartment entries
+docker exec emr-postgres psql -U emr_user -d emr_db -c "
+SELECT COUNT(*) as total_compartments,
+       COUNT(DISTINCT compartment_id) as unique_patients
+FROM fhir.compartments
+WHERE compartment_type = 'Patient';"
+
+# Verify specific patient compartment
+docker exec emr-postgres psql -U emr_user -d emr_db -c "
+SELECT r.resource_type, COUNT(*) 
+FROM fhir.compartments c
+JOIN fhir.resources r ON r.id = c.resource_id
+WHERE c.compartment_type = 'Patient'
+AND c.compartment_id = 'YOUR_PATIENT_ID'
+GROUP BY r.resource_type;"
+```
+
 ## 📋 Clinical Modules
 
 | Module | Location | Key Features |
