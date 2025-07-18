@@ -1,66 +1,99 @@
 /**
  * Enhanced Patient Header Component
- * Comprehensive patient demographics and clinical summary for the workspace
+ * Modern, professional header design inspired by FHIR Explorer v4
+ * with comprehensive patient information and clinical status indicators
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
-  Paper,
+  AppBar,
+  Toolbar,
   Typography,
-  Grid,
+  IconButton,
+  Avatar,
+  Badge,
   Chip,
   Stack,
-  Avatar,
-  IconButton,
-  Tooltip,
-  Divider,
   Button,
-  useTheme,
-  alpha,
   Menu,
   MenuItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Divider,
+  Tooltip,
+  LinearProgress,
+  Paper,
+  Grid,
+  useTheme,
+  useMediaQuery,
+  Collapse,
+  Alert,
+  AlertTitle
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   Email as EmailIcon,
   Home as HomeIcon,
-  LocalHospital as HospitalIcon,
   Warning as WarningIcon,
   Medication as MedicationIcon,
   Assignment as AssignmentIcon,
-  AccountCircle as AccountIcon,
   LocalHospital as EmergencyIcon,
   Print as PrintIcon,
+  Share as ShareIcon,
+  Edit as EditIcon,
+  History as HistoryIcon,
   MoreVert as MoreIcon,
   CalendarMonth as CalendarIcon,
   Badge as BadgeIcon,
-  HealthAndSafety as InsuranceIcon,
+  Security as SecurityIcon,
   Groups as TeamIcon,
-  Edit as EditIcon,
-  History as HistoryIcon,
-  Share as ShareIcon,
-  Description as DocumentIcon,
-  Security as SecurityIcon
+  Notifications as NotificationsIcon,
+  Settings as SettingsIcon,
+  ExitToApp as LogoutIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  FiberManualRecord as ActiveIcon,
+  CheckCircle as VerifiedIcon,
+  Info as InfoIcon,
+  LocalPharmacy as PharmacyIcon,
+  Science as LabIcon,
+  AccountCircle as AccountIcon,
+  LocalHospital as HospitalIcon
 } from '@mui/icons-material';
 import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { useAuth } from '../../../contexts/AuthContext';
+import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
 import { useNavigate } from 'react-router-dom';
 
-const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
+const EnhancedPatientHeader = ({ 
+  patientId, 
+  onPrint, 
+  onNavigateToTab,
+  dataLoading = false 
+}) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  
   const { currentPatient, getPatientResources } = useFHIRResource();
+  const { user, logout } = useAuth();
+  const { alerts } = usePatientCDSAlerts(patientId);
+  
+  const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
+  const [showPatientDetails, setShowPatientDetails] = useState(false);
 
   // Get patient resources
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
   const conditions = getPatientResources(patientId, 'Condition') || [];
   const medications = getPatientResources(patientId, 'MedicationRequest') || [];
   const encounters = getPatientResources(patientId, 'Encounter') || [];
-
+  
+  // Calculate active counts
   const activeAllergies = allergies.filter(a => 
     a.clinicalStatus?.coding?.[0]?.code === 'active'
   );
@@ -70,7 +103,11 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
   const activeMedications = medications.filter(m => 
     m.status === 'active'
   );
-
+  
+  // Critical alerts
+  const criticalAlerts = alerts.filter(a => a.indicator === 'critical');
+  const warningAlerts = alerts.filter(a => a.indicator === 'warning');
+  
   // Get most recent encounter
   const sortedEncounters = [...encounters].sort((a, b) => {
     const dateA = new Date(a.period?.start || a.period?.end || 0);
@@ -106,19 +143,19 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
       id.type?.coding?.[0]?.code === 'MR' || 
       id.type?.text === 'Medical Record Number'
     );
-    if (!mrn?.value) return 'No MRN';
-    
-    // If it's a UUID (more than 10 characters), show shortened version
-    if (mrn.value.length > 10) {
-      return mrn.value.substring(0, 8) + '...';
-    }
-    return mrn.value;
+    return mrn?.value || 'No MRN';
   };
 
   const getAddress = (patient) => {
     const address = patient?.address?.[0];
-    if (!address) return 'No address on file';
-    return `${address.line?.join(' ') || ''}, ${address.city || ''}, ${address.state || ''} ${address.postalCode || ''}`.trim();
+    if (!address) return 'No address';
+    const parts = [
+      address.line?.join(' '),
+      address.city,
+      address.state,
+      address.postalCode
+    ].filter(Boolean);
+    return parts.join(', ');
   };
 
   const getPhone = (patient) => {
@@ -140,10 +177,16 @@ const EnhancedPatientHeader = ({ patientId, onPrint, onNavigateToTab }) => {
     // This would typically come from the patient's care team
     return 'Dr. Sarah Johnson';
   };
-
-  if (!currentPatient) {
-    return null;
-  }
+  
+  // Memoized patient name
+  const patientName = useMemo(() => {
+    if (!currentPatient) return 'Unknown Patient';
+    const names = currentPatient.name?.[0];
+    if (!names) return 'Unknown Patient';
+    return `${names.given?.join(' ') || ''} ${names.family || ''}`.trim() || 'Unknown Patient';
+  }, [currentPatient]);
+  
+  if (!currentPatient) return null;
 
   return (
     <Paper

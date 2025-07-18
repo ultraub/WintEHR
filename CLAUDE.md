@@ -157,13 +157,25 @@ await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
 subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 ```
 
-## 🔎 FHIR Search Parameters
+## 🔎 FHIR Search Parameter Indexing
 
-### Key Points
-- Search parameters are automatically extracted during resource storage
-- All FHIR R4 standard search parameters are supported
-- Token parameters use `value_token_code` column (not `value_string`)
-- Reference parameters use `value_reference` column
+### Important Requirements
+- **Search parameters MUST be indexed** for all FHIR resources during deployment
+- The backend extracts search params during resource creation/update
+- A migration step re-indexes existing resources during deployment
+
+### Key Search Parameters
+- **patient/subject**: Required for Condition, Observation, MedicationRequest, etc.
+- **_id**: Resource identifier
+- **code**: Clinical codes (conditions, medications, observations)
+- **status**: Resource status
+- **date**: Temporal queries
+
+### Build Process Integration
+The deployment automatically runs search parameter indexing:
+1. Data import (Phase 3)
+2. **Search parameter indexing** (Phase 4) - Consolidated script
+3. DICOM generation (Phase 5)
 
 ### Common Search Examples
 ```bash
@@ -171,7 +183,7 @@ subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 /fhir/R4/Patient?name=Smith
 /fhir/R4/Patient?birthdate=1970-01-01
 
-# Clinical searches
+# Clinical searches - REQUIRE indexed patient/subject params
 /fhir/R4/Condition?patient=Patient/123&clinical-status=active
 /fhir/R4/MedicationRequest?patient=Patient/123&status=active
 /fhir/R4/Observation?patient=Patient/123&category=vital-signs
@@ -180,21 +192,33 @@ subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
 /fhir/R4/Encounter?patient=Patient/123&date=ge2024-01-01&date=le2024-12-31
 ```
 
-### Troubleshooting Search Issues
+### Troubleshooting
+If searches return empty results:
 ```bash
-# Check search parameter extraction
-docker exec emr-backend python scripts/validate_search_params.py
+# Verify search parameters after import
+docker exec emr-backend python scripts/verify_search_params_after_import.py
 
-# Fix search parameter issues (if any)
-docker exec emr-backend python scripts/fix_search_params_tokens.py
+# Auto-fix missing search parameters
+docker exec emr-backend python scripts/verify_search_params_after_import.py --fix
 
-# Verify specific resource search params
+# Or use consolidated indexing script
+docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index
+
+# Monitor search parameter health
+docker exec emr-backend python scripts/consolidated_search_indexing.py --mode monitor
+
+# Verify specific resource type
 docker exec emr-postgres psql -U emr_user -d emr_db -c "
-SELECT param_name, param_type, COUNT(*) 
+SELECT param_name, COUNT(*) 
 FROM fhir.search_params 
-WHERE resource_type = 'MedicationRequest' 
-GROUP BY param_name, param_type;"
+WHERE param_name IN ('patient', 'subject') 
+GROUP BY param_name;"
 ```
+
+### Monitoring & Maintenance
+- **During import**: Validation verifies and auto-fixes missing parameters
+- **After deployment**: Run verification script to check health
+- **Production**: Monitor with `consolidated_search_indexing.py --mode monitor`
 
 ## 📋 Clinical Modules
 

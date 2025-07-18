@@ -58,7 +58,7 @@ const VALIDATION_RULES = {
     level: 'warning',
     check: (query) => {
       const dateParams = query.searchParams.filter(param => 
-        param.name && param.name.includes('date') || param.name.includes('time')
+        param.name && (param.name.includes('date') || param.name.includes('time'))
       );
       const dateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}Z?)?$/;
       const comparatorRegex = /^(eq|ne|lt|le|gt|ge|sa|eb|ap)?\d{4}-\d{2}-\d{2}/;
@@ -78,6 +78,7 @@ const VALIDATION_RULES = {
       if (!resourceDef) return true;
       
       const tokenParams = query.searchParams.filter(param => {
+        if (!param.name) return false;
         const paramDef = resourceDef.searchParams?.[param.name];
         return paramDef?.type === 'token';
       });
@@ -98,6 +99,7 @@ const VALIDATION_RULES = {
       if (!resourceDef) return true;
       
       const refParams = query.searchParams.filter(param => {
+        if (!param.name) return false;
         const paramDef = resourceDef.searchParams?.[param.name];
         return paramDef?.type === 'reference';
       });

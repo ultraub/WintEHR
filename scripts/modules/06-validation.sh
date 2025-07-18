@@ -348,6 +348,61 @@ else
     validate_test "Search Parameters" "FAIL" "$SEARCH_PARAM_CHECK"
 fi
 
+# Run comprehensive search parameter verification
+log "Running comprehensive search parameter verification..."
+
+# Check if the verification script exists
+if docker exec emr-backend test -f /app/scripts/verify_search_params_after_import.py; then
+    VERIFY_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/verify_search_params_after_import.py" 2>&1)
+    VERIFY_EXIT_CODE=$?
+    
+    if [ "$VERIFY_EXIT_CODE" -eq "0" ]; then
+        validate_test "Search Parameter Verification" "PASS" "All critical search parameters verified"
+    else
+        # Try to extract specific issues from the output
+        if echo "$VERIFY_RESULT" | grep -q "VERIFICATION FAILED"; then
+            # Count issues
+            MISSING_ISSUES=$(echo "$VERIFY_RESULT" | grep -c "missing patient/subject params" || echo "0")
+            UNINDEXED_ISSUES=$(echo "$VERIFY_RESULT" | grep -c "completely unindexed" || echo "0")
+            
+            if [ "$MISSING_ISSUES" -gt "0" ] || [ "$UNINDEXED_ISSUES" -gt "0" ]; then
+                validate_test "Search Parameter Verification" "FAIL" "Missing params: $MISSING_ISSUES types, Unindexed: $UNINDEXED_ISSUES types"
+                
+                # Attempt to fix if in development mode
+                if [ "$MODE" = "development" ]; then
+                    log "Attempting to fix search parameter issues..."
+                    FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/verify_search_params_after_import.py --fix" 2>&1)
+                    FIX_EXIT_CODE=$?
+                    
+                    if [ "$FIX_EXIT_CODE" -eq "0" ]; then
+                        success "Search parameter issues fixed automatically"
+                    else
+                        warning "Could not automatically fix search parameter issues"
+                    fi
+                fi
+            else
+                validate_test "Search Parameter Verification" "WARN" "Verification completed with warnings"
+            fi
+        else
+            validate_test "Search Parameter Verification" "FAIL" "Verification script error"
+        fi
+    fi
+else
+    # If verification script doesn't exist, try consolidated script
+    if docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
+        log "Using consolidated search indexing verification..."
+        VERIFY_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode verify" 2>&1)
+        
+        if echo "$VERIFY_RESULT" | grep -q "All critical search parameters are properly indexed"; then
+            validate_test "Search Parameter Verification" "PASS" "Consolidated verification passed"
+        else
+            validate_test "Search Parameter Verification" "WARN" "Some search parameters need attention"
+        fi
+    else
+        warning "Search parameter verification scripts not found"
+    fi
+fi
+
 # =============================================================================
 # Phase 3: API Endpoint Validation
 # =============================================================================
@@ -660,6 +715,26 @@ if echo "$REFERENCE_INTEGRITY" | grep -q "REFERENCE_INTEGRITY"; then
     fi
 else
     validate_test "Reference Integrity" "FAIL" "$REFERENCE_INTEGRITY"
+fi
+
+# Patient compartment validation
+log "Validating patient compartments..."
+
+COMPARTMENT_CHECK=$(docker exec emr-backend bash -c "cd /app && python scripts/verify_compartments.py" 2>&1 || echo "COMPARTMENT_ERROR")
+
+if echo "$COMPARTMENT_CHECK" | grep -q "Compartment verification completed!"; then
+    # Extract statistics
+    TOTAL_COMPARTMENTS=$(echo "$COMPARTMENT_CHECK" | grep -o "Total compartment entries: [0-9]*" | grep -o "[0-9]*" || echo "0")
+    
+    if [ "$TOTAL_COMPARTMENTS" -gt "0" ]; then
+        validate_test "Patient Compartments" "PASS" "$TOTAL_COMPARTMENTS compartment entries found"
+    else
+        validate_test "Patient Compartments" "FAIL" "No compartment entries found"
+    fi
+elif echo "$COMPARTMENT_CHECK" | grep -q "Compartment verification failed!"; then
+    validate_test "Patient Compartments" "FAIL" "Compartment verification failed"
+else
+    validate_test "Patient Compartments" "WARN" "Compartment check returned unexpected output"
 fi
 
 # =============================================================================

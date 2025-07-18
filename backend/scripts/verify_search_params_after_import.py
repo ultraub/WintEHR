@@ -7,19 +7,35 @@ search parameters were correctly extracted and indexed.
 
 Usage:
     python scripts/verify_search_params_after_import.py
+    python scripts/verify_search_params_after_import.py --fix
+    python scripts/verify_search_params_after_import.py --verbose
 """
 
 import asyncio
 import asyncpg
 from datetime import datetime
 import sys
+import argparse
+import subprocess
+import logging
 
 
-async def verify_search_params():
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+async def verify_search_params(fix: bool = False, verbose: bool = False):
     """Verify search parameters were extracted for imported resources."""
     
-    print(f"🔍 Search Parameter Import Verification")
-    print(f"{'=' * 60}")
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    logger.info(f"🔍 Search Parameter Import Verification")
+    logger.info(f"{'=' * 60}")
     
     try:
         conn = await asyncpg.connect("postgresql://emr_user:emr_password@postgres:5432/emr_db")
@@ -68,9 +84,9 @@ async def verify_search_params():
             if missing_params > 0:
                 all_passed = False
                 issues_found.append(f"{resource_type}: {missing_params}/{resource_count} missing patient/subject params")
-                print(f"❌ {resource_type}: {missing_params} of {resource_count} resources missing patient/subject params")
+                logger.error(f"❌ {resource_type}: {missing_params} of {resource_count} resources missing patient/subject params")
             else:
-                print(f"✅ {resource_type}: All {resource_count} resources have patient/subject params")
+                logger.info(f"✅ {resource_type}: All {resource_count} resources have patient/subject params")
         
         # Check overall search parameter statistics
         total_resources = await conn.fetchval("""
@@ -82,10 +98,10 @@ async def verify_search_params():
         
         avg_params_per_resource = total_search_params / total_resources if total_resources > 0 else 0
         
-        print(f"\n📊 Overall Statistics:")
-        print(f"   Total resources: {total_resources}")
-        print(f"   Total search parameters: {total_search_params}")
-        print(f"   Average params per resource: {avg_params_per_resource:.1f}")
+        logger.info(f"\n📊 Overall Statistics:")
+        logger.info(f"   Total resources: {total_resources}")
+        logger.info(f"   Total search parameters: {total_search_params}")
+        logger.info(f"   Average params per resource: {avg_params_per_resource:.1f}")
         
         # Check for completely unindexed resources
         unindexed_resources = await conn.fetch("""
@@ -101,33 +117,86 @@ async def verify_search_params():
         """)
         
         if unindexed_resources:
-            print(f"\n⚠️  Resources with NO search parameters:")
+            logger.warning(f"\n⚠️  Resources with NO search parameters:")
             for row in unindexed_resources:
-                print(f"   {row['resource_type']}: {row['count']}")
+                logger.warning(f"   {row['resource_type']}: {row['count']}")
                 issues_found.append(f"{row['resource_type']}: {row['count']} completely unindexed")
         
         await conn.close()
         
         # Final verdict
-        print(f"\n{'=' * 60}")
+        logger.info(f"\n{'=' * 60}")
         if all_passed and not unindexed_resources:
-            print("✅ VERIFICATION PASSED: All critical search parameters are present")
+            logger.info("✅ VERIFICATION PASSED: All critical search parameters are present")
             return 0
         else:
-            print("❌ VERIFICATION FAILED: Search parameters are missing")
-            print("\nIssues found:")
+            logger.error("❌ VERIFICATION FAILED: Search parameters are missing")
+            logger.error("\nIssues found:")
             for issue in issues_found:
-                print(f"  - {issue}")
-            print("\n💡 To fix: Run 'python scripts/active/run_migration.py'")
-            return 1
+                logger.error(f"  - {issue}")
+            
+            if fix:
+                logger.info("\n🔧 Attempting to fix missing search parameters...")
+                
+                # Try to run the consolidated search indexing script
+                try:
+                    # First try consolidated script
+                    result = subprocess.run(
+                        ["python", "/app/scripts/consolidated_search_indexing.py", "--mode", "fix"],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if result.returncode == 0:
+                        logger.info("✅ Fix completed successfully")
+                        logger.info("Re-running verification...")
+                        
+                        # Re-run verification without fix flag
+                        return await verify_search_params(fix=False, verbose=verbose)
+                    else:
+                        # Fallback to legacy script if needed
+                        logger.warning("Consolidated script failed, trying legacy method...")
+                        result = subprocess.run(
+                            ["python", "/app/scripts/active/run_migration.py"],
+                            capture_output=True,
+                            text=True
+                        )
+                        
+                        if result.returncode == 0:
+                            logger.info("✅ Fix completed with legacy script")
+                            return await verify_search_params(fix=False, verbose=verbose)
+                        else:
+                            logger.error("❌ Fix failed")
+                            if verbose:
+                                logger.error(result.stderr)
+                            return 1
+                except Exception as e:
+                    logger.error(f"Error running fix: {e}")
+                    return 1
+            else:
+                logger.info("\n💡 To fix: Run with --fix flag or 'python scripts/consolidated_search_indexing.py --mode fix'")
+                return 1
             
     except Exception as e:
-        print(f"❌ Error during verification: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"❌ Error during verification: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
         return 2
 
 
+async def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description='Verify search parameters after import')
+    parser.add_argument('--fix', action='store_true', help='Attempt to fix missing parameters')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+    
+    args = parser.parse_args()
+    
+    exit_code = await verify_search_params(fix=args.fix, verbose=args.verbose)
+    return exit_code
+
+
 if __name__ == "__main__":
-    exit_code = asyncio.run(verify_search_params())
+    exit_code = asyncio.run(main())
     sys.exit(exit_code)

@@ -348,7 +348,26 @@ else
     fi
 fi
 
-# Step 5: Generate DICOM files for imaging studies
+# Step 5: Populate patient compartments
+log "👥 Populating patient compartments..."
+
+COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
+
+if echo "$COMPARTMENT_RESULT" | grep -q "Successfully created .* compartment entries"; then
+    # Extract statistics if available
+    COMPARTMENTS_CREATED=$(echo "$COMPARTMENT_RESULT" | grep -o "Successfully created [0-9]* compartment entries" | grep -o "[0-9]*" | head -1 || echo "unknown")
+    
+    success "Patient compartment population completed"
+    log "  Compartment entries created: $COMPARTMENTS_CREATED"
+elif echo "$COMPARTMENT_RESULT" | grep -q "COMPARTMENT_POPULATION_FAILED"; then
+    warning "Compartment population failed"
+    warning "System will continue but Patient/$everything operations may not work properly"
+    log "Error: $COMPARTMENT_RESULT"
+else
+    log "Compartment population output: $COMPARTMENT_RESULT"
+fi
+
+# Step 6: Generate DICOM files for imaging studies
 log "🏥 Generating DICOM files for imaging studies..."
 
 DICOM_GENERATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/generate_dicom_for_studies.py" 2>&1 || echo "DICOM_GENERATION_FAILED")
@@ -369,7 +388,7 @@ else
     warning "DICOM generation completed with warnings: $DICOM_GENERATION_RESULT"
 fi
 
-# Step 6: Validate cross-references and data integrity
+# Step 7: Validate cross-references and data integrity
 log "🔗 Validating data cross-references..."
 
 REFERENCE_VALIDATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -460,7 +479,7 @@ else
     warning "Reference validation completed with warnings: $REFERENCE_VALIDATION_RESULT"
 fi
 
-# Step 7: Performance optimizations based on mode
+# Step 8: Performance optimizations based on mode
 if [ "$MODE" = "production" ]; then
     log "⚡ Applying production performance optimizations..."
     
@@ -475,7 +494,7 @@ else
     log "Development mode - skipping heavy optimizations"
 fi
 
-# Step 8: Create processing summary
+# Step 9: Create processing summary
 log "📋 Creating data processing summary..."
 
 docker exec emr-backend bash -c "cd /app && python -c '
@@ -508,7 +527,7 @@ with open(\"/app/backend/data/processing_summary.json\", \"w\") as f:
 
 success "Processing summary created"
 
-# Step 9: Final data validation
+# Step 10: Final data validation
 log "🔍 Running final data validation..."
 
 FINAL_VALIDATION=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -524,6 +543,7 @@ async def final_check():
         total_patients = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\' AND (deleted = FALSE OR deleted IS NULL)\")
         total_search_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params\")
         total_cds_hooks = await conn.fetchval(\"SELECT COUNT(*) FROM cds_hooks.hook_configurations WHERE enabled = true\")
+        total_compartments = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.compartments\")
         
         # Validate patient search parameters exist
         patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE param_name IN (\\'patient\\', \\'subject\\') AND param_type = \\'reference\\'\")
@@ -531,7 +551,7 @@ async def final_check():
         
         await conn.close()
         
-        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks},patient_params={patient_params},condition_patient_params={condition_patient_params}\")
+        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks},compartments={total_compartments},patient_params={patient_params},condition_patient_params={condition_patient_params}\")
         
     except Exception as e:
         print(f\"FINAL_VALIDATION_ERROR:{e}\")
@@ -544,6 +564,7 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
     FINAL_PATIENTS=$(echo "$FINAL_VALIDATION" | grep -o "patients=[0-9]*" | cut -d= -f2)
     FINAL_SEARCH_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "search_params=[0-9]*" | cut -d= -f2)
     FINAL_CDS_HOOKS=$(echo "$FINAL_VALIDATION" | grep -o "cds_hooks=[0-9]*" | cut -d= -f2)
+    FINAL_COMPARTMENTS=$(echo "$FINAL_VALIDATION" | grep -o "compartments=[0-9]*" | cut -d= -f2)
     PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "patient_params=[0-9]*" | cut -d= -f2)
     CONDITION_PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "condition_patient_params=[0-9]*" | cut -d= -f2)
     
@@ -551,6 +572,7 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
     log "  Total resources: $FINAL_RESOURCES"
     log "  Patients: $FINAL_PATIENTS"
     log "  Search parameters: $FINAL_SEARCH_PARAMS"
+    log "  Compartments: $FINAL_COMPARTMENTS"
     log "  Patient/subject params: $PATIENT_PARAMS"
     log "  Condition patient params: $CONDITION_PATIENT_PARAMS"
     log "  CDS hooks: $FINAL_CDS_HOOKS"
@@ -565,6 +587,10 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
     
     if [ "$PATIENT_PARAMS" -eq "0" ]; then
         warning "No patient/subject search parameters found - searches may not work properly"
+    fi
+    
+    if [ "$FINAL_COMPARTMENTS" -eq "0" ]; then
+        warning "No patient compartments found - Patient/$everything operations may not work properly"
     fi
     
 else

@@ -195,7 +195,7 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
     }
     
     query.searchParams.forEach((param, index) => {
-      if (!param.name) {
+      if (!param.name || param.name === '') {
         newErrors.push(`Search parameter ${index + 1}: Name is required`);
       }
       if (!param.value) {
@@ -689,8 +689,8 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
               <CardContent>
                 <Autocomplete
                   multiple
-                  value={query.includes}
-                  onChange={(e, value) => setQuery(prev => ({ ...prev, includes: value }))}
+                  value={query.includes || []}
+                  onChange={(e, value) => setQuery(prev => ({ ...prev, includes: value || [] }))}
                   options={currentResource?.includes || []}
                   renderInput={(params) => (
                     <TextField {...params} placeholder="Select includes..." size="small" />
@@ -711,8 +711,8 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
               <CardContent>
                 <Autocomplete
                   multiple
-                  value={query.revIncludes}
-                  onChange={(e, value) => setQuery(prev => ({ ...prev, revIncludes: value }))}
+                  value={query.revIncludes || []}
+                  onChange={(e, value) => setQuery(prev => ({ ...prev, revIncludes: value || [] }))}
                   options={currentResource?.revIncludes || []}
                   renderInput={(params) => (
                     <TextField {...params} placeholder="Select reverse includes..." size="small" />

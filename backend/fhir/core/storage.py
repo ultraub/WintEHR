@@ -667,6 +667,12 @@ class FHIRStorageEngine:
         except Exception as e:
             logging.error(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
         
+        # Extract compartments (e.g., patient compartment)
+        try:
+            await self._extract_compartments(resource_id, resource_type, resource_dict)
+        except Exception as e:
+            logging.error(f"ERROR: Failed to extract compartments for {resource_type} {fhir_id}: {e}")
+        
         # Auto-link Observations to ServiceRequests
         if resource_type == 'Observation' and not resource_dict.get('basedOn'):
             try:
@@ -936,6 +942,11 @@ class FHIRStorageEngine:
             await self._extract_references(resource_id, resource_dict, "", resource_type)
             logging.debug(f"DEBUG: Successfully updated references for {resource_type} {fhir_id}")
             
+            # Update compartments
+            await self._delete_compartments(resource_id)
+            await self._extract_compartments(resource_id, resource_type, resource_dict)
+            logging.debug(f"DEBUG: Successfully updated compartments for {resource_type} {fhir_id}")
+            
             # Commit all changes atomically
             await self.session.commit()
             logging.debug(f"DEBUG: Successfully committed update for {resource_type} {fhir_id}")
@@ -998,9 +1009,10 @@ class FHIRStorageEngine:
                 json.loads(resource_data) if isinstance(resource_data, str) else resource_data
             )
             
-            # Delete search parameters and references
+            # Delete search parameters, references, and compartments
             await self._delete_search_parameters(resource_id)
             await self._delete_references(resource_id)
+            await self._delete_compartments(resource_id)
             
             await self.session.commit()
             
@@ -5566,6 +5578,117 @@ class FHIRStorageEngine:
         # Return the mapped type or 'Resource' as a fallback
         return reference_mappings.get(path_element, 'Resource')
     
+    async def _extract_compartments(
+        self,
+        resource_id: int,
+        resource_type: str,
+        resource_data: Dict[str, Any]
+    ):
+        """Extract and store compartment information for a resource."""
+        # Define patient compartment reference fields by resource type
+        patient_reference_fields = {
+            # Core clinical resources with 'patient' reference
+            "AllergyIntolerance": ["patient"],
+            "CarePlan": ["patient"],
+            "CareTeam": ["patient"],
+            "ClinicalImpression": ["patient"],
+            "Condition": ["patient"],
+            "DiagnosticReport": ["patient"],
+            "DocumentReference": ["patient"],
+            "Encounter": ["patient"],
+            "Goal": ["patient"],
+            "ImagingStudy": ["patient"],
+            "Immunization": ["patient"],
+            "MedicationAdministration": ["patient"],
+            "MedicationDispense": ["patient"],
+            "MedicationRequest": ["patient"],
+            "MedicationStatement": ["patient"],
+            "Observation": ["patient"],
+            "Procedure": ["patient"],
+            "RiskAssessment": ["patient"],
+            "ServiceRequest": ["patient"],
+            
+            # Resources that use 'subject' as patient reference
+            "Basic": ["subject"],
+            "BodyStructure": ["subject"],
+            "Consent": ["subject"],
+            "DetectedIssue": ["subject"],
+            "Media": ["subject"],
+            "QuestionnaireResponse": ["subject"],
+            
+            # Administrative resources
+            "Account": ["patient"],
+            "AdverseEvent": ["patient"],
+            "Appointment": ["patient"],
+            "AppointmentResponse": ["patient"],
+            "ChargeItem": ["patient"],
+            "Claim": ["patient"],
+            "ClaimResponse": ["patient"],
+            "Communication": ["patient"],
+            "CommunicationRequest": ["patient"],
+            "Composition": ["patient"],
+            "Coverage": ["patient"],
+            "DeviceRequest": ["patient"],
+            "DeviceUseStatement": ["patient"],
+            "EpisodeOfCare": ["patient"],
+            "ExplanationOfBenefit": ["patient"],
+            "FamilyMemberHistory": ["patient"],
+            "Flag": ["patient"],
+            "Invoice": ["patient"],
+            "List": ["patient"],
+            "NutritionOrder": ["patient"],
+            "Person": ["patient"],
+            "Provenance": ["patient"],
+            "RelatedPerson": ["patient"],
+            "RequestGroup": ["patient"],
+            "ResearchSubject": ["patient"],
+            "Schedule": ["patient"],
+            "Specimen": ["patient"],
+            "SupplyDelivery": ["patient"],
+            "SupplyRequest": ["patient"],
+            "VisionPrescription": ["patient"]
+        }
+        
+        # Check if this resource type belongs to patient compartment
+        reference_fields = patient_reference_fields.get(resource_type, [])
+        if not reference_fields:
+            return
+        
+        # Extract patient references
+        patient_ids = set()
+        for field in reference_fields:
+            if field in resource_data:
+                ref_value = resource_data[field]
+                if isinstance(ref_value, dict) and 'reference' in ref_value:
+                    ref = ref_value['reference']
+                    # Handle different reference formats
+                    if ref.startswith('Patient/'):
+                        patient_id = ref.split('/', 1)[1]
+                        patient_ids.add(patient_id)
+                    elif ref.startswith('urn:uuid:'):
+                        # For urn:uuid references, extract the UUID
+                        patient_id = ref.replace('urn:uuid:', '')
+                        patient_ids.add(patient_id)
+        
+        # Store compartment entries
+        for patient_id in patient_ids:
+            query = text("""
+                INSERT INTO fhir.compartments (
+                    compartment_type, compartment_id, resource_id
+                ) VALUES (
+                    :compartment_type, :compartment_id, :resource_id
+                )
+                ON CONFLICT DO NOTHING
+            """)
+            
+            await self.session.execute(query, {
+                'compartment_type': 'Patient',
+                'compartment_id': patient_id,
+                'resource_id': resource_id
+            })
+            
+            logging.debug(f"Added {resource_type} resource {resource_id} to Patient/{patient_id} compartment")
+    
     async def _delete_search_parameters(self, resource_id: int):
         """Delete all search parameters for a resource."""
         query = text("""
@@ -6143,6 +6266,14 @@ class FHIRStorageEngine:
         query = text("""
             DELETE FROM fhir.references
             WHERE source_id = :resource_id
+        """)
+        await self.session.execute(query, {'resource_id': resource_id})
+    
+    async def _delete_compartments(self, resource_id: int):
+        """Delete all compartment entries for a resource."""
+        query = text("""
+            DELETE FROM fhir.compartments
+            WHERE resource_id = :resource_id
         """)
         await self.session.execute(query, {'resource_id': resource_id})
     
