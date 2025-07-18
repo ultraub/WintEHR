@@ -5,7 +5,7 @@
  * Leverages existing analytics APIs for real-time healthcare insights
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -22,7 +22,14 @@ import {
   Tab,
   Switch,
   FormControlLabel,
-  IconButton
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Box,
+  ToggleButtonGroup,
+  ToggleButton
 } from '@mui/material';
 import {
   BarChart,
@@ -34,7 +41,17 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
 } from 'recharts';
 import {
   Analytics as AnalyticsIcon,
@@ -44,8 +61,14 @@ import {
   Refresh as RefreshIcon,
   Download as DownloadIcon,
   TrendingUp as TrendingUpIcon,
-  DonutLarge as DonutIcon
+  DonutLarge as DonutIcon,
+  ShowChart as LineIcon,
+  BarChart as BarIcon,
+  PieChart as PieIcon
 } from '@mui/icons-material';
+import ChartTypeSelector from './components/ChartTypeSelector';
+import VitalSignsChart from './components/VitalSignsChart';
+import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
 
 // Chart color palette
 const CHART_COLORS = [
@@ -60,51 +83,143 @@ function DataCharts({ onNavigate, fhirData }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [selectedChartType, setSelectedChartType] = useState('bar');
+  const [aggregationPeriod, setAggregationPeriod] = useState('month');
   
   // Analytics data state
   const [demographicsData, setDemographicsData] = useState(null);
   const [diseasePrevalenceData, setDiseasePrevalenceData] = useState(null);
   const [medicationPatternsData, setMedicationPatternsData] = useState(null);
+  const [vitalSignsData, setVitalSignsData] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(null);
 
-  // Fetch analytics data from backend
-  const fetchAnalyticsData = useCallback(async () => {
+  // Process FHIR data into analytics
+  const processAnalyticsData = useCallback(() => {
+    if (!fhirData || !fhirData.resources) return;
+    
     setLoading(true);
     setError(null);
     
     try {
-      const [demographics, diseases, medications] = await Promise.all([
-        fetch('/api/analytics/demographics').then(res => res.json()),
-        fetch('/api/analytics/disease-prevalence').then(res => res.json()),
-        fetch('/api/analytics/medication-patterns').then(res => res.json())
-      ]);
-      
+      // Process demographics from Patient resources
+      const patients = fhirData.resources.Patient || [];
+      const demographics = processPatientDemographics(patients);
       setDemographicsData(demographics);
+      
+      // Process disease prevalence from Condition resources
+      const conditions = fhirData.resources.Condition || [];
+      const diseases = processDiseasePrevalence(conditions);
       setDiseasePrevalenceData(diseases);
-      setMedicationPatternsData(medications);
+      
+      // Process medication patterns from MedicationRequest resources
+      const medications = fhirData.resources.MedicationRequest || [];
+      const medPatterns = processMedicationPatterns(medications);
+      setMedicationPatternsData(medPatterns);
+      
+      // Process vital signs from Observation resources
+      const observations = fhirData.resources.Observation || [];
+      const vitals = processVitalSigns(observations);
+      setVitalSignsData(vitals);
     } catch (err) {
-      setError(err.message || 'Failed to fetch analytics data');
+      setError(err.message || 'Failed to process analytics data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fhirData]);
+
+  // Process patient demographics
+  const processPatientDemographics = (patients) => {
+    const ageGroups = { '0-17': 0, '18-34': 0, '35-49': 0, '50-64': 0, '65+': 0 };
+    const genderDistribution = { male: 0, female: 0, other: 0 };
+    
+    patients.forEach(patient => {
+      // Age calculation
+      if (patient.birthDate) {
+        const age = new Date().getFullYear() - new Date(patient.birthDate).getFullYear();
+        if (age < 18) ageGroups['0-17']++;
+        else if (age < 35) ageGroups['18-34']++;
+        else if (age < 50) ageGroups['35-49']++;
+        else if (age < 65) ageGroups['50-64']++;
+        else ageGroups['65+']++;
+      }
+      
+      // Gender distribution
+      const gender = patient.gender?.toLowerCase() || 'other';
+      genderDistribution[gender] = (genderDistribution[gender] || 0) + 1;
+    });
+    
+    return {
+      ageGroups: Object.entries(ageGroups).map(([name, value]) => ({ name, value })),
+      genderDistribution: Object.entries(genderDistribution).map(([name, value]) => ({ name, value })),
+      totalPatients: patients.length
+    };
+  };
+
+  // Process disease prevalence
+  const processDiseasePrevalence = (conditions) => {
+    const diseaseCount = {};
+    
+    conditions.forEach(condition => {
+      const code = condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown';
+      diseaseCount[code] = (diseaseCount[code] || 0) + 1;
+    });
+    
+    return Object.entries(diseaseCount)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10); // Top 10
+  };
+
+  // Process medication patterns
+  const processMedicationPatterns = (medications) => {
+    const medCount = {};
+    
+    medications.forEach(med => {
+      const name = med.medicationCodeableConcept?.text || 
+                   med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown';
+      medCount[name] = (medCount[name] || 0) + 1;
+    });
+    
+    return Object.entries(medCount)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10); // Top 10
+  };
+
+  // Process vital signs
+  const processVitalSigns = (observations) => {
+    const vitals = {};
+    
+    observations.forEach(obs => {
+      const code = obs.code?.coding?.[0]?.code;
+      const value = obs.valueQuantity?.value;
+      const date = new Date(obs.effectiveDateTime || obs.meta?.lastUpdated);
+      
+      if (code && value && date) {
+        if (!vitals[code]) vitals[code] = [];
+        vitals[code].push({ date: date.toISOString(), value });
+      }
+    });
+    
+    return vitals;
+  };
 
   // Auto-refresh setup
   useEffect(() => {
     if (autoRefresh) {
-      const interval = setInterval(fetchAnalyticsData, 30000); // Refresh every 30 seconds
+      const interval = setInterval(processAnalyticsData, 30000); // Refresh every 30 seconds
       setRefreshInterval(interval);
       return () => clearInterval(interval);
     } else if (refreshInterval) {
       clearInterval(refreshInterval);
       setRefreshInterval(null);
     }
-  }, [autoRefresh, fetchAnalyticsData]);
+  }, [autoRefresh, processAnalyticsData]);
 
   // Initial data load
   useEffect(() => {
-    fetchAnalyticsData();
-  }, [fetchAnalyticsData]);
+    processAnalyticsData();
+  }, [processAnalyticsData]);
 
   // Export chart data
   const exportChartData = useCallback((data, filename) => {
@@ -195,20 +310,66 @@ function DataCharts({ onNavigate, fhirData }) {
               title="Age Distribution"
               avatar={<PeopleIcon color="primary" />}
               action={
-                <IconButton size="small" onClick={() => exportChartData(formattedData.ageGroups, 'age-distribution')}>
-                  <DownloadIcon />
-                </IconButton>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <ChartTypeSelector
+                    value={selectedChartType}
+                    onChange={setSelectedChartType}
+                    availableTypes={['bar', 'line', 'area', 'pie']}
+                  />
+                  <IconButton size="small" onClick={() => exportChartData(formattedData.ageGroups, 'age-distribution')}>
+                    <DownloadIcon />
+                  </IconButton>
+                </Box>
               }
             />
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={formattedData.ageGroups}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" fill={CHART_COLORS[0]} />
-                </BarChart>
+                {selectedChartType === 'bar' && (
+                  <BarChart data={formattedData.ageGroups}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <RechartsTooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill={CHART_COLORS[0]} />
+                  </BarChart>
+                )}
+                {selectedChartType === 'line' && (
+                  <LineChart data={formattedData.ageGroups}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <RechartsTooltip content={<CustomTooltip />} />
+                    <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} />
+                  </LineChart>
+                )}
+                {selectedChartType === 'area' && (
+                  <AreaChart data={formattedData.ageGroups}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <RechartsTooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="value" fill={CHART_COLORS[0]} stroke={CHART_COLORS[0]} />
+                  </AreaChart>
+                )}
+                {selectedChartType === 'pie' && (
+                  <PieChart>
+                    <Pie
+                      data={formattedData.ageGroups}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {formattedData.ageGroups.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip content={<CustomTooltip />} />
+                  </PieChart>
+                )}
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -351,9 +512,135 @@ function DataCharts({ onNavigate, fhirData }) {
     );
   };
 
+  // Vital Signs Tab
+  const VitalSignsTab = () => {
+    const observations = fhirData?.resources?.Observation || [];
+    const patients = fhirData?.resources?.Patient || [];
+    
+    // Group observations by patient
+    const patientObservations = {};
+    observations.forEach(obs => {
+      const patientRef = obs.subject?.reference;
+      if (patientRef) {
+        const patientId = patientRef.split('/').pop();
+        if (!patientObservations[patientId]) {
+          patientObservations[patientId] = [];
+        }
+        patientObservations[patientId].push(obs);
+      }
+    });
+    
+    // Get first patient with observations for demo
+    const patientIds = Object.keys(patientObservations);
+    const selectedPatientId = patientIds[0];
+    
+    return (
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <VitalSignsChart
+            observations={patientObservations[selectedPatientId] || []}
+            patientId={selectedPatientId}
+            timeRange="30d"
+          />
+        </Grid>
+        
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader
+              title="Vital Signs Summary"
+              avatar={<HealthIcon color="primary" />}
+            />
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">
+                Showing vital signs for {patientIds.length} patients with observations
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    );
+  };
+
+  // Trends Tab
+  const TrendsTab = () => {
+    // Process time-series data for trends
+    const trendsData = useMemo(() => {
+      if (!fhirData?.resources) return [];
+      
+      // Group resources by month
+      const monthlyData = {};
+      
+      Object.entries(fhirData.resources).forEach(([resourceType, resources]) => {
+        resources.forEach(resource => {
+          const date = new Date(resource.meta?.lastUpdated || resource.date);
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          
+          if (!monthlyData[monthKey]) {
+            monthlyData[monthKey] = {
+              month: monthKey,
+              Patient: 0,
+              Encounter: 0,
+              Observation: 0,
+              Condition: 0,
+              MedicationRequest: 0
+            };
+          }
+          
+          if (monthlyData[monthKey][resourceType] !== undefined) {
+            monthlyData[monthKey][resourceType]++;
+          }
+        });
+      });
+      
+      return Object.values(monthlyData).sort((a, b) => a.month.localeCompare(b.month));
+    }, [fhirData]);
+    
+    return (
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader
+              title="Resource Creation Trends"
+              avatar={<TrendingUpIcon color="primary" />}
+              action={
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Period</InputLabel>
+                  <Select value={aggregationPeriod} onChange={(e) => setAggregationPeriod(e.target.value)} label="Period">
+                    <MenuItem value="day">Daily</MenuItem>
+                    <MenuItem value="week">Weekly</MenuItem>
+                    <MenuItem value="month">Monthly</MenuItem>
+                    <MenuItem value="year">Yearly</MenuItem>
+                  </Select>
+                </FormControl>
+              }
+            />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={trendsData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <RechartsTooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="Patient" stroke="#1976d2" strokeWidth={2} />
+                  <Line type="monotone" dataKey="Encounter" stroke="#9c27b0" strokeWidth={2} />
+                  <Line type="monotone" dataKey="Observation" stroke="#4caf50" strokeWidth={2} />
+                  <Line type="monotone" dataKey="Condition" stroke="#f44336" strokeWidth={2} />
+                  <Line type="monotone" dataKey="MedicationRequest" stroke="#ff9800" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    );
+  };
+
   const tabLabels = [
     { label: 'Demographics', icon: <PeopleIcon /> },
-    { label: 'Clinical Analytics', icon: <AnalyticsIcon /> }
+    { label: 'Clinical Analytics', icon: <AnalyticsIcon /> },
+    { label: 'Vital Signs', icon: <HealthIcon /> },
+    { label: 'Trends', icon: <TrendingUpIcon /> }
   ];
 
   return (
@@ -372,7 +659,7 @@ function DataCharts({ onNavigate, fhirData }) {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={fetchAnalyticsData}
+            onClick={processAnalyticsData}
             disabled={loading}
           >
             Refresh
@@ -440,6 +727,8 @@ function DataCharts({ onNavigate, fhirData }) {
       <Box sx={{ mt: 3 }}>
         {currentTab === 0 && <DemographicsTab />}
         {currentTab === 1 && <ClinicalAnalyticsTab />}
+        {currentTab === 2 && <VitalSignsTab />}
+        {currentTab === 3 && <TrendsTab />}
       </Box>
     </Box>
   );
