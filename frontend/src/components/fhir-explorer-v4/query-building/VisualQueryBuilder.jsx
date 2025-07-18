@@ -89,6 +89,9 @@ import {
 import CompositeParameterBuilder from './components/CompositeParameterBuilder';
 import ChainedParameterBuilder from './components/ChainedParameterBuilder';
 import ModifierSelector from './components/ModifierSelector';
+import QuerySuggestions from './components/QuerySuggestions';
+import QueryValidator from './components/QueryValidator';
+import QueryTemplates from './components/QueryTemplates';
 
 // Query builder constants
 const LOGICAL_OPERATORS = {
@@ -826,15 +829,14 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
         }
       />
       <CardContent>
-        {errors.length > 0 && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <ul style={{ margin: 0, paddingLeft: 20 }}>
-              {errors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </Alert>
-        )}
+        {/* Query Validator */}
+        <Box sx={{ mb: 2 }}>
+          <QueryValidator 
+            query={query} 
+            resourceDefinition={currentResource}
+            expanded={false}
+          />
+        </Box>
         
         <Paper sx={{ p: 2, bgcolor: 'grey.100', fontFamily: 'monospace' }}>
           <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
@@ -892,12 +894,39 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
       {currentTab === 0 && (
         <Grid container spacing={3}>
           {/* Left Column - Resource Selection */}
-          <Grid item xs={12} md={4}>
-            {renderResourceSelector()}
+          <Grid item xs={12} md={3}>
+            <Stack spacing={3}>
+              {renderResourceSelector()}
+              {/* Query Suggestions */}
+              {query.resourceType && (
+                <QuerySuggestions
+                  resourceType={query.resourceType}
+                  currentParams={query.searchParams.reduce((acc, param) => {
+                    if (param.name && param.value) {
+                      acc[param.name] = param.value;
+                    }
+                    return acc;
+                  }, {})}
+                  onApplySuggestion={(suggestion) => {
+                    if (suggestion.type === 'pattern') {
+                      // Apply pattern parameters
+                      const newParams = Object.entries(suggestion.params).map(([name, value]) => ({
+                        name,
+                        value,
+                        operator: ''
+                      }));
+                      setQuery(prev => ({ ...prev, searchParams: newParams }));
+                    }
+                  }}
+                  recentQueries={[]}
+                  favoriteQueries={[]}
+                />
+              )}
+            </Stack>
           </Grid>
 
           {/* Right Column - Query Building */}
-          <Grid item xs={12} md={8}>
+          <Grid item xs={12} md={9}>
             <Stack spacing={3}>
               {query.resourceType && (
                 <>
@@ -936,10 +965,24 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
       )}
 
       {currentTab === 2 && (
-        <Alert severity="info">
-          Query templates will be available in the next update. You'll be able to create and share 
-          reusable query templates with your team.
-        </Alert>
+        <QueryTemplates
+          onLoadTemplate={(templateQuery) => {
+            // Apply template query
+            setQuery(prev => ({
+              ...prev,
+              ...templateQuery,
+              searchParams: templateQuery.searchParams || [],
+              includes: templateQuery.includes || [],
+              revIncludes: templateQuery.revIncludes || [],
+              hasParams: templateQuery.hasParams || [],
+              compositeParams: templateQuery.compositeParams || [],
+              chainedParams: templateQuery.chainedParams || []
+            }));
+            // Switch back to build tab
+            setCurrentTab(0);
+          }}
+          onNavigate={onNavigate}
+        />
       )}
 
       {/* Save Query Dialog */}
