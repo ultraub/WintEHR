@@ -18,8 +18,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
     patientId: propPatientId,
     autoSearch = false,
     includeAnalytics = false,
-    debounceMs = 300,
-    cacheResults = true
+    debounceMs = 300
   } = options;
 
   // Determine patient ID

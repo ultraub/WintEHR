@@ -72,9 +72,6 @@ class MedicationDispenseService {
       searchParams['whenhandover'] = `ge${options.startDate}`;
     }
     if (options.endDate) {
-      const endDateParam = options.startDate ? 
-        `le${options.endDate}` : 
-        options.endDate;
       searchParams['whenhandover'] = searchParams['whenhandover'] ? 
         `${searchParams['whenhandover']}&whenhandover=le${options.endDate}` :
         `le${options.endDate}`;
@@ -162,9 +159,6 @@ class MedicationDispenseService {
         searchParams['whenhandover'] = `ge${dateRange.start}`;
       }
       if (dateRange.end) {
-        const endParam = dateRange.start ? 
-          `le${dateRange.end}` : 
-          dateRange.end;
         searchParams['whenhandover'] = searchParams['whenhandover'] ? 
           `${searchParams['whenhandover']}&whenhandover=le${dateRange.end}` :
           `le${dateRange.end}`;

@@ -102,7 +102,8 @@ export function useGuardedEffect(effect, dependencies, options = {}) {
     } else {
       return executeEffect();
     }
-  }, dependencies);
+  }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
+  // dependencies is intentionally dynamic - it's the dependency array passed by the caller
 }
 
 /**

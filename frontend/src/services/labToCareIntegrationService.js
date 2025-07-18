@@ -5,7 +5,7 @@
 
 import { fhirClient } from './fhirClient';
 import { resultsManagementService } from './resultsManagementService';
-import { REFERENCE_RANGES, getAdjustedReferenceRange } from '../core/fhir/utils/labReferenceRanges';
+import { REFERENCE_RANGES } from '../core/fhir/utils/labReferenceRanges';
 
 class LabToCareIntegrationService {
   constructor() {
@@ -274,6 +274,9 @@ class LabToCareIntegrationService {
           if (trends.percentChange) {
             triggered = trends.percentChange >= pattern.trigger.percentChange;
           }
+          break;
+        default:
+          console.warn(`Unknown trigger condition: ${pattern.trigger.condition}`);
           break;
       }
       

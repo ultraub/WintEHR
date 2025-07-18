@@ -104,7 +104,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       
       return currentEventListeners; // Return unchanged state
     });
-  }, []); // Remove eventListeners dependency
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing dep: handleAutomatedWorkflows. Not added as it's defined below and would cause circular dependency
 
   // Handle automated workflows
   const handleAutomatedWorkflows = async (eventType, data) => {
@@ -399,7 +400,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     if (currentPatient?.id) {
       loadClinicalContext();
     }
-  }, [currentPatient?.id]);
+  }, [currentPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing dep: loadClinicalContext. Adding it would cause infinite loops since it's defined below
 
   const loadClinicalContext = async () => {
     try {

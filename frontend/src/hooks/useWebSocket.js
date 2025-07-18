@@ -167,7 +167,7 @@ export const useClinicalEvents = (eventType, onEvent) => {
       onEvent(event);
     };
 
-    const subscriptionId = websocketClient.subscribeToClinicalEvents(
+    websocketClient.subscribeToClinicalEvents(
       eventType,
       handleEvent
     );

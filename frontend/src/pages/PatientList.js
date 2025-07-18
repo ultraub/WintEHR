@@ -134,14 +134,20 @@ function PatientList() {
         fetchAllPatients(0, pageSize, '').finally(() => setInitialLoadComplete(true));
       }
     }
-  }, [activeTab]); // Keep minimal dependencies
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: fetchAllPatients, fetchMyPatients, initialLoadComplete, pageSize
+  // Adding them would cause infinite loops since they trigger state updates
+  // activeTab is sufficient to track tab changes
   
   // Separate effect for handling page/pageSize changes (only for All Patients tab)
   useEffect(() => {
     if (activeTab === 1 && initialLoadComplete) {
       fetchAllPatients(page, pageSize, searchTerm);
     }
-  }, [page, pageSize, initialLoadComplete]); // Add initialLoadComplete guard
+  }, [page, pageSize, initialLoadComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: activeTab, fetchAllPatients, searchTerm
+  // This effect only runs for All Patients tab (activeTab === 1) after initial load
+  // Dependencies are carefully selected to prevent re-fetching loops
 
   const fetchMyPatients = async () => {
     try {

@@ -9,7 +9,7 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { lastMessage, sendMessage, subscribe, unsubscribe } = useWebSocket();
+  const { lastMessage, subscribe, unsubscribe } = useWebSocket();
   const pollIntervalRef = useRef(null);
 
   // Function to fetch notification count

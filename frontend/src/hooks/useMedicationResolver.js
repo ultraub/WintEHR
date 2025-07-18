@@ -2,7 +2,7 @@
  * useMedicationResolver Hook
  * Resolves Medication references from MedicationRequest resources
  */
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fhirClient } from '../services/fhirClient';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 
@@ -235,30 +235,6 @@ export const useMedicationResolver = (medicationRequests = []) => {
     
     return { format: 'unknown', concept: null };
   }, []);
-
-  // Helper function to convert any format to R5 format
-  const convertToR5Format = useCallback((medicationRequest) => {
-    const info = getMedicationInfo(medicationRequest);
-    
-    if (info.format === 'R5') {
-      // Already R5, return as-is
-      return medicationRequest.medication;
-    }
-    
-    if (info.format === 'R4' && info.concept) {
-      // Convert R4 to R5
-      return {
-        concept: info.concept
-      };
-    }
-    
-    // For reference format or unknown, return a generic structure
-    return {
-      concept: {
-        text: 'Unknown medication'
-      }
-    };
-  }, [getMedicationInfo]);
 
   return {
     resolvedMedications,

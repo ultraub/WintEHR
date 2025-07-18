@@ -3,7 +3,7 @@
  * Advanced theming utilities for clinical contexts and enhanced user experience
  */
 
-import { alpha, darken, lighten } from '@mui/material/styles';
+import { darken, lighten } from '@mui/material/styles';
 
 // Clinical context detection utilities
 export const getClinicalContext = (location, timeOfDay, department) => {
@@ -305,8 +305,6 @@ export const applyShiftTheme = (theme, shift) => {
     night: { brightness: 0.85, contrast: 1.1 },
     emergency: { brightness: 1.1, contrast: 1.2 }
   };
-  
-  const adjustment = adjustments[shiftContext.type] || adjustments.day;
   
   return {
     ...theme,

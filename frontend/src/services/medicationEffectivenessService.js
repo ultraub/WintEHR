@@ -303,7 +303,7 @@ class MedicationEffectivenessService {
    */
   async recordAssessmentResults(assessmentData) {
     try {
-      const { medicationRequestId, responses, metrics, clinicalNotes, nextReviewDate } = assessmentData;
+      const { medicationRequestId, responses, clinicalNotes, nextReviewDate } = assessmentData;
 
       // Create an Observation for the effectiveness assessment
       const effectivenessObservation = {
@@ -555,7 +555,6 @@ class MedicationEffectivenessService {
   }
 
   determineUrgencyLevel(medicationRequest, parameters) {
-    const daysSinceStart = differenceInDays(new Date(), parseISO(medicationRequest.authoredOn));
     const nextAssessment = parseISO(this.calculateNextAssessmentDate(medicationRequest, parameters));
     const daysUntilAssessment = differenceInDays(nextAssessment, new Date());
 

@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 
 class MedicationListManagementService {
   constructor() {
@@ -163,6 +162,9 @@ class MedicationListManagementService {
           break;
         case 'on-hold':
           await this.handlePrescriptionOnHold(patientId, medicationRequest);
+          break;
+        default:
+          // No specific handling required for other statuses (e.g., 'active', 'draft')
           break;
       }
 

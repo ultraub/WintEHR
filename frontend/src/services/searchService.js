@@ -258,7 +258,7 @@ class SearchService {
 
   // Hybrid search combining FHIR and catalog results
   async searchHybrid(query, options = {}) {
-    const { limit = 20, signal } = options;
+    const { limit = 20 } = options;
     
     try {
       // Run both searches in parallel

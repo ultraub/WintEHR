@@ -377,7 +377,9 @@ export const ClinicalProvider = ({ children }) => {
         localStorage.removeItem('selectedPatientId');
       });
     }
-  }, [user]); // Only depend on user to avoid infinite loops
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: currentPatient, loadPatient. Adding them would cause infinite loops
+  // since loadPatient sets currentPatient, and we only want to load on user change
 
   // Handle real-time updates
   useEffect(() => {

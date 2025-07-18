@@ -4,7 +4,6 @@
  */
 
 import { fhirClient } from './fhirClient';
-import { format, parseISO, differenceInDays, isAfter } from 'date-fns';
 
 class MedicationReconciliationService {
   constructor() {
@@ -272,7 +271,6 @@ class MedicationReconciliationService {
     const homeMap = this.createMedicationMap(categorizedMedications[this.MEDICATION_SOURCES.HOME]);
     const hospitalMap = this.createMedicationMap(categorizedMedications[this.MEDICATION_SOURCES.HOSPITAL]);
     const dischargeMap = this.createMedicationMap(categorizedMedications[this.MEDICATION_SOURCES.DISCHARGE]);
-    const pharmacyMap = this.createMedicationMap(categorizedMedications[this.MEDICATION_SOURCES.PHARMACY]);
 
     // Find medications to add (in hospital/discharge but not in home)
     this.findMedicationsToAdd(hospitalMap, homeMap, recommendations);

@@ -76,6 +76,12 @@ export const WebSocketProvider = ({ children }) => {
       return;
     }
 
+    // Prevent multiple simultaneous connection attempts
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || 
+                         wsRef.current.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem('auth_token');
       
@@ -85,9 +91,22 @@ export const WebSocketProvider = ({ children }) => {
         wsRef.current = new WebSocket(WS_URL);
         
         wsRef.current.onopen = () => {
+          // Ensure WebSocket is fully open
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket not ready in onopen handler (simple mode)');
+            return;
+          }
+          
           // WebSocket connected in simple mode
           setIsConnected(true);
           reconnectAttempts.current = 0;
+          
+          // Re-subscribe to any active subscriptions
+          setTimeout(() => {
+            Object.entries(subscriptions).forEach(([id, { resourceTypes, patientIds }]) => {
+              subscribe(id, resourceTypes, patientIds);
+            });
+          }, 100);
         };
         
         wsRef.current.onmessage = (event) => {
@@ -103,16 +122,21 @@ export const WebSocketProvider = ({ children }) => {
           }
         };
         
+        wsRef.current.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setIsConnected(false);
+        };
+
         wsRef.current.onclose = () => {
           // WebSocket disconnected
           setIsConnected(false);
           wsRef.current = null;
           
           // Retry connection after delay
-          if (reconnectAttempts.current < 3) {
+          if (reconnectAttempts.current < 3 && isOnline) {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
             reconnectAttempts.current += 1;
-            setTimeout(connect, delay);
+            reconnectTimeoutRef.current = setTimeout(connect, delay);
           }
         };
         
@@ -123,22 +147,35 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = new WebSocket(WS_URL);
 
       wsRef.current.onopen = () => {
-        // Send authentication message after connection
+        // Ensure WebSocket is fully open before sending
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.error('WebSocket not ready in onopen handler');
+          return;
+        }
+        
         const authMessage = {
           type: 'authenticate',
           token: token
         };
-        wsRef.current.send(JSON.stringify(authMessage));
         
-        setIsConnected(true);
-        reconnectAttempts.current = 0;
+        try {
+          wsRef.current.send(JSON.stringify(authMessage));
+          setIsConnected(true);
+          reconnectAttempts.current = 0;
 
-        // Re-subscribe to all active subscriptions after auth
-        setTimeout(() => {
-          Object.entries(subscriptions).forEach(([id, { resourceTypes, patientIds }]) => {
-            subscribe(id, resourceTypes, patientIds);
-          });
-        }, 100); // Small delay to ensure auth is processed
+          // Re-subscribe to all active subscriptions after auth
+          setTimeout(() => {
+            Object.entries(subscriptions).forEach(([id, { resourceTypes, patientIds }]) => {
+              subscribe(id, resourceTypes, patientIds);
+            });
+          }, 100); // Small delay to ensure auth is processed
+        } catch (error) {
+          console.error('Error sending auth message:', error);
+          // Try to reconnect if send fails
+          setIsConnected(false);
+          wsRef.current = null;
+          setTimeout(connect, 1000);
+        }
       };
 
       wsRef.current.onmessage = (event) => {
@@ -180,7 +217,7 @@ export const WebSocketProvider = ({ children }) => {
     } catch (error) {
       // Connection error handled silently
     }
-  }, [user, subscriptions, subscribe, sendMessage]);
+  }, [user, subscriptions, subscribe, sendMessage, isConnected, isOnline]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -209,7 +246,7 @@ export const WebSocketProvider = ({ children }) => {
     return () => {
       disconnect();
     };
-  }, [user]); // Only depend on user, not on connect/disconnect
+  }, [user, connect, disconnect]);
 
   // Handle online/offline events
   useEffect(() => {

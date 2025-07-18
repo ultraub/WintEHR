@@ -57,7 +57,8 @@ export function useDebouncedCallback(callback, delay, deps) {
       clearTimeout(debounceTimer);
       setDebounceTimer(undefined);
     }
-  }, deps);
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  // deps is intentionally dynamic - it's the dependency array passed by the caller
 
   return debouncedCallback;
 }

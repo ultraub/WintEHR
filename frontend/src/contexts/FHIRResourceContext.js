@@ -1058,17 +1058,23 @@ export function FHIRResourceProvider({ children }) {
     return () => {
       window.removeEventListener('fhir-resources-updated', handleResourcesUpdated);
     };
-  }, [state.currentPatient?.id]); // Only depend on patient ID, not the function
+  }, [state.currentPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: refreshPatientResources, state.currentPatient. Adding refreshPatientResources would cause
+  // infinite loops. state.currentPatient?.id is sufficient to track patient changes
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Create local copies of refs to avoid stale closure issues
+      const timeouts = timeoutRefs.current;
+      const requests = inFlightRequests.current;
+      
       // Clear all timeouts
-      timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
-      timeoutRefs.current.clear();
+      timeouts.forEach(timeout => clearTimeout(timeout));
+      timeouts.clear();
       
       // Clear all in-flight requests
-      inFlightRequests.current.clear();
+      requests.clear();
     };
   }, []);
 

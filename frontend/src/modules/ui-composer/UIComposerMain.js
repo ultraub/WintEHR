@@ -142,6 +142,9 @@ const UIComposerContent = () => {
           setError('agents', data.error);
           setGenerationStatus('error', 0, data.error);
           break;
+        default:
+          console.warn(`Unhandled orchestrator event: ${event}`);
+          break;
       }
     });
     

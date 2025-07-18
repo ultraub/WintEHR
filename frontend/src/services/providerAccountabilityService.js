@@ -6,7 +6,6 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
-import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 
 class ProviderAccountabilityService {
   constructor() {
@@ -69,7 +68,6 @@ class ProviderAccountabilityService {
       let organization = null;
       
       if (primaryRole?.organization?.reference) {
-        const orgId = this.extractReferenceId(primaryRole.organization.reference);
         organization = await this.getOrganizationInfo(primaryRole.organization.reference);
       }
 

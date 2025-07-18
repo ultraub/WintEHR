@@ -246,18 +246,24 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     // Ensure the SVG has dimensions - wait a frame if needed
     const checkAndInitialize = () => {
       const svg = d3.select(svgRef.current);
-      const width = svgRef.current.clientWidth;
-      const height = svgRef.current.clientHeight;
+      // Use the container dimensions if available
+      const container = containerRef.current;
+      const width = container ? container.clientWidth : svgRef.current.clientWidth;
+      const height = container ? container.clientHeight : svgRef.current.clientHeight;
       console.log('SVG dimensions:', { width, height });
       
-      if (width === 0 || height === 0) {
-        console.warn('SVG has no dimensions, waiting for next frame...');
+      if (width === 0 || height === 0 || width < 100 || height < 100) {
+        console.warn('SVG has insufficient dimensions, waiting for next frame...');
         requestAnimationFrame(checkAndInitialize);
         return;
       }
 
     // Clear previous visualization
     svg.selectAll('*').remove();
+    
+    // Set the SVG viewBox to ensure all content is visible
+    svg.attr('viewBox', `0 0 ${width} ${height}`)
+       .attr('preserveAspectRatio', 'xMidYMid meet');
 
     // Create container groups
     const g = svg.append('g').attr('class', 'main-group');
@@ -276,6 +282,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     svg.call(zoom);
     zoomRef.current = zoom;
 
+    // Add padding to ensure nodes aren't cut off at edges
+    const padding = 50;
+    
     // Initialize force simulation
     const simulation = d3.forceSimulation(data.nodes)
       .force('link', d3.forceLink(data.links)
@@ -288,7 +297,14 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide()
         .radius(d => getNodeRadius(d) + 5)
-      );
+      )
+      .force('boundary', () => {
+        // Keep nodes within bounds
+        data.nodes.forEach(node => {
+          node.x = Math.max(padding, Math.min(width - padding, node.x));
+          node.y = Math.max(padding, Math.min(height - padding, node.y));
+        });
+      });
 
     simulationRef.current = simulation;
 
@@ -346,7 +362,12 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     nodes
       .on('click', handleNodeClick)
       .on('mouseenter', handleNodeHover)
-      .on('mouseleave', () => setHoveredNode(null));
+      .on('mouseleave', () => {
+        setHoveredNode(null);
+        // Reset all node and link opacities
+        svg.selectAll('.node').style('opacity', 1);
+        svg.selectAll('.link').style('opacity', 0.6);
+      });
 
     // Add tooltip
     nodes.append('title')
@@ -381,6 +402,41 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
     // Apply initial layout
     applyLayout(currentLayout, data, simulation);
+    
+    // After simulation stabilizes, fit the visualization to view
+    simulation.on('end', () => {
+      // Calculate bounds of all nodes
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      data.nodes.forEach(node => {
+        const r = getNodeRadius(node);
+        minX = Math.min(minX, node.x - r);
+        minY = Math.min(minY, node.y - r);
+        maxX = Math.max(maxX, node.x + r);
+        maxY = Math.max(maxY, node.y + r);
+      });
+      
+      // Add some padding
+      const viewPadding = 40;
+      minX -= viewPadding;
+      minY -= viewPadding;
+      maxX += viewPadding;
+      maxY += viewPadding;
+      
+      // Calculate the scale and translation to fit
+      const fullWidth = maxX - minX;
+      const fullHeight = maxY - minY;
+      const scale = Math.min(width / fullWidth, height / fullHeight) * 0.9; // 90% to leave some margin
+      
+      // Apply the transform to center and scale the view
+      const translateX = (width - fullWidth * scale) / 2 - minX * scale;
+      const translateY = (height - fullHeight * scale) / 2 - minY * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(zoom.transform, d3.zoomIdentity
+          .translate(translateX, translateY)
+          .scale(scale));
+    });
     };
     
     // Start the initialization check
@@ -391,6 +447,36 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   useEffect(() => {
     initializeVisualizationRef.current = initializeVisualization;
   }, [initializeVisualization]);
+
+  // Add resize observer to handle container size changes
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        console.log('Container resized:', { width, height });
+        
+        // Re-initialize visualization if we have data and dimensions changed significantly
+        if (relationshipData && initializeVisualizationRef.current && width > 100 && height > 100) {
+          // Debounce the re-initialization
+          clearTimeout(window.resizeTimeout);
+          window.resizeTimeout = setTimeout(() => {
+            initializeVisualizationRef.current(relationshipData);
+          }, 300);
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      if (window.resizeTimeout) {
+        clearTimeout(window.resizeTimeout);
+      }
+    };
+  }, [relationshipData]);
 
   // Get node radius based on connections
   const getNodeRadius = (node) => {
@@ -444,6 +530,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Handle node hover
   const handleNodeHover = (event, node) => {
     setHoveredNode(node);
+    
+    // Only highlight if we have relationship data
+    if (!relationshipData || !relationshipData.links) return;
     
     // Highlight connected nodes and links
     const svg = d3.select(svgRef.current);
@@ -555,11 +644,40 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   };
 
   const handleZoomReset = () => {
-    if (!svgRef.current || !zoomRef.current) return;
-    d3.select(svgRef.current)
-      .transition()
+    if (!svgRef.current || !zoomRef.current || !relationshipData) return;
+    
+    // Calculate bounds and fit to view
+    const svg = d3.select(svgRef.current);
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    relationshipData.nodes.forEach(node => {
+      const r = getNodeRadius(node);
+      minX = Math.min(minX, node.x - r);
+      minY = Math.min(minY, node.y - r);
+      maxX = Math.max(maxX, node.x + r);
+      maxY = Math.max(maxY, node.y + r);
+    });
+    
+    const viewPadding = 40;
+    minX -= viewPadding;
+    minY -= viewPadding;
+    maxX += viewPadding;
+    maxY += viewPadding;
+    
+    const fullWidth = maxX - minX;
+    const fullHeight = maxY - minY;
+    const scale = Math.min(width / fullWidth, height / fullHeight) * 0.9;
+    
+    const translateX = (width - fullWidth * scale) / 2 - minX * scale;
+    const translateY = (height - fullHeight * scale) / 2 - minY * scale;
+    
+    svg.transition()
       .duration(300)
-      .call(zoomRef.current.transform, d3.zoomIdentity);
+      .call(zoomRef.current.transform, d3.zoomIdentity
+        .translate(translateX, translateY)
+        .scale(scale));
   };
 
   // Export visualization as image
@@ -657,7 +775,13 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: '100%',
+      minHeight: '750px', 
+      display: 'flex', 
+      flexDirection: 'column',
+      width: '100%'
+    }}>
       {/* Header */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Grid container alignItems="center" spacing={2}>
@@ -731,16 +855,23 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
       {/* Main Content */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <Grid container sx={{ height: '100%' }}>
+        <Grid container sx={{ height: '100%' }} spacing={0}>
           {/* Left Panel */}
-          <Grid item xs={12} md={3} sx={{ borderRight: 1, borderColor: 'divider', overflow: 'auto' }}>
+          <Grid item xs={12} md={3} sx={{ 
+            borderRight: 1, 
+            borderColor: 'divider', 
+            overflow: 'auto',
+            maxHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} variant="fullWidth">
               <Tab label="Explorer" />
               <Tab label="Statistics" />
             </Tabs>
 
             {currentTab === 0 && (
-              <Box sx={{ p: 2 }}>
+              <Box sx={{ p: 2, flex: 1, overflow: 'auto' }}>
                 {/* Show loading or empty state message */}
                 {Object.values(resources).every(arr => arr.length === 0) && (
                   <Alert severity="info" sx={{ mb: 2 }}>
@@ -861,14 +992,20 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             )}
 
             {currentTab === 1 && (
-              <Box sx={{ p: 2 }}>
+              <Box sx={{ p: 2, flex: 1, overflow: 'auto' }}>
                 {renderStatistics()}
               </Box>
             )}
           </Grid>
 
           {/* Visualization Panel */}
-          <Grid item xs={12} md={9} sx={{ position: 'relative', height: '100%', minHeight: '600px' }}>
+          <Grid item xs={12} md={9} sx={{ 
+            position: 'relative', 
+            height: '100%', 
+            minHeight: '600px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {loading && (
               <Box sx={{ 
                 position: 'absolute', 
@@ -895,22 +1032,29 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             <Box
               ref={containerRef}
               sx={{ 
+                flex: 1,
                 width: '100%', 
                 height: '100%',
+                minHeight: '500px',
                 position: isFullscreen ? 'fixed' : 'relative',
                 top: isFullscreen ? 0 : 'auto',
                 left: isFullscreen ? 0 : 'auto',
                 right: isFullscreen ? 0 : 'auto',
                 bottom: isFullscreen ? 0 : 'auto',
                 zIndex: isFullscreen ? 1300 : 'auto',
-                bgcolor: 'background.paper'
+                bgcolor: 'background.paper',
+                display: 'flex'
               }}
             >
               <svg
                 ref={svgRef}
                 width="100%"
                 height="100%"
-                style={{ cursor: 'grab' }}
+                style={{ 
+                  cursor: 'grab',
+                  overflow: 'visible',
+                  display: 'block'
+                }}
               />
 
               {/* Zoom indicator */}

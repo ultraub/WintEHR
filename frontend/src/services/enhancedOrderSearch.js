@@ -6,7 +6,6 @@
  */
 
 import { cdsClinicalDataService } from './cdsClinicalDataService';
-import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class EnhancedOrderSearchService {
   constructor() {
