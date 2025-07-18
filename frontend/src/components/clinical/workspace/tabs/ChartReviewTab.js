@@ -1007,6 +1007,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           </Stack>
         </Stack>
         
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
           <Chip 
             label={`${activeCount} Active`} 
             size="small" 
@@ -1014,7 +1015,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             variant={filter === 'active' ? 'filled' : 'outlined'}
             onClick={() => setFilter('active')}
             component="button"
-            sx={{ borderRadius: 1 }}
+            sx={{ borderRadius: 0 }}
           />
           <Chip 
             label={`${stoppedCount} Stopped`} 
@@ -1022,7 +1023,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             variant={filter === 'stopped' ? 'filled' : 'outlined'}
             onClick={() => setFilter('stopped')}
             component="button"
-            sx={{ borderRadius: 1 }}
+            sx={{ borderRadius: 0 }}
           />
           <Chip 
             label="All" 
@@ -1030,7 +1031,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
             variant={filter === 'all' ? 'filled' : 'outlined'}
             onClick={() => setFilter('all')}
             component="button"
-            sx={{ borderRadius: 1 }}
+            sx={{ borderRadius: 0 }}
           />
         </Stack>
       </Box>
@@ -2449,7 +2450,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
                   label={`${immunizations.length} recorded`} 
                   size="small" 
                   color="success"
-                  sx={{ borderRadius: 1 }}
+                  sx={{ borderRadius: 0 }}
                 />
               </Stack>
             </Box>
