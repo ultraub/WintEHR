@@ -676,11 +676,9 @@ class FHIRStorageEngine:
         # Auto-link Observations to ServiceRequests
         if resource_type == 'Observation' and not resource_dict.get('basedOn'):
             try:
-                print(f"\n\n=== AUTO-LINK: Attempting to auto-link Observation {fhir_id} ===\n")
                 logging.info(f"DEBUG: Attempting to auto-link Observation {fhir_id}")
                 await self._auto_link_observation_to_service_request(resource_id, resource_dict)
             except Exception as e:
-                print(f"\n\n=== AUTO-LINK ERROR: {e} ===\n")
                 logging.error(f"ERROR: Failed to auto-link Observation to ServiceRequest: {e}", exc_info=True)
         
         await self.session.commit()
@@ -5783,7 +5781,6 @@ class FHIRStorageEngine:
         """
         from datetime import timedelta
         
-        print(f"\n=== AUTO-LINK: Starting auto-link for Observation ID {observation_id} ===")
         logging.info(f"DEBUG: Starting auto-link for Observation ID {observation_id}")
         
         # Extract observation details
@@ -5845,7 +5842,6 @@ class FHIRStorageEngine:
         })
         
         rows = list(result)
-        print(f"=== AUTO-LINK: Found {len(rows)} ServiceRequests ===")
         logging.info(f"DEBUG: Found {len(rows)} ServiceRequests")
         
         best_match = None
@@ -5877,9 +5873,7 @@ class FHIRStorageEngine:
                         sr_codes.append(coding['code'])
             
             # Check for matching codes
-            print(f"=== AUTO-LINK: Comparing obs codes {obs_codes} with sr codes {sr_codes} ===")
             if not any(code in sr_codes for code in obs_codes):
-                print(f"=== AUTO-LINK: No matching codes, skipping ===")
                 continue
             
             # Calculate time difference
