@@ -14,6 +14,9 @@ from database import init_db, close_db
 # Import all routers
 from api.routers import register_all_routers
 
+# Import performance monitoring
+from api.middleware.performance import setup_performance_monitoring
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Teaching EMR System",
@@ -31,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Set up performance monitoring
+setup_performance_monitoring(app)
 
 # Register all routers using centralized registration
 register_all_routers(app)

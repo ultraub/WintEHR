@@ -3,10 +3,13 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import LayoutV3 from '../components/LayoutV3';
 import ClinicalLayout from '../components/ClinicalLayout';
+import EnhancedClinicalLayout from '../components/clinical/layouts/EnhancedClinicalLayout';
 import Login from '../pages/Login';
 import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
 import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
+import ClinicalWorkspaceEnhanced from '../components/clinical/ClinicalWorkspaceEnhanced';
+import ClinicalWorkspaceDemo from '../components/clinical/ClinicalWorkspaceDemo';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
 import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
@@ -29,12 +32,18 @@ import PharmacyPage from '../pages/PharmacyPage';
 import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
 import DesignSystemShowcase from '../components/clinical/demo/DesignSystemShowcase';
+import PerformanceTestPage from '../pages/PerformanceTestPage';
 
 // Create router with future flags enabled
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />
+  },
+  // Demo route for testing enhanced clinical workspace without auth
+  {
+    path: '/clinical-demo/:id',
+    element: <ClinicalWorkspaceDemo />
   },
   {
     path: '/',
@@ -62,6 +71,17 @@ export const router = createBrowserRouter([
   },
   {
     path: '/patients/:id/clinical',
+    element: (
+      <ProtectedRoute>
+        <EnhancedClinicalLayout>
+          <ClinicalWorkspaceEnhanced />
+        </EnhancedClinicalLayout>
+      </ProtectedRoute>
+    )
+  },
+  // Legacy route for comparison
+  {
+    path: '/patients/:id/clinical-v3',
     element: (
       <ProtectedRoute>
         <ClinicalLayout>
@@ -283,6 +303,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <TrainingCenterPage />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/performance-test',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <PerformanceTestPage />
         </LayoutV3>
       </ProtectedRoute>
     )

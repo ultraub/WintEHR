@@ -21,6 +21,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.56.0",
     "d3": "^7.9.0",
-    "dotenv": "^17.1.0"
+    "dotenv": "^17.1.0",
+    "playwright": "^1.54.1"
   }
 }

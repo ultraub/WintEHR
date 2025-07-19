@@ -28,6 +28,8 @@ from fhir.core.operations import OperationHandler
 from fhir.core.search.basic import SearchParameterHandler
 from fhir.core.search.composite import CompositeSearchHandler
 from fhir.core.utils import search_all_resources
+from fhir.api.summary_definitions import apply_summary_to_resource, apply_elements_to_resource
+from fhir.api.cache import get_search_cache
 from database import get_db_session
 from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
 import logging
@@ -270,18 +272,68 @@ async def search_resources(
             for resource_id in has_resource_ids:
                 search_params['_id']['values'].append({'code': resource_id})
     
-    # Calculate pagination
+    # Handle _summary=count specially - only return count, no resources
+    if _summary == "count":
+        # Get only the count, not the actual resources
+        _, total = await storage.search_resources(
+            resource_type,
+            search_params,
+            offset=0,
+            limit=0  # Don't fetch any resources
+        )
+        
+        # Return count-only bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "searchset",
+            "total": total
+        }
+        return bundle
+    
+    # Calculate pagination for normal searches
     count = _count or 10
     page = _page or 1
     offset = (page - 1) * count
     
-    # Execute search
-    resources, total = await storage.search_resources(
-        resource_type,
-        search_params,
-        offset=offset,
-        limit=count
+    # Try to get from cache first (only for GET requests without _include/_revinclude)
+    cache = get_search_cache()
+    use_cache = (
+        request.method == "GET" and 
+        "_include" not in result_params and 
+        "_revinclude" not in result_params
     )
+    
+    if use_cache:
+        # Create cache key from search params
+        cache_params = {
+            "search_params": search_params,
+            "offset": offset,
+            "limit": count,
+            "_summary": _summary,
+            "_elements": _elements
+        }
+        cached_result = cache.get(resource_type, cache_params)
+        if cached_result is not None:
+            resources, total = cached_result
+            logger.debug(f"Using cached search results for {resource_type}")
+        else:
+            # Execute search
+            resources, total = await storage.search_resources(
+                resource_type,
+                search_params,
+                offset=offset,
+                limit=count
+            )
+            # Cache the result
+            cache.set(resource_type, cache_params, resources, total)
+    else:
+        # Execute search without caching
+        resources, total = await storage.search_resources(
+            resource_type,
+            search_params,
+            offset=offset,
+            limit=count
+        )
     
     # Build search bundle
     bundle = {
@@ -309,8 +361,17 @@ async def search_resources(
         next_url = f"{base_url}?{params_str.replace(f'_page={page}', f'_page={next_page}')}"
         bundle["link"].append({"relation": "next", "url": next_url})
     
-    # Add resources to bundle
+    # Add resources to bundle with _summary and _elements applied
     for resource_data in resources:
+        # Apply _summary parameter if present
+        if _summary and _summary != "count":
+            resource_data = apply_summary_to_resource(resource_data, _summary)
+        
+        # Apply _elements parameter if present
+        if _elements:
+            elements_list = [e.strip() for e in _elements.split(',')]
+            resource_data = apply_elements_to_resource(resource_data, elements_list)
+        
         entry = {
             "fullUrl": f"{base_url}/{resource_data['id']}",
             "resource": resource_data,
@@ -363,6 +424,10 @@ async def create_resource(
         
         # Get the created resource to return in response body
         created_resource = await storage.read_resource(resource_type, fhir_id)
+        
+        # Invalidate cache for this resource type
+        cache = get_search_cache()
+        cache.invalidate_resource_type(resource_type)
         
         # Build response for newly created resource
         response = FHIRJSONResponse(
@@ -490,6 +555,10 @@ async def update_resource(
         # Get the updated resource to return in response body
         updated_resource = await storage.read_resource(resource_type, id)
         
+        # Invalidate cache for this resource type
+        cache = get_search_cache()
+        cache.invalidate_resource_type(resource_type)
+        
         # Build response
         response = FHIRJSONResponse(
             content=updated_resource,
@@ -538,6 +607,10 @@ async def delete_resource(
             status_code=404,
             detail=f"Resource {resource_type}/{id} not found"
         )
+    
+    # Invalidate cache for this resource type
+    cache = get_search_cache()
+    cache.invalidate_resource_type(resource_type)
     
     return Response(status_code=204)
 
@@ -1402,52 +1475,10 @@ async def _process_has_parameters(target_resource_type: str, has_params: List[st
 
 
 def _apply_summary(resource: Dict[str, Any], summary: str) -> Dict[str, Any]:
-    """Apply _summary parameter to resource."""
-    if summary == "true":
-        # Return summary elements only
-        summary_elements = ["id", "meta", "implicitRules"]
-        return {k: v for k, v in resource.items() if k in summary_elements}
-    elif summary == "text":
-        # Return text, id, and meta only
-        text_elements = ["id", "meta", "implicitRules", "text"]
-        return {k: v for k, v in resource.items() if k in text_elements}
-    elif summary == "data":
-        # Remove text element
-        return {k: v for k, v in resource.items() if k != "text"}
-    elif summary == "count":
-        # Return count only (handled at bundle level)
-        return resource
-    else:
-        return resource
+    """Apply _summary parameter to resource using comprehensive field definitions."""
+    return apply_summary_to_resource(resource, summary)
 
 
 def _apply_elements(resource: Dict[str, Any], elements: List[str]) -> Dict[str, Any]:
-    """Apply _elements parameter to resource."""
-    # Always include mandatory elements
-    result = {
-        "resourceType": resource.get("resourceType"),
-        "id": resource.get("id"),
-        "meta": resource.get("meta")
-    }
-    
-    # Add requested elements
-    for element in elements:
-        if "." in element:
-            # Handle nested elements
-            parts = element.split(".")
-            current = resource
-            for part in parts[:-1]:
-                if part in current:
-                    current = current[part]
-                else:
-                    break
-            if parts[-1] in current:
-                # Reconstruct nested structure
-                # This is simplified - would need proper path handling
-                result[parts[0]] = resource.get(parts[0])
-        else:
-            # Simple element
-            if element in resource:
-                result[element] = resource[element]
-    
-    return result
+    """Apply _elements parameter to resource using comprehensive implementation."""
+    return apply_elements_to_resource(resource, elements)
