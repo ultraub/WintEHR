@@ -40,6 +40,7 @@ from .models import (
     HookAction
 )
 from .medication_prescribe_hooks import medication_prescribe_hooks
+from .rules_engine.integration import cds_integration
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -936,9 +937,55 @@ async def discover_services(db: AsyncSession = Depends(get_db_session)):
 async def execute_service(
     service_id: str,
     request: CDSHookRequest,
-    db: AsyncSession = Depends(get_db_session)
+    db: AsyncSession = Depends(get_db_session),
+    use_rules_engine: bool = False  # Query parameter to optionally use rules engine
 ):
     """Execute a specific CDS service"""
+    # Check if we should use the rules engine for certain services
+    rules_engine_services = {
+        "medication-prescribe-v2", "patient-view-v2", "order-select-v2",
+        "encounter-start-v2", "encounter-discharge-v2"
+    }
+    
+    # Use rules engine for v2 services or if explicitly requested
+    if service_id in rules_engine_services or use_rules_engine:
+        try:
+            # Convert context to dict format expected by rules engine
+            context_dict = request.context if isinstance(request.context, dict) else request.context.dict()
+            
+            # Execute with rules engine
+            response = await cds_integration.execute_hook(
+                hook=request.hook.value,
+                context=context_dict,
+                prefetch=request.prefetch,
+                use_legacy=True  # Include legacy results for better coverage
+            )
+            
+            # Convert response to CDSHookResponse format
+            cards = []
+            for card_data in response.get("cards", []):
+                card = Card(
+                    summary=card_data.get("summary", ""),
+                    detail=card_data.get("detail", ""),
+                    indicator=IndicatorType(card_data.get("indicator", "info")),
+                    source=Source(**card_data.get("source", {"label": "CDS Rules Engine"})),
+                    uuid=card_data.get("uuid", str(uuid.uuid4()))
+                )
+                
+                if "suggestions" in card_data:
+                    card.suggestions = card_data["suggestions"]
+                if "links" in card_data:
+                    card.links = card_data["links"]
+                
+                cards.append(card)
+            
+            return CDSHookResponse(cards=cards)
+            
+        except Exception as e:
+            logger.error(f"Error executing CDS service {service_id} with rules engine: {e}")
+            # Fall through to legacy execution
+    
+    # Legacy execution path
     # Get the hook configuration from database first, then fallback to sample hooks
     try:
         manager = await get_persistence_manager(db)
@@ -1233,6 +1280,64 @@ async def test_hook(
         logger.error(f"Error testing hook {hook_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to test hook")
 
+# Rules Engine Management Endpoints
+@router.get("/rules-engine/statistics")
+async def get_rules_statistics():
+    """Get statistics about the rules engine"""
+    try:
+        stats = await cds_integration.get_rule_statistics()
+        return {
+            "status": "success",
+            "statistics": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting rules statistics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get rules statistics")
+
+
+@router.post("/rules-engine/evaluate")
+async def evaluate_rules(
+    context: Dict[str, Any],
+    categories: Optional[List[str]] = None,
+    priorities: Optional[List[str]] = None
+):
+    """Directly evaluate rules against provided context"""
+    try:
+        # Execute rules engine
+        response = await cds_integration.rules_engine.evaluate(
+            context=context,
+            categories=categories,
+            priorities=priorities
+        )
+        
+        return {
+            "status": "success",
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error evaluating rules: {e}")
+        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
+
+
+@router.patch("/rules-engine/rules/{rule_set_name}/{rule_id}/toggle")
+async def toggle_rule(rule_set_name: str, rule_id: str, enabled: bool):
+    """Enable or disable a specific rule"""
+    try:
+        cds_integration.toggle_rule(rule_set_name, rule_id, enabled)
+        return {
+            "status": "success",
+            "message": f"Rule {rule_id} {'enabled' if enabled else 'disabled'}",
+            "rule_set": rule_set_name,
+            "rule_id": rule_id,
+            "enabled": enabled
+        }
+    except Exception as e:
+        logger.error(f"Error toggling rule: {e}")
+        raise HTTPException(status_code=500, detail="Failed to toggle rule")
+
+
 # Health check endpoint
 @router.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db_session)):
@@ -1246,6 +1351,14 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         db_status = f"error: {str(e)}"
         db_hooks_count = 0
     
+    # Get rules engine statistics
+    try:
+        rules_stats = await cds_integration.get_rule_statistics()
+        rules_engine_status = "healthy"
+    except Exception as e:
+        rules_stats = {}
+        rules_engine_status = f"error: {str(e)}"
+    
     return {
         "status": "healthy",
         "service": "CDS Hooks",
@@ -1254,5 +1367,7 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "database_status": db_status,
         "database_hooks_count": db_hooks_count,
         "total_hooks": db_hooks_count + len(SAMPLE_HOOKS),
+        "rules_engine_status": rules_engine_status,
+        "rules_engine_statistics": rules_stats,
         "timestamp": datetime.now().isoformat()
     }

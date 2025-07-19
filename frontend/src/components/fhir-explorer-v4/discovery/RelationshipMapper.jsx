@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import { throttle } from 'lodash';
 import {
   Box,
   Typography,
@@ -191,56 +192,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const fhirData = useFHIRData?.();
   const resources = fhirData?.resources || {};
 
-  // Handle search
-  const handleSearch = useCallback(() => {
-    if (!debouncedSearchQuery || !relationshipData) return;
-    
-    try {
-      setLoadingStates(prev => ({ ...prev, search: true }));
-      
-      const query = debouncedSearchQuery.toLowerCase();
-      const matchingNodes = relationshipData.nodes.filter(node => 
-        node.id.toLowerCase().includes(query) ||
-        node.display?.toLowerCase().includes(query) ||
-        node.resourceType.toLowerCase().includes(query)
-      );
-      
-      if (matchingNodes.length > 0) {
-        // Select first matching node
-        const firstMatch = matchingNodes[0];
-        setSelectedNode(firstMatch);
-        setSelectedNodes(new Set([firstMatch.id]));
-        updateNodeSelection(new Set([firstMatch.id]));
-        
-        // Focus on the node
-        if (svgRef.current && zoomRef.current) {
-          const svg = d3.select(svgRef.current);
-          const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
-          if (!node.empty()) {
-            const transform = d3.zoomTransform(svg.node());
-            const x = firstMatch.x * transform.k + transform.x;
-            const y = firstMatch.y * transform.k + transform.y;
-            const targetX = svgRef.current.clientWidth / 2 - x;
-            const targetY = svgRef.current.clientHeight / 2 - y;
-            
-            svg.transition().duration(750).call(
-              zoomRef.current.transform,
-              d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
-            );
-          }
-        }
-      } else {
-        // Show temporary message when no matches found
-        setError(`No resources found matching "${debouncedSearchQuery}"`);
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      setError('Search failed. Please try again.');
-    } finally {
-      setLoadingStates(prev => ({ ...prev, search: false }));
-    }
-  }, [debouncedSearchQuery, relationshipData]);
+  // Placeholder for handleSearch - will be defined later after updateNodeSelection
+  const handleSearchRef = useRef(null);
 
   // Debounce search query
   useEffect(() => {
@@ -253,10 +206,10 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   
   // Auto-search on debounced query change
   useEffect(() => {
-    if (debouncedSearchQuery && relationshipData) {
-      handleSearch();
+    if (debouncedSearchQuery && relationshipData && handleSearchRef.current) {
+      handleSearchRef.current();
     }
-  }, [debouncedSearchQuery, relationshipData, handleSearch]);
+  }, [debouncedSearchQuery, relationshipData]);
 
   // Fetch relationship schema on mount and load initial data
   useEffect(() => {
@@ -664,8 +617,29 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     nodes.append('title')
       .text(d => `${d.resourceType}: ${d.display || d.id}`);
 
-    // Update positions on simulation tick
-    simulation.on('tick', () => {
+    // Performance optimization: Only render visible nodes for large datasets
+    const shouldRenderNode = (node) => {
+      if (data.nodes.length < 100) return true; // Always render for small datasets
+      
+      // Get current view bounds
+      const transform = d3.zoomTransform(svg.node());
+      const bounds = {
+        left: -transform.x / transform.k,
+        top: -transform.y / transform.k,
+        right: (width - transform.x) / transform.k,
+        bottom: (height - transform.y) / transform.k
+      };
+      
+      // Check if node is within visible bounds (with some padding)
+      const padding = 50;
+      return node.x >= bounds.left - padding && 
+             node.x <= bounds.right + padding &&
+             node.y >= bounds.top - padding && 
+             node.y <= bounds.bottom + padding;
+    };
+
+    // Create throttled tick handler for better performance
+    const throttledTick = throttle(() => {
       // Update link positions
       links.attr('d', d => {
         if (layoutSettings.curved) {
@@ -678,18 +652,23 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         }
       });
 
-      // Update node positions
+      // Update node positions with visibility culling
       nodes
         .attr('cx', d => d.x)
-        .attr('cy', d => d.y);
+        .attr('cy', d => d.y)
+        .style('display', d => shouldRenderNode(d) ? 'block' : 'none');
 
-      // Update label positions
+      // Update label positions with visibility culling
       if (layoutSettings.showLabels) {
         labelsGroup.selectAll('text')
           .attr('x', d => d.x)
-          .attr('y', d => d.y + getNodeRadius(d) + 15);
+          .attr('y', d => d.y + getNodeRadius(d) + 15)
+          .style('display', d => shouldRenderNode(d) ? 'block' : 'none');
       }
-    });
+    }, 16); // ~60fps
+    
+    // Update positions on simulation tick
+    simulation.on('tick', throttledTick);
 
     // Apply initial layout
     applyLayout(currentLayout, data, simulation);
@@ -776,13 +755,30 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     };
   }, [relationshipData]);
 
-  // Get node radius based on connections
-  const getNodeRadius = (node) => {
+  // Pre-calculate node connection counts for performance
+  const nodeConnectionCounts = useMemo(() => {
+    if (!relationshipData) return new Map();
+    
+    const counts = new Map();
+    relationshipData.nodes.forEach(node => {
+      counts.set(node.id, 0);
+    });
+    
+    relationshipData.links.forEach(link => {
+      const sourceId = link.source.id || link.source;
+      const targetId = link.target.id || link.target;
+      counts.set(sourceId, (counts.get(sourceId) || 0) + 1);
+      counts.set(targetId, (counts.get(targetId) || 0) + 1);
+    });
+    
+    return counts;
+  }, [relationshipData]);
+
+  // Get node radius based on connections - optimized with pre-calculated counts
+  const getNodeRadius = useCallback((node) => {
     if (!relationshipData) return layoutSettings.nodeSize;
     
-    const connections = relationshipData.links.filter(
-      l => l.source.id === node.id || l.target.id === node.id
-    ).length;
+    const connections = nodeConnectionCounts.get(node.id) || 0;
     
     const scale = d3.scaleLinear()
       .domain([0, 10])
@@ -790,7 +786,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       .clamp(true);
     
     return scale(connections);
-  };
+  }, [nodeConnectionCounts, layoutSettings.nodeSize]);
 
   // Drag behavior
   const drag = (simulation) => {
@@ -1037,6 +1033,62 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     }
   };
 
+  // Handle search
+  const handleSearch = useCallback(() => {
+    if (!debouncedSearchQuery || !relationshipData) return;
+    
+    try {
+      setLoadingStates(prev => ({ ...prev, search: true }));
+      
+      const query = debouncedSearchQuery.toLowerCase();
+      const matchingNodes = relationshipData.nodes.filter(node => 
+        node.id.toLowerCase().includes(query) ||
+        node.display?.toLowerCase().includes(query) ||
+        node.resourceType.toLowerCase().includes(query)
+      );
+      
+      if (matchingNodes.length > 0) {
+        // Select first matching node
+        const firstMatch = matchingNodes[0];
+        setSelectedNode(firstMatch);
+        setSelectedNodes(new Set([firstMatch.id]));
+        updateNodeSelection(new Set([firstMatch.id]));
+        
+        // Focus on the node
+        if (svgRef.current && zoomRef.current) {
+          const svg = d3.select(svgRef.current);
+          const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
+          if (!node.empty()) {
+            const transform = d3.zoomTransform(svg.node());
+            const x = firstMatch.x * transform.k + transform.x;
+            const y = firstMatch.y * transform.k + transform.y;
+            const targetX = svgRef.current.clientWidth / 2 - x;
+            const targetY = svgRef.current.clientHeight / 2 - y;
+            
+            svg.transition().duration(750).call(
+              zoomRef.current.transform,
+              d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
+            );
+          }
+        }
+      } else {
+        // Show temporary message when no matches found
+        setError(`No resources found matching "${debouncedSearchQuery}"`);
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Search failed. Please try again.');
+    } finally {
+      setLoadingStates(prev => ({ ...prev, search: false }));
+    }
+  }, [debouncedSearchQuery, relationshipData]);
+
+  // Store handleSearch in ref for use in useEffect
+  useEffect(() => {
+    handleSearchRef.current = handleSearch;
+  }, [handleSearch]);
+
   // Handle node hover
   const handleNodeHover = (event, node) => {
     setHoveredNode(node);
@@ -1152,7 +1204,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 placeholder="Search resources..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch && handleSearch()}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}

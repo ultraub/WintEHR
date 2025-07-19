@@ -160,10 +160,8 @@ function FHIRExplorerApp() {
       try {
         // Check if we already have data
         const existingPatients = fhirContext.getResourcesByType('Patient');
-        console.log('[FHIRExplorerApp] Existing patients:', existingPatients.length);
         
         if (existingPatients.length === 0) {
-          console.log('[FHIRExplorerApp] No patients found, loading initial data...');
           
           // Add a small delay to ensure context is ready
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -174,12 +172,10 @@ function FHIRExplorerApp() {
             _sort: '-_lastUpdated'
           });
           
-          console.log('[FHIRExplorerApp] Loaded patients:', patientResult);
           
           // If we got patients, load some resources for the first patient
           if (patientResult?.resources?.length > 0) {
             const firstPatient = patientResult.resources[0];
-            console.log('[FHIRExplorerApp] Loading resources for first patient:', firstPatient.id);
             
             // Load some common resource types for the first patient
             const resourceTypes = ['Condition', 'Observation', 'MedicationRequest', 'Encounter'];
@@ -190,15 +186,12 @@ function FHIRExplorerApp() {
                   patient: firstPatient.id,
                   _count: 10
                 });
-                console.log(`[FHIRExplorerApp] Loaded ${resourceType}:`, result);
               } catch (err) {
-                console.error(`[FHIRExplorerApp] Error loading ${resourceType}:`, err);
               }
             }));
           }
         }
       } catch (error) {
-        console.error('[FHIRExplorerApp] Error loading initial data:', error);
       }
     };
 
@@ -233,9 +226,6 @@ function FHIRExplorerApp() {
       acc[key] = resources[key].length;
       return acc;
     }, {});
-    console.log('[FHIRExplorerApp] Resources loaded:', resourceCounts);
-    console.log('[FHIRExplorerApp] Total resources:', totalResources);
-    console.log('[FHIRExplorerApp] Has data:', Object.values(resources).some(arr => arr.length > 0));
 
     return {
       resources,
@@ -253,7 +243,6 @@ function FHIRExplorerApp() {
           // Return the full Bundle response, not just the resources
           return result;
         } catch (error) {
-          console.error('Search error:', error);
           throw error;
         }
       },
@@ -275,7 +264,6 @@ function FHIRExplorerApp() {
             total: result.total || (result.entry ? result.entry.length : 0)
           };
         } catch (error) {
-          console.error('Execute query error:', error);
           throw error;
         }
       }

@@ -45,9 +45,16 @@ class ServiceSelector {
     this.debugMode = this.featureFlags.debugServiceSelection;
     this.serviceCache = new Map();
     
+    // Debug logging helper
+    this.debug = (...args) => {
+      if (this.debugMode && typeof window !== 'undefined' && window.console) {
+        console.debug('[ServiceSelector]', ...args);
+      }
+    };
+    
     // Log feature flag status if debug mode is enabled
     if (this.debugMode) {
-      console.log('ServiceSelector initialized with feature flags:', this.featureFlags);
+      this.debug('ServiceSelector initialized with feature flags:', this.featureFlags);
     }
   }
 
@@ -79,7 +86,7 @@ class ServiceSelector {
     this.clearCache(flagName);
     
     if (this.debugMode) {
-      console.log(`Feature flag updated: ${flagName} = ${value}`);
+      this.debug(`Feature flag updated: ${flagName} = ${value}`);
     }
   }
 
@@ -119,12 +126,12 @@ class ServiceSelector {
     if (this.featureFlags.useNewMedicationServices) {
       service = medicationCRUDService;
       if (this.debugMode) {
-        console.log('Using new MedicationCRUDService for medication search');
+        this.debug('Using new MedicationCRUDService for medication search');
       }
     } else {
       service = legacyMedicationSearchService;
       if (this.debugMode) {
-        console.log('Using legacy medicationSearchService');
+        this.debug('Using legacy medicationSearchService');
       }
     }
 
@@ -146,7 +153,7 @@ class ServiceSelector {
     if (this.featureFlags.useNewMedicationServices) {
       service = medicationWorkflowService;
       if (this.debugMode) {
-        console.log('Using new MedicationWorkflowService');
+        this.debug('Using new MedicationWorkflowService');
       }
     } else {
       // Return object with legacy services for backwards compatibility
@@ -157,7 +164,7 @@ class ServiceSelector {
         validator: legacyMedicationWorkflowValidator
       };
       if (this.debugMode) {
-        console.log('Using legacy medication workflow services');
+        this.debug('Using legacy medication workflow services');
       }
     }
 
@@ -235,7 +242,7 @@ class ServiceSelector {
           client = createApiClient(config);
       }
       if (this.debugMode) {
-        console.log(`Using new HttpClientFactory for ${clientType} client`);
+        this.debug(`Using new HttpClientFactory for ${clientType} client`);
       }
     } else {
       // Use legacy clients
@@ -256,7 +263,7 @@ class ServiceSelector {
           client = legacyApi;
       }
       if (this.debugMode) {
-        console.log(`Using legacy ${clientType} client`);
+        this.debug(`Using legacy ${clientType} client`);
       }
     }
 
@@ -404,7 +411,7 @@ class ServiceSelector {
   clearAllCache() {
     this.serviceCache.clear();
     if (this.debugMode) {
-      console.log('All service cache cleared');
+      this.debug('All service cache cleared');
     }
   }
 

@@ -284,8 +284,11 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
     return filtered;
   }, [conditions, filter, searchTerm, dateFilter, verificationFilter, severityFilter, sortBySeverity]);
 
-  const activeCount = conditions.filter(c => isConditionActive(c)).length;
-  const resolvedCount = conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length;
+  // Memoize condition counts to avoid recalculating on every render
+  const { activeCount, resolvedCount } = useMemo(() => ({
+    activeCount: conditions.filter(c => isConditionActive(c)).length,
+    resolvedCount: conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length
+  }), [conditions]);
 
   return (
     <Paper
@@ -817,9 +820,13 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
-  // Resolve medication references
+  // Resolve medication references - memoize the filtered array
+  const medicationsForResolver = useMemo(() => 
+    medications?.filter(med => med && med.id) || [],
+  [medications]);
+  
   const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(
-    medications?.filter(med => med && med.id) || []
+    medicationsForResolver
   );
   
   // Clinical workflow context for events
@@ -929,16 +936,22 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     }
   };
 
-  const filteredMedications = medications.filter(med => {
-    const medicationStatus = getMedicationStatus(med);
-    return filter === 'all' || medicationStatus === filter;
-  });
+  // Memoize filtered medications to avoid recalculating on every render
+  const filteredMedications = useMemo(() => {
+    return medications.filter(med => {
+      const medicationStatus = getMedicationStatus(med);
+      return filter === 'all' || medicationStatus === filter;
+    });
+  }, [medications, filter]);
 
-  const activeCount = medications.filter(m => isMedicationActive(m)).length;
-  const stoppedCount = medications.filter(m => {
-    const status = getMedicationStatus(m);
-    return status === FHIR_STATUS_VALUES.MEDICATION.STOPPED || status === FHIR_STATUS_VALUES.MEDICATION.COMPLETED;
-  }).length;
+  // Memoize medication counts to avoid recalculating on every render
+  const { activeCount, stoppedCount } = useMemo(() => ({
+    activeCount: medications.filter(m => isMedicationActive(m)).length,
+    stoppedCount: medications.filter(m => {
+      const status = getMedicationStatus(m);
+      return status === FHIR_STATUS_VALUES.MEDICATION.STOPPED || status === FHIR_STATUS_VALUES.MEDICATION.COMPLETED;
+    }).length
+  }), [medications]);
 
   return (
     <Paper
@@ -1703,12 +1716,18 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
 // Social History Component
 const SocialHistory = ({ observations, patientId, department }) => {
   const theme = useTheme();
-  const socialObs = observations.filter(o => 
-    o.category?.[0]?.coding?.[0]?.code === 'social-history'
-  );
-
-  const smokingStatus = socialObs.find(o => o.code?.coding?.[0]?.code === '72166-2');
-  const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
+  
+  // Memoize social history filtering to avoid recalculating on every render
+  const { socialObs, smokingStatus, alcoholUse } = useMemo(() => {
+    const social = observations.filter(o => 
+      o.category?.[0]?.coding?.[0]?.code === 'social-history'
+    );
+    return {
+      socialObs: social,
+      smokingStatus: social.find(o => o.code?.coding?.[0]?.code === '72166-2'),
+      alcoholUse: social.find(o => o.code?.coding?.[0]?.code === '74013-4')
+    };
+  }, [observations]);
 
   return (
     <Paper
