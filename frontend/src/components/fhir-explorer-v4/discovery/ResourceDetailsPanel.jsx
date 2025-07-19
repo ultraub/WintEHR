@@ -5,7 +5,7 @@
  * Includes resource data, metadata, relationships, and actions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   Box,
   Paper,
@@ -616,4 +616,4 @@ function ResourceDetailsPanel({
 const CompareIcon = LinkIcon;
 const RouteIcon = RelationshipIcon;
 
-export default ResourceDetailsPanel;
+export default memo(ResourceDetailsPanel);

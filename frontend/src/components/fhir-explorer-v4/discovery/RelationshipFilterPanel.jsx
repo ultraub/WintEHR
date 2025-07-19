@@ -5,7 +5,7 @@
  * Supports filtering by resource type, date range, relationship type, and depth.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   Box,
   Paper,
@@ -480,4 +480,4 @@ function RelationshipFilterPanel({
   );
 }
 
-export default RelationshipFilterPanel;
+export default memo(RelationshipFilterPanel);

@@ -44,6 +44,7 @@ import DashboardHome from './DashboardHome';
 import ResourceCatalog from '../discovery/ResourceCatalog';
 import SchemaExplorer from '../discovery/SchemaExplorer';
 import RelationshipMapper from '../discovery/RelationshipMapper';
+import RelationshipMapperErrorBoundary from '../discovery/RelationshipMapperErrorBoundary';
 import VisualQueryBuilder from '../query-building/VisualQueryBuilder';
 import NaturalLanguageInterface from '../query-building/NaturalLanguageInterface';
 import QueryPlayground from '../query-building/QueryPlayground';
@@ -317,7 +318,11 @@ function FHIRExplorerApp() {
           case DISCOVERY_VIEWS.SCHEMA:
             return <SchemaExplorer onNavigate={handleModeChange} useFHIRData={() => fhirData} />;
           case DISCOVERY_VIEWS.RELATIONSHIPS:
-            return <RelationshipMapper onNavigate={handleModeChange} useFHIRData={() => fhirData} />;
+            return (
+              <RelationshipMapperErrorBoundary>
+                <RelationshipMapper onNavigate={handleModeChange} useFHIRData={() => fhirData} />
+              </RelationshipMapperErrorBoundary>
+            );
           default:
             return <ResourceCatalog onNavigate={handleModeChange} useFHIRData={() => fhirData} />;
         }

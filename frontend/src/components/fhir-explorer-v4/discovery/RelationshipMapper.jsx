@@ -5,7 +5,7 @@
  * Shows actual relationships from the FHIR data using the backend API
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import {
   Box,
   Typography,
@@ -139,6 +139,13 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // State management
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingStates, setLoadingStates] = useState({
+    relationships: false,
+    statistics: false,
+    search: false,
+    pathFinding: false,
+    export: false
+  });
   const [currentResource, setCurrentResource] = useState(null);
   const [relationshipData, setRelationshipData] = useState(null);
   const [visibleNodeTypes, setVisibleNodeTypes] = useState(new Set());
@@ -152,6 +159,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [showStatistics, setShowStatistics] = useState(false);
   const [statistics, setStatistics] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
   const [showDetailsPanel, setShowDetailsPanel] = useState(true);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
@@ -182,6 +190,22 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
   const resources = fhirData?.resources || {};
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+  
+  // Auto-search on debounced query change
+  useEffect(() => {
+    if (debouncedSearchQuery && relationshipData) {
+      handleSearch();
+    }
+  }, [debouncedSearchQuery, relationshipData, handleSearch]);
 
   // Fetch relationship schema on mount and load initial data
   useEffect(() => {
@@ -221,15 +245,20 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Fetch statistics
   const fetchStatistics = async () => {
     try {
-      const stats = await fhirRelationshipService.getRelationshipStatistics();
+      setLoadingStates(prev => ({ ...prev, statistics: true }));
+      const stats = await retryWithBackoff(async () => {
+        return await fhirRelationshipService.getRelationshipStatistics();
+      });
       setStatistics(stats);
     } catch (err) {
-      // Error fetching statistics
+      // Error fetching statistics - non-critical, don't show error
+    } finally {
+      setLoadingStates(prev => ({ ...prev, statistics: false }));
     }
   };
 
-  // Apply filters to visualization data
-  const getFilteredData = useCallback(() => {
+  // Memoize filtered data to avoid recalculation on every render
+  const filteredData = useMemo(() => {
     if (!relationshipData || Object.keys(activeFilters).length === 0) {
       return relationshipData;
     }
@@ -280,21 +309,49 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Use ref to store the latest initialization function
   const initializeVisualizationRef = useRef(null);
   
+  // Retry mechanism for API calls
+  const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
+    try {
+      return await fn();
+    } catch (error) {
+      if (retries === 0) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryWithBackoff(fn, retries - 1, delay * 2);
+    }
+  };
+
   // Load relationships for a resource
   const loadRelationships = useCallback(async (resourceType, resourceId, depth = 2) => {
-    setLoading(true);
+    if (!resourceType || !resourceId) {
+      setError('Invalid resource type or ID');
+      return;
+    }
+
+    setLoadingStates(prev => ({ ...prev, relationships: true }));
     setError(null);
 
     try {
-      // Fetch relationships from API
-      const data = await fhirRelationshipService.discoverRelationships(
-        resourceType, 
-        resourceId, 
-        { depth, includeCounts: true }
-      );
+      // Fetch relationships from API with retry
+      const data = await retryWithBackoff(async () => {
+        return await fhirRelationshipService.discoverRelationships(
+          resourceType, 
+          resourceId, 
+          { depth, includeCounts: true }
+        );
+      });
+
+      if (!data || !data.nodes) {
+        throw new Error('Invalid response format from API');
+      }
 
       // Transform to D3 format
       const d3Data = fhirRelationshipService.transformToD3Format(data);
+      
+      // Validate D3 data
+      if (!d3Data.nodes || d3Data.nodes.length === 0) {
+        setError('No relationships found for this resource');
+        return;
+      }
       
       setRelationshipData(d3Data);
       setCurrentResource({ resourceType, resourceId, display: data.source.display });
@@ -304,19 +361,28 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       setVisibleNodeTypes(nodeTypes);
 
       // Initialize visualization after a short delay to ensure DOM is ready
-      console.log('Initializing visualization with data:', d3Data);
       setTimeout(() => {
         if (svgRef.current && initializeVisualizationRef.current) {
-          const filteredData = getFilteredData() || d3Data;
-          initializeVisualizationRef.current(filteredData);
+          const dataToVisualize = filteredData || d3Data;
+          initializeVisualizationRef.current(dataToVisualize);
         }
       }, 100);
     } catch (err) {
-      setError(`Failed to load relationships: ${err.message}`);
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to load relationships';
+      setError(errorMessage);
+      
+      // Log error for debugging
+      if (err.response?.status === 404) {
+        setError('Resource not found. Please check the resource ID.');
+      } else if (err.response?.status === 403) {
+        setError('Access denied. Please check your permissions.');
+      } else if (err.response?.status >= 500) {
+        setError('Server error. Please try again later.');
+      }
     } finally {
-      setLoading(false);
+      setLoadingStates(prev => ({ ...prev, relationships: false }));
     }
-  }, []);
+  }, [filteredData]);
 
   // Apply layout to nodes
   const applyLayout = (layout, data, simulation) => {
@@ -624,13 +690,10 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Re-render visualization when filters change
   useEffect(() => {
-    if (relationshipData && svgRef.current && initializeVisualizationRef.current) {
-      const filteredData = getFilteredData();
-      if (filteredData) {
-        initializeVisualizationRef.current(filteredData);
-      }
+    if (relationshipData && svgRef.current && initializeVisualizationRef.current && filteredData) {
+      initializeVisualizationRef.current(filteredData);
     }
-  }, [activeFilters, relationshipData, getFilteredData]);
+  }, [filteredData]);
 
   // Add resize observer to handle container size changes
   useEffect(() => {
@@ -767,13 +830,15 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     if (!source || !target) return;
     
     try {
-      setLoading(true);
+      setLoadingStates(prev => ({ ...prev, pathFinding: true }));
       const [sourceType, sourceId] = source.id.split('/');
       const [targetType, targetId] = target.id.split('/');
       
-      const paths = await fhirRelationshipService.findRelationshipPaths(
-        sourceType, sourceId, targetType, targetId, 3
-      );
+      const paths = await retryWithBackoff(async () => {
+        return await fhirRelationshipService.findRelationshipPaths(
+          sourceType, sourceId, targetType, targetId, 3
+        );
+      });
       
       setDiscoveredPaths(paths);
       if (paths.paths && paths.paths.length > 0) {
@@ -782,10 +847,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         highlightPath(paths.paths[0]);
       }
     } catch (error) {
-      console.error('Error finding paths:', error);
       setError('Failed to find paths between resources');
     } finally {
-      setLoading(false);
+      setLoadingStates(prev => ({ ...prev, pathFinding: false }));
     }
   };
 
@@ -877,75 +941,101 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   };
 
   // Export as image
-  const exportAsImage = () => {
+  const exportAsImage = async () => {
     if (!svgRef.current) return;
     
-    const svg = svgRef.current;
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    
-    canvas.width = svg.clientWidth;
-    canvas.height = svg.clientHeight;
-    
-    img.onload = () => {
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+    try {
+      setLoadingStates(prev => ({ ...prev, export: true }));
       
-      canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `relationship-map-${new Date().toISOString()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      });
-    };
+      const svg = svgRef.current;
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      canvas.width = svg.clientWidth;
+      canvas.height = svg.clientHeight;
     
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      img.onload = () => {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `relationship-map-${new Date().toISOString()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setLoadingStates(prev => ({ ...prev, export: false }));
+        });
+      };
+      
+      img.onerror = () => {
+        setLoadingStates(prev => ({ ...prev, export: false }));
+        setError('Failed to export visualization');
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    } catch (error) {
+      setLoadingStates(prev => ({ ...prev, export: false }));
+      setError('Failed to export visualization');
+    }
   };
 
   // Handle search
-  const handleSearch = () => {
-    if (!searchQuery || !relationshipData) return;
+  const handleSearch = useCallback(() => {
+    if (!debouncedSearchQuery || !relationshipData) return;
     
-    const query = searchQuery.toLowerCase();
-    const matchingNodes = relationshipData.nodes.filter(node => 
-      node.id.toLowerCase().includes(query) ||
-      node.display?.toLowerCase().includes(query) ||
-      node.resourceType.toLowerCase().includes(query)
-    );
-    
-    if (matchingNodes.length > 0) {
-      // Select first matching node
-      const firstMatch = matchingNodes[0];
-      setSelectedNode(firstMatch);
-      setSelectedNodes(new Set([firstMatch.id]));
-      updateNodeSelection(new Set([firstMatch.id]));
+    try {
+      setLoadingStates(prev => ({ ...prev, search: true }));
       
-      // Focus on the node
-      if (svgRef.current && zoomRef.current) {
-        const svg = d3.select(svgRef.current);
-        const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
-        if (!node.empty()) {
-          const transform = d3.zoomTransform(svg.node());
-          const x = firstMatch.x * transform.k + transform.x;
-          const y = firstMatch.y * transform.k + transform.y;
-          const targetX = svgRef.current.clientWidth / 2 - x;
-          const targetY = svgRef.current.clientHeight / 2 - y;
-          
-          svg.transition().duration(750).call(
-            zoomRef.current.transform,
-            d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
-          );
+      const query = debouncedSearchQuery.toLowerCase();
+      const matchingNodes = relationshipData.nodes.filter(node => 
+        node.id.toLowerCase().includes(query) ||
+        node.display?.toLowerCase().includes(query) ||
+        node.resourceType.toLowerCase().includes(query)
+      );
+      
+      if (matchingNodes.length > 0) {
+        // Select first matching node
+        const firstMatch = matchingNodes[0];
+        setSelectedNode(firstMatch);
+        setSelectedNodes(new Set([firstMatch.id]));
+        updateNodeSelection(new Set([firstMatch.id]));
+        
+        // Focus on the node
+        if (svgRef.current && zoomRef.current) {
+          const svg = d3.select(svgRef.current);
+          const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
+          if (!node.empty()) {
+            const transform = d3.zoomTransform(svg.node());
+            const x = firstMatch.x * transform.k + transform.x;
+            const y = firstMatch.y * transform.k + transform.y;
+            const targetX = svgRef.current.clientWidth / 2 - x;
+            const targetY = svgRef.current.clientHeight / 2 - y;
+            
+            svg.transition().duration(750).call(
+              zoomRef.current.transform,
+              d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
+            );
+          }
         }
+      } else {
+        // Show temporary message when no matches found
+        setError(`No resources found matching "${debouncedSearchQuery}"`);
+        setTimeout(() => setError(null), 3000);
       }
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Search failed. Please try again.');
+    } finally {
+      setLoadingStates(prev => ({ ...prev, search: false }));
     }
-  };
+  }, [debouncedSearchQuery, relationshipData]);
 
   // Handle node hover
   const handleNodeHover = (event, node) => {
@@ -968,9 +1058,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       .style('opacity', d => connectedNodes.has(d.id) ? 1 : 0.3);
     
     svg.selectAll('.link')
-      .style('opacity', d => 
-        d.source.id === node.id || d.target.id === node.id ? 1 : 0.1
-      );
+      .style('opacity', (d) => {
+        return d.source.id === node.id || d.target.id === node.id ? 1 : 0.1;
+      });
   };
 
   // Duplicate applyLayout removed - using the one defined earlier
@@ -982,7 +1072,18 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Search for resources - already defined earlier
 
   // Render statistics
-  const renderStatistics = () => {
+  const renderStatistics = useCallback(() => {
+    if (loadingStates.statistics) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+          <CircularProgress />
+          <Typography variant="body2" color="textSecondary" sx={{ ml: 2 }}>
+            Loading statistics...
+          </Typography>
+        </Box>
+      );
+    }
+    
     if (!statistics) return null;
 
     return (
@@ -1025,7 +1126,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         </CardContent>
       </Card>
     );
-  };
+  }, [loadingStates.statistics, statistics]);
 
   return (
     <Box sx={{ 
@@ -1324,7 +1425,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             flexDirection: 'column',
             transition: 'all 0.3s ease'
           }}>
-            {loading && (
+            {(loadingStates.relationships || loadingStates.pathFinding || loadingStates.search || loadingStates.export) && (
               <Box sx={{ 
                 position: 'absolute', 
                 top: 0, 
@@ -1332,12 +1433,19 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 right: 0, 
                 bottom: 0, 
                 display: 'flex', 
+                flexDirection: 'column',
                 alignItems: 'center', 
                 justifyContent: 'center',
-                bgcolor: 'rgba(255,255,255,0.8)',
+                bgcolor: 'rgba(255,255,255,0.9)',
                 zIndex: 10
               }}>
-                <CircularProgress />
+                <CircularProgress size={48} sx={{ mb: 2 }} />
+                <Typography variant="body1" color="textSecondary">
+                  {loadingStates.relationships && 'Loading relationships...'}
+                  {loadingStates.pathFinding && 'Finding paths between resources...'}
+                  {loadingStates.search && 'Searching resources...'}
+                  {loadingStates.export && 'Exporting visualization...'}
+                </Typography>
               </Box>
             )}
 
@@ -1694,4 +1802,4 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   );
 }
 
-export default RelationshipMapper;
+export default memo(RelationshipMapper);
