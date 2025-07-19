@@ -7,24 +7,23 @@ import { Box, Typography, Button, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import EnhancedClinicalLayout from './layouts/EnhancedClinicalLayout';
 import ClinicalWorkspaceEnhanced from './ClinicalWorkspaceEnhanced';
+import { AuthContext } from '../../contexts/AuthContext';
 
 // Mock user for testing
 const mockUser = {
   id: 'demo-user',
   name: 'Demo User',
   email: 'demo@example.com',
-  role: 'Physician'
+  role: 'Physician',
+  username: 'demo'
 };
-
-// Create a minimal auth context
-const AuthContext = React.createContext();
 
 // Mock auth context provider
 const MockAuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = React.useState(false);
   
-  // Create a mock auth context value
+  // Create a mock auth context value that matches the real AuthContext interface
   const mockAuthValue = {
     currentUser: mockUser,
     user: mockUser,
@@ -33,7 +32,10 @@ const MockAuthProvider = ({ children }) => {
     toggleTheme: () => setIsDarkMode(!isDarkMode),
     login: () => Promise.resolve(),
     logout: () => navigate('/login'),
-    loading: false
+    loading: false,
+    error: null,
+    refreshToken: () => Promise.resolve(),
+    checkSession: () => Promise.resolve()
   };
 
   return (

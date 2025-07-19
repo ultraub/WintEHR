@@ -76,7 +76,7 @@ const EnhancedClinicalLayout = ({
     setLoading(true);
     try {
       // Load patient resource
-      const patientResource = await fhirService.readResource('Patient', patientId);
+      const patientResource = await fhirService.read('Patient', patientId);
       setPatient(patientResource);
       
       // Load clinical data bundle
