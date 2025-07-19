@@ -86,7 +86,9 @@ export const WebSocketProvider = ({ children }) => {
       const token = localStorage.getItem('auth_token');
       
       // Check if we're in simple mode (no JWT required)
-      const isSimpleMode = !token || token === 'null' || token === 'undefined';
+      // In development, treat session tokens as simple mode since backend has JWT_ENABLED=false
+      const isSessionToken = token && token.startsWith('training-session-');
+      const isSimpleMode = !token || token === 'null' || token === 'undefined' || isSessionToken;
       
       if (isSimpleMode) {
         // Try connecting without authentication for simple mode
@@ -241,7 +243,8 @@ export const WebSocketProvider = ({ children }) => {
   useEffect(() => {
     // Check if we're in simple auth mode (no JWT)
     const token = localStorage.getItem('auth_token');
-    const isSimpleMode = !token || token === 'null' || token === 'undefined';
+    const isSessionToken = token && token.startsWith('training-session-');
+    const isSimpleMode = !token || token === 'null' || token === 'undefined' || isSessionToken;
     
     if (user || isSimpleMode) {
       connect();

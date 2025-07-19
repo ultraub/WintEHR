@@ -61,6 +61,18 @@ docker exec emr-backend python scripts/active/synthea_master.py full \
 
 echo -e "${GREEN}✅ Successfully loaded $PATIENT_COUNT patients!${NC}"
 
+# Apply database index optimizations if not already done
+echo -e "${BLUE}Ensuring database indexes are optimized...${NC}"
+if docker exec emr-postgres psql -U emr_user -d emr_db -c "SELECT 1 FROM pg_indexes WHERE indexname = 'idx_search_params_patient_composite'" | grep -q "1 row"; then
+    echo -e "${GREEN}✅ Performance indexes already applied${NC}"
+else
+    echo -e "${BLUE}Applying performance index optimizations...${NC}"
+    docker exec -i emr-postgres psql -U emr_user -d emr_db < backend/scripts/optimize_indexes.sql 2>/dev/null || {
+        echo -e "${YELLOW}⚠️  Some indexes already exist or had warnings, but continuing...${NC}"
+    }
+    echo -e "${GREEN}✅ Database indexes optimized${NC}"
+fi
+
 # Populate FHIR references
 echo -e "${BLUE}Populating FHIR references for relationship visualization...${NC}"
 if docker exec emr-backend test -f /app/scripts/populate_references_urn_uuid.py; then

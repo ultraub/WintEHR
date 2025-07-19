@@ -246,6 +246,14 @@ initialize_database() {
     }
     
     success "Database initialized"
+    
+    # Apply performance index optimizations
+    log "Applying database index optimizations..."
+    docker exec -i emr-postgres psql -U emr_user -d emr_db < backend/scripts/optimize_indexes.sql 2>/dev/null || {
+        warning "Index optimization had warnings but continuing..."
+    }
+    
+    success "Database indexes optimized"
 }
 
 # Function to generate patient data

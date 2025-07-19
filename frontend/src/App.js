@@ -11,6 +11,9 @@ import { getClinicalContext, applyDepartmentTheme, applyShiftTheme } from './the
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppProviders } from './providers/AppProviders';
 
+// Import quick login utility for development
+import './utils/quickLogin';
+
 // Create a context for medical theme toggling
 export const MedicalThemeContext = React.createContext();
 

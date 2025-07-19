@@ -2,9 +2,13 @@
 
 ## Quick Access
 
-To test the enhanced clinical workspace UI improvements without dealing with authentication:
+### Recommended: Use QuickLogin (Fixed!)
+1. Open browser console (F12)
+2. Run: `quickLogin('demo', 'password')`
+3. Refresh the page
+4. Navigate to: http://localhost:3000/patients/8c2d5e9b-0717-9616-beb9-21296a5b547d/clinical
 
-### Demo Mode URL
+### Alternative: Demo Mode URL
 Navigate to: http://localhost:3000/clinical-demo/8c2d5e9b-0717-9616-beb9-21296a5b547d
 
 Replace `8c2d5e9b-0717-9616-beb9-21296a5b547d` with any valid patient ID from your database.
@@ -43,11 +47,21 @@ The enhanced clinical workspace includes:
 - [ ] Test the breadcrumb navigation
 - [ ] Ensure proper loading states appear
 
-### Known Issues
+### Fixed Issues
 
-- This is a demo mode that bypasses authentication
-- Some features that require real authentication may not work
-- A warning banner appears at the top indicating demo mode
+- ✅ WebSocket connection now works properly with session tokens
+- ✅ Patient data loads correctly
+- ✅ Authentication via quickLogin() is fully functional
+
+### Diagnostic Panel
+
+A diagnostic panel appears in the bottom right corner showing:
+- Authentication status
+- WebSocket connection status
+- Patient data loading status
+- FHIR resource status
+
+This helps debug any remaining issues.
 
 ### Normal Access
 

@@ -308,15 +308,21 @@ asyncio.run(ensure_patient_search_params())
         
         # Optimize database indexes for better query performance
         echo -e "${BLUE}Optimizing database indexes...${NC}"
-        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
-            cd /app
-            if [ -f scripts/optimize_database_indexes.py ]; then
-                python scripts/optimize_database_indexes.py
-                echo 'Database indexes optimized'
-            else
-                echo 'Index optimization script not found - using default indexes'
-            fi
-        " || echo -e "${YELLOW}⚠️ Database index optimization failed - queries may be slower${NC}"
+        # Wait for postgres to be ready
+        until docker exec emr-postgres pg_isready -U emr_user -d emr_db >/dev/null 2>&1; do
+            sleep 1
+        done
+        
+        # Check if performance indexes already exist
+        if docker exec emr-postgres psql -U emr_user -d emr_db -c "SELECT 1 FROM pg_indexes WHERE indexname = 'idx_search_params_patient_composite' LIMIT 1" 2>/dev/null | grep -q "1 row"; then
+            echo -e "${GREEN}✅ Performance indexes already applied${NC}"
+        else
+            # Apply the SQL optimization script
+            docker exec -i emr-postgres psql -U emr_user -d emr_db < backend/scripts/optimize_indexes.sql 2>/dev/null || {
+                echo -e "${YELLOW}⚠️ Some indexes already exist or had warnings, but continuing...${NC}"
+            }
+            echo -e "${GREEN}✅ Database indexes optimized${NC}"
+        fi
     fi
     
     # Always fix CDS hooks schema

@@ -9,7 +9,7 @@ import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
 import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
 import ClinicalWorkspaceEnhanced from '../components/clinical/ClinicalWorkspaceEnhanced';
-import ClinicalWorkspaceDemo from '../components/clinical/ClinicalWorkspaceDemo';
+import SimpleClinicalDemo from '../components/clinical/SimpleClinicalDemo';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
 import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
@@ -43,7 +43,7 @@ export const router = createBrowserRouter([
   // Demo route for testing enhanced clinical workspace without auth
   {
     path: '/clinical-demo/:id',
-    element: <ClinicalWorkspaceDemo />
+    element: <SimpleClinicalDemo />
   },
   {
     path: '/',

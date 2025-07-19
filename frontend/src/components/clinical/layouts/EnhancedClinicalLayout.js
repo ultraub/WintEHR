@@ -18,6 +18,7 @@ import CompactPatientHeader from '../ui/CompactPatientHeader';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import fhirServiceCompat from '../../../core/fhir/services/fhirService';
+import DiagnosticPanel from '../DiagnosticPanel';
 
 const fhirService = fhirServiceCompat;
 
@@ -79,33 +80,42 @@ const EnhancedClinicalLayout = ({
       const patientResource = await fhirService.read('Patient', patientId);
       setPatient(patientResource);
       
-      // Load clinical data bundle
-      const bundle = await fhirService.fetchPatientBundle(patientId, false, 'summary');
+      // Load conditions
+      const conditionsBundle = await fhirService.search('Condition', {
+        patient: patientId,
+        _count: 100
+      });
+      const conditions = conditionsBundle?.entry?.map(e => e.resource) || [];
       
-      if (bundle?.entry) {
-        const resources = bundle.entry.map(e => e.resource);
-        
-        // Extract conditions
-        const conditions = resources.filter(r => r.resourceType === 'Condition');
-        
-        // Extract medications
-        const medications = resources.filter(r => r.resourceType === 'MedicationRequest');
-        
-        // Extract allergies
-        const allergies = resources.filter(r => r.resourceType === 'AllergyIntolerance');
-        
-        // Extract last encounter
-        const encounters = resources.filter(r => r.resourceType === 'Encounter')
-          .sort((a, b) => new Date(b.period?.start) - new Date(a.period?.start));
-        
-        setPatientData({
-          conditions,
-          medications,
-          allergies,
-          vitals: {}, // Would be extracted from Observations
-          lastEncounter: encounters[0] || null
-        });
-      }
+      // Load medications
+      const medicationsBundle = await fhirService.search('MedicationRequest', {
+        patient: patientId,
+        _count: 100
+      });
+      const medications = medicationsBundle?.entry?.map(e => e.resource) || [];
+      
+      // Load allergies
+      const allergiesBundle = await fhirService.search('AllergyIntolerance', {
+        patient: patientId,
+        _count: 100
+      });
+      const allergies = allergiesBundle?.entry?.map(e => e.resource) || [];
+      
+      // Load encounters
+      const encountersBundle = await fhirService.search('Encounter', {
+        patient: patientId,
+        _count: 10,
+        _sort: '-date'
+      });
+      const encounters = encountersBundle?.entry?.map(e => e.resource) || [];
+      
+      setPatientData({
+        conditions,
+        medications,
+        allergies,
+        vitals: {}, // Would be extracted from Observations
+        lastEncounter: encounters[0] || null
+      });
     } catch (error) {
       console.error('Failed to load patient data:', error);
     } finally {
@@ -240,6 +250,9 @@ const EnhancedClinicalLayout = ({
           })}
         </Box>
       </Box>
+      
+      {/* Diagnostic Panel - Temporary for debugging */}
+      <DiagnosticPanel />
     </Box>
   );
 };
