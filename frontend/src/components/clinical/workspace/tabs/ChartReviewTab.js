@@ -783,7 +783,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         onSave={handleSaveProblem}
         onDelete={handleDeleteProblem}
         condition={selectedCondition}
-        patientId={patientId}
       />
       
       <Menu

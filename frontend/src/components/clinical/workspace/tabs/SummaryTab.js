@@ -906,6 +906,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       </ListItemIcon>
                       <ListItemText 
                         primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
+                        secondaryTypographyProps={{ component: 'div' }}
                         secondary={
                           <Box>
                             <Typography variant="body2" color="text.secondary">

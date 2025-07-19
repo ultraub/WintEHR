@@ -79,6 +79,11 @@ const EnhancedBaseResourceDialog = ({
   showClinicalStatus = true,
   autoFocusFirst = true,
   enableSmartValidation = true,
+  // Deprecated props - will be removed in future versions
+  patientId,
+  showCDSHooks,
+  showResourceInfo,
+  enableAutoSave,
   ...dialogProps
 }) => {
   const theme = useTheme();

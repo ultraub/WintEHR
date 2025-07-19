@@ -191,6 +191,57 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const fhirData = useFHIRData?.();
   const resources = fhirData?.resources || {};
 
+  // Handle search
+  const handleSearch = useCallback(() => {
+    if (!debouncedSearchQuery || !relationshipData) return;
+    
+    try {
+      setLoadingStates(prev => ({ ...prev, search: true }));
+      
+      const query = debouncedSearchQuery.toLowerCase();
+      const matchingNodes = relationshipData.nodes.filter(node => 
+        node.id.toLowerCase().includes(query) ||
+        node.display?.toLowerCase().includes(query) ||
+        node.resourceType.toLowerCase().includes(query)
+      );
+      
+      if (matchingNodes.length > 0) {
+        // Select first matching node
+        const firstMatch = matchingNodes[0];
+        setSelectedNode(firstMatch);
+        setSelectedNodes(new Set([firstMatch.id]));
+        updateNodeSelection(new Set([firstMatch.id]));
+        
+        // Focus on the node
+        if (svgRef.current && zoomRef.current) {
+          const svg = d3.select(svgRef.current);
+          const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
+          if (!node.empty()) {
+            const transform = d3.zoomTransform(svg.node());
+            const x = firstMatch.x * transform.k + transform.x;
+            const y = firstMatch.y * transform.k + transform.y;
+            const targetX = svgRef.current.clientWidth / 2 - x;
+            const targetY = svgRef.current.clientHeight / 2 - y;
+            
+            svg.transition().duration(750).call(
+              zoomRef.current.transform,
+              d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
+            );
+          }
+        }
+      } else {
+        // Show temporary message when no matches found
+        setError(`No resources found matching "${debouncedSearchQuery}"`);
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Search failed. Please try again.');
+    } finally {
+      setLoadingStates(prev => ({ ...prev, search: false }));
+    }
+  }, [debouncedSearchQuery, relationshipData]);
+
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -986,57 +1037,6 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     }
   };
 
-  // Handle search
-  const handleSearch = useCallback(() => {
-    if (!debouncedSearchQuery || !relationshipData) return;
-    
-    try {
-      setLoadingStates(prev => ({ ...prev, search: true }));
-      
-      const query = debouncedSearchQuery.toLowerCase();
-      const matchingNodes = relationshipData.nodes.filter(node => 
-        node.id.toLowerCase().includes(query) ||
-        node.display?.toLowerCase().includes(query) ||
-        node.resourceType.toLowerCase().includes(query)
-      );
-      
-      if (matchingNodes.length > 0) {
-        // Select first matching node
-        const firstMatch = matchingNodes[0];
-        setSelectedNode(firstMatch);
-        setSelectedNodes(new Set([firstMatch.id]));
-        updateNodeSelection(new Set([firstMatch.id]));
-        
-        // Focus on the node
-        if (svgRef.current && zoomRef.current) {
-          const svg = d3.select(svgRef.current);
-          const node = svg.select(`[data-node-id="${firstMatch.id}"]`);
-          if (!node.empty()) {
-            const transform = d3.zoomTransform(svg.node());
-            const x = firstMatch.x * transform.k + transform.x;
-            const y = firstMatch.y * transform.k + transform.y;
-            const targetX = svgRef.current.clientWidth / 2 - x;
-            const targetY = svgRef.current.clientHeight / 2 - y;
-            
-            svg.transition().duration(750).call(
-              zoomRef.current.transform,
-              d3.zoomIdentity.translate(targetX, targetY).scale(transform.k)
-            );
-          }
-        }
-      } else {
-        // Show temporary message when no matches found
-        setError(`No resources found matching "${debouncedSearchQuery}"`);
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      setError('Search failed. Please try again.');
-    } finally {
-      setLoadingStates(prev => ({ ...prev, search: false }));
-    }
-  }, [debouncedSearchQuery, relationshipData]);
-
   // Handle node hover
   const handleNodeHover = (event, node) => {
     setHoveredNode(node);
@@ -1413,8 +1413,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           </Grid>
 
           {/* Visualization Panel */}
-          <Grid item xs={12} md={
-            showFilterPanel 
+          <Grid item xs={12} md={showFilterPanel 
               ? (showDetailsPanel && selectedNode ? 5 : 8) 
               : (showDetailsPanel && selectedNode ? 6 : 9)
           } sx={{ 

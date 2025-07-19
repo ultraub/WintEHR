@@ -2,7 +2,7 @@
  * Imaging Tab Component
  * Display and manage medical imaging studies with DICOM viewer integration
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Grid,

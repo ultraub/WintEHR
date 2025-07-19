@@ -2,7 +2,7 @@
  * Encounters Tab Component
  * Display and manage patient encounters
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Paper,
