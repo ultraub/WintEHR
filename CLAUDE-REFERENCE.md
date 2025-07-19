@@ -1,6 +1,11 @@
 # CLAUDE-REFERENCE.md - MedGenEMR Detailed Implementation Reference
 
-This document contains comprehensive implementation details, patterns, and troubleshooting guides for the MedGenEMR system. It serves as the detailed reference companion to the main [CLAUDE.md](./CLAUDE.md) quick reference guide.
+**Last Updated**: 2025-01-19  
+**Version**: 2.0
+
+This document contains comprehensive implementation details, patterns, and troubleshooting guides for the MedGenEMR (WintEHR) system. It serves as the detailed reference companion to the main [CLAUDE.md](./CLAUDE.md) quick reference guide.
+
+> **Quick Links**: [PROJECT_INDEX.md](./PROJECT_INDEX.md) | [CLAUDE.md](./CLAUDE.md) | [CLAUDE-AGENTS.md](./CLAUDE-AGENTS.md)
 
 ## Table of Contents
 
@@ -9,10 +14,12 @@ This document contains comprehensive implementation details, patterns, and troub
 3. [Implementation Patterns](#implementation-patterns)
 4. [Clinical Workflows](#clinical-workflows)
 5. [Data Management](#data-management)
-6. [Troubleshooting Guide](#troubleshooting-guide)
-7. [Agent System Details](#agent-system-details)
-8. [Testing Guidelines](#testing-guidelines)
-9. [Documentation System](#documentation-system)
+6. [State Management Patterns](#state-management-patterns)
+7. [Troubleshooting Guide](#troubleshooting-guide)
+8. [Agent System Details](#agent-system-details)
+9. [Testing Guidelines](#testing-guidelines)
+10. [Documentation System](#documentation-system)
+11. [Recent Improvements](#recent-improvements)
 
 ---
 
@@ -25,16 +32,21 @@ Every task **MUST** be broken into subtasks using TodoWrite following this patte
 #### Starting a Task
 
 ```javascript
-// Use TodoWrite to create task structure
+// Use TodoWrite to create task structure with priorities
 TodoWrite([
-  { content: "Research Phase: Review module documentation", status: "pending" },
-  { content: "Research Phase: Check context7 for latest patterns", status: "pending" },
-  { content: "Research Phase: Update outdated documentation", status: "pending" },
-  { content: "Implementation: [specific subtask]", status: "pending" },
-  { content: "Review: First pass - check completeness", status: "pending" },
-  { content: "Review: Second pass - verify integration", status: "pending" },
-  { content: "Finalize: Git commit and push", status: "pending" },
-  { content: "Finalize: Update all documentation", status: "pending" }
+  { content: "Research Phase: Review module documentation", status: "pending", priority: "high" },
+  { content: "Research Phase: Check context7 for latest patterns", status: "pending", priority: "high" },
+  { content: "Research Phase: Analyze existing implementations", status: "pending", priority: "high" },
+  { content: "Research Phase: Update outdated documentation", status: "pending", priority: "medium" },
+  { content: "Implementation: Core functionality", status: "pending", priority: "high" },
+  { content: "Implementation: Error handling and edge cases", status: "pending", priority: "high" },
+  { content: "Implementation: Loading states and UI feedback", status: "pending", priority: "medium" },
+  { content: "Implementation: Integration with existing modules", status: "pending", priority: "high" },
+  { content: "Testing: Test with multiple patients", status: "pending", priority: "high" },
+  { content: "Review: First pass - check completeness", status: "pending", priority: "high" },
+  { content: "Review: Second pass - verify integration", status: "pending", priority: "high" },
+  { content: "Finalize: Git commit with conventional message", status: "pending", priority: "medium" },
+  { content: "Finalize: Update all affected documentation", status: "pending", priority: "medium" }
 ]);
 ```
 
@@ -44,10 +56,13 @@ For EVERY task, create these research subtasks:
 
 - [ ] Research affected modules in `docs/modules/`
 - [ ] Review related documentation files
-- [ ] Use `context7` to check latest library patterns/standards
+- [ ] Use `context7` to check latest React/FastAPI patterns
+- [ ] Check existing implementations for patterns to follow
+- [ ] Identify integration points with other modules
 - [ ] Web search for current best practices if needed
-- [ ] Document any discrepancies found
+- [ ] Document any discrepancies or outdated patterns found
 - [ ] Update outdated documentation BEFORE coding
+- [ ] Review recent commits for context (`git log --oneline -20`)
 
 #### 2. Implementation Phase
 
@@ -151,30 +166,59 @@ git commit -m "docs: Update pharmacy module with interaction patterns"
 ### Frontend: Context + Events + Progressive Loading
 
 ```javascript
-// State Management
-const { resources, loading } = useFHIRResource();
+// State Management with Error Handling
+const { resources, loading, error } = useFHIRResource();
 
-// Cross-Module Events
+// Cross-Module Events with Error Handling
 const { publish, subscribe } = useClinicalWorkflow();
-await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
+try {
+  await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
+} catch (error) {
+  showError('Failed to publish order event');
+}
 
-// Progressive Loading
+// Progressive Loading with Priorities
+// Priority levels: 'critical', 'important', 'optional'
 await fetchPatientBundle(patientId, false, 'critical');
+
+// WebSocket Integration
+const { subscribe: wsSubscribe, lastMessage } = useWebSocket();
+wsSubscribe('patient-updates', ['Observation', 'Condition'], [patientId]);
 ```
 
 ### Backend: Repository + Service + DI
 
 ```python
-# Repository Pattern
+# Repository Pattern with Complete Implementation
 class FHIRStorageEngine:
-    async def create_resource(self, resource_type: str, data: dict)
+    async def create_resource(self, resource_type: str, data: dict) -> dict:
+        # 1. Validate FHIR resource against R4 spec
+        # 2. Store in fhir.resources table
+        # 3. Extract and index search parameters
+        # 4. Update patient compartments
+        # 5. Create audit log entry
+        # 6. Return created resource with id and meta
 
-# Service Layer
+# Service Layer with Business Logic
 class PharmacyService:
-    async def dispense_medication(self, data: dict)
+    def __init__(self, storage: FHIRStorageEngine):
+        self.storage = storage
+    
+    async def dispense_medication(self, request_id: str, data: dict) -> dict:
+        # 1. Validate prescription exists and is active
+        # 2. Check for drug interactions
+        # 3. Create MedicationDispense resource
+        # 4. Update MedicationRequest status
+        # 5. Publish dispense event
+        # 6. Return dispense record
 
-# Dependency Injection
-async def endpoint(storage: FHIRStorageEngine = Depends(get_storage)):
+# Dependency Injection with Type Hints
+async def endpoint(
+    request_data: dict,
+    storage: FHIRStorageEngine = Depends(get_storage),
+    current_user: dict = Depends(get_current_user)
+) -> JSONResponse:
+    # Implementation with proper error handling
 ```
 
 ### Caching Strategy
@@ -313,31 +357,183 @@ useEffect(() => {
 
 ## 📊 Data Management
 
+### Deployment Process
+
+```bash
+# Primary deployment method - fresh-deploy.sh
+./fresh-deploy.sh                    # Default: 20 patients, dev mode
+./fresh-deploy.sh --patients 50      # Custom patient count
+./fresh-deploy.sh --mode production --patients 100  # Production mode
+
+# Alternative: Master deployment script
+./scripts/master-deploy.sh           # Full modular deployment
+./scripts/master-deploy.sh --production --patients=100
+```
+
 ### Synthea Integration
 
 ```bash
-cd backend
-python scripts/synthea_master.py full --count 10      # Complete workflow
-python scripts/synthea_master.py generate --count 20  # Generate only
-python scripts/synthea_master.py import               # Import to database
-python scripts/synthea_master.py validate             # Validate data
+# Direct synthea_master.py usage (inside container)
+docker exec emr-backend python scripts/active/synthea_master.py full --count 20
+docker exec emr-backend python scripts/active/synthea_master.py wipe
+docker exec emr-backend python scripts/active/synthea_master.py validate
+
+# Load patients script (wrapper)
+./load-patients.sh 20                # Add 20 patients
+./load-patients.sh --wipe 50        # Clear and load 50 patients
 ```
 
 ### DICOM Generation
 
 ```bash
-python scripts/generate_dicom_for_studies.py  # Multi-slice CT/MR studies
+# Generate multi-slice medical imaging studies
+docker exec emr-backend python scripts/generate_dicom_for_studies.py
 ```
+
+### Database Tables
+
+All 6 FHIR tables are created by `init_database_definitive.py`:
+
+| Table | Purpose | Auto-Population |
+|-------|---------|-----------------|
+| `fhir.resources` | Main resource storage | During import |
+| `fhir.resource_history` | Version tracking | On create/update |
+| `fhir.search_params` | Search indexes | During import + indexing |
+| `fhir.references` | Resource relationships | On create/update |
+| `fhir.compartments` | Patient compartments | Post-import script |
+| `fhir.audit_logs` | Audit trail | Requires implementation |
 
 ### Data Import Patterns
 
 ```python
-# Bulk FHIR import
+# Bulk FHIR import with proper error handling
 from fhir.core.storage import FHIRStorageEngine
 
 storage = FHIRStorageEngine()
 for bundle in bundles:
-    await storage.import_bundle(bundle)
+    try:
+        result = await storage.import_bundle(bundle)
+        logger.info(f"Imported bundle with {len(result)} resources")
+    except Exception as e:
+        logger.error(f"Failed to import bundle: {e}")
+        # Continue with next bundle
+```
+
+## 🔄 State Management Patterns
+
+### Frontend State Architecture
+
+```javascript
+// Centralized Loading State Management
+import { useLoadingState } from '@/hooks/useLoadingState';
+
+const MyComponent = () => {
+  const { setGlobalLoading, setComponentLoading } = useLoadingState();
+  
+  // Component-level loading
+  setComponentLoading('myComponent', true);
+  
+  // Global loading for major operations
+  setGlobalLoading(true);
+};
+```
+
+### Context Hierarchy
+
+```javascript
+// 1. AuthContext - Authentication state
+// 2. PatientContext - Current patient selection
+// 3. ClinicalWorkflowContext - Event system
+// 4. WebSocketContext - Real-time updates
+// 5. FHIRContext - Resource management
+
+// Proper context ordering in App.js
+<AuthProvider>
+  <PatientProvider>
+    <ClinicalWorkflowProvider>
+      <WebSocketProvider>
+        <FHIRProvider>
+          <App />
+        </FHIRProvider>
+      </WebSocketProvider>
+    </ClinicalWorkflowProvider>
+  </PatientProvider>
+</AuthProvider>
+```
+
+### Resource Loading Patterns
+
+```javascript
+// Progressive Loading Strategy
+const loadPatientData = async (patientId) => {
+  // Phase 1: Critical data (immediate display)
+  const critical = await fetchPatientBundle(patientId, false, 'critical');
+  setCriticalData(critical);
+  
+  // Phase 2: Important data (enhanced view)
+  const important = await fetchPatientBundle(patientId, false, 'important');
+  setImportantData(important);
+  
+  // Phase 3: Optional data (complete view)
+  const optional = await fetchPatientBundle(patientId, false, 'optional');
+  setOptionalData(optional);
+};
+```
+
+### Event-Driven State Updates
+
+```javascript
+// Publisher component
+const OrdersTab = () => {
+  const { publish } = useClinicalWorkflow();
+  
+  const createOrder = async (orderData) => {
+    const order = await fhirService.createResource('ServiceRequest', orderData);
+    await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+      orderId: order.id,
+      patientId: order.subject.reference,
+      type: order.category?.[0]?.coding?.[0]?.code
+    });
+  };
+};
+
+// Subscriber component
+const ResultsTab = () => {
+  const { subscribe } = useClinicalWorkflow();
+  
+  useEffect(() => {
+    const unsubscribe = subscribe(CLINICAL_EVENTS.ORDER_PLACED, async (event) => {
+      if (event.type === 'laboratory') {
+        // Create pending result placeholder
+        await refreshResults();
+      }
+    });
+    return unsubscribe;
+  }, []);
+};
+```
+
+### Error Boundary Implementation
+
+```javascript
+// Global error boundary
+class ErrorBoundary extends React.Component {
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    // Send to monitoring service
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback error={this.state.error} />;
+    }
+    return this.props.children;
+  }
+}
 ```
 
 ## 🐛 Troubleshooting Guide
@@ -347,15 +543,19 @@ for bundle in bundles:
 | Issue | Solution |
 |-------|----------|
 | Export 'X' not found | Import from `@mui/icons-material` not `@mui/material` |
-| Objects not valid as React child | Use `obj?.text || obj?.coding?.[0]?.display` |
-| Medications show "Unknown" | Use `useMedicationResolver` hook |
-| Missing patient data | Check `resources` not `result.entry` |
-| CORS errors | Ensure backend running: `docker-compose ps` |
-| WebSocket fails | Check auth token, ensure JWT_ENABLED matches |
-| Export fails (large data) | Implement pagination or chunking |
-| CDS hook validation | Check hook ID uniqueness |
+| Objects not valid as React child | Use `obj?.text \|\| obj?.coding?.[0]?.display` |
+| Medications show "Unknown" | Use `useMedicationResolver` hook with proper error handling |
+| Missing patient data | Check `resources` not `result.entry`, verify search params indexed |
+| CORS errors | Ensure backend running: `docker-compose ps`, check nginx.conf |
+| WebSocket connection fails | Check auth token, ensure JWT_ENABLED matches frontend/backend |
+| Export fails (large data) | Implement pagination or streaming for large datasets |
+| CDS hook validation fails | Check hook ID uniqueness, validate against CDS Hooks spec |
 | Dynamic catalog 404 | Service bypasses proxy, uses direct backend connection |
 | High memory usage (500MB+) | Fixed: Reduced resource counts, added cleanup mechanisms |
+| Loading states stuck | Check for unhandled promise rejections, add finally blocks |
+| Race conditions | Use proper async/await, implement request debouncing |
+| Search returns empty | Run `verify_search_params_after_import.py --fix` |
+| Compartments missing | Run `populate_compartments.py` after data import |
 
 ### Debugging Techniques
 
@@ -504,8 +704,86 @@ git status docs/ --porcelain
    - State management
    - Integration with contexts
 
+## 🆕 Recent Improvements
+
+### Clinical Enhancements (2025)
+
+#### Comprehensive Clinical Catalog System
+- **Dynamic Catalogs**: Real-time extraction from patient data
+- **57 Conditions**: With frequency counts from actual diagnoses
+- **27 Medications**: Including dosage patterns and usage statistics
+- **47 Lab Tests**: With calculated 5th-95th percentile reference ranges
+- **91 Procedures**: Frequency-based ordering from patient records
+
+#### FHIR Relationship Visualization
+- **RelationshipMapper Component**: Visual graph of resource connections
+- **Interactive Navigation**: Click to explore related resources
+- **Automatic Updates**: Real-time sync with resource changes
+
+#### Enhanced State Management
+- **Centralized Loading States**: Global and component-level tracking
+- **Race Condition Prevention**: Proper request queuing and debouncing
+- **Error Recovery**: Automatic retry with exponential backoff
+
+### Performance Optimizations
+
+#### Database Index Optimization
+```sql
+-- New composite indexes for common queries
+CREATE INDEX idx_patient_date ON fhir.resources(resource_type, patient_id, date);
+CREATE INDEX idx_status_patient ON fhir.resources(status, patient_id);
+```
+
+#### Progressive Resource Loading
+- **3-Phase Loading**: Critical → Important → Optional
+- **Bundle Support**: Efficient multi-resource fetching
+- **Smart Caching**: TTL-based with invalidation
+
+#### Search Parameter Improvements
+- **Consolidated Indexing**: Single script for all resources
+- **Auto-Fix Capability**: Detect and repair missing parameters
+- **Performance Monitoring**: Real-time indexing health checks
+
+### UI/UX Improvements
+
+#### Modern Clinical Workspace
+- **Redesigned Patient Portal**: Intuitive tab-based navigation
+- **Skeleton Loading**: Better perceived performance
+- **Responsive Design**: Full mobile support
+- **Accessibility**: WCAG 2.1 AA compliance
+
+#### WebSocket Enhancements
+- **Connection Pooling**: Reduced overhead
+- **Automatic Reconnection**: With exponential backoff
+- **Message Queuing**: No lost updates during reconnection
+
+### Infrastructure Updates
+
+#### Deployment Improvements
+- **fresh-deploy.sh**: Streamlined deployment process
+- **Parallel Processing**: Faster data import and indexing
+- **Health Checks**: Comprehensive validation post-deployment
+
+#### Development Experience
+- **Hot Module Replacement**: Faster frontend development
+- **Improved Error Messages**: Clear, actionable feedback
+- **Enhanced Logging**: Structured logs with correlation IDs
+
+### Code Quality Improvements
+
+#### Testing Infrastructure
+- **E2E Test Suite**: Playwright-based clinical workflows
+- **Integration Tests**: Cross-module interaction validation
+- **Performance Tests**: Automated performance regression detection
+
+#### Documentation Updates
+- **PROJECT_INDEX.md**: Central navigation guide
+- **Updated Module Docs**: Current as of 2025-01-19
+- **Interactive Examples**: Runnable code snippets
+
 ---
 
-**Last Updated**: 2025-01-17
+**Last Updated**: 2025-01-19  
+**Version**: 2.0
 
 For quick reference and critical rules, see [CLAUDE.md](./CLAUDE.md)

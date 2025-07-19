@@ -4,14 +4,20 @@
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
+**Last Updated**: 2025-01-19  
+**Version**: 2.0
+
 ## 🎯 Project Overview
 
-**WintEHR** is a production-ready Electronic Medical Records system with:
+**WintEHR** is a production-ready Electronic Medical Records system featuring:
 - Full FHIR R4 implementation (38 resource types)
-- Real-time clinical workflows (WebSocket + event-driven)
-- Dynamic clinical catalogs from actual patient data
-- DICOM imaging with multi-slice viewer
-- CDS Hooks with 10+ clinical rules
+- Real-time clinical workflows (WebSocket + event-driven architecture)
+- Dynamic clinical catalogs generated from actual patient data
+- DICOM medical imaging with multi-slice viewer
+- CDS Hooks integration with 10+ clinical decision support rules
+- Comprehensive clinical modules (Chart Review, Orders, Results, Pharmacy, Imaging)
+- Modern React 18 frontend with Material-UI
+- FastAPI backend with async Python and PostgreSQL
 
 ## 🚀 Quick Start
 
@@ -25,6 +31,9 @@
 
 # Alternative: Master deployment (full modular process)
 ./scripts/master-deploy.sh
+
+# Quick start for development
+./dev-start.sh
 ```
 
 ### Production Deployment
@@ -56,21 +65,55 @@ docker exec emr-backend python scripts/monitor_search_params.py
 
 ### 1. Task Management Protocol
 **EVERY task MUST**:
-1. ✅ Start with research phase (check docs, modules, patterns)
-2. ✅ Break into subtasks using TodoWrite
-3. ✅ End with two-pass review + git commit + doc updates
+1. ✅ Start with research phase (check docs, modules, patterns, context7)
+2. ✅ Break into subtasks using TodoWrite with clear phases
+3. ✅ Implement completely - no partial features or TODOs
+4. ✅ End with two-pass code review + git commit + doc updates
 
 ### 2. Data Standards
-**ALWAYS**: Use Synthea FHIR data | Test with real patients | Handle nulls | Use fhirService.js  
-**NEVER**: Mock patients | Hardcode IDs | Use array indexes | Skip validation
+**ALWAYS**: 
+- Use Synthea-generated FHIR data (never mock data)
+- Test with multiple real patients from database
+- Handle all null/undefined cases gracefully
+- Use fhirService.js for all FHIR operations
+- Validate resources against FHIR R4 spec
+
+**NEVER**: 
+- Create mock/fake patient data
+- Hardcode resource IDs or references
+- Use array indexes for lookups
+- Skip data validation
+- Assume data exists without checking
 
 ### 3. Code Quality
-**ALWAYS**: Complete features | Loading states | Error handling | Event patterns  
-**NEVER**: console.log() | Partial implementations | Direct coupling | Skip integration
+**ALWAYS**: 
+- Implement complete features (no TODOs or placeholders)
+- Add proper loading states and skeletons
+- Implement comprehensive error handling
+- Use event patterns for cross-module communication
+- Keep code clean, simple, and readable
+- Follow existing patterns in codebase
+
+**NEVER**: 
+- Leave console.log() statements in code
+- Ship partial implementations
+- Create direct coupling between modules
+- Skip integration testing
+- Add unnecessary complexity
 
 ### 4. Documentation
-**ALWAYS**: Update affected module docs | Cross-reference changes | Add dates  
-**NEVER**: Leave outdated docs | Skip documentation | Create unnecessary files
+**ALWAYS**: 
+- Update module docs immediately after changes
+- Cross-reference related documentation
+- Add dates to all updates (format: YYYY-MM-DD)
+- Document breaking changes prominently
+- Update integration guides when needed
+
+**NEVER**: 
+- Leave outdated documentation
+- Skip documentation updates
+- Create unnecessary documentation files
+- Document without testing first
 
 ## 📁 Project Structure
 
@@ -139,31 +182,63 @@ git commit -m "chore: Update deployment scripts"
 
 ### Frontend State Management
 ```javascript
-// Use contexts for complex state
-const { resources, loading } = useFHIRResource();
+// Use contexts for complex state management
+const { resources, loading, error } = useFHIRResource();
 const { publish, subscribe } = useClinicalWorkflow();
 
-// Progressive loading
-await fetchPatientBundle(patientId, false, 'critical');
+// Progressive loading with proper error handling
+try {
+  setLoading(true);
+  await fetchPatientBundle(patientId, false, 'critical');
+} catch (error) {
+  showError('Failed to load patient data');
+} finally {
+  setLoading(false);
+}
 ```
 
 ### Backend Services
 ```python
-# Repository pattern
+# Repository pattern with async/await
 class FHIRStorageEngine:
-    async def create_resource(self, resource_type: str, data: dict)
+    async def create_resource(self, resource_type: str, data: dict) -> dict:
+        # Validate FHIR resource
+        # Store in database
+        # Index search parameters
+        # Update compartments
+        # Return created resource
 
 # Dependency injection
-async def endpoint(storage: FHIRStorageEngine = Depends(get_storage)):
+async def endpoint(
+    storage: FHIRStorageEngine = Depends(get_storage)
+) -> JSONResponse:
+    # Implementation
 ```
 
-### Cross-Module Events
+### Cross-Module Event System
 ```javascript
-// Publisher
-await publish(CLINICAL_EVENTS.ORDER_PLACED, orderData);
+// Event types defined in constants
+import { CLINICAL_EVENTS } from '@/constants/clinicalEvents';
 
-// Subscriber
-subscribe(CLINICAL_EVENTS.ORDER_PLACED, handleOrder);
+// Publisher with error handling
+try {
+  await publish(CLINICAL_EVENTS.ORDER_PLACED, {
+    orderId: order.id,
+    patientId: patient.id,
+    timestamp: new Date().toISOString()
+  });
+} catch (error) {
+  console.error('Failed to publish event:', error);
+}
+
+// Subscriber with cleanup
+useEffect(() => {
+  const unsubscribe = subscribe(
+    CLINICAL_EVENTS.ORDER_PLACED, 
+    handleOrderPlaced
+  );
+  return () => unsubscribe();
+}, []);
 ```
 
 ## 🗄️ Database Architecture
@@ -290,11 +365,29 @@ GROUP BY r.resource_type;"
 
 | Module | Location | Key Features |
 |--------|----------|--------------|
-| Chart Review | `tabs/ChartReviewTab.js` | Problems, meds, allergies |
-| Orders | `tabs/OrdersTab.js` | CPOE, status tracking |
-| Results | `tabs/ResultsTab.js` | Labs, trends, alerts |
-| Pharmacy | `pages/PharmacyDashboard.js` | Dispensing, queue |
-| Imaging | `tabs/ImagingTab.js` | DICOM viewer |
+| Chart Review | `components/tabs/ChartReviewTab.js` | Problems list, medications, allergies, vitals |
+| Orders | `components/tabs/OrdersTab.js` | CPOE, order status tracking, clinical catalogs |
+| Results | `components/tabs/ResultsTab.js` | Lab results, trends, critical alerts |
+| Pharmacy | `pages/PharmacyDashboard.js` | Prescription queue, dispensing workflow |
+| Imaging | `components/tabs/ImagingTab.js` | DICOM viewer, multi-slice support |
+
+## 🆕 Recent Improvements (2025)
+
+### Clinical Enhancements
+- **Comprehensive Clinical Catalog System**: Dynamic medication and lab catalogs from patient data
+- **FHIR Relationship Visualization**: New RelationshipMapper component for resource connections
+- **Enhanced WebSocket**: Connection pooling and automatic reconnection
+- **Improved State Management**: Centralized loading states, better error handling
+
+### Performance Optimizations
+- **Database Index Optimization**: Improved query performance for clinical searches
+- **Progressive Resource Loading**: Fetch only needed data with bundle support
+- **Efficient Search Parameter Indexing**: Consolidated indexing during deployment
+
+### UI/UX Improvements
+- **Modern Clinical Workspace**: Redesigned patient portal with intuitive navigation
+- **Skeleton Loading States**: Better perceived performance during data fetching
+- **Responsive Design**: Full mobile support for clinical workflows
 
 ## 🔍 Where to Find Things
 
@@ -325,14 +418,32 @@ GROUP BY r.resource_type;"
 
 ## 📚 Additional Documentation
 
-- **Deployment Checklist**: [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) - Complete deployment guide
-- **Build Process Analysis**: [docs/BUILD_PROCESS_ANALYSIS.md](docs/BUILD_PROCESS_ANALYSIS.md) - Deep dive into build system
-- **Search Parameter Summary**: [docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)
-- **Detailed Reference**: [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md) - Patterns, troubleshooting, architecture
-- **API Documentation**: [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)
-- **Module Guides**: [docs/modules/](docs/modules/)
-- **Integration Guide**: [docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)
+### Core Documentation
+- **[PROJECT_INDEX.md](./PROJECT_INDEX.md)** - Comprehensive project navigation guide
+- **[CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)** - Detailed patterns, troubleshooting, architecture
+- **[CLAUDE-AGENTS.md](./CLAUDE-AGENTS.md)** - AI agent system documentation
+
+### Deployment & Architecture
+- **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Complete deployment guide
+- **[docs/BUILD_PROCESS_ANALYSIS.md](docs/BUILD_PROCESS_ANALYSIS.md)** - Deep dive into build system
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture overview
+
+### Technical References
+- **[docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)** - API endpoint documentation
+- **[docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)** - Search indexing details
+- **[docs/modules/](docs/modules/)** - Individual module guides
+- **[docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)** - Integration patterns
+
+## 🛡️ Best Practices Summary
+
+1. **Always Research First**: Check documentation, use context7, understand patterns
+2. **Test with Real Data**: Use Synthea patients, never mock data
+3. **Complete Implementation**: No TODOs, full error handling, proper loading states
+4. **Document Everything**: Update docs immediately, add dates, cross-reference
+5. **Follow Patterns**: Use existing patterns, don't reinvent wheels
+6. **Think Integration**: Consider how modules interact, use event system
+7. **Prioritize Safety**: Patient data integrity is paramount
 
 ---
 
-**Remember**: Patient safety and data integrity are paramount. When in doubt, check the detailed documentation or ask for clarification.
+**Remember**: Patient safety and data integrity are paramount. When in doubt, check the detailed documentation or ask for clarification. This is a healthcare system - quality and completeness are non-negotiable.
