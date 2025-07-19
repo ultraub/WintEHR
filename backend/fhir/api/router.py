@@ -27,6 +27,7 @@ from fhir.core.validators.synthea import SyntheaFHIRValidator
 from fhir.core.operations import OperationHandler
 from fhir.core.search.basic import SearchParameterHandler
 from fhir.core.search.composite import CompositeSearchHandler
+from fhir.core.utils import search_all_resources
 from database import get_db_session
 from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
 import logging
@@ -568,14 +569,14 @@ async def get_type_history(
     if _since:
         try:
             since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid _since parameter format: {str(e)}")
     
     if _at:
         try:
             at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid _at parameter format: {str(e)}")
     
     # Calculate pagination
     count = _count or 100
@@ -673,14 +674,14 @@ async def get_instance_history(
     if _since:
         try:
             since = datetime.fromisoformat(_since.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _since parameter format")
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid _since parameter format: {str(e)}")
     
     if _at:
         try:
             at = datetime.fromisoformat(_at.replace('Z', '+00:00'))
-        except:
-            raise HTTPException(status_code=400, detail="Invalid _at parameter format")
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid _at parameter format: {str(e)}")
     
     # Calculate pagination
     count = _count or 100
@@ -1347,11 +1348,11 @@ async def _process_has_parameters(target_resource_type: str, has_params: List[st
         search_handler = SearchParameterHandler(storage._get_search_parameter_definitions())
         parsed_params, _ = search_handler.parse_search_params(ref_resource_type, search_params)
         
-        matching_resources, _ = await storage.search_resources(
+        # Use paginated search to handle large result sets
+        matching_resources = await search_all_resources(
+            storage,
             ref_resource_type,
-            parsed_params,
-            offset=0,
-            limit=10000  # TODO: Handle large result sets
+            parsed_params
         )
         
         # Extract IDs of target resources referenced by matching resources

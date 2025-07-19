@@ -378,6 +378,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   // Subscribe to clinical events to refresh summary when data changes
   useEffect(() => {
     const unsubscribers = [];
+    let timeoutId = null;
 
     // Subscribe to events that should trigger a refresh
     const eventsToWatch = [
@@ -397,7 +398,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         if (data.patientId === patientId || data.resourceType) {
           setRefreshing(true);
           // Use a timeout to prevent rapid successive calls
-          setTimeout(() => loadDashboardData(), 100);
+          if (timeoutId) clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => loadDashboardData(), 100);
         }
       });
       unsubscribers.push(unsubscribe);
@@ -406,8 +408,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     // Cleanup subscriptions on unmount
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [subscribe, patientId]); // Removed loadDashboardData dependency to prevent loops
+  }, [subscribe, patientId, loadDashboardData]); // Include all dependencies
 
 
   const handleRefresh = useCallback(() => {

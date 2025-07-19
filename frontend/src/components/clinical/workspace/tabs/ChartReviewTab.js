@@ -108,6 +108,7 @@ import ClinicalCard from '../../common/ClinicalCard';
 import ClinicalDataTable from '../../common/ClinicalDataTable';
 import MetricCard from '../../common/MetricCard';
 import { getClinicalContext } from '../../../../themes/clinicalThemeUtils';
+import { useTimeout } from '../../../../hooks/useTimeout';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport, department }) => {
@@ -1803,19 +1804,19 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     department
   );
   
-  const [loading, setLoading] = useState(true);
+  // REMOVED local loading state - using context isLoading instead
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   // Removed refreshKey - now using unified resource system
+  
+  // Timeout hooks for auto-hiding success messages
+  const successTimeout = useTimeout(() => setSaveSuccess(false), 3000);
 
   // Use centralized CDS alerts
   const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
 
-  useEffect(() => {
-    // Data is already loaded by FHIRResourceContext
-    setLoading(false);
-  }, []);
+  // REMOVED problematic useEffect that set loading to false immediately
 
   // Handle CDS alerts notification count
   useEffect(() => {
@@ -1937,7 +1938,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       
       // Show success message
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      successTimeout.set();
       
       return result;
     } catch (error) {
@@ -1985,7 +1986,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       
       // Show success message
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      successTimeout.set();
       
       // Trigger refresh of the resources
       await loadOptimizedResources();
@@ -2036,7 +2037,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       
       // Show success message
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      successTimeout.set();
       
       // Trigger refresh of the resources
       await loadOptimizedResources();
@@ -2187,13 +2188,13 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       i.patient?.reference === `Patient/${patientId}`
     ), [resources.Immunization, patientId]);
     
-  const [loadingOptimized, setLoadingOptimized] = useState(false);
+  // REMOVED loadingOptimized state - using context loading state
 
   // Optimized resource loading with batch requests and server-side filtering
   const loadOptimizedResources = useCallback(async (filters = {}) => {
     if (!patientId) return;
     
-    setLoadingOptimized(true);
+    // No need to set loading state - context handles this
     
     try {
       // Build batch bundle for all resources
@@ -2271,8 +2272,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     } catch (error) {
       // Error loading optimized resources - resources are already available from context
       // Fallback to context-provided resources
-    } finally {
-      setLoadingOptimized(false);
     }
   }, [patientId, searchResources, searchWithInclude, getPatientResources]);
 
@@ -2284,8 +2283,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
   
   // Resources are now loaded automatically via optimized loading
 
-  // Show skeleton loading while data is loading
-  if (loadingOptimized || isLoading || loading) {
+  // Show skeleton loading while data is loading - now using only context loading state
+  if (isLoading) {
     return (
       <Box sx={{ p: 3 }}>
         <Grid container spacing={isMobile ? 2 : 3}>
@@ -2316,6 +2315,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
             </Card>
           </Grid>
         </Grid>
+      </Box>
+    );
+  }
+
+  // Ensure patient data is loaded
+  if (!currentPatient) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="info">
+          No patient selected. Please select a patient to view their chart.
+        </Alert>
       </Box>
     );
   }

@@ -2,7 +2,7 @@
  * Medication Reconciliation Dialog Component
  * Allows clinicians to reconcile patient medications across different sources
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -64,13 +64,7 @@ const MedicationReconciliationDialog = ({
 
   const { getMedicationDisplay } = useMedicationResolver(currentMedications);
 
-  useEffect(() => {
-    if (open && patientId) {
-      fetchReconciliationData();
-    }
-  }, [open, patientId, encounterId]);
-
-  const fetchReconciliationData = async () => {
+  const fetchReconciliationData = useCallback(async () => {
     setAnalyzing(true);
     setError(null);
     setReconciliationData(null);
@@ -93,13 +87,19 @@ const MedicationReconciliationDialog = ({
     } finally {
       setAnalyzing(false);
     }
-  };
+  }, [patientId, encounterId]);
 
-  const refreshAnalysis = () => {
+  useEffect(() => {
+    if (open && patientId) {
+      fetchReconciliationData();
+    }
+  }, [open, patientId, encounterId, fetchReconciliationData]);
+
+  const refreshAnalysis = useCallback(() => {
     // Clear cache and refetch
     medicationReconciliationService.clearCache(patientId);
     fetchReconciliationData();
-  };
+  }, [patientId, fetchReconciliationData]);
 
   const handleToggleChange = (changeId) => {
     setSelectedChanges(prev => {

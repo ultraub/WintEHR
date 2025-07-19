@@ -598,11 +598,12 @@ class OperationHandler:
                 search_handler = SearchParameterHandler(self.storage._get_search_parameter_definitions())
                 parsed_params, _ = search_handler.parse_search_params(res_type, raw_search_params)
                 
-                # Search for resources
-                resources, _ = await self.storage.search_resources(
+                # Search for resources using paginated search
+                from fhir.core.utils import search_all_resources
+                resources = await search_all_resources(
+                    self.storage,
                     res_type,
-                    parsed_params,
-                    limit=10000  # High limit to get all resources
+                    parsed_params
                 )
                 
                 logging.info(f"$everything: Found {len(resources)} {res_type} resources")

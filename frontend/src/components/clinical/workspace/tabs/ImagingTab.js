@@ -392,8 +392,9 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     };
   }, [patientId, subscribe]); // Removed loadImagingStudies dependency to avoid repeated subscriptions
 
-  // Filter studies
-  const filteredStudies = studies.filter(study => {
+  // Filter studies - memoized for performance
+  const filteredStudies = useMemo(() => {
+    return studies.filter(study => {
     // Modality filter
     if (filterModality !== 'all') {
       const modality = study.modality?.[0]?.code || study.modality;
@@ -443,15 +444,18 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     }
 
     return true;
-  });
+    });
+  }, [studies, filterModality, filterStatus, filterPeriod, searchTerm]);
 
-  // Group studies by modality
-  const studiesByModality = filteredStudies.reduce((acc, study) => {
-    const modality = study.modality?.[0]?.code || study.modality || 'Unknown';
-    if (!acc[modality]) acc[modality] = [];
-    acc[modality].push(study);
-    return acc;
-  }, {});
+  // Group studies by modality - memoized for performance
+  const studiesByModality = useMemo(() => {
+    return filteredStudies.reduce((acc, study) => {
+      const modality = study.modality?.[0]?.code || study.modality || 'Unknown';
+      if (!acc[modality]) acc[modality] = [];
+      acc[modality].push(study);
+      return acc;
+    }, {});
+  }, [filteredStudies]);
 
   const handleViewStudy = async (study) => {
     setViewerDialog({ open: true, study });
@@ -587,7 +591,10 @@ const ImagingTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  const modalities = [...new Set(studies.map(s => s.modality?.[0]?.code || s.modality).filter(Boolean))];
+  // Extract unique modalities - memoized for performance
+  const modalities = useMemo(() => {
+    return [...new Set(studies.map(s => s.modality?.[0]?.code || s.modality).filter(Boolean))];
+  }, [studies]);
 
   const handleStudyDownload = async (study) => {
     try {

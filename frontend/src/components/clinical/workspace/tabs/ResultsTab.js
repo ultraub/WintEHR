@@ -534,11 +534,13 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
 
   // Enhanced critical value monitoring with detection service
   useEffect(() => {
+    let cancelled = false;
+    
     const monitorCriticalValues = async () => {
       const currentObservations = tabValue === 0 ? labObservations.observations : 
                                  tabValue === 1 ? vitalObservations.observations : [];
       
-      if (currentObservations && currentObservations.length > 0) {
+      if (currentObservations && currentObservations.length > 0 && !cancelled) {
         try {
           // Check for critical values in current observations
           const criticalAssessments = [];
@@ -555,7 +557,7 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
 
           // Create alerts for new critical values
           for (const { observation, assessment } of criticalAssessments) {
-            if (!alertedResults.has(observation.id)) {
+            if (!alertedResults.has(observation.id) && !cancelled) {
               await criticalValueDetectionService.createCriticalValueAlert(
                 observation,
                 assessment,
@@ -564,15 +566,17 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
               );
               
               // Show critical value alert dialog for immediate priority
-              if (assessment.priority === 'immediate' && !criticalAlertOpen) {
+              if (assessment.priority === 'immediate' && !criticalAlertOpen && !cancelled) {
                 setCriticalResult(observation);
                 setCriticalAlertOpen(true);
               }
               
               // Mark as alerted
-              const newAlertedResults = new Set(alertedResults);
-              newAlertedResults.add(observation.id);
-              setAlertedResults(newAlertedResults);
+              if (!cancelled) {
+                const newAlertedResults = new Set(alertedResults);
+                newAlertedResults.add(observation.id);
+                setAlertedResults(newAlertedResults);
+              }
             }
           }
 
@@ -630,7 +634,9 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
             });
             
             // Update alerted results state
-            setAlertedResults(newAlertedResults);
+            if (!cancelled) {
+              setAlertedResults(newAlertedResults);
+            }
           }
         } catch (error) {
           // Error monitoring critical values - alerts may not be generated
@@ -639,6 +645,11 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
     };
 
     monitorCriticalValues();
+    
+    // Cleanup function to cancel async operations
+    return () => {
+      cancelled = true;
+    };
   }, [tabValue, labObservations.observations, vitalObservations.observations, patientId, createCriticalAlert, publish, alertedResults, criticalAlertOpen]);
 
   const handleViewDetails = (result) => {

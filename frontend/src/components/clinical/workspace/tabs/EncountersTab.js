@@ -258,7 +258,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   const [filterType, setFilterType] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
+  // REMOVED local loading state - using context isLoading instead
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
@@ -277,10 +277,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
     startDate: new Date().toISOString().split('T')[0],
     startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
   });
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
 
   // Subscribe to encounter-related events
   useEffect(() => {
@@ -542,49 +538,75 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
   // Get encounters
   const encounters = getPatientResources(patientId, 'Encounter') || [];
 
-  // Filter encounters
-  const filteredEncounters = encounters.filter(encounter => {
-    // Type filter - use resilient utility
-    const matchesType = filterType === 'all' || 
-      getEncounterClass(encounter) === filterType;
+  // Filter encounters - memoized for performance
+  const filteredEncounters = useMemo(() => {
+    return encounters.filter(encounter => {
+      // Type filter - use resilient utility
+      const matchesType = filterType === 'all' || 
+        getEncounterClass(encounter) === filterType;
 
-    // Period filter
-    let matchesPeriod = true;
-    if (filterPeriod !== 'all' && encounter.period?.start) {
-      const startDate = parseISO(encounter.period.start);
-      const periodMap = {
-        '1m': subMonths(new Date(), 1),
-        '3m': subMonths(new Date(), 3),
-        '6m': subMonths(new Date(), 6),
-        '1y': subMonths(new Date(), 12)
-      };
-      matchesPeriod = isWithinInterval(startDate, {
-        start: periodMap[filterPeriod],
-        end: new Date()
-      });
-    }
+      // Period filter
+      let matchesPeriod = true;
+      if (filterPeriod !== 'all' && encounter.period?.start) {
+        const startDate = parseISO(encounter.period.start);
+        const periodMap = {
+          '1m': subMonths(new Date(), 1),
+          '3m': subMonths(new Date(), 3),
+          '6m': subMonths(new Date(), 6),
+          '1y': subMonths(new Date(), 12)
+        };
+        matchesPeriod = isWithinInterval(startDate, {
+          start: periodMap[filterPeriod],
+          end: new Date()
+        });
+      }
 
-    // Search filter
-    const matchesSearch = !searchTerm || 
-      getEncounterTypeLabel(encounter).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      encounter.reasonCode?.some(r => 
-        (r.text || r.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      // Search filter
+      const matchesSearch = !searchTerm || 
+        getEncounterTypeLabel(encounter).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        encounter.reasonCode?.some(r => 
+          (r.text || r.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
-    return matchesType && matchesPeriod && matchesSearch;
-  });
+      return matchesType && matchesPeriod && matchesSearch;
+    });
+  }, [encounters, filterType, filterPeriod, searchTerm]);
 
-  // Sort by date descending
-  const sortedEncounters = [...filteredEncounters].sort((a, b) => {
-    const dateA = new Date(a.period?.start || 0);
-    const dateB = new Date(b.period?.start || 0);
-    return dateB - dateA;
-  });
+  // Sort by date descending - memoized for performance
+  const sortedEncounters = useMemo(() => {
+    return [...filteredEncounters].sort((a, b) => {
+      const dateA = new Date(a.period?.start || 0);
+      const dateB = new Date(b.period?.start || 0);
+      return dateB - dateA;
+    });
+  }, [filteredEncounters]);
 
-  if (loading) {
+  // Memoize encounter statistics to avoid recalculating on every render
+  const encounterStats = useMemo(() => ({
+    total: sortedEncounters.length,
+    completed: encounters.filter(e => getEncounterStatus(e) === 'finished').length,
+    inProgress: encounters.filter(e => getEncounterStatus(e) === 'in-progress').length
+  }), [encounters, sortedEncounters]);
+
+  // Use context's isLoading state - this properly reflects when data is actually loading
+  if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4 }}>
         <CircularProgress />
+        <Typography sx={{ ml: 2 }} variant="body1" color="text.secondary">
+          Loading encounters...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Handle case where patient data might not be loaded yet
+  if (!currentPatient) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Alert severity="info">
+          No patient selected. Please select a patient to view encounters.
+        </Alert>
       </Box>
     );
   }
@@ -685,15 +707,15 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       {/* Summary Stats */}
       <Stack direction="row" spacing={2} mb={3}>
         <Chip 
-          label={`${sortedEncounters.length} Total Encounters`} 
+          label={`${encounterStats.total} Total Encounters`} 
           color="primary" 
         />
         <Chip 
-          label={`${encounters.filter(e => getEncounterStatus(e) === 'finished').length} Completed`} 
+          label={`${encounterStats.completed} Completed`} 
           color="success" 
         />
         <Chip 
-          label={`${encounters.filter(e => getEncounterStatus(e) === 'in-progress').length} In Progress`} 
+          label={`${encounterStats.inProgress} In Progress`} 
           color="warning" 
         />
       </Stack>
