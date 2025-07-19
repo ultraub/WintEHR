@@ -38,8 +38,19 @@ class SearchCache:
         """
         Generate a cache key from resource type and search parameters.
         """
+        # Convert params to a serializable format
+        serializable_params = {}
+        for k, v in params.items():
+            if hasattr(v, 'isoformat'):  # datetime objects
+                serializable_params[k] = v.isoformat()
+            elif isinstance(v, (dict, list)):
+                # Convert nested structures
+                serializable_params[k] = str(v)
+            else:
+                serializable_params[k] = v
+        
         # Sort params for consistent keys
-        sorted_params = sorted(params.items())
+        sorted_params = sorted(serializable_params.items())
         key_string = f"{resource_type}:{json.dumps(sorted_params, sort_keys=True)}"
         # Use hash for shorter keys
         return hashlib.md5(key_string.encode()).hexdigest()

@@ -1993,24 +1993,7 @@ class FHIRStorageEngine:
         
         # Resource-specific parameters
         if resource_type == 'Patient':
-            # Gender
-            if 'gender' in resource_data:
-                params_to_extract.append({
-                    'param_name': 'gender',
-                    'param_type': 'token',
-                    'value_token_code': resource_data['gender']
-                })
-            
-            # Birth date
-            if 'birthDate' in resource_data:
-                birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d') if isinstance(resource_data['birthDate'], str) else resource_data['birthDate']
-                params_to_extract.append({
-                    'param_name': 'birthdate',
-                    'param_type': 'date',
-                    'value_date': birth_date
-                })
-            
-            # Identifiers
+            # 1. identifier
             if 'identifier' in resource_data:
                 for identifier in resource_data['identifier']:
                     if 'value' in identifier:
@@ -2021,22 +2004,208 @@ class FHIRStorageEngine:
                             'value_token_code': identifier['value']
                         })
             
-            # Names
+            # 2. name (composite search)
             if 'name' in resource_data:
                 for name in resource_data['name']:
+                    # Full name for general search
+                    name_parts = []
+                    if 'text' in name:
+                        params_to_extract.append({
+                            'param_name': 'name',
+                            'param_type': 'string',
+                            'value_string': name['text'].lower()
+                        })
+                    else:
+                        # Build from parts
+                        if 'given' in name:
+                            name_parts.extend(name['given'])
+                        if 'family' in name:
+                            name_parts.append(name['family'])
+                        if name_parts:
+                            full_name = ' '.join(name_parts)
+                            params_to_extract.append({
+                                'param_name': 'name',
+                                'param_type': 'string',
+                                'value_string': full_name.lower()
+                            })
+                    
+                    # Family name
                     if 'family' in name:
                         params_to_extract.append({
                             'param_name': 'family',
                             'param_type': 'string',
-                            'value_string': name['family']
+                            'value_string': name['family'].lower()
                         })
+                    
+                    # Given names
                     if 'given' in name:
                         for given in name['given']:
                             params_to_extract.append({
                                 'param_name': 'given',
                                 'param_type': 'string',
-                                'value_string': given
+                                'value_string': given.lower()
                             })
+                    
+                    # Phonetic search (simple lowercase for now)
+                    phonetic_parts = []
+                    if 'given' in name:
+                        phonetic_parts.extend([g.lower() for g in name['given']])
+                    if 'family' in name:
+                        phonetic_parts.append(name['family'].lower())
+                    if phonetic_parts:
+                        params_to_extract.append({
+                            'param_name': 'phonetic',
+                            'param_type': 'string',
+                            'value_string': ' '.join(phonetic_parts)
+                        })
+            
+            # 3. gender (token with system)
+            if 'gender' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'gender',
+                    'param_type': 'token',
+                    'value_token_system': 'http://hl7.org/fhir/administrative-gender',
+                    'value_token_code': resource_data['gender']
+                })
+            
+            # 4. birthdate (date)
+            if 'birthDate' in resource_data:
+                try:
+                    birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d')
+                    params_to_extract.append({
+                        'param_name': 'birthdate',
+                        'param_type': 'date',
+                        'value_date': birth_date
+                    })
+                except Exception as e:
+                    logging.warning(f"Could not parse birthDate: {resource_data['birthDate']} - {e}")
+            
+            # 5. deceased (token - boolean or dateTime)
+            if 'deceasedBoolean' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'deceased',
+                    'param_type': 'token',
+                    'value_token_code': 'true' if resource_data['deceasedBoolean'] else 'false'
+                })
+            elif 'deceasedDateTime' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'deceased',
+                    'param_type': 'token',
+                    'value_token_code': 'true'
+                })
+                try:
+                    death_date = datetime.fromisoformat(resource_data['deceasedDateTime'].replace('Z', '+00:00'))
+                    params_to_extract.append({
+                        'param_name': 'death-date',
+                        'param_type': 'date',
+                        'value_date': death_date
+                    })
+                except Exception as e:
+                    logging.warning(f"Could not parse deceasedDateTime: {resource_data['deceasedDateTime']} - {e}")
+            
+            # 6. address (string - any part of address)
+            if 'address' in resource_data:
+                for address in resource_data['address']:
+                    # Full address text
+                    if 'text' in address:
+                        params_to_extract.append({
+                            'param_name': 'address',
+                            'param_type': 'string',
+                            'value_string': address['text'].lower()
+                        })
+                    else:
+                        # Build from parts
+                        addr_parts = []
+                        if 'line' in address and isinstance(address['line'], list):
+                            addr_parts.extend(address['line'])
+                        for field in ['city', 'state', 'postalCode', 'country']:
+                            if field in address:
+                                addr_parts.append(address[field])
+                        if addr_parts:
+                            params_to_extract.append({
+                                'param_name': 'address',
+                                'param_type': 'string',
+                                'value_string': ' '.join(addr_parts).lower()
+                            })
+                    
+                    # Specific address components
+                    if 'city' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-city',
+                            'param_type': 'string',
+                            'value_string': address['city'].lower()
+                        })
+                    
+                    if 'state' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-state',
+                            'param_type': 'string',
+                            'value_string': address['state'].lower()
+                        })
+                    
+                    if 'postalCode' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-postalcode',
+                            'param_type': 'string',
+                            'value_string': address['postalCode']
+                        })
+                    
+                    if 'country' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-country',
+                            'param_type': 'string',
+                            'value_string': address['country'].lower()
+                        })
+            
+            # 7. telecom (token)
+            if 'telecom' in resource_data:
+                for telecom in resource_data['telecom']:
+                    if 'value' in telecom:
+                        params_to_extract.append({
+                            'param_name': 'telecom',
+                            'param_type': 'token',
+                            'value_token_system': telecom.get('system'),
+                            'value_token_code': telecom['value']
+                        })
+                        
+                        # Also index phone specifically
+                        if telecom.get('system') == 'phone':
+                            params_to_extract.append({
+                                'param_name': 'phone',
+                                'param_type': 'token',
+                                'value_token_code': telecom['value']
+                            })
+            
+            # 8. language (token)
+            if 'communication' in resource_data:
+                for comm in resource_data['communication']:
+                    if 'language' in comm and 'coding' in comm['language']:
+                        for coding in comm['language']['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'language',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # 9. general-practitioner (reference)
+            if 'generalPractitioner' in resource_data:
+                for gp in resource_data['generalPractitioner']:
+                    if 'reference' in gp:
+                        params_to_extract.append({
+                            'param_name': 'general-practitioner',
+                            'param_type': 'reference',
+                            'value_reference': gp['reference']
+                        })
+            
+            # 10. organization (reference via managingOrganization)
+            if 'managingOrganization' in resource_data and 'reference' in resource_data['managingOrganization']:
+                params_to_extract.append({
+                    'param_name': 'organization',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['managingOrganization']['reference']
+                })
         
         elif resource_type == 'Observation':
             # Code
