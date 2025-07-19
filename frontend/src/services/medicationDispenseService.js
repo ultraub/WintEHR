@@ -147,7 +147,7 @@ class MedicationDispenseService {
   async getDispensingMetrics(patientId = null, dateRange = null) {
     const searchParams = {
       _sort: '-whenhandover',
-      _count: 1000 // Get more records for metrics
+      _count: 100 // Reasonable limit for metrics
     };
     
     if (patientId) {

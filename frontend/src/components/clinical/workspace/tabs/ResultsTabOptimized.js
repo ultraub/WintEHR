@@ -205,20 +205,23 @@ const ResultsTabOptimized = ({ patientId }) => {
           patient: patientId,
           category: 'laboratory',
           _sort: '-date',
-          _count: 1000 // Get all for complete history
+          _count: 100, // Reasonable limit for initial load
+          _summary: 'true' // Only essential fields for list view
         }),
         // Vital signs
         fhirClient.search('Observation', {
           patient: patientId,
           category: 'vital-signs',
           _sort: '-date',
-          _count: 1000
+          _count: 50, // Vital signs are more limited
+          _summary: 'true' // Only essential fields for list view
         }),
         // Diagnostic reports
         fhirClient.search('DiagnosticReport', {
           patient: patientId,
           _sort: '-date',
-          _count: 1000
+          _count: 50, // Reasonable limit for reports
+          _summary: 'true' // Only essential fields for list view
         })
       ]);
 

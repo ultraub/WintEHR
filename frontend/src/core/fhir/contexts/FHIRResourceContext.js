@@ -716,7 +716,7 @@ export function FHIRResourceProvider({ children }) {
       ];
       
       resourceTypes.forEach(resourceType => {
-        let params = { patient: patientId, _count: 1000 };
+        let params = { patient: patientId, _count: 50 };
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {

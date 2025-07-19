@@ -344,31 +344,31 @@ class FHIRClient {
   /**
    * Observation-specific convenience methods
    */
-  async getObservations(patientId, category = null, count = 1000) {
+  async getObservations(patientId, category = null, count = 50) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all observations
+      _count: count,  // Default to 50 for better performance
       _sort: '-date'  // Sort by date descending
     };
     if (category) params.category = category;
     return this.search('Observation', params);
   }
 
-  async getVitalSigns(patientId, count = 1000) {
+  async getVitalSigns(patientId, count = 50) {
     return this.getObservations(patientId, 'vital-signs', count);
   }
 
-  async getLabResults(patientId, count = 1000) {
+  async getLabResults(patientId, count = 50) {
     return this.getObservations(patientId, 'laboratory', count);
   }
 
   /**
    * Medication-specific convenience methods
    */
-  async getMedications(patientId, status = null, count = 1000) {
+  async getMedications(patientId, status = null, count = 50) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all medications
+      _count: count,  // Default to 50 for better performance
       _sort: '-authoredon'  // Sort by authored date descending
     };
     if (status) {
@@ -380,11 +380,11 @@ class FHIRClient {
   /**
    * Condition-specific convenience methods
    */
-  async getConditions(patientId, clinicalStatus = 'active', count = 1000) {
+  async getConditions(patientId, clinicalStatus = 'active', count = 50) {
     return this.search('Condition', {
       patient: patientId,
       'clinical-status': clinicalStatus,
-      _count: count,  // Default to 1000 to ensure we get all conditions
+      _count: count,  // Default to 50 for better performance
       _sort: '-recorded-date'  // Sort by recorded date descending
     });
   }
@@ -392,10 +392,10 @@ class FHIRClient {
   /**
    * Encounter-specific convenience methods
    */
-  async getEncounters(patientId, status = null, count = 1000) {
+  async getEncounters(patientId, status = null, count = 20) {
     const params = { 
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all encounters
+      _count: count,  // Default to 20 for better performance
       _sort: '-date'  // Sort by date descending
     };
     if (status) params.status = status;
@@ -405,10 +405,10 @@ class FHIRClient {
   /**
    * AllergyIntolerance-specific convenience methods
    */
-  async getAllergies(patientId, count = 1000) {
+  async getAllergies(patientId, count = 50) {
     return this.search('AllergyIntolerance', {
       patient: patientId,
-      _count: count,  // Default to 1000 to ensure we get all allergies
+      _count: count,  // Default to 50 for better performance
       _sort: '-date'  // Sort by date descending
     });
   }
@@ -453,11 +453,11 @@ class FHIRClient {
   /**
    * ImagingStudy-specific convenience methods
    */
-  async getImagingStudies(patientId, count = 1000) {
+  async getImagingStudies(patientId, count = 20) {
     return this.search('ImagingStudy', {
       patient: patientId,
       _sort: '-started',
-      _count: count  // Default to 1000 to ensure we get all imaging studies
+      _count: count  // Default to 20 for better performance
     });
   }
 
@@ -468,11 +468,11 @@ class FHIRClient {
   /**
    * DocumentReference-specific convenience methods
    */
-  async getDocumentReferences(patientId, count = 1000) {
+  async getDocumentReferences(patientId, count = 20) {
     return this.search('DocumentReference', {
       patient: patientId,
       _sort: '-date',
-      _count: count  // Default to 1000 to ensure we get all documents
+      _count: count  // Default to 20 for better performance
     });
   }
 
@@ -537,11 +537,11 @@ class FHIRClient {
   /**
    * Procedure-specific convenience methods
    */
-  async getProcedures(patientId, count = 1000) {
+  async getProcedures(patientId, count = 50) {
     return this.search('Procedure', {
       patient: patientId,
       _sort: '-performed-date',
-      _count: count  // Default to 1000 to ensure we get all procedures
+      _count: count  // Default to 50 for better performance
     });
   }
 

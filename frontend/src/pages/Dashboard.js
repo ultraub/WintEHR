@@ -83,11 +83,12 @@ function Dashboard() {
           }
         })),
         
-        // Recent activity - get recent encounters
+        // Recent activity - get recent encounters with summary data
         fhirClient.search('Encounter', {
           _sort: '-date',
           _count: 10,
-          _include: 'Encounter:patient'
+          _include: 'Encounter:patient',
+          _summary: 'true'  // Only essential fields for list view
         }).then(result => ({
           data: result.resources || []
         })),
@@ -102,7 +103,7 @@ function Dashboard() {
             // Fetch all encounters from the last 30 days
             const result = await fhirClient.search('Encounter', {
               date: `ge${startDate.toISOString()}`,
-              _count: 1000, // Get more encounters for trend
+              _count: 100, // Reasonable limit for trend analysis
               _sort: 'date'
             });
             
@@ -340,13 +341,13 @@ function Dashboard() {
             const measures = [];
             
             // Get all patients for denominator calculations
-            const patientsResult = await fhirClient.search('Patient', { _count: 1000 });
+            const patientsResult = await fhirClient.search('Patient', { _count: 100 });
             const totalPatients = patientsResult.total || patientsResult.resources.length;
             
             // Measure 1: Diabetes A1C Control
             const diabetesPatients = await fhirClient.search('Condition', {
               code: '44054006', // SNOMED code for Type 2 diabetes
-              _count: 1000
+              _count: 100
             });
             
             if (diabetesPatients.resources.length > 0) {
@@ -399,7 +400,7 @@ function Dashboard() {
             // Measure 2: Blood Pressure Control
             const hyperTensionPatients = await fhirClient.search('Condition', {
               code: '38341003', // SNOMED code for Hypertension
-              _count: 1000
+              _count: 100
             });
             
             if (hyperTensionPatients.resources.length > 0) {
@@ -444,7 +445,7 @@ function Dashboard() {
             const fluVaccinations = await fhirClient.search('Immunization', {
               'vaccine-code': '88', // Influenza vaccine
               date: `ge${new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()}`, // Last year
-              _count: 1000
+              _count: 100
             });
             
             const uniqueVaccinatedPatients = [...new Set(fluVaccinations.resources.map(imm => fhirClient.extractId(imm.patient)))];

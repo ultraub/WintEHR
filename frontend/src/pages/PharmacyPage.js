@@ -86,7 +86,10 @@ const PharmacyPage = () => {
     const fetchMedicationRequests = async () => {
       try {
         setDataLoading(true);
-        const result = await fhirClient.search('MedicationRequest', { _count: 1000 });
+        const result = await fhirClient.search('MedicationRequest', { 
+          _count: 50,
+          _summary: 'true'  // Only essential fields for list view
+        });
         const resources = result.resources || [];
         setMedicationRequests(resources);
       } catch (error) {

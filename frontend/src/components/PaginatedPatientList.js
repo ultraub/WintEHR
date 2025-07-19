@@ -178,7 +178,8 @@ function PaginatedPatientList() {
         _count: currentPageSize,
         _offset: currentPage * currentPageSize,
         _sort: '-_lastUpdated',
-        _total: 'accurate' // Request total count
+        _total: 'accurate', // Request total count
+        _summary: 'true' // Only essential fields for list view
       };
       
       if (searchQuery && searchQuery.length >= 2) {

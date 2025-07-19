@@ -89,7 +89,7 @@ export function usePatientResourceType(patientId, resourceType, autoLoad = true)
     setLocalError(null);
 
     try {
-      const searchParams = { patient: patientId, _count: 1000, ...params };
+      const searchParams = { patient: patientId, _count: 50, ...params };
       const result = await searchResources(resourceType, searchParams, forceRefresh);
       return result;
     } catch (err) {
