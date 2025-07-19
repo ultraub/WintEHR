@@ -305,6 +305,18 @@ asyncio.run(ensure_patient_search_params())
             cd /app
             python scripts/populate_references_urn_uuid.py || echo 'Reference population failed'
         "
+        
+        # Optimize database indexes for better query performance
+        echo -e "${BLUE}Optimizing database indexes...${NC}"
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            cd /app
+            if [ -f scripts/optimize_database_indexes.py ]; then
+                python scripts/optimize_database_indexes.py
+                echo 'Database indexes optimized'
+            else
+                echo 'Index optimization script not found - using default indexes'
+            fi
+        " || echo -e "${YELLOW}⚠️ Database index optimization failed - queries may be slower${NC}"
     fi
     
     # Always fix CDS hooks schema

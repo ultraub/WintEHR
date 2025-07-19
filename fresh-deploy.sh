@@ -295,6 +295,18 @@ generate_patient_data() {
         warning "Compartment population script not found - Patient/$everything may not work properly"
     fi
     
+    # Optimize database indexes for better query performance
+    log "Optimizing database indexes..."
+    
+    if docker exec emr-backend test -f /app/scripts/optimize_database_indexes.py; then
+        docker exec emr-backend python scripts/optimize_database_indexes.py || {
+            warning "Database index optimization failed - queries may be slower"
+        }
+        success "Database indexes optimized"
+    else
+        warning "Index optimization script not found - using default indexes"
+    fi
+    
     # Populate FHIR references table for relationship visualization
     log "Populating FHIR references table..."
     
