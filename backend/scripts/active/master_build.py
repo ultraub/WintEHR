@@ -109,7 +109,7 @@ class MasterBuildOrchestrator:
             {
                 "name": "index_search_parameters",
                 "description": "Index search parameters for all FHIR resources",
-                "script": "consolidated_search_indexing.py",
+                "script": "../consolidated_search_indexing.py",
                 "args": ["--mode", "index"],
                 "required": True,
                 "estimated_time": 180
@@ -139,6 +139,30 @@ class MasterBuildOrchestrator:
                 "estimated_time": 90
             },
             {
+                "name": "populate_compartments",
+                "description": "Populate patient compartments for efficient queries",
+                "script": "../populate_compartments.py",
+                "args": [],
+                "required": True,
+                "estimated_time": 60
+            },
+            {
+                "name": "populate_references",
+                "description": "Populate FHIR resource references table",
+                "script": "../populate_references_urn_uuid.py",
+                "args": [],
+                "required": True,
+                "estimated_time": 90
+            },
+            {
+                "name": "fix_cds_hooks_schema",
+                "description": "Fix CDS hooks schema if needed",
+                "script": "../fix_cds_hooks_enabled_column.py",
+                "args": [],
+                "required": False,
+                "estimated_time": 30
+            },
+            {
                 "name": "generate_dicom_images",
                 "description": "Generate DICOM images for imaging studies",
                 "script": "generate_dicom_for_studies.py",
@@ -164,6 +188,9 @@ class MasterBuildOrchestrator:
             "generate_synthea_data",
             "index_search_parameters",
             "enhance_fhir_data",
+            "populate_compartments",
+            "populate_references",
+            "fix_cds_hooks_schema",
             "final_validation"
         ]
 

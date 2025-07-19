@@ -572,9 +572,12 @@ class SearchParameterIndexer:
             # Deduplicate and add parameters
             seen = set()
             for value in values:
-                if value and value not in seen:
-                    seen.add(value)
-                    params.append((param_name, value))
+                if value:
+                    # Convert to string for hashing if it's a dict/list
+                    value_key = str(value) if isinstance(value, (dict, list)) else value
+                    if value_key not in seen:
+                        seen.add(value_key)
+                        params.append((param_name, value))
         
         # Always add _id parameter
         if 'id' in resource_data:
@@ -590,11 +593,19 @@ class SearchParameterIndexer:
             
             if params:
                 # Insert search parameters
+                # Note: We don't use ON CONFLICT as there's no unique constraint
+                # First delete existing params for this resource to avoid duplicates
+                await self.conn.execute("""
+                    DELETE FROM fhir.search_params 
+                    WHERE resource_id = $1
+                """, resource_id)
+                
+                # Now insert the new params
+                # Patient references are stored as reference type, others as string
                 await self.conn.executemany("""
-                    INSERT INTO fhir.search_params (resource_id, resource_type, param_name, value_string)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (resource_id, param_name, value_string) DO NOTHING
-                """, [(resource_id, resource_type, name, str(value)) for name, value in params])
+                    INSERT INTO fhir.search_params (resource_id, resource_type, param_name, param_type, value_string)
+                    VALUES ($1, $2, $3, $4, $5)
+                """, [(resource_id, resource_type, name, 'reference' if name in ['patient', 'subject'] else 'string', str(value)) for name, value in params])
                 
                 self.stats['indexed'] += 1
                 return True
@@ -644,7 +655,11 @@ class SearchParameterIndexer:
                 
                 for resource in resources:
                     self.stats['processed'] += 1
-                    await self.index_resource(resource['id'], resource_type, resource['resource'])
+                    # Parse JSON if it's a string
+                    resource_data = resource['resource']
+                    if isinstance(resource_data, str):
+                        resource_data = json.loads(resource_data)
+                    await self.index_resource(resource['id'], resource_type, resource_data)
                 
                 # Progress update
                 progress = min(offset + len(resources), count)
@@ -674,7 +689,11 @@ class SearchParameterIndexer:
         
         for i, resource in enumerate(resources):
             self.stats['processed'] += 1
-            await self.index_resource(resource['id'], resource_type, resource['resource'])
+            # Parse JSON if it's a string
+            resource_data = resource['resource']
+            if isinstance(resource_data, str):
+                resource_data = json.loads(resource_data)
+            await self.index_resource(resource['id'], resource_type, resource_data)
             
             if (i + 1) % 100 == 0:
                 logger.info(f"  Progress: {i + 1}/{len(resources)}")
@@ -686,7 +705,7 @@ class SearchParameterIndexer:
         # Check critical parameters
         critical_checks = [
             ('Patient references', """
-                SELECT rt.resource_type, COUNT(DISTINCT r.id) as total_resources,
+                SELECT r.resource_type, COUNT(DISTINCT r.id) as total_resources,
                        COUNT(DISTINCT sp.resource_id) as indexed_resources
                 FROM fhir.resources r
                 LEFT JOIN fhir.search_params sp ON r.id = sp.resource_id 
@@ -694,11 +713,11 @@ class SearchParameterIndexer:
                 WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest', 
                                          'Procedure', 'AllergyIntolerance', 'DiagnosticReport')
                 AND (r.deleted = false OR r.deleted IS NULL)
-                GROUP BY rt.resource_type
-                ORDER BY rt.resource_type
+                GROUP BY r.resource_type
+                ORDER BY r.resource_type
             """),
             ('Code parameters', """
-                SELECT rt.resource_type, COUNT(DISTINCT r.id) as total_resources,
+                SELECT r.resource_type, COUNT(DISTINCT r.id) as total_resources,
                        COUNT(DISTINCT sp.resource_id) as indexed_resources
                 FROM fhir.resources r
                 LEFT JOIN fhir.search_params sp ON r.id = sp.resource_id 
@@ -706,11 +725,11 @@ class SearchParameterIndexer:
                 WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest', 
                                          'Procedure', 'DiagnosticReport')
                 AND (r.deleted = false OR r.deleted IS NULL)
-                GROUP BY rt.resource_type
-                ORDER BY rt.resource_type
+                GROUP BY r.resource_type
+                ORDER BY r.resource_type
             """),
             ('Status parameters', """
-                SELECT rt.resource_type, COUNT(DISTINCT r.id) as total_resources,
+                SELECT r.resource_type, COUNT(DISTINCT r.id) as total_resources,
                        COUNT(DISTINCT sp.resource_id) as indexed_resources
                 FROM fhir.resources r
                 LEFT JOIN fhir.search_params sp ON r.id = sp.resource_id 
@@ -718,8 +737,8 @@ class SearchParameterIndexer:
                 WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest', 
                                          'Procedure', 'Encounter', 'ServiceRequest')
                 AND (r.deleted = false OR r.deleted IS NULL)
-                GROUP BY rt.resource_type
-                ORDER BY rt.resource_type
+                GROUP BY r.resource_type
+                ORDER BY r.resource_type
             """)
         ]
         
@@ -771,7 +790,11 @@ class SearchParameterIndexer:
         
         fixed = 0
         for resource in missing:
-            if await self.index_resource(resource['id'], resource['resource_type'], resource['resource']):
+            # Parse JSON if it's a string
+            resource_data = resource['resource']
+            if isinstance(resource_data, str):
+                resource_data = json.loads(resource_data)
+            if await self.index_resource(resource['id'], resource['resource_type'], resource_data):
                 fixed += 1
             
             if fixed % 100 == 0:

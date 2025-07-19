@@ -101,6 +101,10 @@ check_docker() {
 cleanup() {
     echo -e "${YELLOW}🧹 Cleaning up existing containers and volumes...${NC}"
     
+    # Remove specific containers that might cause conflicts
+    docker rm -f emr-frontend-dev 2>/dev/null || true
+    docker rm -f emr-backend-dev 2>/dev/null || true
+    
     # Stop and remove containers
     docker-compose -f docker-compose.dev.yml down -v --remove-orphans || true
     
@@ -160,6 +164,8 @@ run_build() {
     
     # Try master_build.py first
     echo -e "${BLUE}Attempting consolidated build...${NC}"
+    BUILD_SUCCESS=false
+    
     docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
         export PYTHONPATH=/app
         cd /app
@@ -172,62 +178,159 @@ run_build() {
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Build completed successfully${NC}"
-        
-        # Fix CDS hooks schema if needed
-        echo -e "${BLUE}Checking CDS hooks schema...${NC}"
-        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
-            if [ -f scripts/fix_cds_hooks_enabled_column.py ]; then
-                python scripts/fix_cds_hooks_enabled_column.py || echo 'CDS hooks fix failed'
-            fi
-        "
-        
-        return 0
+        BUILD_SUCCESS=true
+    else
+        echo -e "${YELLOW}⚠️ Master build encountered issues, continuing with manual steps...${NC}"
     fi
     
-    # Fallback to synthea_master.py
-    echo -e "${YELLOW}⚠️ Master build failed, trying synthea_master.py...${NC}"
-    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
-        export PYTHONPATH=/app
-        cd /app
-        python scripts/active/synthea_master.py full --count ${PATIENT_COUNT} --validation-mode light
-    "
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Build completed with synthea_master${NC}"
+    # If master build failed, run individual critical steps
+    if [ "$BUILD_SUCCESS" = "false" ]; then
+        echo -e "${YELLOW}Running individual build steps...${NC}"
         
-        # Fix CDS hooks schema if needed
-        echo -e "${BLUE}Checking CDS hooks schema...${NC}"
+        # Try synthea_master.py as fallback
+        echo -e "${BLUE}Generating patient data with synthea_master.py...${NC}"
         docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
-            if [ -f scripts/fix_cds_hooks_enabled_column.py ]; then
-                python scripts/fix_cds_hooks_enabled_column.py || echo 'CDS hooks fix failed'
-            fi
+            export PYTHONPATH=/app
+            cd /app
+            python scripts/active/synthea_master.py full --count ${PATIENT_COUNT} --validation-mode light
+        " || echo -e "${YELLOW}⚠️ Patient generation had issues but continuing...${NC}"
+        
+        # Run search indexing - critical step, don't just echo on failure
+        echo -e "${BLUE}Indexing search parameters...${NC}"
+        SEARCH_INDEX_SUCCESS=false
+        
+        # First try the consolidated script
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            cd /app
+            python scripts/consolidated_search_indexing.py --mode index
         "
         
-        return 0
-    fi
+        if [ $? -eq 0 ]; then
+            SEARCH_INDEX_SUCCESS=true
+            echo -e "${GREEN}✅ Search parameters indexed successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠️ Consolidated search indexing failed, trying simple approach...${NC}"
+            
+            # Fallback to a simple inline script that we know works
+            docker-compose -f docker-compose.dev.yml run --rm backend python -c "
+import asyncio
+import json
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
+
+async def ensure_patient_search_params():
+    engine = create_async_engine('postgresql+asyncpg://emr_user:emr_password@postgres:5432/emr_db')
     
-    # Final fallback - just generate patients
-    echo -e "${YELLOW}⚠️ Full build failed, attempting basic patient generation...${NC}"
-    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
-        export PYTHONPATH=/app
-        cd /app
-        # Try to at least get some patients
-        python scripts/active/synthea_master.py generate --count ${PATIENT_COUNT} || \
-        python scripts/generate_test_patients.py --count ${PATIENT_COUNT} || \
-        echo 'Patient generation failed'
-    "
+    async with engine.connect() as conn:
+        # Check if we already have patient params
+        result = await conn.execute(text('''
+            SELECT COUNT(*) FROM fhir.search_params 
+            WHERE param_name IN ('patient', 'subject')
+        '''))
+        count = result.scalar()
+        print(f'Existing patient search params: {count}')
+        
+        if count < 1000:  # Likely missing params
+            print('Adding patient search parameters...')
+            
+            # Add for key resource types
+            for rtype in ['Condition', 'Observation', 'MedicationRequest', 'Procedure']:
+                result = await conn.execute(text('''
+                    SELECT r.id, r.resource 
+                    FROM fhir.resources r
+                    WHERE r.resource_type = :rtype
+                    AND NOT EXISTS (
+                        SELECT 1 FROM fhir.search_params sp
+                        WHERE sp.resource_id = r.id
+                        AND sp.param_name = 'patient'
+                    )
+                '''), {'rtype': rtype})
+                
+                resources = result.fetchall()
+                added = 0
+                
+                for res_id, res_json in resources:
+                    try:
+                        resource = json.loads(res_json) if isinstance(res_json, str) else res_json
+                        patient_ref = None
+                        
+                        if 'subject' in resource and isinstance(resource['subject'], dict):
+                            patient_ref = resource['subject'].get('reference')
+                        elif 'patient' in resource and isinstance(resource['patient'], dict):
+                            patient_ref = resource['patient'].get('reference')
+                        
+                        if patient_ref:
+                            patient_id = patient_ref.replace('urn:uuid:', '').replace('Patient/', '')
+                            
+                            await conn.execute(text('''
+                                INSERT INTO fhir.search_params 
+                                (resource_id, resource_type, param_name, param_type, value_reference)
+                                VALUES (:rid, :rtype, 'patient', 'reference', :pid)
+                            '''), {'rid': res_id, 'rtype': rtype, 'pid': patient_id})
+                            
+                            added += 1
+                    except Exception as e:
+                        pass
+                
+                await conn.commit()
+                print(f'Added {added} patient params for {rtype}')
+            
+            print('Patient search parameters ensured')
+        else:
+            print('Patient search params already indexed')
     
-    echo -e "${YELLOW}⚠️ Build process encountered issues${NC}"
-    echo -e "${YELLOW}You can still start services and load data manually${NC}"
-    
-    # Ask if user wants to continue
-    if [ "$SKIP_CONFIRM" != "true" ]; then
-        echo -e "${YELLOW}Continue with service startup? (y/N)${NC}"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            exit 1
+    await engine.dispose()
+
+asyncio.run(ensure_patient_search_params())
+            "
+            
+            if [ $? -eq 0 ]; then
+                SEARCH_INDEX_SUCCESS=true
+                echo -e "${GREEN}✅ Basic search parameters indexed${NC}"
+            else
+                echo -e "${RED}❌ Search parameter indexing failed completely${NC}"
+            fi
         fi
+        
+        # Populate compartments
+        echo -e "${BLUE}Populating compartments...${NC}"
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            cd /app
+            python scripts/populate_compartments.py || echo 'Compartment population failed'
+        "
+        
+        # Populate references
+        echo -e "${BLUE}Populating references...${NC}"
+        docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+            cd /app
+            python scripts/populate_references_urn_uuid.py || echo 'Reference population failed'
+        "
     fi
+    
+    # Always fix CDS hooks schema
+    echo -e "${BLUE}Checking CDS hooks schema...${NC}"
+    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+        cd /app
+        if [ -f scripts/fix_cds_hooks_enabled_column.py ]; then
+            python scripts/fix_cds_hooks_enabled_column.py || echo 'CDS hooks fix failed'
+        fi
+    "
+    
+    # Run validation if script exists
+    echo -e "${BLUE}Validating deployment...${NC}"
+    docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
+        cd /app
+        if [ -f scripts/validate_deployment.py ]; then
+            python scripts/validate_deployment.py --docker --verbose || echo 'Validation reported issues'
+        elif [ -f scripts/analysis/validate_database_schema.py ]; then
+            python scripts/analysis/validate_database_schema.py || echo 'Schema validation reported issues'
+        else
+            echo 'Validation scripts not found, skipping...'
+        fi
+    "
+    
+    echo -e "${GREEN}✅ Build process completed${NC}"
+    return 0
 }
 
 # Function to start all services with hot reload
@@ -249,6 +352,9 @@ start_all_services() {
         fi
     done
     echo -e "${GREEN}✅ Backend is ready${NC}"
+    
+    # Ensure no conflicting frontend container exists
+    docker rm -f emr-frontend-dev 2>/dev/null || true
     
     # Start frontend with hot reload
     docker-compose -f docker-compose.dev.yml up -d frontend

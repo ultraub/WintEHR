@@ -1821,23 +1821,97 @@ class FHIRStorageEngine:
         
         elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 
                               'MedicationAdministration', 'Procedure', 'DiagnosticReport', 
-                              'Immunization', 'AllergyIntolerance', 'ImagingStudy']:
+                              'Immunization', 'AllergyIntolerance', 'ImagingStudy', 'ServiceRequest',
+                              'CarePlan', 'CareTeam', 'DocumentReference']:
             # Patient reference (handle both Patient/ and urn:uuid: formats)
+            patient_ref = None
             if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
-                ref = resource_data['subject'].get('reference', '')
+                patient_ref = resource_data['subject'].get('reference', '')
+            elif 'patient' in resource_data and isinstance(resource_data['patient'], dict):
+                patient_ref = resource_data['patient'].get('reference', '')
+            
+            if patient_ref:
                 patient_id = None
                 
-                if ref.startswith('Patient/'):
-                    patient_id = ref.replace('Patient/', '')
-                elif ref.startswith('urn:uuid:'):
+                if patient_ref.startswith('Patient/'):
+                    patient_id = patient_ref.replace('Patient/', '')
+                elif patient_ref.startswith('urn:uuid:'):
                     # Extract UUID from urn:uuid: format
-                    patient_id = ref.replace('urn:uuid:', '')
+                    patient_id = patient_ref.replace('urn:uuid:', '')
                 
                 if patient_id:
                     await self._add_search_param(
                         resource_id, resource_type, 'patient', 'reference',
                         value_reference=patient_id
                     )
+            
+            # Add status parameter
+            if 'status' in resource_data:
+                await self._add_search_param(
+                    resource_id, resource_type, 'status', 'token',
+                    value_token_code=resource_data['status']
+                )
+            
+            # Add code parameter for resources that have it
+            if 'code' in resource_data and isinstance(resource_data['code'], dict):
+                if 'coding' in resource_data['code']:
+                    for coding in resource_data['code']['coding']:
+                        if 'code' in coding:
+                            await self._add_search_param(
+                                resource_id, resource_type, 'code', 'token',
+                                value_token_system=coding.get('system'),
+                                value_token_code=coding['code']
+                            )
+            
+            # Add date parameters
+            date_fields = {
+                'Observation': ['effectiveDateTime', 'issued'],
+                'Condition': ['recordedDate', 'onsetDateTime'],
+                'Procedure': ['performedDateTime'],
+                'DiagnosticReport': ['effectiveDateTime', 'issued'],
+                'MedicationRequest': ['authoredOn'],
+                'Encounter': ['period.start'],
+                'ServiceRequest': ['authoredOn', 'occurrenceDateTime']
+            }
+            
+            if resource_type in date_fields:
+                for date_field in date_fields[resource_type]:
+                    if '.' in date_field:
+                        # Handle nested fields like period.start
+                        parts = date_field.split('.')
+                        value = resource_data
+                        for part in parts:
+                            if isinstance(value, dict) and part in value:
+                                value = value[part]
+                            else:
+                                value = None
+                                break
+                        if value:
+                            await self._add_search_param(
+                                resource_id, resource_type, 'date', 'date',
+                                value_date=value
+                            )
+                    elif date_field in resource_data:
+                        await self._add_search_param(
+                            resource_id, resource_type, 'date', 'date',
+                            value_date=resource_data[date_field]
+                        )
+            
+            # Add category parameter
+            if 'category' in resource_data:
+                categories = resource_data['category']
+                if not isinstance(categories, list):
+                    categories = [categories]
+                
+                for category in categories:
+                    if isinstance(category, dict) and 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                await self._add_search_param(
+                                    resource_id, resource_type, 'category', 'token',
+                                    value_token_system=coding.get('system'),
+                                    value_token_code=coding['code']
+                                )
     
     async def _add_search_param(self, resource_id: int, resource_type: str, param_name: str, 
                                param_type: str, **values):
