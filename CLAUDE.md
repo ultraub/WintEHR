@@ -590,6 +590,7 @@ GROUP BY r.resource_type;"
 
 ### Technical References
 - **[docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)** - API endpoint documentation
+- **[docs/FHIR_API_TEST_SUMMARY.md](docs/FHIR_API_TEST_SUMMARY.md)** - Comprehensive FHIR API test suite
 - **[docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)** - Search indexing details
 - **[docs/modules/](docs/modules/)** - Individual module guides
 - **[docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)** - Integration patterns
