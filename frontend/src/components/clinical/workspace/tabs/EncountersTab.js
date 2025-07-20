@@ -51,29 +51,25 @@ import {
   TimelineConnector,
   TimelineContent,
   TimelineDot,
-  TimelineOppositeContent
 } from '@mui/lab';
 import {
-  EventNote as EncounterIcon,
   LocalHospital as HospitalIcon,
   MedicalServices as ClinicIcon,
   LocalHospital as EmergencyIcon,
   Home as HomeIcon,
   Add as AddIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
-  MoreVert as MoreIcon,
   Edit as EditIcon,
   Description as NotesIcon,
   Print as PrintIcon,
   CalendarMonth as CalendarIcon,
   AccessTime as TimeIcon,
-  Person as ProviderIcon,
-  Draw as SignIcon
+  Draw as SignIcon,
+  Assignment as AssignmentIcon,
+  Science as LabIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
 import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
 import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
@@ -91,7 +87,7 @@ import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 import ClinicalCard from '../../ui/ClinicalCard';
 import ResourceTimeline from '../../ui/ResourceTimeline';
 import SmartTable from '../../ui/SmartTable';
-import QuickActionFAB, { ContextualFAB } from '../../ui/QuickActionFAB';
+import { ContextualFAB } from '../../ui/QuickActionFAB';
 import { ViewControls, useDensity } from '../../ui/DensityControl';
 import MetricsBar from '../../ui/MetricsBar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -136,7 +132,6 @@ const getEncounterTypeLabel = (encounter) => {
 
 // Enhanced Encounter Card Component with new UI components
 const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, density = 'comfortable', expanded = false, onToggleExpand }) => {
-  const theme = useTheme();
   const [localExpanded, setLocalExpanded] = useState(expanded);
   
   const handleToggleExpand = () => {
@@ -145,14 +140,6 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
     onToggleExpand?.(encounter.id, newExpanded);
   };
 
-  const getEncounterStatusColor = (status) => {
-    switch (status) {
-      case 'finished': return 'success';
-      case 'in-progress': return 'warning';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
 
   const getEncounterSeverity = (encounter) => {
     const classCode = getEncounterClass(encounter);
@@ -362,8 +349,6 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
 };
 
 const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
-  const theme = useTheme();
-  const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient, resources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
@@ -374,7 +359,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [density, setDensity] = useDensity('comfortable');
-  const [selectedTab, setSelectedTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
@@ -650,8 +634,10 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     }
   };
 
-  // Get encounters
-  const encounters = getPatientResources(patientId, 'Encounter') || [];
+  // Get encounters - memoized to prevent dependency issues
+  const encounters = useMemo(() => {
+    return getPatientResources(patientId, 'Encounter') || [];
+  }, [patientId, getPatientResources]);
 
   // Get all clinical resources for timeline
   const allClinicalResources = useMemo(() => {
@@ -669,12 +655,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     
     // Add other clinical resources that reference encounters
     resourceTypes.forEach(type => {
-      const resources = Object.values(resources[type] || {}).filter(r => 
-        r.subject?.reference === `Patient/${patientId}` ||
-        r.patient?.reference === `Patient/${patientId}`
-      );
+      const typeResources = getPatientResources(patientId, type) || [];
       
-      resources.forEach(resource => {
+      typeResources.forEach(resource => {
         if (resource.encounter?.reference || resource.context?.reference) {
           allResources.push({
             ...resource,
@@ -692,7 +675,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     return allResources.sort((a, b) => 
       new Date(b.date || 0) - new Date(a.date || 0)
     );
-  }, [encounters, resources, patientId]);
+  }, [encounters, patientId, getPatientResources]);
 
   // Filter encounters - memoized for performance
   const filteredEncounters = useMemo(() => {

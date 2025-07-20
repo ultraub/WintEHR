@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "fhir-validator": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "env": {
+        "ALLOWED_URLS": "https://hl7.org/fhir/R4/,https://fhir.org/"
+      },
+      "description": "FHIR specification and validation resources"
+    },
+    "docker": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-docker"],
+      "description": "Docker container management for development environment"
+    },
+    "browser": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-browser"],
+      "description": "Browser automation for E2E testing and UI validation"
+    }
+  },
+  "projectDefaults": {
+    "enabledByDefault": [
+      "fhir-validator",
+      "docker"
+    ],
+    "requiresApproval": [
+      "browser"
+    ]
+  },
+  "documentation": {
+    "description": "WintEHR team-wide MCP server configurations",
+    "updated": "2025-01-20",
+    "notes": {
+      "fhir-validator": "Used for FHIR R4 specification lookups and validation",
+      "docker": "Manages local development containers (emr-backend, emr-frontend, emr-postgres)",
+      "browser": "E2E testing and visual regression testing for clinical workflows"
+    }
+  }
+}
