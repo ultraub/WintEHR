@@ -750,6 +750,17 @@ class SearchParameterExtractor:
         """Extract MedicationRequest-specific search parameters."""
         params = []
         
+        # identifier
+        if 'identifier' in resource_data:
+            for identifier in resource_data['identifier']:
+                if 'value' in identifier:
+                    params.append({
+                        'param_name': 'identifier',
+                        'param_type': 'token',
+                        'value_token_system': identifier.get('system'),
+                        'value_token_code': identifier['value']
+                    })
+        
         # status
         if 'status' in resource_data:
             params.append({

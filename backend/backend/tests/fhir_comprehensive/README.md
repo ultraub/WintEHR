@@ -103,48 +103,16 @@ fhir_comprehensive/
 
 ## 🚀 Running Tests
 
-### Quick Start (Recommended)
+### Full Test Suite
 ```bash
-# Run the comprehensive test suite with automatic setup
-cd backend/tests/fhir_comprehensive
-./run_tests.sh
-
-# This script will:
-# 1. Set up the test environment (index search params, populate compartments)
-# 2. Run all FHIR API tests
-# 3. Generate a compliance report
-```
-
-### Test Runner Options
-```bash
-# Skip environment setup (if already done)
-./run_tests.sh --quick
-
-# Run specific test module
-./run_tests.sh --module search_simple
-./run_tests.sh --module crud
-./run_tests.sh --module compliance
-
-# Run with verbose output
-./run_tests.sh --verbose
-
-# Skip report generation
-./run_tests.sh --no-report
-```
-
-### Manual Test Execution
-```bash
-# Set up test environment first
-docker exec emr-backend-dev python tests/fhir_comprehensive/setup_test_environment.py
-
 # Run all tests
-docker exec emr-backend-dev python -m pytest tests/fhir_comprehensive/ -v -o asyncio_mode=auto
+pytest backend/tests/fhir_comprehensive/ -v
 
 # Run with coverage
-docker exec emr-backend-dev python -m pytest tests/fhir_comprehensive/ --cov=backend/fhir --cov-report=html -o asyncio_mode=auto
+pytest backend/tests/fhir_comprehensive/ --cov=backend/fhir --cov-report=html
 
 # Run specific category
-docker exec emr-backend-dev python -m pytest tests/fhir_comprehensive/test_crud_operations.py -v -o asyncio_mode=auto
+pytest backend/tests/fhir_comprehensive/test_crud_operations.py -v
 ```
 
 ### Performance Tests
@@ -158,44 +126,28 @@ pytest backend/tests/fhir_comprehensive/test_performance.py -v --patients=100
 
 ### Compliance Tests
 ```bash
-# Generate FHIR compliance report
-docker exec emr-backend-dev python tests/fhir_comprehensive/generate_compliance_matrix.py
+# Run FHIR compliance tests
+pytest backend/tests/fhir_comprehensive/test_fhir_compliance.py -v --strict
+
+# Generate compliance report
+pytest backend/tests/fhir_comprehensive/test_fhir_compliance.py --html=reports/compliance.html
 ```
 
 ## 📊 Test Data Requirements
 
-The test suite requires a properly prepared database that mirrors the production build process:
+Before running tests, ensure:
+1. Database has Synthea-generated patient data
+2. Search parameters are properly indexed
+3. Compartments are populated
+4. Test configuration is set up
 
-1. **Database Schema**: All 6 FHIR tables must exist
-2. **Patient Data**: At least 5 Synthea-generated patients
-3. **Search Parameters**: Indexed for all resources
-4. **Compartments**: Populated for Patient/$everything
-5. **Database Indexes**: Optimized for performance
-
-### Automatic Setup
-The `setup_test_environment.py` script handles all requirements:
+### Setup Test Data
 ```bash
-# Run setup manually if needed
-docker exec emr-backend-dev python tests/fhir_comprehensive/setup_test_environment.py
+# Ensure test data is available
+docker exec emr-backend python scripts/testing/setup_test_data.py
 
-# Check current status without running setup
-docker exec emr-backend-dev python tests/fhir_comprehensive/setup_test_environment.py --summary-only
-```
-
-### Manual Data Preparation
-If you need to prepare data manually:
-```bash
-# 1. Generate patient data (if not present)
-docker exec emr-backend-dev python scripts/active/synthea_master.py full --count 10
-
-# 2. Index search parameters
-docker exec emr-backend-dev python scripts/fast_search_indexing.py --docker
-
-# 3. Populate compartments
-docker exec emr-backend-dev python scripts/populate_compartments.py
-
-# 4. Optimize database
-docker exec emr-backend-dev python scripts/optimize_database_indexes.py
+# Verify data availability
+docker exec emr-backend python scripts/testing/check_synthea_resources.py
 ```
 
 ## 🎯 Test Objectives

@@ -8,11 +8,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { enhancedOrderSearchService } from '../services/enhancedOrderSearch';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 
 export const useAdvancedOrderSearch = (options = {}) => {
   const { currentPatient } = useFHIRResource();
-  const { getActivePatient } = useClinicalWorkflow();
   
   const {
     patientId: propPatientId,
@@ -22,7 +20,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
   } = options;
 
   // Determine patient ID
-  const patientId = propPatientId || currentPatient?.id || getActivePatient()?.id;
+  const patientId = propPatientId || currentPatient?.id;
 
   // State management
   const [searchState, setSearchState] = useState({

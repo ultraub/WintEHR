@@ -66,7 +66,8 @@ import {
   AccessTime as TimeIcon,
   Draw as SignIcon,
   Assignment as AssignmentIcon,
-  Science as LabIcon
+  Science as LabIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -800,8 +801,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     );
   }
 
-  // Import CheckCircleIcon
-  const CheckCircleIcon = require('@mui/icons-material/CheckCircle').default;
 
   return (
     <>

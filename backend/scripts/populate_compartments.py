@@ -200,8 +200,13 @@ class CompartmentPopulator:
                 self.stats['processed'] += 1
                 
                 try:
+                    # Parse resource data if it's a string
+                    resource_data = resource['resource']
+                    if isinstance(resource_data, str):
+                        resource_data = json.loads(resource_data)
+                    
                     # Extract patient references
-                    patient_ids = self.extract_patient_references(resource_type, resource['resource'])
+                    patient_ids = self.extract_patient_references(resource_type, resource_data)
                     
                     if patient_ids:
                         type_stats['with_compartments'] += 1

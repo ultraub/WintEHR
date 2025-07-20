@@ -1,0 +1,625 @@
+{
+  "start_time": "2025-07-20T18:48:53.398801",
+  "test_results": [
+    {
+      "test": "test_create_Patient",
+      "status": "passed",
+      "duration": 0.462354,
+      "timestamp": "2025-07-20T18:48:53.968286",
+      "details": {
+        "resource_id": "f8107263-ea6f-4518-9f9c-226168aac817"
+      }
+    },
+    {
+      "test": "test_create_Practitioner",
+      "status": "passed",
+      "duration": 0.151272,
+      "timestamp": "2025-07-20T18:48:54.356106",
+      "details": {
+        "resource_id": "df37ca6d-23b8-4e6c-ad5a-3c4b473f76fa"
+      }
+    },
+    {
+      "test": "test_create_Organization",
+      "status": "passed",
+      "duration": 0.314515,
+      "timestamp": "2025-07-20T18:48:54.863240",
+      "details": {
+        "resource_id": "c683ceb7-a543-4ab6-b22b-b058eef5e6de"
+      }
+    },
+    {
+      "test": "test_create_Location",
+      "status": "passed",
+      "duration": 0.338116,
+      "timestamp": "2025-07-20T18:48:55.293217",
+      "details": {
+        "resource_id": "7898a279-f9e8-492c-befd-79edbfba4cab"
+      }
+    },
+    {
+      "test": "test_create_Encounter",
+      "status": "passed",
+      "duration": 0.263958,
+      "timestamp": "2025-07-20T18:48:55.673927",
+      "details": {
+        "resource_id": "d413947a-a287-45df-99d1-3ee1c8e86fd6"
+      }
+    },
+    {
+      "test": "test_create_Observation",
+      "status": "passed",
+      "duration": 0.454747,
+      "timestamp": "2025-07-20T18:48:56.235612",
+      "details": {
+        "resource_id": "e58dfb7a-0584-4217-a638-4ec5e253d6eb"
+      }
+    },
+    {
+      "test": "test_create_Condition",
+      "status": "passed",
+      "duration": 0.144732,
+      "timestamp": "2025-07-20T18:48:56.586203",
+      "details": {
+        "resource_id": "a345d48b-a7ca-4e5a-a3d2-4d5c755fc8ad"
+      }
+    },
+    {
+      "test": "test_create_Procedure",
+      "status": "passed",
+      "duration": 0.165436,
+      "timestamp": "2025-07-20T18:48:56.872309",
+      "details": {
+        "resource_id": "443eddc0-fe80-41a7-8786-728186719e53"
+      }
+    },
+    {
+      "test": "test_create_Medication",
+      "status": "passed",
+      "duration": 0.091314,
+      "timestamp": "2025-07-20T18:48:57.094052",
+      "details": {
+        "resource_id": "1708926d-0c2b-4126-b2f5-e38556f86efe"
+      }
+    },
+    {
+      "test": "test_create_MedicationRequest",
+      "status": "passed",
+      "duration": 0.555628,
+      "timestamp": "2025-07-20T18:48:57.708137",
+      "details": {
+        "resource_id": "9c589ab4-f7b2-48b1-8fa0-111be53b7b0a"
+      }
+    },
+    {
+      "test": "test_create_DiagnosticReport",
+      "status": "passed",
+      "duration": 0.349093,
+      "timestamp": "2025-07-20T18:48:58.294288",
+      "details": {
+        "resource_id": "eca1fb05-866c-4276-8bb7-ca318a5dac76"
+      }
+    },
+    {
+      "test": "test_create_CarePlan",
+      "status": "passed",
+      "duration": 0.319976,
+      "timestamp": "2025-07-20T18:48:58.674803",
+      "details": {
+        "resource_id": "9f602b62-49dd-42f7-8822-765b5b8f9242"
+      }
+    },
+    {
+      "test": "test_create_Goal",
+      "status": "passed",
+      "duration": 0.111327,
+      "timestamp": "2025-07-20T18:48:58.892150",
+      "details": {
+        "resource_id": "e81d0b94-5316-4c73-9fdf-08df7b5e48b5"
+      }
+    },
+    {
+      "test": "test_create_Immunization",
+      "status": "passed",
+      "duration": 0.133312,
+      "timestamp": "2025-07-20T18:48:59.093250",
+      "details": {
+        "resource_id": "ca1a267e-657a-4b50-b8bd-8c222344a764"
+      }
+    },
+    {
+      "test": "test_create_AllergyIntolerance",
+      "status": "passed",
+      "duration": 0.137716,
+      "timestamp": "2025-07-20T18:48:59.318049",
+      "details": {
+        "resource_id": "7db22200-358e-4dfb-8328-de0c6835e3bd"
+      }
+    },
+    {
+      "test": "test_create_DocumentReference",
+      "status": "passed",
+      "duration": 0.155862,
+      "timestamp": "2025-07-20T18:48:59.547100",
+      "details": {
+        "resource_id": "d0e1bfae-6054-4e51-bf7f-2764e8d8ecee"
+      }
+    },
+    {
+      "test": "test_create_Task",
+      "status": "passed",
+      "duration": 0.10472,
+      "timestamp": "2025-07-20T18:48:59.725441",
+      "details": {
+        "resource_id": "e1b64c60-14b6-4d95-ad1d-307f5e827cb7"
+      }
+    },
+    {
+      "test": "test_create_ServiceRequest",
+      "status": "passed",
+      "duration": 0.124993,
+      "timestamp": "2025-07-20T18:48:59.940653",
+      "details": {
+        "resource_id": "e2d31b61-f38a-4689-90c4-3d4b09e691d7"
+      }
+    },
+    {
+      "test": "test_create_Device",
+      "status": "passed",
+      "duration": 0.091466,
+      "timestamp": "2025-07-20T18:49:00.102641",
+      "details": {
+        "resource_id": "16ee5bf0-1c69-4338-9cbc-bcde4e2afa5e"
+      }
+    },
+    {
+      "test": "test_create_Basic",
+      "status": "passed",
+      "duration": 0.072144,
+      "timestamp": "2025-07-20T18:49:00.306827",
+      "details": {
+        "resource_id": "151dd435-8612-45bb-8e37-9d3356da0b1b"
+      }
+    },
+    {
+      "test": "test_read_Patient",
+      "status": "passed",
+      "duration": 0.051497,
+      "timestamp": "2025-07-20T18:49:00.611754",
+      "details": {
+        "resource_id": "aade3c61-92bd-d079-9d28-0b2b7fde0fbb"
+      }
+    },
+    {
+      "test": "test_read_Condition",
+      "status": "passed",
+      "duration": 0.053089,
+      "timestamp": "2025-07-20T18:49:00.670701",
+      "details": {
+        "resource_id": "c5285640-b315-5047-f72c-38b4bf41367a"
+      }
+    },
+    {
+      "test": "test_read_Observation",
+      "status": "passed",
+      "duration": 0.029086,
+      "timestamp": "2025-07-20T18:49:00.701646",
+      "details": {
+        "resource_id": "1a7b6768-eee5-13c1-1a19-d773ecb81dd2"
+      }
+    },
+    {
+      "test": "test_read_MedicationRequest",
+      "status": "passed",
+      "duration": 0.050418,
+      "timestamp": "2025-07-20T18:49:00.753953",
+      "details": {
+        "resource_id": "01f6c8cd-bf62-174d-7161-ebed96cc7058"
+      }
+    },
+    {
+      "test": "test_update_resource",
+      "status": "passed",
+      "duration": 0.375443,
+      "timestamp": "2025-07-20T18:49:01.138007",
+      "details": {
+        "resource_id": "102e57a5-e09c-449f-8dcf-a3c610bbc231"
+      }
+    },
+    {
+      "test": "test_vread_resource",
+      "status": "passed",
+      "duration": 0.415228,
+      "timestamp": "2025-07-20T18:49:02.115713",
+      "details": {
+        "resource_id": "78770482-288d-410c-b3e0-62bcd6a2f363",
+        "version": "1"
+      }
+    },
+    {
+      "test": "test_batch_create",
+      "status": "passed",
+      "duration": 0.288936,
+      "timestamp": "2025-07-20T18:49:03.043355",
+      "details": {
+        "resources_created": 2
+      }
+    },
+    {
+      "test": "test_404_resource_not_found",
+      "status": "passed",
+      "duration": 0.099551,
+      "timestamp": "2025-07-20T18:49:03.145608",
+      "details": {
+        "test_cases": 5
+      }
+    },
+    {
+      "test": "test_invalid_resource_creation",
+      "status": "passed",
+      "duration": 0.101749,
+      "timestamp": "2025-07-20T18:49:03.250379",
+      "details": {
+        "invalid_resources_tested": 6
+      }
+    },
+    {
+      "test": "test_invalid_search_parameters",
+      "status": "passed",
+      "duration": 0.686426,
+      "timestamp": "2025-07-20T18:49:04.168009",
+      "details": {
+        "test_cases": 7
+      }
+    },
+    {
+      "test": "test_concurrent_updates",
+      "status": "passed",
+      "duration": 0.83033,
+      "timestamp": "2025-07-20T18:49:06.961083",
+      "details": {
+        "concurrent_updates": 2
+      }
+    },
+    {
+      "test": "test_circular_references",
+      "status": "passed",
+      "duration": 0.06516,
+      "timestamp": "2025-07-20T18:49:07.114826",
+      "details": {
+        "entries_returned": 1
+      }
+    },
+    {
+      "test": "test_invalid_http_methods",
+      "status": "passed",
+      "duration": 0.033383,
+      "timestamp": "2025-07-20T18:49:07.157150",
+      "details": {
+        "methods_tested": 3
+      }
+    },
+    {
+      "test": "test_header_injection",
+      "status": "passed",
+      "duration": 0.00611,
+      "timestamp": "2025-07-20T18:49:07.164975",
+      "details": {
+        "injection_attempts": 3
+      }
+    },
+    {
+      "test": "test_bundle_structure_compliance",
+      "status": "passed",
+      "duration": 0.060419,
+      "timestamp": "2025-07-20T18:49:08.335569",
+      "details": {
+        "bundle_type": "searchset",
+        "total": 11,
+        "entry_count": 5
+      }
+    },
+    {
+      "test": "test_reference_format_compliance",
+      "status": "passed",
+      "duration": 0.359734,
+      "timestamp": "2025-07-20T18:49:08.699188",
+      "details": {
+        "reference_formats_tested": 3
+      }
+    },
+    {
+      "test": "test_etag_support",
+      "status": "passed",
+      "duration": 0.264237,
+      "timestamp": "2025-07-20T18:49:09.207959",
+      "details": {
+        "etag_present": true
+      }
+    },
+    {
+      "test": "test_location_header_on_create",
+      "status": "passed",
+      "duration": 0.139101,
+      "timestamp": "2025-07-20T18:49:09.417003",
+      "details": {
+        "location_header": "Device/022bbe5c-ccad-4a7f-aafb-334cde48cedc"
+      }
+    },
+    {
+      "test": "test_required_resource_elements",
+      "status": "passed",
+      "duration": 0.252459,
+      "timestamp": "2025-07-20T18:49:09.748456",
+      "details": {
+        "resources_tested": 3
+      }
+    },
+    {
+      "test": "test_date_time_precision",
+      "status": "passed",
+      "duration": 0.919894,
+      "timestamp": "2025-07-20T18:49:10.883049",
+      "details": {
+        "date_formats_tested": 5
+      }
+    },
+    {
+      "test": "test_reverse_chained_search",
+      "status": "passed",
+      "duration": 0.063095,
+      "timestamp": "2025-07-20T18:49:11.670529",
+      "details": {
+        "results": 0
+      }
+    },
+    {
+      "test": "test_composite_search_parameter",
+      "status": "passed",
+      "duration": 0.121698,
+      "timestamp": "2025-07-20T18:49:11.878940",
+      "details": {
+        "composite_param": "component-code-value",
+        "results": 77
+      }
+    },
+    {
+      "test": "test_include_forward_reference",
+      "status": "passed",
+      "duration": 0.050698,
+      "timestamp": "2025-07-20T18:49:11.936039",
+      "details": {
+        "resource_types": [
+          "Patient",
+          "Condition"
+        ],
+        "results": 24
+      }
+    },
+    {
+      "test": "test_revinclude_reverse_reference",
+      "status": "passed",
+      "duration": 0.060029,
+      "timestamp": "2025-07-20T18:49:11.997941",
+      "details": {
+        "resource_counts": {
+          "Patient": 1,
+          "Condition": 24
+        },
+        "total_resources": 25
+      }
+    },
+    {
+      "test": "test_complex_date_search",
+      "status": "passed",
+      "duration": 0.046058,
+      "timestamp": "2025-07-20T18:49:12.046172",
+      "details": {
+        "date_range": "2023-07-21 to 2025-06-20",
+        "results": 75
+      }
+    },
+    {
+      "test": "test_text_search_modifier",
+      "status": "passed",
+      "duration": 0.031691,
+      "timestamp": "2025-07-20T18:49:12.081097",
+      "details": {
+        "search_term": "hypertension",
+        "results": 0
+      }
+    },
+    {
+      "test": "test_complex_boolean_logic",
+      "status": "passed",
+      "duration": 0.218313,
+      "timestamp": "2025-07-20T18:49:12.481067",
+      "details": {
+        "vital_signs_results": 34,
+        "lab_results": 25
+      }
+    },
+    {
+      "test": "test_chained_search_multiple_levels",
+      "status": "passed",
+      "duration": 0.061143,
+      "timestamp": "2025-07-20T18:49:12.543673",
+      "details": {
+        "chain_depth": 2,
+        "organization_name": "General Hospital",
+        "results": 0
+      }
+    },
+    {
+      "test": "test_patient_search_by_name",
+      "status": "passed",
+      "duration": 0.003526,
+      "timestamp": "2025-07-20T18:49:12.602883",
+      "details": {
+        "search_term": "Arellano2",
+        "results": 1
+      }
+    },
+    {
+      "test": "test_patient_search_by_identifier",
+      "status": "passed",
+      "duration": 0.02429,
+      "timestamp": "2025-07-20T18:49:12.629127",
+      "details": {
+        "identifier": "23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159",
+        "results": 1
+      }
+    },
+    {
+      "test": "test_patient_search_by_birthdate",
+      "status": "passed",
+      "duration": 0.03577,
+      "timestamp": "2025-07-20T18:49:12.692037",
+      "details": {
+        "birth_date": "1994-08-16",
+        "results": 1
+      }
+    },
+    {
+      "test": "test_observation_search_by_category",
+      "status": "passed",
+      "duration": 0.066727,
+      "timestamp": "2025-07-20T18:49:12.851778",
+      "details": {
+        "patient_id": "23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159",
+        "category": "vital-signs",
+        "results": 34
+      }
+    },
+    {
+      "test": "test_medication_request_search_by_status",
+      "status": "passed",
+      "duration": 0.746309,
+      "timestamp": "2025-07-20T18:49:13.601120",
+      "details": {
+        "patient_id": "23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159",
+        "status": "active",
+        "results": 1
+      }
+    },
+    {
+      "test": "test_search_with_pagination",
+      "status": "passed",
+      "duration": 0.013138,
+      "timestamp": "2025-07-20T18:49:13.619724",
+      "details": {
+        "page_size": 5,
+        "total_results": 12,
+        "links": [
+          "self",
+          "next"
+        ]
+      }
+    },
+    {
+      "test": "test_search_with_last_updated",
+      "status": "passed",
+      "duration": 0.179297,
+      "timestamp": "2025-07-20T18:49:13.969677",
+      "details": {
+        "date_threshold": "2025-06-20",
+        "results": 12
+      }
+    },
+    {
+      "test": "test_search_multiple_values",
+      "status": "passed",
+      "duration": 0.044759,
+      "timestamp": "2025-07-20T18:49:14.015797",
+      "details": {
+        "statuses": [
+          "active",
+          "resolved"
+        ],
+        "results": 0
+      }
+    },
+    {
+      "test": "test_search_date_range",
+      "status": "passed",
+      "duration": 0.044678,
+      "timestamp": "2025-07-20T18:49:14.064074",
+      "details": {
+        "patient_id": "23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159",
+        "date_range": "2023-01-01 to 2024-12-31",
+        "results": 75
+      }
+    },
+    {
+      "test": "test_search_code_system",
+      "status": "passed",
+      "duration": 0.044057,
+      "timestamp": "2025-07-20T18:49:14.109605",
+      "details": {
+        "loinc_code": "85354-9",
+        "results": 6
+      }
+    },
+    {
+      "test": "test_patient_everything_with_types",
+      "status": "passed",
+      "duration": 0.127603,
+      "timestamp": "2025-07-20T18:49:19.909120",
+      "details": {
+        "requested_types": [
+          "Condition",
+          "Observation",
+          "MedicationRequest"
+        ],
+        "returned_types": [
+          "Observation",
+          "Patient",
+          "MedicationRequest",
+          "Condition"
+        ],
+        "total_resources": 109
+      }
+    },
+    {
+      "test": "test_patient_everything_with_date_range",
+      "status": "passed",
+      "duration": 4.39028,
+      "timestamp": "2025-07-20T18:49:24.783046",
+      "details": {
+        "date_range": "2023-07-21 to 2025-07-20",
+        "total_resources": 1631
+      }
+    },
+    {
+      "test": "test_transaction_bundle",
+      "status": "passed",
+      "duration": 0.285698,
+      "timestamp": "2025-07-20T18:49:26.620329",
+      "details": {
+        "entries_submitted": 2,
+        "entries_processed": 2
+      }
+    },
+    {
+      "test": "test_batch_bundle_mixed_operations",
+      "status": "passed",
+      "duration": 0.328893,
+      "timestamp": "2025-07-20T18:49:26.952815",
+      "details": {
+        "operations": [
+          "GET",
+          "POST",
+          "SEARCH"
+        ],
+        "entries_processed": 3
+      }
+    }
+  ],
+  "summary": {
+    "total": 62,
+    "passed": 62,
+    "failed": 0,
+    "skipped": 0
+  },
+  "end_time": "2025-07-20T18:49:27.381427"
+}

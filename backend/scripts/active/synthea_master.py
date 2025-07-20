@@ -972,14 +972,9 @@ generate.demographics.default_state = Massachusetts
         self.log("🧪 Enhancing lab results with reference ranges...")
         
         try:
-            # Run the lab enhancement script
-            result = subprocess.run(
-                [sys.executable, str(self.script_dir / ".." / "setup" / "enhance_lab_results.py")],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=300
-            )
+            # Directly call the lab enhancement function
+            from scripts.setup import enhance_lab_results
+            await enhance_lab_results.main()
             
             if result.returncode != 0:
                 self.log(f"Lab enhancement failed: {result.stderr}", "ERROR")

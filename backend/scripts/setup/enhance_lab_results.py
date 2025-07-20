@@ -22,6 +22,7 @@ import asyncio
 import json
 import sys
 import argparse
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
@@ -34,6 +35,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from database import DATABASE_URL
+
+DATABASE_URL = os.getenv("DATABASE_URL", DATABASE_URL)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -305,11 +308,8 @@ class LabResultsEnhancer:
                 logging.error(f"  ... and {len(self.stats['errors']) - 5} more errors")
 async def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='Enhance lab results with reference ranges')
-    parser.add_argument('--dry-run', action='store_true', help='Preview changes without updating database')
-    parser.add_argument('--patient-id', help='Process only observations for specific patient')
-    args = parser.parse_args()
-    
+    async def main(dry_run: bool = False, patient_id: Optional[str] = None):
+    """Main entry point."""
     # Create async engine
     engine = create_async_engine(DATABASE_URL.replace('postgresql://', 'postgresql+asyncpg://'), echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -317,13 +317,11 @@ async def main():
     async with async_session() as session:
         enhancer = LabResultsEnhancer(session)
         await enhancer.enhance_all_observations(
-            patient_id=args.patient_id,
-            dry_run=args.dry_run
+            patient_id=patient_id,
+            dry_run=dry_run
         )
         enhancer.print_summary()
         
-        if args.dry_run:
+        if dry_run:
             logging.info("\nThis was a DRY RUN. No changes were made.")
             logging.info("Run without --dry-run to apply changes.")
-if __name__ == "__main__":
-    asyncio.run(main())

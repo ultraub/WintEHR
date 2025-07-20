@@ -10,11 +10,14 @@ Implements comprehensive FHIR search functionality including:
 """
 
 import re
+import logging
 from typing import Dict, List, Tuple, Any, Optional, Set
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fhir.core.reference_utils import ReferenceUtils
 from fhir.core.search.composite import CompositeSearchHandler
+
+logger = logging.getLogger(__name__)
 
 
 class SearchParameterHandler:
@@ -159,7 +162,8 @@ class SearchParameterHandler:
                 continue
             
             # Quantity searches don't use search_params table
-            if param_type != 'quantity':
+            # :missing searches also don't need a join - they use EXISTS/NOT EXISTS
+            if param_type != 'quantity' and modifier != 'missing':
                 # Regular search parameters
                 join_clauses.append(
                     f"LEFT JOIN fhir.search_params {alias} ON {alias}.resource_id = r.id"
@@ -407,6 +411,11 @@ class SearchParameterHandler:
         modifier: Optional[str]
     ) -> Optional[Dict[str, Any]]:
         """Parse a parameter value based on its type."""
+        # Special handling for :missing modifier
+        if modifier == 'missing':
+            # For :missing, the value should be 'true' or 'false'
+            return {'value': value.lower()}
+        
         if param_type == 'string':
             return {'value': value}
         
@@ -647,6 +656,10 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for date parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         for i, value_dict in enumerate(values):
@@ -707,6 +720,10 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for number parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         for i, value_dict in enumerate(values):
@@ -747,10 +764,14 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for reference parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         # Handle resource type modifier (e.g., subject:Patient)
-        if modifier and ':' not in modifier and modifier != 'type':
+        if modifier and ':' not in modifier and modifier not in ['type', 'missing']:
             # The modifier is a resource type constraint
             for i, value_dict in enumerate(values):
                 ref_id = value_dict.get('id')
@@ -818,6 +839,25 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for quantity parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            # For quantity, we check the JSONB path
+            if param_name == 'value-quantity':
+                jsonb_path = "r.resource->'valueQuantity'"
+            else:
+                jsonb_path = f"r.resource->'{param_name}'"
+            
+            # The value should be 'true' or 'false'
+            if values and isinstance(values[0], dict) and 'value' in values[0]:
+                missing_value = str(values[0]['value']).lower() == 'true'
+            else:
+                missing_value = True
+            
+            if missing_value:
+                return f"({jsonb_path} IS NULL)"
+            else:
+                return f"({jsonb_path} IS NOT NULL)"
+        
         # For value-quantity searches, we need to query the JSONB directly
         # since quantities have complex structure (value, unit, system, code)
         conditions = []
@@ -1638,3 +1678,64 @@ class SearchParameterHandler:
         else:
             # No valid composite parameters
             return "1=0"
+    
+    def _build_missing_clause(
+        self,
+        alias: str,
+        param_name: str,
+        values: List[Dict],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for :missing modifier.
+        
+        The :missing modifier searches for resources that either have or don't have
+        a value for the specified parameter.
+        
+        Args:
+            alias: SQL table alias for search_params table
+            param_name: The search parameter name
+            values: List of value dicts, should contain 'true' or 'false'
+            counter: Counter for unique parameter naming
+            sql_params: Dictionary to add SQL parameters to
+            
+        Returns:
+            SQL WHERE clause string
+        """
+        # Extract the missing value - should be 'true' or 'false'
+        missing_value = True  # Default to true if not specified
+        
+        if values and len(values) > 0:
+            value = values[0]
+            if isinstance(value, dict):
+                # Value might be in 'value' or 'code' field
+                val_str = value.get('value') or value.get('code') or 'true'
+            else:
+                val_str = str(value)
+            
+            missing_value = val_str.lower() == 'true'
+        
+        logger.info(f"Building :missing clause for param_name={param_name}, missing_value={missing_value}, values={values}")
+        
+        param_name_key = f"param_name_{counter}"
+        sql_params[param_name_key] = param_name
+        
+        if missing_value:
+            # Looking for resources where the parameter is missing
+            # Use NOT EXISTS to find resources without this search parameter
+            clause = f"""NOT EXISTS (
+                SELECT 1 FROM fhir.search_params sp_missing_{counter}
+                WHERE sp_missing_{counter}.resource_id = r.id
+                AND sp_missing_{counter}.param_name = :{param_name_key}
+            )"""
+        else:
+            # Looking for resources where the parameter exists
+            # Use EXISTS to find resources with this search parameter
+            clause = f"""EXISTS (
+                SELECT 1 FROM fhir.search_params sp_exists_{counter}
+                WHERE sp_exists_{counter}.resource_id = r.id
+                AND sp_exists_{counter}.param_name = :{param_name_key}
+            )"""
+        
+        logger.info(f"Generated :missing clause: {clause}")
+        return clause

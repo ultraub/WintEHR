@@ -57,10 +57,7 @@ class TestComplexSearch:
             matching_patient_ids = set()
             if "entry" in patient_bundle:
                 for entry in patient_bundle["entry"]:
-                    patient_id = entry['resource']['id']
-                    # Add both possible reference formats
-                    matching_patient_ids.add(f"Patient/{patient_id}")
-                    matching_patient_ids.add(f"urn:uuid:{patient_id}")
+                    matching_patient_ids.add(f"Patient/{entry['resource']['id']}")
             
             # Verify all observations belong to matching patients
             for entry in bundle["entry"]:
@@ -176,10 +173,8 @@ class TestComplexSearch:
             for entry in bundle["entry"]:
                 observation = entry["resource"]
                 
-                # Check patient (handle both reference formats)
-                subject_ref = observation.get("subject", {}).get("reference", "")
-                assert subject_ref in [f"Patient/{patient_id}", f"urn:uuid:{patient_id}"], \
-                    f"Expected Patient/{patient_id} or urn:uuid:{patient_id}, got {subject_ref}"
+                # Check patient
+                assert observation.get("subject", {}).get("reference") == f"Patient/{patient_id}"
                 
                 # Check category
                 categories = observation.get("category", [])

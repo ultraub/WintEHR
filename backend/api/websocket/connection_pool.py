@@ -131,7 +131,9 @@ class ConnectionPool:
         
         # Weak references for garbage collection
         self._weak_connections: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
-        
+
+    def start_background_tasks(self):
+        """Start background maintenance tasks"""
         # Start background tasks
         self._start_background_tasks()
     

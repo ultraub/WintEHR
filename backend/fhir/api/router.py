@@ -290,6 +290,17 @@ async def search_resources(
         }
         return bundle
     
+    # Validate _count parameter
+    if _count is not None:
+        if _count < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="_count parameter must be a non-negative integer"
+            )
+        if _count > 1000:
+            # Limit maximum count to prevent resource exhaustion
+            _count = 1000
+    
     # Calculate pagination for normal searches
     count = _count or 10
     page = _page or 1
@@ -411,8 +422,26 @@ async def create_resource(
     # Check for If-None-Exist header
     if_none_exist = request.headers.get("If-None-Exist")
     
-    # Get resource data
-    resource_data = await request.json()
+    # Get resource data - handle JSON parsing errors
+    try:
+        resource_data = await request.json()
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request body: {str(e)}"
+        )
+    
+    # Validate that we got a JSON object, not an array or primitive
+    if not isinstance(resource_data, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a FHIR resource object"
+        )
     
     try:
         # Create resource
@@ -488,10 +517,20 @@ async def read_resource(
     resource = await storage.read_resource(resource_type, id)
     
     if not resource:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Resource {resource_type}/{id} not found"
-        )
+        # Check if resource was deleted (soft delete)
+        is_deleted = await storage.check_resource_deleted(resource_type, id)
+        if is_deleted:
+            # Return 410 Gone for deleted resources per FHIR spec
+            raise HTTPException(
+                status_code=410,
+                detail=f"Resource {resource_type}/{id} has been deleted"
+            )
+        else:
+            # Return 404 for truly non-existent resources
+            raise HTTPException(
+                status_code=404,
+                detail=f"Resource {resource_type}/{id} not found"
+            )
     
     # Apply _summary and _elements
     if _summary:
@@ -500,10 +539,14 @@ async def read_resource(
     if _elements:
         resource = _apply_elements(resource, _elements.split(','))
     
-    # Build response
-    response = JSONResponse(content=resource)
-    response.headers["ETag"] = f'W/"{resource.get("meta", {}).get("versionId", "1")}"'
-    response.headers["Last-Modified"] = resource.get("meta", {}).get("lastUpdated", "")
+    # Build response with proper FHIR content type
+    response = FHIRJSONResponse(
+        content=resource,
+        headers={
+            "ETag": f'W/"{resource.get("meta", {}).get("versionId", "1")}"',
+            "Last-Modified": resource.get("meta", {}).get("lastUpdated", "")
+        }
+    )
     
     return response
 
@@ -531,8 +574,26 @@ async def update_resource(
     # Check for If-Match header
     if_match = request.headers.get("If-Match")
     
-    # Get resource data
-    resource_data = await request.json()
+    # Get resource data - handle JSON parsing errors
+    try:
+        resource_data = await request.json()
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request body: {str(e)}"
+        )
+    
+    # Validate that we got a JSON object, not an array or primitive
+    if not isinstance(resource_data, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must be a FHIR resource object"
+        )
     
     # Ensure ID matches
     if resource_data.get("id") and resource_data["id"] != id:
@@ -603,10 +664,20 @@ async def delete_resource(
     deleted = await storage.delete_resource(resource_type, id)
     
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Resource {resource_type}/{id} not found"
-        )
+        # Check if resource was already deleted
+        is_deleted = await storage.check_resource_deleted(resource_type, id)
+        if is_deleted:
+            # Return 410 Gone for already deleted resources
+            raise HTTPException(
+                status_code=410,
+                detail=f"Resource {resource_type}/{id} has already been deleted"
+            )
+        else:
+            # Return 404 for truly non-existent resources
+            raise HTTPException(
+                status_code=404,
+                detail=f"Resource {resource_type}/{id} not found"
+            )
     
     # Invalidate cache for this resource type
     cache = get_search_cache()

@@ -88,11 +88,11 @@ class TestDataSetup:
                 fhir_id,
                 resource->'name'->0->>'family' as family,
                 resource->'name'->0->'given'->0 as given,
-                created_at
+                last_updated
             FROM fhir.resources
             WHERE resource_type = 'Patient'
             AND deleted = false
-            ORDER BY created_at DESC
+            ORDER BY last_updated DESC
             LIMIT 10
         """)
         
@@ -112,12 +112,13 @@ class TestDataSetup:
         compartment_coverage = await conn.fetchval("""
             SELECT 
                 CASE 
-                    WHEN COUNT(*) = 0 THEN 0
-                    ELSE COUNT(DISTINCT compartment_id) * 100.0 / COUNT(*)
+                    WHEN COUNT(DISTINCT r.id) = 0 THEN 0
+                    ELSE COUNT(DISTINCT c.resource_id) * 100.0 / COUNT(DISTINCT r.id)
                 END as coverage
-            FROM fhir.resources
-            WHERE resource_type = 'Patient'
-            AND (deleted = false OR deleted IS NULL)
+            FROM fhir.resources r
+            LEFT JOIN fhir.compartments c ON r.id = c.resource_id
+            WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest', 'Procedure', 'Encounter')
+            AND (r.deleted = false OR r.deleted IS NULL)
         """)
         
         await conn.close()
@@ -203,25 +204,22 @@ class TestDataSetup:
         logger.info("Populating patient compartments...")
         
         try:
-            # Import here to avoid circular imports
-            sys.path.append('/app')
-            from scripts.populate_compartments import populate_compartments
+            result = subprocess.run([
+                'python', 'scripts/populate_compartments.py'
+            ], capture_output=True, text=True)
             
-            await populate_compartments()
+            if result.returncode != 0:
+                logger.error(f"Failed to populate compartments: {result.stderr}")
+                print(result.stdout)
+                print(result.stderr)
+                return False
+
             logger.info("Compartments populated successfully")
             return True
             
         except Exception as e:
-            logger.error(f"Error populating compartments: {e}")
-            # Try subprocess as fallback
-            try:
-                result = subprocess.run([
-                    'python', 'scripts/populate_compartments.py'
-                ], capture_output=True, text=True)
-                
-                return result.returncode == 0
-            except:
-                return False
+            logger.error(f"Error running populate_compartments.py script: {e}")
+            return False
     
     async def generate_test_summary(self, data_info: Dict):
         """Generate a summary of available test data."""

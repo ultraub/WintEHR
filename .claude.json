@@ -40,6 +40,16 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
       },
       "description": "GitHub integration for issues, PRs, and repository management"
+    },
+    "graphiti-kb": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/Users/robertbarrett/Library/Mobile Documents/com~apple~CloudDocs/dev/MedGenEMR/.claude/services/graphiti/mcp/graphiti_mcp_server.py"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "GRAPHITI_URL": "http://localhost:8100"
+      },
+      "description": "WintEHR knowledge graph for patterns, solutions, and insights"
     }
   },
   "enableAllProjectMcpServers": false,

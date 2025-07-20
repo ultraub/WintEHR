@@ -752,6 +752,39 @@ class FHIRStorageEngine:
             return json.loads(row[0]) if isinstance(row[0], str) else row[0]
         return None
     
+    async def check_resource_deleted(
+        self,
+        resource_type: str,
+        fhir_id: str
+    ) -> bool:
+        """
+        Check if a resource exists but is deleted (soft delete).
+        
+        Args:
+            resource_type: FHIR resource type
+            fhir_id: FHIR resource ID
+            
+        Returns:
+            True if resource exists but is deleted, False otherwise
+        """
+        query = text("""
+            SELECT deleted
+            FROM fhir.resources
+            WHERE resource_type = :resource_type
+            AND fhir_id = :fhir_id
+        """)
+        params = {
+            'resource_type': resource_type,
+            'fhir_id': fhir_id
+        }
+        
+        result = await self.session.execute(query, params)
+        row = result.first()
+        
+        if row and row[0]:  # If found and deleted is True
+            return True
+        return False
+    
     async def update_resource(
         self,
         resource_type: str,
@@ -1075,6 +1108,11 @@ class FHIRStorageEngine:
         if join_clauses:
             query += " " + " ".join(join_clauses)
         query += " WHERE " + " AND ".join(all_where_clauses)
+        
+        # Log the query for debugging
+        logger.info(f"Search query for {resource_type}: {query}")
+        logger.info(f"Search params: {sql_params}")
+        logger.info(f"Where clauses: {where_clauses}")
         
         # Add ordering
         query += " ORDER BY r.last_updated DESC"
@@ -1563,7 +1601,7 @@ class FHIRStorageEngine:
             # Read/Search
             if fhir_id:
                 # Read single resource
-                resource = await self.get_resource(resource_type, fhir_id)
+                resource = await self.read_resource(resource_type, fhir_id)
                 if resource:
                     response_entry['resource'] = resource
                     response_entry['response'] = {"status": "200"}
@@ -1838,9 +1876,10 @@ class FHIRStorageEngine:
                     patient_id = patient_ref.replace('urn:uuid:', '')
                 
                 if patient_id:
+                    # Store the full reference for patient search param
                     await self._add_search_param(
                         resource_id, resource_type, 'patient', 'reference',
-                        value_reference=patient_id
+                        value_reference=patient_ref  # Store full reference, not just ID
                     )
             
             # Add status parameter

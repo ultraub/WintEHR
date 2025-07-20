@@ -76,7 +76,7 @@ import {
   History as HistoryIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
+import { format, parseISO, isWithinInterval, subDays, addDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
@@ -948,7 +948,6 @@ const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }
   }, []);
 
   // Import required icons that may be missing
-  const subMonths = require('date-fns/subMonths').default;
 
   // Handle status changes
   const handleStatusChange = useCallback(async (requestId, newStatus) => {

@@ -128,7 +128,7 @@ const ChartReviewTabOptimized = ({ patient }) => {
   
   // Filter data by date range
   const filteredByDate = useMemo(() => {
-    if (dateRange === 'all') return true;
+    if (dateRange === 'all') return () => true;
     
     const days = {
       '30d': 30,

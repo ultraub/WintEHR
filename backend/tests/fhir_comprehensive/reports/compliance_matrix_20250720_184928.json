@@ -1,0 +1,389 @@
+{
+  "generated_at": "2025-07-20T18:49:28.716173",
+  "compliance_scores": {
+    "RESTful API": {
+      "total_features": 7,
+      "tested": 2,
+      "passed": 2,
+      "coverage": 28.57142857142857,
+      "compliance": 28.57142857142857
+    },
+    "Search": {
+      "total_features": 19,
+      "tested": 8,
+      "passed": 8,
+      "coverage": 42.10526315789473,
+      "compliance": 42.10526315789473
+    },
+    "Operations": {
+      "total_features": 10,
+      "tested": 0,
+      "passed": 0,
+      "coverage": 0.0,
+      "compliance": 0.0
+    },
+    "Bundles": {
+      "total_features": 7,
+      "tested": 3,
+      "passed": 3,
+      "coverage": 42.857142857142854,
+      "compliance": 42.857142857142854
+    },
+    "Format Support": {
+      "total_features": 3,
+      "tested": 0,
+      "passed": 0,
+      "coverage": 0.0,
+      "compliance": 0.0
+    },
+    "HTTP Features": {
+      "total_features": 11,
+      "tested": 2,
+      "passed": 2,
+      "coverage": 18.181818181818183,
+      "compliance": 18.181818181818183
+    },
+    "Error Handling": {
+      "total_features": 5,
+      "tested": 1,
+      "passed": 1,
+      "coverage": 20.0,
+      "compliance": 20.0
+    },
+    "Resource Support": {
+      "total_features": 4,
+      "tested": 1,
+      "passed": 1,
+      "coverage": 25.0,
+      "compliance": 25.0
+    },
+    "Overall": {
+      "total_features": 66,
+      "tested": 17,
+      "passed": 17,
+      "coverage": 25.757575757575758,
+      "compliance": 25.757575757575758
+    }
+  },
+  "feature_matrix": {
+    "RESTful API": {
+      "CRUD Operations": {
+        "Create (POST)": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Read (GET)": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Update (PUT)": {
+          "tested": true,
+          "status": "pass"
+        },
+        "Delete (DELETE)": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Vread (version read)": {
+          "tested": true,
+          "status": "pass"
+        },
+        "Conditional Create": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Conditional Update": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "Search": {
+      "Basic Search": {
+        "Single parameter": {
+          "tested": true,
+          "status": "pass"
+        },
+        "Multiple parameters": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Chained parameters": {
+          "tested": false,
+          "status": "pending"
+        },
+        "Reverse chaining (_has)": {
+          "tested": true,
+          "status": "pass"
+        },
+        "Composite search": {
+          "tested": true,
+          "status": "pass"
+        }
+      },
+      "Search Modifiers": {
+        ":exact": {
+          "tested": false,
+          "status": "pending"
+        },
+        ":contains": {
+          "tested": false,
+          "status": "pending"
+        },
+        ":missing": {
+          "tested": false,
+          "status": "pending"
+        },
+        ":above/:below": {
+          "tested": false,
+          "status": "pending"
+        },
+        ":text": {
+          "tested": true,
+          "status": "pass"
+        }
+      },
+      "Common Parameters": {
+        "_id": {
+          "tested": false,
+          "status": "pending"
+        },
+        "_lastUpdated": {
+          "tested": true,
+          "status": "pass"
+        },
+        "_tag": {
+          "tested": false,
+          "status": "pending"
+        },
+        "_profile": {
+          "tested": false,
+          "status": "pending"
+        },
+        "_security": {
+          "tested": false,
+          "status": "pending"
+        },
+        "_count": {
+          "tested": true,
+          "status": "pass"
+        },
+        "_sort": {
+          "tested": false,
+          "status": "pending"
+        },
+        "_include": {
+          "tested": true,
+          "status": "pass"
+        },
+        "_revinclude": {
+          "tested": true,
+          "status": "pass"
+        }
+      }
+    },
+    "Operations": {
+      "Instance Operations": {
+        "$validate": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$meta": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$meta-add": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$meta-delete": {
+          "tested": false,
+          "status": "pending"
+        }
+      },
+      "Type Operations": {
+        "_history": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$validate": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$meta": {
+          "tested": false,
+          "status": "pending"
+        }
+      },
+      "System Operations": {
+        "_history": {
+          "tested": false,
+          "status": "pending"
+        },
+        "$meta": {
+          "tested": false,
+          "status": "pending"
+        }
+      },
+      "Patient Operations": {
+        "$everything": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "Bundles": {
+      "Bundle Types": {
+        "document": {
+          "tested": false,
+          "status": "pending"
+        },
+        "message": {
+          "tested": false,
+          "status": "pending"
+        },
+        "transaction": {
+          "tested": true,
+          "status": "pass"
+        },
+        "batch": {
+          "tested": true,
+          "status": "pass"
+        },
+        "history": {
+          "tested": false,
+          "status": "pending"
+        },
+        "searchset": {
+          "tested": true,
+          "status": "pass"
+        },
+        "collection": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "Format Support": {
+      "Content Types": {
+        "application/fhir+json": {
+          "tested": false,
+          "status": "pending"
+        },
+        "application/json": {
+          "tested": false,
+          "status": "pending"
+        },
+        "JSON Pretty Print": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "HTTP Features": {
+      "Headers": {
+        "Content-Type negotiation": {
+          "tested": false,
+          "status": "pending"
+        },
+        "ETag support": {
+          "tested": true,
+          "status": "pass"
+        },
+        "Location header": {
+          "tested": true,
+          "status": "pass"
+        },
+        "If-Match": {
+          "tested": false,
+          "status": "pending"
+        },
+        "If-None-Exist": {
+          "tested": false,
+          "status": "pending"
+        }
+      },
+      "Methods": {
+        "GET": {
+          "tested": false,
+          "status": "pending"
+        },
+        "POST": {
+          "tested": false,
+          "status": "pending"
+        },
+        "PUT": {
+          "tested": false,
+          "status": "pending"
+        },
+        "DELETE": {
+          "tested": false,
+          "status": "pending"
+        },
+        "HEAD": {
+          "tested": false,
+          "status": "pending"
+        },
+        "OPTIONS": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "Error Handling": {
+      "OperationOutcome": {
+        "400 Bad Request": {
+          "tested": false,
+          "status": "pending"
+        },
+        "404 Not Found": {
+          "tested": true,
+          "status": "pass"
+        },
+        "409 Conflict": {
+          "tested": false,
+          "status": "pending"
+        },
+        "410 Gone": {
+          "tested": false,
+          "status": "pending"
+        },
+        "422 Unprocessable Entity": {
+          "tested": false,
+          "status": "pending"
+        }
+      }
+    },
+    "Resource Support": {
+      "Resource Count": {
+        "Total resource types": {
+          "tested": true,
+          "status": "pass",
+          "count": 48
+        },
+        "Clinical resources": {
+          "tested": false,
+          "status": "pending",
+          "count": 0
+        },
+        "Administrative resources": {
+          "tested": false,
+          "status": "pending",
+          "count": 0
+        },
+        "Infrastructure resources": {
+          "tested": false,
+          "status": "pending",
+          "count": 0
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_features": 66,
+    "features_tested": 17,
+    "features_passed": 17,
+    "test_coverage_percent": 25.757575757575758,
+    "compliance_percent": 25.757575757575758
+  }
+}

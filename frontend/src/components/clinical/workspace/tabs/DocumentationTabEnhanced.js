@@ -346,8 +346,8 @@ const StyledTreeItem = memo(({ nodeId, label, icon, count, color = 'default', ch
               sx={{ 
                 height: 20, 
                 fontSize: '0.75rem',
-                backgroundColor: alpha(theme.palette[color].main, 0.1),
-                color: theme.palette[color].main
+                backgroundColor: color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[color].main, 0.1),
+                color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main
               }} 
             />
           )}
@@ -656,7 +656,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         const typeConfig = noteTypes[noteType] || noteTypes.other;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
-            <Box sx={{ color: theme.palette[typeConfig.color].main }}>
+            <Box sx={{ color: (theme) => theme.palette[typeConfig.color].main }}>
               {typeConfig.icon}
             </Box>
             <Typography variant="body2">{typeConfig.label}</Typography>

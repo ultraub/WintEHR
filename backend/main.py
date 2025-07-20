@@ -65,10 +65,13 @@ async def health_check():
 async def api_health_check():
     return {"status": "healthy", "service": "Teaching EMR API"}
 
+from api.websocket.connection_pool import connection_pool
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+    connection_pool.start_background_tasks()
 
 # Shutdown event
 @app.on_event("shutdown")

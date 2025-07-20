@@ -1,0 +1,668 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FHIR R4 Compliance Matrix - WintEHR</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .pass { background-color: #d4edda; color: #155724; }
+        .fail { background-color: #f8d7da; color: #721c24; }
+        .pending { background-color: #fff3cd; color: #856404; }
+        .score-card { 
+            background: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin: 10px 0;
+            display: inline-block;
+            width: 200px;
+            text-align: center;
+        }
+        .score-value { font-size: 2em; font-weight: bold; }
+        .compliance-high { color: #28a745; }
+        .compliance-medium { color: #ffc107; }
+        .compliance-low { color: #dc3545; }
+        .feature-table { margin-left: 20px; }
+        .category-header { background-color: #e9ecef; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>FHIR R4 Compliance Matrix</h1>
+    <p>Generated: 2025-07-20 18:49:28</p>
+    
+    <h2>Overall Compliance Scores</h2>
+    <div>
+
+        <div class="score-card">
+            <h3>Compliance Score</h3>
+            <div class="score-value compliance-low">25.8%</div>
+            <p>17 / 66 features</p>
+        </div>
+        
+        <div class="score-card">
+            <h3>Test Coverage</h3>
+            <div class="score-value compliance-low">25.8%</div>
+            <p>17 / 66 features</p>
+        </div>
+    </div>
+    
+    <h2>Category Scores</h2>
+    <table>
+        <tr>
+            <th>Category</th>
+            <th>Total Features</th>
+            <th>Tested</th>
+            <th>Passed</th>
+            <th>Coverage %</th>
+            <th>Compliance %</th>
+        </tr>
+
+        <tr>
+            <td>RESTful API</td>
+            <td>7</td>
+            <td>2</td>
+            <td>2</td>
+            <td>28.6%</td>
+            <td>28.6%</td>
+        </tr>
+
+        <tr>
+            <td>Search</td>
+            <td>19</td>
+            <td>8</td>
+            <td>8</td>
+            <td>42.1%</td>
+            <td>42.1%</td>
+        </tr>
+
+        <tr>
+            <td>Operations</td>
+            <td>10</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0.0%</td>
+            <td>0.0%</td>
+        </tr>
+
+        <tr>
+            <td>Bundles</td>
+            <td>7</td>
+            <td>3</td>
+            <td>3</td>
+            <td>42.9%</td>
+            <td>42.9%</td>
+        </tr>
+
+        <tr>
+            <td>Format Support</td>
+            <td>3</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0.0%</td>
+            <td>0.0%</td>
+        </tr>
+
+        <tr>
+            <td>HTTP Features</td>
+            <td>11</td>
+            <td>2</td>
+            <td>2</td>
+            <td>18.2%</td>
+            <td>18.2%</td>
+        </tr>
+
+        <tr>
+            <td>Error Handling</td>
+            <td>5</td>
+            <td>1</td>
+            <td>1</td>
+            <td>20.0%</td>
+            <td>20.0%</td>
+        </tr>
+
+        <tr>
+            <td>Resource Support</td>
+            <td>4</td>
+            <td>1</td>
+            <td>1</td>
+            <td>25.0%</td>
+            <td>25.0%</td>
+        </tr>
+
+    </table>
+    
+    <h2>Detailed Feature Compliance</h2>
+<h3>RESTful API</h3>
+    <h4 style="margin-left: 20px;">CRUD Operations</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>Create (POST)</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Read (GET)</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Update (PUT)</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Delete (DELETE)</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Vread (version read)</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Conditional Create</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Conditional Update</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>Search</h3>
+    <h4 style="margin-left: 20px;">Basic Search</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>Single parameter</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Multiple parameters</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Chained parameters</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Reverse chaining (_has)</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Composite search</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">Search Modifiers</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>:exact</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>:contains</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>:missing</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>:above/:below</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>:text</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">Common Parameters</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>_id</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_lastUpdated</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_tag</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_profile</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_security</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_count</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_sort</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_include</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>_revinclude</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+</table><h3>Operations</h3>
+    <h4 style="margin-left: 20px;">Instance Operations</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>$validate</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$meta</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$meta-add</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$meta-delete</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">Type Operations</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>_history</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$validate</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$meta</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">System Operations</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>_history</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>$meta</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">Patient Operations</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>$everything</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>Bundles</h3>
+    <h4 style="margin-left: 20px;">Bundle Types</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>document</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>message</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>transaction</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>batch</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>history</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>searchset</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>collection</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>Format Support</h3>
+    <h4 style="margin-left: 20px;">Content Types</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>application/fhir+json</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>application/json</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>JSON Pretty Print</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>HTTP Features</h3>
+    <h4 style="margin-left: 20px;">Headers</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>Content-Type negotiation</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ETag support</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Location header</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>If-Match</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>If-None-Exist</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table>
+    <h4 style="margin-left: 20px;">Methods</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>GET</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>POST</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>PUT</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DELETE</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>HEAD</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>OPTIONS</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>Error Handling</h3>
+    <h4 style="margin-left: 20px;">OperationOutcome</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>400 Bad Request</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>404 Not Found</td>
+            <td class="pass">PASS</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>409 Conflict</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>410 Gone</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>422 Unprocessable Entity</td>
+            <td class="pending">PENDING</td>
+            <td></td>
+        </tr>
+</table><h3>Resource Support</h3>
+    <h4 style="margin-left: 20px;">Resource Count</h4>
+    <table class="feature-table">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Notes</th>
+        </tr>
+
+        <tr>
+            <td>Total resource types</td>
+            <td class="pass">PASS</td>
+            <td>Count: 48</td>
+        </tr>
+
+        <tr>
+            <td>Clinical resources</td>
+            <td class="pending">PENDING</td>
+            <td>Count: 0</td>
+        </tr>
+
+        <tr>
+            <td>Administrative resources</td>
+            <td class="pending">PENDING</td>
+            <td>Count: 0</td>
+        </tr>
+
+        <tr>
+            <td>Infrastructure resources</td>
+            <td class="pending">PENDING</td>
+            <td>Count: 0</td>
+        </tr>
+</table>
+    <h2>Test Execution Summary</h2>
+    <p>This compliance matrix shows which FHIR R4 features are tested by the comprehensive test suite.</p>
+    
+    <h3>Legend</h3>
+    <ul>
+        <li class="pass">PASS - Feature is tested and working correctly</li>
+        <li class="fail">FAIL - Feature is tested but has failures</li>
+        <li class="pending">PENDING - Feature is not yet tested</li>
+    </ul>
+    
+    <h3>Running the Tests</h3>
+    <pre>
+# Run all compliance tests
+pytest backend/tests/fhir_comprehensive/ -v
+
+# Generate this report
+python backend/tests/fhir_comprehensive/generate_compliance_matrix.py
+    </pre>
+</body>
+</html>
