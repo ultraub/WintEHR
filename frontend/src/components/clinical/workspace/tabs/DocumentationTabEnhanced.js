@@ -48,8 +48,6 @@ import {
   useTheme,
   alpha,
   Snackbar,
-  TreeView,
-  TreeItem,
   Collapse,
   Badge,
   Fade,
@@ -58,6 +56,7 @@ import {
   Avatar,
   AvatarGroup
 } from '@mui/material';
+import { TreeView, TreeItem } from '@mui/x-tree-view';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,

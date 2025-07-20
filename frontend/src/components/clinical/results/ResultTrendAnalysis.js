@@ -23,8 +23,7 @@ import {
   Card,
   CardContent,
   Grid,
-  Divider,
-  Button
+  Divider
 } from '@mui/material';
 import {
   TrendingUp,
@@ -36,9 +35,7 @@ import {
   Print as PrintIcon,
   Info as InfoIcon,
   Warning as WarningIcon,
-  CheckCircle as NormalIcon,
-  ZoomIn,
-  ZoomOut
+  CheckCircle as NormalIcon
 } from '@mui/icons-material';
 import {
   LineChart,

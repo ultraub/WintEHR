@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   List,
   ListItem,
@@ -15,27 +14,17 @@ import {
   ListItemSecondaryAction,
   Chip,
   Stack,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
   Tooltip,
-  Collapse,
   Button,
   Card,
   CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
   MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Badge,
   useTheme,
   alpha,
   Snackbar,
@@ -48,23 +37,15 @@ import {
   Assignment as ProblemIcon,
   LocalPharmacy as PharmacyIcon,
   Vaccines as ImmunizationIcon,
-  FamilyRestroom as FamilyIcon,
   SmokingRooms as SmokingIcon,
   LocalBar as AlcoholIcon,
   Add as AddIcon,
   Edit as EditIcon,
   History as HistoryIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  Print as PrintIcon,
-  Timeline as TimelineIcon,
-  CheckCircle as ActiveIcon,
-  Cancel as InactiveIcon,
-  ErrorOutline as SeverityIcon
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
 import EditProblemDialog from '../dialogs/EditProblemDialog';
@@ -74,15 +55,14 @@ import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
 import fhirClient from '../../../../services/fhirClient';
-import { intelligentCache } from '../../../../utils/intelligentCache';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
+import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 // Problem List Component
 const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -329,7 +309,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
 // Medication List Component
 const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
@@ -621,7 +600,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
 // Allergy List Component
 const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);

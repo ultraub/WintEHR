@@ -22,7 +22,6 @@ import {
   InputAdornment,
   Toolbar,
   alpha,
-  useTheme,
   Skeleton,
   LinearProgress,
   Badge
@@ -44,7 +43,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { visuallyHidden } from '@mui/utils';
 import TrendSparkline from './TrendSparkline';
-import { severity as severityTokens, getClinicalStatusStyles } from '../../../themes/clinicalTheme';
+import { severity as severityTokens } from '../../../themes/clinicalTheme';
 
 // Status icon mapping
 const statusIcons = {
@@ -185,7 +184,6 @@ const SmartTableToolbar = memo(({
   onPrint,
   actions = []
 }) => {
-  const theme = useTheme();
   const [searchValue, setSearchValue] = useState('');
 
   const handleSearchChange = (event) => {
@@ -323,7 +321,6 @@ const SmartTable = memo(({
   
   ...otherProps
 }) => {
-  const theme = useTheme();
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('');
   const [page, setPage] = useState(0);
@@ -638,19 +635,19 @@ const SmartTable = memo(({
         }}
       >
         <MenuItem onClick={() => {
-          console.log('View details:', contextRow);
+          // TODO: Implement view details handler
           setMenuAnchor(null);
         }}>
           View Details
         </MenuItem>
         <MenuItem onClick={() => {
-          console.log('Edit:', contextRow);
+          // TODO: Implement edit handler
           setMenuAnchor(null);
         }}>
           Edit
         </MenuItem>
         <MenuItem onClick={() => {
-          console.log('Delete:', contextRow);
+          // TODO: Implement delete handler
           setMenuAnchor(null);
         }}>
           Delete

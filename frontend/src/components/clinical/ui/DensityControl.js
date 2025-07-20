@@ -14,9 +14,9 @@ import {
   alpha
 } from '@mui/material';
 import {
-  ViewCompact as CompactIcon,
-  ViewComfortable as ComfortableIcon,
-  ViewAgenda as SpaciousIcon,
+  DensitySmall as CompactIcon,
+  DensityMedium as ComfortableIcon,
+  DensityLarge as SpaciousIcon,
   TableRows as RowsIcon,
   ViewModule as CardsIcon,
   ViewList as ListIcon

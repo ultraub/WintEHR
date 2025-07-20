@@ -8,7 +8,6 @@ import {
   Box,
   TextField,
   Autocomplete,
-  Paper,
   Typography,
   Chip,
   Stack,
@@ -18,7 +17,6 @@ import {
   CardActions,
   Button,
   Alert,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -28,20 +26,14 @@ import {
   DialogContent,
   DialogActions,
   CircularProgress,
-  Tooltip,
-  IconButton,
-  Badge,
-  Collapse
+  Badge
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
   Warning as WarningIcon,
-  Info as InfoIcon,
   Search as SearchIcon,
   History as HistoryIcon,
   Star as FavoriteIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
   Schedule as DosingIcon,
   Security as SafetyIcon,
   LocalPharmacy as PharmacyIcon

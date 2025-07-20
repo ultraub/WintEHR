@@ -3,11 +3,10 @@
  * Enhanced version of ClinicalWorkspaceV3 that works with the new navigation system
  * Removes duplicate headers and integrates with EnhancedClinicalLayout
  */
-import React, { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
-  Paper,
   Stack,
   CircularProgress,
   Alert,
@@ -15,7 +14,6 @@ import {
   Button,
   Typography,
   useTheme,
-  useMediaQuery,
   Snackbar,
   Chip,
   alpha
@@ -252,7 +250,7 @@ const ClinicalWorkspaceEnhanced = ({
   }
 
   // Add console log to verify enhanced version is loading
-  console.log('ClinicalWorkspaceEnhanced: Loading - this is the enhanced version');
+  console.log('ClinicalWorkspaceEnhanced: Loading - enhanced version with fixes v2');
   console.log('ClinicalWorkspaceEnhanced: activeModule =', activeModule, 'activeTab =', activeTab);
 
   return (

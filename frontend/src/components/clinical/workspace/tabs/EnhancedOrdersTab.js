@@ -2,10 +2,9 @@
  * Enhanced Orders Tab Component
  * Comprehensive CPOE system with advanced FHIR R4 search capabilities
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
-  Grid,
   Typography,
   Chip,
   Stack,
@@ -14,13 +13,10 @@ import {
   Alert,
   Tabs,
   Tab,
-  Badge,
   SpeedDial,
   SpeedDialIcon,
   SpeedDialAction,
-  Snackbar,
-  useTheme,
-  alpha
+  Snackbar
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
@@ -33,10 +29,8 @@ import {
   Delete as DeleteIcon,
   Assignment,
   Draw as SignIcon,
-  Refresh as RefreshIcon,
   Analytics as AnalyticsIcon
 } from '@mui/icons-material';
-import { format, parseISO } from 'date-fns';
 
 // Enhanced components and hooks
 import AdvancedOrderFilters from './components/AdvancedOrderFilters';
@@ -58,10 +52,9 @@ import OrderStatisticsPanel from './components/OrderStatisticsPanel';
 import OrderCard from './components/OrderCard';
 
 const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
-  const theme = useTheme();
   const { currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
-  const { executeCDSHooks, getAlerts } = useCDS();
+  const { getAlerts } = useCDS();
 
   // Enhanced search hook
   const {
@@ -73,10 +66,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
     analytics: statistics,
     hasActiveFilters,
     updateFilters,
-    clearFilters,
     search: refreshSearch,
-    search: searchWithText,
-    analytics: loadStatistics,
     getRelatedOrders
   } = useAdvancedOrderSearch({ patientId, autoSearch: true });
 
@@ -91,7 +81,6 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
   const [cpoeDialogOpen, setCpoeDialogOpen] = useState(false);
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
-  const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
 
   // Mock data for providers and locations (will be loaded from FHIR resources)
@@ -251,14 +240,6 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
     setSelectedOrders(newSelected);
   };
 
-  const handleSelectAll = (event) => {
-    if (event.target.checked) {
-      const newSelected = new Set(currentOrders.map(o => o.id));
-      setSelectedOrders(newSelected);
-    } else {
-      setSelectedOrders(new Set());
-    }
-  };
 
   // Order action handlers
   const handleOrderAction = async (order, action) => {
@@ -434,7 +415,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
           <Button
             variant="outlined"
             startIcon={<ExportIcon />}
-            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+            onClick={() => handleExportOrders('csv')}
           >
             Export
           </Button>

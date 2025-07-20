@@ -88,12 +88,12 @@ import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
-import ClinicalCard from '../ui/ClinicalCard';
-import ResourceTimeline from '../ui/ResourceTimeline';
-import SmartTable from '../ui/SmartTable';
-import QuickActionFAB, { ContextualFAB } from '../ui/QuickActionFAB';
-import { ViewControls, useDensity } from '../ui/DensityControl';
-import MetricsBar from '../ui/MetricsBar';
+import ClinicalCard from '../../ui/ClinicalCard';
+import ResourceTimeline from '../../ui/ResourceTimeline';
+import SmartTable from '../../ui/SmartTable';
+import QuickActionFAB, { ContextualFAB } from '../../ui/QuickActionFAB';
+import { ViewControls, useDensity } from '../../ui/DensityControl';
+import MetricsBar from '../../ui/MetricsBar';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Get encounter icon based on class
@@ -821,7 +821,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   const CheckCircleIcon = require('@mui/icons-material/CheckCircle').default;
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
@@ -1203,23 +1204,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Box>
+      </Box>
 
+      {/* Dialogs */}
       <EncounterSummaryDialog
         open={summaryDialogOpen}
         onClose={handleCloseSummaryDialog}
@@ -1381,7 +1368,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
 };
 

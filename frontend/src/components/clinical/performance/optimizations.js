@@ -6,7 +6,7 @@
  * to ensure smooth operation of the clinical workspace
  */
 
-import { lazy } from 'react';
+import React, { lazy } from 'react';
 
 // Lazy loading configuration for tab components
 export const lazyLoadTabs = {

@@ -4,25 +4,50 @@
 
 The Clinical Workspace is the primary interface for healthcare providers to manage patient care. It provides a tabbed interface for accessing all clinical functions including chart review, orders, results, medications, and imaging.
 
-**Location**: `frontend/src/components/clinical/workspace/`
+**Current Versions**: 
+- `ClinicalWorkspaceV3` - Legacy self-contained version
+- `ClinicalWorkspaceEnhanced` - New modular version
+- `ClinicalWorkspaceWrapper` - Bridge component for enhanced version
+
+**Locations**: 
+- `frontend/src/components/clinical/ClinicalWorkspaceV3.js`
+- `frontend/src/components/clinical/ClinicalWorkspaceEnhanced.js`
+- `frontend/src/components/clinical/ClinicalWorkspaceWrapper.js`
 
 ## Architecture
 
-### Component Structure
+### Component Structure (Current State)
 ```
-workspace/
-├── ClinicalWorkspace.js          # Main container
-├── PatientHeader.js              # Patient banner
-├── tabs/
-│   ├── ChartReviewTab.js        # Problems, meds, allergies
-│   ├── OrdersTab.js             # CPOE interface
-│   ├── ResultsTab.js            # Lab results & trends
-│   ├── MedicationsTab.js        # Medication management
-│   ├── ImagingTab.js            # DICOM viewer
-│   └── EncountersTab.js         # Visit history
-└── components/
-    ├── shared/                   # Reusable components
-    └── modals/                   # Dialog components
+clinical/
+├── ClinicalWorkspaceV3.js       # Legacy self-contained workspace
+├── ClinicalWorkspaceEnhanced.js # New modular workspace
+├── ClinicalWorkspaceWrapper.js  # Bridge component
+├── workspace/
+│   ├── EnhancedPatientHeader.js # Patient banner (V3 only)
+│   ├── WorkspaceContent.js      # Content wrapper (V3 only)
+│   ├── TabErrorBoundary.js      # Error handling (Enhanced only)
+│   └── tabs/
+│       ├── SummaryTab.js        # Patient summary
+│       ├── ChartReviewTab.js    # Standard version
+│       ├── ChartReviewTabOptimized.js # Enhanced version
+│       ├── EncountersTab.js     # Visit history
+│       ├── ResultsTab.js        # Standard version
+│       ├── ResultsTabOptimized.js # Enhanced version
+│       ├── OrdersTab.js         # Standard CPOE
+│       ├── EnhancedOrdersTab.js # Enhanced CPOE
+│       ├── PharmacyTab.js       # Medication management
+│       ├── ImagingTab.js        # DICOM viewer
+│       ├── DocumentationTab.js  # Standard notes
+│       ├── DocumentationTabEnhanced.js # Enhanced notes
+│       ├── CarePlanTab.js       # Standard care planning
+│       ├── CarePlanTabEnhanced.js # Enhanced care planning
+│       ├── TimelineTab.js       # Standard timeline
+│       └── TimelineTabEnhanced.js # Enhanced timeline
+├── layouts/
+│   ├── ClinicalLayout.js        # Legacy layout (V3)
+│   └── EnhancedClinicalLayout.js # New modular layout
+└── performance/
+    └── optimizations.js         # Performance utilities
 ```
 
 ### State Management
@@ -30,10 +55,39 @@ workspace/
 - Integrates with `ClinicalWorkflowContext` for events
 - Implements progressive loading for performance
 
+### Version Comparison
+
+#### ClinicalWorkspaceV3 (Legacy)
+- **Architecture**: Self-contained with integrated layout
+- **State**: Manages own activeTab state internally
+- **Dependencies**: 
+  - SafeBadge, EnhancedPatientHeader, WorkspaceContent
+  - ClinicalLayout, CDSContext
+- **Features**: CDS alerts display, layout builder, custom layouts
+- **Tab Components**: Standard versions
+
+#### ClinicalWorkspaceEnhanced (Current)
+- **Architecture**: Modular, designed for EnhancedClinicalLayout
+- **State**: Receives activeModule from parent via props
+- **Dependencies**:
+  - TabErrorBoundary, KeyboardShortcutsDialog
+  - ClinicalWorkflowContext (no CDSContext)
+- **Features**: Keyboard navigation, error boundaries, event integration
+- **Tab Components**: Optimized/enhanced versions with better performance
+
+#### Migration Strategy
+```javascript
+// Replace V3 with Wrapper
+import ClinicalWorkspaceWrapper from './ClinicalWorkspaceWrapper';
+
+// Wrapper manages state coordination
+<ClinicalWorkspaceWrapper />
+```
+
 ## Key Components
 
-### ClinicalWorkspace.js
-Main container that orchestrates the tabbed interface.
+### ClinicalWorkspaceWrapper.js
+Bridge component that coordinates between layout and workspace.
 
 ```javascript
 // Key pattern: Tab management with lazy loading
@@ -160,17 +214,33 @@ npm run test:e2e:clinical
 
 ## Recent Updates
 
+- **2025-01-20**: Updated documentation for V3 and Enhanced workspace versions
+- **2025-01-19**: Added ClinicalWorkspaceEnhanced with modular architecture
 - **2025-01-17**: Documented module structure and patterns
 - **2025-01-15**: Added progressive loading for performance
 - **2025-01-10**: Integrated WebSocket for real-time updates
 - **2025-01-05**: Implemented cross-tab event system
 
+## Performance Optimizations
+
+The Enhanced version includes significant performance improvements:
+- **Lazy Loading**: All tabs use webpack chunk optimization
+- **Memoization**: Components wrapped with React.memo
+- **Virtual Scrolling**: For long lists in tabs
+- **Error Boundaries**: Prevent tab crashes from affecting workspace
+- **Progressive Loading**: Load critical resources first
+
+See `/frontend/src/components/clinical/performance/optimizations.js` for utilities.
+
 ## Related Documentation
 
-- [Event System](./event-system.md)
-- [FHIR Services](./fhir-services.md)
-- [Cross-Module Integration](../integration/cross-module-events.md)
+- [Clinical Components CLAUDE.md](/frontend/src/components/clinical/CLAUDE.md) - Component patterns and guidelines
+- [Frontend Services CLAUDE.md](/frontend/src/services/CLAUDE.md) - Service layer documentation
+- [Cross-Module Integration](../integration/cross-module-integration.md) - Event system documentation
+- [Main CLAUDE.md](../../../CLAUDE.md) - Project overview and quick reference
 
 ---
 
-**Questions?** Check [CLAUDE.md](../../../CLAUDE.md) for quick reference or [CLAUDE-REFERENCE.md](../../../CLAUDE-REFERENCE.md) for detailed patterns.
+**Questions?** 
+- For component-specific guidance, check `/frontend/src/components/clinical/CLAUDE.md`
+- For general project reference, see `/CLAUDE.md` or `/CLAUDE-REFERENCE.md`

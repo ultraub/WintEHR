@@ -29,6 +29,7 @@ import {
   Timeline as TimelineIcon,
   Medication as MedicationIcon,
   LocalHospital as HospitalIcon,
+  LocalHospital,
   Science as LabIcon,
   Image as ImageIcon,
   Assignment as DocumentIcon,

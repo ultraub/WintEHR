@@ -134,30 +134,37 @@ export const useKeyboardNavigation = ({
     });
   }, [navigate, cycleTab, activeTab, onAction, publish]);
   
-  // Register all hotkeys
-  Object.entries(KEYBOARD_SHORTCUTS).forEach(([keys, config]) => {
-    useHotkeys(
-      keys,
-      (e) => {
-        if (!enabled) return;
-        
-        e.preventDefault();
-        
-        if (config.tab) {
-          handleTabNavigation(config.tab);
-        } else if (config.action) {
-          handleAction(config.action);
-        } else if (config.density && onDensityChange) {
-          onDensityChange(config.density);
-        }
-      },
-      {
-        enabled: enabled,
-        enableOnFormTags: ['INPUT', 'TEXTAREA', 'SELECT']
-      },
-      [enabled, activeTab, handleTabNavigation, handleAction, onDensityChange]
-    );
-  });
+  // Create a unified hotkey handler
+  const hotkeyHandler = useCallback((e, handler) => {
+    if (!enabled) return;
+    
+    e.preventDefault();
+    const keys = handler.keys;
+    const config = KEYBOARD_SHORTCUTS[keys];
+    
+    if (!config) return;
+    
+    if (config.tab) {
+      handleTabNavigation(config.tab);
+    } else if (config.action) {
+      handleAction(config.action);
+    } else if (config.density && onDensityChange) {
+      onDensityChange(config.density);
+    }
+  }, [enabled, handleTabNavigation, handleAction, onDensityChange]);
+  
+  // Register all hotkeys as a single string
+  const allHotkeys = Object.keys(KEYBOARD_SHORTCUTS).join(', ');
+  
+  useHotkeys(
+    allHotkeys,
+    hotkeyHandler,
+    {
+      enabled: enabled,
+      enableOnFormTags: ['INPUT', 'TEXTAREA', 'SELECT']
+    },
+    [enabled, activeTab, handleTabNavigation, handleAction, onDensityChange]
+  );
   
   // Focus management for accessibility
   useEffect(() => {
@@ -222,20 +229,29 @@ export const KeyboardShortcutHelp = ({ open, onClose }) => {
 export const useComponentKeyboard = (shortcuts, deps = []) => {
   const [localShortcuts] = useState(shortcuts);
   
-  Object.entries(localShortcuts).forEach(([keys, handler]) => {
-    useHotkeys(
-      keys,
-      (e) => {
-        e.preventDefault();
-        handler(e);
-      },
-      {
-        enabled: true,
-        enableOnFormTags: false
-      },
-      deps
-    );
-  });
+  // Create unified handler for all shortcuts
+  const unifiedHandler = useCallback((e, handler) => {
+    e.preventDefault();
+    const keys = handler.keys;
+    if (localShortcuts[keys]) {
+      localShortcuts[keys](e);
+    }
+  }, [localShortcuts]);
+  
+  // Register all shortcuts at once
+  const allKeys = Object.keys(localShortcuts).join(', ');
+  
+  useHotkeys(
+    allKeys,
+    unifiedHandler,
+    {
+      enabled: true,
+      enableOnFormTags: false
+    },
+    deps
+  );
+  
+  return localShortcuts;
 };
 
 // Focus trap hook for modals and dialogs

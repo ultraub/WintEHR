@@ -1055,7 +1055,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
               </ToggleButton>
               <ToggleButton value="cards">
                 <Tooltip title="Card View">
-                  <ViewModule />
+                  <GalleryIcon />
                 </Tooltip>
               </ToggleButton>
               <ToggleButton value="table">

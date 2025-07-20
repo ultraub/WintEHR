@@ -1,40 +1,35 @@
 # MedGenEMR Module Documentation
 
-This directory contains detailed documentation for all MedGenEMR modules, organized by system architecture.
+This directory contains module documentation for MedGenEMR. Due to rapid development, some documentation has been consolidated or moved to be closer to the code.
 
-## 📚 Documentation Structure
+## 📚 Current Documentation
 
-```
-modules/
-├── frontend/          # React frontend modules
-├── backend/           # FastAPI backend modules
-├── integration/       # Cross-module integration docs
-└── standalone/        # Standalone components
-```
+### Available Module Documentation
+- [Clinical Workspace](./frontend/clinical-workspace.md) - Frontend clinical interface overview
 
-## 🔍 Quick Navigation
+### Quick Reference Guides (CLAUDE.md files)
+Located throughout the codebase for AI agent assistance:
+- `/CLAUDE.md` - Main project overview and quick reference
+- `/backend/fhir/CLAUDE.md` - FHIR implementation guide
+- `/backend/api/clinical/CLAUDE.md` - Clinical services API guide
+- `/backend/scripts/CLAUDE.md` - Data management scripts guide
+- `/frontend/src/components/clinical/CLAUDE.md` - Clinical UI components guide
+- `/frontend/src/services/CLAUDE.md` - Frontend services guide
+- `/docs/modules/CLAUDE.md` - Module documentation hub
 
-### Frontend Modules
-- [Clinical Workspace](./frontend/clinical-workspace.md) - Main patient care interface
-- [FHIR Services](./frontend/fhir-services.md) - FHIR data management
-- [Event System](./frontend/event-system.md) - Cross-module communication
-- [Contexts & Hooks](./frontend/contexts-hooks.md) - State management
+### Comprehensive Documentation
+- **API Reference**: [/docs/API_ENDPOINTS.md](../API_ENDPOINTS.md)
+- **Architecture**: [/docs/ARCHITECTURE.md](../ARCHITECTURE.md)
+- **Deployment**: [/docs/DEPLOYMENT_CHECKLIST.md](../DEPLOYMENT_CHECKLIST.md)
+- **Build Process**: [/docs/BUILD_PROCESS_ANALYSIS.md](../BUILD_PROCESS_ANALYSIS.md)
 
-### Backend Modules
-- [FHIR Storage Engine](./backend/fhir-storage.md) - Core FHIR persistence
-- [API Endpoints](./backend/api-endpoints.md) - REST API documentation
-- [Clinical Services](./backend/clinical-services.md) - Business logic
-- [Authentication](./backend/authentication.md) - Auth system
+### Integration & Events
+- **Cross-Module Integration**: [/docs/modules/integration/cross-module-integration.md](./integration/cross-module-integration.md)
+- **Clinical Events**: See `/frontend/src/constants/clinicalEvents.js` for event definitions
 
-### Integration
-- [Cross-Module Events](./integration/cross-module-events.md) - Event patterns
-- [WebSocket Integration](./integration/websocket.md) - Real-time updates
-- [Data Flow](./integration/data-flow.md) - System-wide data patterns
-
-### Standalone
-- [Pharmacy Dashboard](./standalone/pharmacy-dashboard.md)
-- [Provider Admin](./standalone/provider-admin.md)
-- [Patient Portal](./standalone/patient-portal.md)
+### Archived Documentation
+Previous versions and detailed documentation can be found in:
+- [/docs/archive/](../archive/) - Historical documentation organized by date
 
 ## 📋 Module Documentation Template
 
@@ -56,6 +51,16 @@ Each module documentation should include:
 - **Agent Guide**: [CLAUDE-AGENTS.md](../../CLAUDE-AGENTS.md)
 - **Architecture**: [docs/ARCHITECTURE.md](../ARCHITECTURE.md)
 
+## 📝 Note on Documentation Structure
+
+The project uses a distributed documentation approach:
+- **CLAUDE.md files** provide quick references for AI agents at key directories
+- **Comprehensive guides** are maintained at the project root level
+- **Module-specific details** are documented close to the code
+- **API and technical references** are centralized in the docs directory
+
+This approach ensures documentation stays current with rapid development while providing clear navigation paths.
+
 ---
 
-**Last Updated**: 2025-01-17
+**Last Updated**: 2025-01-20

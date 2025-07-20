@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
+import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 
 const useChartReviewResources = (patientId, options = {}) => {
   const {
@@ -24,7 +24,7 @@ const useChartReviewResources = (patientId, options = {}) => {
     currentPatient,
     isCacheWarm
   } = useFHIRResource();
-  const { subscribe, unsubscribe } = useClinicalWorkflow();
+  const { subscribe } = useClinicalWorkflow();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

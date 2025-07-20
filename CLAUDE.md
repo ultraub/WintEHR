@@ -4,8 +4,8 @@
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
-**Last Updated**: 2025-01-19  
-**Version**: 2.0
+**Last Updated**: 2025-01-20  
+**Version**: 2.1
 
 ## 🎯 Project Overview
 
@@ -47,14 +47,20 @@
 
 ### Validation Commands
 ```bash
-# Validate deployment (use --docker flag when running in container)
-docker exec emr-backend python scripts/validate_deployment.py --docker --verbose
+# Quick check of available Synthea resources
+docker exec emr-backend python scripts/testing/check_synthea_resources.py
+
+# Comprehensive data validation
+docker exec emr-backend python scripts/testing/validate_fhir_data.py --verbose
 
 # Verify all 6 FHIR tables
-docker exec emr-backend python scripts/verify_all_fhir_tables.py
+docker exec emr-backend python scripts/testing/verify_all_fhir_tables.py
 
 # Check search parameter health
-docker exec emr-backend python scripts/monitor_search_params.py
+docker exec emr-backend python scripts/testing/monitor_search_params.py
+
+# Test data summary for all modules
+docker exec emr-backend python scripts/testing/test_data_summary.py
 ```
 
 ### Authentication Modes
@@ -138,6 +144,61 @@ WintEHR/
 └── docs/                          # All documentation
 ```
 
+## 💻 Common Development Workflows
+
+### Feature Implementation Workflow
+```bash
+# 1. Research and understand the requirement
+# Check docs, existing patterns, and FHIR specifications
+
+# 2. Create feature branch
+git checkout -b feat/your-feature-name
+
+# 3. Implement with real data
+./dev-start.sh  # Start dev environment
+# Test with multiple Synthea patients
+
+# 4. Run quality checks
+docker exec emr-backend pytest tests/ -v
+docker exec emr-frontend npm test
+docker exec emr-frontend npm run lint
+
+# 5. Update documentation
+# Update relevant module docs in docs/modules/
+# Update CLAUDE.md if adding new patterns
+
+# 6. Commit with conventional message
+git commit -m "feat: Add your feature description"
+```
+
+### Debugging Workflow
+```bash
+# 1. Enable verbose logging
+docker-compose logs -f backend frontend
+
+# 2. Check database state
+docker exec emr-backend python scripts/validate_deployment.py --docker --verbose
+
+# 3. Test specific FHIR queries
+curl http://localhost:8000/fhir/R4/Patient?name=Smith
+
+# 4. Verify search parameters
+docker exec emr-backend python scripts/monitor_search_params.py
+```
+
+### Performance Testing
+```bash
+# 1. Monitor frontend performance
+# Use Chrome DevTools Performance tab
+# Check bundle sizes: npm run analyze
+
+# 2. Backend performance
+docker exec emr-backend python -m cProfile -o profile.stats your_script.py
+
+# 3. Database query analysis
+docker exec emr-postgres psql -U emr_user -d emr_db -c "EXPLAIN ANALYZE your_query;"
+```
+
 ## 🔧 Common Commands
 
 ### Development Workflow
@@ -176,6 +237,94 @@ git commit -m "feat: Add medication interaction checking"
 git commit -m "fix: Handle null medication references"
 git commit -m "docs: Update pharmacy module guide"
 git commit -m "chore: Update deployment scripts"
+```
+
+## 📝 Code Style & Conventions
+
+### JavaScript/React
+```javascript
+// Use ES6+ features
+import { useState, useEffect } from 'react';
+
+// Destructure props and state
+const { patient, loading, error } = usePatientData();
+
+// Use async/await over promises
+const fetchData = async () => {
+  try {
+    const data = await fhirService.getPatient(id);
+    setPatient(data);
+  } catch (error) {
+    handleError(error);
+  }
+};
+
+// Prefer functional components with hooks
+const ComponentName = ({ prop1, prop2 }) => {
+  // Component logic
+};
+
+// Use proper error boundaries
+<ErrorBoundary fallback={<ErrorFallback />}>
+  <ClinicalComponent />
+</ErrorBoundary>
+```
+
+### Python/FastAPI
+```python
+# Use type hints
+from typing import Optional, List, Dict
+
+async def get_patient(patient_id: str) -> Optional[Dict]:
+    """Get patient by ID with proper error handling."""
+    try:
+        return await storage.get_resource("Patient", patient_id)
+    except ResourceNotFound:
+        raise HTTPException(404, f"Patient {patient_id} not found")
+
+# Use dependency injection
+async def endpoint(
+    request: Request,
+    storage: FHIRStorageEngine = Depends(get_storage)
+):
+    # Implementation
+
+# Follow PEP 8 strictly
+# Use descriptive variable names
+# Add docstrings to all functions
+```
+
+### Testing Conventions
+```javascript
+// Frontend tests
+describe('ComponentName', () => {
+  it('should handle patient data correctly', async () => {
+    // Arrange
+    const mockPatient = createMockPatient();
+    
+    // Act
+    const { result } = renderHook(() => usePatientData(mockPatient.id));
+    
+    // Assert
+    expect(result.current.patient).toEqual(mockPatient);
+  });
+});
+```
+
+```python
+# Backend tests
+@pytest.mark.asyncio
+async def test_patient_creation():
+    """Test patient resource creation with validation."""
+    # Arrange
+    patient_data = generate_test_patient()
+    
+    # Act
+    result = await storage.create_resource("Patient", patient_data)
+    
+    # Assert
+    assert result["id"] is not None
+    assert result["resourceType"] == "Patient"
 ```
 
 ## 🏗️ Key Patterns
@@ -295,10 +444,10 @@ The deployment automatically runs search parameter indexing:
 If searches return empty results:
 ```bash
 # Verify search parameters after import
-docker exec emr-backend python scripts/verify_search_params_after_import.py
+docker exec emr-backend python scripts/testing/verify_search_params_after_import.py
 
 # Auto-fix missing search parameters
-docker exec emr-backend python scripts/verify_search_params_after_import.py --fix
+docker exec emr-backend python scripts/testing/verify_search_params_after_import.py --fix
 
 # Or use consolidated indexing script
 docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index
@@ -335,9 +484,9 @@ Patient compartments group all resources related to a specific patient, enabling
 docker exec emr-backend python scripts/populate_compartments.py
 
 # Verify compartment health
-docker exec emr-backend python scripts/verify_compartments.py
+docker exec emr-backend python scripts/testing/verify_compartments.py
 
-# Test compartment functionality
+# Test compartment functionality (if available)
 docker exec emr-backend python scripts/test_compartment_functionality.py
 ```
 
@@ -388,6 +537,9 @@ GROUP BY r.resource_type;"
 - **Modern Clinical Workspace**: Redesigned patient portal with intuitive navigation
 - **Skeleton Loading States**: Better perceived performance during data fetching
 - **Responsive Design**: Full mobile support for clinical workflows
+- **Lazy Loading**: Tab components with webpack chunk optimization
+- **Virtual Scrolling**: Efficient rendering for long lists
+- **Performance Monitoring**: Built-in performance tracking utilities
 
 ## 🔍 Where to Find Things
 
@@ -396,6 +548,7 @@ GROUP BY r.resource_type;"
 - **Clinical Catalogs**: `frontend/src/services/cdsClinicalDataService.js`
 - **Event System**: `frontend/src/contexts/ClinicalWorkflowContext.js`
 - **WebSocket**: `frontend/src/contexts/WebSocketContext.js`
+- **Performance Utils**: `frontend/src/components/clinical/performance/optimizations.js`
 
 ### Backend Services
 - **Auth System**: `backend/api/auth_enhanced.py`
@@ -406,8 +559,15 @@ GROUP BY r.resource_type;"
 - **Data Management**: `backend/scripts/active/synthea_master.py`
 - **Search Indexing**: `backend/scripts/consolidated_search_indexing.py`
 - **Compartments**: `backend/scripts/populate_compartments.py`
-- **Table Verification**: `backend/scripts/verify_all_fhir_tables.py`
+- **Table Verification**: `backend/scripts/testing/verify_all_fhir_tables.py`
 - **CDS Fix**: `backend/scripts/fix_cds_hooks_enabled_column.py`
+
+### Testing & Validation
+- **Testing Directory**: `backend/scripts/testing/` - Centralized testing scripts
+- **Data Validation**: `backend/scripts/testing/validate_fhir_data.py`
+- **Quick Resource Check**: `backend/scripts/testing/check_synthea_resources.py`
+- **Test Data Summary**: `backend/scripts/testing/test_data_summary.py`
+- **FHIR Data Reference**: `backend/scripts/testing/FHIR_DATA_REFERENCE.md`
 
 ## 🤖 AI Agent Resources
 

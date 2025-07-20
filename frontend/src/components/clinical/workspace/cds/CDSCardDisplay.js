@@ -20,10 +20,7 @@ import {
   Drawer,
   Badge,
   Fab,
-  Zoom,
   Collapse,
-  Alert,
-  Snackbar,
   Paper
 } from '@mui/material';
 import {
@@ -33,7 +30,6 @@ import {
   Error as ErrorIcon,
   Notifications as NotificationsIcon,
   Link as LinkIcon,
-  CheckCircle as SuccessIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';

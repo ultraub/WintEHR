@@ -6,7 +6,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   Card,
   CardContent,
@@ -40,7 +39,7 @@ import {
   Print as PrintIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
-import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useStableCallback } from '../../../../hooks/useStableReferences';
 import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
@@ -64,11 +63,11 @@ import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 import MetricCard from '../../common/MetricCard';
 import StatusChip from '../../common/StatusChip';
-import ClinicalCard from '../ui/ClinicalCard';
-import MetricsBar from '../ui/MetricsBar';
-import TrendSparkline from '../ui/TrendSparkline';
-import CompactPatientHeader from '../ui/CompactPatientHeader';
-import { ViewControls, useDensity } from '../ui/DensityControl';
+import ClinicalCard from '../../ui/ClinicalCard';
+import MetricsBar from '../../ui/MetricsBar';
+import TrendSparkline from '../../ui/TrendSparkline';
+import CompactPatientHeader from '../../ui/CompactPatientHeader';
+import { ViewControls, useDensity } from '../../ui/DensityControl';
 import { motion } from 'framer-motion';
 
 // Use the new MetricCard component from common components

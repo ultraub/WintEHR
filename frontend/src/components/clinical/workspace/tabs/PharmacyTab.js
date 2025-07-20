@@ -91,13 +91,13 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
 import AdministrationDialog from './components/AdministrationDialog';
 import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
-import ClinicalCard from '../ui/ClinicalCard';
-import ResourceTimeline from '../ui/ResourceTimeline';
-import MetricsBar from '../ui/MetricsBar';
-import SmartTable from '../ui/SmartTable';
-import { ViewControls, useDensity } from '../ui/DensityControl';
-import TrendSparkline from '../ui/TrendSparkline';
-import QuickActionFAB, { ContextualFAB } from '../ui/QuickActionFAB';
+import ClinicalCard from '../../ui/ClinicalCard';
+import ResourceTimeline from '../../ui/ResourceTimeline';
+import MetricsBar from '../../ui/MetricsBar';
+import SmartTable from '../../ui/SmartTable';
+import { ViewControls, useDensity } from '../../ui/DensityControl';
+import TrendSparkline from '../../ui/TrendSparkline';
+import QuickActionFAB, { ContextualFAB } from '../../ui/QuickActionFAB';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Medication status definitions
@@ -1475,7 +1475,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }
             />
             <Tab 
               label="MAR" 
-              icon={<AssignmentIcon />}
+              icon={<PrescriptionIcon />}
               iconPosition="start"
             />
           </Tabs>

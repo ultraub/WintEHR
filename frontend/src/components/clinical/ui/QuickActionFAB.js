@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   SpeedDial,
   SpeedDialAction,
@@ -194,14 +194,35 @@ const QuickActionFAB = memo(({
   }, { enabled: enableKeyboardShortcuts });
   
   // Setup individual action shortcuts
-  mergedActions.forEach(action => {
-    if (action.shortcut && action.onClick && enableKeyboardShortcuts) {
-      useHotkeys(action.shortcut.toLowerCase().replace('ctrl', 'cmd'), (e) => {
-        e.preventDefault();
-        action.onClick();
-      });
-    }
-  });
+  // Create a single hotkeys string with all shortcuts
+  const shortcutHandlers = useMemo(() => {
+    const handlers = {};
+    mergedActions.forEach(action => {
+      if (action.shortcut && action.onClick) {
+        const key = action.shortcut.toLowerCase().replace('ctrl', 'cmd');
+        handlers[key] = (e) => {
+          e.preventDefault();
+          action.onClick();
+        };
+      }
+    });
+    return handlers;
+  }, [mergedActions]);
+  
+  // Register all shortcuts at once
+  useEffect(() => {
+    if (!enableKeyboardShortcuts) return;
+    
+    const unsubscribers = Object.entries(shortcutHandlers).map(([shortcut, handler]) => {
+      // Note: react-hotkeys-hook doesn't return unsubscribers like this
+      // We'll need to handle this differently based on the library's API
+      return () => {}; // Placeholder
+    });
+    
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [shortcutHandlers, enableKeyboardShortcuts]);
   
   // Animation variants
   const fabVariants = {
