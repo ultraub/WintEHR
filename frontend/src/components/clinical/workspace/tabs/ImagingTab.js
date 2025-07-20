@@ -1,8 +1,9 @@
 /**
- * Imaging Tab Component
- * Display and manage medical imaging studies with DICOM viewer integration
+ * Imaging Tab Component - Enhanced
+ * Display and manage medical imaging studies with gallery view, body map, and DICOM viewer
+ * Part of the Clinical UI Improvements Initiative
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Box,
   Grid,
@@ -21,6 +22,7 @@ import {
   Card,
   CardContent,
   CardActions,
+  CardMedia,
   TextField,
   InputAdornment,
   Menu,
@@ -38,8 +40,16 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  ToggleButton,
+  ToggleButtonGroup,
   useTheme,
-  alpha
+  alpha,
+  Skeleton,
+  ImageList,
+  ImageListItem,
+  ImageListItemBar,
+  Fade,
+  Zoom as ZoomTransition
 } from '@mui/material';
 import {
   Image as ImagingIcon,
@@ -64,8 +74,16 @@ import {
   GridView as SeriesIcon,
   PhotoLibrary as InstanceIcon,
   Warning as WarningIcon,
-  CheckCircle as CompleteIcon
+  CheckCircle as CompleteIcon,
+  Timeline as TimelineIcon,
+  ViewModule as GalleryIcon,
+  ViewList as ListIcon,
+  AccountCircle as BodyMapIcon,
+  AccessTime as RecentIcon,
+  TrendingUp as TrendUpIcon,
+  Collections as CollectionsIcon
 } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
@@ -75,6 +93,47 @@ import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import ClinicalCard from '../../ui/ClinicalCard';
+import MetricsBar from '../../ui/MetricsBar';
+import ResourceTimeline from '../../ui/ResourceTimeline';
+import SmartTable from '../../ui/SmartTable';
+import { ContextualFAB } from '../../ui/QuickActionFAB';
+import DensityControl from '../../ui/DensityControl';
+import { useThemeDensity } from '../../../../hooks/useThemeDensity';
+
+// Body regions map
+const bodyRegions = {
+  head: { x: 50, y: 10, label: 'Head/Neck', icon: '🧠' },
+  chest: { x: 50, y: 30, label: 'Chest', icon: '🫁' },
+  abdomen: { x: 50, y: 50, label: 'Abdomen', icon: '🫃' },
+  pelvis: { x: 50, y: 65, label: 'Pelvis', icon: '🦴' },
+  upperExtremity: { x: 25, y: 40, label: 'Upper Extremity', icon: '💪' },
+  lowerExtremity: { x: 35, y: 80, label: 'Lower Extremity', icon: '🦵' },
+  spine: { x: 50, y: 40, label: 'Spine', icon: '🦴' }
+};
+
+// Get body region from study
+const getBodyRegion = (study) => {
+  const bodySite = study.bodySite?.[0]?.display?.toLowerCase() || '';
+  const description = (study.description || '').toLowerCase();
+  
+  if (bodySite.includes('head') || bodySite.includes('brain') || description.includes('head') || description.includes('brain')) {
+    return 'head';
+  } else if (bodySite.includes('chest') || bodySite.includes('thorax') || description.includes('chest')) {
+    return 'chest';
+  } else if (bodySite.includes('abdomen') || description.includes('abdomen')) {
+    return 'abdomen';
+  } else if (bodySite.includes('pelvis') || description.includes('pelvis')) {
+    return 'pelvis';
+  } else if (bodySite.includes('spine') || description.includes('spine')) {
+    return 'spine';
+  } else if (bodySite.includes('arm') || bodySite.includes('shoulder') || bodySite.includes('hand')) {
+    return 'upperExtremity';
+  } else if (bodySite.includes('leg') || bodySite.includes('knee') || bodySite.includes('foot')) {
+    return 'lowerExtremity';
+  }
+  return null;
+};
 
 // Get modality icon
 const getModalityIcon = (modality) => {
@@ -128,8 +187,112 @@ const getStudyStatusColor = (status) => {
   }
 };
 
-// Imaging Study Card Component
-const ImagingStudyCard = ({ study, onView, onAction }) => {
+// Body Map Component
+const BodyMap = memo(({ studies, selectedRegion, onRegionSelect }) => {
+  const theme = useTheme();
+  
+  // Count studies by region
+  const studiesByRegion = useMemo(() => {
+    const regionMap = {};
+    studies.forEach(study => {
+      const region = getBodyRegion(study);
+      if (region) {
+        regionMap[region] = (regionMap[region] || 0) + 1;
+      }
+    });
+    return regionMap;
+  }, [studies]);
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        height: 400,
+        position: 'relative',
+        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 2,
+        overflow: 'hidden'
+      }}
+    >
+      <Typography variant="h6" gutterBottom>
+        Body Map View
+      </Typography>
+      
+      {/* SVG Human Body Outline */}
+      <Box
+        sx={{
+          position: 'relative',
+          width: '100%',
+          height: 'calc(100% - 40px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <svg viewBox="0 0 100 100" style={{ width: '60%', height: '100%' }}>
+          {/* Simple human body outline */}
+          <path
+            d="M50,5 C54,5 57,8 57,12 C57,16 54,19 50,19 C46,19 43,16 43,12 C43,8 46,5 50,5 Z M45,20 L55,20 L55,35 L60,25 L62,27 L57,38 L57,50 L60,80 L55,80 L52,55 L48,55 L45,80 L40,80 L43,50 L43,38 L38,27 L40,25 L45,35 Z"
+            fill={alpha(theme.palette.text.primary, 0.1)}
+            stroke={theme.palette.divider}
+            strokeWidth="0.5"
+          />
+        </svg>
+        
+        {/* Region hotspots */}
+        {Object.entries(bodyRegions).map(([region, config]) => {
+          const count = studiesByRegion[region] || 0;
+          const isSelected = selectedRegion === region;
+          
+          return (
+            <Tooltip key={region} title={`${config.label}: ${count} studies`}>
+              <Box
+                component={motion.div}
+                whileHover={{ scale: 1.2 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => onRegionSelect(region)}
+                sx={{
+                  position: 'absolute',
+                  left: `${config.x}%`,
+                  top: `${config.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  backgroundColor: count > 0 
+                    ? alpha(theme.palette.primary.main, isSelected ? 0.8 : 0.6)
+                    : alpha(theme.palette.action.disabled, 0.3),
+                  border: 2,
+                  borderColor: isSelected ? theme.palette.primary.main : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: count > 0 ? 'pointer' : 'default',
+                  transition: 'all 0.2s ease',
+                  fontSize: '1.2rem'
+                }}
+              >
+                {count > 0 ? (
+                  <Badge badgeContent={count} color="primary" max={99}>
+                    <span>{config.icon}</span>
+                  </Badge>
+                ) : (
+                  <span style={{ opacity: 0.5 }}>{config.icon}</span>
+                )}
+              </Box>
+            </Tooltip>
+          );
+        })}
+      </Box>
+    </Paper>
+  );
+});
+
+// Enhanced Imaging Study Card Component
+const ImagingStudyCard = memo(({ study, onView, onAction, density = 'comfortable', viewMode = 'card' }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   
@@ -150,122 +313,146 @@ const ImagingStudyCard = ({ study, onView, onAction }) => {
   };
 
   const studyDate = study.started || study.performedDateTime;
-
-  return (
-    <Card sx={{ mb: 2, '&:hover': { elevation: 3 } }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-          <Box sx={{ flex: 1 }}>
-            <Stack direction="row" spacing={2} alignItems="center" mb={1}>
+  
+  // Determine severity based on study urgency/status
+  const severity = study.status === 'cancelled' ? 'error' : 
+                   study.priority === 'urgent' ? 'critical' : 'normal';
+  
+  const metrics = [
+    {
+      label: 'Series',
+      value: study.numberOfSeries || 0,
+      icon: <SeriesIcon fontSize="small" />
+    },
+    {
+      label: 'Images',
+      value: study.numberOfInstances || 0,
+      icon: <InstanceIcon fontSize="small" />
+    }
+  ];
+  
+  const actions = [
+    {
+      label: 'View',
+      icon: <ViewIcon />,
+      onClick: () => onView(study)
+    },
+    {
+      label: 'Report',
+      icon: <ReportIcon />,
+      onClick: () => onAction(study, 'report')
+    },
+    {
+      label: 'Download',
+      icon: <DownloadIcon />,
+      onClick: () => onAction(study, 'download')
+    }
+  ];
+  
+  // Gallery view mode
+  if (viewMode === 'gallery') {
+    return (
+      <motion.div
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        <Card
+          sx={{
+            height: '100%',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              boxShadow: theme.shadows[4]
+            }
+          }}
+          onClick={() => onView(study)}
+        >
+          <CardMedia
+            sx={{
+              height: 140,
+              backgroundColor: alpha(getModalityColor(getModality()) === 'primary' ? theme.palette.primary.main : theme.palette[getModalityColor(getModality())].main, 0.1),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative'
+            }}
+          >
+            <Box sx={{ fontSize: 48, opacity: 0.3 }}>
               {getModalityIcon(getModality())}
-              <Typography variant="h6">
-                {getStudyDescription()}
-              </Typography>
-              <Chip 
-                label={getModality()} 
-                size="small" 
-                color={getModalityColor(getModality())}
-              />
-              <Chip 
-                label={study.status || 'available'} 
-                size="small" 
-                color={getStudyStatusColor(study.status)}
-              />
+            </Box>
+            <Chip
+              label={getModality()}
+              size="small"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8
+              }}
+              color={getModalityColor(getModality())}
+            />
+          </CardMedia>
+          <CardContent sx={{ p: 1.5 }}>
+            <Typography variant="subtitle2" noWrap gutterBottom>
+              {getStudyDescription()}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block">
+              {studyDate && format(parseISO(studyDate), 'MMM d, yyyy')}
+            </Typography>
+            <Stack direction="row" spacing={1} mt={1}>
+              <Chip label={`${study.numberOfSeries || 0} series`} size="small" variant="outlined" />
+              <Chip label={`${study.numberOfInstances || 0} images`} size="small" variant="outlined" />
             </Stack>
-
-            {getBodySite() && (
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Body Part: {getBodySite()}
-              </Typography>
-            )}
-
-            <Stack direction="row" spacing={3} alignItems="center" mt={1}>
-              {studyDate && (
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <CalendarIcon fontSize="small" color="action" />
-                  <Typography variant="caption">
-                    {format(parseISO(studyDate), 'MMM d, yyyy HH:mm')}
-                  </Typography>
-                </Stack>
-              )}
-              
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <SeriesIcon fontSize="small" color="action" />
-                <Typography variant="caption">
-                  {study.numberOfSeries || 0} series
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+  
+  // Standard card view using ClinicalCard
+  return (
+    <ClinicalCard
+      severity={severity}
+      title={getStudyDescription()}
+      subtitle={getBodySite()}
+      status={study.status || 'available'}
+      metrics={metrics}
+      actions={actions}
+      density={density}
+      icon={getModalityIcon(getModality())}
+      timestamp={studyDate}
+      expandable
+    >
+      <Stack spacing={1} sx={{ mt: 2 }}>
+        {study.identifier?.[0]?.value && (
+          <Typography variant="caption" color="text.secondary">
+            Accession Number: {study.identifier[0].value}
+          </Typography>
+        )}
+        {study.series?.length > 0 && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" gutterBottom>
+              Series Details:
+            </Typography>
+            <Stack spacing={0.5}>
+              {study.series.slice(0, 3).map((series, idx) => (
+                <Typography key={idx} variant="caption" sx={{ pl: 2 }}>
+                  • {series.description || `Series ${idx + 1}`} ({series.numberOfInstances || 0} images)
                 </Typography>
-              </Stack>
-
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <InstanceIcon fontSize="small" color="action" />
-                <Typography variant="caption">
-                  {study.numberOfInstances || 0} images
-                </Typography>
-              </Stack>
-
-              {study.identifier?.[0]?.value && (
-                <Typography variant="caption" color="text.secondary">
-                  Accession: {study.identifier[0].value}
+              ))}
+              {study.series.length > 3 && (
+                <Typography variant="caption" sx={{ pl: 2, fontStyle: 'italic' }}>
+                  +{study.series.length - 3} more series
                 </Typography>
               )}
             </Stack>
           </Box>
-
-          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-            <ModalityIcon />
-          </IconButton>
-        </Stack>
-      </CardContent>
-
-      <CardActions>
-        <Button 
-          size="small" 
-          startIcon={<ViewIcon />}
-          onClick={() => onView(study)}
-        >
-          View Images
-        </Button>
-        <Button 
-          size="small" 
-          startIcon={<ReportIcon />}
-          onClick={() => onAction(study, 'report')}
-        >
-          Report
-        </Button>
-        <Button 
-          size="small" 
-          startIcon={<DownloadIcon />}
-          onClick={() => onAction(study, 'download')}
-        >
-          Download
-        </Button>
-      </CardActions>
-
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={() => { handleMenuClose(); onAction(study, 'view'); }}>
-          <ViewIcon sx={{ mr: 1 }} />
-          View Study
-        </MenuItem>
-        <MenuItem onClick={() => { handleMenuClose(); onAction(study, 'report'); }}>
-          <ReportIcon sx={{ mr: 1 }} />
-          View Report
-        </MenuItem>
-        <MenuItem onClick={() => { handleMenuClose(); onAction(study, 'share'); }}>
-          <ShareIcon sx={{ mr: 1 }} />
-          Share Study
-        </MenuItem>
-        <MenuItem onClick={() => { handleMenuClose(); onAction(study, 'print'); }}>
-          <PrintIcon sx={{ mr: 1 }} />
-          Print Images
-        </MenuItem>
-      </Menu>
-    </Card>
+        )}
+      </Stack>
+    </ClinicalCard>
   );
-};
+});
+
+ImagingStudyCard.displayName = 'ImagingStudyCard';
 
 // DICOM Viewer Dialog with functional viewer
 const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
@@ -294,9 +481,11 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
+  const [density, setDensity] = useThemeDensity();
   
-  const [tabValue, setTabValue] = useState(0);
+  const [viewMode, setViewMode] = useState('timeline'); // timeline, gallery, cards, bodymap
   const [filterModality, setFilterModality] = useState('all');
+  const [filterBodyRegion, setFilterBodyRegion] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -395,6 +584,14 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   // Filter studies - memoized for performance
   const filteredStudies = useMemo(() => {
     return studies.filter(study => {
+    // Body region filter
+    if (filterBodyRegion) {
+      const studyRegion = getBodyRegion(study);
+      if (studyRegion !== filterBodyRegion) {
+        return false;
+      }
+    }
+    
     // Modality filter
     if (filterModality !== 'all') {
       const modality = study.modality?.[0]?.code || study.modality;
@@ -445,7 +642,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
 
     return true;
     });
-  }, [studies, filterModality, filterStatus, filterPeriod, searchTerm]);
+  }, [studies, filterModality, filterBodyRegion, filterStatus, filterPeriod, searchTerm]);
 
   // Group studies by modality - memoized for performance
   const studiesByModality = useMemo(() => {
@@ -595,6 +792,56 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   const modalities = useMemo(() => {
     return [...new Set(studies.map(s => s.modality?.[0]?.code || s.modality).filter(Boolean))];
   }, [studies]);
+  
+  // Prepare timeline resources
+  const timelineResources = useMemo(() => {
+    return studies.map(study => ({
+      ...study,
+      resourceType: 'ImagingStudy',
+      meta: {
+        lastUpdated: study.started || study.performedDateTime
+      }
+    }));
+  }, [studies]);
+  
+  // Calculate metrics for MetricsBar
+  const metrics = useMemo(() => {
+    const totalImages = studies.reduce((sum, study) => sum + (study.numberOfInstances || 0), 0);
+    const recentStudies = studies.filter(study => {
+      const studyDate = study.started || study.performedDateTime;
+      if (!studyDate) return false;
+      const daysSince = Math.floor((new Date() - parseISO(studyDate)) / (1000 * 60 * 60 * 24));
+      return daysSince <= 30;
+    }).length;
+    
+    return [
+      {
+        label: 'Total Studies',
+        value: studies.length,
+        icon: <CollectionsIcon />,
+        color: 'primary'
+      },
+      {
+        label: 'Total Images',
+        value: totalImages,
+        icon: <ImagingIcon />,
+        color: 'secondary'
+      },
+      {
+        label: 'Recent (30d)',
+        value: recentStudies,
+        icon: <RecentIcon />,
+        color: 'info',
+        trend: recentStudies > 0 ? 'up' : null
+      },
+      ...modalities.slice(0, 3).map(modality => ({
+        label: modality,
+        value: studiesByModality[modality]?.length || 0,
+        icon: getModalityIcon(modality),
+        color: getModalityColor(modality)
+      }))
+    ];
+  }, [studies, modalities, studiesByModality]);
 
   const handleStudyDownload = async (study) => {
     try {
@@ -677,6 +924,100 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     // Unable to determine study directory - return null
     return null;
   };
+  
+  // Smart table columns configuration
+  const tableColumns = [
+    {
+      id: 'modality',
+      label: 'Type',
+      width: '80px',
+      render: (value, row) => (
+        <Stack direction="row" spacing={1} alignItems="center">
+          {getModalityIcon(row.modality?.[0]?.code || row.modality)}
+          <Typography variant="caption">
+            {row.modality?.[0]?.code || row.modality || 'Unknown'}
+          </Typography>
+        </Stack>
+      )
+    },
+    {
+      id: 'description',
+      label: 'Study Description',
+      render: (value, row) => (
+        <Box>
+          <Typography variant="body2">
+            {row.description || 'Imaging Study'}
+          </Typography>
+          {row.bodySite?.[0]?.display && (
+            <Typography variant="caption" color="text.secondary">
+              {row.bodySite[0].display}
+            </Typography>
+          )}
+        </Box>
+      )
+    },
+    {
+      id: 'started',
+      label: 'Date',
+      width: '150px',
+      type: 'date',
+      render: (value, row) => {
+        const date = row.started || row.performedDateTime;
+        if (!date) return '-';
+        return (
+          <Box>
+            <Typography variant="body2">
+              {format(parseISO(date), 'MMM d, yyyy')}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {formatDistanceToNow(parseISO(date), { addSuffix: true })}
+            </Typography>
+          </Box>
+        );
+      }
+    },
+    {
+      id: 'numberOfSeries',
+      label: 'Series',
+      width: '80px',
+      type: 'numeric',
+      render: (value) => (
+        <Chip
+          label={value || 0}
+          size="small"
+          variant="outlined"
+          icon={<SeriesIcon />}
+        />
+      )
+    },
+    {
+      id: 'numberOfInstances',
+      label: 'Images',
+      width: '80px',
+      type: 'numeric',
+      render: (value) => (
+        <Chip
+          label={value || 0}
+          size="small"
+          variant="outlined"
+          icon={<InstanceIcon />}
+        />
+      )
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      width: '100px',
+      type: 'status',
+      render: (value) => (
+        <Chip
+          label={value || 'available'}
+          size="small"
+          color={getStudyStatusColor(value)}
+        />
+      )
+    }
+  ];
 
   if (loading) {
     return (
@@ -687,113 +1028,353 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">
-          Medical Imaging
-        </Typography>
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={handlePrintAll}
-          >
-            Print
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<ImagingIcon />}
-            onClick={loadImagingStudies}
-          >
-            Refresh
-          </Button>
+    <Box sx={{ p: density === 'compact' ? 2 : 3 }}>
+      {/* Header with View Controls */}
+      <Stack spacing={2} mb={3}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Typography variant="h5" fontWeight="bold">
+            Medical Imaging
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <DensityControl density={density} onChange={setDensity} />
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="timeline">
+                <Tooltip title="Timeline View">
+                  <TimelineIcon />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="gallery">
+                <Tooltip title="Gallery View">
+                  <GalleryIcon />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="cards">
+                <Tooltip title="Card View">
+                  <ViewModule />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="table">
+                <Tooltip title="Table View">
+                  <ListIcon />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="bodymap">
+                <Tooltip title="Body Map View">
+                  <BodyMapIcon />
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PrintIcon />}
+              onClick={handlePrintAll}
+            >
+              Print
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ImagingIcon />}
+              onClick={loadImagingStudies}
+            >
+              Refresh
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
 
-      {/* Summary Stats */}
-      <Stack direction="row" spacing={2} mb={3}>
-        <Chip 
-          label={`${studies.length} Total Studies`} 
-          color="primary" 
-          icon={<ImagingIcon />}
+        {/* Metrics Bar */}
+        <MetricsBar 
+          metrics={metrics} 
+          density={density} 
+          animate
         />
-        {modalities.map(modality => (
-          <Chip 
-            key={modality}
-            label={`${studiesByModality[modality]?.length || 0} ${modality}`} 
-            color={getModalityColor(modality)}
-            variant="outlined"
-          />
-        ))}
       </Stack>
 
       {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <TextField
-            placeholder="Search studies..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{ flex: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              )
-            }}
-          />
-          
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Modality</InputLabel>
-            <Select
-              value={filterModality}
-              onChange={(e) => setFilterModality(e.target.value)}
-              label="Modality"
+      <Fade in={viewMode !== 'bodymap'}>
+        <Paper sx={{ p: 2, mb: 3, display: viewMode === 'bodymap' ? 'none' : 'block' }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            <TextField
+              placeholder="Search studies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
+              sx={{ flex: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                )
+              }}
+            />
+            
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Modality</InputLabel>
+              <Select
+                value={filterModality}
+                onChange={(e) => setFilterModality(e.target.value)}
+                label="Modality"
+              >
+                <MenuItem value="all">All Modalities</MenuItem>
+                {modalities.map(modality => (
+                  <MenuItem key={modality} value={modality}>{modality}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            {filterBodyRegion && (
+              <Chip
+                label={`Body Region: ${bodyRegions[filterBodyRegion]?.label}`}
+                onDelete={() => setFilterBodyRegion(null)}
+                color="primary"
+                icon={<span>{bodyRegions[filterBodyRegion]?.icon}</span>}
+              />
+            )}
+
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="Status"
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="available">Available</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="cancelled">Cancelled</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Period</InputLabel>
+              <Select
+                value={filterPeriod}
+                onChange={(e) => setFilterPeriod(e.target.value)}
+                label="Period"
+              >
+                <MenuItem value="all">All Time</MenuItem>
+                <MenuItem value="7d">Last 7 Days</MenuItem>
+                <MenuItem value="30d">Last 30 Days</MenuItem>
+                <MenuItem value="3m">Last 3 Months</MenuItem>
+                <MenuItem value="6m">Last 6 Months</MenuItem>
+                <MenuItem value="1y">Last Year</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </Paper>
+      </Fade>
+
+      {/* Content Views */}
+      <AnimatePresence mode="wait">
+        {viewMode === 'timeline' && (
+          <motion.div
+            key="timeline"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ResourceTimeline
+              resources={timelineResources.filter(study => {
+                // Apply filters to timeline
+                if (filterModality !== 'all') {
+                  const modality = study.modality?.[0]?.code || study.modality;
+                  if (modality?.toLowerCase() !== filterModality.toLowerCase()) {
+                    return false;
+                  }
+                }
+                if (filterBodyRegion && getBodyRegion(study) !== filterBodyRegion) {
+                  return false;
+                }
+                return true;
+              })}
+              onResourceClick={(resource) => handleViewStudy(resource)}
+              height={600}
+              showLegend
+              showRangeSelector
+              enableZoom
+              groupByType={false}
+              customMarkers={[
+                { date: new Date().toISOString(), label: 'Today', color: 'primary' }
+              ]}
+            />
+          </motion.div>
+        )}
+        
+        {viewMode === 'gallery' && (
+          <motion.div
+            key="gallery"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ImageList
+              sx={{ width: '100%', height: 'auto' }}
+              cols={density === 'compact' ? 4 : density === 'comfortable' ? 3 : 2}
+              gap={density === 'compact' ? 8 : 16}
             >
-              <MenuItem value="all">All Modalities</MenuItem>
-              {modalities.map(modality => (
-                <MenuItem key={modality} value={modality}>{modality}</MenuItem>
+              {filteredStudies.map((study) => (
+                <ImageListItem key={study.id}>
+                  <ImagingStudyCard
+                    study={study}
+                    onView={handleViewStudy}
+                    onAction={handleStudyAction}
+                    density={density}
+                    viewMode="gallery"
+                  />
+                </ImageListItem>
               ))}
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              label="Status"
-            >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="available">Available</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="cancelled">Cancelled</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Period</InputLabel>
-            <Select
-              value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
-              label="Period"
-            >
-              <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="7d">Last 7 Days</MenuItem>
-              <MenuItem value="30d">Last 30 Days</MenuItem>
-              <MenuItem value="3m">Last 3 Months</MenuItem>
-              <MenuItem value="6m">Last 6 Months</MenuItem>
-              <MenuItem value="1y">Last Year</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
-      </Paper>
-
-      {/* Studies List */}
-      {filteredStudies.length === 0 ? (
+            </ImageList>
+          </motion.div>
+        )}
+        
+        {viewMode === 'cards' && (
+          <motion.div
+            key="cards"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Stack spacing={2}>
+              {filteredStudies
+                .sort((a, b) => new Date(b.started || b.performedDateTime || 0) - new Date(a.started || a.performedDateTime || 0))
+                .map((study) => (
+                  <ImagingStudyCard
+                    key={study.id}
+                    study={study}
+                    onView={handleViewStudy}
+                    onAction={handleStudyAction}
+                    density={density}
+                    viewMode="card"
+                  />
+                ))}
+            </Stack>
+          </motion.div>
+        )}
+        
+        {viewMode === 'table' && (
+          <motion.div
+            key="table"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <SmartTable
+              columns={tableColumns}
+              data={filteredStudies}
+              density={density}
+              onRowClick={(row) => handleViewStudy(row)}
+              sortable
+              hoverable
+              stickyHeader
+              emptyMessage="No imaging studies found"
+            />
+          </motion.div>
+        )}
+        
+        {viewMode === 'bodymap' && (
+          <motion.div
+            key="bodymap"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <BodyMap
+                  studies={studies}
+                  selectedRegion={filterBodyRegion}
+                  onRegionSelect={(region) => {
+                    setFilterBodyRegion(region === filterBodyRegion ? null : region);
+                    setViewMode('cards'); // Switch to cards view to show filtered results
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    height: 400,
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    overflow: 'auto'
+                  }}
+                >
+                  <Typography variant="h6" gutterBottom>
+                    Studies by Body Region
+                  </Typography>
+                  <Stack spacing={1}>
+                    {Object.entries(bodyRegions).map(([region, config]) => {
+                      const regionStudies = studies.filter(s => getBodyRegion(s) === region);
+                      if (regionStudies.length === 0) return null;
+                      
+                      return (
+                        <Box
+                          key={region}
+                          onClick={() => {
+                            setFilterBodyRegion(region);
+                            setViewMode('cards');
+                          }}
+                          sx={{
+                            p: 1.5,
+                            borderRadius: 1,
+                            border: 1,
+                            borderColor: filterBodyRegion === region ? 'primary.main' : 'divider',
+                            backgroundColor: filterBodyRegion === region ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                              transform: 'translateX(4px)'
+                            }
+                          }}
+                        >
+                          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Typography variant="h6">{config.icon}</Typography>
+                              <Typography variant="subtitle1">{config.label}</Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={1}>
+                              {[...new Set(regionStudies.map(s => s.modality?.[0]?.code || s.modality))]
+                                .filter(Boolean)
+                                .map(modality => (
+                                  <Chip
+                                    key={modality}
+                                    label={`${regionStudies.filter(s => (s.modality?.[0]?.code || s.modality) === modality).length} ${modality}`}
+                                    size="small"
+                                    color={getModalityColor(modality)}
+                                    variant="outlined"
+                                  />
+                                ))
+                              }
+                            </Stack>
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Empty State */}
+      {filteredStudies.length === 0 && viewMode !== 'bodymap' ? (
         <Alert severity="info" sx={{ mt: 2 }}>
           <Typography variant="h6" gutterBottom>No imaging studies found</Typography>
           {studies.length === 0 ? (
@@ -813,20 +1394,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
             </Typography>
           )}
         </Alert>
-      ) : (
-        <Box>
-          {filteredStudies
-            .sort((a, b) => new Date(b.started || b.performedDateTime || 0) - new Date(a.started || a.performedDateTime || 0))
-            .map((study) => (
-              <ImagingStudyCard
-                key={study.id}
-                study={study}
-                onView={handleViewStudy}
-                onAction={handleStudyAction}
-              />
-            ))}
-        </Box>
-      )}
+      ) : null}
 
       {/* DICOM Viewer Dialog */}
       <DICOMViewerDialog
@@ -873,6 +1441,30 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
           {snackbar.message}
         </Alert>
       </Snackbar>
+      
+      {/* Floating Action Button */}
+      <ContextualFAB
+        currentModule="imaging"
+        actions={[
+          {
+            icon: <ImagingIcon />,
+            name: 'Order Imaging',
+            onClick: () => publish(CLINICAL_EVENTS.ORDER_REQUESTED, { type: 'imaging', patientId })
+          },
+          {
+            icon: <DownloadIcon />,
+            name: 'Import Study',
+            onClick: () => {/* Handle import */}
+          },
+          {
+            icon: <ShareIcon />,
+            name: 'Share Studies',
+            onClick: () => {/* Handle share */}
+          }
+        ]}
+        position="bottom-right"
+        offsetY={density === 'compact' ? 16 : 24}
+      />
     </Box>
   );
 };

@@ -40,18 +40,18 @@ import { format, parseISO } from 'date-fns';
 
 // Enhanced components and hooks
 import AdvancedOrderFilters from './components/AdvancedOrderFilters';
-import { useAdvancedOrderSearch } from '../../../hooks/useAdvancedOrderSearch';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
-import VirtualizedList from '../../common/VirtualizedList';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../core/export/exportUtils';
-import { getMedicationName } from '../../../core/fhir/utils/medicationDisplayUtils';
-import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSContext';
+import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import VirtualizedList from '../../../common/VirtualizedList';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
+import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 
 // Existing dialogs
-import CPOEDialog from './dialogs/CPOEDialog';
-import QuickOrderDialog from './dialogs/QuickOrderDialog';
-import OrderSigningDialog from './dialogs/OrderSigningDialog';
+import CPOEDialog from '../dialogs/CPOEDialog';
+import QuickOrderDialog from '../dialogs/QuickOrderDialog';
+import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
 // Enhanced components (to be created)
 import OrderStatisticsPanel from './components/OrderStatisticsPanel';
@@ -66,18 +66,22 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   // Enhanced search hook
   const {
     filters,
-    results,
+    entries,
+    total,
     loading,
     error,
-    statistics,
-    activeFilterCount,
+    analytics: statistics,
+    hasActiveFilters,
     updateFilters,
     clearFilters,
-    refreshSearch,
-    searchWithText,
-    loadStatistics,
+    search: refreshSearch,
+    search: searchWithText,
+    analytics: loadStatistics,
     getRelatedOrders
-  } = useAdvancedOrderSearch(patientId);
+  } = useAdvancedOrderSearch({ patientId, autoSearch: true });
+
+  // Create results object for backward compatibility
+  const results = { entries, total };
 
   // UI State
   const [tabValue, setTabValue] = useState(0);
@@ -146,6 +150,16 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
 
   // Process results for display
   const processedResults = useMemo(() => {
+    if (!results || !results.entries) {
+      return {
+        all: [],
+        medications: [],
+        lab: [],
+        imaging: [],
+        other: []
+      };
+    }
+
     const orders = results.entries.map(entry => entry.resource);
     
     // Categorize orders
@@ -360,7 +374,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   ];
 
-  if (loading && !results.entries.length) {
+  if (loading && entries.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
@@ -451,7 +465,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         availableProviders={availableProviders}
         availableLocations={availableLocations}
         availableOrganizations={availableOrganizations}
-        activeFilterCount={activeFilterCount}
+        activeFilterCount={hasActiveFilters() ? Object.keys(filters).length : 0}
         loading={loading}
       />
 
@@ -479,7 +493,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
           color="warning" 
         />
         <Chip 
-          label={`Total: ${results.total}`} 
+          label={`Total: ${results?.total || 0}`} 
           color="default" 
         />
         {loading && (

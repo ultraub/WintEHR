@@ -389,7 +389,17 @@ export const useAdvancedOrderSearch = (options = {}) => {
   }, []);
 
   /**
-   * Auto-search on patient change
+   * Initial search on mount when autoSearch is enabled
+   */
+  useEffect(() => {
+    if (autoSearch && patientId && !searchState.hasSearched) {
+      console.log('useAdvancedOrderSearch: Executing initial search for patient:', patientId);
+      executeSearch();
+    }
+  }, [autoSearch, patientId]); // Only run when autoSearch or patientId changes
+  
+  /**
+   * Auto-search on patient change after initial search
    */
   useEffect(() => {
     if (autoSearch && patientId && searchState.hasSearched) {

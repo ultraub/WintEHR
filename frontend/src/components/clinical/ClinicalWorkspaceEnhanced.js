@@ -39,6 +39,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
 import TabErrorBoundary from './workspace/TabErrorBoundary';
+import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
+import KeyboardShortcutsDialog from './ui/KeyboardShortcutsDialog';
 
 // Tab Components - Lazy Loaded for Performance
 // Using optimized/enhanced versions where available
@@ -48,9 +50,9 @@ const EncountersTab = React.lazy(() => import('./workspace/tabs/EncountersTab'))
 const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTabOptimized'));
 const OrdersTab = React.lazy(() => import('./workspace/tabs/EnhancedOrdersTab'));
 const PharmacyTab = React.lazy(() => import('./workspace/tabs/PharmacyTab'));
-const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTab'));
-const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTab'));
-const TimelineTab = React.lazy(() => import('./workspace/tabs/TimelineTab'));
+const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTabEnhanced'));
+const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTabEnhanced'));
+const TimelineTab = React.lazy(() => import('./workspace/tabs/TimelineTabEnhanced'));
 const ImagingTab = React.lazy(() => import('./workspace/tabs/ImagingTab'));
 
 // Tab Loading Component
@@ -61,17 +63,18 @@ const TabLoadingFallback = () => (
 );
 
 // Tab Configuration - matching the sidebar navigation
+// Note: Using lazy-loaded optimized components defined above
 const TAB_CONFIG = [
   { id: 'summary', label: 'Summary', icon: DashboardIcon, component: SummaryTab },
-  { id: 'chart', label: 'Chart Review', icon: ChartIcon, component: ChartReviewTab },
+  { id: 'chart-review', label: 'Chart Review', icon: ChartIcon, component: ChartReviewTab }, // Uses ChartReviewTabOptimized
   { id: 'encounters', label: 'Encounters', icon: EncountersIcon, component: EncountersTab },
-  { id: 'results', label: 'Results', icon: ResultsIcon, component: ResultsTab },
-  { id: 'orders', label: 'Orders', icon: OrdersIcon, component: OrdersTab },
+  { id: 'results', label: 'Results', icon: ResultsIcon, component: ResultsTab }, // Uses ResultsTabOptimized
+  { id: 'orders', label: 'Orders', icon: OrdersIcon, component: OrdersTab }, // Uses EnhancedOrdersTab
   { id: 'pharmacy', label: 'Pharmacy', icon: PharmacyIcon, component: PharmacyTab },
   { id: 'imaging', label: 'Imaging', icon: ImagingIcon, component: ImagingTab },
-  { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, component: DocumentationTab },
-  { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, component: CarePlanTab },
-  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, component: TimelineTab }
+  { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, component: DocumentationTab }, // Uses DocumentationTabEnhanced
+  { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, component: CarePlanTab }, // Uses CarePlanTabEnhanced
+  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, component: TimelineTab } // Uses TimelineTabEnhanced
 ];
 
 const ClinicalWorkspaceEnhanced = ({ 
@@ -104,6 +107,7 @@ const ClinicalWorkspaceEnhanced = ({
   // State
   const [loadError, setLoadError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   
   // Use parent's activeModule directly instead of maintaining separate state
   const activeTab = activeModule;
@@ -164,6 +168,46 @@ const ClinicalWorkspaceEnhanced = ({
     }
   };
 
+  // Handle keyboard navigation actions
+  const handleKeyboardAction = useCallback((action) => {
+    switch (action) {
+      case 'new':
+        // Context-aware new action - would open appropriate dialog
+        publish('clinical.action.new', { tab: activeTab, timestamp: new Date().toISOString() });
+        break;
+      case 'search':
+        // Focus search in current tab
+        const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]');
+        if (searchInput) searchInput.focus();
+        break;
+      case 'refresh':
+        handleRefresh();
+        break;
+      case 'print':
+        // Trigger print in current tab
+        publish('clinical.action.print', { tab: activeTab, timestamp: new Date().toISOString() });
+        break;
+      case 'help':
+        setShowKeyboardHelp(true);
+        break;
+      case 'escape':
+        setShowKeyboardHelp(false);
+        break;
+    }
+  }, [activeTab, publish, handleRefresh]);
+
+  // Set up keyboard navigation
+  const { shortcuts } = useKeyboardNavigation({
+    activeTab,
+    onTabChange: handleTabChange,
+    onAction: handleKeyboardAction,
+    onDensityChange: (newDensity) => {
+      // This would be handled by parent component if density control is needed
+      publish('clinical.view.density_change', { density: newDensity, timestamp: new Date().toISOString() });
+    },
+    enabled: true
+  });
+
   // Loading state
   if (isLoading) {
     return (
@@ -209,6 +253,7 @@ const ClinicalWorkspaceEnhanced = ({
 
   // Add console log to verify enhanced version is loading
   console.log('ClinicalWorkspaceEnhanced: Loading - this is the enhanced version');
+  console.log('ClinicalWorkspaceEnhanced: activeModule =', activeModule, 'activeTab =', activeTab);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -233,7 +278,12 @@ const ClinicalWorkspaceEnhanced = ({
       </Box>
       
       {/* Tab Content - no extra spacing */}
-      <Box sx={{ flex: 1, overflow: 'auto', pt: 0 }}>
+      <Box 
+        sx={{ flex: 1, overflow: 'auto', pt: 0 }}
+        role="main"
+        tabIndex={-1}
+        aria-label={`${activeTabConfig?.label || 'Clinical'} content`}
+      >
         <TabErrorBoundary onReset={handleRefresh}>
           <Suspense fallback={<TabLoadingFallback />}>
             {TAB_CONFIG.map((tab) => {
@@ -242,6 +292,8 @@ const ClinicalWorkspaceEnhanced = ({
               
               // Only render active tab to improve performance
               if (!isActive) return null;
+              
+              console.log(`Rendering tab: ${tab.id}, Component name: ${TabComponent.name || 'Unknown'}, Active: ${isActive}, TabComponent:`, TabComponent);
               
               return (
                 <Box
@@ -276,6 +328,12 @@ const ClinicalWorkspaceEnhanced = ({
         onClose={() => setSnackbar({ open: false, message: '' })}
         message={snackbar.message}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+      
+      {/* Keyboard shortcuts help dialog */}
+      <KeyboardShortcutsDialog
+        open={showKeyboardHelp}
+        onClose={() => setShowKeyboardHelp(false)}
       />
     </Box>
   );

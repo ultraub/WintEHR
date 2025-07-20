@@ -2,10 +2,11 @@
  * Chart Review Tab Component
  * Comprehensive view of patient's problems, medications, and allergies
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
+  Paper,
   Typography,
   List,
   ListItem,
@@ -14,6 +15,7 @@ import {
   ListItemSecondaryAction,
   Chip,
   Stack,
+  Divider,
   Alert,
   CircularProgress,
   IconButton,
@@ -22,6 +24,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -29,21 +32,14 @@ import {
   Select,
   FormControl,
   InputLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Badge,
   useTheme,
   alpha,
   Snackbar,
-  Backdrop,
-  Skeleton,
-  useMediaQuery,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Checkbox,
-  FormControlLabel,
-  Paper,
-  Avatar,
-  Divider
+  Backdrop
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -52,26 +48,23 @@ import {
   Assignment as ProblemIcon,
   LocalPharmacy as PharmacyIcon,
   Vaccines as ImmunizationIcon,
+  FamilyRestroom as FamilyIcon,
   SmokingRooms as SmokingIcon,
   LocalBar as AlcoholIcon,
   Add as AddIcon,
   Edit as EditIcon,
   History as HistoryIcon,
   Search as SearchIcon,
-  ErrorOutline as SeverityIcon,
-  Refresh as RefreshIcon,
-  Cancel as CancelIcon,
-  Tune as TuneIcon,
-  Sort as SortIcon,
-  CheckCircle as VerifiedIcon,
-  HelpOutline as UnconfirmedIcon,
-  Info as InfoIcon
+  FilterList as FilterIcon,
+  Print as PrintIcon,
+  Timeline as TimelineIcon,
+  CheckCircle as ActiveIcon,
+  Cancel as InactiveIcon,
+  ErrorOutline as SeverityIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { useNavigate } from 'react-router-dom';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import AddProblemDialog from '../dialogs/AddProblemDialog';
 import EditProblemDialog from '../dialogs/EditProblemDialog';
@@ -80,39 +73,16 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
-import RefillManagement from '../../medications/RefillManagement';
-import MedicationDiscontinuationDialog from '../../medications/MedicationDiscontinuationDialog';
-import EffectivenessMonitoringPanel from '../../medications/EffectivenessMonitoringPanel';
-import ClinicalSafetyPanel from '../../medications/ClinicalSafetyPanel';
-import { fhirClient } from '../../../../core/fhir/services/fhirClient';
-import { medicationDiscontinuationService } from '../../../../services/medicationDiscontinuationService';
-import { medicationEffectivenessService } from '../../../../services/medicationEffectivenessService';
-import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
-import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
+import fhirClient from '../../../../services/fhirClient';
+import { intelligentCache } from '../../../../utils/intelligentCache';
+import { exportClinicalData, EXPORT_COLUMNS } from '../../../../utils/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getMedicationName, getMedicationDosageDisplay, getMedicationSpecialInstructions } from '../../../../core/fhir/utils/medicationDisplayUtils';
-import { 
-  getConditionStatus, 
-  getMedicationStatus, 
-  isConditionActive, 
-  isMedicationActive, 
-  getResourceDisplayText, 
-  getCodeableConceptDisplay, 
-  FHIR_STATUS_VALUES 
-} from '../../../../core/fhir/utils/fhirFieldUtils';
-import StatusChip from '../../common/StatusChip';
-import { usePatientCDSAlerts } from '../../../../contexts/CDSContext';
-import PrescriptionStatusDashboard from '../../prescribing/PrescriptionStatusDashboard';
-import ClinicalCard from '../../common/ClinicalCard';
-import ClinicalDataTable from '../../common/ClinicalDataTable';
-import MetricCard from '../../common/MetricCard';
-import { getClinicalContext } from '../../../../themes/clinicalThemeUtils';
-import { useTimeout } from '../../../../hooks/useTimeout';
 
 // Problem List Component
-const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport, department }) => {
+const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDeleteProblem, onExport }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -120,18 +90,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
-  
-  // Enhanced filtering state for new FHIR parameters
-  const [dateFilter, setDateFilter] = useState({
-    enabled: false,
-    startDate: null,
-    endDate: null,
-    operator: 'ge' // ge, le, gt, lt, eq
-  });
-  const [verificationFilter, setVerificationFilter] = useState('all');
-  const [severityFilter, setSeverityFilter] = useState('all');
-  const [sortBySeverity, setSortBySeverity] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const toggleExpanded = (id) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -176,202 +134,60 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
     }
   };
 
-  // Enhanced FHIR parameter utility functions
-  const getVerificationStatus = (condition) => {
-    return condition.verificationStatus?.coding?.[0]?.code || 'unknown';
-  };
+  const filteredConditions = conditions.filter(condition => {
+    const matchesFilter = filter === 'all' || 
+      (filter === 'active' && condition.clinicalStatus?.coding?.[0]?.code === 'active') ||
+      (filter === 'resolved' && condition.clinicalStatus?.coding?.[0]?.code === 'resolved');
+    
+    const matchesSearch = !searchTerm || 
+      (condition.code?.text || condition.code?.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesFilter && matchesSearch;
+  });
 
-  const getSeverityLevel = (severity) => {
-    if (!severity) return 'unknown';
-    const code = severity.coding?.[0]?.code?.toLowerCase();
-    const display = severity.coding?.[0]?.display?.toLowerCase() || severity.text?.toLowerCase();
-    
-    // SNOMED CT severity codes
-    if (code === '24484000' || display?.includes('severe')) return 'severe';
-    if (code === '6736007' || display?.includes('moderate')) return 'moderate'; 
-    if (code === '255604002' || display?.includes('mild')) return 'mild';
-    
-    // Fallback to text analysis
-    if (display) {
-      if (display.includes('severe') || display.includes('critical')) return 'severe';
-      if (display.includes('moderate')) return 'moderate';
-      if (display.includes('mild') || display.includes('minor')) return 'mild';
-    }
-    
-    return 'unknown';
-  };
-
-  const getSeverityWeight = (severity) => {
-    switch(getSeverityLevel(severity)) {
-      case 'severe': return 3;
-      case 'moderate': return 2;
-      case 'mild': return 1;
-      default: return 0;
-    }
-  };
-
-  const matchesDateFilter = (condition) => {
-    if (!dateFilter.enabled || !dateFilter.startDate) return true;
-    
-    const onsetDate = condition.onsetDateTime || condition.onsetPeriod?.start;
-    if (!onsetDate) return false;
-    
-    const conditionDate = new Date(onsetDate);
-    const filterDate = new Date(dateFilter.startDate);
-    const endDate = dateFilter.endDate ? new Date(dateFilter.endDate) : null;
-    
-    switch(dateFilter.operator) {
-      case 'ge': // Greater than or equal (on or after)
-        return conditionDate >= filterDate;
-      case 'le': // Less than or equal (on or before)
-        return conditionDate <= filterDate;
-      case 'gt': // Greater than (after)
-        return conditionDate > filterDate;
-      case 'lt': // Less than (before)
-        return conditionDate < filterDate;
-      case 'eq': // Equal (exactly on)
-        return conditionDate.toDateString() === filterDate.toDateString();
-      case 'between': // Between two dates
-        return endDate ? (conditionDate >= filterDate && conditionDate <= endDate) : true;
-      default:
-        return true;
-    }
-  };
-
-  // Enhanced filtering and sorting with new FHIR parameters
-  const filteredAndSortedConditions = useMemo(() => {
-    let filtered = conditions.filter(condition => {
-      const conditionStatus = getConditionStatus(condition);
-      const matchesFilter = filter === 'all' || 
-        (filter === 'active' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.ACTIVE) ||
-        (filter === 'resolved' && conditionStatus === FHIR_STATUS_VALUES.CONDITION.RESOLVED);
-      
-      const conditionDisplay = getResourceDisplayText(condition);
-      const matchesSearch = !searchTerm || 
-        conditionDisplay.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // Enhanced FHIR parameter filtering
-      const matchesDate = matchesDateFilter(condition);
-      
-      // Verification status filtering
-      const matchesVerification = verificationFilter === 'all' || 
-        getVerificationStatus(condition) === verificationFilter;
-      
-      // Severity filtering
-      const matchesSeverityFilter = severityFilter === 'all' || 
-        getSeverityLevel(condition.severity) === severityFilter;
-      
-      return matchesFilter && matchesSearch && matchesDate && 
-             matchesVerification && matchesSeverityFilter;
-    });
-    
-    // Severity-based sorting
-    if (sortBySeverity) {
-      filtered.sort((a, b) => {
-        const weightA = getSeverityWeight(a.severity);
-        const weightB = getSeverityWeight(b.severity);
-        return weightB - weightA; // Severe first
-      });
-    } else {
-      // Default sorting by onset date (most recent first)
-      filtered.sort((a, b) => {
-        const dateA = new Date(a.onsetDateTime || a.onsetPeriod?.start || '1900-01-01');
-        const dateB = new Date(b.onsetDateTime || b.onsetPeriod?.start || '1900-01-01');
-        return dateB - dateA;
-      });
-    }
-    
-    return filtered;
-  }, [conditions, filter, searchTerm, dateFilter, verificationFilter, severityFilter, sortBySeverity]);
-
-  // Memoize condition counts to avoid recalculating on every render
-  const { activeCount, resolvedCount } = useMemo(() => ({
-    activeCount: conditions.filter(c => isConditionActive(c)).length,
-    resolvedCount: conditions.filter(c => getConditionStatus(c) === FHIR_STATUS_VALUES.CONDITION.RESOLVED).length
-  }), [conditions]);
+  const activeCount = conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active').length;
+  const resolvedCount = conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'resolved').length;
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 1,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
-        },
-        overflow: 'hidden'
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.default'
-        }}
-      >
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Avatar
-              sx={{
-                width: 40,
-                height: 40,
-                bgcolor: 'primary.main',
-                color: 'primary.contrastText',
-                borderRadius: 1
-              }}
-            >
-              <ProblemIcon />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-                Problem List
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {conditions.length} total conditions
-              </Typography>
-            </Box>
-          </Stack>
-          
-          {/* Action Buttons */}
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Advanced Filters">
-              <IconButton 
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h6" gutterBottom>Problem List</Typography>
+            <Stack direction="row" spacing={1}>
+              <Chip 
+                label={`${activeCount} Active`} 
                 size="small" 
-                color={showAdvancedFilters ? "primary" : "default"}
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                aria-label="Toggle advanced filtering options"
-              >
-                <TuneIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Sort by Severity">
-              <IconButton 
-                size="small"
-                color={sortBySeverity ? "primary" : "default"}
-                onClick={() => setSortBySeverity(!sortBySeverity)}
-                aria-label="Sort problems by severity (severe first)"
-              >
-                <SortIcon />
-              </IconButton>
-            </Tooltip>
+                color="primary" 
+                variant={filter === 'active' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('active')}
+              />
+              <Chip 
+                label={`${resolvedCount} Resolved`} 
+                size="small" 
+                variant={filter === 'resolved' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('resolved')}
+              />
+              <Chip 
+                label="All" 
+                size="small" 
+                variant={filter === 'all' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('all')}
+              />
+            </Stack>
+          </Box>
+          <Stack direction="row" spacing={1}>
             <Tooltip title="Add Problem">
               <IconButton 
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
-                aria-label="Add new problem to patient chart"
               >
                 <AddIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="View History">
-              <IconButton 
-                size="small"
-                aria-label="View problem history for this patient"
-              >
+              <IconButton size="small">
                 <HistoryIcon />
               </IconButton>
             </Tooltip>
@@ -379,99 +195,13 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                aria-label="Export problem list data"
-                aria-haspopup="menu"
-                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
-        
-        {/* Filter Chips */}
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }} role="group" aria-label="Problem list filters">
-              <Chip 
-                label={`${activeCount} Active`} 
-                size="small" 
-                color="primary" 
-                variant={filter === 'active' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('active')}
-                component="button"
-                role="button"
-                aria-label={`Filter to show active problems only. ${activeCount} active problems found.`}
-                aria-pressed={filter === 'active'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('active');
-                  }
-                }}
-                sx={{
-                  borderRadius: 0.5,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }
-                }}
-              />
-              <Chip 
-                label={`${resolvedCount} Resolved`} 
-                size="small" 
-                variant={filter === 'resolved' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('resolved')}
-                component="button"
-                role="button"
-                aria-label={`Filter to show resolved problems only. ${resolvedCount} resolved problems found.`}
-                aria-pressed={filter === 'resolved'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('resolved');
-                  }
-                }}
-                sx={{
-                  borderRadius: 0.5,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }
-                }}
-              />
-              <Chip 
-                label="All" 
-                size="small" 
-                variant={filter === 'all' ? 'filled' : 'outlined'}
-                onClick={() => setFilter('all')}
-                component="button"
-                role="button"
-                aria-label={`Show all problems. ${conditions.length} total problems found.`}
-                aria-pressed={filter === 'all'}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setFilter('all');
-                  }
-                }}
-                sx={{
-                  borderRadius: 0.5,
-                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                  '&:hover': {
-                    transform: 'scale(1.05)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }
-                }}
-              />
-        </Stack>
-      </Box>
-      
-      {/* Content */}
-      <Box sx={{ p: 2 }}>
+
         <TextField
           fullWidth
           size="small"
@@ -488,251 +218,53 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           }}
         />
 
-        {/* Advanced Filters Panel */}
-        <Collapse in={showAdvancedFilters}>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Card variant="outlined" sx={{ 
-              mb: 2, 
-              p: 2,
-              transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-              '&:hover': {
-                transform: 'translateY(-2px)',
-                boxShadow: `0 8px 24px ${alpha(theme.palette.action.hover, 0.15)}`
-              }
-            }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Advanced Filters
-              </Typography>
-              
-              <Grid container spacing={2}>
-                {/* Date Range Filter */}
-                <Grid item xs={12} md={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={dateFilter.enabled}
-                        onChange={(e) => setDateFilter(prev => ({ 
-                          ...prev, 
-                          enabled: e.target.checked 
-                        }))}
-                      />
-                    }
-                    label="Filter by Onset Date"
-                  />
-                  
-                  {dateFilter.enabled && (
-                    <Box sx={{ mt: 1 }}>
-                      <FormControl fullWidth size="small" sx={{ mb: 1 }}>
-                        <InputLabel>Date Operator</InputLabel>
-                        <Select
-                          value={dateFilter.operator}
-                          label="Date Operator"
-                          onChange={(e) => setDateFilter(prev => ({ 
-                            ...prev, 
-                            operator: e.target.value 
-                          }))}
-                        >
-                          <MenuItem value="ge">On or After</MenuItem>
-                          <MenuItem value="le">On or Before</MenuItem>
-                          <MenuItem value="gt">After</MenuItem>
-                          <MenuItem value="lt">Before</MenuItem>
-                          <MenuItem value="eq">Exactly On</MenuItem>
-                          <MenuItem value="between">Between Dates</MenuItem>
-                        </Select>
-                      </FormControl>
-                      
-                      <DatePicker
-                        label="Start Date"
-                        value={dateFilter.startDate}
-                        onChange={(date) => setDateFilter(prev => ({ 
-                          ...prev, 
-                          startDate: date 
-                        }))}
-                        slotProps={{
-                          textField: {
-                            fullWidth: true,
-                            size: "small",
-                            sx: { mb: 1 }
-                          }
-                        }}
-                      />
-                      
-                      {dateFilter.operator === 'between' && (
-                        <DatePicker
-                          label="End Date"
-                          value={dateFilter.endDate}
-                          onChange={(date) => setDateFilter(prev => ({ 
-                            ...prev, 
-                            endDate: date 
-                          }))}
-                          slotProps={{
-                            textField: {
-                              fullWidth: true,
-                              size: "small"
-                            }
-                          }}
-                        />
-                      )}
-                    </Box>
-                  )}
-                </Grid>
-                
-                {/* Verification Status Filter */}
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Verification Status</InputLabel>
-                    <Select
-                      value={verificationFilter}
-                      label="Verification Status"
-                      onChange={(e) => setVerificationFilter(e.target.value)}
-                    >
-                      <MenuItem value="all">All</MenuItem>
-                      <MenuItem value="confirmed">Confirmed</MenuItem>
-                      <MenuItem value="provisional">Provisional</MenuItem>
-                      <MenuItem value="differential">Differential</MenuItem>
-                      <MenuItem value="unconfirmed">Unconfirmed</MenuItem>
-                      <MenuItem value="refuted">Refuted</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                {/* Severity Filter */}
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Severity</InputLabel>
-                    <Select
-                      value={severityFilter}
-                      label="Severity"
-                      onChange={(e) => setSeverityFilter(e.target.value)}
-                    >
-                      <MenuItem value="all">All</MenuItem>
-                      <MenuItem value="severe">Severe</MenuItem>
-                      <MenuItem value="moderate">Moderate</MenuItem>
-                      <MenuItem value="mild">Mild</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              
-              {/* Filter Summary */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Showing {filteredAndSortedConditions.length} of {conditions.length} problems
-                  {dateFilter.enabled && ` • Date filtered`}
-                  {verificationFilter !== 'all' && ` • ${verificationFilter} only`}
-                  {severityFilter !== 'all' && ` • ${severityFilter} only`}
-                  {sortBySeverity && ` • Sorted by severity`}
-                </Typography>
-              </Box>
-            </Card>
-          </LocalizationProvider>
-        </Collapse>
-
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-          {filteredAndSortedConditions.length === 0 ? (
+          {filteredConditions.length === 0 ? (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
               No problems found
             </Typography>
           ) : (
-            filteredAndSortedConditions.map((condition) => (
+            filteredConditions.map((condition) => (
               <ListItem
                 key={condition.id}
                 sx={{
-                  borderRadius: 0,
-                  mb: theme.spacing(1),
+                  borderRadius: 1,
+                  mb: 1,
                   backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  transition: theme.transitions.create(['background-color', 'transform'], {
-                    duration: theme.transitions.duration.short
-                  }),
-                  '&:hover': { 
-                    backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.08) : 'action.hover',
-                    transform: 'translateY(-1px)'
-                  }
+                  '&:hover': { backgroundColor: 'action.hover' }
                 }}
               >
                 <ListItemIcon>
-                  <ProblemIcon color={isConditionActive(condition) ? 'warning' : 'action'} />
+                  <ProblemIcon color={condition.clinicalStatus?.coding?.[0]?.code === 'active' ? 'warning' : 'action'} />
                 </ListItemIcon>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
-                        {getResourceDisplayText(condition)}
+                        {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown'}
                       </Typography>
-                      
-                      {/* Verification Status Indicator */}
-                      {(() => {
-                        const verificationStatus = getVerificationStatus(condition);
-                        if (verificationStatus !== 'unknown') {
-                          const getVerificationIcon = (status) => {
-                            switch(status) {
-                              case 'confirmed': return <VerifiedIcon fontSize="small" />;
-                              case 'provisional': return <InfoIcon fontSize="small" />;
-                              case 'differential': return <InfoIcon fontSize="small" />;
-                              case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
-                              case 'refuted': return <CancelIcon fontSize="small" />;
-                              default: return null;
-                            }
-                          };
-                          
-                          const getVerificationColor = (status) => {
-                            switch(status) {
-                              case 'confirmed': return 'success';
-                              case 'provisional': return 'warning';
-                              case 'differential': return 'info';
-                              case 'unconfirmed': return 'warning';
-                              case 'refuted': return 'error';
-                              default: return 'default';
-                            }
-                          };
-                          
-                          return (
-                            <Tooltip title={`Verification: ${verificationStatus}`}>
-                              <Chip
-                                icon={getVerificationIcon(verificationStatus)}
-                                label={verificationStatus.charAt(0).toUpperCase() + verificationStatus.slice(1)}
-                                size="small"
-                                color={getVerificationColor(verificationStatus)}
-                                variant="outlined"
-                                sx={{
-                                  transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                                  '&:hover': {
-                                    transform: 'scale(1.05)'
-                                  }
-                                }}
-                              />
-                            </Tooltip>
-                          );
-                        }
-                        return null;
-                      })()}
-                      
-                      {/* Severity Indicator */}
                       {condition.severity && (
                         <Chip 
-                          label={getSeverityLevel(condition.severity).charAt(0).toUpperCase() + getSeverityLevel(condition.severity).slice(1)}
+                          label={condition.severity.text || condition.severity.coding?.[0]?.display} 
                           size="small" 
-                          color={getSeverityColor(getSeverityLevel(condition.severity))}
-                          variant={getSeverityLevel(condition.severity) === 'severe' ? 'filled' : 'outlined'}
-                          sx={{
-                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                            '&:hover': {
-                              transform: 'scale(1.05)'
-                            }
-                          }}
+                          color={getSeverityColor(condition.severity.text)}
                         />
                       )}
                     </Box>
                   }
                   secondary={
-                    <>
-                      {condition.onsetDateTime ? 
-                        `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
-                        'Onset date unknown'}
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {condition.onsetDateTime ? 
+                          `Onset: ${format(parseISO(condition.onsetDateTime), 'MMM d, yyyy')}` : 
+                          'Onset date unknown'}
+                      </Typography>
                       {condition.note?.[0]?.text && expandedItems[condition.id] && (
-                        ` • ${condition.note[0].text}`
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                          {condition.note[0].text}
+                        </Typography>
                       )}
-                    </>
+                    </Box>
                   }
                 />
                 <ListItemSecondaryAction>
@@ -741,13 +273,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                       <IconButton 
                         size="small"
                         onClick={() => handleEditProblem(condition)}
-                        sx={{
-                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                          '&:hover': {
-                            transform: 'scale(1.1)',
-                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                          }
-                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -755,13 +280,6 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                     <IconButton 
                       size="small"
                       onClick={() => toggleExpanded(condition.id)}
-                      sx={{
-                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                        '&:hover': {
-                          transform: 'scale(1.1)',
-                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                        }
-                      }}
                     >
                       {expandedItems[condition.id] ? <ExpandMoreIcon /> : <ExpandMoreIcon sx={{ transform: 'rotate(-90deg)' }} />}
                     </IconButton>
@@ -771,7 +289,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
             ))
           )}
         </List>
-      </Box>
+      </CardContent>
       
       <AddProblemDialog
         open={showAddDialog}
@@ -786,6 +304,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
         onSave={handleSaveProblem}
         onDelete={handleDeleteProblem}
         condition={selectedCondition}
+        patientId={patientId}
       />
       
       <Menu
@@ -803,41 +322,27 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
           Export as PDF
         </MenuItem>
       </Menu>
-    </Paper>
+    </Card>
   );
 };
 
 // Medication List Component
-const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport, department }) => {
+const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditMedication, onDeleteMedication, onExport }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('active');
   const [expandedItems, setExpandedItems] = useState({});
   const [showPrescribeDialog, setShowPrescribeDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showReconciliationDialog, setShowReconciliationDialog] = useState(false);
-  const [showRefillDialog, setShowRefillDialog] = useState(false);
-  const [showDiscontinuationDialog, setShowDiscontinuationDialog] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   
-  // Resolve medication references - memoize the filtered array
-  const medicationsForResolver = useMemo(() => 
-    medications?.filter(med => med && med.id) || [],
-  [medications]);
-  
-  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(
-    medicationsForResolver
-  );
-  
-  // Clinical workflow context for events
-  const { publish } = useClinicalWorkflow();
-  
-  // FHIR resource context for refreshing data
-  const { refreshPatientResources } = useFHIRResource();
+  // Resolve medication references
+  const { getMedicationDisplay, loading: resolvingMeds } = useMedicationResolver(medications);
 
   const handleEditMedication = (medication) => {
-    // Ensure we're setting a fresh copy of the medication
-    setSelectedMedication({...medication});
+    setSelectedMedication(medication);
     setShowEditDialog(true);
   };
 
@@ -851,8 +356,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       await onEditMedication(updatedMedication);
       handleCloseEditDialog();
     } catch (error) {
-      // Error is thrown to be handled by the dialog component
-      // Don't close the dialog on error so user can see the error message
+      // Error is thrown to be handled by the calling component
       throw error;
     }
   };
@@ -867,35 +371,64 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     }
   };
 
-  const handleReconciliation = async (reconciliationResults) => {
+  const handleReconciliation = async (reconciliationChanges) => {
     try {
-      // The reconciliation service has already applied the changes
-      // reconciliationResults contains the results of each change
-      
-      const successfulChanges = reconciliationResults.filter(result => result.result.success);
-      const failedChanges = reconciliationResults.filter(result => !result.result.success);
-      
-      // Refresh the medication list to reflect changes
-      await refreshPatientResources(patientId);
-      
-      // Publish workflow event for successful reconciliation
-      if (successfulChanges.length > 0) {
-        await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
-          workflowType: 'medication-reconciliation',
-          step: 'completed',
-          data: {
-            patientId,
-            changesApplied: successfulChanges.length,
-            changesFailed: failedChanges.length,
-            timestamp: new Date().toISOString()
-          }
-        });
+      // Apply each reconciliation change
+      for (const change of reconciliationChanges) {
+        if (change.type === 'add') {
+          // Create new medication request from external source
+          const newMedRequest = {
+            resourceType: 'MedicationRequest',
+            status: 'active',
+            intent: 'order',
+            priority: 'routine',
+            medicationCodeableConcept: {
+              text: change.medication.name
+            },
+            subject: {
+              reference: `Patient/${patientId}`
+            },
+            authoredOn: new Date().toISOString(),
+            dosageInstruction: [{
+              text: change.medication.dosage
+            }],
+            note: [{
+              text: `Added via medication reconciliation from ${change.source}`
+            }]
+          };
+          await onPrescribeMedication(newMedRequest);
+        } else if (change.type === 'discontinue') {
+          // Mark medication as stopped
+          const updatedMed = {
+            ...change.medication,
+            status: 'stopped',
+            note: [
+              ...(change.medication.note || []),
+              {
+                text: `Discontinued via medication reconciliation from ${change.source}`,
+                time: new Date().toISOString()
+              }
+            ]
+          };
+          await onEditMedication(updatedMed);
+        } else if (change.type === 'modify') {
+          // Update dosage
+          const updatedMed = {
+            ...change.medication,
+            dosageInstruction: [{
+              text: change.newDosage
+            }],
+            note: [
+              ...(change.medication.note || []),
+              {
+                text: `Dosage updated via medication reconciliation from ${change.source}`,
+                time: new Date().toISOString()
+              }
+            ]
+          };
+          await onEditMedication(updatedMed);
+        }
       }
-      
-      // Close the dialog
-      setShowReconciliationDialog(false);
-      
-      // Log summary for debugging
       
       // Medication reconciliation completed successfully
     } catch (error) {
@@ -904,173 +437,70 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
     }
   };
 
-  const handleDiscontinuation = async (discontinuationData) => {
-    try {
-      const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
-      
-      // Refresh the medication list to reflect changes
-      await refreshPatientResources(patientId);
-      
-      // Publish workflow event for medication discontinuation
-      await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
-        workflowType: 'medication-discontinuation',
-        step: 'completed',
-        data: {
-          medicationName: getMedicationName(result.originalRequest),
-          reason: discontinuationData.reason.display,
-          discontinuationType: discontinuationData.discontinuationType,
-          patientId,
-          timestamp: new Date().toISOString()
-        }
-      });
-      
-      // Close the dialog
-      setShowDiscontinuationDialog(false);
-      setSelectedMedication(null);
-      
-      // Log success
-      
-    } catch (error) {
-      // Error during medication discontinuation
-      throw error;
-    }
-  };
+  const filteredMedications = medications.filter(med => {
+    return filter === 'all' || med.status === filter;
+  });
 
-  // Memoize filtered medications to avoid recalculating on every render
-  const filteredMedications = useMemo(() => {
-    return medications.filter(med => {
-      const medicationStatus = getMedicationStatus(med);
-      return filter === 'all' || medicationStatus === filter;
-    });
-  }, [medications, filter]);
-
-  // Memoize medication counts to avoid recalculating on every render
-  const { activeCount, stoppedCount } = useMemo(() => ({
-    activeCount: medications.filter(m => isMedicationActive(m)).length,
-    stoppedCount: medications.filter(m => {
-      const status = getMedicationStatus(m);
-      return status === FHIR_STATUS_VALUES.MEDICATION.STOPPED || status === FHIR_STATUS_VALUES.MEDICATION.COMPLETED;
-    }).length
-  }), [medications]);
+  const activeCount = medications.filter(m => m.status === 'active').length;
+  const stoppedCount = medications.filter(m => m.status === 'stopped' || m.status === 'completed').length;
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 1,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
-        },
-        overflow: 'hidden'
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.default'
-        }}
-      >
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Avatar
-              sx={{
-                width: 40,
-                height: 40,
-                bgcolor: 'info.main',
-                color: 'info.contrastText'
-              }}
-            >
-              <MedicationIcon />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-                Medications
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {medications.length} total medications
-              </Typography>
-            </Box>
-          </Stack>
-          
-          {/* Action Buttons */}
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h6" gutterBottom>Medications</Typography>
+            <Stack direction="row" spacing={1}>
+              <Chip 
+                label={`${activeCount} Active`} 
+                size="small" 
+                color="primary" 
+                variant={filter === 'active' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('active')}
+              />
+              <Chip 
+                label={`${stoppedCount} Stopped`} 
+                size="small" 
+                variant={filter === 'stopped' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('stopped')}
+              />
+              <Chip 
+                label="All" 
+                size="small" 
+                variant={filter === 'all' ? 'filled' : 'outlined'}
+                onClick={() => setFilter('all')}
+              />
+            </Stack>
+          </Box>
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Medication Reconciliation">
-              <IconButton 
-                size="small"
-                onClick={() => setShowReconciliationDialog(true)}
-                aria-label="Start medication reconciliation"
-              >
-                <MedicationIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Add Medication">
+            <Tooltip title="Prescribe Medication">
               <IconButton 
                 size="small" 
                 color="primary" 
                 onClick={() => setShowPrescribeDialog(true)}
-                aria-label="Prescribe new medication"
               >
                 <AddIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="View History">
+            <Tooltip title="Medication Reconciliation">
               <IconButton 
-                size="small"
-                aria-label="View medication history"
+                size="small" 
+                onClick={() => setShowReconciliationDialog(true)}
               >
-                <HistoryIcon />
+                <PharmacyIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export">
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                aria-label="Export medication list"
-                aria-haspopup="menu"
-                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
-        
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Chip 
-            label={`${activeCount} Active`} 
-            size="small" 
-            color="primary"
-            variant={filter === 'active' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('active')}
-            component="button"
-            sx={{ borderRadius: 0 }}
-          />
-          <Chip 
-            label={`${stoppedCount} Stopped`} 
-            size="small" 
-            variant={filter === 'stopped' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('stopped')}
-            component="button"
-            sx={{ borderRadius: 0 }}
-          />
-          <Chip 
-            label="All" 
-            size="small" 
-            variant={filter === 'all' ? 'filled' : 'outlined'}
-            onClick={() => setFilter('all')}
-            component="button"
-            sx={{ borderRadius: 0 }}
-          />
-        </Stack>
-      </Box>
-      
-      {/* Content */}
-      <Box sx={{ p: 2 }}>
+
         <List sx={{ maxHeight: 400, overflow: 'auto', position: 'relative' }}>
           {resolvingMeds && (
             <Box sx={{ 
@@ -1082,7 +512,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              backgroundColor: alpha(theme.palette.background.paper, 0.8),
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
               zIndex: 1
             }}>
               <CircularProgress size={24} />
@@ -1097,165 +527,53 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               <ListItem
                 key={med.id}
                 sx={{
-                  borderRadius: 0,
-                  mb: theme.spacing(1.5),
-                  py: theme.spacing(1.5),
-                  backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  transition: theme.transitions.create(['background-color', 'transform'], {
-                    duration: theme.transitions.duration.short
-                  }),
-                  '&:hover': { 
-                    backgroundColor: isMedicationActive(med) ? alpha(theme.palette.primary.main, 0.08) : 'action.hover',
-                    transform: 'translateY(-1px)'
-                  }
+                  borderRadius: 1,
+                  mb: 1,
+                  backgroundColor: med.status === 'active' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                  '&:hover': { backgroundColor: 'action.hover' }
                 }}
               >
                 <ListItemIcon>
-                  <MedicationIcon color={isMedicationActive(med) ? 'primary' : 'action'} />
+                  <MedicationIcon color={med.status === 'active' ? 'primary' : 'action'} />
                 </ListItemIcon>
                 <ListItemText
                   primary={
                     <Box>
-                      <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-                        <Typography variant="body1" fontWeight="medium">
-                          {getMedicationDisplay(med)}
-                        </Typography>
-                        {!isMedicationActive(med) && (
-                          <StatusChip status={getMedicationStatus(med)} size="small" department={department} />
-                        )}
-                        {med.priority && med.priority !== 'routine' && (
-                          <Chip 
-                            label={med.priority.toUpperCase()} 
-                            size="small" 
-                            color={med.priority === 'stat' ? 'error' : med.priority === 'urgent' ? 'warning' : 'default'}
-                            variant="outlined"
-                            sx={{
-                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                              '&:hover': {
-                                transform: 'scale(1.05)'
-                              }
-                            }}
-                          />
-                        )}
-                      </Stack>
+                      <Typography variant="body1">
+                        {getMedicationDisplay(med)}
+                      </Typography>
+                      {med.status !== 'active' && (
+                        <Chip label={med.status} size="small" sx={{ ml: 1 }} />
+                      )}
                     </Box>
                   }
                   secondary={
-                    <Box sx={{ mt: 0.5 }}>
-                      {/* Primary dosage line */}
-                      <Typography variant="body2" sx={{ mb: 0.5 }}>
-                        <strong>Dosage:</strong> {getMedicationDosageDisplay(med)}
-                        {(med.dosageInstruction?.[0]?.route?.text || med.dosageInstruction?.[0]?.route?.coding?.[0]?.display) && (
-                          <span> • <strong>Route:</strong> {
-                            med.dosageInstruction[0].route.text || 
-                            med.dosageInstruction[0].route.coding?.[0]?.display ||
-                            'Unknown'
-                          }</span>
-                        )}
+                    <Box>
+                      <Typography variant="caption">
+                        {med.dosageInstruction?.[0]?.text || 'No dosage information'}
                       </Typography>
-                      
-                      {/* Indication and dates */}
-                      <Stack direction="row" spacing={1.5} flexWrap="wrap" sx={{ mt: 0.5, gap: 1 }}>
-                        {med.reasonCode?.[0]?.text && (
-                          <Typography variant="caption" color="text.secondary">
-                            <strong>For:</strong> {med.reasonCode[0].text}
-                          </Typography>
-                        )}
-                        <Typography variant="caption" color="text.secondary">
-                          <strong>Prescribed:</strong> {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
-                          {med.requester?.display && (
-                            <span> by {med.requester.display}</span>
-                          )}
-                        </Typography>
-                        {med.dispenseRequest?.expectedSupplyDuration?.value && (
-                          <Typography variant="caption" color="text.secondary">
-                            <strong>Duration:</strong> {med.dispenseRequest.expectedSupplyDuration.value} {med.dispenseRequest.expectedSupplyDuration.unit || 'days'}
-                          </Typography>
-                        )}
-                        {med.dispenseRequest?.quantity?.value && (
-                          <Typography variant="caption" color="text.secondary">
-                            <strong>Qty:</strong> {med.dispenseRequest.quantity.value}{med.dispenseRequest.quantity.unit ? ` ${med.dispenseRequest.quantity.unit}` : ''}
-                          </Typography>
-                        )}
-                        {med.dispenseRequest?.numberOfRepeatsAllowed !== undefined && (
-                          <Typography variant="caption" color="text.secondary">
-                            <strong>Refills:</strong> {med.dispenseRequest.numberOfRepeatsAllowed}
-                          </Typography>
-                        )}
-                        {med.dispenseRequest?.validityPeriod?.end && (
-                          <Typography variant="caption" color="text.secondary">
-                            <strong>Valid until:</strong> {format(parseISO(med.dispenseRequest.validityPeriod.end), 'MMM d, yyyy')}
-                          </Typography>
-                        )}
-                      </Stack>
-
-                      {/* Special instructions if different from structured dosage */}
-                      {(() => {
-                        const specialInstructions = getMedicationSpecialInstructions(med);
-                        if (specialInstructions) {
-                          return (
-                            <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary' }}>
-                              <strong>Instructions:</strong> {specialInstructions}
-                            </Typography>
-                          );
-                        }
-                        return null;
-                      })()}
-
-                      {/* Notes if present */}
-                      {med.note?.[0]?.text && (
-                        <Typography variant="caption" sx={{ mt: 0.5, fontStyle: 'italic', display: 'block' }}>
-                          <strong>Notes:</strong> {med.note[0].text}
-                        </Typography>
-                      )}
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Prescribed: {med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                      </Typography>
                     </Box>
                   }
                 />
                 <ListItemSecondaryAction>
-                  <Stack direction="row" spacing={0.5}>
-                    <Tooltip title="Edit Medication">
-                      <IconButton 
-                        size="small"
-                        onClick={() => handleEditMedication(med)}
-                        sx={{
-                          transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                          '&:hover': {
-                            transform: 'scale(1.1)',
-                            backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                          }
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {isMedicationActive(med) && (
-                      <Tooltip title="Discontinue Medication">
-                        <IconButton 
-                          size="small"
-                          onClick={() => {
-                            setSelectedMedication(med);
-                            setShowDiscontinuationDialog(true);
-                          }}
-                          color="error"
-                          sx={{
-                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                            '&:hover': {
-                              transform: 'scale(1.1)',
-                              backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                            }
-                          }}
-                        >
-                          <CancelIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Stack>
+                  <Tooltip title="Edit Medication">
+                    <IconButton 
+                      edge="end" 
+                      size="small"
+                      onClick={() => handleEditMedication(med)}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </ListItemSecondaryAction>
               </ListItem>
             ))
           )}
         </List>
-      </Box>
+      </CardContent>
       
       <PrescribeMedicationDialog
         open={showPrescribeDialog}
@@ -1265,7 +583,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
       />
       
       <EditMedicationDialog
-        key={selectedMedication?.id || 'new'}
         open={showEditDialog}
         onClose={handleCloseEditDialog}
         onSave={handleSaveMedication}
@@ -1282,66 +599,6 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
         onReconcile={handleReconciliation}
       />
       
-      <Dialog
-        open={showRefillDialog}
-        onClose={() => setShowRefillDialog(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: { minHeight: '80vh' }
-        }}
-      >
-        <DialogTitle>
-          Medication Refill Management
-        </DialogTitle>
-        <DialogContent>
-          <RefillManagement
-            patientId={patientId}
-            medications={medications}
-            onRefresh={() => {
-              // Refresh patient resources when refills are processed
-              window.location.reload(); // Simple refresh for now
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowRefillDialog(false)}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      <MedicationDiscontinuationDialog
-        open={showDiscontinuationDialog}
-        onClose={() => {
-          setShowDiscontinuationDialog(false);
-          setSelectedMedication(null);
-        }}
-        medicationRequest={selectedMedication}
-        onDiscontinue={async (discontinuationData) => {
-          try {
-            const result = await medicationDiscontinuationService.discontinueMedication(discontinuationData);
-            
-            // Publish workflow event
-            await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
-              medicationId: selectedMedication.id,
-              patientId,
-              status: 'discontinued',
-              reason: discontinuationData.reason.display,
-              timestamp: new Date().toISOString()
-            });
-            
-            // Refresh patient resources to show updated medication status
-            await refreshPatientResources(patientId);
-            
-            return result;
-          } catch (error) {
-            // Error during medication discontinuation
-            throw error;
-          }
-        }}
-      />
-      
       <Menu
         anchorEl={exportAnchorEl}
         open={Boolean(exportAnchorEl)}
@@ -1357,54 +614,24 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
           Export as PDF
         </MenuItem>
       </Menu>
-    </Paper>
+    </Card>
   );
 };
 
-
 // Allergy List Component
-const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport, department }) => {
+const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDeleteAllergy, onExport }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAllergy, setSelectedAllergy] = useState(null);
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
-  
-  // Enhanced allergy management state
-  const [verificationFilter, setVerificationFilter] = useState('all');
-  const [criticalityFilter, setCriticalityFilter] = useState('all');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const getAllergySeverityColor = (criticality) => {
+  const getSeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
       case 'high': return 'error';
       case 'low': return 'warning';
       default: return 'info';
-    }
-  };
-
-  // Enhanced FHIR allergy utility functions
-  const getAllergyVerificationStatus = (allergy) => {
-    return allergy.verificationStatus?.coding?.[0]?.code || 'unknown';
-  };
-
-  const getVerificationStatusColor = (status) => {
-    switch(status) {
-      case 'confirmed': return 'error'; // High alert for confirmed allergies
-      case 'unconfirmed': return 'warning';
-      case 'refuted': return 'success';
-      case 'entered-in-error': return 'default';
-      default: return 'info';
-    }
-  };
-
-  const getVerificationStatusIcon = (status) => {
-    switch(status) {
-      case 'confirmed': return <VerifiedIcon fontSize="small" />;
-      case 'unconfirmed': return <UnconfirmedIcon fontSize="small" />;
-      case 'refuted': return <CancelIcon fontSize="small" />;
-      case 'entered-in-error': return <SeverityIcon fontSize="small" />;
-      default: return <InfoIcon fontSize="small" />;
     }
   };
 
@@ -1438,147 +665,42 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
     }
   };
 
-  // Enhanced allergy filtering and sorting
-  const filteredAndSortedAllergies = useMemo(() => {
-    let filtered = allergies.filter(allergy => {
-      // Verification status filtering
-      const matchesVerification = verificationFilter === 'all' || 
-        getAllergyVerificationStatus(allergy) === verificationFilter;
-      
-      // Criticality filtering
-      const matchesCriticality = criticalityFilter === 'all' || 
-        (allergy.criticality?.toLowerCase() || 'unknown') === criticalityFilter;
-      
-      return matchesVerification && matchesCriticality;
-    });
-    
-    // Sort by criticality (high first) then by verification status (confirmed first)
-    filtered.sort((a, b) => {
-      // First sort by criticality
-      const criticalityWeightA = a.criticality?.toLowerCase() === 'high' ? 3 : 
-                                a.criticality?.toLowerCase() === 'low' ? 2 : 1;
-      const criticalityWeightB = b.criticality?.toLowerCase() === 'high' ? 3 : 
-                                b.criticality?.toLowerCase() === 'low' ? 2 : 1;
-      
-      if (criticalityWeightA !== criticalityWeightB) {
-        return criticalityWeightB - criticalityWeightA;
-      }
-      
-      // Then sort by verification status (confirmed first)
-      const verificationA = getAllergyVerificationStatus(a);
-      const verificationB = getAllergyVerificationStatus(b);
-      const verificationWeightA = verificationA === 'confirmed' ? 2 : 1;
-      const verificationWeightB = verificationB === 'confirmed' ? 2 : 1;
-      
-      return verificationWeightB - verificationWeightA;
-    });
-    
-    return filtered;
-  }, [allergies, verificationFilter, criticalityFilter]);
-
-  const activeAllergies = allergies.filter(a => getConditionStatus(a) === FHIR_STATUS_VALUES.CONDITION.ACTIVE);
-  const criticalAllergies = allergies.filter(a => 
-    a.criticality?.toLowerCase() === 'high' && 
-    getAllergyVerificationStatus(a) === 'confirmed'
-  );
+  const activeAllergies = allergies.filter(a => a.clinicalStatus?.coding?.[0]?.code === 'active');
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 1,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
-        },
-        overflow: 'hidden'
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.default'
-        }}
-      >
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Avatar
-              sx={{
-                width: 40,
-                height: 40,
-                bgcolor: 'error.main',
-                color: 'error.contrastText'
-              }}
-            >
-              <WarningIcon />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-                Allergies & Intolerances
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {allergies.length} total allergies
-              </Typography>
-            </Box>
-          </Stack>
-          
-          {/* Action Buttons */}
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h6" gutterBottom>Allergies & Intolerances</Typography>
+            <Chip 
+              icon={<WarningIcon />}
+              label={`${activeAllergies.length} Active`} 
+              size="small" 
+              color={activeAllergies.length > 0 ? 'error' : 'default'}
+            />
+          </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Add Allergy">
               <IconButton 
                 size="small" 
                 color="primary" 
                 onClick={() => setShowAddDialog(true)}
-                aria-label="Add new allergy"
               >
                 <AddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="View History">
-              <IconButton 
-                size="small"
-                aria-label="View allergy history"
-              >
-                <HistoryIcon />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export">
               <IconButton 
                 size="small"
                 onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                aria-label="Export allergy list"
-                aria-haspopup="menu"
-                aria-expanded={Boolean(exportAnchorEl)}
               >
                 <ExportIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
-        
-        {/* Filter Chip */}
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }} role="group" aria-label="Allergy list filters">
-        <Chip 
-              icon={<WarningIcon />}
-              label={`${activeAllergies.length} Active`} 
-              size="small" 
-              color={activeAllergies.length > 0 ? 'error' : 'default'}
-              sx={{
-                transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                '&:hover': {
-                  transform: 'scale(1.05)'
-                }
-              }}
-            />
-        </Stack>
-      </Box>
-      
-      {/* Content */}
-      <Box sx={{ p: 2 }}>
+
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {allergies.length === 0 ? (
             <Alert severity="success" sx={{ mt: 2 }}>
@@ -1589,16 +711,10 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
               <ListItem
                 key={allergy.id}
                 sx={{
-                  borderRadius: 0,
-                  mb: theme.spacing(1),
+                  borderRadius: 1,
+                  mb: 1,
                   backgroundColor: alpha(theme.palette.error.main, 0.05),
-                  transition: theme.transitions.create(['background-color', 'transform'], {
-                    duration: theme.transitions.duration.short
-                  }),
-                  '&:hover': { 
-                    backgroundColor: alpha(theme.palette.error.main, 0.08),
-                    transform: 'translateY(-1px)'
-                  }
+                  '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.1) }
                 }}
               >
                 <ListItemIcon>
@@ -1608,51 +724,32 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
-                        {getResourceDisplayText(allergy)}
+                        {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'}
                       </Typography>
                       {allergy.criticality && (
                         <Chip 
                           label={allergy.criticality} 
                           size="small" 
-                          color={getAllergySeverityColor(allergy.criticality)}
-                          sx={{
-                            transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                            '&:hover': {
-                              transform: 'scale(1.05)'
-                            }
-                          }}
+                          color={getSeverityColor(allergy.criticality)}
                         />
                       )}
                     </Box>
                   }
                   secondary={
                     <Box>
-                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => {
-                        // Handle both R4 and R5 formats
-                        const manifestationText = m?.concept?.text || m?.text || m?.concept?.coding?.[0]?.display || m?.coding?.[0]?.display;
-                        return manifestationText ? (
-                          <Chip 
-                            key={idx}
-                            label={manifestationText} 
-                            size="small" 
-                            sx={{ 
-                              mr: 0.5, 
-                              mb: 0.5,
-                              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                              '&:hover': {
-                                transform: 'scale(1.05)'
-                              }
-                            }}
-                          />
-                        ) : null;
-                      })}
+                      {allergy.reaction?.[0]?.manifestation?.map((m, idx) => (
+                        <Chip 
+                          key={idx}
+                          label={m.text || m.coding?.[0]?.display} 
+                          size="small" 
+                          sx={{ mr: 0.5, mb: 0.5 }}
+                        />
+                      ))}
                       <Typography variant="caption" color="text.secondary" display="block">
                         Recorded: {allergy.recordedDate ? format(parseISO(allergy.recordedDate), 'MMM d, yyyy') : 'Unknown'}
                       </Typography>
                     </Box>
                   }
-                  primaryTypographyProps={{ component: 'div' }}
-                  secondaryTypographyProps={{ component: 'div' }}
                 />
                 <ListItemSecondaryAction>
                   <Tooltip title="Edit Allergy">
@@ -1660,13 +757,6 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                       edge="end" 
                       size="small"
                       onClick={() => handleEditAllergy(allergy)}
-                      sx={{
-                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                        '&:hover': {
-                          transform: 'scale(1.1)',
-                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                        }
-                      }}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -1676,7 +766,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
             ))
           )}
         </List>
-      </Box>
+      </CardContent>
       
       <AddAllergyDialog
         open={showAddDialog}
@@ -1709,149 +799,75 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
           Export as PDF
         </MenuItem>
       </Menu>
-    </Paper>
+    </Card>
   );
 };
 
 // Social History Component
-const SocialHistory = ({ observations, patientId, department }) => {
-  const theme = useTheme();
-  
-  // Memoize social history filtering to avoid recalculating on every render
-  const { socialObs, smokingStatus, alcoholUse } = useMemo(() => {
-    const social = observations.filter(o => 
-      o.category?.[0]?.coding?.[0]?.code === 'social-history'
-    );
-    return {
-      socialObs: social,
-      smokingStatus: social.find(o => o.code?.coding?.[0]?.code === '72166-2'),
-      alcoholUse: social.find(o => o.code?.coding?.[0]?.code === '74013-4')
-    };
-  }, [observations]);
+const SocialHistory = ({ observations, patientId }) => {
+  const socialObs = observations.filter(o => 
+    o.category?.[0]?.coding?.[0]?.code === 'social-history'
+  );
+
+  const smokingStatus = socialObs.find(o => o.code?.coding?.[0]?.code === '72166-2');
+  const alcoholUse = socialObs.find(o => o.code?.coding?.[0]?.code === '74013-4');
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 1,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
-        },
-        overflow: 'hidden'
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.default'
-        }}
-      >
-        <Stack direction="row" alignItems="center" spacing={2}>
-          <Avatar
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: 'info.main',
-              color: 'info.contrastText'
-            }}
-          >
-            <InfoIcon />
-          </Avatar>
-          <Box>
-            <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-              Social History
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Lifestyle factors
-            </Typography>
-          </Box>
-        </Stack>
-      </Box>
-      
-      {/* Content */}
-      <Box sx={{ p: 2 }}>
-      <List>
-        <ListItem>
-          <ListItemIcon>
-            <SmokingIcon color={smokingStatus ? "action" : "disabled"} />
-          </ListItemIcon>
-          <ListItemText 
-            primary="Smoking Status"
-            secondary={smokingStatus?.valueCodeableConcept?.text || 'Not documented'}
-          />
-        </ListItem>
-        <ListItem>
-          <ListItemIcon>
-            <AlcoholIcon color={alcoholUse ? "action" : "disabled"} />
-          </ListItemIcon>
-          <ListItemText 
-            primary="Alcohol Use"
-            secondary={alcoholUse?.valueCodeableConcept?.text || 'Not documented'}
-          />
-        </ListItem>
-      </List>
-      </Box>
-    </Paper>
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Social History</Typography>
+        <List>
+          <ListItem>
+            <ListItemIcon>
+              <SmokingIcon />
+            </ListItemIcon>
+            <ListItemText 
+              primary="Smoking Status"
+              secondary={smokingStatus?.valueCodeableConcept?.text || 'Not documented'}
+            />
+          </ListItem>
+          <ListItem>
+            <ListItemIcon>
+              <AlcoholIcon />
+            </ListItemIcon>
+            <ListItemText 
+              primary="Alcohol Use"
+              secondary={alcoholUse?.valueCodeableConcept?.text || 'Not documented'}
+            />
+          </ListItem>
+        </List>
+      </CardContent>
+    </Card>
   );
 };
 
-const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
+const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
   const { 
-    resources,
     getPatientResources, 
     searchResources, 
-    searchWithInclude,
     isLoading,
     refreshPatientResources,
     currentPatient 
   } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
-  // Get clinical context for enhanced theming
-  const clinicalContext = getClinicalContext(
-    window.location.pathname,
-    new Date().getHours(),
-    department
-  );
-  
-  // REMOVED local loading state - using context isLoading instead
+  const [loading, setLoading] = useState(true);
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  // Removed refreshKey - now using unified resource system
-  
-  // Timeout hooks for auto-hiding success messages
-  const successTimeout = useTimeout(() => setSaveSuccess(false), 3000);
+  const [refreshKey, setRefreshKey] = useState(0); // Force re-render after updates
 
-  // Use centralized CDS alerts
-  const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
-
-  // REMOVED problematic useEffect that set loading to false immediately
-
-  // Handle CDS alerts notification count
   useEffect(() => {
-    if (cdsAlerts.length > 0 && onNotificationUpdate) {
-      // Pass critical alert count to match what ClinicalWorkspaceV3 expects
-      const criticalCount = cdsAlerts.filter(alert => alert.indicator === 'critical').length;
-      onNotificationUpdate(criticalCount || cdsAlerts.length);
-    }
-  }, [cdsAlerts.length]); // Only depend on the length, not the full array or callback
+    // Data is already loaded by FHIRResourceContext
+    setLoading(false);
+  }, []);
 
   const handleAddProblem = async (condition) => {
     try {
-      const result = await fhirClient.create('Condition', condition);
-      const createdCondition = result.resource || condition;
+      const createdCondition = await fhirClient.createCondition(condition);
       
       // Trigger refresh of the resources
-      await loadOptimizedResources();
+      setRefreshKey(prev => prev + 1);
       
       // Refresh completed successfully
     } catch (error) {
@@ -1862,32 +878,23 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
   const handlePrescribeMedication = async (medicationRequest) => {
     try {
-      // Note: CDS hooks for medication prescribing are handled in PrescribeMedicationDialog
-      // This provides real-time checking during the prescription creation process
-
-      const result = await fhirClient.create('MedicationRequest', medicationRequest);
-      const createdMedication = result.resource || medicationRequest;
+      const createdMedication = await fhirClient.createMedicationRequest(medicationRequest);
       
-      // Create effectiveness monitoring plan for new medication
-      try {
-        await medicationEffectivenessService.createMonitoringPlan(createdMedication);
-      } catch (error) {
-        // Don't fail the prescription process if monitoring plan creation fails
-      }
-
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'prescription-dispense',
         step: 'created',
         data: {
           ...createdMedication,
-          medicationName: getMedicationName(createdMedication),
+          medicationName: createdMedication.medicationCodeableConcept?.text ||
+                         createdMedication.medicationCodeableConcept?.coding?.[0]?.display ||
+                         'Unknown medication',
           patientId
         }
       });
       
       // Trigger refresh of the resources
-      await loadOptimizedResources();
+      setRefreshKey(prev => prev + 1);
       
       // Refresh completed successfully
     } catch (error) {
@@ -1898,8 +905,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
   const handleAddAllergy = async (allergyIntolerance) => {
     try {
-      const result = await fhirClient.create('AllergyIntolerance', allergyIntolerance);
-      const createdAllergy = result.resource || allergyIntolerance;
+      const createdAllergy = await fhirClient.createAllergyIntolerance(allergyIntolerance);
       
       // Publish workflow event for new allergy
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
@@ -1916,7 +922,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
       });
       
       // Trigger refresh of the resources
-      await loadOptimizedResources();
+      setRefreshKey(prev => prev + 1);
       
       // Refresh completed successfully
     } catch (error) {
@@ -1931,32 +937,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     setSaveSuccess(false);
     
     try {
-      // Update the condition on the server
-      const result = await fhirClient.update('Condition', updatedCondition.id, updatedCondition);
+      const result = await fhirClient.updateCondition(updatedCondition.id, updatedCondition);
       
-      // Clear intelligent cache for this patient to force fresh data
+      // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
-      
-      // Clear the specific condition cache entries
-      intelligentCache.clearResourceType('Condition');
-      
-      // Publish workflow event for condition update
-      await publish(CLINICAL_EVENTS.CONDITION_UPDATED, {
-        conditionId: updatedCondition.id,
-        patientId,
-        status: 'updated',
-        conditionText: updatedCondition.code?.text || 
-                      updatedCondition.code?.coding?.[0]?.display || 
-                      'Unknown condition',
-        timestamp: new Date().toISOString()
-      });
-      
-      // Force refresh of patient resources to ensure UI updates
-      await refreshPatientResources(patientId);
       
       // Show success message
       setSaveSuccess(true);
-      successTimeout.set();
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -1969,21 +960,10 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
   const handleDeleteProblem = async (conditionId) => {
     try {
-      await fhirClient.delete('Condition', conditionId);
+      await fhirClient.deleteCondition(conditionId);
       
-      // Clear intelligent cache for this patient
-      intelligentCache.clearPatient(patientId);
-      
-      // Publish event for condition deletion
-      await publish(CLINICAL_EVENTS.CONDITION_UPDATED, {
-        conditionId,
-        patientId,
-        status: 'deleted',
-        timestamp: new Date().toISOString()
-      });
-      
-      // Refresh patient resources to update condition list
-      await refreshPatientResources(patientId);
+      // Trigger refresh of the resources
+      setRefreshKey(prev => prev + 1);
       
       // Refresh completed successfully
     } catch (error) {
@@ -1997,17 +977,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.update('MedicationRequest', updatedMedicationRequest.id, updatedMedicationRequest);
+      const result = await fhirClient.updateMedicationRequest(updatedMedicationRequest.id, updatedMedicationRequest);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
       
       // Show success message
       setSaveSuccess(true);
-      successTimeout.set();
+      setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await loadOptimizedResources();
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -2020,21 +1000,10 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
   const handleDeleteMedication = async (medicationId) => {
     try {
-      await fhirClient.delete('MedicationRequest', medicationId);
+      await fhirClient.deleteMedicationRequest(medicationId);
       
-      // Clear intelligent cache for this patient
-      intelligentCache.clearPatient(patientId);
-      
-      // Trigger refresh of the resources
-      await loadOptimizedResources();
-      
-      // Publish event for medication deletion
-      await publish(CLINICAL_EVENTS.MEDICATION_STATUS_CHANGED, {
-        medicationId,
-        patientId,
-        status: 'deleted',
-        timestamp: new Date().toISOString()
-      });
+      // Refresh the patient resources to remove the deleted medication
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -2048,17 +1017,17 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     setSaveSuccess(false);
     
     try {
-      const result = await fhirClient.update('AllergyIntolerance', updatedAllergyIntolerance.id, updatedAllergyIntolerance);
+      const result = await fhirClient.updateAllergyIntolerance(updatedAllergyIntolerance.id, updatedAllergyIntolerance);
       
       // Clear intelligent cache for this patient
       intelligentCache.clearPatient(patientId);
       
       // Show success message
       setSaveSuccess(true);
-      successTimeout.set();
+      setTimeout(() => setSaveSuccess(false), 3000);
       
       // Trigger refresh of the resources
-      await loadOptimizedResources();
+      setRefreshKey(prev => prev + 1);
       
       return result;
     } catch (error) {
@@ -2071,21 +1040,10 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
 
   const handleDeleteAllergy = async (allergyId) => {
     try {
-      await fhirClient.delete('AllergyIntolerance', allergyId);
+      await fhirClient.deleteAllergyIntolerance(allergyId);
       
-      // Clear intelligent cache for this patient
-      intelligentCache.clearPatient(patientId);
-      
-      // Trigger refresh of the resources
-      await loadOptimizedResources();
-      
-      // Publish event for allergy deletion
-      await publish(CLINICAL_EVENTS.ALLERGY_UPDATED, {
-        allergyId,
-        patientId,
-        status: 'deleted',
-        timestamp: new Date().toISOString()
-      });
+      // Refresh the patient resources to remove the deleted allergy
+      await refreshPatientResources(patientId);
       
       // Refresh completed successfully
     } catch (error) {
@@ -2106,9 +1064,9 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         data.forEach(condition => {
           html += `
             <div class="section">
-              <h3>${getResourceDisplayText(condition)}</h3>
-              <p><strong>Status:</strong> ${getConditionStatus(condition) || 'Unknown'}</p>
-              ${condition.severity ? `<p><strong>Severity:</strong> ${getCodeableConceptDisplay(condition.severity)}</p>` : ''}
+              <h3>${condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown'}</h3>
+              <p><strong>Status:</strong> ${condition.clinicalStatus?.coding?.[0]?.code || 'Unknown'}</p>
+              ${condition.severity ? `<p><strong>Severity:</strong> ${condition.severity.text}</p>` : ''}
               <p><strong>Onset:</strong> ${condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM d, yyyy') : 'Unknown'}</p>
               ${condition.note?.[0]?.text ? `<p><strong>Notes:</strong> ${condition.note[0].text}</p>` : ''}
             </div>
@@ -2131,8 +1089,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         data.forEach(med => {
           html += `
             <div class="section">
-              <h3>${getMedicationName(med)}</h3>
-              <p><strong>Status:</strong> ${getMedicationStatus(med)}</p>
+              <h3>${med.medicationCodeableConcept?.text || med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown'}</h3>
+              <p><strong>Status:</strong> ${med.status}</p>
               ${med.dosageInstruction?.[0]?.text ? `<p><strong>Dosage:</strong> ${med.dosageInstruction[0].text}</p>` : ''}
               <p><strong>Prescribed:</strong> ${med.authoredOn ? format(parseISO(med.authoredOn), 'MMM d, yyyy') : 'Unknown'}</p>
               ${med.requester?.display ? `<p><strong>Prescriber:</strong> ${med.requester.display}</p>` : ''}
@@ -2156,7 +1114,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         data.forEach(allergy => {
           html += `
             <div class="section">
-              <h3>${getResourceDisplayText(allergy)}</h3>
+              <h3>${allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown'}</h3>
               <p><strong>Type:</strong> ${allergy.type || 'Unknown'}</p>
               <p><strong>Criticality:</strong> ${allergy.criticality || 'Unknown'}</p>
               ${allergy.reaction?.[0]?.manifestation?.[0]?.text ? 
@@ -2170,180 +1128,74 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
     });
   };
 
-  // Get resources from context instead of loading separately
-  const conditions = useMemo(() => 
-    Object.values(resources.Condition || {}).filter(c => 
-      c.subject?.reference === `Patient/${patientId}` || 
-      c.subject?.reference === `urn:uuid:${patientId}` ||
-      c.patient?.reference === `Patient/${patientId}` ||
-      c.patient?.reference === `urn:uuid:${patientId}`
-    ), [resources.Condition, patientId]);
-    
-  const medications = useMemo(() => 
-    Object.values(resources.MedicationRequest || {}).filter(m => 
-      m.subject?.reference === `Patient/${patientId}` || 
-      m.subject?.reference === `urn:uuid:${patientId}` ||
-      m.patient?.reference === `Patient/${patientId}` ||
-      m.patient?.reference === `urn:uuid:${patientId}`
-    ), [resources.MedicationRequest, patientId]);
-    
-  const allergies = useMemo(() => 
-    Object.values(resources.AllergyIntolerance || {}).filter(a => 
-      a.patient?.reference === `Patient/${patientId}` ||
-      a.patient?.reference === `urn:uuid:${patientId}`
-    ), [resources.AllergyIntolerance, patientId]);
-    
-  const observations = useMemo(() => 
-    Object.values(resources.Observation || {}).filter(o => 
-      o.subject?.reference === `Patient/${patientId}` || 
-      o.subject?.reference === `urn:uuid:${patientId}` ||
-      o.patient?.reference === `Patient/${patientId}` ||
-      o.patient?.reference === `urn:uuid:${patientId}`
-    ), [resources.Observation, patientId]);
-    
-  const immunizations = useMemo(() => 
-    Object.values(resources.Immunization || {}).filter(i => 
-      i.patient?.reference === `Patient/${patientId}`
-    ), [resources.Immunization, patientId]);
-    
-  // REMOVED loadingOptimized state - using context loading state
-
-  // Optimized resource loading with batch requests and server-side filtering
-  const loadOptimizedResources = useCallback(async (filters = {}) => {
-    if (!patientId) return;
-    
-    // No need to set loading state - context handles this
-    
-    try {
-      // Build batch bundle for all resources
-      const batchBundle = {
-        resourceType: "Bundle",
-        type: "batch",
-        entry: []
-      };
-
-      // Build condition search parameters with server-side filtering
-      let conditionQuery = `Condition?patient=${patientId}&_summary=data&_sort=-recorded-date&_count=50`;
-      if (filters.clinicalStatus && filters.clinicalStatus !== 'all') {
-        conditionQuery += `&clinical-status=${filters.clinicalStatus}`;
-      }
-      if (filters.verificationStatus && filters.verificationStatus !== 'all') {
-        conditionQuery += `&verification-status=${filters.verificationStatus}`;
-      }
-      if (filters.onsetDate) {
-        if (filters.onsetDateOperator === 'ge') {
-          conditionQuery += `&onset-date=ge${filters.onsetDate}`;
-        } else if (filters.onsetDateOperator === 'le') {
-          conditionQuery += `&onset-date=le${filters.onsetDate}`;
-        }
-      }
-      batchBundle.entry.push({
-        request: { method: "GET", url: conditionQuery }
-      });
-
-      // Build medication search parameters with server-side filtering
-      let medicationQuery = `MedicationRequest?patient=${patientId}&_sort=-authored-on&_count=50&_include=MedicationRequest:medication,MedicationRequest:requester`;
-      if (filters.medicationStatus && filters.medicationStatus !== 'all') {
-        medicationQuery += `&status=${filters.medicationStatus}`;
-      }
-      batchBundle.entry.push({
-        request: { method: "GET", url: medicationQuery }
-      });
-
-      // Build allergy search parameters with server-side filtering
-      let allergyQuery = `AllergyIntolerance?patient=${patientId}&_sort=-recorded-date`;
-      if (filters.allergyVerificationStatus && filters.allergyVerificationStatus !== 'all') {
-        allergyQuery += `&verification-status=${filters.allergyVerificationStatus}`;
-      }
-      if (filters.allergyCriticality && filters.allergyCriticality !== 'all') {
-        allergyQuery += `&criticality=${filters.allergyCriticality}`;
-      }
-      batchBundle.entry.push({
-        request: { method: "GET", url: allergyQuery }
-      });
-
-      // Add observations query
-      batchBundle.entry.push({
-        request: { 
-          method: "GET", 
-          url: `Observation?patient=${patientId}&category=vital-signs&_sort=-date&_count=20` 
-        }
-      });
-
-      // Add immunizations query
-      batchBundle.entry.push({
-        request: { 
-          method: "GET", 
-          url: `Immunization?patient=${patientId}&_sort=-date&_count=50` 
-        }
-      });
-
-      // Execute batch request
-      const batchResult = await fhirClient.batch(batchBundle);
-      
-      // Process batch response
-      const entries = batchResult.entry || [];
-      
-      // Resources are now loaded from context, no need to set local state
-      // The batch request results are ignored since we use shared resources
-
-    } catch (error) {
-      // Error loading optimized resources - resources are already available from context
-      // Fallback to context-provided resources
-    }
-  }, [patientId, searchResources, searchWithInclude, getPatientResources]);
-
-  // Load optimized resources on patient change - DISABLED to prevent duplicate requests
-  // Resources are already loaded by the parent component through fetchPatientBundle
-  // useEffect(() => {
-  //   loadOptimizedResources();
-  // }, [loadOptimizedResources]);
+  // Get resources - with refreshKey to force updates
+  const [conditions, setConditions] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [allergies, setAllergies] = useState([]);
+  const observations = getPatientResources(patientId, 'Observation') || [];
+  const immunizations = getPatientResources(patientId, 'Immunization') || [];
   
-  // Resources are now loaded automatically via optimized loading
+  // Load conditions, medications, and allergies with refresh capability
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        // Force refresh only when refreshKey changes (after updates)
+        const forceRefresh = refreshKey > 0;
+        
+        // Clear intelligent cache when force refreshing
+        if (forceRefresh) {
+          // Clear the intelligent cache for this patient's conditions
+          const conditionParams = { patient: patientId, _count: 1000, _sort: '-recorded-date' };
+          const conditionCacheKey = `searches:Condition_${JSON.stringify(conditionParams)}`;
+          intelligentCache.delete(conditionCacheKey);
+          
+          const medicationParams = { patient: patientId, _count: 1000, _sort: '-authored' };
+          const medicationCacheKey = `searches:MedicationRequest_${JSON.stringify(medicationParams)}`;
+          intelligentCache.delete(medicationCacheKey);
+          
+          const allergyParams = { patient: patientId, _count: 1000, _sort: '-date' };
+          const allergyCacheKey = `searches:AllergyIntolerance_${JSON.stringify(allergyParams)}`;
+          intelligentCache.delete(allergyCacheKey);
+        }
+        
+        // Load conditions
+        const conditionsResult = await searchResources('Condition', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-recorded-date' 
+        }, forceRefresh);
+        // Set conditions from result
+        setConditions(conditionsResult.resources || []);
+        
+        // Load medications
+        const medicationsResult = await searchResources('MedicationRequest', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-authored' 
+        }, forceRefresh);
+        setMedications(medicationsResult.resources || []);
+        
+        // Load allergies
+        const allergiesResult = await searchResources('AllergyIntolerance', { 
+          patient: patientId, 
+          _count: 1000, 
+          _sort: '-date' 
+        }, forceRefresh);
+        setAllergies(allergiesResult.resources || []);
+      } catch (error) {
+        // Error loading resources - UI will show appropriate message
+      }
+    };
+    
+    if (patientId) {
+      loadResources();
+    }
+  }, [patientId, refreshKey]); // Remove searchResources from dependencies to prevent loops
 
-  // Show skeleton loading while data is loading - now using only context loading state
-  if (isLoading) {
+  if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Grid container spacing={isMobile ? 2 : 3}>
-          {/* Skeleton for each section */}
-          {[1, 2, 3, 4].map((item) => (
-            <Grid item xs={12} md={6} key={item}>
-              <Card>
-                <CardContent>
-                  <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
-                  <Stack spacing={1}>
-                    {[1, 2, 3].map((i) => (
-                      <Box key={i}>
-                        <Skeleton variant="text" width="100%" height={24} />
-                        <Skeleton variant="text" width="80%" height={20} />
-                      </Box>
-                    ))}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Skeleton variant="text" width="40%" height={32} />
-                <Skeleton variant="text" width="70%" height={20} sx={{ mt: 1 }} />
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  }
-
-  // Ensure patient data is loaded
-  if (!currentPatient) {
-    return (
-      <Box sx={{ p: 4 }}>
-        <Alert severity="info">
-          No patient selected. Please select a patient to view their chart.
-        </Alert>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
       </Box>
     );
   }
@@ -2355,7 +1207,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
         sx={{ 
           position: 'absolute',
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: alpha(theme.palette.background.paper, 0.7)
+          backgroundColor: 'rgba(255, 255, 255, 0.7)'
         }}
         open={saveInProgress}
       >
@@ -2384,7 +1236,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
           {saveError || 'Failed to save changes'}
         </Alert>
       </Snackbar>
-      <Grid container spacing={isMobile ? 2 : 3}>
+      <Grid container spacing={3}>
         {/* Problem List */}
         <Grid item xs={12} lg={6}>
           <ProblemList 
@@ -2394,7 +1246,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
             onEditProblem={handleEditProblem}
             onDeleteProblem={handleDeleteProblem}
             onExport={handleExportProblems}
-            department={department}
           />
         </Grid>
 
@@ -2407,7 +1258,6 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
             onEditMedication={handleEditMedication}
             onDeleteMedication={handleDeleteMedication}
             onExport={handleExportMedications}
-            department={department}
           />
         </Grid>
 
@@ -2420,65 +1270,27 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
             onEditAllergy={handleEditAllergy}
             onDeleteAllergy={handleDeleteAllergy}
             onExport={handleExportAllergies}
-            department={department}
           />
         </Grid>
 
         {/* Social History */}
         <Grid item xs={12} lg={6}>
-          <SocialHistory observations={observations} patientId={patientId} department={department} />
+          <SocialHistory observations={observations} patientId={patientId} />
         </Grid>
 
         {/* Immunizations Summary */}
         <Grid item xs={12}>
-          <Paper
-            elevation={0}
-            sx={{
-              border: 1,
-              borderColor: 'divider',
-              borderRadius: 0,
-              overflow: 'hidden'
-            }}
-          >
-            <Box
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: 'divider',
-                bgcolor: 'background.default'
-              }}
-            >
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  <Avatar
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      bgcolor: 'success.main',
-                      color: 'success.contrastText'
-                    }}
-                  >
-                    <ImmunizationIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-                      Immunizations
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Vaccination history
-                    </Typography>
-                  </Box>
-                </Stack>
+          <Card>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Immunizations</Typography>
                 <Chip 
                   icon={<ImmunizationIcon />}
                   label={`${immunizations.length} recorded`} 
                   size="small" 
                   color="success"
-                  sx={{ borderRadius: 0 }}
                 />
               </Stack>
-            </Box>
-            <Box sx={{ p: 2 }}>
               {immunizations.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   No immunization records found
@@ -2492,97 +1304,12 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate, department = 'general
                   }
                 </Typography>
               )}
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Prescription Status Dashboard */}
-        <Grid item xs={12}>
-          <Paper
-            elevation={0}
-            sx={{
-              border: 1,
-              borderColor: 'divider',
-              borderRadius: 0,
-              overflow: 'hidden'
-            }}
-          >
-            <Box
-              sx={{
-                p: 2,
-                borderBottom: 1,
-                borderColor: 'divider',
-                bgcolor: 'background.default'
-              }}
-            >
-              <Stack direction="row" alignItems="center" spacing={2}>
-                <Avatar
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    bgcolor: 'secondary.main',
-                    color: 'secondary.contrastText'
-                  }}
-                >
-                  <PharmacyIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
-                    Prescription Status
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Active prescriptions and refills
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-            <Box sx={{ p: 2 }}>
-              <PrescriptionStatusDashboard patientId={patientId} />
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Medication Effectiveness Monitoring */}
-        <Grid item xs={12}>
-          <Box sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
-            }
-          }}>
-            <EffectivenessMonitoringPanel
-              patientId={patientId}
-              medications={medications}
-              onRefresh={async () => {
-                await loadOptimizedResources();
-              }}
-            />
-          </Box>
-        </Grid>
-
-
-        {/* Clinical Safety Verification */}
-        <Grid item xs={12}>
-          <Box sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
-            }
-          }}>
-            <ClinicalSafetyPanel
-              patientId={patientId}
-              medications={medications}
-              onRefresh={async () => {
-                await loadOptimizedResources();
-              }}
-            />
-          </Box>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>
   );
 };
 
-export default React.memo(ChartReviewTab);
+export default ChartReviewTab;
