@@ -1911,6 +1911,39 @@ class FHIRStorageEngine:
                                     value_token_code=coding['code']
                                 )
     
+    async def _add_search_param_dict(self, resource_id: int, resource_type: str, param: Dict[str, Any]):
+        """Add a search parameter from dictionary format."""
+        query = text("""
+            INSERT INTO fhir.search_params (
+                resource_id, resource_type, param_name, param_type,
+                value_string, value_number, value_date,
+                value_quantity_value, value_quantity_unit,
+                value_token_system, value_token_code, value_reference
+            ) VALUES (
+                :resource_id, :resource_type, :param_name, :param_type,
+                :value_string, :value_number, :value_date,
+                :value_quantity_value, :value_quantity_unit,
+                :value_token_system, :value_token_code, :value_reference
+            )
+        """)
+        
+        params = {
+            'resource_id': resource_id,
+            'resource_type': resource_type,
+            'param_name': param['param_name'],
+            'param_type': param['param_type'],
+            'value_string': param.get('value_string'),
+            'value_number': param.get('value_number'),
+            'value_date': param.get('value_date'),
+            'value_quantity_value': param.get('value_quantity_value'),
+            'value_quantity_unit': param.get('value_quantity_unit'),
+            'value_token_system': param.get('value_token_system'),
+            'value_token_code': param.get('value_token_code'),
+            'value_reference': param.get('value_reference')
+        }
+        
+        await self.session.execute(query, params)
+    
     async def _add_search_param(self, resource_id: int, resource_type: str, param_name: str, 
                                param_type: str, **values):
         """Add a search parameter to the database."""
@@ -1972,26 +2005,25 @@ class FHIRStorageEngine:
     ):
         """Extract and store search parameters from a resource."""
         logging.debug(f"DEBUG: Extracting search parameters for {resource_type} resource {resource_id}")
-        params_to_extract = []
         
-        # Extract common parameters
-        if 'id' in resource_data:
-            params_to_extract.append({
-                'param_name': '_id',
-                'param_type': 'token',
-                'value_string': resource_data['id']
-            })
+        # Use the shared extraction module
+        from .search_param_extraction import SearchParameterExtractor
+        extractor = SearchParameterExtractor()
+        params_to_extract = extractor.extract_parameters(resource_type, resource_data)
         
-        if 'meta' in resource_data and 'lastUpdated' in resource_data['meta']:
-            params_to_extract.append({
-                'param_name': '_lastUpdated',
-                'param_type': 'date',
-                'value_date': datetime.fromisoformat(
-                    resource_data['meta']['lastUpdated'].replace('Z', '+00:00')
-                )
-            })
+        # Store extracted parameters
+        for param in params_to_extract:
+            try:
+                await self._add_search_param_dict(resource_id, resource_type, param)
+            except Exception as e:
+                logging.error(f"Error storing search parameter {param.get('param_name')}: {e}")
         
-        # Resource-specific parameters
+        logging.debug(f"DEBUG: Extracted {len(params_to_extract)} search parameters for {resource_type}/{resource_id}")
+        
+        # The rest of the old extraction logic is now handled by the shared module
+        return  # Early return since we're using the shared module
+        
+        # Resource-specific parameters (REPLACED BY SHARED MODULE)
         if resource_type == 'Patient':
             # 1. identifier
             if 'identifier' in resource_data:

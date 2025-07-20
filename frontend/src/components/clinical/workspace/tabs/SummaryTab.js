@@ -144,38 +144,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     
     try {
       // Use batch request to get counts efficiently
-      const batchBundle = {
-        resourceType: "Bundle",
-        type: "batch",
-        entry: [
-          {
-            request: {
-              method: "GET",
-              url: `Condition?patient=${patientId}&clinical-status=active&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `MedicationRequest?patient=${patientId}&status=active&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `Observation?patient=${patientId}&category=laboratory&date=ge${subDays(new Date(), 7).toISOString().split('T')[0]}&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `AllergyIntolerance?patient=${patientId}&_summary=count`
-            }
-          }
-        ]
-      };
+      const batchRequests = [
+        {
+          method: "GET",
+          url: `Condition?patient=${patientId}&clinical-status=active&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `MedicationRequest?patient=${patientId}&status=active&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `Observation?patient=${patientId}&category=laboratory&date=ge${subDays(new Date(), 7).toISOString().split('T')[0]}&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `AllergyIntolerance?patient=${patientId}&_summary=count`
+        }
+      ];
 
-      const batchResult = await fhirClient.batch(batchBundle);
+      const batchResult = await fhirClient.batch(batchRequests);
       
       // Extract counts from batch response
       const entries = batchResult.entry || [];
@@ -194,17 +182,17 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       });
     } catch (error) {
       // Error loading summary stats - stats will not be displayed
-      // Fallback to original method
-      if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
-        fetchPatientBundle(patientId, false, 'critical');
-      }
+      // Log error but don't call fetchPatientBundle to avoid infinite loop
+      console.error('Error loading summary stats:', error);
     }
-  }, [patientId, fhirClient, isCacheWarm, fetchPatientBundle]);
+  }, [patientId, fhirClient]);
 
   // Load optimized summary stats on patient change
   useEffect(() => {
-    loadSummaryStats();
-  }, [loadSummaryStats]);
+    if (patientId) {
+      loadSummaryStats();
+    }
+  }, [patientId]); // Only depend on patientId to avoid infinite loop
 
   // Get resources from context - these are already cached and shared
   const conditions = useMemo(() => {
@@ -520,19 +508,19 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
+    <Box sx={{ p: { xs: 1, md: 1.5 } }}>
+      {refreshing && <LinearProgress sx={{ mb: 1 }} />}
       
       {/* Header */}
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: { xs: 'flex-start', md: 'center' }, 
-        mb: 3,
+        mb: 2,
         flexDirection: { xs: 'column', md: 'row' },
-        gap: { xs: 2, md: 0 }
+        gap: { xs: 1, md: 0 }
       }}>
-        <Typography variant="h5" fontWeight="bold">
+        <Typography variant="h6" fontWeight="600">
           Clinical Summary
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -582,12 +570,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       </Box>
 
       {/* Metric Cards */}
-      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 3 }}>
+      <Grid container spacing={{ xs: 1, md: 2 }} sx={{ mb: 2 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.1s both',
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out',
             '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '0%': { transform: 'translateY(10px)', opacity: 0.7 },
               '100%': { transform: 'translateY(0)', opacity: 1 }
             }
           }}>
@@ -602,9 +590,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.2s both',
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.1s',
             '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '0%': { transform: 'translateY(10px)', opacity: 0.7 },
               '100%': { transform: 'translateY(0)', opacity: 1 }
             }
           }}>
@@ -619,9 +607,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.3s both',
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.15s',
             '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '0%': { transform: 'translateY(10px)', opacity: 0.7 },
               '100%': { transform: 'translateY(0)', opacity: 1 }
             }
           }}>
@@ -637,9 +625,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.4s both',
+            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.2s',
             '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
+              '0%': { transform: 'translateY(10px)', opacity: 0.7 },
               '100%': { transform: 'translateY(0)', opacity: 1 }
             }
           }}>
@@ -648,8 +636,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
               value={stats.overdueItems}
               icon={<WarningIcon />}
               color="error"
-              trend="down"
-              trendValue={-25}
               variant="clinical"
             />
           </Box>
@@ -661,7 +647,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       {allergies.length > 0 && (
         <Alert 
           severity="error" 
-          sx={{ mb: 3 }}
+          sx={{ mb: 2 }}
           action={
             <Button size="small" onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
               View All
@@ -681,7 +667,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       )}
 
       {/* Recent Activity Grid */}
-      <Grid container spacing={{ xs: 2, md: 3 }}>
+      <Grid container spacing={{ xs: 1, md: 2 }}>
         {/* Recent Problems */}
         <Grid item xs={12} md={6}>
           <Card sx={{
@@ -871,7 +857,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
               }
             />
             <CardContent>
-              <List disablePadding>
+              <List disablePadding sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {recentEncounters.length > 0 ? (
                   recentEncounters.map((encounter) => (
                     <ListItem 
@@ -880,7 +866,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                       onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
                       sx={{ 
                         borderRadius: theme.shape.borderRadius / 8,
-                        mb: theme.clinicalSpacing?.sm || 1,
                         transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
                         '&:hover': { 
                           backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',

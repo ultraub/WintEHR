@@ -1375,7 +1375,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
   const [criticalityFilter, setCriticalityFilter] = useState('all');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  const getSeverityColor = (criticality) => {
+  const getAllergySeverityColor = (criticality) => {
     switch (criticality?.toLowerCase()) {
       case 'high': return 'error';
       case 'low': return 'warning';
@@ -1614,7 +1614,7 @@ const AllergyList = ({ allergies, patientId, onAddAllergy, onEditAllergy, onDele
                         <Chip 
                           label={allergy.criticality} 
                           size="small" 
-                          color={getSeverityColor(allergy.criticality)}
+                          color={getAllergySeverityColor(allergy.criticality)}
                           sx={{
                             transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
                             '&:hover': {

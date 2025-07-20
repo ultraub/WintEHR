@@ -589,7 +589,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   );
 };
 
-const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
+const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();

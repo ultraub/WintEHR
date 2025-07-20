@@ -13,7 +13,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 const DiagnosticPanel = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { isConnected, lastMessage } = useWebSocket();
-  const { currentPatient, isLoading: fhirLoading } = useFHIRResource();
+  const { currentPatient, isLoading: fhirLoading, resources, globalLoading } = useFHIRResource();
 
   const diagnostics = [
     {
@@ -50,6 +50,16 @@ const DiagnosticPanel = () => {
       label: 'FHIR Loading',
       status: fhirLoading ? 'loading' : 'success',
       value: fhirLoading ? 'Loading resources...' : 'Ready'
+    },
+    {
+      label: 'Global Loading',
+      status: globalLoading ? 'loading' : 'success',
+      value: globalLoading ? 'Loading...' : 'Ready'
+    },
+    {
+      label: 'Resources',
+      status: resources ? 'success' : 'error',
+      value: resources ? `${Object.keys(resources).length} types loaded` : 'No resources'
     }
   ];
 

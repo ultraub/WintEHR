@@ -227,7 +227,13 @@ const OrderCard = ({ order, onSelect, onAction, selected }) => {
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <CalendarIcon fontSize="small" color="action" />
                   <Typography variant="caption">
-                    {format(parseISO(orderDate), 'MMM d, yyyy')}
+                    {(() => {
+                      try {
+                        return format(parseISO(orderDate), 'MMM d, yyyy');
+                      } catch {
+                        return 'Invalid date';
+                      }
+                    })()}
                   </Typography>
                 </Stack>
               )}
@@ -489,7 +495,7 @@ const QuickOrderDialog = ({ open, onClose, patientId, orderType, onOrderCreated 
 };
 */
 
-const OrdersTab = ({ patientId, onNotificationUpdate }) => {
+const OrdersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const { isLoading, currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
@@ -707,7 +713,12 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
       if (filterPeriod !== 'all') {
         const orderDate = order.authoredOn || order.occurrenceDateTime;
         if (orderDate) {
-          const date = parseISO(orderDate);
+          let date;
+          try {
+            date = parseISO(orderDate);
+          } catch {
+            return false; // Skip invalid dates
+          }
           const periodMap = {
             '7d': subDays(new Date(), 7),
             '30d': subDays(new Date(), 30),
@@ -754,8 +765,13 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
   const currentOrders = getCurrentOrders();
   // Enhanced search results are already sorted by service
   const sortedOrders = enhancedOrders.length > 0 ? currentOrders : [...currentOrders].sort((a, b) => {
-    const dateA = new Date(a.authoredOn || a.occurrenceDateTime || 0);
-    const dateB = new Date(b.authoredOn || b.occurrenceDateTime || 0);
+    let dateA, dateB;
+    try {
+      dateA = new Date(a.authoredOn || a.occurrenceDateTime || 0);
+      dateB = new Date(b.authoredOn || b.occurrenceDateTime || 0);
+    } catch {
+      return 0; // Keep original order for invalid dates
+    }
     return dateB - dateA;
   });
 
@@ -1282,7 +1298,13 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
               <p><strong>Type:</strong> ${order.resourceType === 'MedicationRequest' ? 'Medication' : 'Service Request'}</p>
               <p><strong>Status:</strong> ${order.status}</p>
               <p><strong>Priority:</strong> ${order.priority || 'Routine'}</p>
-              <p><strong>Ordered:</strong> ${order.authoredOn ? format(parseISO(order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}</p>
+              <p><strong>Ordered:</strong> ${order.authoredOn ? (() => {
+                try {
+                  return format(parseISO(order.authoredOn), 'MMM d, yyyy h:mm a');
+                } catch {
+                  return 'Invalid date';
+                }
+              })() : 'Unknown'}</p>
               ${order.requester?.display ? `<p><strong>Ordered By:</strong> ${order.requester.display}</p>` : ''}
               ${order.note?.[0]?.text ? `<p><strong>Instructions:</strong> ${order.note[0].text}</p>` : ''}
             </div>
@@ -1670,7 +1692,13 @@ const OrdersTab = ({ patientId, onNotificationUpdate }) => {
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">Ordered Date</Typography>
                   <Typography variant="body1">
-                    {viewOrderDialog.order.authoredOn ? format(parseISO(viewOrderDialog.order.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                    {viewOrderDialog.order.authoredOn ? (() => {
+                      try {
+                        return format(parseISO(viewOrderDialog.order.authoredOn), 'MMM d, yyyy h:mm a');
+                      } catch {
+                        return 'Invalid date';
+                      }
+                    })() : 'Unknown'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} md={6}>

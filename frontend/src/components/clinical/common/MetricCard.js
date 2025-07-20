@@ -133,8 +133,8 @@ const MetricCard = ({
     return theme.palette.background.paper;
   };
   
-  // Get clinical spacing
-  const spacing = getClinicalSpacing(theme, enhancedContext, 'comfortable');
+  // Get clinical spacing - use compact version for metric cards
+  const spacing = variant === 'clinical' ? 2 : getClinicalSpacing(theme, enhancedContext, 'compact');
   
   // Get clinical animation
   const hoverAnimation = getClinicalAnimation(theme, 'hover', enhancedContext);
@@ -148,7 +148,7 @@ const MetricCard = ({
     color: variant === 'gradient' ? 'white' : 'inherit',
     border: variant === 'clinical' ? 1 : 0,
     borderColor: variant === 'clinical' ? alpha(cardColor, 0.2) : 'transparent',
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 1,  // Consistent with clinical cards
     transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
     '&:hover': onClick ? {
       transform: hoverAnimation.transform,
@@ -217,8 +217,8 @@ const MetricCard = ({
                     ? alpha(theme.palette.common.white, 0.2)
                     : alpha(cardColor, 0.1),
                   color: variant === 'gradient' ? 'white' : cardColor,
-                  width: 40,
-                  height: 40
+                  width: 32,
+                  height: 32
                 }}
               >
                 {icon}
@@ -241,11 +241,11 @@ const MetricCard = ({
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.5 }}>
           <Typography 
-            variant="h4" 
+            variant="h5" 
             sx={{ 
-              fontWeight: 700, 
+              fontWeight: 600, 
               color: variant === 'gradient' ? 'white' : cardColor,
               lineHeight: 1.2
             }}

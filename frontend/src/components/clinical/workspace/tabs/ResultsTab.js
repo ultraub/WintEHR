@@ -199,14 +199,14 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected,
   const getValue = () => {
     // Handle blood pressure with components
     if (observation.component && observation.component.length > 0) {
-      const systolic = observation.component.find(c => 
+      const systolic = observation.component?.find(c => 
         c.code?.coding?.some(coding => 
-          coding.code === '8480-6' || coding.display?.toLowerCase().includes('systolic')
+          coding?.code === '8480-6' || coding?.display?.toLowerCase()?.includes('systolic')
         )
       );
-      const diastolic = observation.component.find(c => 
+      const diastolic = observation.component?.find(c => 
         c.code?.coding?.some(coding => 
-          coding.code === '8462-4' || coding.display?.toLowerCase().includes('diastolic')
+          coding?.code === '8462-4' || coding?.display?.toLowerCase()?.includes('diastolic')
         )
       );
       
@@ -304,7 +304,7 @@ const ResultRow = ({ observation, onClick, selected, onSelectResult, isSelected,
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const loincCode = observation.code.coding.find(c => c.system === 'http://loinc.org')?.code;
+                  const loincCode = observation.code?.coding?.find(c => c?.system === 'http://loinc.org')?.code;
                   if (loincCode && onShowTrend) {
                     onShowTrend(observation);
                   }
@@ -405,7 +405,7 @@ const ResultCard = ({ observation, onClick }) => {
   );
 };
 
-const ResultsTab = ({ patientId, onNotificationUpdate }) => {
+const ResultsTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { currentPatient } = useFHIRResource();
@@ -1680,9 +1680,9 @@ const ResultsTab = ({ patientId, onNotificationUpdate }) => {
                 <Typography variant="h6">
                   {getResourceDisplayText(selectedResult)}
                 </Typography>
-                {selectedResult.code?.coding?.[0]?.code && (
+                {selectedResult?.code?.coding?.[0]?.code && (
                   <Typography variant="caption" color="text.secondary">
-                    LOINC: {selectedResult.code.coding[0].code}
+                    LOINC: {selectedResult?.code?.coding?.[0]?.code}
                   </Typography>
                 )}
               </Box>

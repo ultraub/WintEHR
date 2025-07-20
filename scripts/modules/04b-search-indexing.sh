@@ -93,20 +93,20 @@ if [ "$PATIENT_PARAMS" -lt "$CLINICAL_RESOURCES" ]; then
     log "Search parameters seem incomplete ($PATIENT_PARAMS < $CLINICAL_RESOURCES clinical resources)"
     log "Running comprehensive search parameter indexing..."
     
-    # Try consolidated search indexing script first
-    if docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
-        log "Using consolidated search indexing script..."
+    # Try fast search indexing script first
+    if docker exec emr-backend test -f /app/scripts/fast_search_indexing.py; then
+        log "Using fast search indexing script (with batching)..."
         
-        # Run with mode index
-        INDEX_RESULT=$(docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index 2>&1 || echo "INDEX_FAILED")
+        # Run with optimized settings
+        INDEX_RESULT=$(docker exec emr-backend python scripts/fast_search_indexing.py --docker --batch-size 2000 --workers 4 2>&1 || echo "INDEX_FAILED")
         
         if echo "$INDEX_RESULT" | grep -q "successfully" || [ $? -eq 0 ]; then
             success "Search parameter indexing completed successfully"
         else
-            warning "Initial indexing encountered issues, trying fix mode..."
+            warning "Initial indexing encountered issues, trying consolidated script..."
             
-            # Try fix mode
-            FIX_RESULT=$(docker exec emr-backend python scripts/consolidated_search_indexing.py --mode fix 2>&1 || echo "FIX_FAILED")
+            # Try consolidated script as fallback
+            FIX_RESULT=$(docker exec emr-backend python scripts/consolidated_search_indexing.py --docker --mode index 2>&1 || echo "FIX_FAILED")
             
             if echo "$FIX_RESULT" | grep -q "successfully" || [ $? -eq 0 ]; then
                 success "Search parameter fixing completed"

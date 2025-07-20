@@ -115,7 +115,7 @@ const getModalityColor = (modality) => {
 };
 
 // Get study status color
-const getStatusColor = (status) => {
+const getStudyStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'available':
       return 'success';
@@ -169,7 +169,7 @@ const ImagingStudyCard = ({ study, onView, onAction }) => {
               <Chip 
                 label={study.status || 'available'} 
                 size="small" 
-                color={getStatusColor(study.status)}
+                color={getStudyStatusColor(study.status)}
               />
             </Stack>
 
@@ -290,7 +290,7 @@ const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
   );
 };
 
-const ImagingTab = ({ patientId, onNotificationUpdate }) => {
+const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();

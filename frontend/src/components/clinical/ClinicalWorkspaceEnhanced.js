@@ -16,7 +16,9 @@ import {
   Typography,
   useTheme,
   useMediaQuery,
-  Snackbar
+  Snackbar,
+  Chip,
+  alpha
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -36,13 +38,15 @@ import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
+import TabErrorBoundary from './workspace/TabErrorBoundary';
 
 // Tab Components - Lazy Loaded for Performance
+// Using optimized/enhanced versions where available
 const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
-const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTab'));
+const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTabOptimized'));
 const EncountersTab = React.lazy(() => import('./workspace/tabs/EncountersTab'));
-const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTab'));
-const OrdersTab = React.lazy(() => import('./workspace/tabs/OrdersTab'));
+const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTabOptimized'));
+const OrdersTab = React.lazy(() => import('./workspace/tabs/EnhancedOrdersTab'));
 const PharmacyTab = React.lazy(() => import('./workspace/tabs/PharmacyTab'));
 const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTab'));
 const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTab'));
@@ -98,17 +102,11 @@ const ClinicalWorkspaceEnhanced = ({
   } = useFHIRResource();
   
   // State
-  const [activeTab, setActiveTab] = useState(activeModule);
   const [loadError, setLoadError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
-
-  // Sync active tab with parent module
-  useEffect(() => {
-    const tab = TAB_CONFIG.find(t => t.id === activeModule);
-    if (tab) {
-      setActiveTab(activeModule);
-    }
-  }, [activeModule]);
+  
+  // Use parent's activeModule directly instead of maintaining separate state
+  const activeTab = activeModule;
 
   // Load patient data if not provided by parent
   useEffect(() => {
@@ -137,10 +135,13 @@ const ClinicalWorkspaceEnhanced = ({
 
   // Handle tab change notification to parent
   const handleTabChange = useCallback((newTab) => {
-    setActiveTab(newTab);
     if (onModuleChange) {
-      const tabIndex = TAB_CONFIG.findIndex(t => t.id === newTab);
-      onModuleChange(tabIndex);
+      // Find the tab config
+      const tabConfig = TAB_CONFIG.find(t => t.id === newTab);
+      if (tabConfig) {
+        // Call parent's onModuleChange with the tab id (not index)
+        onModuleChange(newTab);
+      }
     }
     
     // Publish tab change event
@@ -206,40 +207,66 @@ const ClinicalWorkspaceEnhanced = ({
     );
   }
 
+  // Add console log to verify enhanced version is loading
+  console.log('ClinicalWorkspaceEnhanced: Loading - this is the enhanced version');
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Tab Content */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
-        <Suspense fallback={<TabLoadingFallback />}>
-          {TAB_CONFIG.map((tab) => {
-            const TabComponent = tab.component;
-            const isActive = activeTab === tab.id;
-            
-            // Only render active tab to improve performance
-            if (!isActive) return null;
-            
-            return (
-              <Box
-                key={tab.id}
-                sx={{
-                  display: isActive ? 'block' : 'none',
-                  height: '100%'
-                }}
-              >
-                <TabComponent
-                  patientId={activePatient.id}
-                  patient={activePatient}
-                  patientData={patientData}
-                  density={density}
-                  isMobile={isMobile}
-                  isTablet={isTablet}
-                  onRefresh={handleRefresh}
-                  onNavigateToTab={handleTabChange}
-                />
-              </Box>
-            );
-          })}
-        </Suspense>
+      {/* Enhanced Version Indicator - Remove after verification */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          p: 1,
+          backgroundColor: alpha(theme.palette.success.main, 0.1),
+          borderBottom: 1,
+          borderColor: 'divider'
+        }}
+      >
+        <Chip 
+          label="Enhanced Clinical Workspace v2 - Different from V3" 
+          color="success" 
+          size="small"
+          sx={{ fontWeight: 600 }}
+        />
+      </Box>
+      
+      {/* Tab Content - no extra spacing */}
+      <Box sx={{ flex: 1, overflow: 'auto', pt: 0 }}>
+        <TabErrorBoundary onReset={handleRefresh}>
+          <Suspense fallback={<TabLoadingFallback />}>
+            {TAB_CONFIG.map((tab) => {
+              const TabComponent = tab.component;
+              const isActive = activeTab === tab.id;
+              
+              // Only render active tab to improve performance
+              if (!isActive) return null;
+              
+              return (
+                <Box
+                  key={tab.id}
+                  sx={{
+                    display: isActive ? 'block' : 'none',
+                    height: '100%'
+                  }}
+                >
+                  <TabComponent
+                    patientId={activePatient.id}
+                    patient={activePatient}
+                    patientData={patientData}
+                    density={density}
+                    isMobile={isMobile}
+                    isTablet={isTablet}
+                    onRefresh={handleRefresh}
+                    onNavigateToTab={handleTabChange}
+                    department={currentUser?.department || 'general'}
+                  />
+                </Box>
+              );
+            })}
+          </Suspense>
+        </TabErrorBoundary>
       </Box>
 
       {/* Snackbar for notifications */}

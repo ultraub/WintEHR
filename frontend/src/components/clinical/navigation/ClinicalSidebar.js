@@ -201,15 +201,16 @@ const ClinicalSidebar = ({
           <ListItem>
             <ListItemButton
               onClick={() => setPatientSectionOpen(!patientSectionOpen)}
-              sx={{ py: collapsed ? 1 : 1.5 }}
+              sx={{ py: collapsed ? 1 : 2, px: 2 }}
             >
               <ListItemIcon>
                 <Avatar
                   sx={{
-                    width: collapsed ? 32 : 40,
-                    height: collapsed ? 32 : 40,
+                    width: collapsed ? 36 : 48,
+                    height: collapsed ? 36 : 48,
                     backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main
+                    color: theme.palette.primary.main,
+                    fontSize: collapsed ? '0.875rem' : '1rem'
                   }}
                 >
                   {patient.name?.[0]?.given?.[0]?.[0]}
@@ -220,7 +221,7 @@ const ClinicalSidebar = ({
                 <>
                   <ListItemText
                     primary={
-                      <Typography variant="body2" fontWeight={600}>
+                      <Typography variant="subtitle1" fontWeight={600}>
                         {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
                       </Typography>
                     }
@@ -238,7 +239,7 @@ const ClinicalSidebar = ({
           
           {!collapsed && (
             <Collapse in={patientSectionOpen}>
-              <Box sx={{ px: 2, pb: 2 }}>
+              <Box sx={{ px: 3, py: 2 }}>
                 <Typography variant="caption" color="text.secondary">
                   Age: {patient.age || 'Unknown'} • {patient.gender}
                 </Typography>

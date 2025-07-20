@@ -636,7 +636,7 @@ const AddendumDialog = ({ open, onClose, note, onSave }) => {
   );
 };
 
-const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose }) => {
+const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();

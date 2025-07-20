@@ -68,7 +68,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     isLoading, 
     getError,
     warmPatientCache,
-    refreshPatientResources
+    refreshPatientResources,
+    fetchPatientEverything
   } = useFHIRResource();
   const { subscribe } = useClinicalWorkflow();
   
@@ -95,21 +96,33 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
         // Only set current patient if it's different
         if (!currentPatient || currentPatient.id !== patientId) {
           await setCurrentPatient(patientId);
-          // Try to warm cache but don't wait indefinitely
+          
+          // Use the optimized batch request for summary view
+          // $everything can return too many observations, limiting other important resources
           try {
-            await Promise.race([
-              warmPatientCache(patientId),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Cache warming timeout')), 5000))
-            ]);
+            // Use batch request to get exactly what we need for the summary
+            await warmPatientCache(patientId, 'summary');
           } catch (cacheError) {
-            // Cache warming failed or timed out, but continue anyway
-            // Cache warming failed or timed out, continuing with available data
+            // If batch fails, try $everything with higher count
+            console.warn('Batch request failed, trying $everything:', cacheError);
+            try {
+              await fetchPatientEverything(patientId, {
+                types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
+                count: 200, // Higher count to ensure we get all critical resources
+                autoSince: true, // Auto-calculate _since for 3 months
+                forceRefresh: false
+              });
+            } catch (everythingError) {
+              // Both methods failed, but continue anyway
+              console.warn('$everything also failed:', everythingError);
+            }
           }
         }
         setIsInitialLoad(false);
         markInitialized();
       } catch (err) {
         // Error setting patient - continuing with initialization
+        console.error('Error loading patient data:', err);
         setIsInitialLoad(false);
         markInitialized();
       }
@@ -246,6 +259,18 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   const allergies = useMemo(() => {
     return getPatientResources(patientId, 'AllergyIntolerance') || [];
   }, [patientId, getPatientResources]);
+  
+  const procedures = useMemo(() => {
+    return getPatientResources(patientId, 'Procedure') || [];
+  }, [patientId, getPatientResources]);
+  
+  const diagnosticReports = useMemo(() => {
+    return getPatientResources(patientId, 'DiagnosticReport') || [];
+  }, [patientId, getPatientResources]);
+  
+  const immunizations = useMemo(() => {
+    return getPatientResources(patientId, 'Immunization') || [];
+  }, [patientId, getPatientResources]);
 
   // Processed patient info
   const patientInfo = useMemo(() => {
@@ -314,6 +339,95 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
       )
       .slice(0, 3);
   }, [allergies]);
+
+  // Recent procedures
+  const recentProcedures = useMemo(() => {
+    return procedures
+      .sort((a, b) => {
+        const dateA = new Date(a.performedDateTime || a.performedPeriod?.start || 0);
+        const dateB = new Date(b.performedDateTime || b.performedPeriod?.start || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [procedures]);
+
+  // Recent lab results
+  const recentLabResults = useMemo(() => {
+    return diagnosticReports
+      .filter(report => 
+        report.category?.some(cat => 
+          cat.coding?.some(code => code.code === 'LAB')
+        )
+      )
+      .sort((a, b) => {
+        const dateA = new Date(a.effectiveDateTime || a.effectivePeriod?.start || 0);
+        const dateB = new Date(b.effectiveDateTime || b.effectivePeriod?.start || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [diagnosticReports]);
+
+  // Recent immunizations
+  const recentImmunizations = useMemo(() => {
+    return immunizations
+      .sort((a, b) => {
+        const dateA = new Date(a.occurrenceDateTime || a.occurrenceString || 0);
+        const dateB = new Date(b.occurrenceDateTime || b.occurrenceString || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 3);
+  }, [immunizations]);
+
+  // Most recent encounter
+  const lastEncounter = useMemo(() => {
+    if (encounters.length === 0) return null;
+    return encounters
+      .sort((a, b) => {
+        const dateA = new Date(a.period?.start || 0);
+        const dateB = new Date(b.period?.start || 0);
+        return dateB - dateA;
+      })[0];
+  }, [encounters]);
+
+  // Calculate clinical risk factors
+  const clinicalRiskFactors = useMemo(() => {
+    const risks = [];
+    
+    // Check for diabetes
+    const hasDiabetes = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.code?.includes('44054006') || // Diabetes mellitus
+        code.display?.toLowerCase().includes('diabetes')
+      )
+    );
+    if (hasDiabetes) risks.push({ type: 'Diabetes', level: 'high' });
+    
+    // Check for hypertension
+    const hasHypertension = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.code?.includes('38341003') || // Hypertension
+        code.display?.toLowerCase().includes('hypertension')
+      )
+    );
+    if (hasHypertension) risks.push({ type: 'Hypertension', level: 'medium' });
+    
+    // Check for cardiovascular disease
+    const hasCardiovascular = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.display?.toLowerCase().includes('coronary') ||
+        code.display?.toLowerCase().includes('cardiac') ||
+        code.display?.toLowerCase().includes('heart')
+      )
+    );
+    if (hasCardiovascular) risks.push({ type: 'Cardiovascular Disease', level: 'high' });
+    
+    // Check age-related risks
+    if (patientInfo?.age >= 65) {
+      risks.push({ type: 'Age 65+', level: 'medium' });
+    }
+    
+    return risks;
+  }, [conditions, patientInfo]);
 
   const handleLaunchWorkspace = () => {
     navigate(`/patients/${patientId}/clinical`);
@@ -745,6 +859,208 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   NKDA - No known allergies
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Clinical Risk Factors */}
+        {clinicalRiskFactors.length > 0 && (
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 1, 
+              mb: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.02)} 100%)`
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Clinical Risk Factors
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {clinicalRiskFactors.map((risk, index) => (
+                <Chip
+                  key={index}
+                  label={risk.type}
+                  color={risk.level === 'high' ? 'error' : 'warning'}
+                  size="small"
+                  sx={{ mb: 1 }}
+                />
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Additional Clinical Data */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          {/* Recent Procedures */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Procedures
+              </Typography>
+              {recentProcedures.length > 0 ? (
+                <List dense>
+                  {recentProcedures.slice(0, 3).map((procedure, index) => (
+                    <ListItem key={procedure.id} divider={index < recentProcedures.length - 1}>
+                      <ListItemText
+                        primary={procedure.code?.text || procedure.code?.coding?.[0]?.display || 'Unknown procedure'}
+                        secondary={procedure.performedDateTime ? 
+                          format(parseISO(procedure.performedDateTime), 'MMM d, yyyy') : 
+                          'Date unknown'
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent procedures
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Recent Lab Results */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Lab Results
+              </Typography>
+              {recentLabResults.length > 0 ? (
+                <List dense>
+                  {recentLabResults.slice(0, 3).map((report, index) => (
+                    <ListItem key={report.id} divider={index < recentLabResults.length - 1}>
+                      <ListItemText
+                        primary={report.code?.text || report.code?.coding?.[0]?.display || 'Lab Report'}
+                        secondary={
+                          <Stack direction="row" spacing={1}>
+                            <Typography variant="caption">
+                              {report.effectiveDateTime ? 
+                                format(parseISO(report.effectiveDateTime), 'MMM d, yyyy') : 
+                                'Date unknown'
+                              }
+                            </Typography>
+                            {report.status && (
+                              <Chip 
+                                label={report.status} 
+                                size="small" 
+                                color={report.status === 'final' ? 'success' : 'default'}
+                                sx={{ height: 16, fontSize: '0.7rem' }}
+                              />
+                            )}
+                          </Stack>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent lab results
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Immunizations */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Immunizations
+              </Typography>
+              {recentImmunizations.length > 0 ? (
+                <List dense>
+                  {recentImmunizations.map((immunization, index) => (
+                    <ListItem key={immunization.id} divider={index < recentImmunizations.length - 1}>
+                      <ListItemText
+                        primary={immunization.vaccineCode?.text || immunization.vaccineCode?.coding?.[0]?.display || 'Vaccine'}
+                        secondary={immunization.occurrenceDateTime ? 
+                          format(parseISO(immunization.occurrenceDateTime), 'MMM d, yyyy') : 
+                          'Date unknown'
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent immunizations recorded
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Last Encounter */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                background: lastEncounter ? 
+                  `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)` :
+                  theme.palette.background.paper
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Last Encounter
+              </Typography>
+              {lastEncounter ? (
+                <Box>
+                  <Typography variant="body1" gutterBottom>
+                    {lastEncounter.type?.[0]?.text || lastEncounter.class?.display || 'Encounter'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {lastEncounter.period?.start ? 
+                      format(parseISO(lastEncounter.period.start), 'MMM d, yyyy h:mm a') : 
+                      'Date unknown'
+                    }
+                  </Typography>
+                  {lastEncounter.reasonCode?.[0] && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Reason: {lastEncounter.reasonCode[0].text || lastEncounter.reasonCode[0].coding?.[0]?.display}
+                    </Typography>
+                  )}
+                  <Chip 
+                    label={lastEncounter.status || 'unknown'} 
+                    size="small" 
+                    color={lastEncounter.status === 'finished' ? 'success' : 'default'}
+                    sx={{ mt: 1 }}
+                  />
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent encounters
                 </Typography>
               )}
             </Paper>

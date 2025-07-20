@@ -5,12 +5,14 @@ Bridges the new rules engine with the existing CDS services implementation.
 """
 
 import logging
+import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date
 
 from .core import RulesEngine, RuleCategory, RulePriority, rules_engine
 from .clinical_rules import ClinicalRulesLibrary
 from .data_adapters import FHIRDataAdapter
+from .safety import safety_manager, FeatureFlag
 from ..cds_services import (
     DiabetesManagementService,
     HypertensionManagementService,
@@ -61,31 +63,91 @@ class CDSRulesIntegration:
         Returns:
             CDS Hook response with cards
         """
-        # Adapt FHIR data to rules engine format
-        adapted_context = await self.fhir_adapter.adapt_cds_context(context, prefetch)
+        service_name = f"rules_engine_{hook}"
+        start_time = time.time()
         
-        # Determine which rule categories to evaluate based on hook
-        categories = self._get_categories_for_hook(hook)
-        
-        # Execute rules engine
-        engine_response = await self.rules_engine.evaluate(
-            context=adapted_context,
-            categories=categories
-        )
-        
-        # Optionally merge with legacy service results
-        if use_legacy and hook in self.legacy_services:
-            legacy_response = self.legacy_services[hook].execute(context, prefetch or {})
-            engine_response = self._merge_responses(engine_response, legacy_response)
-        
-        # Add metadata
-        engine_response["_metadata"] = {
-            "engine": "rules_engine_v2",
-            "timestamp": datetime.utcnow().isoformat(),
-            "rule_sets_evaluated": len(categories) if categories else "all"
-        }
-        
-        return engine_response
+        try:
+            # Check feature flags
+            if not safety_manager.is_enabled(FeatureFlag.RULES_ENGINE_ENABLED):
+                logger.info("Rules engine disabled by feature flag")
+                if use_legacy and hook in self.legacy_services:
+                    return self.legacy_services[hook].execute(context, prefetch or {})
+                return {"cards": []}
+            
+            # Check circuit breaker
+            if not safety_manager.check_circuit_breaker(service_name):
+                logger.warning(f"Circuit breaker open for {service_name}")
+                if use_legacy and hook in self.legacy_services:
+                    return self.legacy_services[hook].execute(context, prefetch or {})
+                return {"cards": []}
+            
+            # Check rate limit
+            client_id = context.get("userId", "anonymous")
+            if not safety_manager.check_rate_limit(client_id):
+                logger.warning(f"Rate limit exceeded for {client_id}")
+                return {"cards": [], "error": "Rate limit exceeded"}
+            
+            # Adapt FHIR data to rules engine format
+            adapted_context = await self.fhir_adapter.adapt_cds_context(context, prefetch)
+            
+            # Determine which rule categories to evaluate based on hook
+            categories = self._get_categories_for_hook(hook)
+            
+            # Execute rules engine
+            engine_response = await self.rules_engine.evaluate(
+                context=adapted_context,
+                categories=categories
+            )
+            
+            # Optionally merge with legacy service results
+            if use_legacy and safety_manager.is_enabled(FeatureFlag.HYBRID_MODE_ENABLED):
+                if hook in self.legacy_services:
+                    legacy_response = self.legacy_services[hook].execute(context, prefetch or {})
+                    engine_response = self._merge_responses(engine_response, legacy_response)
+            
+            # Update metrics
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            safety_manager.record_success(service_name, response_time)
+            
+            if safety_manager.is_enabled(FeatureFlag.METRICS_COLLECTION_ENABLED):
+                safety_manager.performance_metrics.rules_evaluated += len(
+                    adapted_context.get("conditions", [])
+                )
+                safety_manager.performance_metrics.cards_generated += len(
+                    engine_response.get("cards", [])
+                )
+            
+            # Add metadata
+            engine_response["_metadata"] = {
+                "engine": "rules_engine_v2",
+                "timestamp": datetime.utcnow().isoformat(),
+                "rule_sets_evaluated": len(categories) if categories else "all",
+                "response_time_ms": response_time,
+                "circuit_breaker_state": safety_manager.circuit_breakers[service_name].state
+            }
+            
+            # Record A/B test result if enabled
+            if safety_manager.is_enabled(FeatureFlag.A_B_TESTING_ENABLED):
+                safety_manager.record_ab_test_result(True, True)
+            
+            return engine_response
+            
+        except Exception as e:
+            logger.error(f"Error executing rules engine for {hook}: {e}")
+            safety_manager.record_failure(service_name, e)
+            
+            # Record A/B test failure
+            if safety_manager.is_enabled(FeatureFlag.A_B_TESTING_ENABLED):
+                safety_manager.record_ab_test_result(True, False)
+            
+            # Fallback to legacy if available
+            if use_legacy and hook in self.legacy_services:
+                try:
+                    return self.legacy_services[hook].execute(context, prefetch or {})
+                except Exception as legacy_error:
+                    logger.error(f"Legacy service also failed: {legacy_error}")
+            
+            return {"cards": [], "error": str(e)}
     
     def _get_categories_for_hook(self, hook: str) -> Optional[List[RuleCategory]]:
         """Map CDS Hook to relevant rule categories"""

@@ -17,10 +17,7 @@ import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
 import CompactPatientHeader from '../ui/CompactPatientHeader';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import fhirServiceCompat from '../../../core/fhir/services/fhirService';
-import DiagnosticPanel from '../DiagnosticPanel';
-
-const fhirService = fhirServiceCompat;
+import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 
 // Module configuration
 const MODULES = {
@@ -55,6 +52,15 @@ const EnhancedClinicalLayout = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Sync sidebar state when transitioning between mobile and desktop
+  useEffect(() => {
+    if (!isMobile) {
+      // When switching to desktop, always show sidebar
+      setSidebarOpen(true);
+    }
+    // When switching to mobile, sidebar starts closed (handled by default state)
+  }, [isMobile]);
   const [patientData, setPatientData] = useState({
     conditions: [],
     medications: [],
@@ -65,63 +71,52 @@ const EnhancedClinicalLayout = ({
   const [bookmarked, setBookmarked] = useState(false);
   
   const { publish } = useClinicalWorkflow();
+  const { 
+    currentPatient,
+    setCurrentPatient,
+    getResourcesByType,
+    isLoading: fhirLoading
+  } = useFHIRResource();
 
-  // Load patient data
+  // Load patient data through context
   useEffect(() => {
-    if (patientId) {
-      loadPatientData();
+    if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
+      setCurrentPatient(patientId);
     }
-  }, [patientId]);
+  }, [patientId, currentPatient, setCurrentPatient]);
 
-  const loadPatientData = async () => {
-    setLoading(true);
-    try {
-      // Load patient resource
-      const patientResource = await fhirService.read('Patient', patientId);
-      setPatient(patientResource);
+  // Update local state when patient changes
+  useEffect(() => {
+    if (currentPatient) {
+      setPatient(currentPatient);
       
-      // Load conditions
-      const conditionsBundle = await fhirService.search('Condition', {
-        patient: patientId,
-        _count: 100
-      });
-      const conditions = conditionsBundle?.entry?.map(e => e.resource) || [];
+      // Get resources from context
+      const conditions = getResourcesByType('Condition') || [];
+      const medications = getResourcesByType('MedicationRequest') || [];
+      const allergies = getResourcesByType('AllergyIntolerance') || [];
+      const encounters = getResourcesByType('Encounter') || [];
       
-      // Load medications
-      const medicationsBundle = await fhirService.search('MedicationRequest', {
-        patient: patientId,
-        _count: 100
+      // Sort encounters by date
+      const sortedEncounters = [...encounters].sort((a, b) => {
+        const dateA = a.period?.start ? new Date(a.period.start) : new Date(0);
+        const dateB = b.period?.start ? new Date(b.period.start) : new Date(0);
+        return dateB - dateA;
       });
-      const medications = medicationsBundle?.entry?.map(e => e.resource) || [];
-      
-      // Load allergies
-      const allergiesBundle = await fhirService.search('AllergyIntolerance', {
-        patient: patientId,
-        _count: 100
-      });
-      const allergies = allergiesBundle?.entry?.map(e => e.resource) || [];
-      
-      // Load encounters
-      const encountersBundle = await fhirService.search('Encounter', {
-        patient: patientId,
-        _count: 10,
-        _sort: '-date'
-      });
-      const encounters = encountersBundle?.entry?.map(e => e.resource) || [];
       
       setPatientData({
         conditions,
         medications,
         allergies,
         vitals: {}, // Would be extracted from Observations
-        lastEncounter: encounters[0] || null
+        lastEncounter: sortedEncounters[0] || null
       });
-    } catch (error) {
-      console.error('Failed to load patient data:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [currentPatient, getResourcesByType]);
+
+  // Combined loading state
+  useEffect(() => {
+    setLoading(fhirLoading);
+  }, [fhirLoading]);
 
   // Handle sidebar toggle
   const handleSidebarToggle = () => {
@@ -134,9 +129,8 @@ const EnhancedClinicalLayout = ({
 
   // Handle module navigation
   const handleModuleChange = (moduleId) => {
-    const module = MODULES[moduleId];
-    if (module && onModuleChange) {
-      onModuleChange(module.index);
+    if (onModuleChange) {
+      onModuleChange(moduleId);
       
       // Publish navigation event
       publish('navigation.module.changed', {
@@ -162,7 +156,7 @@ const EnhancedClinicalLayout = ({
   const patientHeaderHeight = patient ? (isMobile ? 140 : 160) : 0;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <CssBaseline />
       
       {/* App Bar */}
@@ -177,58 +171,62 @@ const EnhancedClinicalLayout = ({
         shift={shift}
       />
       
-      {/* Sidebar Navigation */}
-      <ClinicalSidebar
-        open={sidebarOpen}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onClose={() => setSidebarOpen(false)}
-        activeTab={activeModule}
-        onTabChange={handleModuleChange}
-        patient={patient}
-        variant={isMobile ? 'temporary' : 'permanent'}
-      />
-      
-      {/* Main Content Area */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          ml: isMobile ? 0 : `${sidebarWidth}px`,
-          transition: theme.transitions.create(['margin'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen
-          })
-        }}
-      >
-        {/* Spacer for fixed app bar */}
-        <Box sx={{ height: totalHeaderHeight }} />
-        
-        {/* Breadcrumbs */}
-        <ClinicalBreadcrumbs
+      {/* Main Layout Container */}
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {/* Sidebar Navigation */}
+        <ClinicalSidebar
+          open={sidebarOpen}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onClose={() => setSidebarOpen(false)}
+          activeTab={activeModule}
+          onTabChange={handleModuleChange}
           patient={patient}
-          activeModule={MODULES[activeModule]}
-          subContext={subContext}
-          onBookmark={handleBookmark}
-          bookmarked={bookmarked}
+          variant={isMobile ? 'temporary' : 'permanent'}
         />
         
-        {/* Patient Header */}
-        {patient && (
-          <CompactPatientHeader
+        {/* Main Content Area */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            // No margin needed - flexbox handles spacing
+            transition: theme.transitions.create(['width'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen
+            })
+          }}
+      >
+        {/* No spacer needed - AppBar is not fixed */}
+        
+        {/* Header Section with proper flex shrink */}
+        <Box sx={{ flexShrink: 0 }}>
+          {/* Breadcrumbs */}
+          <ClinicalBreadcrumbs
             patient={patient}
-            alerts={patient.alerts || []}
-            vitals={patientData.vitals}
-            conditions={patientData.conditions}
-            medications={patientData.medications}
-            allergies={patientData.allergies}
-            lastEncounter={patientData.lastEncounter}
-            onNavigateToTab={handleModuleChange}
+            activeModule={MODULES[activeModule]}
+            subContext={subContext}
+            onBookmark={handleBookmark}
+            bookmarked={bookmarked}
           />
-        )}
+          
+          {/* Patient Header */}
+          {patient && (
+            <CompactPatientHeader
+              patient={patient}
+              alerts={patient.alerts || []}
+              vitals={patientData.vitals}
+              conditions={patientData.conditions}
+              medications={patientData.medications}
+              allergies={patientData.allergies}
+              lastEncounter={patientData.lastEncounter}
+              onNavigateToTab={handleModuleChange}
+            />
+          )}
+        </Box>
         
         {/* Content Area */}
         <Box
@@ -236,7 +234,8 @@ const EnhancedClinicalLayout = ({
             flexGrow: 1,
             overflow: 'auto',
             backgroundColor: theme.palette.background.default,
-            p: isMobile ? 1 : 2
+            p: isMobile ? 0.5 : 1,
+            minHeight: 0  // Important for flexbox overflow to work properly
           }}
         >
           {/* Pass enhanced props to children */}
@@ -246,13 +245,13 @@ const EnhancedClinicalLayout = ({
             patientData,
             isMobile,
             isTablet,
-            density: sidebarCollapsed ? 'compact' : 'comfortable'
+            density: sidebarCollapsed ? 'compact' : 'comfortable',
+            activeModule,
+            onModuleChange: handleModuleChange
           })}
         </Box>
+        </Box>
       </Box>
-      
-      {/* Diagnostic Panel - Temporary for debugging */}
-      <DiagnosticPanel />
     </Box>
   );
 };

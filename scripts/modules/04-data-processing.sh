@@ -289,12 +289,17 @@ fi
 # Step 4: Re-index search parameters for all resources
 log "🔍 Re-indexing search parameters for all resources..."
 
-# First check if consolidated script exists, use it if available
-if docker exec emr-backend test -f "/app/scripts/consolidated_search_indexing.py"; then
-    log "Using consolidated search indexing script..."
-    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode index" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
+# First check if fast indexing script exists, use it if available
+if docker exec emr-backend test -f "/app/scripts/fast_search_indexing.py"; then
+    log "Using fast search indexing script (with batching)..."
+    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fast_search_indexing.py --docker --batch-size 2000 --workers 4" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
     
-    if echo "$SEARCH_PARAM_RESULT" | grep -q "Indexing complete:"; then
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_INDEXING_FAILED"; then
+        warning "Fast indexing failed, trying consolidated script..."
+        SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --docker --mode index" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
+    fi
+    
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "Indexing complete:" || echo "$SEARCH_PARAM_RESULT" | grep -q "INDEXING SUMMARY"; then
         # Extract statistics from new format
         RESOURCES_INDEXED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* indexed" | grep -o "[0-9]*" | head -1 || echo "unknown")
         RESOURCES_SKIPPED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* skipped" | grep -o "[0-9]*" | head -1 || echo "unknown")

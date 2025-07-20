@@ -118,6 +118,7 @@ check_prerequisites() {
         "frontend/package.json"
         "backend/scripts/setup/init_database_definitive.py"
         "backend/scripts/active/synthea_master.py"
+        "backend/scripts/fast_search_indexing.py"
         "backend/scripts/consolidated_search_indexing.py"
         "backend/scripts/populate_compartments.py"
         "backend/scripts/fix_cds_hooks_enabled_column.py"
@@ -278,13 +279,18 @@ generate_patient_data() {
     # Index search parameters for all resources
     log "Indexing search parameters for FHIR resources..."
     
-    # Check if consolidated script exists
-    if docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
-        docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index || {
-            warning "Search parameter indexing failed, trying to fix..."
-            docker exec emr-backend python scripts/consolidated_search_indexing.py --mode fix || {
-                warning "Search parameter fixing failed - searches may not work properly"
+    # Check if fast indexing script exists first
+    if docker exec emr-backend test -f /app/scripts/fast_search_indexing.py; then
+        docker exec emr-backend python scripts/fast_search_indexing.py --docker --batch-size 2000 --workers 4 || {
+            warning "Fast indexing failed, trying consolidated script..."
+            docker exec emr-backend python scripts/consolidated_search_indexing.py --docker --mode index || {
+                warning "Search parameter indexing failed - searches may not work properly"
             }
+        }
+        success "Search parameters indexed"
+    elif docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
+        docker exec emr-backend python scripts/consolidated_search_indexing.py --docker --mode index || {
+            warning "Search parameter indexing failed - searches may not work properly"
         }
         success "Search parameters indexed"
     else

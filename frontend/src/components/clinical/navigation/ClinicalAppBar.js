@@ -212,9 +212,11 @@ const ClinicalAppBar = ({
             {patient && (
               <Tooltip title="Print">
                 <IconButton
-                  color="inherit"
                   onClick={handlePrint}
-                  sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                  sx={{ 
+                    display: { xs: 'none', sm: 'inline-flex' },
+                    color: theme.palette.action.active
+                  }}
                 >
                   <PrintIcon />
                 </IconButton>
@@ -225,9 +227,11 @@ const ClinicalAppBar = ({
             {patient && (
               <Tooltip title="Share">
                 <IconButton
-                  color="inherit"
                   onClick={handleShare}
-                  sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                  sx={{ 
+                    display: { xs: 'none', sm: 'inline-flex' },
+                    color: theme.palette.action.active
+                  }}
                 >
                   <ShareIcon />
                 </IconButton>
@@ -237,8 +241,8 @@ const ClinicalAppBar = ({
             {/* Notifications */}
             <Tooltip title="Notifications">
               <IconButton
-                color="inherit"
                 onClick={handleNotificationOpen}
+                sx={{ color: theme.palette.action.active }}
               >
                 <Badge badgeContent={unreadNotifications} color="error">
                   <NotificationsIcon />
@@ -249,8 +253,8 @@ const ClinicalAppBar = ({
             {/* Theme Toggle */}
             <Tooltip title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
               <IconButton
-                color="inherit"
                 onClick={onThemeToggle}
+                sx={{ color: theme.palette.action.active }}
               >
                 {isDarkMode ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>

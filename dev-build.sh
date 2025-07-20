@@ -199,97 +199,17 @@ run_build() {
         echo -e "${BLUE}Indexing search parameters...${NC}"
         SEARCH_INDEX_SUCCESS=false
         
-        # First try the consolidated script
+        # First try the fast indexing script with batching
         docker-compose -f docker-compose.dev.yml run --rm backend bash -c "
             cd /app
-            python scripts/consolidated_search_indexing.py --mode index
+            python scripts/fast_search_indexing.py --docker --batch-size 2000 --workers 4 || python scripts/consolidated_search_indexing.py --docker --mode index
         "
         
         if [ $? -eq 0 ]; then
             SEARCH_INDEX_SUCCESS=true
             echo -e "${GREEN}✅ Search parameters indexed successfully${NC}"
         else
-            echo -e "${YELLOW}⚠️ Consolidated search indexing failed, trying simple approach...${NC}"
-            
-            # Fallback to a simple inline script that we know works
-            docker-compose -f docker-compose.dev.yml run --rm backend python -c "
-import asyncio
-import json
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
-
-async def ensure_patient_search_params():
-    engine = create_async_engine('postgresql+asyncpg://emr_user:emr_password@postgres:5432/emr_db')
-    
-    async with engine.connect() as conn:
-        # Check if we already have patient params
-        result = await conn.execute(text('''
-            SELECT COUNT(*) FROM fhir.search_params 
-            WHERE param_name IN ('patient', 'subject')
-        '''))
-        count = result.scalar()
-        print(f'Existing patient search params: {count}')
-        
-        if count < 1000:  # Likely missing params
-            print('Adding patient search parameters...')
-            
-            # Add for key resource types
-            for rtype in ['Condition', 'Observation', 'MedicationRequest', 'Procedure']:
-                result = await conn.execute(text('''
-                    SELECT r.id, r.resource 
-                    FROM fhir.resources r
-                    WHERE r.resource_type = :rtype
-                    AND NOT EXISTS (
-                        SELECT 1 FROM fhir.search_params sp
-                        WHERE sp.resource_id = r.id
-                        AND sp.param_name = 'patient'
-                    )
-                '''), {'rtype': rtype})
-                
-                resources = result.fetchall()
-                added = 0
-                
-                for res_id, res_json in resources:
-                    try:
-                        resource = json.loads(res_json) if isinstance(res_json, str) else res_json
-                        patient_ref = None
-                        
-                        if 'subject' in resource and isinstance(resource['subject'], dict):
-                            patient_ref = resource['subject'].get('reference')
-                        elif 'patient' in resource and isinstance(resource['patient'], dict):
-                            patient_ref = resource['patient'].get('reference')
-                        
-                        if patient_ref:
-                            patient_id = patient_ref.replace('urn:uuid:', '').replace('Patient/', '')
-                            
-                            await conn.execute(text('''
-                                INSERT INTO fhir.search_params 
-                                (resource_id, resource_type, param_name, param_type, value_reference)
-                                VALUES (:rid, :rtype, 'patient', 'reference', :pid)
-                            '''), {'rid': res_id, 'rtype': rtype, 'pid': patient_id})
-                            
-                            added += 1
-                    except Exception as e:
-                        pass
-                
-                await conn.commit()
-                print(f'Added {added} patient params for {rtype}')
-            
-            print('Patient search parameters ensured')
-        else:
-            print('Patient search params already indexed')
-    
-    await engine.dispose()
-
-asyncio.run(ensure_patient_search_params())
-            "
-            
-            if [ $? -eq 0 ]; then
-                SEARCH_INDEX_SUCCESS=true
-                echo -e "${GREEN}✅ Basic search parameters indexed${NC}"
-            else
-                echo -e "${RED}❌ Search parameter indexing failed completely${NC}"
-            fi
+            echo -e "${RED}❌ Search parameter indexing failed${NC}"
         fi
         
         # Populate compartments

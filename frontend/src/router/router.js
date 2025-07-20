@@ -9,6 +9,7 @@ import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
 import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
 import ClinicalWorkspaceEnhanced from '../components/clinical/ClinicalWorkspaceEnhanced';
+import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWrapper';
 import SimpleClinicalDemo from '../components/clinical/SimpleClinicalDemo';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
@@ -73,9 +74,7 @@ export const router = createBrowserRouter([
     path: '/patients/:id/clinical',
     element: (
       <ProtectedRoute>
-        <EnhancedClinicalLayout>
-          <ClinicalWorkspaceEnhanced />
-        </EnhancedClinicalLayout>
+        <ClinicalWorkspaceWrapper />
       </ProtectedRoute>
     )
   },

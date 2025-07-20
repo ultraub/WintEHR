@@ -435,7 +435,7 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
   );
 };
 
-const TimelineTab = ({ patientId, onNotificationUpdate }) => {
+const TimelineTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { 
@@ -1070,9 +1070,9 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Typography variant="h5" fontWeight="bold">
           Clinical Timeline
         </Typography>
@@ -1101,7 +1101,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       </Stack>
 
       {/* Summary */}
-      <Paper sx={{ p: 2, mb: 3 }}>
+      <Paper sx={{ p: 2 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <TodayIcon color="action" />
           <Typography variant="body1">
@@ -1117,7 +1117,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
       </Paper>
 
       {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
+      <Paper sx={{ p: 2 }}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
             <TextField
@@ -1237,7 +1237,7 @@ const TimelineTab = ({ patientId, onNotificationUpdate }) => {
           
           {/* Load More Button */}
           {visibleCount < sortedEvents.length && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
               <Button 
                 variant="outlined" 
                 onClick={() => {

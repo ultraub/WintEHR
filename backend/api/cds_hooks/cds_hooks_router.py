@@ -41,6 +41,7 @@ from .models import (
 )
 from .medication_prescribe_hooks import medication_prescribe_hooks
 from .rules_engine.integration import cds_integration
+from .rules_engine.safety import safety_manager, FeatureFlag
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1336,6 +1337,113 @@ async def toggle_rule(rule_set_name: str, rule_id: str, enabled: bool):
     except Exception as e:
         logger.error(f"Error toggling rule: {e}")
         raise HTTPException(status_code=500, detail="Failed to toggle rule")
+
+
+# Safety and Feature Flag Endpoints
+@router.get("/rules-engine/safety/metrics")
+async def get_safety_metrics():
+    """Get safety metrics and circuit breaker status"""
+    try:
+        metrics = safety_manager.get_metrics()
+        return {
+            "status": "success",
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting safety metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get safety metrics")
+
+
+@router.patch("/rules-engine/safety/feature-flags/{flag}")
+async def set_feature_flag(flag: str, enabled: bool):
+    """Enable or disable a feature flag"""
+    try:
+        feature_flag = FeatureFlag(flag)
+        safety_manager.set_feature_flag(feature_flag, enabled)
+        return {
+            "status": "success",
+            "message": f"Feature flag {flag} set to {enabled}",
+            "flag": flag,
+            "enabled": enabled
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid feature flag: {flag}")
+    except Exception as e:
+        logger.error(f"Error setting feature flag: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set feature flag")
+
+
+@router.get("/rules-engine/safety/health")
+async def rules_engine_health():
+    """Get rules engine health status including circuit breakers"""
+    try:
+        health = safety_manager.health_check()
+        return health
+    except Exception as e:
+        logger.error(f"Error checking rules engine health: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.post("/rules-engine/safety/circuit-breaker/{service}/reset")
+async def reset_circuit_breaker(service: str):
+    """Reset a circuit breaker for a specific service"""
+    try:
+        if service in safety_manager.circuit_breakers:
+            breaker = safety_manager.circuit_breakers[service]
+            breaker.state = "closed"
+            breaker.failure_count = 0
+            breaker.success_count = 0
+            breaker.opened_at = None
+            
+            return {
+                "status": "success",
+                "message": f"Circuit breaker for {service} reset",
+                "service": service,
+                "new_state": "closed"
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"Circuit breaker for {service} not found")
+    except Exception as e:
+        logger.error(f"Error resetting circuit breaker: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
+
+
+@router.get("/rules-engine/safety/ab-test/results")
+async def get_ab_test_results():
+    """Get A/B test results comparing rules engine to legacy"""
+    try:
+        if not safety_manager.is_enabled(FeatureFlag.A_B_TESTING_ENABLED):
+            return {
+                "status": "disabled",
+                "message": "A/B testing is not enabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        results = dict(safety_manager.ab_test_results)
+        
+        # Calculate success rates
+        for group in results:
+            if results[group]["total"] > 0:
+                results[group]["success_rate"] = (
+                    results[group]["success"] / results[group]["total"] * 100
+                )
+            else:
+                results[group]["success_rate"] = 0
+        
+        return {
+            "status": "success",
+            "results": results,
+            "allocation": safety_manager.ab_test_allocation,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting A/B test results: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get A/B test results")
 
 
 # Health check endpoint

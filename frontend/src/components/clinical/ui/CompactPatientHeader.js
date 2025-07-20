@@ -68,15 +68,16 @@ const InfoCard = ({ icon, label, value, trend, severity, onClick }) => {
       elevation={0}
       onClick={onClick}
       sx={{
-        p: 1,
+        p: 1.5,
         cursor: onClick ? 'pointer' : 'default',
-        backgroundColor: alpha(theme.palette.background.paper, 0.8),
+        backgroundColor: theme.palette.background.paper,
         border: 1,
         borderColor: 'divider',
         borderRadius: 1,
         transition: 'all 0.2s',
+        height: '100%',
         '&:hover': onClick ? {
-          backgroundColor: theme.palette.background.paper,
+          backgroundColor: alpha(theme.palette.primary.main, 0.04),
           transform: 'translateY(-1px)',
           boxShadow: 1
         } : {}
@@ -91,7 +92,7 @@ const InfoCard = ({ icon, label, value, trend, severity, onClick }) => {
             {label}
           </Typography>
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <Typography variant="body2" fontWeight={600} noWrap>
+            <Typography variant="h6" fontWeight={600} noWrap>
               {value}
             </Typography>
             {trend && (
@@ -124,7 +125,13 @@ const CompactPatientHeader = ({
   // Calculate age
   const age = useMemo(() => {
     if (!patient?.birthDate) return 'Unknown';
-    return differenceInYears(new Date(), parseISO(patient.birthDate));
+    try {
+      const birthDate = parseISO(patient.birthDate);
+      return differenceInYears(new Date(), birthDate);
+    } catch (error) {
+      console.error('Invalid birth date:', patient.birthDate);
+      return 'Unknown';
+    }
   }, [patient?.birthDate]);
 
   // Get MRN
@@ -170,17 +177,17 @@ const CompactPatientHeader = ({
       {/* Acuity indicator bar */}
       <Box
         sx={{
-          height: 4,
+          height: 3,
           background: patientAcuity === 'critical' ? theme.palette.error.main :
                       patientAcuity === 'high' ? theme.palette.warning.main :
-                      patientAcuity === 'moderate' ? theme.palette.warning.light :
-                      theme.palette.success.main
+                      patientAcuity === 'moderate' ? theme.palette.info.main :
+                      theme.palette.grey[300]
         }}
       />
 
       {/* Main header content */}
-      <Box sx={{ p: 2 }}>
-        <Grid container spacing={2} alignItems="center">
+      <Box sx={{ p: 1.5 }}>
+        <Grid container spacing={1.5} alignItems="center">
           {/* Patient Identity */}
           <Grid item xs={12} md={4}>
             <Stack direction="row" spacing={2} alignItems="center">
@@ -193,8 +200,8 @@ const CompactPatientHeader = ({
               >
                 <Avatar
                   sx={{ 
-                    width: isMobile ? 48 : 56, 
-                    height: isMobile ? 48 : 56,
+                    width: isMobile ? 40 : 48, 
+                    height: isMobile ? 40 : 48,
                     bgcolor: theme.palette.primary.main
                   }}
                 >
@@ -252,7 +259,16 @@ const CompactPatientHeader = ({
                 <InfoCard
                   icon={<CalendarIcon fontSize="small" />}
                   label="Last Visit"
-                  value={lastEncounter ? formatDistanceToNow(parseISO(lastEncounter.period?.start), { addSuffix: true }) : 'Never'}
+                  value={(() => {
+                    if (!lastEncounter?.period?.start) return 'Never';
+                    try {
+                      const date = parseISO(lastEncounter.period.start);
+                      return formatDistanceToNow(date, { addSuffix: true });
+                    } catch (error) {
+                      console.error('Invalid encounter date:', lastEncounter.period.start);
+                      return 'Unknown';
+                    }
+                  })()}
                   onClick={() => onNavigateToTab?.('encounters')}
                 />
               </Grid>

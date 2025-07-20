@@ -778,7 +778,7 @@ export function FHIRResourceProvider({ children }) {
     return everythingPromise;
   }, [setCachedData, getCachedData, setResources]);
 
-  // Legacy fetchPatientBundle - now uses individual searches
+  // Optimized fetchPatientBundle using FHIR batch requests
   const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
     // Map priority to resource types for backward compatibility
     const resourceTypesByPriority = {
@@ -796,61 +796,198 @@ export function FHIRResourceProvider({ children }) {
       types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
     }
 
+    const cacheKey = `patient_bundle_batch_${patientId}_${priority}`;
+    const requestKey = `batch_${cacheKey}`;
     
-    // Fetch resources individually for reliability
-    const promises = types.map(async (resourceType) => {
-      if (resourceType === 'Patient') {
-        // Fetch patient directly
-        const patient = await fetchResource('Patient', patientId, forceRefresh);
-        if (patient) {
-          setResources('Patient', [patient]);
+    // Check for in-flight request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest && !forceRefresh) {
+      return existingRequest;
+    }
+    
+    // Check cache
+    if (!forceRefresh) {
+      const cached = getCachedData('bundles', cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+    
+    const batchPromise = (async () => {
+      try {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
+        
+        // Build batch requests
+        const batchRequests = types.map(resourceType => {
+          if (resourceType === 'Patient') {
+            return {
+              method: 'GET',
+              url: `Patient/${patientId}`
+            };
+          } else {
+            // Build search URL with parameters
+            const params = new URLSearchParams();
+            params.append('patient', patientId);
+            params.append('_count', priority === 'critical' ? '20' : '50');
+            
+            // Add resource-specific parameters
+            if (resourceType === 'Observation') {
+              params.append('_sort', '-date');
+              params.append('_count', '30');
+              // Limit to recent observations for better performance
+              const sixMonthsAgo = new Date();
+              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+              params.append('date', `ge${sixMonthsAgo.toISOString().split('T')[0]}`);
+            } else if (resourceType === 'Encounter') {
+              params.append('_sort', '-date');
+              params.append('_count', '10');
+            } else if (resourceType === 'MedicationRequest') {
+              params.append('_sort', '-authored');
+            } else if (resourceType === 'Condition') {
+              params.append('_sort', '-recorded-date');
+            } else if (resourceType === 'DiagnosticReport') {
+              params.append('_sort', '-date');
+              const oneYearAgo = new Date();
+              oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+              params.append('date', `ge${oneYearAgo.toISOString().split('T')[0]}`);
+            }
+            
+            return {
+              method: 'GET',
+              url: `${resourceType}?${params.toString()}`
+            };
+          }
+        });
+        
+        // Execute batch request
+        const batchResult = await fhirClient.batch(batchRequests);
+        
+        // Process batch response
+        const resourcesByType = {};
+        let totalResources = 0;
+        
+        if (batchResult.entry && batchResult.results) {
+          batchResult.entry.forEach((entry, index) => {
+            const result = batchResult.results[index];
+            
+            if (result.success && entry.resource) {
+              const resource = entry.resource;
+              
+              if (resource.resourceType === 'Bundle') {
+                // This is a search result bundle
+                const searchResults = resource.entry?.map(e => e.resource) || [];
+                searchResults.forEach(res => {
+                  if (!resourcesByType[res.resourceType]) {
+                    resourcesByType[res.resourceType] = [];
+                  }
+                  resourcesByType[res.resourceType].push(res);
+                  totalResources++;
+                });
+              } else {
+                // This is a direct resource (Patient)
+                if (!resourcesByType[resource.resourceType]) {
+                  resourcesByType[resource.resourceType] = [];
+                }
+                resourcesByType[resource.resourceType].push(resource);
+                totalResources++;
+              }
+            }
+          });
+          
+          // Update state with all resources
+          Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
+            setResources(resourceType, resources);
+            
+            // Update relationships
+            resources.forEach(resource => {
+              if (resource.subject?.reference === `Patient/${patientId}` ||
+                  resource.subject?.reference === `urn:uuid:${patientId}` ||
+                  resource.patient?.reference === `Patient/${patientId}` ||
+                  resource.patient?.reference === `urn:uuid:${patientId}` ||
+                  resource.resourceType === 'Patient') {
+                dispatch({
+                  type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+                  payload: {
+                    patientId,
+                    resourceType,
+                    resourceId: resource.id
+                  }
+                });
+              }
+            });
+          });
         }
-        return patient;
-      } else {
-        // Search for other resources
-        const params = { 
-          patient: patientId,
-          _count: priority === 'critical' ? 20 : 50
+        
+        const result = { 
+          success: true, 
+          total: totalResources,
+          resourceTypes: types,
+          resourcesByType
         };
         
-        // Add resource-specific parameters
-        if (resourceType === 'Condition') {
-          // Get all conditions, not just active ones - components will filter as needed
-          // params['clinical-status'] = 'active,recurrence,relapse';
-        } else if (resourceType === 'MedicationRequest') {
-          // Get all medication requests to show complete medication history
-          // params.status = 'active,completed';
-        } else if (resourceType === 'Observation') {
-          params._sort = '-date';
-          params._count = 30;
-        }
+        // Cache the result
+        setCachedData('bundles', cacheKey, result, 600000, 'Bundle'); // 10 min cache
         
-        const result = await searchResources(resourceType, params, forceRefresh);
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
         return result;
+        
+      } catch (error) {
+        dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+        
+        // Fallback to individual requests if batch fails
+        console.warn('Batch request failed, falling back to individual requests:', error);
+        
+        // Use the original individual fetch approach
+        const promises = types.map(async (resourceType) => {
+          if (resourceType === 'Patient') {
+            const patient = await fetchResource('Patient', patientId, forceRefresh);
+            if (patient) {
+              setResources('Patient', [patient]);
+            }
+            return patient;
+          } else {
+            const params = { 
+              patient: patientId,
+              _count: priority === 'critical' ? 20 : 50
+            };
+            
+            if (resourceType === 'Observation') {
+              params._sort = '-date';
+              params._count = 30;
+            }
+            
+            const result = await searchResources(resourceType, params, forceRefresh);
+            return result;
+          }
+        });
+        
+        await Promise.all(promises);
+        
+        let totalResources = 0;
+        types.forEach(type => {
+          const resourceCount = Object.keys(state.resources[type] || {}).filter(id => {
+            const resource = state.resources[type][id];
+            return resource.patient?.reference === `Patient/${patientId}` ||
+                   resource.patient?.reference === `urn:uuid:${patientId}` ||
+                   resource.subject?.reference === `Patient/${patientId}` ||
+                   resource.subject?.reference === `urn:uuid:${patientId}`;
+          }).length;
+          totalResources += resourceCount;
+        });
+        
+        return { 
+          success: true, 
+          total: totalResources,
+          resourceTypes: types 
+        };
+      } finally {
+        inFlightRequests.current.delete(requestKey);
       }
-    });
+    })();
     
-    await Promise.all(promises);
-    
-    // Count total resources
-    let totalResources = 0;
-    types.forEach(type => {
-      const resourceCount = Object.keys(state.resources[type] || {}).filter(id => {
-        const resource = state.resources[type][id];
-        return resource.patient?.reference === `Patient/${patientId}` ||
-               resource.patient?.reference === `urn:uuid:${patientId}` ||
-               resource.subject?.reference === `Patient/${patientId}` ||
-               resource.subject?.reference === `urn:uuid:${patientId}`;
-      }).length;
-      totalResources += resourceCount;
-    });
-    
-    return { 
-      success: true, 
-      total: totalResources,
-      resourceTypes: types 
-    };
-  }, [fetchResource, searchResources, setResources, state.resources]);
+    inFlightRequests.current.set(requestKey, batchPromise);
+    return batchPromise;
+  }, [fetchResource, searchResources, setResources, state.resources, setCachedData, getCachedData]);
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {
@@ -876,10 +1013,19 @@ export function FHIRResourceProvider({ children }) {
         Object.keys(state.relationships[patientId]).length > 0;
       
       if (!hasExistingData) {
-        // Load only critical resources initially - components will load what they need
-        await fetchPatientBundle(patientId, false, 'critical');
-        
-        // No progressive loading - let components request resources as needed
+        // Try to use $everything first for optimal performance
+        try {
+          await fetchPatientEverything(patientId, {
+            types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
+            count: 100,
+            autoSince: true, // Last 3 months
+            forceRefresh: false
+          });
+        } catch (everythingError) {
+          // Fall back to batch bundle if $everything fails
+          console.warn('Patient $everything failed in setCurrentPatient, using batch bundle:', everythingError);
+          await fetchPatientBundle(patientId, false, 'critical');
+        }
       }
       
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
@@ -901,31 +1047,136 @@ export function FHIRResourceProvider({ children }) {
     }
   }, [fetchResource]);
 
-  // Cache coordination utilities
+  // Cache coordination utilities - optimized with batch requests
   const warmPatientCache = useCallback(async (patientId, priority = 'critical') => {
     // Pre-warm cache for faster subsequent loads
-    try {
-      if (priority === 'all') {
-        // Warm all data types
-        await fetchPatientBundle(patientId, false, 'all');
-      } else if (priority === 'summary') {
-        // Warm only summary view data (conditions, meds, vitals, allergies)
-        const summaryTypes = ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'];
-        await Promise.all(summaryTypes.map(type => 
-          searchResources(type, { 
-            patient: patientId, 
-            _count: type === 'Observation' ? 20 : 10,
-            _sort: type === 'Observation' ? '-date' : '-recorded-date'
-          })
-        ));
-      } else {
-        // Default critical priority
-        await fetchPatientBundle(patientId, false, 'critical');
-      }
-    } catch (error) {
-      // Silent fail for cache warming
+    const cacheKey = `warm_cache_${patientId}_${priority}`;
+    const requestKey = `warm_${cacheKey}`;
+    
+    // Check for in-flight warming request
+    const existingRequest = inFlightRequests.current.get(requestKey);
+    if (existingRequest) {
+      return existingRequest;
     }
-  }, [fetchPatientBundle, searchResources]);
+    
+    const warmingPromise = (async () => {
+      try {
+        if (priority === 'all' || priority === 'critical') {
+          // Use the optimized batch bundle fetch
+          await fetchPatientBundle(patientId, false, priority);
+        } else if (priority === 'summary') {
+          // For summary view, use batch to get exactly what we need
+          // This ensures we get ALL conditions, meds, and allergies, not limited by observation count
+          const summaryTypes = ['Patient', 'Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter', 'Procedure', 'DiagnosticReport', 'Immunization'];
+          
+          // Build targeted batch requests with appropriate limits
+          const batchRequests = summaryTypes.map(resourceType => {
+            if (resourceType === 'Patient') {
+              return {
+                method: 'GET',
+                url: `Patient/${patientId}`
+              };
+            } else {
+              const params = new URLSearchParams();
+              params.append('patient', patientId);
+              
+              // Resource-specific limits to ensure we get all critical data
+              if (resourceType === 'Condition') {
+                params.append('_count', '50'); // Get all conditions
+                params.append('_sort', '-recorded-date');
+              } else if (resourceType === 'MedicationRequest') {
+                params.append('_count', '50'); // Get all medications
+                params.append('_sort', '-authored');
+              } else if (resourceType === 'AllergyIntolerance') {
+                params.append('_count', '20'); // Get all allergies
+                params.append('_sort', '-date');
+              } else if (resourceType === 'Observation') {
+                params.append('_count', '30'); // Limited vitals for summary
+                params.append('_sort', '-date');
+                params.append('category', 'vital-signs'); // Only vital signs for summary
+              } else if (resourceType === 'Encounter') {
+                params.append('_count', '10'); // Recent encounters
+                params.append('_sort', '-date');
+              } else if (resourceType === 'Procedure') {
+                params.append('_count', '10'); // Recent procedures
+                params.append('_sort', '-performed-date');
+              } else if (resourceType === 'DiagnosticReport') {
+                params.append('_count', '10'); // Recent lab reports
+                params.append('_sort', '-date');
+                params.append('category', 'LAB'); // Focus on lab reports
+              } else if (resourceType === 'Immunization') {
+                params.append('_count', '20'); // Get all immunizations
+                params.append('_sort', '-occurrence-date');
+              }
+              
+              return {
+                method: 'GET',
+                url: `${resourceType}?${params.toString()}`
+              };
+            }
+          });
+          
+          // Execute batch request
+          const batchResult = await fhirClient.batch(batchRequests);
+          
+          // Process the batch response using existing logic
+          if (batchResult.entry && batchResult.results) {
+            const resourcesByType = {};
+            batchResult.entry.forEach((entry, index) => {
+              const result = batchResult.results[index];
+              if (result.success && entry.resource) {
+                const resource = entry.resource;
+                if (resource.resourceType === 'Bundle') {
+                  const searchResults = resource.entry?.map(e => e.resource) || [];
+                  searchResults.forEach(res => {
+                    if (!resourcesByType[res.resourceType]) {
+                      resourcesByType[res.resourceType] = [];
+                    }
+                    resourcesByType[res.resourceType].push(res);
+                  });
+                } else {
+                  if (!resourcesByType[resource.resourceType]) {
+                    resourcesByType[resource.resourceType] = [];
+                  }
+                  resourcesByType[resource.resourceType].push(resource);
+                }
+              }
+            });
+            
+            // Update state with resources
+            Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
+              setResources(resourceType, resources);
+              resources.forEach(resource => {
+                if (resource.subject?.reference === `Patient/${patientId}` ||
+                    resource.patient?.reference === `Patient/${patientId}` ||
+                    resource.resourceType === 'Patient') {
+                  dispatch({
+                    type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+                    payload: {
+                      patientId,
+                      resourceType,
+                      resourceId: resource.id
+                    }
+                  });
+                }
+              });
+            });
+          }
+        }
+        
+        return { success: true, patientId };
+      } catch (error) {
+        // Log but don't throw - cache warming should fail silently
+        console.warn('Cache warming failed:', error);
+        return { success: false, patientId, error };
+      } finally {
+        inFlightRequests.current.delete(requestKey);
+      }
+    })();
+    
+    inFlightRequests.current.set(requestKey, warmingPromise);
+    return warmingPromise;
+  }, [fetchPatientBundle, fetchPatientEverything]);
 
   const isCacheWarm = useCallback((patientId, resourceTypes = ['Condition', 'MedicationRequest']) => {
     if (!state.relationships[patientId]) return false;

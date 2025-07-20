@@ -1341,7 +1341,7 @@ const GoalEditorDialog = ({ open, onClose, goal, patientId }) => {
   );
 };
 
-const CarePlanTab = ({ patientId, onNotificationUpdate }) => {
+const CarePlanTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();

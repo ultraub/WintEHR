@@ -126,7 +126,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
     setAnchorEl(null);
   };
 
-  const getStatusColor = (status) => {
+  const getEncounterStatusColor = (status) => {
     switch (status) {
       case 'finished': return 'success';
       case 'in-progress': return 'warning';
@@ -152,7 +152,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
               <Chip 
                 label={getEncounterStatus(encounter)} 
                 size="small" 
-                color={getStatusColor(getEncounterStatus(encounter))}
+                color={getEncounterStatusColor(getEncounterStatus(encounter))}
               />
             </Stack>
 
@@ -248,7 +248,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) 
   );
 };
 
-const EncountersTab = ({ patientId, onNotificationUpdate }) => {
+const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
