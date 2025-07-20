@@ -54,7 +54,8 @@ import {
   Switch,
   FormGroup,
   Checkbox,
-  Rating
+  Rating,
+  CircularProgress
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -88,11 +89,26 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
-import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
-import { fhirService } from '../../../../services/fhirService';
-import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
-import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
+import fhirService from '../../../services/fhirService';
+import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { useCDS } from '../../../contexts/CDSContext';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+
+const searchAllergens = async (query) => {
+  try {
+    const catalog = await cdsClinicalDataService.getClinicalCatalog('allergens');
+    const searchTerm = query.toLowerCase();
+    return catalog.filter(item => 
+      item.display?.toLowerCase().includes(searchTerm) ||
+      item.code?.toLowerCase().includes(searchTerm)
+    );
+  } catch (error) {
+    console.error('Error searching allergens:', error);
+    return [];
+  }
+};
 
 // Constants
 const STEPS = ['Allergen Selection', 'Reaction Details', 'Review & Save'];

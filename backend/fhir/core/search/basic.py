@@ -77,6 +77,10 @@ class SearchParameterHandler:
         Returns:
             Tuple of (search_params, result_params)
         """
+        # Debug log
+        if 'death-date:missing' in raw_params:
+            print(f"DEBUG: parse_search_params called with raw_params containing death-date:missing = {raw_params.get('death-date:missing')}")
+            
         search_params = {}
         result_params = {}
         
@@ -122,6 +126,10 @@ class SearchParameterHandler:
         Returns:
             Tuple of (join_clauses, where_clauses, sql_params)
         """
+        # Debug
+        if any('death-date' in k for k in search_params.keys()):
+            print(f"DEBUG: build_search_query called with search_params: {search_params}")
+            
         join_clauses = []
         where_clauses = []
         sql_params = {}
@@ -178,6 +186,9 @@ class SearchParameterHandler:
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
             elif param_type == 'date':
+                # Debug
+                if param_data['name'] == 'death-date':
+                    print(f"DEBUG: Building date clause for death-date with modifier={modifier}, values={values}")
                 where_clause = self._build_date_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
@@ -332,6 +343,10 @@ class SearchParameterHandler:
             base_param = param_name
             modifier = None
         
+        # Debug logging
+        if base_param == 'death-date':
+            logger.info(f"Parsing parameter: param_name={param_name}, base_param={base_param}, modifier={modifier}, values={param_values}")
+        
         # Check if this is a composite parameter
         if self.composite_handler.is_composite_parameter(resource_type, base_param):
             return {
@@ -343,6 +358,8 @@ class SearchParameterHandler:
         
         # Get parameter type
         param_type = self._get_parameter_type(resource_type, base_param)
+        if base_param == 'death-date':
+            print(f"DEBUG: death-date parameter type = {param_type}")
         if not param_type:
             return None
         
@@ -364,12 +381,18 @@ class SearchParameterHandler:
         if not parsed_values:
             return None
         
-        return {
+        result = {
             'name': base_param,
             'type': param_type,
             'modifier': modifier,
             'values': parsed_values
         }
+        
+        # Debug logging
+        if base_param == 'death-date':
+            print(f"DEBUG: _parse_parameter returning: {result}")
+        
+        return result
     
     def _get_parameter_type(self, resource_type: str, param_name: str) -> Optional[str]:
         """Get the type of a search parameter."""
@@ -658,6 +681,10 @@ class SearchParameterHandler:
         """Build WHERE clause for date parameter."""
         # Handle :missing modifier
         if modifier == 'missing':
+            print(f"IMPORTANT: _build_date_clause handling :missing for {param_name}")
+            import sys
+            sys.stderr.write(f"IMPORTANT: _build_date_clause handling :missing for {param_name}\n")
+            sys.stderr.flush()
             return self._build_missing_clause(alias, param_name, values, counter, sql_params)
         
         conditions = []
@@ -1716,6 +1743,10 @@ class SearchParameterHandler:
             missing_value = val_str.lower() == 'true'
         
         logger.info(f"Building :missing clause for param_name={param_name}, missing_value={missing_value}, values={values}")
+        print(f"CRITICAL: _build_missing_clause called for {param_name}, missing_value={missing_value}")
+        import sys
+        sys.stderr.write(f"CRITICAL: _build_missing_clause called for {param_name}, missing_value={missing_value}\n")
+        sys.stderr.flush()
         
         param_name_key = f"param_name_{counter}"
         sql_params[param_name_key] = param_name
@@ -1738,4 +1769,8 @@ class SearchParameterHandler:
             )"""
         
         logger.info(f"Generated :missing clause: {clause}")
+        print(f"FINAL SQL CLAUSE: {clause}")
+        import sys
+        sys.stderr.write(f"FINAL SQL CLAUSE: {clause}\n")
+        sys.stderr.flush()
         return clause

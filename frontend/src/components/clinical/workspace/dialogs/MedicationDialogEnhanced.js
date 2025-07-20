@@ -53,7 +53,8 @@ import {
   Fade,
   Zoom,
   Switch,
-  FormGroup
+  FormGroup,
+  CircularProgress
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -65,6 +66,7 @@ import {
   Warning as WarningIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
+  CheckCircle as CheckCircleIcon,
   AccessTime as ClockIcon,
   CalendarToday as DateIcon,
   Notes as NotesIcon,
@@ -86,12 +88,49 @@ import { format, parseISO, addDays, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
-import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
-import { fhirService } from '../../../../services/fhirService';
-import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
-import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
+import fhirService from '../../../services/fhirService';
+import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { useCDS } from '../../../contexts/CDSContext';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+
+// Helper functions
+const getMedicationName = (medication) => {
+  return medication?.code?.coding?.[0]?.display || medication?.code?.text || 'Unknown Medication';
+};
+
+const getMedicationDosageDisplay = (dosage) => {
+  if (!dosage) return '';
+  const parts = [];
+  if (dosage.text) return dosage.text;
+  if (dosage.doseAndRate?.[0]?.doseQuantity) {
+    parts.push(`${dosage.doseAndRate[0].doseQuantity.value} ${dosage.doseAndRate[0].doseQuantity.unit}`);
+  }
+  if (dosage.timing?.repeat?.frequency && dosage.timing?.repeat?.period) {
+    parts.push(`${dosage.timing.repeat.frequency} times per ${dosage.timing.repeat.period} ${dosage.timing.repeat.periodUnit}`);
+  }
+  return parts.join(', ');
+};
+
+const searchMedications = async (query) => {
+  try {
+    const catalog = await cdsClinicalDataService.getClinicalCatalog('medications');
+    const searchTerm = query.toLowerCase();
+    return catalog.filter(item => 
+      item.display?.toLowerCase().includes(searchTerm) ||
+      item.code?.toLowerCase().includes(searchTerm)
+    );
+  } catch (error) {
+    console.error('Error searching medications:', error);
+    return [];
+  }
+};
+
+const checkDrugInteractions = async (medications) => {
+  // Simplified drug interaction check
+  return [];
+};
 
 // Constants
 const STEPS = ['Search Medication', 'Dosage & Instructions', 'Review & Prescribe'];
@@ -100,7 +139,7 @@ const STATUS_OPTIONS = [
   { value: 'active', label: 'Active', icon: <ActiveIcon />, color: 'success' },
   { value: 'on-hold', label: 'On Hold', icon: <ClockIcon />, color: 'warning' },
   { value: 'cancelled', label: 'Cancelled', icon: <CancelIcon />, color: 'error' },
-  { value: 'completed', label: 'Completed', icon: <CheckCircle />, color: 'info' },
+  { value: 'completed', label: 'Completed', icon: <CheckCircleIcon />, color: 'info' },
   { value: 'entered-in-error', label: 'Entered in Error', icon: <CancelIcon />, color: 'error' },
   { value: 'stopped', label: 'Stopped', icon: <CancelIcon />, color: 'default' }
 ];

@@ -71,12 +71,26 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInDays, addDays, isAfter, isBefore } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
-import { useClinicalContext } from '../../../../contexts/ClinicalContext';
-import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
-import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../services/fhirService';
-import { searchImmunizations } from '../../../../services/cdsClinicalDataService';
+import { useFHIRClient } from '../../../contexts/FHIRContext';
+import { useClinical as useClinicalContext } from '../../../contexts/ClinicalContext';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+import fhirService from '../../../services/fhirService';
+import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
+
+const searchImmunizations = async (query) => {
+  try {
+    const catalog = await cdsClinicalDataService.getClinicalCatalog('immunizations');
+    const searchTerm = query.toLowerCase();
+    return catalog.filter(item => 
+      item.display?.toLowerCase().includes(searchTerm) ||
+      item.code?.toLowerCase().includes(searchTerm)
+    );
+  } catch (error) {
+    console.error('Error searching immunizations:', error);
+    return [];
+  }
+};
 
 // Vaccine status options
 const VACCINE_STATUS_OPTIONS = [

@@ -15,33 +15,100 @@ WintEHR's clinical dialogs have been enhanced with modern, aesthetic designs and
 - **Responsive Layout**: Works seamlessly on desktop and mobile devices
 - **Smooth Transitions**: Fade and zoom animations for better UX
 
-### 2. **Dynamic Clinical Catalogs**
+### 2. **Reusable Components**
+- **ResourceSearchAutocomplete**: Powerful search with favorites and recent items
+- **BatchOperationsDialog**: Bulk operations on multiple resources
+- **Smart Defaults**: Context-aware default values (coming soon)
+- **Undo/Redo Support**: Keyboard shortcuts for power users (coming soon)
+
+### 3. **Dynamic Clinical Catalogs**
 - **Real-Time Data**: Catalogs generated from actual patient data
 - **Frequency-Based Suggestions**: Shows most commonly used items
 - **Smart Search**: Type-ahead with debouncing and caching
 - **Category Filtering**: Filter by type, specialty, or category
 - **Usage Statistics**: See how often items are used in your system
 
-### 3. **FHIR R4 Compliance**
+### 4. **FHIR R4 Compliance**
 - **Complete Resource Support**: Full FHIR R4 resource structure
 - **Proper Coding Systems**: ICD-10, SNOMED, RxNorm, LOINC
 - **Reference Management**: Proper patient and encounter references
 - **Search Parameter Support**: Leverages indexed search parameters
 - **Audit Trail**: Tracks who created/modified resources
 
-### 4. **Clinical Decision Support**
+### 5. **Clinical Decision Support**
 - **Real-Time Alerts**: CDS Hooks integration for safety checks
 - **Drug Interactions**: Automatic checking for medications
 - **Allergy Alerts**: Cross-references with patient allergies
 - **Clinical Guidelines**: Suggests best practices
 - **Smart Defaults**: Context-aware default values
 
-### 5. **Enhanced Search**
+### 6. **Enhanced Search**
 - **Intelligent Autocomplete**: Fast, cached search results
 - **Multiple Search Methods**: By name, code, or description
 - **Recent/Frequent Items**: Quick access to commonly used items
 - **Trending Analysis**: Shows what's popular in your system
 - **Fuzzy Matching**: Finds results even with typos
+
+## Reusable Components
+
+### ResourceSearchAutocomplete
+A powerful reusable autocomplete component for searching FHIR resources.
+
+**Features:**
+- Dynamic search with configurable debouncing
+- Support for multiple resource types
+- Recent selections and favorites
+- Clinical coding system integration
+- Keyboard navigation
+- Loading states and error handling
+
+**Usage:**
+```javascript
+import ResourceSearchAutocomplete from '../common/ResourceSearchAutocomplete';
+
+<ResourceSearchAutocomplete
+  resourceType="MedicationRequest"
+  value={selectedMedication}
+  onChange={(event, newValue) => setSelectedMedication(newValue)}
+  patientId={patient.id}
+  includeCatalog={true}
+  showRecent={true}
+  showFavorites={true}
+  label="Search Medications"
+  placeholder="Type medication name..."
+/>
+```
+
+### BatchOperationsDialog
+Enables batch CRUD operations on multiple FHIR resources simultaneously.
+
+**Features:**
+- Multi-select resource management
+- Bulk updates with field selection
+- Batch deletion with confirmation
+- Progress tracking and error handling
+- Rollback capability
+- Operation history
+
+**Usage:**
+```javascript
+import BatchOperationsDialog from '../common/BatchOperationsDialog';
+
+<BatchOperationsDialog
+  open={batchDialogOpen}
+  onClose={() => setBatchDialogOpen(false)}
+  resources={medications}
+  resourceType="MedicationRequest"
+  onOperationComplete={handleBatchComplete}
+  maxBatchSize={50}
+/>
+```
+
+**Supported Operations:**
+- **Update**: Modify fields on selected resources
+- **Delete**: Permanently remove resources
+- **Archive**: Mark resources as archived
+- **Activate/Deactivate**: Change resource status
 
 ## Enhanced Dialogs
 
@@ -315,11 +382,51 @@ All enhanced dialogs follow WCAG 2.1 AA guidelines:
 4. **Offline Support**: Queue changes when offline
 5. **Collaboration**: See who else is viewing/editing
 
-### Coming Soon
-- ProcedureDialogEnhanced
-- ObservationDialogEnhanced
-- DiagnosticReportDialogEnhanced
-- ServiceRequestDialogEnhanced
+### Additional Enhanced Dialogs
+
+#### ProcedureDialogEnhanced
+**Features:**
+- Dynamic procedure catalog from patient data
+- CPT and SNOMED code support
+- Procedure status tracking (preparation, in-progress, completed)
+- Duration tracking with start/end times
+- Outcome recording (successful, unsuccessful, partial)
+- Complication reporting
+- Performer and location tracking
+- Body site selection with laterality
+
+#### ObservationDialogEnhanced
+**Features:**
+- Lab result and vital sign recording
+- LOINC code integration
+- Quick vitals mode for efficient data entry
+- Reference range validation
+- Interpretation flags (high, low, normal, critical)
+- Trend analysis from previous values
+- Multiple value types (numeric, coded, text, boolean)
+- Specimen and method tracking
+
+#### DiagnosticReportDialogEnhanced
+**Features:**
+- Comprehensive report creation
+- Link multiple observations
+- Common lab panel templates
+- PDF attachment support
+- Status tracking (registered, partial, final, corrected)
+- Performer and result interpreter
+- Conclusion and clinical context
+- Automated result grouping
+
+#### ServiceRequestDialogEnhanced
+**Features:**
+- Service ordering with priority levels
+- Duplicate order detection
+- Clinical guidance integration
+- Flexible timing options
+- Patient instructions
+- Insurance authorization tracking
+- Reason for request with ICD-10 codes
+- Order sets and protocols
 
 ## Best Practices
 

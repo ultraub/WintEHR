@@ -47,7 +47,9 @@ import {
   useTheme,
   alpha,
   Autocomplete,
-  createFilterOptions
+  createFilterOptions,
+  MenuItem,
+  CircularProgress
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -56,6 +58,7 @@ import {
   NavigateBefore as BackIcon,
   NavigateNext as NextIcon,
   LocalHospital as ConditionIcon,
+  CheckCircle as CheckCircleIcon,
   Search as SearchIcon,
   Lightbulb as SuggestionIcon,
   TrendingUp as TrendingIcon,
@@ -78,11 +81,27 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
-import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
-import { fhirService } from '../../../../services/fhirService';
-import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
-import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
+import fhirService from '../../../services/fhirService';
+import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { useCDS } from '../../../contexts/CDSContext';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+
+// Helper function for searching conditions
+const searchConditions = async (query) => {
+  try {
+    const catalog = await cdsClinicalDataService.getClinicalCatalog('conditions');
+    const searchTerm = query.toLowerCase();
+    return catalog.filter(item => 
+      item.display?.toLowerCase().includes(searchTerm) ||
+      item.code?.toLowerCase().includes(searchTerm)
+    );
+  } catch (error) {
+    console.error('Error searching conditions:', error);
+    return [];
+  }
+};
 
 // Constants
 const STEPS = ['Search & Select', 'Clinical Details', 'Review & Save'];
@@ -92,8 +111,8 @@ const CLINICAL_STATUS_OPTIONS = [
   { value: 'recurrence', label: 'Recurrence', icon: <TrendingIcon />, color: 'warning' },
   { value: 'relapse', label: 'Relapse', icon: <WarningIcon />, color: 'warning' },
   { value: 'inactive', label: 'Inactive', icon: <InactiveIcon />, color: 'default' },
-  { value: 'remission', label: 'Remission', icon: <CheckCircle />, color: 'info' },
-  { value: 'resolved', label: 'Resolved', icon: <CheckCircle />, color: 'success' }
+  { value: 'remission', label: 'Remission', icon: <CheckCircleIcon />, color: 'info' },
+  { value: 'resolved', label: 'Resolved', icon: <CheckCircleIcon />, color: 'success' }
 ];
 
 const VERIFICATION_STATUS_OPTIONS = [
@@ -101,8 +120,8 @@ const VERIFICATION_STATUS_OPTIONS = [
   { value: 'provisional', label: 'Provisional', icon: <ClockIcon />, color: 'info' },
   { value: 'differential', label: 'Differential', icon: <DiagnosisIcon />, color: 'info' },
   { value: 'confirmed', label: 'Confirmed', icon: <VerifiedIcon />, color: 'success' },
-  { value: 'refuted', label: 'Refuted', icon: <CancelIcon />, color: 'error' },
-  { value: 'entered-in-error', label: 'Entered in Error', icon: <CancelIcon />, color: 'error' }
+  { value: 'refuted', label: 'Refuted', icon: <InactiveIcon />, color: 'error' },
+  { value: 'entered-in-error', label: 'Entered in Error', icon: <InactiveIcon />, color: 'error' }
 ];
 
 const SEVERITY_OPTIONS = [
@@ -113,7 +132,7 @@ const SEVERITY_OPTIONS = [
 
 const CATEGORY_OPTIONS = [
   { value: 'problem-list-item', label: 'Problem List Item', icon: <CategoryIcon /> },
-  { value: 'encounter-diagnosis', label: 'Encounter Diagnosis', icon: <LocalHospital /> }
+  { value: 'encounter-diagnosis', label: 'Encounter Diagnosis', icon: <ConditionIcon /> }
 ];
 
 // Custom hook for condition search

@@ -29,6 +29,8 @@ try:
 except ImportError:
     notification_service = None
 
+logger = logging.getLogger(__name__)
+
 
 def safe_dict_conversion(obj: Any, exclude_none: bool = False) -> dict:
     """
@@ -129,6 +131,8 @@ class FHIRStorageEngine:
                 'given': {'type': 'string'},
                 'gender': {'type': 'token'},
                 'birthdate': {'type': 'date'},
+                'death-date': {'type': 'date'},
+                'deceased': {'type': 'token'},
                 'address': {'type': 'string'},
                 'phone': {'type': 'token'},
                 'email': {'type': 'token'},
@@ -711,7 +715,6 @@ class FHIRStorageEngine:
             Resource data or None if not found
         """
         import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"Reading resource: {resource_type}/{fhir_id} (version: {version_id})")
         if version_id:
             # Read specific version from history
@@ -1113,6 +1116,8 @@ class FHIRStorageEngine:
         logger.info(f"Search query for {resource_type}: {query}")
         logger.info(f"Search params: {sql_params}")
         logger.info(f"Where clauses: {where_clauses}")
+        print(f"FULL SEARCH QUERY: {query}")
+        print(f"SQL PARAMS: {sql_params}")
         
         # Add ordering
         query += " ORDER BY r.last_updated DESC"

@@ -18,6 +18,7 @@ import urllib.parse
 class TestComplexSearch:
     """Test complex search operations and chained queries."""
     
+    @pytest.mark.asyncio
     async def test_chained_search_single_level(
         self,
         http_client: httpx.AsyncClient,
@@ -80,6 +81,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_reverse_chained_search(
         self,
         http_client: httpx.AsyncClient,
@@ -126,6 +128,7 @@ class TestComplexSearch:
             {"results": bundle.get("total", 0)}
         )
     
+    @pytest.mark.asyncio
     async def test_multiple_parameter_combination(
         self,
         http_client: httpx.AsyncClient,
@@ -208,6 +211,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_composite_search_parameter(
         self,
         http_client: httpx.AsyncClient,
@@ -247,6 +251,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_include_forward_reference(
         self,
         http_client: httpx.AsyncClient,
@@ -300,6 +305,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_revinclude_reverse_reference(
         self,
         http_client: httpx.AsyncClient,
@@ -352,6 +358,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_complex_date_search(
         self,
         http_client: httpx.AsyncClient,
@@ -404,6 +411,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_text_search_modifier(
         self,
         http_client: httpx.AsyncClient,
@@ -439,6 +447,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_missing_parameter_search(
         self,
         http_client: httpx.AsyncClient,
@@ -463,6 +472,8 @@ class TestComplexSearch:
         if "entry" in bundle:
             for entry in bundle["entry"]:
                 patient = entry["resource"]
+                if "deceasedDateTime" in patient:
+                    print(f"Patient {patient.get('id')} has deceasedDateTime: {patient.get('deceasedDateTime')}")
                 assert "deceasedDateTime" not in patient, \
                     "Found patient with death date in :missing=true search"
         
@@ -474,6 +485,7 @@ class TestComplexSearch:
             {"results": bundle.get("total", 0)}
         )
     
+    @pytest.mark.asyncio
     async def test_reference_search_variations(
         self,
         http_client: httpx.AsyncClient,
@@ -520,6 +532,7 @@ class TestComplexSearch:
             results
         )
     
+    @pytest.mark.asyncio
     async def test_complex_boolean_logic(
         self,
         http_client: httpx.AsyncClient,
@@ -576,6 +589,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_chained_search_multiple_levels(
         self,
         http_client: httpx.AsyncClient,
@@ -613,6 +627,7 @@ class TestComplexSearch:
             }
         )
     
+    @pytest.mark.asyncio
     async def test_search_result_pagination_navigation(
         self,
         http_client: httpx.AsyncClient,

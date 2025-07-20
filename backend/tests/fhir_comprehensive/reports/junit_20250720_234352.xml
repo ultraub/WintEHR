@@ -1,0 +1,862 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="19" skipped="30" tests="116" time="33.161" timestamp="2025-07-20T23:44:26.950235" hostname="d19b312b16a2"><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Patient]" time="0.711" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Practitioner]" time="0.225" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Organization]" time="0.194" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Location]" time="0.225" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Encounter]" time="0.292" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Appointment]" time="0.003"><skipped type="pytest.skip" message="No test data for Appointment">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Appointment</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Observation]" time="0.309" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Condition]" time="0.246" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Procedure]" time="0.217" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Medication]" time="0.108" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[MedicationRequest]" time="0.265" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[MedicationStatement]" time="0.002"><skipped type="pytest.skip" message="No test data for MedicationStatement">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for MedicationStatement</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[MedicationDispense]" time="0.002"><skipped type="pytest.skip" message="No test data for MedicationDispense">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for MedicationDispense</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[MedicationAdministration]" time="0.002"><skipped type="pytest.skip" message="No test data for MedicationAdministration">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for MedicationAdministration</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[DiagnosticReport]" time="0.101" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[ImagingStudy]" time="0.002"><skipped type="pytest.skip" message="No test data for ImagingStudy">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for ImagingStudy</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[CarePlan]" time="0.140" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Goal]" time="0.229" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Immunization]" time="0.240" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[AllergyIntolerance]" time="0.138" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[DocumentReference]" time="0.302" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Task]" time="0.107" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[ServiceRequest]" time="0.188" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Specimen]" time="0.002"><skipped type="pytest.skip" message="No test data for Specimen">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Specimen</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Device]" time="0.175" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Questionnaire]" time="0.001"><skipped type="pytest.skip" message="No test data for Questionnaire">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Questionnaire</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[QuestionnaireResponse]" time="0.001"><skipped type="pytest.skip" message="No test data for QuestionnaireResponse">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for QuestionnaireResponse</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[ValueSet]" time="0.001"><skipped type="pytest.skip" message="No test data for ValueSet">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for ValueSet</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[CodeSystem]" time="0.001"><skipped type="pytest.skip" message="No test data for CodeSystem">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for CodeSystem</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[ConceptMap]" time="0.001"><skipped type="pytest.skip" message="No test data for ConceptMap">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for ConceptMap</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[StructureDefinition]" time="0.001"><skipped type="pytest.skip" message="No test data for StructureDefinition">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for StructureDefinition</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[PractitionerRole]" time="0.001"><skipped type="pytest.skip" message="No test data for PractitionerRole">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for PractitionerRole</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[CareTeam]" time="0.001"><skipped type="pytest.skip" message="No test data for CareTeam">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for CareTeam</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Claim]" time="0.002"><skipped type="pytest.skip" message="No test data for Claim">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Claim</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Coverage]" time="0.001"><skipped type="pytest.skip" message="No test data for Coverage">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Coverage</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[ExplanationOfBenefit]" time="0.001"><skipped type="pytest.skip" message="No test data for ExplanationOfBenefit">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for ExplanationOfBenefit</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[SupplyDelivery]" time="0.001"><skipped type="pytest.skip" message="No test data for SupplyDelivery">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for SupplyDelivery</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Provenance]" time="0.001"><skipped type="pytest.skip" message="No test data for Provenance">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Provenance</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[List]" time="0.000"><skipped type="pytest.skip" message="No test data for List">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for List</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Basic]" time="0.117" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Composition]" time="0.001"><skipped type="pytest.skip" message="No test data for Composition">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Composition</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Media]" time="0.001"><skipped type="pytest.skip" message="No test data for Media">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Media</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Schedule]" time="0.001"><skipped type="pytest.skip" message="No test data for Schedule">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Schedule</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Slot]" time="0.001"><skipped type="pytest.skip" message="No test data for Slot">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Slot</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[Communication]" time="0.001"><skipped type="pytest.skip" message="No test data for Communication">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for Communication</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_create_resource[CommunicationRequest]" time="0.001"><skipped type="pytest.skip" message="No test data for CommunicationRequest">/app/tests/fhir_comprehensive/test_crud_operations.py:52: No test data for CommunicationRequest</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_read_resource[Patient]" time="0.032" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_read_resource[Condition]" time="0.026" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_read_resource[Observation]" time="0.014" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_read_resource[MedicationRequest]" time="0.030" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_update_resource" time="0.205" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_delete_resource" time="0.156" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_vread_resource" time="0.464" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_conditional_create" time="0.214" /><testcase classname="tests.fhir_comprehensive.test_crud_operations.TestCRUDOperations" name="test_batch_create" time="0.142" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_404_resource_not_found" time="0.084" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_invalid_resource_creation" time="0.047" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_malformed_json" time="0.067" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_invalid_search_parameters" time="0.380" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_boundary_conditions" time="0.630" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_concurrent_updates" time="0.703" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_circular_references" time="0.149" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_invalid_http_methods" time="0.048" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_header_injection" time="0.013" /><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_resource_id_constraints" time="0.034"><failure message="AssertionError: ID '123' handling: unexpected status 404&#10;assert 404 in [200, 201, 400]&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_error_handling.TestErrorHandling object at 0xffff96210b80&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+cleanup_resources = &lt;function cleanup_resources.&lt;locals&gt;.track_resource at 0xffff96065c10&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_resource_id_constraints(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        cleanup_resources,
+        test_report
+    ):
+        """Test resource ID constraints and validation."""
+        start_time = datetime.now()
+    
+        # Test various ID scenarios
+        test_ids = [
+            ("123", True),  # Simple numeric
+            ("abc-def-123", True),  # Alphanumeric with hyphens
+            ("ABC123", True),  # Mixed case
+            ("id.with.dots", True),  # Dots allowed
+            ("id_with_underscores", True),  # Underscores allowed
+            ("id with spaces", False),  # Spaces not allowed
+            ("id/with/slashes", False),  # Slashes not allowed
+            ("id?with=params", False),  # Query params not allowed
+            ("", False),  # Empty ID
+            ("a" * 65, False),  # Too long (&gt;64 chars)
+        ]
+    
+        for test_id, should_succeed in test_ids:
+            # Try to create resource with specific ID
+            patient = {
+                "resourceType": "Patient",
+                "id": test_id,
+                "gender": "unknown"
+            }
+    
+            response = await http_client.put(
+                f"/Patient/{test_id}",
+                json=patient
+            )
+    
+            if should_succeed:
+                # Clean up if created
+                if response.status_code in [200, 201]:
+                    cleanup_resources("Patient", test_id)
+    
+&gt;               assert response.status_code in [200, 201, 400], \
+                    f"ID '{test_id}' handling: unexpected status {response.status_code}"
+E               AssertionError: ID '123' handling: unexpected status 404
+E               assert 404 in [200, 201, 400]
+E                +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_error_handling.py:546: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_error_handling.TestErrorHandling" name="test_transaction_rollback" time="0.087"><failure message="AssertionError: Transaction with invalid entry should fail, got 200&#10;assert 200 in [400, 422]&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">self = &lt;test_error_handling.TestErrorHandling object at 0xffff962102b0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_transaction_rollback(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        test_report
+    ):
+        """Test transaction bundle rollback on error."""
+        start_time = datetime.now()
+    
+        # Create transaction with one invalid entry
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "transaction",
+            "entry": [
+                {
+                    "resource": {
+                        "resourceType": "Observation",
+                        "status": "final",
+                        "code": {"text": "Valid observation"},
+                        "subject": {"reference": f"Patient/{test_patient['id']}"}
+                    },
+                    "request": {
+                        "method": "POST",
+                        "url": "Observation"
+                    }
+                },
+                {
+                    "resource": {
+                        "resourceType": "Observation",
+                        # Missing required status field
+                        "code": {"text": "Invalid observation"}
+                    },
+                    "request": {
+                        "method": "POST",
+                        "url": "Observation"
+                    }
+                }
+            ]
+        }
+    
+        # Submit transaction
+        response = await http_client.post("/", json=bundle)
+    
+        # Transaction should fail (400 or 422)
+&gt;       assert response.status_code in [400, 422], \
+            f"Transaction with invalid entry should fail, got {response.status_code}"
+E       AssertionError: Transaction with invalid entry should fail, got 200
+E       assert 200 in [400, 422]
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests/fhir_comprehensive/test_error_handling.py:606: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_content_type_negotiation" time="0.088" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_resource_meta_elements" time="0.211"><failure message="AssertionError: lastUpdated '2025-07-20T23:44:36.244716+00:00' doesn't match FHIR instant format&#10;assert None&#10; +  where None = &lt;function match at 0xffff9863bb80&gt;('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?(Z|[+-]\\d{2}:\\d{2})$', '2025-07-20T23:44:36.244716+00:00')&#10; +    where &lt;function match at 0xffff9863bb80&gt; = re.match">self = &lt;test_fhir_compliance.TestFHIRCompliance object at 0xffff96160cd0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+cleanup_resources = &lt;function cleanup_resources.&lt;locals&gt;.track_resource at 0xffff9553ce50&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_resource_meta_elements(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        cleanup_resources,
+        test_report
+    ):
+        """Test that resources contain required meta elements."""
+        start_time = datetime.now()
+    
+        # Create a new resource to ensure fresh meta
+        observation = {
+            "resourceType": "Observation",
+            "status": "final",
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "8302-2",
+                    "display": "Body height"
+                }]
+            },
+            "subject": {
+                "reference": f"Patient/{test_patient['id']}"
+            },
+            "valueQuantity": {
+                "value": 170,
+                "unit": "cm"
+            }
+        }
+    
+        # Create resource
+        create_response = await http_client.post("/Observation", json=observation)
+        assert create_response.status_code == 201
+    
+        created_resource = create_response.json()
+        cleanup_resources("Observation", created_resource["id"])
+    
+        # Validate meta elements
+        assert "meta" in created_resource, "Resource must have meta element"
+    
+        meta = created_resource["meta"]
+        assert "versionId" in meta, "Meta must have versionId"
+        assert "lastUpdated" in meta, "Meta must have lastUpdated"
+    
+        # Validate versionId format (should be numeric or similar)
+        assert meta["versionId"], "versionId must not be empty"
+    
+        # Validate lastUpdated is valid instant
+        last_updated = meta["lastUpdated"]
+        # Should match FHIR instant format: YYYY-MM-DDThh:mm:ss.sss+zz:zz
+        instant_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$'
+&gt;       assert re.match(instant_pattern, last_updated), \
+            f"lastUpdated '{last_updated}' doesn't match FHIR instant format"
+E       AssertionError: lastUpdated '2025-07-20T23:44:36.244716+00:00' doesn't match FHIR instant format
+E       assert None
+E        +  where None = &lt;function match at 0xffff9863bb80&gt;('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?(Z|[+-]\\d{2}:\\d{2})$', '2025-07-20T23:44:36.244716+00:00')
+E        +    where &lt;function match at 0xffff9863bb80&gt; = re.match
+
+tests/fhir_comprehensive/test_fhir_compliance.py:118: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_search_parameter_types" time="0.456"><failure message="AssertionError: Failed number parameter test: RiskAssessment?probability=gt0.5&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_fhir_compliance.TestFHIRCompliance object at 0xffff96160a90&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_search_parameter_types(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        test_report
+    ):
+        """Test different search parameter types per FHIR spec."""
+        start_time = datetime.now()
+    
+        patient_id = test_patient["id"]
+    
+        # Test different parameter types
+        test_cases = [
+            # String parameters
+            ("Patient", "name", "Smith", "string"),
+    
+            # Token parameters (system|code)
+            ("Observation", f"patient={patient_id}&amp;code", "http://loinc.org|", "token"),
+    
+            # Reference parameters
+            ("Condition", "subject", f"Patient/{patient_id}", "reference"),
+    
+            # Date parameters with prefixes
+            ("Patient", "birthdate", "gt1950-01-01", "date"),
+            ("Patient", "birthdate", "le2020-12-31", "date"),
+    
+            # Number parameters
+            ("RiskAssessment", "probability", "gt0.5", "number"),
+    
+            # Composite parameters
+            ("Observation", f"patient={patient_id}&amp;code-value-quantity",
+             "http://loinc.org|8480-6$gt120", "composite"),
+        ]
+    
+        for resource_type, param, value, param_type in test_cases:
+            response = await http_client.get(f"/{resource_type}?{param}={value}")
+    
+            # Should return valid response (200) or no results (200 with empty bundle)
+&gt;           assert response.status_code == 200, \
+                f"Failed {param_type} parameter test: {resource_type}?{param}={value}"
+E           AssertionError: Failed number parameter test: RiskAssessment?probability=gt0.5
+E           assert 404 == 200
+E            +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_fhir_compliance.py:172: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_bundle_structure_compliance" time="0.073" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_reference_format_compliance" time="0.973" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_error_response_compliance" time="0.077"><failure message="assert 201 == 400&#10; +  where 201 = &lt;Response [201 Created]&gt;.status_code">self = &lt;test_fhir_compliance.TestFHIRCompliance object at 0xffff961601f0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95fe94c0&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_error_response_compliance(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test error responses comply with FHIR OperationOutcome."""
+        start_time = datetime.now()
+    
+        # Test different error scenarios
+        error_cases = [
+            # 404 - Resource not found
+            ("/Patient/non-existent-id", "GET", None, 404),
+    
+            # 400 - Bad request (invalid resource)
+            ("/Patient", "POST", {"resourceType": "InvalidType"}, 400),
+    
+            # 422 - Unprocessable entity (invalid FHIR content)
+            ("/Patient", "POST", {
+                "resourceType": "Patient",
+                "gender": "invalid-gender"  # Invalid code
+            }, [400, 422]),  # Could be either
+        ]
+    
+        for url, method, body, expected_status in error_cases:
+            if method == "GET":
+                response = await http_client.get(url)
+            elif method == "POST":
+                response = await http_client.post(url, json=body)
+    
+            # Check status code
+            if isinstance(expected_status, list):
+                assert response.status_code in expected_status
+            else:
+&gt;               assert response.status_code == expected_status
+E               assert 201 == 400
+E                +  where 201 = &lt;Response [201 Created]&gt;.status_code
+
+tests/fhir_comprehensive/test_fhir_compliance.py:358: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_http_methods_compliance" time="0.045"><failure message="AssertionError: HEAD /Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6 returned 405, expected [200]&#10;assert 405 in [200]&#10; +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code">self = &lt;test_fhir_compliance.TestFHIRCompliance object at 0xffff96160580&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_http_methods_compliance(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        test_report
+    ):
+        """Test HTTP methods comply with FHIR RESTful API spec."""
+        start_time = datetime.now()
+    
+        patient_id = test_patient["id"]
+    
+        # Test allowed methods
+        allowed_methods = [
+            ("GET", f"/Patient/{patient_id}", None, [200]),
+            ("HEAD", f"/Patient/{patient_id}", None, [200]),
+            ("OPTIONS", "/Patient", None, [200, 204]),
+        ]
+    
+        for method, url, body, expected_statuses in allowed_methods:
+            response = await http_client.request(method, url, json=body)
+&gt;           assert response.status_code in expected_statuses, \
+                f"{method} {url} returned {response.status_code}, expected {expected_statuses}"
+E           AssertionError: HEAD /Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6 returned 405, expected [200]
+E           assert 405 in [200]
+E            +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code
+
+tests/fhir_comprehensive/test_fhir_compliance.py:406: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_etag_support" time="0.626" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_location_header_on_create" time="0.238" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_required_resource_elements" time="0.619" /><testcase classname="tests.fhir_comprehensive.test_fhir_compliance.TestFHIRCompliance" name="test_date_time_precision" time="1.076" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_chained_search_single_level" time="0.001"><skipped type="pytest.skip" message="Test patient has no family name">/app/tests/fhir_comprehensive/test_search_complex.py:37: Test patient has no family name</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_reverse_chained_search" time="0.043" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_multiple_parameter_combination" time="0.095" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_composite_search_parameter" time="0.051" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_include_forward_reference" time="0.050" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_revinclude_reverse_reference" time="0.105" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_complex_date_search" time="0.030" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_text_search_modifier" time="0.040" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_missing_parameter_search" time="0.110" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_reference_search_variations" time="0.148"><failure message="AssertionError: Different reference formats returned different results&#10;assert False&#10; +  where False = all(&lt;generator object TestComplexSearch.test_reference_search_variations.&lt;locals&gt;.&lt;genexpr&gt; at 0xffff95574190&gt;)">self = &lt;test_search_complex.TestComplexSearch object at 0xffff96221430&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+db_connection = &lt;asyncpg.connection.Connection object at 0xffff960b0400&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95ff9c70&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    @pytest.mark.asyncio
+    async def test_reference_search_variations(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        db_connection,
+        test_validator,
+        test_report
+    ):
+        """Test different reference search variations."""
+        start_time = datetime.now()
+    
+        patient_id = test_patient["id"]
+    
+        # Test different reference formats
+        test_cases = [
+            (f"/Condition?subject={patient_id}", "relative reference"),
+            (f"/Condition?subject=Patient/{patient_id}", "full reference"),
+            (f"/Condition?subject:Patient={patient_id}", "typed reference"),
+        ]
+    
+        results = {}
+        for query, description in test_cases:
+            response = await http_client.get(query)
+            assert response.status_code == 200
+    
+            bundle = response.json()
+            assert test_validator.is_valid_bundle(bundle)
+    
+            results[description] = bundle.get("total", 0)
+    
+        # All formats should return the same results
+        result_counts = list(results.values())
+        if result_counts:
+&gt;           assert all(count == result_counts[0] for count in result_counts), \
+                "Different reference formats returned different results"
+E           AssertionError: Different reference formats returned different results
+E           assert False
+E            +  where False = all(&lt;generator object TestComplexSearch.test_reference_search_variations.&lt;locals&gt;.&lt;genexpr&gt; at 0xffff95574190&gt;)
+
+tests/fhir_comprehensive/test_search_complex.py:522: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_complex_boolean_logic" time="0.100" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_chained_search_multiple_levels" time="0.080" /><testcase classname="tests.fhir_comprehensive.test_search_complex.TestComplexSearch" name="test_search_result_pagination_navigation" time="0.080"><failure message="assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_search_complex.TestComplexSearch object at 0xffff96034220&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff960fc730&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    @pytest.mark.asyncio
+    async def test_search_result_pagination_navigation(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test navigating through paginated search results."""
+        start_time = datetime.now()
+    
+        # Initial search with small page size
+        page_size = 5
+        response = await http_client.get(f"/Patient?_count={page_size}")
+    
+        assert response.status_code == 200
+    
+        bundle = response.json()
+        assert test_validator.is_valid_bundle(bundle)
+    
+        total = bundle.get("total", 0)
+        pages_navigated = 1
+    
+        # Navigate through pages using next links
+        while "link" in bundle:
+            next_link = None
+            for link in bundle["link"]:
+                if link.get("relation") == "next":
+                    next_link = link.get("url")
+                    break
+    
+            if not next_link:
+                break
+    
+            # Extract path from full URL
+            if next_link.startswith("http"):
+                from urllib.parse import urlparse
+                parsed = urlparse(next_link)
+                next_path = parsed.path + "?" + parsed.query
+            else:
+                next_path = next_link
+    
+            # Follow next link
+            response = await http_client.get(next_path)
+&gt;           assert response.status_code == 200
+E           assert 404 == 200
+E            +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_search_complex.py:673: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_patient_search_by_name" time="0.002"><skipped type="pytest.skip" message="Test patient has no family name">/app/tests/fhir_comprehensive/test_search_simple.py:36: Test patient has no family name</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_patient_search_by_identifier" time="0.001"><skipped type="pytest.skip" message="Test patient has no identifiers">/app/tests/fhir_comprehensive/test_search_simple.py:93: Test patient has no identifiers</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_patient_search_by_birthdate" time="0.001"><skipped type="pytest.skip" message="Test patient has no birth date">/app/tests/fhir_comprehensive/test_search_simple.py:139: Test patient has no birth date</skipped></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_condition_search_by_patient" time="0.040" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_observation_search_by_category" time="0.073" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_medication_request_search_by_status" time="0.052" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_with_pagination" time="0.010" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_with_sorting" time="0.053"><failure message="AssertionError: Results not properly sorted&#10;assert '1994-08-16' &lt;= '1983-08-18'">self = &lt;test_search_simple.TestSimpleSearch object at 0xffff961f7280&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95f33c40&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_search_with_sorting(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test search with sorting parameters."""
+        start_time = datetime.now()
+    
+        # Search patients sorted by birth date
+        response = await http_client.get("/Patient?_sort=birthdate&amp;_count=10")
+    
+        # Validate response
+        assert response.status_code == 200
+    
+        bundle = response.json()
+        assert test_validator.is_valid_bundle(bundle)
+    
+        # Verify sorting order
+        if "entry" in bundle and len(bundle["entry"]) &gt; 1:
+            birth_dates = []
+            for entry in bundle["entry"]:
+                patient = entry["resource"]
+                birth_date = patient.get("birthDate")
+                if birth_date:
+                    birth_dates.append(birth_date)
+    
+            # Check ascending order
+            for i in range(1, len(birth_dates)):
+&gt;               assert birth_dates[i-1] &lt;= birth_dates[i], "Results not properly sorted"
+E               AssertionError: Results not properly sorted
+E               assert '1994-08-16' &lt;= '1983-08-18'
+
+tests/fhir_comprehensive/test_search_simple.py:384: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_with_last_updated" time="0.152" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_multiple_values" time="0.058" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_date_range" time="0.111" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_code_system" time="0.120" /><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_search_count_parameter" time="0.034"><failure message="AssertionError: assert ('entry' not in {'entry': [{'fullUrl': 'http://localhost:8000/fhir/R4/Patient/05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'resource': {'id': '05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'meta': {'lastUpdated': '2025-07-20T23:44:38.082888+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6', 'resource': {'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', 'meta': {'lastUpdated': '2025-07-20T18:49:08.843742+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159', 'resource': {'address': [{'city': 'Revere', 'country': 'US', 'extension': [...], 'line': [...], ...}], 'birthDate': '1994-08-16', 'communication': [{'language': {...}}], 'extension': [{'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Cristina921 Pizarro791'}, {'url': 'http://hl7.org/fhir/us...}, ...], ...}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/339144f8-50e1-633e-a013-f361391c4cff', 'resource': {'address': [{'city': 'Boston', 'country': 'US', 'extension': [...], 'line': [...], ...}], 'birthDate': '2002-01-09', 'communication': [{'language': {...}}], 'extension': [{'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Migdalia164 Bernhard322'}, {'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex', 'valueCode': 'M'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-birthPlace', 'valueAddress': {...}}, {'url': 'http://synthetichealth.github.io/synthea/disability-adjusted-life-years', 'valueDecimal': 0.16107442983062495}, ...], ...}, 'search': {'mode': 'match'}}, ...], 'link': [{'relation': 'self', 'url': 'http://localhost:8000/fhir/R4/Patient?_count=0'}, {'relation': 'next', 'url': 'http://localhost:8000/fhir/R4/Patient?_count=0'}], 'resourceType': 'Bundle', 'total': 13, ...} or 10 == 0)&#10; +  where 10 = len([{'fullUrl': 'http://localhost:8000/fhir/R4/Patient/05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'resource': {'id': '05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'meta': {'lastUpdated': '2025-07-20T23:44:38.082888+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6', 'resource': {'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', 'meta': {'lastUpdated': '2025-07-20T18:49:08.843742+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159', 'resource': {'address': [{'city': 'Revere', 'country': 'US', 'extension': [{...}], 'line': ['686 Monahan Wynd Suite 38'], ...}], 'birthDate': '1994-08-16', 'communication': [{'language': {'coding': [...], 'text': 'Spanish'}}], 'extension': [{'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueSt...hea/disability-adjusted-life-years', 'valueDecimal': 0.039323214628663686}, ...], ...}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/339144f8-50e1-633e-a013-f361391c4cff', 'resource': {'address': [{'city': 'Boston', 'country': 'US', 'extension': [{...}], 'line': ['1029 Reinger Flat'], ...}], 'birthDate': '2002-01-09', 'communication': [{'language': {'coding': [...], 'text': 'Modern Greek (1453-)'}}], 'extension': [{'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Migdalia164 Bernhard322'}, {'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex', 'valueCode': 'M'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-birthPlace', 'valueAddress': {'city': 'Athens', 'country': 'GR', 'state': 'Athens Prefecture'}}, {'url': 'http://synthetichealth.github.io/synthea/disability-adjusted-life-years', 'valueDecimal': 0.16107442983062495}, ...], ...}, 'search': {'mode': 'match'}}, ...])">self = &lt;test_search_simple.TestSimpleSearch object at 0xffff96157700&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95594430&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_search_count_parameter(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test _count parameter variations."""
+        start_time = datetime.now()
+    
+        test_cases = [
+            (10, "standard count"),
+            (0, "count only"),
+            (100, "large count"),
+            (1, "single result")
+        ]
+    
+        for count, description in test_cases:
+            response = await http_client.get(f"/Patient?_count={count}")
+    
+            assert response.status_code == 200
+    
+            bundle = response.json()
+            assert test_validator.is_valid_bundle(bundle)
+    
+            # Verify count behavior
+            if count == 0:
+                # Should return count only, no entries
+&gt;               assert "entry" not in bundle or len(bundle["entry"]) == 0
+E               AssertionError: assert ('entry' not in {'entry': [{'fullUrl': 'http://localhost:8000/fhir/R4/Patient/05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'resource': {'id': '05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'meta': {'lastUpdated': '2025-07-20T23:44:38.082888+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6', 'resource': {'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', 'meta': {'lastUpdated': '2025-07-20T18:49:08.843742+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159', 'resource': {'address': [{'city': 'Revere', 'country': 'US', 'extension': [...], 'line': [...], ...}], 'birthDate': '1994-08-16', 'communication': [{'language': {...}}], 'extension': [{'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Cristina921 Pizarro791'}, {'url': 'http://hl7.org/fhir/us...}, ...], ...}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/339144f8-50e1-633e-a013-f361391c4cff', 'resource': {'address': [{'city': 'Boston', 'country': 'US', 'extension': [...], 'line': [...], ...}], 'birthDate': '2002-01-09', 'communication': [{'language': {...}}], 'extension': [{'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [...], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Migdalia164 Bernhard322'}, {'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex', 'valueCode': 'M'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-birthPlace', 'valueAddress': {...}}, {'url': 'http://synthetichealth.github.io/synthea/disability-adjusted-life-years', 'valueDecimal': 0.16107442983062495}, ...], ...}, 'search': {'mode': 'match'}}, ...], 'link': [{'relation': 'self', 'url': 'http://localhost:8000/fhir/R4/Patient?_count=0'}, {'relation': 'next', 'url': 'http://localhost:8000/fhir/R4/Patient?_count=0'}], 'resourceType': 'Bundle', 'total': 13, ...} or 10 == 0)
+E                +  where 10 = len([{'fullUrl': 'http://localhost:8000/fhir/R4/Patient/05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'resource': {'id': '05959a83-d7ca-45a7-80b9-d8795ee59c3b', 'meta': {'lastUpdated': '2025-07-20T23:44:38.082888+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/17253908-c626-43ad-a5b1-c7ca4807dcd6', 'resource': {'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', 'meta': {'lastUpdated': '2025-07-20T18:49:08.843742+00:00', 'versionId': '1'}, 'resourceType': 'Patient'}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/23d16ee3-8cd4-eeb8-e77e-1e5fbf4c4159', 'resource': {'address': [{'city': 'Revere', 'country': 'US', 'extension': [{...}], 'line': ['686 Monahan Wynd Suite 38'], ...}], 'birthDate': '1994-08-16', 'communication': [{'language': {'coding': [...], 'text': 'Spanish'}}], 'extension': [{'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueSt...hea/disability-adjusted-life-years', 'valueDecimal': 0.039323214628663686}, ...], ...}, 'search': {'mode': 'match'}}, {'fullUrl': 'http://localhost:8000/fhir/R4/Patient/339144f8-50e1-633e-a013-f361391c4cff', 'resource': {'address': [{'city': 'Boston', 'country': 'US', 'extension': [{...}], 'line': ['1029 Reinger Flat'], ...}], 'birthDate': '2002-01-09', 'communication': [{'language': {'coding': [...], 'text': 'Modern Greek (1453-)'}}], 'extension': [{'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'}, {'extension': [{...}, {...}], 'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName', 'valueString': 'Migdalia164 Bernhard322'}, {'url': 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex', 'valueCode': 'M'}, {'url': 'http://hl7.org/fhir/StructureDefinition/patient-birthPlace', 'valueAddress': {'city': 'Athens', 'country': 'GR', 'state': 'Athens Prefecture'}}, {'url': 'http://synthetichealth.github.io/synthea/disability-adjusted-life-years', 'valueDecimal': 0.16107442983062495}, ...], ...}, 'search': {'mode': 'match'}}, ...])
+
+tests/fhir_comprehensive/test_search_simple.py:609: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_search_simple.TestSimpleSearch" name="test_global_search" time="0.123"><failure message="assert 405 == 200&#10; +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code">self = &lt;test_search_simple.TestSimpleSearch object at 0xffff961570a0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff9552ec10&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_global_search(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test global search across all resource types."""
+        start_time = datetime.now()
+    
+        # Search across all resources with _type parameter
+        response = await http_client.get("/?_type=Patient,Condition,Observation&amp;_count=10")
+    
+        # Validate response
+&gt;       assert response.status_code == 200
+E       assert 405 == 200
+E        +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code
+
+tests/fhir_comprehensive/test_search_simple.py:639: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_patient_everything_operation" time="7.524"><failure message="AssertionError: Resource CarePlan/48be3be8-cdd2-cba3-7daf-2a23ab5b5f1f doesn't reference patient&#10;assert False">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff961f7a90&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95f36520&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+performance_thresholds = {'bundle_transaction': 1.0, 'complex_search': 2.0, 'history': 1.0, 'patient_everything': 3.0, ...}
+
+    async def test_patient_everything_operation(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        test_validator,
+        test_report,
+        performance_thresholds
+    ):
+        """Test Patient/$everything operation."""
+        start_time = datetime.now()
+    
+        patient_id = test_patient["id"]
+    
+        # Get everything for a patient
+        response = await http_client.get(f"/Patient/{patient_id}/$everything")
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Validate response
+        assert response.status_code == 200
+    
+        bundle = response.json()
+        assert test_validator.is_valid_bundle(bundle)
+    
+        # Should return multiple resource types
+        resource_types = set()
+        patient_found = False
+    
+        if "entry" in bundle:
+            for entry in bundle["entry"]:
+                resource = entry["resource"]
+                resource_types.add(resource["resourceType"])
+    
+                # Verify patient is included
+                if resource["resourceType"] == "Patient" and resource["id"] == patient_id:
+                    patient_found = True
+    
+                # Verify all resources relate to the patient
+                if resource["resourceType"] != "Patient":
+                    # Check common patient reference fields
+                    patient_ref = f"Patient/{patient_id}"
+                    has_patient_ref = False
+    
+                    for field in ["patient", "subject", "participant", "individual"]:
+                        if field in resource:
+                            ref = resource[field].get("reference", "") if isinstance(resource[field], dict) else ""
+                            if ref == patient_ref:
+                                has_patient_ref = True
+                                break
+    
+                    # Some resources might reference patient indirectly
+                    if not has_patient_ref and resource["resourceType"] in ["Practitioner", "Organization", "Location"]:
+                        has_patient_ref = True  # These might be related through encounters
+    
+&gt;                   assert has_patient_ref, \
+                        f"Resource {resource['resourceType']}/{resource['id']} doesn't reference patient"
+E                   AssertionError: Resource CarePlan/48be3be8-cdd2-cba3-7daf-2a23ab5b5f1f doesn't reference patient
+E                   assert False
+
+tests/fhir_comprehensive/test_special_operations.py:75: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_patient_everything_with_types" time="0.336" /><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_patient_everything_with_date_range" time="5.511" /><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_resource_history" time="1.944"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e3040&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+cleanup_resources = &lt;function cleanup_resources.&lt;locals&gt;.track_resource at 0xffff8feaec10&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95fdb5e0&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_resource_history(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        cleanup_resources,
+        test_validator,
+        test_report
+    ):
+        """Test resource _history operation."""
+        start_time = datetime.now()
+    
+        # Create a resource and update it to generate history
+        condition = {
+            "resourceType": "Condition",
+            "clinicalStatus": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                    "code": "active"
+                }]
+            },
+            "code": {
+                "coding": [{
+                    "system": "http://snomed.info/sct",
+                    "code": "119981000146107",
+                    "display": "Fever symptom"
+                }]
+            },
+            "subject": {
+                "reference": f"Patient/{test_patient['id']}"
+            }
+        }
+    
+        # Create condition
+        create_response = await http_client.post("/Condition", json=condition)
+        assert create_response.status_code == 201
+    
+        created_condition = create_response.json()
+        condition_id = created_condition["id"]
+        cleanup_resources("Condition", condition_id)
+    
+        # Update condition twice to create history
+        created_condition["clinicalStatus"]["coding"][0]["code"] = "resolved"
+        update1_response = await http_client.put(
+            f"/Condition/{condition_id}",
+            json=created_condition
+        )
+        assert update1_response.status_code == 200
+    
+        updated_condition = update1_response.json()
+        updated_condition["note"] = [{"text": "Resolved after treatment"}]
+        update2_response = await http_client.put(
+            f"/Condition/{condition_id}",
+            json=updated_condition
+        )
+        assert update2_response.status_code == 200
+    
+        # Get history
+        history_response = await http_client.get(f"/Condition/{condition_id}/_history")
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Validate response
+&gt;       assert history_response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:251: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_resource_type_history" time="0.114"><failure message="assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e3460&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95fa0520&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_resource_type_history(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test resource type _history operation."""
+        start_time = datetime.now()
+    
+        # Get history for all Patients (limited)
+        response = await http_client.get("/Patient/_history?_count=10")
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Validate response
+&gt;       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:297: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_system_history" time="0.013"><failure message="assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e35b0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95f924f0&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_system_history(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test system-wide _history operation."""
+        start_time = datetime.now()
+    
+        # Get system history (recent changes across all resources)
+        since = (datetime.now() - timedelta(days=7)).isoformat()
+        response = await http_client.get(f"/_history?_since={since}&amp;_count=20")
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Validate response
+&gt;       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:337: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_validate_operation" time="0.036"><failure message="assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e38e0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95f4aa60&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_validate_operation(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        test_validator,
+        test_report
+    ):
+        """Test $validate operation."""
+        start_time = datetime.now()
+    
+        # Valid resource
+        valid_observation = {
+            "resourceType": "Observation",
+            "status": "final",
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "29463-7",
+                    "display": "Body weight"
+                }]
+            },
+            "subject": {
+                "reference": f"Patient/{test_patient['id']}"
+            },
+            "valueQuantity": {
+                "value": 70,
+                "unit": "kg",
+                "system": "http://unitsofmeasure.org",
+                "code": "kg"
+            }
+        }
+    
+        # Validate the resource
+        response = await http_client.post(
+            "/Observation/$validate",
+            json=valid_observation
+        )
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Should return 200 with OperationOutcome
+&gt;       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:407: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_validate_invalid_resource" time="0.016"><failure message="assert 500 in [200, 400]&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e3dc0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_validator = &lt;conftest.TestDataValidator object at 0xffff95f2c160&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_validate_invalid_resource(
+        self,
+        http_client: httpx.AsyncClient,
+        test_validator,
+        test_report
+    ):
+        """Test $validate operation with invalid resource."""
+        start_time = datetime.now()
+    
+        # Invalid resource (missing required status)
+        invalid_observation = {
+            "resourceType": "Observation",
+            # "status": "final",  # Missing required field
+            "code": {
+                "coding": [{
+                    "system": "http://loinc.org",
+                    "code": "29463-7"
+                }]
+            }
+        }
+    
+        # Validate the resource
+        response = await http_client.post(
+            "/Observation/$validate",
+            json=invalid_observation
+        )
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Should return 200 or 400 with OperationOutcome
+&gt;       assert response.status_code in [200, 400]
+E       assert 500 in [200, 400]
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:460: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_meta_operations" time="0.036"><failure message="assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff960e3ee0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_meta_operations(
+        self,
+        http_client: httpx.AsyncClient,
+        test_report
+    ):
+        """Test metadata operations."""
+        start_time = datetime.now()
+    
+        # Get metadata for Patient resource type
+        response = await http_client.get("/Patient/$meta")
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Should return metadata
+&gt;       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:497: AssertionError</failure></testcase><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_transaction_bundle" time="0.317" /><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_batch_bundle_mixed_operations" time="0.310" /><testcase classname="tests.fhir_comprehensive.test_special_operations.TestSpecialOperations" name="test_conditional_update_operation" time="0.664"><failure message="assert 405 in [200, 201]&#10; +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code">self = &lt;test_special_operations.TestSpecialOperations object at 0xffff9603c8b0&gt;
+http_client = &lt;httpx.AsyncClient object at 0xffff961afd30&gt;
+test_patient = {'birthDate': None, 'familyName': None, 'givenName': None, 'id': '17253908-c626-43ad-a5b1-c7ca4807dcd6', ...}
+cleanup_resources = &lt;function cleanup_resources.&lt;locals&gt;.track_resource at 0xffff95f1e310&gt;
+test_report = &lt;function test_report.&lt;locals&gt;.add_result at 0xffff960e7ca0&gt;
+
+    async def test_conditional_update_operation(
+        self,
+        http_client: httpx.AsyncClient,
+        test_patient: Dict[str, Any],
+        cleanup_resources,
+        test_report
+    ):
+        """Test conditional update operation."""
+        start_time = datetime.now()
+    
+        # Create a unique identifier
+        identifier = f"test-allergy-{datetime.now().timestamp()}"
+    
+        # Create initial resource
+        allergy = {
+            "resourceType": "AllergyIntolerance",
+            "identifier": [{
+                "system": "http://example.org/allergies",
+                "value": identifier
+            }],
+            "clinicalStatus": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+                    "code": "active"
+                }]
+            },
+            "code": {
+                "coding": [{
+                    "system": "http://snomed.info/sct",
+                    "code": "300913006",
+                    "display": "Shellfish allergy"
+                }]
+            },
+            "patient": {
+                "reference": f"Patient/{test_patient['id']}"
+            },
+            "criticality": "low"
+        }
+    
+        # First create
+        create_response = await http_client.post("/AllergyIntolerance", json=allergy)
+        assert create_response.status_code == 201
+    
+        created_allergy = create_response.json()
+        allergy_id = created_allergy["id"]
+        cleanup_resources("AllergyIntolerance", allergy_id)
+    
+        # Now do conditional update
+        allergy["criticality"] = "high"
+        allergy["note"] = [{"text": "Severe reaction reported"}]
+    
+        # Conditional update using search criteria
+        update_response = await http_client.put(
+            f"/AllergyIntolerance?identifier={identifier}",
+            json=allergy
+        )
+    
+        duration = (datetime.now() - start_time).total_seconds()
+    
+        # Should return 200 (updated) or 201 (created)
+&gt;       assert update_response.status_code in [200, 201]
+E       assert 405 in [200, 201]
+E        +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code
+
+tests/fhir_comprehensive/test_special_operations.py:779: AssertionError</failure></testcase></testsuite></testsuites>
