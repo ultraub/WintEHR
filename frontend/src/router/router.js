@@ -34,6 +34,7 @@ import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
 import DesignSystemShowcase from '../components/clinical/demo/DesignSystemShowcase';
 import PerformanceTestPage from '../pages/PerformanceTestPage';
+import PageTransitionProvider, { transitionPresets } from '../components/transitions/PageTransitionProvider';
 
 // Create router with future flags enabled
 export const router = createBrowserRouter([

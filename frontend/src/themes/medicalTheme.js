@@ -258,147 +258,147 @@ const professionalMedicalPalette = {
   }
 };
 
-// Dark Medical Theme
+// Dark Medical Theme (Enhanced for better contrast and readability)
 const darkMedicalPalette = {
   mode: 'dark',
   primary: {
-    main: '#42A5F5',
-    light: '#64B5F6',
-    dark: '#1976D2',
-    contrastText: '#000000'
+    main: '#60A5FA', // Brighter blue for better contrast
+    light: '#93BBFC',
+    dark: '#2563EB',
+    contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#66BB6A',
-    light: '#81C784',
-    dark: '#4CAF50',
+    main: '#86EFAC', // Brighter green
+    light: '#BBF7D0',
+    dark: '#22C55E',
     contrastText: '#000000'
   },
   error: {
-    main: '#EF5350',
-    light: '#F44336',
-    dark: '#D32F2F',
+    main: '#F87171', // Softer red that's easier on eyes in dark mode
+    light: '#FCA5A5',
+    dark: '#DC2626',
     contrastText: '#FFFFFF'
   },
   warning: {
-    main: '#FFB74D',
-    light: '#FFC107',
-    dark: '#F57C00',
+    main: '#FCD34D', // Brighter yellow
+    light: '#FDE68A',
+    dark: '#F59E0B',
     contrastText: '#000000'
   },
   info: {
-    main: '#4FC3F7',
-    light: '#03A9F4',
-    dark: '#0288D1',
-    contrastText: '#000000'
+    main: '#60A5FA',
+    light: '#93BBFC',
+    dark: '#2563EB',
+    contrastText: '#FFFFFF'
   },
   success: {
-    main: '#81C784',
-    light: '#4CAF50',
-    dark: '#388E3C',
+    main: '#86EFAC',
+    light: '#BBF7D0',
+    dark: '#16A34A',
     contrastText: '#000000'
   },
   background: {
-    default: '#0A0E13',
-    paper: '#1A202C',
-    surface: '#2D3748'
+    default: '#0F172A', // Slightly lighter for better layering
+    paper: '#1E293B',   // Better contrast with default
+    surface: '#334155'   // Third level for nested components
   },
   text: {
-    primary: '#F7FAFC',
-    secondary: '#E2E8F0',
-    disabled: '#718096'
+    primary: '#F8FAFC',   // Slightly brighter
+    secondary: '#CBD5E1', // Better contrast
+    disabled: '#64748B'   // More visible disabled state
   },
-  divider: '#4A5568',
+  divider: '#334155', // Better visibility
   action: {
-    active: '#42A5F5',
-    hover: 'rgba(66, 165, 245, 0.08)',
-    selected: 'rgba(66, 165, 245, 0.12)',
+    active: '#60A5FA',
+    hover: 'rgba(96, 165, 250, 0.12)',
+    selected: 'rgba(96, 165, 250, 0.16)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)'
   },
-  // Clinical-specific semantic tokens (dark mode)
+  // Clinical-specific semantic tokens (dark mode - enhanced)
   clinical: {
     surfaces: {
-      primary: 'rgba(66, 165, 245, 0.08)',
-      secondary: 'rgba(102, 187, 106, 0.08)',
-      warning: 'rgba(255, 183, 77, 0.08)',
-      error: 'rgba(239, 83, 80, 0.08)',
-      info: 'rgba(79, 195, 247, 0.08)',
-      success: 'rgba(129, 199, 132, 0.08)'
+      primary: 'rgba(96, 165, 250, 0.08)',
+      secondary: 'rgba(134, 239, 172, 0.08)',
+      warning: 'rgba(252, 211, 77, 0.08)',
+      error: 'rgba(248, 113, 113, 0.08)',
+      info: 'rgba(96, 165, 250, 0.08)',
+      success: 'rgba(134, 239, 172, 0.08)'
     },
     interactions: {
-      hover: 'rgba(66, 165, 245, 0.12)',
-      pressed: 'rgba(66, 165, 245, 0.16)',
-      focus: 'rgba(66, 165, 245, 0.20)',
-      selected: 'rgba(66, 165, 245, 0.12)'
+      hover: 'rgba(96, 165, 250, 0.16)',
+      pressed: 'rgba(96, 165, 250, 0.20)',
+      focus: 'rgba(96, 165, 250, 0.24)',
+      selected: 'rgba(96, 165, 250, 0.16)'
     },
     status: {
-      active: '#81C784',
-      inactive: '#9E9E9E',
-      pending: '#FFB74D',
-      completed: '#4FC3F7',
-      cancelled: '#EF5350',
-      draft: '#B0BEC5',
-      inProgress: '#7986CB'
+      active: '#86EFAC',
+      inactive: '#64748B',
+      pending: '#FCD34D',
+      completed: '#60A5FA',
+      cancelled: '#F87171',
+      draft: '#94A3B8',
+      inProgress: '#A78BFA'
     },
     severity: {
-      normal: '#81C784',
-      mild: '#AED581',
-      moderate: '#FFB74D',
-      severe: '#FF7043',
-      critical: '#EF5350'
+      normal: '#86EFAC',
+      mild: '#BBF7D0',
+      moderate: '#FCD34D',
+      severe: '#FB923C',
+      critical: '#F87171'
     },
-    // Department-specific color themes (dark mode)
+    // Department-specific color themes (dark mode - enhanced)
     departments: {
       emergency: {
-        primary: '#EF5350',
-        surface: 'rgba(239, 83, 80, 0.08)',
-        accent: '#F44336'
+        primary: '#F87171',
+        surface: 'rgba(248, 113, 113, 0.08)',
+        accent: '#FCA5A5'
       },
       cardiology: {
-        primary: '#F06292',
-        surface: 'rgba(240, 98, 146, 0.08)',
-        accent: '#E91E63'
+        primary: '#F472B6',
+        surface: 'rgba(244, 114, 182, 0.08)',
+        accent: '#FBCFE8'
       },
       pediatrics: {
-        primary: '#FFB74D',
-        surface: 'rgba(255, 183, 77, 0.08)',
-        accent: '#FF9800'
+        primary: '#FCD34D',
+        surface: 'rgba(252, 211, 77, 0.08)',
+        accent: '#FDE68A'
       },
       oncology: {
-        primary: '#BA68C8',
-        surface: 'rgba(186, 104, 200, 0.08)',
-        accent: '#9C27B0'
+        primary: '#C084FC',
+        surface: 'rgba(192, 132, 252, 0.08)',
+        accent: '#E9D5FF'
       },
       neurology: {
-        primary: '#7986CB',
-        surface: 'rgba(121, 134, 203, 0.08)',
-        accent: '#3F51B5'
+        primary: '#A78BFA',
+        surface: 'rgba(167, 139, 250, 0.08)',
+        accent: '#C4B5FD'
       }
     },
-    // Time-based themes for clinical shifts (dark mode)
+    // Time-based themes for clinical shifts (dark mode - enhanced)
     shifts: {
       day: {
-        background: '#1A202C',
-        surface: '#2D3748',
-        text: '#F7FAFC'
+        background: '#1E293B',
+        surface: '#334155',
+        text: '#F8FAFC'
       },
       night: {
-        background: '#0A0E13',
-        surface: '#1A202C',
+        background: '#0F172A',
+        surface: '#1E293B',
         text: '#E2E8F0'
       },
       emergency: {
-        background: '#2D1B14',
-        surface: '#4A2C17',
-        text: '#FFB74D'
+        background: '#27171A',
+        surface: '#3F1F24',
+        text: '#FCD34D'
       }
     },
     // Enhanced severity with psychological comfort levels (dark mode)
     comfort: {
-      reassuring: '#81C784',
-      concerning: '#FFB74D',
-      alarming: '#EF5350',
-      neutral: '#B0BEC5'
+      reassuring: '#86EFAC',
+      concerning: '#FCD34D',
+      alarming: '#F87171',
+      neutral: '#94A3B8'
     }
   },
   // Animation tokens
@@ -831,26 +831,44 @@ const getComponentOverrides = (palette) => ({
 export const createMedicalTheme = (themeName = 'professional', mode = 'light') => {
   let palette;
   
-  switch (themeName) {
-    case 'dark':
-      palette = darkMedicalPalette;
-      break;
-    case 'accessible':
-      palette = accessiblePalette;
-      break;
-    case 'warm':
-      palette = warmClinicalPalette;
-      break;
-    case 'professional':
-    default:
-      palette = professionalMedicalPalette;
-      break;
+  // For dark mode, use the enhanced dark medical palette as base
+  if (mode === 'dark') {
+    palette = { ...darkMedicalPalette };
+    
+    // Apply theme-specific adjustments to dark mode
+    switch (themeName) {
+      case 'accessible':
+        // High contrast adjustments for dark mode
+        palette.primary.main = '#66B2FF';
+        palette.secondary.main = '#66FF66';
+        palette.text.primary = '#FFFFFF';
+        palette.text.secondary = '#E0E0E0';
+        palette.divider = '#666666';
+        break;
+      case 'warm':
+        // Warm adjustments for dark mode
+        palette.primary.main = '#B794F4';
+        palette.secondary.main = '#F6AD55';
+        break;
+    }
+  } else {
+    // Light mode themes
+    switch (themeName) {
+      case 'accessible':
+        palette = accessiblePalette;
+        break;
+      case 'warm':
+        palette = warmClinicalPalette;
+        break;
+      case 'professional':
+      default:
+        palette = professionalMedicalPalette;
+        break;
+    }
   }
 
-  // Override mode if specified
-  if (mode) {
-    palette = { ...palette, mode };
-  }
+  // Ensure mode is set correctly
+  palette.mode = mode;
 
   const theme = createTheme({
     palette,

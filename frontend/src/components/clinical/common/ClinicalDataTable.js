@@ -35,8 +35,13 @@ import {
   getClinicalContext, 
   getSeverityColor, 
   getClinicalTypography,
-  getClinicalSpacing 
+  getClinicalSpacing,
+  getBorderRadius,
+  getElevationShadow,
+  getSmoothTransition,
+  getHoverEffect
 } from '../../../themes/clinicalThemeUtils';
+import { clinicalTokens } from '../../../themes/clinicalTheme';
 import StatusChip from './StatusChip';
 
 const ClinicalDataTable = ({
@@ -263,14 +268,37 @@ const ClinicalDataTable = ({
   
   return (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
-        borderRadius: theme.shape.borderRadius,
-        border: `1px solid ${theme.palette.divider}`,
-        overflow: 'hidden'
+        borderRadius: getBorderRadius('lg'),
+        boxShadow: getElevationShadow(2),
+        background: theme.palette.mode === 'dark' 
+          ? theme.palette.background.paper
+          : clinicalTokens.gradients?.backgroundCard || theme.palette.background.paper,
+        overflow: 'hidden',
+        position: 'relative',
+        ...getSmoothTransition(['all'])
       }}
     >
-      <TableContainer sx={{ maxHeight: stickyHeader ? 400 : 'none' }}>
+      <TableContainer sx={{ 
+        maxHeight: stickyHeader ? 400 : 'none',
+        '&::-webkit-scrollbar': {
+          width: 8,
+          height: 8
+        },
+        '&::-webkit-scrollbar-track': {
+          background: theme.palette.mode === 'dark'
+            ? alpha(theme.palette.background.paper, 0.2)
+            : alpha(theme.palette.background.default, 0.1)
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.4 : 0.2),
+          borderRadius: 4,
+          '&:hover': {
+            background: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.6 : 0.3)
+          }
+        }
+      }}>
         <Table 
           stickyHeader={stickyHeader}
           size={dense ? 'small' : 'medium'}
@@ -283,11 +311,18 @@ const ClinicalDataTable = ({
                   key={column.key}
                   align={column.align || 'left'}
                   sx={{
-                    backgroundColor: alpha(departmentColor, 0.05),
-                    borderBottom: `2px solid ${alpha(departmentColor, 0.1)}`,
+                    background: theme.palette.mode === 'dark'
+                      ? `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.paper, 0.85)} 100%)`
+                      : `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
+                    borderBottom: `2px solid ${alpha(departmentColor, theme.palette.mode === 'dark' ? 0.3 : 0.2)}`,
                     position: stickyHeader ? 'sticky' : 'static',
                     top: 0,
-                    zIndex: 1
+                    zIndex: 1,
+                    fontWeight: 600,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: stickyHeader 
+                      ? `0 2px 4px ${alpha(theme.palette.mode === 'dark' ? theme.palette.common.white : theme.palette.common.black, 0.1)}` 
+                      : 'none'
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -314,19 +349,49 @@ const ClinicalDataTable = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedData.map((row, index) => (
+            {paginatedData.map((row, rowIndex) => (
               <TableRow
-                key={row.id || index}
+                key={row.id || rowIndex}
                 hover
                 onClick={() => onRowClick?.(row)}
                 sx={{
                   cursor: onRowClick ? 'pointer' : 'default',
+                  // Zebra striping
+                  backgroundColor: rowIndex % 2 === 0 
+                    ? 'transparent' 
+                    : alpha(
+                        theme.palette.mode === 'dark' 
+                          ? theme.palette.background.paper 
+                          : theme.palette.background.default, 
+                        theme.palette.mode === 'dark' ? 0.5 : 0.3
+                      ),
+                  // Enhanced hover effect
                   '&:hover': {
-                    backgroundColor: alpha(departmentColor, 0.04)
+                    backgroundColor: alpha(departmentColor, theme.palette.mode === 'dark' ? 0.15 : 0.08),
+                    transform: 'translateY(-1px)',
+                    boxShadow: `0 2px 8px ${alpha(
+                      theme.palette.mode === 'dark' ? theme.palette.common.white : theme.palette.common.black, 
+                      0.05
+                    )}`,
+                    '& td': {
+                      backgroundColor: 'transparent'
+                    }
                   },
+                  // Smooth transitions
+                  ...getSmoothTransition(['all']),
                   // Add urgency styling
                   ...(urgency === 'urgent' && {
-                    borderLeft: `3px solid ${theme.palette.error.main}`
+                    borderLeft: `4px solid ${theme.palette.error.main}`,
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 4,
+                      background: `linear-gradient(180deg, ${theme.palette.error.main} 0%, ${alpha(theme.palette.error.main, 0.6)} 100%)`,
+                      animation: 'pulse 2s infinite'
+                    }
                   })
                 }}
               >
@@ -337,7 +402,12 @@ const ClinicalDataTable = ({
                     sx={{
                       py: spacing / 4,
                       px: spacing / 2,
-                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`
+                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                      position: 'relative',
+                      // Visual grouping for related columns
+                      ...(column.group && {
+                        borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                      })
                     }}
                   >
                     {renderCellContent(row, column)}
@@ -369,8 +439,15 @@ const ClinicalDataTable = ({
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           sx={{
-            borderTop: `1px solid ${theme.palette.divider}`,
-            backgroundColor: alpha(theme.palette.background.paper, 0.8)
+            borderTop: `2px solid ${alpha(departmentColor, 0.1)}`,
+            background: `linear-gradient(180deg, ${alpha(theme.palette.background.default, 0.5)} 0%, ${alpha(theme.palette.background.paper, 0.5)} 100%)`,
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              fontWeight: 500
+            },
+            '& .MuiTablePagination-select': {
+              borderRadius: getBorderRadius('sm'),
+              backgroundColor: alpha(theme.palette.background.paper, 0.8)
+            }
           }}
         />
       )}

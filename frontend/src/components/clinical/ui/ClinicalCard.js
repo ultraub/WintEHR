@@ -13,7 +13,9 @@ import {
   Divider,
   Skeleton,
   alpha,
-  useTheme
+  useTheme,
+  Fade,
+  Zoom
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -28,7 +30,16 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { severity as severityTokens, getClinicalSeverityStyles } from '../../../themes/clinicalTheme';
+import { 
+  getClinicalCardStyles, 
+  getHoverEffect, 
+  getElevationShadow,
+  getSeverityGradient,
+  getSpacing,
+  getBorderRadius,
+  getSmoothTransition
+} from '../../../themes/clinicalThemeUtils';
+import { clinicalTokens } from '../../../themes/clinicalTheme';
 
 // Severity icon mapping
 const severityIcons = {
@@ -54,6 +65,15 @@ const statusColors = {
   resolved: 'success',
   pending: 'warning',
   draft: 'default'
+};
+
+// Severity token mapping
+const severityTokens = {
+  critical: { color: 'error.main' },
+  high: { color: 'warning.main' },
+  moderate: { color: 'info.main' },
+  low: { color: 'success.main' },
+  normal: { color: 'text.secondary' }
 };
 
 const ClinicalCard = memo(({
@@ -99,8 +119,9 @@ const ClinicalCard = memo(({
   const [expanded, setExpanded] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
 
-  // Get severity styles
-  const severityStyles = getClinicalSeverityStyles(severity);
+  // Get modern clinical card styles
+  const cardStyles = getClinicalCardStyles(severity, elevation, hoverable);
+  const hoverStyles = hoverable ? getHoverEffect('lift', theme) : {};
 
   // Handle expansion
   const handleExpand = () => {
@@ -111,17 +132,44 @@ const ClinicalCard = memo(({
     }
   };
 
-  // Animation variants
+  // Enhanced animation variants
   const cardVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    hover: hoverable ? { y: -2, boxShadow: theme.shadows[4] } : {},
+    initial: { opacity: 0, y: 10, scale: 0.98 },
+    animate: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: {
+        duration: 0.3,
+        ease: [0.4, 0, 0.2, 1]
+      }
+    },
+    hover: hoverable ? { 
+      y: -2, 
+      scale: 1.01,
+      transition: {
+        duration: 0.2,
+        ease: [0.4, 0, 0.2, 1]
+      }
+    } : {},
     tap: { scale: 0.98 }
   };
 
   const contentVariants = {
     collapsed: { height: 0, opacity: 0 },
-    expanded: { height: 'auto', opacity: 1 }
+    expanded: { 
+      height: 'auto', 
+      opacity: 1,
+      transition: {
+        height: {
+          duration: 0.3
+        },
+        opacity: {
+          duration: 0.2,
+          delay: 0.1
+        }
+      }
+    }
   };
 
   if (loading) {
@@ -145,7 +193,6 @@ const ClinicalCard = memo(({
       animate="animate"
       whileHover="hover"
       whileTap="tap"
-      transition={{ duration: 0.2 }}
     >
       <Card 
         elevation={elevation}
@@ -154,13 +201,29 @@ const ClinicalCard = memo(({
         sx={{
           cursor: onClick ? 'pointer' : 'default',
           position: 'relative',
-          overflow: 'visible',
-          ...severityStyles,
+          overflow: 'hidden',
+          borderRadius: getBorderRadius('lg'),
+          ...cardStyles,
+          ...hoverStyles,
           ...sx
         }}
         {...otherProps}
       >
-        {/* Severity indicator bar */}
+        {/* Modern gradient background */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: getSeverityGradient(severity),
+            opacity: theme.palette.mode === 'dark' ? 0.08 : 0.03,
+            pointerEvents: 'none'
+          }}
+        />
+        
+        {/* Severity indicator bar with gradient */}
         <Box
           sx={{
             position: 'absolute',
@@ -168,9 +231,12 @@ const ClinicalCard = memo(({
             top: 0,
             bottom: 0,
             width: 4,
-            backgroundColor: severityTokens[severity]?.color || theme.palette.grey[400],
-            borderTopLeftRadius: theme.shape.borderRadius,
-            borderBottomLeftRadius: theme.shape.borderRadius
+            background: clinicalTokens.severity[severity]?.gradient || clinicalTokens.severity[severity]?.color,
+            boxShadow: theme.palette.mode === 'dark' 
+              ? `2px 0 12px ${alpha(clinicalTokens.severity[severity]?.color || '#fff', 0.3)}`
+              : `2px 0 8px ${alpha(clinicalTokens.severity[severity]?.color || '#000', 0.1)}`,
+            borderTopLeftRadius: getBorderRadius('lg'),
+            borderBottomLeftRadius: getBorderRadius('lg')
           }}
         />
 
@@ -216,25 +282,44 @@ const ClinicalCard = memo(({
                 </Typography>
               )}
 
-              {/* Tags and status */}
+              {/* Tags and status with enhanced styling */}
               {(tags.length > 0 || status) && (
                 <Stack direction="row" spacing={1} mt={1} flexWrap="wrap">
                   {status && (
-                    <Chip
-                      size="small"
-                      label={status}
-                      color={statusColors[status] || 'default'}
-                      sx={{ height: 20 }}
-                    />
+                    <Zoom in={true} style={{ transitionDelay: '100ms' }}>
+                      <Chip
+                        size="small"
+                        label={status}
+                        color={statusColors[status] || 'default'}
+                        sx={{ 
+                          height: 24,
+                          borderRadius: '12px',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          boxShadow: `0 2px 4px ${alpha(theme.palette[statusColors[status] || 'grey'].main, 0.2)}`,
+                          ...getSmoothTransition(['all'])
+                        }}
+                      />
+                    </Zoom>
                   )}
                   {tags.map((tag, index) => (
-                    <Chip
-                      key={index}
-                      size="small"
-                      label={tag}
-                      variant="outlined"
-                      sx={{ height: 20 }}
-                    />
+                    <Zoom key={index} in={true} style={{ transitionDelay: `${150 + index * 50}ms` }}>
+                      <Chip
+                        size="small"
+                        label={tag}
+                        variant="outlined"
+                        sx={{ 
+                          height: 24,
+                          borderRadius: '12px',
+                          borderWidth: 1.5,
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                            borderColor: theme.palette.primary.main
+                          },
+                          ...getSmoothTransition(['all'])
+                        }}
+                      />
+                    </Zoom>
                   ))}
                 </Stack>
               )}

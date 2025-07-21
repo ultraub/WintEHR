@@ -7,6 +7,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { createMedicalTheme } from './themes/medicalTheme';
 import { getClinicalContext, applyDepartmentTheme, applyShiftTheme } from './themes/clinicalThemeUtils';
+import PageTransitionProvider from './components/transitions/PageTransitionProvider';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppProviders } from './providers/AppProviders';

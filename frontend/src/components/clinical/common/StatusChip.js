@@ -125,11 +125,16 @@ const StatusChip = ({
   };
 
   if (variant === 'clinical') {
-    // Custom styling for clinical variant
+    // Custom styling for clinical variant with dark mode support
+    const isDarkMode = theme.palette.mode === 'dark';
     chipProps.sx = {
-      backgroundColor: `${statusConfig.color}20`,
+      backgroundColor: theme.palette.mode === 'dark' 
+        ? `${statusConfig.color}30` 
+        : `${statusConfig.color}20`,
       color: statusConfig.color,
-      borderColor: `${statusConfig.color}40`,
+      borderColor: theme.palette.mode === 'dark'
+        ? `${statusConfig.color}50`
+        : `${statusConfig.color}40`,
       border: 1,
       fontWeight: 500,
       '& .MuiChip-icon': {
@@ -140,9 +145,11 @@ const StatusChip = ({
       },
       transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
       '&:hover': {
-        backgroundColor: `${statusConfig.color}30`,
+        backgroundColor: theme.palette.mode === 'dark'
+          ? `${statusConfig.color}40`
+          : `${statusConfig.color}30`,
         transform: hoverAnimation.transform,
-        boxShadow: `0 2px 4px ${statusConfig.color}40`
+        boxShadow: `0 2px 4px ${statusConfig.color}${isDarkMode ? '50' : '40'}`
       },
       // Add urgency indicator
       ...(urgency === 'urgent' && {

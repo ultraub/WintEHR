@@ -78,8 +78,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
 import NotificationBell from './NotificationBell';
-import ThemeSwitcher from './theme/ThemeSwitcher';
+import QuickThemeToggle from './theme/QuickThemeToggle';
 import SearchBar from './SearchBar';
+import TransitionWrapper from './transitions/TransitionWrapper';
 
 const drawerWidth = 280;
 
@@ -395,11 +396,10 @@ function LayoutV3({ children }) {
           
           {/* Toolbar Actions */}
           <Stack direction="row" spacing={1} alignItems="center">
-            <ThemeSwitcher 
-              currentTheme={medicalThemeContext?.currentTheme}
-              currentMode={medicalThemeContext?.currentMode}
-              onThemeChange={medicalThemeContext?.onThemeChange}
-              onModeChange={medicalThemeContext?.onModeChange}
+            <QuickThemeToggle 
+              showLabel={false}
+              size="medium"
+              position="header"
             />
             
             <NotificationBell />
@@ -493,7 +493,9 @@ function LayoutV3({ children }) {
         <Toolbar />
         <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
           <BreadcrumbNavigation location={location} />
-          {children}
+          <TransitionWrapper transition="fade" duration={300}>
+            {children}
+          </TransitionWrapper>
         </Box>
       </Box>
 
