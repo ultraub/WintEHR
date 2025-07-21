@@ -7,6 +7,8 @@
  * - Dosage calculations and frequency suggestions
  * - Drug interaction checking via CDS
  * - Beautiful Material-UI design with smooth animations
+ * 
+ * @since 2025-01-20
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -66,7 +68,6 @@ import {
   Warning as WarningIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
-  CheckCircle as CheckCircleIcon,
   AccessTime as ClockIcon,
   CalendarToday as DateIcon,
   Notes as NotesIcon,
@@ -80,7 +81,7 @@ import {
   Info as InfoIcon,
   Star as StarIcon,
   Refresh as RefillIcon,
-  LocalHospital as HospitalIcon
+  LocalHospital as HospitalIcon,
 } from '@mui/icons-material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -113,9 +114,9 @@ const getMedicationDosageDisplay = (dosage) => {
   return parts.join(', ');
 };
 
-const searchMedications = async (query) => {
+const searchMedicationsCatalog = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('medications');
+    const catalog = await cdsClinicalDataService.getDynamicMedicationCatalog();
     const searchTerm = query.toLowerCase();
     return catalog.filter(item => 
       item.display?.toLowerCase().includes(searchTerm) ||
@@ -138,10 +139,10 @@ const STEPS = ['Search Medication', 'Dosage & Instructions', 'Review & Prescribe
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active', icon: <ActiveIcon />, color: 'success' },
   { value: 'on-hold', label: 'On Hold', icon: <ClockIcon />, color: 'warning' },
-  { value: 'cancelled', label: 'Cancelled', icon: <CancelIcon />, color: 'error' },
-  { value: 'completed', label: 'Completed', icon: <CheckCircleIcon />, color: 'info' },
-  { value: 'entered-in-error', label: 'Entered in Error', icon: <CancelIcon />, color: 'error' },
-  { value: 'stopped', label: 'Stopped', icon: <CancelIcon />, color: 'default' }
+  { value: 'cancelled', label: 'Cancelled', icon: <InactiveIcon />, color: 'error' },
+  { value: 'completed', label: 'Completed', icon: <ActiveIcon />, color: 'info' },
+  { value: 'entered-in-error', label: 'Entered in Error', icon: <InactiveIcon />, color: 'error' },
+  { value: 'stopped', label: 'Stopped', icon: <InactiveIcon />, color: 'default' }
 ];
 
 const INTENT_OPTIONS = [
@@ -792,7 +793,7 @@ const MedicationDialogEnhanced = ({
                   >
                     <Stack direction="row" alignItems="center" spacing={2}>
                       <Avatar sx={{ bgcolor: theme.palette.success.main }}>
-                        <CheckCircle />
+                        <ActiveIcon />
                       </Avatar>
                       <Box flex={1}>
                         <Typography variant="subtitle1" fontWeight="medium">

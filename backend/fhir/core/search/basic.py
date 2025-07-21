@@ -25,7 +25,7 @@ class SearchParameterHandler:
     
     # Search parameter modifiers
     STRING_MODIFIERS = {':exact', ':contains', ':text'}
-    TOKEN_MODIFIERS = {':text', ':not', ':above', ':below', ':in', ':not-in'}
+    TOKEN_MODIFIERS = {':exact', ':text', ':not', ':above', ':below', ':in', ':not-in'}
     DATE_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     NUMBER_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     QUANTITY_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}

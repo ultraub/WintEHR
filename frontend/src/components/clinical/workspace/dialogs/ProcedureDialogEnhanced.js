@@ -85,12 +85,51 @@ import cdsClinicalDataService from '../../../../services/cdsClinicalDataService'
 
 const searchProcedures = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('procedures');
-    const searchTerm = query.toLowerCase();
-    return catalog.filter(item => 
-      item.display?.toLowerCase().includes(searchTerm) ||
-      item.code?.toLowerCase().includes(searchTerm)
-    );
+    // Search for procedures in the system by status
+    const searchParams = {
+      _count: 100,
+      _sort: '-date',
+      status: 'completed,in-progress,preparation'
+    };
+    
+    if (query) {
+      // Add text search if query provided
+      searchParams._text = query;
+    }
+    
+    const bundle = await fhirService.searchResources('Procedure', searchParams);
+    const procedures = bundle.entry?.map(entry => entry.resource) || [];
+    
+    // Extract unique procedure codes and names
+    const procedureMap = new Map();
+    
+    procedures.forEach(proc => {
+      if (proc.code?.coding) {
+        proc.code.coding.forEach(coding => {
+          const key = coding.code || coding.display;
+          if (key && !procedureMap.has(key)) {
+            procedureMap.set(key, {
+              code: coding.code,
+              display: coding.display || proc.code.text || 'Unknown Procedure',
+              system: coding.system
+            });
+          }
+        });
+      }
+    });
+    
+    // Convert to array and filter by query if provided
+    let results = Array.from(procedureMap.values());
+    
+    if (query) {
+      const searchTerm = query.toLowerCase();
+      results = results.filter(item => 
+        item.display?.toLowerCase().includes(searchTerm) ||
+        item.code?.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return results.slice(0, 20); // Limit results
   } catch (error) {
     console.error('Error searching procedures:', error);
     return [];

@@ -1,50 +1,18 @@
 {
-  "timestamp": "2025-07-21T00:09:17.314057",
+  "timestamp": "2025-07-21T00:44:07.400604",
   "summary": {
-    "total": 17,
-    "passed": 12,
-    "failed": 5,
-    "pass_rate": 70.58823529411765
+    "total": 16,
+    "passed": 15,
+    "failed": 1,
+    "pass_rate": 93.75
   },
   "failed_tests": [
     {
-      "name": "search_by_gender_unknown",
-      "description": "Search patients by gender: unknown",
-      "status": "failed",
+      "name": "search_by_family_name",
+      "description": "Search patient by family name: Hoppe518",
+      "status": "error",
       "errors": [
-        "Expected 6 results, got 0"
-      ]
-    },
-    {
-      "name": "search_observation_by_code_85354-9",
-      "description": "Search observations by code 85354-9 (Blood pressure panel with all children optional)",
-      "status": "failed",
-      "errors": [
-        "Expected 84 results, got 87"
-      ]
-    },
-    {
-      "name": "search_observations_by_patient",
-      "description": "Search observations for patient {\"reference\": \"c0219ca9-576f-f7c2-9c44-de030e94969b\"}",
-      "status": "failed",
-      "errors": [
-        "Expected 278 results, got 0"
-      ]
-    },
-    {
-      "name": "search_conditions_by_status_active",
-      "description": "Search conditions with clinical status: active",
-      "status": "failed",
-      "errors": [
-        "Expected 78 results, got 64"
-      ]
-    },
-    {
-      "name": "search_conditions_by_status_resolved",
-      "description": "Search conditions with clinical status: resolved",
-      "status": "failed",
-      "errors": [
-        "Expected 157 results, got 155"
+        "Exception: "
       ]
     }
   ]

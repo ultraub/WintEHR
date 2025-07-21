@@ -88,12 +88,83 @@ import cdsClinicalDataService from '../../../../services/cdsClinicalDataService'
 
 const searchServiceRequests = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('services');
-    const searchTerm = query.toLowerCase();
-    return catalog.filter(item => 
-      item.display?.toLowerCase().includes(searchTerm) ||
-      item.code?.toLowerCase().includes(searchTerm)
-    );
+    // Search for services from existing ServiceRequest resources
+    const searchParams = {
+      _count: 100,
+      _sort: '-authored'
+    };
+    
+    if (query) {
+      searchParams._text = query;
+    }
+    
+    const bundle = await fhirService.searchResources('ServiceRequest', searchParams);
+    const requests = bundle.entry?.map(entry => entry.resource) || [];
+    
+    // Extract unique services
+    const serviceMap = new Map();
+    
+    requests.forEach(request => {
+      if (request.code?.coding) {
+        request.code.coding.forEach(coding => {
+          const key = coding.code || coding.display;
+          if (key && !serviceMap.has(key)) {
+            serviceMap.set(key, {
+              code: coding.code,
+              display: coding.display || request.code.text || 'Unknown Service',
+              system: coding.system
+            });
+          }
+        });
+      }
+    });
+    
+    // Add common service requests if search is empty or general
+    if (!query || query.length < 3) {
+      const commonServices = [
+        { code: '387713003', display: 'Surgical procedure', system: 'http://snomed.info/sct' },
+        { code: '363679005', display: 'Imaging', system: 'http://snomed.info/sct' },
+        { code: '409073007', display: 'Education', system: 'http://snomed.info/sct' },
+        { code: '386053000', display: 'Evaluation procedure', system: 'http://snomed.info/sct' },
+        { code: '108252007', display: 'Laboratory procedure', system: 'http://snomed.info/sct' },
+        { code: '71388002', display: 'Procedure', system: 'http://snomed.info/sct' }
+      ];
+      
+      commonServices.forEach(service => {
+        if (!serviceMap.has(service.code)) {
+          serviceMap.set(service.code, service);
+        }
+      });
+    }
+    
+    // Also search lab catalog since lab tests are often ordered as service requests
+    try {
+      const labTests = await cdsClinicalDataService.getLabCatalog(query, null, 10);
+      labTests.forEach(test => {
+        if (!serviceMap.has(test.code)) {
+          serviceMap.set(test.code, {
+            code: test.code,
+            display: test.display || test.name,
+            system: test.system || 'http://loinc.org'
+          });
+        }
+      });
+    } catch (error) {
+      // Ignore errors from lab catalog
+    }
+    
+    // Convert to array and filter by query if provided
+    let results = Array.from(serviceMap.values());
+    
+    if (query) {
+      const searchTerm = query.toLowerCase();
+      results = results.filter(item => 
+        item.display?.toLowerCase().includes(searchTerm) ||
+        item.code?.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return results.slice(0, 20); // Limit results
   } catch (error) {
     console.error('Error searching service requests:', error);
     return [];

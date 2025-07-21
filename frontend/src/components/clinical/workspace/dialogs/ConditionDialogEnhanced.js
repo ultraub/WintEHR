@@ -63,7 +63,6 @@ import {
   Lightbulb as SuggestionIcon,
   TrendingUp as TrendingIcon,
   Warning as WarningIcon,
-  CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
   Help as UnknownIcon,
   AccessTime as ClockIcon,
@@ -91,7 +90,7 @@ import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 // Helper function for searching conditions
 const searchConditions = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('conditions');
+    const catalog = await cdsClinicalDataService.getDynamicConditionCatalog();
     const searchTerm = query.toLowerCase();
     return catalog.filter(item => 
       item.display?.toLowerCase().includes(searchTerm) ||
@@ -107,7 +106,7 @@ const searchConditions = async (query) => {
 const STEPS = ['Search & Select', 'Clinical Details', 'Review & Save'];
 
 const CLINICAL_STATUS_OPTIONS = [
-  { value: 'active', label: 'Active', icon: <ActiveIcon />, color: 'success' },
+  { value: 'active', label: 'Active', icon: <CheckCircleIcon />, color: 'success' },
   { value: 'recurrence', label: 'Recurrence', icon: <TrendingIcon />, color: 'warning' },
   { value: 'relapse', label: 'Relapse', icon: <WarningIcon />, color: 'warning' },
   { value: 'inactive', label: 'Inactive', icon: <InactiveIcon />, color: 'default' },
@@ -592,7 +591,7 @@ const ConditionDialogEnhanced = ({
                   >
                     <Stack direction="row" alignItems="center" spacing={2}>
                       <Avatar sx={{ bgcolor: theme.palette.success.main }}>
-                        <CheckCircle />
+                        <CheckCircleIcon />
                       </Avatar>
                       <Box flex={1}>
                         <Typography variant="subtitle1" fontWeight="medium">

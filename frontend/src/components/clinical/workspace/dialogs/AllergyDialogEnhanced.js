@@ -98,12 +98,71 @@ import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 
 const searchAllergens = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('allergens');
-    const searchTerm = query.toLowerCase();
-    return catalog.filter(item => 
-      item.display?.toLowerCase().includes(searchTerm) ||
-      item.code?.toLowerCase().includes(searchTerm)
-    );
+    // Search for allergens from existing AllergyIntolerance resources
+    const searchParams = {
+      _count: 100,
+      _sort: '-date'
+    };
+    
+    if (query) {
+      searchParams._text = query;
+    }
+    
+    const bundle = await fhirService.searchResources('AllergyIntolerance', searchParams);
+    const allergies = bundle.entry?.map(entry => entry.resource) || [];
+    
+    // Extract unique allergens
+    const allergenMap = new Map();
+    
+    allergies.forEach(allergy => {
+      if (allergy.code?.coding) {
+        allergy.code.coding.forEach(coding => {
+          const key = coding.code || coding.display;
+          if (key && !allergenMap.has(key)) {
+            allergenMap.set(key, {
+              code: coding.code,
+              display: coding.display || allergy.code.text || 'Unknown Allergen',
+              system: coding.system
+            });
+          }
+        });
+      }
+    });
+    
+    // Add common allergens if search is empty or general
+    if (!query || query.length < 3) {
+      const commonAllergens = [
+        { code: '387406002', display: 'Sulfonamide (substance)', system: 'http://snomed.info/sct' },
+        { code: '7980', display: 'Penicillin V', system: 'http://www.nlm.nih.gov/research/umls/rxnorm' },
+        { code: '227493005', display: 'Cashew nut', system: 'http://snomed.info/sct' },
+        { code: '256349002', display: 'Peanut', system: 'http://snomed.info/sct' },
+        { code: '102263004', display: 'Eggs', system: 'http://snomed.info/sct' },
+        { code: '3718001', display: 'Cow\'s milk', system: 'http://snomed.info/sct' },
+        { code: '111088007', display: 'Latex', system: 'http://snomed.info/sct' },
+        { code: '424213003', display: 'Bee venom', system: 'http://snomed.info/sct' },
+        { code: '91936005', display: 'Allergy to penicillin', system: 'http://snomed.info/sct' },
+        { code: '418689008', display: 'Allergy to grass pollen', system: 'http://snomed.info/sct' }
+      ];
+      
+      commonAllergens.forEach(allergen => {
+        if (!allergenMap.has(allergen.code)) {
+          allergenMap.set(allergen.code, allergen);
+        }
+      });
+    }
+    
+    // Convert to array and filter by query if provided
+    let results = Array.from(allergenMap.values());
+    
+    if (query) {
+      const searchTerm = query.toLowerCase();
+      results = results.filter(item => 
+        item.display?.toLowerCase().includes(searchTerm) ||
+        item.code?.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return results.slice(0, 20); // Limit results
   } catch (error) {
     console.error('Error searching allergens:', error);
     return [];

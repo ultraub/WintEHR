@@ -86,12 +86,13 @@ class DataDrivenTestGenerator:
                     }
                 })
         
-        # Test 2: Search by gender
+        # Test 2: Search by gender (only for active patients)
         genders = await self.conn.fetch("""
             SELECT DISTINCT resource->>'gender' as gender, COUNT(*) as count
             FROM fhir.resources
             WHERE resource_type = 'Patient'
             AND resource->>'gender' IS NOT NULL
+            AND deleted = false
             GROUP BY gender
         """)
         
@@ -137,6 +138,7 @@ class DataDrivenTestGenerator:
             FROM fhir.resources
             WHERE resource_type = 'Patient'
             AND resource->>'deceasedDateTime' IS NOT NULL
+            AND deleted = false
         """)
         
         living_count = len(patients) - deceased_count
@@ -172,16 +174,17 @@ class DataDrivenTestGenerator:
         """Generate tests for Observation searches using real data."""
         print("\n🔬 Generating Observation search tests...")
         
-        # Get common observation codes
+        # Get common observation codes (only for active observations)
         codes = await self.conn.fetch("""
             SELECT 
                 resource->'code'->'coding'->0->>'code' as code,
-                resource->'code'->>'text' as display,
+                MAX(resource->'code'->>'text') as display,
                 COUNT(*) as count
             FROM fhir.resources
             WHERE resource_type = 'Observation'
             AND resource->'code'->'coding'->0->>'code' IS NOT NULL
-            GROUP BY code, display
+            AND deleted = false
+            GROUP BY resource->'code'->'coding'->0->>'code'
             ORDER BY count DESC
             LIMIT 5
         """)
@@ -204,14 +207,15 @@ class DataDrivenTestGenerator:
                 }
             })
         
-        # Test by patient
+        # Test by patient (only active observations)
         patient_obs = await self.conn.fetchrow("""
             SELECT 
-                resource->>'subject' as subject_ref,
+                resource->'subject'->>'reference' as subject_ref,
                 COUNT(*) as count
             FROM fhir.resources
             WHERE resource_type = 'Observation'
-            AND resource->>'subject' IS NOT NULL
+            AND resource->'subject'->>'reference' IS NOT NULL
+            AND deleted = false
             GROUP BY subject_ref
             ORDER BY count DESC
             LIMIT 1
@@ -280,7 +284,7 @@ class DataDrivenTestGenerator:
         
         test_cases = []
         
-        # Test by clinical status
+        # Test by clinical status (only for active conditions)
         statuses = await self.conn.fetch("""
             SELECT 
                 resource->'clinicalStatus'->'coding'->0->>'code' as status,
@@ -288,6 +292,7 @@ class DataDrivenTestGenerator:
             FROM fhir.resources
             WHERE resource_type = 'Condition'
             AND resource->'clinicalStatus'->'coding'->0->>'code' IS NOT NULL
+            AND deleted = false
             GROUP BY status
         """)
         

@@ -97,12 +97,86 @@ import cdsClinicalDataService from '../../../../services/cdsClinicalDataService'
 
 const searchDiagnosticReports = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('diagnostic-reports');
-    const searchTerm = query.toLowerCase();
-    return catalog.filter(item => 
-      item.display?.toLowerCase().includes(searchTerm) ||
-      item.code?.toLowerCase().includes(searchTerm)
-    );
+    // Search for diagnostic report types from existing resources
+    const searchParams = {
+      _count: 100,
+      _sort: '-date'
+    };
+    
+    if (query) {
+      searchParams._text = query;
+    }
+    
+    const bundle = await fhirService.searchResources('DiagnosticReport', searchParams);
+    const reports = bundle.entry?.map(entry => entry.resource) || [];
+    
+    // Extract unique report types
+    const reportMap = new Map();
+    
+    reports.forEach(report => {
+      if (report.code?.coding) {
+        report.code.coding.forEach(coding => {
+          const key = coding.code || coding.display;
+          if (key && !reportMap.has(key)) {
+            reportMap.set(key, {
+              code: coding.code,
+              display: coding.display || report.code.text || 'Unknown Report',
+              system: coding.system
+            });
+          }
+        });
+      }
+    });
+    
+    // Use lab catalog as diagnostic reports often relate to lab tests
+    try {
+      const labTests = await cdsClinicalDataService.getLabCatalog(query, null, 15);
+      labTests.forEach(test => {
+        const reportCode = test.code + '-report';
+        if (!reportMap.has(reportCode)) {
+          reportMap.set(reportCode, {
+            code: test.code,
+            display: test.display || test.name,
+            system: test.system || 'http://loinc.org'
+          });
+        }
+      });
+    } catch (error) {
+      // Ignore errors from lab catalog
+    }
+    
+    // Add common diagnostic report types if search is empty or general
+    if (!query || query.length < 3) {
+      const commonReports = [
+        { code: '58410-2', display: 'Complete blood count (hemogram) panel', system: 'http://loinc.org' },
+        { code: '24323-8', display: 'Comprehensive metabolic panel', system: 'http://loinc.org' },
+        { code: '57021-8', display: 'CBC W Auto Differential panel', system: 'http://loinc.org' },
+        { code: '2093-3', display: 'Cholesterol [Mass/volume] in Serum or Plasma', system: 'http://loinc.org' },
+        { code: '48620-9', display: 'HbA1c panel', system: 'http://loinc.org' },
+        { code: '24360-0', display: 'Hemoglobin and Hematocrit panel', system: 'http://loinc.org' },
+        { code: '24331-1', display: 'Lipid panel', system: 'http://loinc.org' },
+        { code: '1759-0', display: 'Albumin/Globulin', system: 'http://loinc.org' }
+      ];
+      
+      commonReports.forEach(report => {
+        if (!reportMap.has(report.code)) {
+          reportMap.set(report.code, report);
+        }
+      });
+    }
+    
+    // Convert to array and filter by query if provided
+    let results = Array.from(reportMap.values());
+    
+    if (query) {
+      const searchTerm = query.toLowerCase();
+      results = results.filter(item => 
+        item.display?.toLowerCase().includes(searchTerm) ||
+        item.code?.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return results.slice(0, 20); // Limit results
   } catch (error) {
     console.error('Error searching diagnostic reports:', error);
     return [];

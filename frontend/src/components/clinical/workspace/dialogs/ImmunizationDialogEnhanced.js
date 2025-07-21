@@ -1,3 +1,4 @@
+// Enhanced Immunization Dialog
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Dialog,
@@ -71,7 +72,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInDays, addDays, isAfter, isBefore } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -80,12 +81,81 @@ import cdsClinicalDataService from '../../../../services/cdsClinicalDataService'
 
 const searchImmunizations = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('immunizations');
-    const searchTerm = query.toLowerCase();
-    return catalog.filter(item => 
-      item.display?.toLowerCase().includes(searchTerm) ||
-      item.code?.toLowerCase().includes(searchTerm)
-    );
+    // Search for immunizations from existing resources
+    const searchParams = {
+      _count: 100,
+      _sort: '-date'
+    };
+    
+    if (query) {
+      searchParams._text = query;
+    }
+    
+    const bundle = await fhirService.searchResources('Immunization', searchParams);
+    const immunizations = bundle.entry?.map(entry => entry.resource) || [];
+    
+    // Extract unique vaccine codes
+    const vaccineMap = new Map();
+    
+    immunizations.forEach(immunization => {
+      if (immunization.vaccineCode?.coding) {
+        immunization.vaccineCode.coding.forEach(coding => {
+          const key = coding.code || coding.display;
+          if (key && !vaccineMap.has(key)) {
+            vaccineMap.set(key, {
+              code: coding.code,
+              display: coding.display || immunization.vaccineCode.text || 'Unknown Vaccine',
+              system: coding.system
+            });
+          }
+        });
+      }
+    });
+    
+    // Add common vaccines if search is empty or general
+    if (!query || query.length < 3) {
+      const commonVaccines = [
+        { code: '207', display: 'COVID-19, mRNA, LNP-S, PF, 100 mcg/0.5mL dose', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '208', display: 'COVID-19, mRNA, LNP-S, PF, 30 mcg/0.3mL dose', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '141', display: 'Influenza, seasonal, injectable', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '140', display: 'Influenza, seasonal, injectable, preservative free', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '115', display: 'Tdap', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '110', display: 'DTaP-Hep B-IPV', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '120', display: 'DTaP-Hib-IPV', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '83', display: 'Hep A, ped/adol, 2 dose', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '133', display: 'Pneumococcal conjugate PCV 13', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '33', display: 'Pneumococcal polysaccharide PPV23', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '03', display: 'MMR', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '119', display: 'Rotavirus, monovalent', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '116', display: 'Rotavirus, pentavalent', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '21', display: 'Varicella', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '121', display: 'Zoster', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '187', display: 'Zoster recombinant', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '62', display: 'HPV, quadrivalent', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '165', display: 'HPV, 9-valent', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '88', display: 'Influenza, NOS', system: 'http://hl7.org/fhir/sid/cvx' },
+        { code: '113', display: 'Td (adult)', system: 'http://hl7.org/fhir/sid/cvx' }
+      ];
+      
+      commonVaccines.forEach(vaccine => {
+        if (!vaccineMap.has(vaccine.code)) {
+          vaccineMap.set(vaccine.code, vaccine);
+        }
+      });
+    }
+    
+    // Convert to array and filter by query if provided
+    let results = Array.from(vaccineMap.values());
+    
+    if (query) {
+      const searchTerm = query.toLowerCase();
+      results = results.filter(item => 
+        item.display?.toLowerCase().includes(searchTerm) ||
+        item.code?.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    return results.slice(0, 20); // Limit results
   } catch (error) {
     console.error('Error searching immunizations:', error);
     return [];
@@ -134,7 +204,7 @@ const ImmunizationDialogEnhanced = ({
 }) => {
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
-  const fhirClient = useFHIRClient();
+  const { resources } = useFHIRResource();
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);

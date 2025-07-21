@@ -89,7 +89,7 @@ import cdsClinicalDataService from '../../../../services/cdsClinicalDataService'
 
 const searchObservations = async (query) => {
   try {
-    const catalog = await cdsClinicalDataService.getClinicalCatalog('lab-observations');
+    const catalog = await cdsClinicalDataService.getLabCatalog();
     const searchTerm = query.toLowerCase();
     return catalog.filter(item => 
       item.display?.toLowerCase().includes(searchTerm) ||

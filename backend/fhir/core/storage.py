@@ -159,6 +159,7 @@ class FHIRStorageEngine:
                 'clinical-status': {'type': 'token'},
                 'severity': {'type': 'token'},
                 'onset-date': {'type': 'date'},
+                'recorded-date': {'type': 'date'},
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'}
@@ -2541,6 +2542,28 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse onsetPeriod.start: {resource_data.get('onsetPeriod', {}).get('start')} - {e}")
+            
+            # Recorded date
+            if 'recordedDate' in resource_data:
+                try:
+                    # Handle both datetime and date formats
+                    recorded_date_str = resource_data['recordedDate']
+                    if 'T' in recorded_date_str:
+                        # Full datetime
+                        recorded_date = datetime.fromisoformat(
+                            recorded_date_str.replace('Z', '+00:00')
+                        )
+                    else:
+                        # Date only
+                        recorded_date = datetime.strptime(recorded_date_str, '%Y-%m-%d')
+                    
+                    params_to_extract.append({
+                        'param_name': 'recorded-date',
+                        'param_type': 'date',
+                        'value_date': recorded_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse recordedDate: {resource_data.get('recordedDate')} - {e}")
         
         elif resource_type == 'MedicationRequest':
             # Medication code

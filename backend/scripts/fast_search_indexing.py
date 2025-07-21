@@ -134,6 +134,11 @@ class FastSearchParameterIndexer:
                     # Add to batch
                     batch.append(resource_id)
                     for param in params:
+                        # For token types, populate value_token with the code value
+                        value_token = None
+                        if param['param_type'] == 'token' and param.get('value_token_code'):
+                            value_token = param.get('value_token_code')
+                        
                         batch_params.append((
                             resource_id,
                             resource_type,
@@ -144,6 +149,7 @@ class FastSearchParameterIndexer:
                             param.get('value_date'),
                             param.get('value_quantity_value'),
                             param.get('value_quantity_unit'),
+                            value_token,
                             param.get('value_token_system'),
                             param.get('value_token_code'),
                             param.get('value_reference')
@@ -190,8 +196,8 @@ class FastSearchParameterIndexer:
                         resource_id, resource_type, param_name, param_type,
                         value_string, value_number, value_date, value_quantity_value,
                         value_quantity_unit,
-                        value_token_system, value_token_code, value_reference
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        value_token, value_token_system, value_token_code, value_reference
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 """, params)
     
     def _print_summary(self):
