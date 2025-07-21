@@ -327,6 +327,60 @@ function fhirResourceReducer(state, action) {
   }
 }
 
+// Standardize response format across all components
+const standardizeResponse = (result) => {
+  // Handle null/undefined
+  if (!result) {
+    return { resources: [], total: 0, bundle: null };
+  }
+
+  // Already standardized format
+  if (result.resources !== undefined && result.total !== undefined) {
+    return result;
+  }
+
+  // Array format
+  if (Array.isArray(result)) {
+    return {
+      resources: result,
+      total: result.length,
+      bundle: {
+        resourceType: 'Bundle',
+        type: 'searchset',
+        total: result.length,
+        entry: result.map(r => ({ resource: r }))
+      }
+    };
+  }
+
+  // Direct Bundle format
+  if (result.resourceType === 'Bundle') {
+    const resources = result.entry?.map(e => e.resource).filter(Boolean) || [];
+    return {
+      resources: resources,
+      total: result.total || resources.length,
+      bundle: result
+    };
+  }
+
+  // Single resource
+  if (result.resourceType) {
+    return {
+      resources: [result],
+      total: 1,
+      bundle: {
+        resourceType: 'Bundle',
+        type: 'searchset',
+        total: 1,
+        entry: [{ resource: result }]
+      }
+    };
+  }
+
+  // Fallback
+  return { resources: [], total: 0, bundle: null };
+};
+
 // Create Context
 const FHIRResourceContext = createContext();
 
@@ -571,7 +625,10 @@ export function FHIRResourceProvider({ children }) {
     // Create the promise and store it
     const searchPromise = (async () => {
       try {
-        const result = await fhirClient.search(resourceType, enhancedParams);
+        const rawResult = await fhirClient.search(resourceType, enhancedParams);
+        
+        // Standardize the response
+        const result = standardizeResponse(rawResult);
       
       if (result.resources && result.resources.length > 0) {
         setResources(resourceType, result.resources);
@@ -1357,10 +1414,14 @@ export function FHIRResourceProvider({ children }) {
     clearCache,
     getCachedData,
     setCachedData,
+    standardizeResponse,
     
     // Cache coordination
     warmPatientCache,
-    isCacheWarm
+    isCacheWarm,
+    
+    // Direct fhirClient access for advanced usage
+    fhirClient
   };
 
   return (

@@ -5,8 +5,9 @@
  * for the FHIR Explorer v4 application
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { FHIRResourceContext } from '../../../contexts/FHIRResourceContext';
 
 // Cache configuration
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -16,6 +17,8 @@ const MAX_CACHE_SIZE = 100; // Maximum cached resources per type
  * Custom hook for FHIR data management
  */
 export const useFHIRData = () => {
+  // Get context functions if available
+  const context = useContext(FHIRResourceContext);
   const [data, setData] = useState({
     resources: {},
     metadata: {},
@@ -174,7 +177,19 @@ export const useFHIRData = () => {
     try {
       // Convert searchParams to params object for fhirClient
       const params = Object.fromEntries(queryParams);
-      const searchResult = await fhirClient.search(resourceType, params);
+      
+      // Use context search if available, otherwise use fhirClient directly
+      let searchResult;
+      if (context && context.searchResources) {
+        searchResult = await context.searchResources(resourceType, params);
+      } else {
+        const rawResult = await fhirClient.search(resourceType, params);
+        // Standardize the response
+        searchResult = context?.standardizeResponse ? 
+          context.standardizeResponse(rawResult) : 
+          rawResult;
+      }
+      
       const result = {
         resources: searchResult.resources || [],
         total: searchResult.total || 0,
@@ -246,18 +261,35 @@ export const useFHIRData = () => {
       let result;
       if (rest.length > 0) {
         // It's a read operation for a specific resource
-        result = await fhirClient.read(resourceType, rest[0]);
+        const resource = await fhirClient.read(resourceType, rest[0]);
+        result = {
+          data: {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            total: 1,
+            entry: [{ resource }]
+          },
+          timestamp: new Date().toISOString(),
+          query: normalizedQuery
+        };
       } else {
         // It's a search operation
         const searchResult = await fhirClient.search(resourceType, params);
-        result = searchResult.bundle || searchResult;
+        const standardized = context?.standardizeResponse ? 
+          context.standardizeResponse(searchResult) : 
+          searchResult;
+        
+        result = {
+          data: standardized.bundle || {
+            resourceType: 'Bundle',
+            type: 'searchset',
+            total: standardized.total || 0,
+            entry: standardized.resources?.map(r => ({ resource: r })) || []
+          },
+          timestamp: new Date().toISOString(),
+          query: normalizedQuery
+        };
       }
-      
-      return {
-        data: result,
-        timestamp: new Date().toISOString(),
-        query: normalizedQuery
-      };
 
       if (useCache) {
         setCachedData(cacheKey, result);

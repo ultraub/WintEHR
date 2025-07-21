@@ -30,12 +30,38 @@ from fhir.core.search.composite import CompositeSearchHandler
 from fhir.core.utils import search_all_resources
 from fhir.api.summary_definitions import apply_summary_to_resource, apply_elements_to_resource
 from fhir.api.cache import get_search_cache
+from fhir.api.redis_cache import get_redis_cache, RedisSearchCache
 from fhir.api.include_optimizer import IncludeOptimizer
 from database import get_db_session
 from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+# Global cache instance - will try Redis first, fallback to memory
+_cache_instance = None
+
+async def get_cache():
+    """Get the appropriate cache instance (Redis if available, otherwise memory)."""
+    global _cache_instance
+    
+    if _cache_instance is None:
+        # Try to use Redis cache if enabled
+        use_redis = os.getenv('USE_REDIS_CACHE', 'true').lower() == 'true'
+        
+        if use_redis:
+            try:
+                _cache_instance = await get_redis_cache()
+                logger.info("Using Redis cache for FHIR search results")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Redis cache: {e}, falling back to memory cache")
+                _cache_instance = get_search_cache()
+        else:
+            _cache_instance = get_search_cache()
+            logger.info("Using in-memory cache for FHIR search results")
+    
+    return _cache_instance
 
 
 class FHIRJSONResponse(Response):
@@ -313,7 +339,7 @@ async def search_resources(
         result_params['_sort'] = _sort
     
     # Try to get from cache first (only for GET requests without _include/_revinclude)
-    cache = get_search_cache()
+    cache = await get_cache()
     use_cache = (
         request.method == "GET" and 
         "_include" not in result_params and 
@@ -329,7 +355,12 @@ async def search_resources(
             "_summary": _summary,
             "_elements": _elements
         }
-        cached_result = cache.get(resource_type, cache_params)
+        # Use await for Redis cache compatibility
+        if isinstance(cache, RedisSearchCache):
+            cached_result = await cache.get(resource_type, cache_params)
+        else:
+            cached_result = cache.get(resource_type, cache_params)
+            
         if cached_result is not None:
             resources, total = cached_result
             logger.debug(f"Using cached search results for {resource_type}")
@@ -342,7 +373,10 @@ async def search_resources(
                 limit=count
             )
             # Cache the result
-            cache.set(resource_type, cache_params, resources, total)
+            if isinstance(cache, RedisSearchCache):
+                await cache.set(resource_type, cache_params, resources, total)
+            else:
+                cache.set(resource_type, cache_params, resources, total)
     else:
         # Execute search without caching
         resources, total = await storage.search_resources(
@@ -467,8 +501,11 @@ async def create_resource(
         created_resource = await storage.read_resource(resource_type, fhir_id)
         
         # Invalidate cache for this resource type
-        cache = get_search_cache()
-        cache.invalidate_resource_type(resource_type)
+        cache = await get_cache()
+        if isinstance(cache, RedisSearchCache):
+            await cache.invalidate_resource_type(resource_type)
+        else:
+            cache.invalidate_resource_type(resource_type)
         
         # Build response for newly created resource
         response = FHIRJSONResponse(
@@ -629,8 +666,11 @@ async def update_resource(
         updated_resource = await storage.read_resource(resource_type, id)
         
         # Invalidate cache for this resource type
-        cache = get_search_cache()
-        cache.invalidate_resource_type(resource_type)
+        cache = await get_cache()
+        if isinstance(cache, RedisSearchCache):
+            await cache.invalidate_resource_type(resource_type)
+        else:
+            cache.invalidate_resource_type(resource_type)
         
         # Build response
         response = FHIRJSONResponse(
@@ -692,8 +732,11 @@ async def delete_resource(
             )
     
     # Invalidate cache for this resource type
-    cache = get_search_cache()
-    cache.invalidate_resource_type(resource_type)
+    cache = await get_cache()
+    if isinstance(cache, RedisSearchCache):
+        await cache.invalidate_resource_type(resource_type)
+    else:
+        cache.invalidate_resource_type(resource_type)
     
     return Response(status_code=204)
 

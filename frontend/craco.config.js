@@ -33,6 +33,17 @@ module.exports = {
       ],
     },
     configure: (webpackConfig, { env, paths }) => {
+      // Add TypeScript support
+      webpackConfig.resolve.extensions = ['.ts', '.tsx', '.js', '.jsx', '.json'];
+      
+      // Fix MUI ESM module resolution issues
+      webpackConfig.module.rules.push({
+        test: /\.m?js$/,
+        resolve: {
+          fullySpecified: false,
+        },
+      });
+      
       // Production optimizations
       if (env === 'production') {
         // Optimize chunks for better caching

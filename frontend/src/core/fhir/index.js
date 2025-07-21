@@ -2,8 +2,8 @@
 // Centralized exports for all FHIR-related functionality
 
 // Services
-export { fhirService } from './services/fhirService';
-export { default as fhirClient } from './services/fhirClient';
+export { fhirClient, default as FHIRClient } from './services/fhirClient';
+// Note: fhirService is deprecated - use fhirClient instead
 
 // Hooks
 export { useFHIRResources } from './hooks/useFHIRResources';

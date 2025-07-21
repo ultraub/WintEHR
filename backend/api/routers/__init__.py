@@ -125,7 +125,15 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as e:
         logger.error(f"Failed to register patient data/provider routers: {e}")
     
-    # 9. Debug Tools (development only)
+    # 9. Monitoring & Performance
+    try:
+        from api.monitoring import monitoring_router
+        app.include_router(monitoring_router, tags=["Monitoring"])
+        logger.info("✓ Monitoring router registered")
+    except Exception as e:
+        logger.error(f"Failed to register monitoring router: {e}")
+    
+    # 10. Debug Tools (development only)
     try:
         import os
         if os.getenv("DEBUG", "false").lower() == "true":

@@ -56,7 +56,7 @@ import {
   Avatar,
   AvatarGroup
 } from '@mui/material';
-import { TreeView, TreeItem } from '@mui/x-tree-view';
+import { SimpleTreeView, TreeItem } from '@mui/x-tree-view';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -995,7 +995,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               <Typography variant="h6" gutterBottom>
                 Document Categories
               </Typography>
-              <TreeView
+              <SimpleTreeView
                 defaultCollapseIcon={<ExpandMoreIcon />}
                 defaultExpandIcon={<ChevronRightIcon />}
                 expanded={expandedNodes}
@@ -1032,7 +1032,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                     </StyledTreeItem>
                   ))}
                 </StyledTreeItem>
-              </TreeView>
+              </SimpleTreeView>
             </Paper>
           </Grid>
         )}

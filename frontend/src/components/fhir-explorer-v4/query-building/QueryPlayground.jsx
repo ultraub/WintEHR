@@ -142,7 +142,7 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
 
   // Execute query
   const executeQuery = useCallback(async () => {
-    if (!fhirData || !fhirData.executeQuery) {
+    if (!fhirData || !fhirData.searchResources) {
       setError('FHIR data service not available');
       return;
     }
@@ -154,7 +154,77 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
     const startTime = performance.now();
 
     try {
-      const result = await fhirData.executeQuery(query);
+      let result;
+      
+      // Parse the query URL to determine the type of operation
+      const match = query.match(/^\/([A-Z][a-zA-Z]+)(\/[^?$]+)?(\$[^?]+)?(\?.*)?$/);
+      if (!match) {
+        throw new Error('Invalid query format. Expected format: /ResourceType or /ResourceType?param=value');
+      }
+      
+      const resourceType = match[1];
+      const resourceId = match[2]?.substring(1); // Remove leading slash
+      const operation = match[3];
+      const queryString = match[4];
+      
+      // Handle different query types
+      if (operation === '/$everything' && resourceId) {
+        // Patient/$everything operation
+        if (fhirData.fetchPatientEverything && resourceType === 'Patient') {
+          result = await fhirData.fetchPatientEverything(resourceId);
+          // Convert to expected format
+          result = {
+            data: result.bundle || { 
+              resourceType: 'Bundle', 
+              entry: result.resources?.map(r => ({ resource: r })) || [],
+              total: result.total || 0
+            }
+          };
+        } else {
+          throw new Error(`$everything operation is only supported for Patient resources`);
+        }
+      } else if (operation === '/$validate') {
+        throw new Error('$validate operation is not yet implemented');
+      } else if (operation || query === '/metadata') {
+        throw new Error(`Operation ${operation || 'metadata'} is not yet implemented`);
+      } else if (resourceId && !operation && !queryString) {
+        // Single resource fetch: /Patient/123
+        if (fhirData.fetchResource) {
+          const resource = await fhirData.fetchResource(resourceType, resourceId);
+          result = {
+            data: {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: 1,
+              entry: [{ resource }]
+            }
+          };
+        } else {
+          throw new Error('Single resource fetch not available');
+        }
+      } else {
+        // Search query: /Patient?name=Smith
+        const params = queryString ? Object.fromEntries(new URLSearchParams(queryString.substring(1))) : {};
+        const searchResult = await fhirData.searchResources(resourceType, params);
+        
+        // Ensure standardized format
+        if (searchResult.bundle) {
+          result = { data: searchResult.bundle };
+        } else if (searchResult.resources) {
+          result = {
+            data: {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: searchResult.total || searchResult.resources.length,
+              entry: searchResult.resources.map(r => ({ resource: r }))
+            }
+          };
+        } else {
+          // Fallback for unexpected formats
+          result = { data: searchResult };
+        }
+      }
+      
       const endTime = performance.now();
       setExecutionTime(Math.round(endTime - startTime));
       

@@ -1,4 +1,20 @@
 services:
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: emr-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - emr-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -41,10 +57,14 @@ services:
       - JWT_ENABLED=false
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - REDIS_URL=redis://redis:6379/0
+      - USE_REDIS_CACHE=true
     networks:
       - emr-network
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
