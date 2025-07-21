@@ -3,7 +3,7 @@
  * Comprehensive service for managing medication reconciliation workflows
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class MedicationReconciliationService {
   constructor() {

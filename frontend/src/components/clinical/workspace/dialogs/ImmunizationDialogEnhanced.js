@@ -76,7 +76,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchImmunizations = async (query) => {
@@ -91,7 +91,7 @@ const searchImmunizations = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirService.searchResources('Immunization', searchParams);
+    const bundle = await fhirClient.search('Immunization', searchParams);
     const immunizations = bundle.entry?.map(entry => entry.resource) || [];
     
     // Extract unique vaccine codes
@@ -299,7 +299,7 @@ const ImmunizationDialogEnhanced = ({
   // Load trending vaccines from recent immunizations
   const loadTrendingVaccines = async () => {
     try {
-      const recentImmunizations = await fhirService.searchResources('Immunization', {
+      const recentImmunizations = await fhirClient.search('Immunization', {
         _count: 100,
         _sort: '-date',
       });
@@ -340,7 +340,7 @@ const ImmunizationDialogEnhanced = ({
       const ageInYears = differenceInDays(new Date(), birthDate) / 365.25;
       
       // Get immunization history
-      const immunizationHistory = await fhirService.searchResources('Immunization', {
+      const immunizationHistory = await fhirClient.search('Immunization', {
         patient: patientId,
         _sort: '-date',
       });
@@ -428,7 +428,7 @@ const ImmunizationDialogEnhanced = ({
     
     // Check allergies
     try {
-      const allergies = await fhirService.searchResources('AllergyIntolerance', {
+      const allergies = await fhirClient.search('AllergyIntolerance', {
         patient: patientId,
         clinical_status: 'active',
       });

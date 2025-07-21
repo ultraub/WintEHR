@@ -40,7 +40,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import api from '../services/api';
 
 function TabPanel({ children, value, index, ...other }) {

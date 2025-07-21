@@ -84,7 +84,7 @@ import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchObservations = async (query) => {
@@ -317,7 +317,7 @@ const ObservationDialogEnhanced = ({
   // Load trending observations from recent observations
   const loadTrendingObservations = async () => {
     try {
-      const recentObservations = await fhirService.searchResources('Observation', {
+      const recentObservations = await fhirClient.search('Observation', {
         _count: 100,
         _sort: '-date',
         status: 'final',
@@ -357,7 +357,7 @@ const ObservationDialogEnhanced = ({
     if (!selectedObservation?.code) return;
     
     try {
-      const previousObs = await fhirService.searchResources('Observation', {
+      const previousObs = await fhirClient.search('Observation', {
         patient: patientId,
         code: selectedObservation.code,
         _count: 5,

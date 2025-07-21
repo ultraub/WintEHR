@@ -3,7 +3,7 @@
  * Displays summary information about the patient
  */
 import React, { useState, useEffect } from 'react';
-import { fhirClient } from '../../services/fhirClient';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 import {
   Box,
   Grid,

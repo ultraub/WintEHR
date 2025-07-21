@@ -3,7 +3,7 @@
  * Simplified hook for FHIR resource searching with built-in service integration
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // Default search implementation using FHIR client
 const defaultSearchService = async (query, options = {}) => {

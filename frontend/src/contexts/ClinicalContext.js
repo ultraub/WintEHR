@@ -5,7 +5,7 @@
  */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { usePatientUpdates } from '../hooks/useWebSocket';
 import websocketClient from '../services/websocket';
 

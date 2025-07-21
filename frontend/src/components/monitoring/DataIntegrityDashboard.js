@@ -72,7 +72,7 @@ import {
 import { format, subHours, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { validateResource } from '../../core/fhir/validators/fhirValidation';
-import { fhirClient } from '../../services/fhirClient';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 
 // Data integrity checks
 const integrityChecks = [

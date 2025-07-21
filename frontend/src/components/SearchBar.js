@@ -32,7 +32,7 @@ import {
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { debounce } from 'lodash';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { searchService } from '../services/searchService';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 

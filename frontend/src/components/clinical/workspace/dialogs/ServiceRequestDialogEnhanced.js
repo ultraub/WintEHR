@@ -83,7 +83,7 @@ import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchServiceRequests = async (query) => {
@@ -98,7 +98,7 @@ const searchServiceRequests = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirService.searchResources('ServiceRequest', searchParams);
+    const bundle = await fhirClient.search('ServiceRequest', searchParams);
     const requests = bundle.entry?.map(entry => entry.resource) || [];
     
     // Extract unique services
@@ -367,7 +367,7 @@ const ServiceRequestDialogEnhanced = ({
   // Load trending services from recent requests
   const loadTrendingServices = async () => {
     try {
-      const recentRequests = await fhirService.searchResources('ServiceRequest', {
+      const recentRequests = await fhirClient.search('ServiceRequest', {
         _count: 100,
         _sort: '-authored',
         status: 'active,completed',
@@ -409,7 +409,7 @@ const ServiceRequestDialogEnhanced = ({
     if (!selectedService) return;
     
     try {
-      const recentRequests = await fhirService.searchResources('ServiceRequest', {
+      const recentRequests = await fhirClient.search('ServiceRequest', {
         patient: patientId,
         code: selectedService.code,
         status: 'active,on-hold',
@@ -523,7 +523,7 @@ const ServiceRequestDialogEnhanced = ({
     // Check for contrast allergy for imaging
     if (service.display?.toLowerCase().includes('contrast')) {
       try {
-        const allergies = await fhirService.searchResources('AllergyIntolerance', {
+        const allergies = await fhirClient.search('AllergyIntolerance', {
           patient: patientId,
           clinical_status: 'active',
         });

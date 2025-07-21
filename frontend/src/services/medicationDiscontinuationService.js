@@ -3,7 +3,7 @@
  * Handles medication discontinuation workflow with proper FHIR tracking
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { medicationListManagementService } from './medicationListManagementService';
 import { format, addDays, parseISO } from 'date-fns';
 

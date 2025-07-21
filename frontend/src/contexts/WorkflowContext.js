@@ -4,7 +4,7 @@
  */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // Workflow modes that simulate real EMR workflows
 const WORKFLOW_MODES = {

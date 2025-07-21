@@ -3,7 +3,7 @@
  * Handles tracking medication effectiveness and generating monitoring prompts
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { addDays, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
 
 class MedicationEffectivenessService {

@@ -31,7 +31,7 @@ import {
 import { format, differenceInYears } from 'date-fns';
 import { useClinical } from '../../contexts/ClinicalContext';
 import { useNavigate } from 'react-router-dom';
-import { fhirClient } from '../../services/fhirClient';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 import { providerService } from '../../services/providerService';
 
 const PatientHeader = ({ 

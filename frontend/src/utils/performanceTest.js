@@ -3,7 +3,7 @@
  * Tests the FHIR API performance improvements
  */
 
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class PerformanceTest {
   constructor() {

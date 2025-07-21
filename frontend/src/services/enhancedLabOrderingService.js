@@ -3,7 +3,7 @@
  * Comprehensive lab ordering system with clinical decision support and appropriateness checking
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { differenceInDays, parseISO, format, addDays } from 'date-fns';
 
 class EnhancedLabOrderingService {

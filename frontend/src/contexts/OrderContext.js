@@ -3,7 +3,7 @@
  * Manages clinical orders using FHIR ServiceRequest resources
  */
 import React, { createContext, useContext, useState } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
 import api from '../services/api';

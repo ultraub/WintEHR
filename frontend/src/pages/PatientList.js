@@ -32,7 +32,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import PatientForm from '../components/PatientForm';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 import { debounce } from 'lodash';

@@ -12,7 +12,7 @@
  * This provides an alternative unified interface for complex workflows.
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { format, parseISO, addDays, addWeeks, isAfter, differenceInDays } from 'date-fns';
 
 class MedicationWorkflowService {

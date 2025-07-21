@@ -3,7 +3,7 @@
  * Ensures data consistency and integrity across all medication workflows
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { medicationListManagementService } from './medicationListManagementService';
 import { prescriptionRefillService } from './prescriptionRefillService';
 import { medicationEffectivenessService } from './medicationEffectivenessService';

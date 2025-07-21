@@ -90,7 +90,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
@@ -208,8 +208,10 @@ const useMedicationSearch = (searchTerm) => {
       const results = await cdsClinicalDataService.getDynamicMedicationCatalog(term, 20);
       const formattedResults = results.map(med => ({
         ...med,
-        label: med.display,
-        subLabel: `NDC: ${med.code} • Prescribed ${med.frequency} times • ${med.common_strength || ''}`
+        code: med.rxnorm_code || med.id,
+        display: med.generic_name || med.brand_name || med.display || 'Unknown medication',
+        label: med.generic_name || med.brand_name || med.display || 'Unknown medication',
+        subLabel: `RxNorm: ${med.rxnorm_code || med.id} • ${med.usage_count ? `Used ${med.usage_count} times` : 'New'} ${med.strength ? `• ${med.strength}` : ''}`
       }));
       
       cache.set(term, formattedResults);
@@ -288,46 +290,47 @@ const MedicationDialogEnhanced = ({
   const { loading: searchLoading, options: searchOptions } = useMedicationSearch(searchTerm);
 
   // Get trending medications
-  const trendingMedications = useMemo(() => {
-    // In a real app, this would come from the service
-    return [
-      { 
-        code: '313782', 
-        display: 'Lisinopril 10 MG Oral Tablet', 
-        frequency: 156,
-        common_strength: '10mg',
-        category: 'Hypertension'
-      },
-      { 
-        code: '860975', 
-        display: 'Metformin hydrochloride 500 MG Oral Tablet', 
-        frequency: 142,
-        common_strength: '500mg',
-        category: 'Diabetes'
-      },
-      { 
-        code: '197361', 
-        display: 'Amlodipine 5 MG Oral Tablet', 
-        frequency: 128,
-        common_strength: '5mg',
-        category: 'Hypertension'
-      },
-      { 
-        code: '617314', 
-        display: 'Atorvastatin 40 MG Oral Tablet', 
-        frequency: 115,
-        common_strength: '40mg',
-        category: 'Cholesterol'
-      },
-      { 
-        code: '1719286', 
-        display: 'Omeprazole 20 MG Oral Capsule', 
-        frequency: 98,
-        common_strength: '20mg',
-        category: 'GERD'
+  const [trendingMedications, setTrendingMedications] = useState([]);
+  
+  useEffect(() => {
+    // Fetch trending medications on dialog open
+    const fetchTrending = async () => {
+      try {
+        const results = await cdsClinicalDataService.getDynamicMedicationCatalog(null, 5);
+        const formatted = results.map(med => ({
+          code: med.rxnorm_code || med.id,
+          display: med.generic_name || med.brand_name || med.display,
+          frequency: med.usage_count || 0,
+          common_strength: med.strength || '',
+          category: med.drug_class || 'General'
+        }));
+        setTrendingMedications(formatted);
+      } catch (error) {
+        console.error('Error fetching trending medications:', error);
+        // Use fallback data
+        setTrendingMedications([
+          { 
+            code: '313782', 
+            display: 'Lisinopril 10 MG Oral Tablet', 
+            frequency: 156,
+            common_strength: '10mg',
+            category: 'Hypertension'
+          },
+          { 
+            code: '860975', 
+            display: 'Metformin hydrochloride 500 MG Oral Tablet', 
+            frequency: 142,
+            common_strength: '500mg',
+            category: 'Diabetes'
+          }
+        ]);
       }
-    ];
-  }, []);
+    };
+    
+    if (open && !medication) { // Only fetch for new prescriptions
+      fetchTrending();
+    }
+  }, [open, medication]);
 
   // Initialize form for edit/refill mode
   useEffect(() => {

@@ -305,22 +305,30 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
       
       const executionTime = Date.now() - startTime;
       
-      // Handle both Bundle and array formats
+      // Handle the standardized response format from searchResources
       let count = 0;
       let resources = [];
+      let bundle = null;
       
-      if (result && result.resourceType === 'Bundle') {
-        // FHIR Bundle format
+      if (result && result.resources) {
+        // Standardized format from our searchResources
+        resources = result.resources || [];
+        count = result.total || resources.length;
+        bundle = result.bundle || { resourceType: 'Bundle', entry: resources.map(r => ({ resource: r })) };
+      } else if (result && result.resourceType === 'Bundle') {
+        // Direct Bundle format
+        bundle = result;
         count = result.total || (result.entry ? result.entry.length : 0);
         resources = result.entry ? result.entry.map(e => e.resource) : [];
       } else if (Array.isArray(result)) {
-        // Array format
+        // Array format (fallback)
         count = result.length;
         resources = result;
+        bundle = { resourceType: 'Bundle', entry: resources.map(r => ({ resource: r })) };
       }
       
       setResults({
-        data: result,
+        data: bundle || result,
         resources: resources,
         count: count,
         executionTime

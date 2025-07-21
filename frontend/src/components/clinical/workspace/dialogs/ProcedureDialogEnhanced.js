@@ -80,7 +80,7 @@ import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchProcedures = async (query) => {
@@ -97,7 +97,7 @@ const searchProcedures = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirService.searchResources('Procedure', searchParams);
+    const bundle = await fhirClient.search('Procedure', searchParams);
     const procedures = bundle.entry?.map(entry => entry.resource) || [];
     
     // Extract unique procedure codes and names
@@ -294,7 +294,7 @@ const ProcedureDialogEnhanced = ({
   // Load trending procedures from recent procedures
   const loadTrendingProcedures = async () => {
     try {
-      const recentProcedures = await fhirService.searchResources('Procedure', {
+      const recentProcedures = await fhirClient.search('Procedure', {
         _count: 100,
         _sort: '-date',
         status: 'completed',
@@ -349,7 +349,7 @@ const ProcedureDialogEnhanced = ({
   const loadRelatedProcedures = async () => {
     try {
       // Get patient's active conditions
-      const conditions = await fhirService.searchResources('Condition', {
+      const conditions = await fhirClient.search('Condition', {
         patient: patientId,
         clinical_status: 'active',
         _count: 10,
@@ -461,7 +461,7 @@ const ProcedureDialogEnhanced = ({
     
     // Check for recent similar procedures
     try {
-      const recentProcedures = await fhirService.searchResources('Procedure', {
+      const recentProcedures = await fhirClient.search('Procedure', {
         patient: patientId,
         code: procedure.code,
         _count: 5,
@@ -488,7 +488,7 @@ const ProcedureDialogEnhanced = ({
     
     // Check for active conditions that might affect procedure
     try {
-      const conditions = await fhirService.searchResources('Condition', {
+      const conditions = await fhirClient.search('Condition', {
         patient: patientId,
         clinical_status: 'active',
         _count: 10,

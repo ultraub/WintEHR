@@ -313,6 +313,10 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
       
       const results = await searchResources(resourceType, params);
       
+      // Extract count from standardized response
+      const resultCount = results.total || (results.resources ? results.resources.length : 0);
+      const resources = results.resources || [];
+      
       // Save successful query
       saveQuery({
         name: query.description,
@@ -320,13 +324,13 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
         naturalLanguage: input,
         resourceType: query.resourceType,
         timestamp: new Date(),
-        resultCount: results.length
+        resultCount: resultCount
       });
 
       // Add results to conversation
       const resultMessage = {
         type: 'results',
-        content: `Found ${results.length} matching ${resourceType.toLowerCase()} resources.`,
+        content: `Found ${resultCount} matching ${resourceType.toLowerCase()} resources.`,
         results: results,
         timestamp: new Date()
       };

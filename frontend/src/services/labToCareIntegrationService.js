@@ -3,7 +3,7 @@
  * Links lab results to care recommendations and treatment adjustments
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { resultsManagementService } from './resultsManagementService';
 import { REFERENCE_RANGES } from '../core/fhir/utils/labReferenceRanges';
 

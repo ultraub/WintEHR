@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api from '../../../services/api';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Cache configuration
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -79,9 +79,9 @@ export const useFHIRData = () => {
       await Promise.all(
         resourceTypes.map(async (resourceType) => {
           try {
-            const response = await api.get(`/fhir/R4/${resourceType}?_count=20&_summary=count`);
-            const total = response.data.total || 0;
-            const entries = response.data.entry || [];
+            const result = await fhirClient.search(resourceType, { _count: 20, _summary: 'count' });
+            const total = result.total || 0;
+            const entries = result.bundle?.entry || [];
             
             metadata[resourceType] = {
               total,
@@ -172,11 +172,12 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(`/fhir/R4/${resourceType}?${queryString}`);
+      const searchResult = await fhirClient.search(resourceType, params);
       const result = {
-        resources: response.data.entry || [],
-        total: response.data.total || 0,
-        links: response.data.link || [],
+        resources: searchResult.resources || [],
+        total: searchResult.total || 0,
+        bundle: searchResult.bundle || { resourceType: 'Bundle', entry: [] },
+        links: searchResult.bundle?.link || [],
         timestamp: new Date().toISOString()
       };
 
@@ -203,8 +204,7 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(`/fhir/R4/${resourceType}/${id}`);
-      const result = response.data;
+      const result = await fhirClient.read(resourceType, id);
 
       if (useCache) {
         setCachedData(cacheKey, result);
@@ -235,9 +235,24 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(normalizedQuery);
-      const result = {
-        data: response.data,
+      // Extract resource type and params from query URL
+      const queryParts = normalizedQuery.replace('/fhir/R4/', '').split('?');
+      const [resourceType, ...rest] = queryParts[0].split('/');
+      const queryString = queryParts[1] || '';
+      const params = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {};
+      
+      let result;
+      if (rest.length > 0) {
+        // It's a read operation for a specific resource
+        result = await fhirClient.read(resourceType, rest[0]);
+      } else {
+        // It's a search operation
+        const searchResult = await fhirClient.search(resourceType, params);
+        result = searchResult.bundle || searchResult;
+      }
+      
+      return {
+        data: result,
         timestamp: new Date().toISOString(),
         query: normalizedQuery
       };

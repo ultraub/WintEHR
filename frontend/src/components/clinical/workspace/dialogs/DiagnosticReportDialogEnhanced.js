@@ -92,7 +92,7 @@ import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchDiagnosticReports = async (query) => {
@@ -107,8 +107,8 @@ const searchDiagnosticReports = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirService.searchResources('DiagnosticReport', searchParams);
-    const reports = bundle.entry?.map(entry => entry.resource) || [];
+    const result = await fhirClient.search('DiagnosticReport', searchParams);
+    const reports = result.resources || [];
     
     // Extract unique report types
     const reportMap = new Map();
@@ -335,7 +335,7 @@ const DiagnosticReportDialogEnhanced = ({
   // Load trending reports from recent reports
   const loadTrendingReports = async () => {
     try {
-      const recentReports = await fhirService.searchResources('DiagnosticReport', {
+      const recentReportsResult = await fhirClient.search('DiagnosticReport', {
         _count: 100,
         _sort: '-date',
         status: 'final',
@@ -343,8 +343,8 @@ const DiagnosticReportDialogEnhanced = ({
 
       // Count report usage
       const reportCount = {};
-      recentReports.entry?.forEach(entry => {
-        const rep = entry.resource.code?.coding?.[0];
+      recentReportsResult.resources?.forEach(report => {
+        const rep = report.code?.coding?.[0];
         if (rep) {
           const key = rep.code;
           if (!reportCount[key]) {
@@ -384,21 +384,21 @@ const DiagnosticReportDialogEnhanced = ({
   // Load related observations for the patient
   const loadRelatedObservations = async () => {
     try {
-      const observations = await fhirService.searchResources('Observation', {
+      const observationsResult = await fhirClient.search('Observation', {
         patient: patientId,
         _count: 50,
         _sort: '-date',
         status: 'final,amended,corrected',
       });
 
-      const obs = observations.entry?.map(entry => ({
-        id: entry.resource.id,
-        code: entry.resource.code?.coding?.[0]?.code,
-        display: entry.resource.code?.coding?.[0]?.display || entry.resource.code?.text,
-        value: entry.resource.valueQuantity || entry.resource.valueString || entry.resource.valueCodeableConcept,
-        effectiveDateTime: entry.resource.effectiveDateTime,
-        status: entry.resource.status,
-        category: entry.resource.category?.[0]?.coding?.[0]?.code,
+      const obs = observationsResult.resources?.map(observation => ({
+        id: observation.id,
+        code: observation.code?.coding?.[0]?.code,
+        display: observation.code?.coding?.[0]?.display || observation.code?.text,
+        value: observation.valueQuantity || observation.valueString || observation.valueCodeableConcept,
+        effectiveDateTime: observation.effectiveDateTime,
+        status: observation.status,
+        category: observation.category?.[0]?.coding?.[0]?.code,
       })) || [];
 
       setRelatedObservations(obs);
@@ -417,7 +417,7 @@ const DiagnosticReportDialogEnhanced = ({
       if (observationIds.length === 0) return;
       
       const observations = await Promise.all(
-        observationIds.map(id => fhirService.getResource('Observation', id))
+        observationIds.map(id => fhirClient.read('Observation', id))
       );
       
       setSelectedObservations(observations.filter(Boolean));

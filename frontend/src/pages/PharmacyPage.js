@@ -53,7 +53,7 @@ import PharmacyQueue from '../components/pharmacy/PharmacyQueue';
 import PharmacyAnalytics from '../components/pharmacy/PharmacyAnalytics';
 
 // Services
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // Context
 import { useFHIRResource } from '../contexts/FHIRResourceContext';

@@ -12,7 +12,7 @@
  * This provides an alternative unified interface.
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
 

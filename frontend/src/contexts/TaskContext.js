@@ -4,7 +4,7 @@
  */
 import React, { createContext, useContext, useState } from 'react';
 import api from '../services/api';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
 

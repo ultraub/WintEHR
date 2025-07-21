@@ -3,7 +3,7 @@
  * Monitors and tracks the status of prescriptions from order to fulfillment
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class PrescriptionStatusService {
   constructor() {

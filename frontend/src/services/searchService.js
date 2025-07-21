@@ -3,7 +3,7 @@
  * Centralized search functionality with caching, indexing, and multiple search backends
  * Integrates with dynamic clinical catalogs for enhanced search experience
  */
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
 
 // Search backends

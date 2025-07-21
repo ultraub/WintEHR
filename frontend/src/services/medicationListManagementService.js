@@ -3,7 +3,7 @@
  * Manages automatic medication list updates and synchronization
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class MedicationListManagementService {
   constructor() {

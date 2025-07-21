@@ -16,6 +16,7 @@ import {
   Chip,
   Alert,
   AlertTitle,
+  CircularProgress,
   Tabs,
   Tab,
   Paper,
@@ -66,7 +67,6 @@ import ClinicalTextField from '../fields/ClinicalTextField';
 import ClinicalDatePicker from '../fields/ClinicalDatePicker';
 import ClinicalCodeSelector from '../fields/ClinicalCodeSelector';
 import CDSAlertPresenter, { ALERT_MODES } from '../../cds/CDSAlertPresenter';
-import { fhirService } from '../../../../services/fhirService';
 import { clinicalCDSService } from '../../../../services/clinicalCDSService';
 import { orderService } from '../../../../services/orderService';
 import { format, addDays } from 'date-fns';

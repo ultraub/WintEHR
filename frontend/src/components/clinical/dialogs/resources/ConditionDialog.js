@@ -47,7 +47,7 @@ import ClinicalDialog from '../base/ClinicalDialog';
 import ClinicalTextField from '../fields/ClinicalTextField';
 import ClinicalDatePicker from '../fields/ClinicalDatePicker';
 import ClinicalCodeSelector from '../fields/ClinicalCodeSelector';
-import { fhirService } from '../../../../services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { clinicalCDSService } from '../../../../services/clinicalCDSService';
 import CDSAlertPresenter, { ALERT_MODES } from '../../cds/CDSAlertPresenter';
 import { format, differenceInDays } from 'date-fns';
@@ -171,21 +171,21 @@ const ConditionDialog = ({
     
     try {
       // Load patient's other conditions for relationship suggestions
-      const conditions = await fhirService.searchResources('Condition', {
+      const conditionsResult = await fhirClient.search('Condition', {
         patient: patient.id,
         _sort: '-onset-date'
       });
       
-      setRelatedConditions(conditions.filter(c => c.id !== condition?.id));
+      setRelatedConditions((conditionsResult.resources || []).filter(c => c.id !== condition?.id));
       
       // Load recent observations as potential evidence
-      const observations = await fhirService.searchResources('Observation', {
+      const observationsResult = await fhirClient.search('Observation', {
         patient: patient.id,
         _count: 20,
         _sort: '-date'
       });
       
-      setSupportingEvidence(observations);
+      setSupportingEvidence(observationsResult.resources || []);
     } catch (error) {
       console.error('Failed to load related data:', error);
     }
@@ -294,13 +294,13 @@ const ConditionDialog = ({
     
     // Check for duplicate active conditions
     if (data.clinicalStatus === 'active' && mode === 'create') {
-      const existingConditions = await fhirService.searchResources('Condition', {
+      const existingConditionsResult = await fhirClient.search('Condition', {
         patient: patient.id,
         code: data.code?.code,
         'clinical-status': 'active'
       });
       
-      if (existingConditions.length > 0) {
+      if (existingConditionsResult.resources && existingConditionsResult.resources.length > 0) {
         return {
           valid: false,
           warnings: [{

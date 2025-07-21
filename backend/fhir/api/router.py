@@ -226,7 +226,8 @@ async def search_resources(
     _elements: Optional[str] = Query(None, alias="_elements"),
     _count: Optional[int] = Query(None, alias="_count"),
     _page: Optional[int] = Query(None, alias="_page"),
-    _has: Optional[List[str]] = Query(None, alias="_has")
+    _has: Optional[List[str]] = Query(None, alias="_has"),
+    _sort: Optional[List[str]] = Query(None, alias="_sort")
 ):
     """
     Search for resources with full Phase 1-3 feature support.
@@ -305,6 +306,10 @@ async def search_resources(
     count = _count or 10
     page = _page or 1
     offset = (page - 1) * count
+    
+    # Add _sort to search params if provided
+    if _sort:
+        search_params['_sort'] = _sort
     
     # Try to get from cache first (only for GET requests without _include/_revinclude)
     cache = get_search_cache()

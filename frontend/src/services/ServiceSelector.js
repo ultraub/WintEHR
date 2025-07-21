@@ -25,7 +25,7 @@ import {
 
 // Import legacy services (these remain unchanged)
 import { default as legacyApi } from './api';
-import { fhirClient as legacyFhirClient } from './fhirClient';
+import { fhirClient as legacyFhirClient } from '../core/fhir/services/fhirClient';
 import { emrClient as legacyEmrClient } from './emrClient';
 import { cdsHooksClient as legacyCdsHooksClient } from './cdsHooksClient';
 

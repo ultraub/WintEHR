@@ -3,7 +3,7 @@
  * Creates note templates that pull from Results and Chart Review tabs
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { noteTemplatesService, NOTE_TEMPLATES } from './noteTemplatesService';
 
 export class ComprehensiveNoteTemplatesService {

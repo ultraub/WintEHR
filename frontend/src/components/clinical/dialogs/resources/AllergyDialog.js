@@ -59,7 +59,7 @@ import ClinicalTextField from '../fields/ClinicalTextField';
 import ClinicalDatePicker from '../fields/ClinicalDatePicker';
 import ClinicalCodeSelector from '../fields/ClinicalCodeSelector';
 import CDSAlertPresenter, { ALERT_MODES } from '../../cds/CDSAlertPresenter';
-import { fhirService } from '../../../../services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { clinicalCDSService } from '../../../../services/clinicalCDSService';
 import { format } from 'date-fns';
 
@@ -256,10 +256,12 @@ const AllergyDialog = ({
     
     try {
       // Get patient's current medications
-      const medications = await fhirService.searchResources('MedicationRequest', {
+      const medicationsResult = await fhirClient.search('MedicationRequest', {
         patient: patient.id,
         status: 'active'
       });
+      
+      const medications = medicationsResult.resources || [];
       
       // Simple conflict check - in production, use more sophisticated matching
       const conflicts = medications.filter(med => {

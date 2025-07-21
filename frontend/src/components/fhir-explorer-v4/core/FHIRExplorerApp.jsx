@@ -65,8 +65,7 @@ import {
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useQueryHistory } from '../hooks/useQueryHistory';
 
-// FHIR Services
-import fhirServiceCompat from '../../../core/fhir/services/fhirService';
+// FHIR Services - using FHIRResourceContext instead of direct fhirClient
 
 // FHIR Explorer v4 Theme
 const createFHIRTheme = (mode) => createTheme({
@@ -239,9 +238,14 @@ function FHIRExplorerApp() {
       // Add FHIR query functions for Query Playground and Visual Builder
       searchResources: async (resourceType, params) => {
         try {
-          const result = await fhirServiceCompat.searchResources(resourceType, params);
-          // Return the full Bundle response, not just the resources
-          return result;
+          // Use FHIRResourceContext's searchResources method
+          const result = await fhirContext.searchResources(resourceType, params);
+          // Return consistent structure
+          return {
+            resources: result.resources || [],
+            total: result.total || 0,
+            bundle: result.bundle || { resourceType: 'Bundle', entry: [] }
+          };
         } catch (error) {
           throw error;
         }
@@ -258,10 +262,10 @@ function FHIRExplorerApp() {
           const resourceType = match[1];
           const params = match[2] ? Object.fromEntries(new URLSearchParams(match[2].substring(1))) : {};
           
-          const result = await fhirServiceCompat.searchResources(resourceType, params);
+          const result = await fhirContext.searchResources(resourceType, params);
           return {
-            data: result,
-            total: result.total || (result.entry ? result.entry.length : 0)
+            data: result.bundle || { resourceType: 'Bundle', entry: result.resources?.map(r => ({ resource: r })) || [] },
+            total: result.total || (result.resources ? result.resources.length : 0)
           };
         } catch (error) {
           throw error;

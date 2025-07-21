@@ -81,7 +81,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
@@ -157,8 +157,10 @@ const useConditionSearch = (searchTerm) => {
       const results = await cdsClinicalDataService.getDynamicConditionCatalog(term, 20);
       const formattedResults = results.map(condition => ({
         ...condition,
-        label: `${condition.display} (${condition.code})`,
-        subLabel: `ICD-10: ${condition.code} • Used ${condition.frequency} times`
+        code: condition.icd10_code || condition.code || condition.id,
+        display: condition.display_name || condition.display || condition.name || 'Unknown condition',
+        label: `${condition.display_name || condition.display || condition.name || 'Unknown condition'} (${condition.icd10_code || condition.code || condition.id})`,
+        subLabel: `ICD-10: ${condition.icd10_code || condition.code || condition.id} • ${condition.usage_count ? `Used ${condition.usage_count} times` : 'New'}`
       }));
       
       cache.set(term, formattedResults);
@@ -249,16 +251,33 @@ const ConditionDialogEnhanced = ({
   }, [condition, open]);
 
   // Get trending conditions
-  const trendingConditions = useMemo(() => {
-    // In a real app, this would come from the service
-    return [
-      { code: 'I10', display: 'Essential (primary) hypertension', frequency: 45 },
-      { code: 'E11.9', display: 'Type 2 diabetes mellitus without complications', frequency: 38 },
-      { code: 'Z79.4', display: 'Long term (current) use of insulin', frequency: 32 },
-      { code: 'E78.5', display: 'Hyperlipidemia, unspecified', frequency: 28 },
-      { code: 'J44.0', display: 'COPD with acute lower respiratory infection', frequency: 24 }
-    ];
-  }, []);
+  const [trendingConditions, setTrendingConditions] = useState([]);
+  
+  useEffect(() => {
+    // Fetch trending conditions on dialog open
+    const fetchTrending = async () => {
+      try {
+        const results = await cdsClinicalDataService.getDynamicConditionCatalog(null, 5);
+        const formatted = results.map(condition => ({
+          code: condition.icd10_code || condition.code || condition.id,
+          display: condition.display_name || condition.display || condition.name,
+          frequency: condition.usage_count || 0
+        }));
+        setTrendingConditions(formatted);
+      } catch (error) {
+        console.error('Error fetching trending conditions:', error);
+        // Use fallback data
+        setTrendingConditions([
+          { code: 'I10', display: 'Essential (primary) hypertension', frequency: 45 },
+          { code: 'E11.9', display: 'Type 2 diabetes mellitus without complications', frequency: 38 }
+        ]);
+      }
+    };
+    
+    if (open && !condition) { // Only fetch for new conditions
+      fetchTrending();
+    }
+  }, [open, condition]);
 
   // Validate current step
   const validateStep = useCallback(() => {

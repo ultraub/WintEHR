@@ -30,7 +30,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../services/api';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 const AuditTrail = ({ patientId = null, resourceType = null, resourceId = null }) => {
   const [auditEvents, setAuditEvents] = useState([]);

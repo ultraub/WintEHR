@@ -90,7 +90,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
-import fhirService from '../../../../core/fhir/services/fhirService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
@@ -108,7 +108,7 @@ const searchAllergens = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirService.searchResources('AllergyIntolerance', searchParams);
+    const bundle = await fhirClient.search('AllergyIntolerance', searchParams);
     const allergies = bundle.entry?.map(entry => entry.resource) || [];
     
     // Extract unique allergens

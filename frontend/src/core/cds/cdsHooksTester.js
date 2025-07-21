@@ -3,7 +3,7 @@
  * Provides functions to test CDS hooks with real patient data
  */
 import { cdsHooksClient } from '../services/cdsHooksClient';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class CDSHooksTester {
   constructor() {

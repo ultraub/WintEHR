@@ -3,7 +3,7 @@
  * Comprehensive safety verification for medication management processes
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { differenceInDays, parseISO, addDays } from 'date-fns';
 
 class ClinicalSafetyVerifier {

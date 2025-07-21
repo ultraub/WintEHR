@@ -3,7 +3,7 @@
  * Enhanced service for MedicationDispense FHIR resource operations
  * Part of Phase 1 Implementation: MedicationDispense Integration
  */
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class MedicationDispenseService {
   /**
