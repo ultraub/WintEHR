@@ -57,7 +57,7 @@ import {
   MedicalServices as MedicalServicesIcon
 } from '@mui/icons-material';
 import debounce from 'lodash/debounce';
-import fhirService from '../../../services/fhirService';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import catalogService from '../../../services/cdsClinicalDataService';
 
 // Resource type configurations
@@ -270,19 +270,15 @@ const ResourceSearchAutocomplete = ({
             params._text = searchText;
           }
 
-          const bundle = await fhirService.searchResources(
-            resourceType,
-            params,
-            { signal: abortControllerRef.current.signal }
-          );
+          const result = await fhirClient.search(resourceType, params);
 
-          if (bundle.entry) {
-            bundle.entry.forEach(entry => {
+          if (result.resources && result.resources.length > 0) {
+            result.resources.forEach(resource => {
               searchOptions.push({
-                ...entry.resource,
+                ...resource,
                 source: 'patient',
-                display: config.displayField(entry.resource),
-                secondary: config.secondaryField(entry.resource)
+                display: config.displayField(resource),
+                secondary: config.secondaryField(resource)
               });
             });
           }

@@ -47,7 +47,7 @@ const Login = () => {
 
   const loadProviders = async () => {
     try {
-      const response = await api.get('/auth/config');
+      const response = await api.get('/api/auth/config');
       // Extract available users from auth config
       const availableUsers = response.data.available_users || [];
       

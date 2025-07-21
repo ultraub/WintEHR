@@ -72,7 +72,7 @@ import {
   LocalHospital as HospitalIcon
 } from '@mui/icons-material';
 import { format, parseISO, isAfter, differenceInDays } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Medication item component for reconciliation
 const MedicationItem = ({ 

@@ -30,6 +30,7 @@ from fhir.core.search.composite import CompositeSearchHandler
 from fhir.core.utils import search_all_resources
 from fhir.api.summary_definitions import apply_summary_to_resource, apply_elements_to_resource
 from fhir.api.cache import get_search_cache
+from fhir.api.include_optimizer import IncludeOptimizer
 from database import get_db_session
 from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
 import logging
@@ -307,9 +308,9 @@ async def search_resources(
     page = _page or 1
     offset = (page - 1) * count
     
-    # Add _sort to search params if provided
+    # Add _sort to result params if provided (don't add to search_params)
     if _sort:
-        search_params['_sort'] = _sort
+        result_params['_sort'] = _sort
     
     # Try to get from cache first (only for GET requests without _include/_revinclude)
     cache = get_search_cache()
@@ -395,12 +396,18 @@ async def search_resources(
         }
         bundle["entry"].append(entry)
     
-    # Handle _include and _revinclude
+    # Handle _include and _revinclude with optimized batch processing
+    include_optimizer = IncludeOptimizer(storage)
+    
     if "_include" in result_params:
-        await _process_includes(storage, bundle, result_params["_include"], base_url)
+        await include_optimizer.process_includes_batch(
+            bundle, result_params["_include"], base_url
+        )
     
     if "_revinclude" in result_params:
-        await _process_revincludes(storage, bundle, result_params["_revinclude"], base_url)
+        await include_optimizer.process_revincludes_batch(
+            bundle, result_params["_revinclude"], base_url
+        )
     
     return bundle
 

@@ -397,12 +397,142 @@ class SearchParameterIndexer:
                       f"{type_stats['errors']:3} errors")
         
         print("="*60)
+    
+    async def create_performance_indexes(self):
+        """Create performance-optimized database indexes."""
+        await self.connect()
+        
+        try:
+            logger.info("📊 Creating performance-optimized indexes...")
+            
+            # Composite indexes for search parameters
+            composite_indexes = [
+                # Multi-parameter search optimization
+                ("idx_search_params_composite", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_composite 
+                    ON fhir.search_params (resource_type, param_name, value_token_code) 
+                    WHERE deleted = false
+                """),
+                
+                # Date range optimization
+                ("idx_search_params_date_range", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_date_range 
+                    ON fhir.search_params (resource_type, param_name, value_date) 
+                    WHERE param_type = 'date' AND deleted = false
+                """),
+                
+                # Patient-centric queries
+                ("idx_search_params_patient", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_patient 
+                    ON fhir.search_params (param_name, value_reference) 
+                    WHERE param_name IN ('patient', 'subject') AND deleted = false
+                """),
+                
+                # Status searches
+                ("idx_search_params_status", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_status 
+                    ON fhir.search_params (resource_type, value_token_code) 
+                    WHERE param_name = 'status' AND deleted = false
+                """),
+                
+                # Code searches
+                ("idx_search_params_code", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_code 
+                    ON fhir.search_params (resource_type, value_token_code, value_token_system) 
+                    WHERE param_name = 'code' AND deleted = false
+                """)
+            ]
+            
+            # Functional indexes for sorting
+            sort_indexes = [
+                # Patient sorting
+                ("idx_patient_birthdate_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_patient_birthdate_sort 
+                    ON fhir.resources ((resource->>'birthDate')) 
+                    WHERE resource_type = 'Patient' AND deleted = false
+                """),
+                
+                ("idx_patient_name_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_patient_name_sort 
+                    ON fhir.resources ((resource->'name'->0->>'family')) 
+                    WHERE resource_type = 'Patient' AND deleted = false
+                """),
+                
+                # Observation sorting
+                ("idx_observation_date_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_observation_date_sort 
+                    ON fhir.resources ((resource->>'effectiveDateTime')) 
+                    WHERE resource_type = 'Observation' AND deleted = false
+                """),
+                
+                # Condition sorting
+                ("idx_condition_onset_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_condition_onset_sort 
+                    ON fhir.resources ((resource->>'onsetDateTime')) 
+                    WHERE resource_type = 'Condition' AND deleted = false
+                """)
+            ]
+            
+            # Specialized indexes
+            specialized_indexes = [
+                # Patient/$everything optimization
+                ("idx_compartments_patient_lookup", """
+                    CREATE INDEX IF NOT EXISTS idx_compartments_patient_lookup 
+                    ON fhir.compartments (compartment_type, compartment_id, resource_type) 
+                    WHERE compartment_type = 'Patient'
+                """),
+                
+                # Include operation optimization
+                ("idx_references_include", """
+                    CREATE INDEX IF NOT EXISTS idx_references_include 
+                    ON fhir.references (source_id, reference_field)
+                """),
+                
+                # Pagination optimization
+                ("idx_resources_type_pagination", """
+                    CREATE INDEX IF NOT EXISTS idx_resources_type_pagination 
+                    ON fhir.resources (resource_type, last_updated DESC, id) 
+                    WHERE deleted = false
+                """)
+            ]
+            
+            # Create all indexes
+            created = 0
+            failed = 0
+            
+            for index_name, index_sql in composite_indexes + sort_indexes + specialized_indexes:
+                try:
+                    await self.conn.execute(index_sql)
+                    logger.info(f"  ✅ Created {index_name}")
+                    created += 1
+                except Exception as e:
+                    if "already exists" in str(e):
+                        logger.info(f"  ℹ️  {index_name} already exists")
+                    else:
+                        logger.error(f"  ❌ Failed to create {index_name}: {e}")
+                        failed += 1
+            
+            # Update table statistics
+            logger.info("\n📈 Analyzing tables to update statistics...")
+            tables = ['fhir.resources', 'fhir.search_params', 'fhir.references', 'fhir.compartments']
+            
+            for table in tables:
+                try:
+                    await self.conn.execute(f"ANALYZE {table}")
+                    logger.info(f"  ✅ Analyzed {table}")
+                except Exception as e:
+                    logger.error(f"  ❌ Failed to analyze {table}: {e}")
+            
+            logger.info(f"\n✅ Performance optimization complete: {created} indexes created, {failed} failed")
+            
+        finally:
+            await self.disconnect()
 
 
 async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Consolidated Search Parameter Indexing')
-    parser.add_argument('--mode', choices=['index', 'reindex', 'verify', 'fix', 'monitor'], 
+    parser.add_argument('--mode', choices=['index', 'reindex', 'verify', 'fix', 'monitor', 'optimize-indexes'], 
                         default='index', help='Operation mode')
     parser.add_argument('--resource-type', help='Specific resource type to process')
     parser.add_argument('--database-url', help='Override database URL')
@@ -425,6 +555,8 @@ async def main():
             await indexer.fix_missing_params()
         elif args.mode == 'monitor':
             await indexer.monitor_health()
+        elif args.mode == 'optimize-indexes':
+            await indexer.create_performance_indexes()
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)

@@ -39,6 +39,7 @@ import {
   Alert,
   AlertTitle,
   LinearProgress,
+  CircularProgress,
   List,
   ListItem,
   ListItemText,
@@ -97,7 +98,7 @@ import {
   IndeterminateCheckBox as IndeterminateCheckBoxIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import fhirService from '../../../services/fhirService';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { useClinical as useClinicalContext } from '../../../contexts/ClinicalContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
@@ -359,7 +360,7 @@ const BatchOperationsDialog = ({
                 }
               }
               
-              result = await fhirService.updateResource(
+              result = await fhirClient.update(
                 resourceType,
                 resource.id,
                 updatedResource
@@ -367,7 +368,7 @@ const BatchOperationsDialog = ({
               break;
 
             case OPERATION_TYPES.DELETE:
-              await fhirService.deleteResource(resourceType, resource.id);
+              await fhirClient.delete(resourceType, resource.id);
               result = { id: resource.id, deleted: true };
               break;
 
@@ -388,7 +389,7 @@ const BatchOperationsDialog = ({
                   ]
                 }
               };
-              result = await fhirService.updateResource(
+              result = await fhirClient.update(
                 resourceType,
                 resource.id,
                 archivedResource
@@ -402,7 +403,7 @@ const BatchOperationsDialog = ({
                 ...resource,
                 status: operationType === OPERATION_TYPES.ACTIVATE ? 'active' : 'inactive'
               };
-              result = await fhirService.updateResource(
+              result = await fhirClient.update(
                 resourceType,
                 resource.id,
                 statusResource

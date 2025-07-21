@@ -139,6 +139,15 @@ class SearchParameterHandler:
             param_counter += 1
             alias = f"sp{param_counter}"
             
+            # Skip _sort parameter - it's handled separately
+            if param_name == '_sort':
+                continue
+            
+            # Ensure param_data is a dictionary (not a list)
+            if isinstance(param_data, list):
+                # This shouldn't happen with properly parsed params
+                continue
+            
             # Handle special parameters
             if param_name.startswith('_has:') or param_data.get('type') == '_has':
                 # Reverse chaining

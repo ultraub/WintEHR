@@ -43,7 +43,7 @@ import {
   Timeline as TimelineViewIcon
 } from '@mui/icons-material';
 import { format, subMonths } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Resource configuration for icons and colors
 const RESOURCE_CONFIG = {

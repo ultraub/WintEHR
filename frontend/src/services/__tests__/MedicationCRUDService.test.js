@@ -4,10 +4,10 @@
  */
 
 import { medicationCRUDService } from '../MedicationCRUDService';
-import { fhirService } from '../fhirService';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 
 // Mock dependencies
-jest.mock('../fhirService');
+jest.mock('../../core/fhir/services/fhirClient');
 jest.mock('../cdsHooksService');
 
 describe('MedicationCRUDService', () => {
@@ -15,24 +15,23 @@ describe('MedicationCRUDService', () => {
     jest.clearAllMocks();
     
     // Mock common FHIR responses
-    fhirService.searchResources.mockResolvedValue({
-      entry: [
+    fhirClient.search.mockResolvedValue({
+      resources: [
         {
-          resource: {
-            resourceType: 'MedicationRequest',
-            id: 'med-1',
-            status: 'active',
-            medicationCodeableConcept: {
-              coding: [{ display: 'Lisinopril 10mg' }],
-              text: 'Lisinopril 10mg'
-            },
-            subject: { reference: 'Patient/patient-1' }
-          }
+          resourceType: 'MedicationRequest',
+          id: 'med-1',
+          status: 'active',
+          medicationCodeableConcept: {
+            coding: [{ display: 'Lisinopril 10mg' }],
+            text: 'Lisinopril 10mg'
+          },
+          subject: { reference: 'Patient/patient-1' }
         }
-      ]
+      ],
+      total: 1
     });
     
-    fhirService.getResource.mockResolvedValue({
+    fhirClient.read.mockResolvedValue({
       resourceType: 'MedicationRequest',
       id: 'med-1',
       status: 'active'
@@ -43,7 +42,7 @@ describe('MedicationCRUDService', () => {
     it('should search medications with basic query', async () => {
       const result = await medicationCRUDService.search('insulin');
       
-      expect(fhirService.searchResources).toHaveBeenCalledWith(
+      expect(fhirClient.search).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           _elements: expect.any(String),
@@ -64,7 +63,7 @@ describe('MedicationCRUDService', () => {
       
       await medicationCRUDService.search('metformin', options);
       
-      expect(fhirService.searchResources).toHaveBeenCalledWith(
+      expect(fhirClient.search).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           subject: 'Patient/patient-1',
@@ -75,20 +74,20 @@ describe('MedicationCRUDService', () => {
     });
 
     it('should include effectiveness observations when requested', async () => {
-      fhirService.searchResources
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'med-1' } }] })
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'obs-1' } }] });
+      fhirClient.search
+        .mockResolvedValueOnce({ resources: [{ id: 'med-1' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [{ id: 'obs-1' }], total: 1 });
       
       const result = await medicationCRUDService.search('insulin', { 
         includeObservations: true 
       });
       
-      expect(fhirService.searchResources).toHaveBeenCalledTimes(2);
+      expect(fhirClient.search).toHaveBeenCalledTimes(2);
       expect(result.effectivenessData).toBeDefined();
     });
 
     it('should handle search errors gracefully', async () => {
-      fhirService.searchResources.mockRejectedValue(new Error('Network error'));
+      fhirClient.search.mockRejectedValue(new Error('Network error'));
       
       const result = await medicationCRUDService.search('test');
       
@@ -104,12 +103,12 @@ describe('MedicationCRUDService', () => {
     it('should retrieve medication by ID', async () => {
       const medication = await medicationCRUDService.getMedicationById('med-1');
       
-      expect(fhirService.getResource).toHaveBeenCalledWith('MedicationRequest', 'med-1');
+      expect(fhirClient.read).toHaveBeenCalledWith('MedicationRequest', 'med-1');
       expect(medication.id).toBe('med-1');
     });
 
     it('should handle not found errors', async () => {
-      fhirService.getResource.mockRejectedValue(new Error('Not found'));
+      fhirClient.read.mockRejectedValue(new Error('Not found'));
       
       const medication = await medicationCRUDService.getMedicationById('invalid');
       
@@ -126,11 +125,11 @@ describe('MedicationCRUDService', () => {
         practitionerId: 'practitioner-1'
       };
       
-      fhirService.updateResource.mockResolvedValue({ id: 'med-1', status: 'stopped' });
+      fhirClient.update.mockResolvedValue({ id: 'med-1', status: 'stopped' });
       
       const result = await medicationCRUDService.discontinue(discontinuationData);
       
-      expect(fhirService.updateResource).toHaveBeenCalledWith(
+      expect(fhirClient.update).toHaveBeenCalledWith(
         'MedicationRequest',
         'med-1',
         expect.objectContaining({
@@ -151,7 +150,7 @@ describe('MedicationCRUDService', () => {
     });
 
     it('should handle update errors', async () => {
-      fhirService.updateResource.mockRejectedValue(new Error('Update failed'));
+      fhirClient.update.mockRejectedValue(new Error('Update failed'));
       
       const result = await medicationCRUDService.discontinue({
         medicationRequestId: 'med-1',
@@ -171,11 +170,11 @@ describe('MedicationCRUDService', () => {
         medicationCodeableConcept: { text: 'Warfarin' }
       };
       
-      fhirService.createResource.mockResolvedValue({ id: 'careplan-1' });
+      fhirClient.create.mockResolvedValue({ id: 'careplan-1' });
       
       const result = await medicationCRUDService.createMonitoringPlan(medicationRequest);
       
-      expect(fhirService.createResource).toHaveBeenCalledWith(
+      expect(fhirClient.create).toHaveBeenCalledWith(
         'CarePlan',
         expect.objectContaining({
           status: 'active',
@@ -201,7 +200,7 @@ describe('MedicationCRUDService', () => {
       
       await medicationCRUDService.createMonitoringPlan(medicationRequest);
       
-      expect(fhirService.createResource).toHaveBeenCalledWith(
+      expect(fhirClient.create).toHaveBeenCalledWith(
         'CarePlan',
         expect.objectContaining({
           activity: expect.arrayContaining([
@@ -226,11 +225,11 @@ describe('MedicationCRUDService', () => {
         dosageInstruction: [{ text: 'Once daily' }]
       };
       
-      fhirService.createResource.mockResolvedValue({ id: 'med-new' });
+      fhirClient.create.mockResolvedValue({ id: 'med-new' });
       
       const result = await medicationCRUDService.handleNewPrescription(prescriptionData);
       
-      expect(fhirService.createResource).toHaveBeenCalledWith(
+      expect(fhirClient.create).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           status: 'active',
@@ -328,7 +327,7 @@ describe('MedicationCRUDService', () => {
         dosageInstruction: [{ text: 'Once daily' }]
       };
       
-      fhirService.createResource.mockResolvedValue({ id: 'med-new' });
+      fhirClient.create.mockResolvedValue({ id: 'med-new' });
       
       const newPrescription = await medicationCRUDService.handleNewPrescription(prescriptionData);
       expect(newPrescription.success).toBe(true);

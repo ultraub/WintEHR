@@ -95,7 +95,7 @@ import { format, parseISO, formatDistanceToNow, isPast, isFuture, differenceInDa
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { printDocument } from '../../../../core/export/printUtils';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Import new UI components

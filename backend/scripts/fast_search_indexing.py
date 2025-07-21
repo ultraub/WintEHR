@@ -98,6 +98,149 @@ class FastSearchParameterIndexer:
         finally:
             await self.disconnect()
     
+    async def create_performance_indexes(self):
+        """Create performance-optimized database indexes using connection pool."""
+        await self.connect()
+        
+        try:
+            logger.info("\n📊 Creating performance-optimized database indexes...")
+            
+            # Define all indexes to create
+            all_indexes = [
+                # Composite indexes for search parameters (without deleted column)
+                ("idx_search_params_composite", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_composite 
+                    ON fhir.search_params (resource_type, param_name, value_token_code) 
+                    WHERE value_token_code IS NOT NULL
+                """, "Multi-parameter search optimization"),
+                
+                ("idx_search_params_date_range", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_date_range 
+                    ON fhir.search_params (resource_type, param_name, value_date) 
+                    WHERE param_type = 'date' AND value_date IS NOT NULL
+                """, "Date range query optimization"),
+                
+                ("idx_search_params_patient", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_patient 
+                    ON fhir.search_params (param_name, value_reference) 
+                    WHERE param_name IN ('patient', 'subject') AND value_reference IS NOT NULL
+                """, "Patient-centric query optimization"),
+                
+                ("idx_search_params_status", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_status 
+                    ON fhir.search_params (resource_type, value_token_code) 
+                    WHERE param_name = 'status' AND value_token_code IS NOT NULL
+                """, "Status search optimization"),
+                
+                ("idx_search_params_code", """
+                    CREATE INDEX IF NOT EXISTS idx_search_params_code 
+                    ON fhir.search_params (resource_type, value_token_code, value_token_system) 
+                    WHERE param_name = 'code' AND value_token_code IS NOT NULL
+                """, "Clinical code search optimization"),
+                
+                # Functional indexes for sorting (without deleted column)
+                ("idx_patient_birthdate_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_patient_birthdate_sort 
+                    ON fhir.resources ((resource->>'birthDate')) 
+                    WHERE resource_type = 'Patient'
+                """, "Patient birthdate sorting"),
+                
+                ("idx_patient_name_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_patient_name_sort 
+                    ON fhir.resources ((resource->'name'->0->>'family')) 
+                    WHERE resource_type = 'Patient'
+                """, "Patient name sorting"),
+                
+                ("idx_observation_date_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_observation_date_sort 
+                    ON fhir.resources ((resource->>'effectiveDateTime')) 
+                    WHERE resource_type = 'Observation'
+                """, "Observation date sorting"),
+                
+                ("idx_condition_onset_sort", """
+                    CREATE INDEX IF NOT EXISTS idx_condition_onset_sort 
+                    ON fhir.resources ((resource->>'onsetDateTime')) 
+                    WHERE resource_type = 'Condition'
+                """, "Condition onset date sorting"),
+                
+                # Specialized indexes (fixed column names)
+                ("idx_compartments_patient_lookup_v2", """
+                    CREATE INDEX IF NOT EXISTS idx_compartments_patient_lookup_v2 
+                    ON fhir.compartments (compartment_type, compartment_id) 
+                    INCLUDE (resource_id)
+                    WHERE compartment_type = 'Patient'
+                """, "Patient/$everything optimization"),
+                
+                ("idx_references_include_v2", """
+                    CREATE INDEX IF NOT EXISTS idx_references_include_v2 
+                    ON fhir.references (source_id, reference_path)
+                """, "Include operation optimization"),
+                
+                ("idx_resources_type_pagination", """
+                    CREATE INDEX IF NOT EXISTS idx_resources_type_pagination 
+                    ON fhir.resources (resource_type, last_updated DESC, id)
+                """, "Pagination optimization")
+            ]
+            
+            # Create indexes in parallel using connection pool
+            tasks = []
+            for index_name, index_sql, description in all_indexes:
+                task = asyncio.create_task(self._create_index(index_name, index_sql, description))
+                tasks.append(task)
+            
+            # Wait for all indexes to be created
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Count successes and failures
+            created = sum(1 for r in results if r is True)
+            already_exists = sum(1 for r in results if r == "exists")
+            failed = sum(1 for r in results if r not in (True, "exists"))
+            
+            # Update table statistics
+            logger.info("\n📈 Analyzing tables to update statistics...")
+            tables = ['fhir.resources', 'fhir.search_params', 'fhir.references', 'fhir.compartments']
+            
+            analyze_tasks = []
+            for table in tables:
+                task = asyncio.create_task(self._analyze_table(table))
+                analyze_tasks.append(task)
+            
+            await asyncio.gather(*analyze_tasks, return_exceptions=True)
+            
+            logger.info(f"\n✅ Performance optimization complete:")
+            logger.info(f"  - {created} indexes created")
+            logger.info(f"  - {already_exists} indexes already existed")
+            logger.info(f"  - {failed} indexes failed")
+            
+        finally:
+            await self.disconnect()
+    
+    async def _create_index(self, index_name: str, index_sql: str, description: str):
+        """Create a single index using connection from pool."""
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.execute(index_sql)
+                logger.info(f"  ✅ Created {index_name}: {description}")
+                return True
+            except Exception as e:
+                if "already exists" in str(e):
+                    logger.info(f"  ℹ️  {index_name} already exists")
+                    return "exists"
+                else:
+                    logger.error(f"  ❌ Failed to create {index_name}: {e}")
+                    return e
+    
+    async def _analyze_table(self, table: str):
+        """Analyze a table to update statistics."""
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.execute(f"ANALYZE {table}")
+                logger.info(f"  ✅ Analyzed {table}")
+                return True
+            except Exception as e:
+                logger.error(f"  ❌ Failed to analyze {table}: {e}")
+                return e
+    
     async def _index_resource_type(self, resource_type: str):
         """Index all resources of a specific type with batching."""
         logger.info(f"\nProcessing {resource_type} resources...")
@@ -226,7 +369,7 @@ class FastSearchParameterIndexer:
 async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Fast Search Parameter Indexing')
-    parser.add_argument('--mode', choices=['index', 'reindex'], 
+    parser.add_argument('--mode', choices=['index', 'reindex', 'optimize-indexes'], 
                         default='index', help='Operation mode')
     parser.add_argument('--resource-type', help='Specific resource type to process')
     parser.add_argument('--database-url', help='Override database URL')
@@ -249,13 +392,18 @@ async def main():
     start_time = datetime.now()
     
     try:
-        await indexer.index_all_resources(args.resource_type)
+        if args.mode == 'optimize-indexes':
+            await indexer.create_performance_indexes()
+        else:
+            await indexer.index_all_resources(args.resource_type)
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         
         print(f"\nCompleted in {duration:.1f} seconds")
-        print(f"Processing rate: {indexer.stats['processed'] / duration:.1f} resources/second")
+        
+        if args.mode != 'optimize-indexes':
+            print(f"Processing rate: {indexer.stats['processed'] / duration:.1f} resources/second")
         
     except Exception as e:
         logger.error(f"Error: {e}")

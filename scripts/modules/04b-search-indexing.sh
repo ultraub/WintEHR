@@ -276,4 +276,25 @@ cat > "$ROOT_DIR/logs/search-indexing-summary.json" <<EOF
 }
 EOF
 
+# Run performance index optimization
+log "🚀 Running performance index optimization..."
+if docker exec emr-backend test -f /app/scripts/fast_search_indexing.py; then
+    log "Creating performance-optimized indexes..."
+    
+    # Run the optimization
+    OPTIMIZE_RESULT=$(docker exec emr-backend python scripts/fast_search_indexing.py --mode optimize-indexes --docker 2>&1 || echo "OPTIMIZE_FAILED")
+    
+    if echo "$OPTIMIZE_RESULT" | grep -q "Performance optimization complete" || [ $? -eq 0 ]; then
+        success "Performance indexes created successfully"
+        
+        # Extract stats from output
+        INDEXES_CREATED=$(echo "$OPTIMIZE_RESULT" | grep -oP '\d+ indexes created' | grep -oP '\d+' || echo "0")
+        log "  Indexes created: $INDEXES_CREATED"
+    else
+        warning "Performance index optimization encountered issues but continuing"
+    fi
+else
+    warning "Performance optimization script not found, skipping..."
+fi
+
 log "✨ Search parameter indexing module completed"

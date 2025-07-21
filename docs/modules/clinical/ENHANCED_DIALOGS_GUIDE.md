@@ -265,14 +265,14 @@ const handleSave = async (fhirResource) => {
   try {
     if (fhirResource.id) {
       // Update existing
-      await fhirService.updateResource(
+      await fhirClient.update(
         fhirResource.resourceType,
         fhirResource.id,
         fhirResource
       );
     } else {
       // Create new
-      await fhirService.createResource(
+      await fhirClient.create(
         fhirResource.resourceType,
         fhirResource
       );

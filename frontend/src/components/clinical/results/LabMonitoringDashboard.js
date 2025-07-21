@@ -53,7 +53,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInDays, addDays } from 'date-fns';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { printDocument } from '../../../core/export/printUtils';
 
 const LabMonitoringDashboard = ({ patientId, patientConditions }) => {

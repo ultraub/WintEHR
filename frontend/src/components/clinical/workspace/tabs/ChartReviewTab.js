@@ -54,7 +54,7 @@ import EditMedicationDialog from '../dialogs/EditMedicationDialog';
 import AddAllergyDialog from '../dialogs/AddAllergyDialog';
 import EditAllergyDialog from '../dialogs/EditAllergyDialog';
 import MedicationReconciliationDialog from '../dialogs/MedicationReconciliationDialog';
-import fhirClient from '../../../../services/fhirClient';
+import fhirClient from '../../../../core/fhir/services/fhirClient';
 import { intelligentCache } from '../../../../core/fhir/utils/intelligentCache';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';

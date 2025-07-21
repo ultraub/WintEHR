@@ -29,7 +29,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
   const [allVitalsData, setAllVitalsData] = useState([]);

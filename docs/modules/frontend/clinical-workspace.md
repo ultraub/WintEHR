@@ -158,12 +158,13 @@ function MyComponent({ patient }) {
 ### Publishing Clinical Events
 ```javascript
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 function OrderComponent() {
   const { publish } = useClinicalWorkflow();
   
   const handleOrderSubmit = async (orderData) => {
-    const order = await fhirService.createResource('ServiceRequest', orderData);
+    const order = await fhirClient.create('ServiceRequest', orderData);
     
     await publish(CLINICAL_EVENTS.ORDER_PLACED, {
       orderId: order.id,

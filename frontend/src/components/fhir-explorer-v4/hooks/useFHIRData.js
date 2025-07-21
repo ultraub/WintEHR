@@ -172,6 +172,8 @@ export const useFHIRData = () => {
     }
 
     try {
+      // Convert searchParams to params object for fhirClient
+      const params = Object.fromEntries(queryParams);
       const searchResult = await fhirClient.search(resourceType, params);
       const result = {
         resources: searchResult.resources || [],

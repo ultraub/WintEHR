@@ -5,7 +5,7 @@ module.exports = function(app) {
   // In Docker development, always use 'backend' service name
   const isDocker = process.env.HOST === '0.0.0.0';
   const backendTarget = isDocker 
-    ? 'http://backend:8000' 
+    ? 'http://emr-backend-dev:8000' 
     : process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
   
   console.log(`[Proxy] Backend target: ${backendTarget} (Docker: ${isDocker})`);

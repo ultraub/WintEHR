@@ -51,7 +51,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import { format } from 'date-fns';
 
