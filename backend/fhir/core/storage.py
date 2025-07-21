@@ -1962,14 +1962,20 @@ class FHIRStorageEngine:
                 resource_id, resource_type, param_name, param_type,
                 value_string, value_number, value_date,
                 value_quantity_value, value_quantity_unit,
-                value_token_system, value_token_code, value_reference
+                value_token, value_token_system, value_token_code, value_reference
             ) VALUES (
                 :resource_id, :resource_type, :param_name, :param_type,
                 :value_string, :value_number, :value_date,
                 :value_quantity_value, :value_quantity_unit,
-                :value_token_system, :value_token_code, :value_reference
+                :value_token, :value_token_system, :value_token_code, :value_reference
             )
         """)
+        
+        # For token types, populate value_token for searches
+        value_token = None
+        if param['param_type'] == 'token' and param.get('value_token_code'):
+            # The value_token column is used for simple token searches
+            value_token = param.get('value_token_code')
         
         params = {
             'resource_id': resource_id,
@@ -1981,6 +1987,7 @@ class FHIRStorageEngine:
             'value_date': param.get('value_date'),
             'value_quantity_value': param.get('value_quantity_value'),
             'value_quantity_unit': param.get('value_quantity_unit'),
+            'value_token': value_token,
             'value_token_system': param.get('value_token_system'),
             'value_token_code': param.get('value_token_code'),
             'value_reference': param.get('value_reference')
@@ -1995,13 +2002,19 @@ class FHIRStorageEngine:
             INSERT INTO fhir.search_params (
                 resource_id, resource_type, param_name, param_type,
                 value_string, value_number, value_date,
-                value_token_system, value_token_code, value_reference
+                value_token, value_token_system, value_token_code, value_reference
             ) VALUES (
                 :resource_id, :resource_type, :param_name, :param_type,
                 :value_string, :value_number, :value_date,
-                :value_token_system, :value_token_code, :value_reference
+                :value_token, :value_token_system, :value_token_code, :value_reference
             )
         """)
+        
+        # For token types, populate value_token for searches
+        value_token = None
+        if param_type == 'token' and values.get('value_token_code'):
+            # The value_token column is used for simple token searches
+            value_token = values.get('value_token_code')
         
         params = {
             'resource_id': resource_id,
@@ -2011,6 +2024,7 @@ class FHIRStorageEngine:
             'value_string': values.get('value_string'),
             'value_number': values.get('value_number'),
             'value_date': values.get('value_date'),
+            'value_token': value_token,
             'value_token_system': values.get('value_token_system'),
             'value_token_code': values.get('value_token_code'),
             'value_reference': values.get('value_reference')
@@ -5750,11 +5764,11 @@ class FHIRStorageEngine:
                 INSERT INTO fhir.search_params (
                     resource_id, resource_type, param_name, param_type,
                     value_string, value_number, value_date,
-                    value_token_system, value_token_code, value_reference
+                    value_token, value_token_system, value_token_code, value_reference
                 ) VALUES (
                     :resource_id, :resource_type, :param_name, :param_type,
                     :value_string, :value_number, :value_date,
-                    :value_token_system, :value_token_code, :value_reference
+                    :value_token, :value_token_system, :value_token_code, :value_reference
                 )
             """)
             
@@ -5766,6 +5780,12 @@ class FHIRStorageEngine:
                 except (ValueError, TypeError):
                     value_number = None
             
+            # For token types, populate value_token for searches
+            value_token = None
+            if param['param_type'] == 'token' and param.get('value_token_code'):
+                # The value_token column is used for simple token searches
+                value_token = param.get('value_token_code')
+            
             params_dict = {
                 'resource_id': resource_id,
                 'resource_type': resource_type,
@@ -5774,6 +5794,7 @@ class FHIRStorageEngine:
                 'value_string': param.get('value_string'),
                 'value_number': value_number,
                 'value_date': param.get('value_date'),
+                'value_token': value_token,
                 'value_token_system': param.get('value_token_system'),
                 'value_token_code': param.get('value_token_code'),
                 'value_reference': param.get('value_reference')

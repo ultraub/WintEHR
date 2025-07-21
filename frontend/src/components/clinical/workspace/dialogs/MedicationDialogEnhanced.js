@@ -88,12 +88,12 @@ import { format, parseISO, addDays, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Services
-import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
-import fhirService from '../../../services/fhirService';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../contexts/CDSContext';
-import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
-import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import fhirService from '../../../../core/fhir/services/fhirService';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { useCDS } from '../../../../contexts/CDSContext';
+import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 
 // Helper functions
 const getMedicationName = (medication) => {

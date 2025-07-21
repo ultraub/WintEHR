@@ -80,12 +80,12 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInMinutes, parseISO } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../contexts/FHIRContext';
-import { useClinical as useClinicalContext } from '../../../contexts/ClinicalContext';
-import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
-import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
-import fhirService from '../../../services/fhirService';
-import cdsClinicalDataService from '../../../services/cdsClinicalDataService';
+import { useFHIRClient } from '../../../../contexts/FHIRContext';
+import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
+import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
+import fhirService from '../../../../core/fhir/services/fhirService';
+import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 
 const searchObservations = async (query) => {
   try {

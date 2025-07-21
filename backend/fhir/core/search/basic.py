@@ -594,6 +594,10 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for token parameter."""
+        # Debug logging for gender searches
+        if param_name == 'gender':
+            print(f"DEBUG: Building token clause for gender with values={values}")
+        
         conditions = []
         
         for i, value_dict in enumerate(values):
@@ -621,8 +625,12 @@ class SearchParameterHandler:
                     sql_params[code_key] = code
             elif code is not None:
                 # Only code specified - match any system
+                # Check both value_token and value_token_code for compatibility
                 code_key = f"token_code_{counter}_{i}"
-                conditions.append(f"{alias}.value_token_code = :{code_key}")
+                conditions.append(
+                    f"({alias}.value_token = :{code_key} OR "
+                    f"{alias}.value_token_code = :{code_key})"
+                )
                 sql_params[code_key] = code
             elif system is not None:
                 # Only system specified
@@ -666,7 +674,11 @@ class SearchParameterHandler:
                 sql_params[id_key] = id_value
         
         if conditions:
-            return f"({' OR '.join(conditions)})"
+            clause = f"({' OR '.join(conditions)})"
+            if param_name == 'gender':
+                print(f"DEBUG: Gender token clause: {clause}")
+                print(f"DEBUG: SQL params for gender: {[(k, v) for k, v in sql_params.items() if 'token' in k]}")
+            return clause
         return "1=1"
     
     def _build_date_clause(
