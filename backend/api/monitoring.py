@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+from collections import defaultdict
 import asyncio
 import psutil
 import time
@@ -18,6 +19,7 @@ from sqlalchemy import text
 from database_optimized import get_db_session, get_pool_status, health_check, pool_manager
 from fhir.api.redis_cache import get_redis_cache
 from fhir.api.cache import get_search_cache
+from api.middleware.query_monitoring import get_query_monitor
 
 import logging
 
@@ -440,3 +442,130 @@ async def optimize_connection_pool():
             status_code=500,
             detail=f"Failed to optimize pool: {str(e)}"
         )
+
+
+@monitoring_router.get("/queries/statistics")
+async def get_query_statistics(top_n: int = 20):
+    """
+    Get comprehensive query performance statistics.
+    
+    Args:
+        top_n: Number of top queries to return in each category
+    
+    Returns statistics grouped by frequency, total time, and average time.
+    """
+    monitor = get_query_monitor()
+    return monitor.get_query_statistics(top_n)
+
+
+@monitoring_router.get("/queries/slow-detailed")
+async def get_detailed_slow_queries(
+    limit: int = 20,
+    threshold_ms: Optional[int] = None
+):
+    """
+    Get detailed information about recent slow queries.
+    
+    Args:
+        limit: Maximum number of slow queries to return
+        threshold_ms: Override the default slow query threshold
+    
+    Returns recent slow queries with full details.
+    """
+    monitor = get_query_monitor()
+    
+    # Optionally update threshold
+    if threshold_ms is not None:
+        monitor.slow_query_threshold_ms = threshold_ms
+    
+    return {
+        "threshold_ms": monitor.slow_query_threshold_ms,
+        "slow_queries": monitor.get_slow_queries(limit)
+    }
+
+
+@monitoring_router.get("/queries/timeline")
+async def get_query_timeline(minutes: int = 5):
+    """
+    Get query execution timeline.
+    
+    Args:
+        minutes: Number of minutes to look back (default: 5)
+    
+    Returns query counts and performance metrics grouped by minute.
+    """
+    if minutes > 60:
+        raise HTTPException(
+            status_code=400,
+            detail="Timeline period cannot exceed 60 minutes"
+        )
+    
+    monitor = get_query_monitor()
+    return monitor.get_query_timeline(minutes)
+
+
+@monitoring_router.get("/queries/recommendations")
+async def get_query_recommendations():
+    """
+    Get query optimization recommendations.
+    
+    Analyzes query patterns and provides actionable recommendations
+    for improving database performance.
+    """
+    monitor = get_query_monitor()
+    return {
+        "recommendations": monitor.get_recommendations(),
+        "generated_at": datetime.now().isoformat()
+    }
+
+
+@monitoring_router.post("/queries/reset")
+async def reset_query_statistics():
+    """
+    Reset all query performance statistics.
+    
+    Use with caution - this clears all historical data.
+    """
+    monitor = get_query_monitor()
+    monitor.reset_statistics()
+    
+    return {
+        "status": "reset",
+        "message": "Query statistics have been reset",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@monitoring_router.get("/queries/categories")
+async def get_query_categories():
+    """
+    Get query distribution by category.
+    
+    Shows the breakdown of queries by type (SELECT, INSERT, UPDATE, etc.)
+    """
+    monitor = get_query_monitor()
+    
+    # Count queries by category
+    category_counts = defaultdict(int)
+    category_times = defaultdict(float)
+    
+    for stats in monitor.query_stats.values():
+        category = stats.get("category", "other")
+        category_counts[category] += stats["count"]
+        category_times[category] += stats["total_time"]
+    
+    total_queries = sum(category_counts.values())
+    
+    return {
+        "categories": [
+            {
+                "category": category,
+                "count": count,
+                "percentage": (count / total_queries * 100) if total_queries > 0 else 0,
+                "total_time_ms": round(category_times[category], 2),
+                "avg_time_ms": round(category_times[category] / count, 2) if count > 0 else 0
+            }
+            for category, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+        ],
+        "total_queries": total_queries
+    }

@@ -81,7 +81,7 @@ docker exec emr-backend python scripts/testing/test_data_summary.py
 - Use Synthea-generated FHIR data (never mock data)
 - Test with multiple real patients from database
 - Handle all null/undefined cases gracefully
-- Use fhirService.js for all FHIR operations
+- Use fhirClient for all FHIR operations (not fhirService)
 - Validate resources against FHIR R4 spec
 
 **NEVER**: 
@@ -522,6 +522,28 @@ GROUP BY r.resource_type;"
 
 ## 🆕 Recent Improvements (2025)
 
+### Major Architecture Changes
+- **FHIR Service Migration**: Completed migration from fhirService to fhirClient (2025-01-21)
+  - All components now use fhirClient for direct FHIR API calls
+  - Removed fhirService wrapper layer for cleaner architecture
+  - Updated all dialogs, tabs, and services to use new client
+  - Fixed import paths and response format handling
+  
+- **FHIR Explorer v4 Fixes**: Resolved critical issues (2025-01-21)
+  - Fixed import errors: Changed from non-existent fhirService to fhirClient
+  - Aligned all components to use FHIRResourceContext for consistency
+  - Standardized data structures across all FHIR Explorer components
+  - Fixed double `/api/api/` path issue in Login.js
+  - Updated API method calls from `searchResources()` to `search()`
+  - Ensured all components handle the standardized response format:
+    ```javascript
+    {
+      resources: [...],  // Array of FHIR resources
+      total: 0,         // Total count
+      bundle: {...}     // Original FHIR Bundle
+    }
+    ```
+
 ### Clinical Enhancements
 - **Comprehensive Clinical Catalog System**: Dynamic medication and lab catalogs from patient data
 - **FHIR Relationship Visualization**: New RelationshipMapper component for resource connections
@@ -544,7 +566,7 @@ GROUP BY r.resource_type;"
 ## 🔍 Where to Find Things
 
 ### Frontend Services
-- **FHIR Operations**: `frontend/src/services/fhirService.js`
+- **FHIR Operations**: `frontend/src/core/fhir/services/fhirClient.js`
 - **Clinical Catalogs**: `frontend/src/services/cdsClinicalDataService.js`
 - **Event System**: `frontend/src/contexts/ClinicalWorkflowContext.js`
 - **WebSocket**: `frontend/src/contexts/WebSocketContext.js`

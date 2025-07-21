@@ -127,7 +127,7 @@ The enhanced FHIR Explorer v4 expects the backend to support:
 - Search parameter modifiers
 
 ### Frontend Integration
-- Uses existing `fhirService.js` for API calls
+- Uses `fhirClient` for direct FHIR API calls
 - Integrates with `WebSocketContext` for real-time updates
 - Compatible with existing authentication system
 - Works with current patient context

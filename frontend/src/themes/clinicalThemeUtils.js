@@ -1,9 +1,11 @@
 /**
  * Clinical Theme Utilities
  * Advanced theming utilities for clinical contexts and enhanced user experience
+ * Enhanced with modern gradients, shadows, and animations
  */
 
-import { darken, lighten } from '@mui/material/styles';
+import { darken, lighten, alpha } from '@mui/material/styles';
+import { clinicalTokens } from './clinicalTheme';
 
 // Clinical context detection utilities
 export const getClinicalContext = (location, timeOfDay, department) => {

@@ -340,7 +340,16 @@ async def warmup_pool():
 
 
 async def init_db():
-    """Initialize database with connection pool warmup."""
+    """Initialize database with connection pool warmup and monitoring."""
+    # Set up query monitoring
+    try:
+        from api.middleware.query_monitoring import setup_sqlalchemy_monitoring
+        setup_sqlalchemy_monitoring(engine.sync_engine)
+        logger.info("Query monitoring enabled")
+    except Exception as e:
+        logger.warning(f"Failed to set up query monitoring: {e}")
+    
+    # Warm up the pool
     await warmup_pool()
 
 

@@ -1349,6 +1349,55 @@ export function FHIRResourceProvider({ children }) {
     }
   });
 
+  // Configure fhirClient interceptors on mount
+  useEffect(() => {
+    // Add response interceptor for consistent data format
+    fhirClient.addResponseInterceptor((response) => {
+      // Standardize FHIR responses automatically
+      if (response.data && (
+        response.data.resourceType === 'Bundle' || 
+        Array.isArray(response.data) ||
+        (response.data.resources !== undefined)
+      )) {
+        response.data = standardizeResponse(response.data);
+      }
+      return response;
+    });
+
+    // Add request interceptor for logging in development
+    if (process.env.NODE_ENV === 'development') {
+      fhirClient.addRequestInterceptor((config) => {
+        console.log(`[FHIR Request] ${config.method?.toUpperCase()} ${config.url}`, {
+          params: config.params,
+          data: config.data
+        });
+        return config;
+      });
+    }
+
+    // Add error interceptor for better error handling
+    fhirClient.addErrorInterceptor(async (error) => {
+      if (error.response?.status === 401) {
+        // Handle unauthorized - could trigger re-authentication
+        console.error('[FHIR Auth Error] Unauthorized access');
+        // Dispatch auth error event
+        window.dispatchEvent(new CustomEvent('fhir-auth-error', { detail: { error } }));
+      } else if (error.response?.status === 404) {
+        // Handle not found with better message
+        const resourceInfo = error.config?.url?.match(/\/([A-Za-z]+)\/([^/?]+)/);
+        if (resourceInfo) {
+          error.message = `${resourceInfo[1]} with ID ${resourceInfo[2]} not found`;
+        }
+      } else if (error.response?.status >= 500) {
+        // Server errors
+        console.error('[FHIR Server Error]', error.response.status, error.response.data);
+      }
+      
+      // Re-throw the error for handling by calling code
+      throw error;
+    });
+  }, []); // Run once on mount
+
   // Listen for refresh events from fhirService - no function dependencies
   useEffect(() => {
     const handleResourcesUpdated = (event) => {

@@ -5,66 +5,151 @@
 import { createTheme } from '@mui/material/styles';
 import { createMedicalTheme } from './medicalTheme';
 
-// Clinical-specific design tokens
+// Clinical-specific design tokens - Enhanced with modern aesthetics
 export const clinicalTokens = {
+  // Modern gradients for visual depth
+  gradients: {
+    primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    success: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)',
+    warning: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    error: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    info: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    neutral: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+    // Subtle background gradients
+    backgroundSubtle: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(249,250,251,0.9) 100%)',
+    backgroundCard: 'linear-gradient(145deg, #ffffff, #f8f9fa)',
+    // Severity gradients
+    severityCritical: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+    severityHigh: 'linear-gradient(135deg, #ff9a00 0%, #ff7643 100%)',
+    severityModerate: 'linear-gradient(135deg, #ffd93d 0%, #f9ca24 100%)',
+    severityLow: 'linear-gradient(135deg, #6bcf7f 0%, #47b784 100%)',
+    severityNormal: 'linear-gradient(135deg, #e0e7ff 0%, #cfd9f3 100%)'
+  },
+  
+  // Enhanced shadows for depth
+  modernShadows: {
+    xs: '0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03)',
+    sm: '0 4px 6px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.03)',
+    md: '0 6px 12px rgba(0,0,0,0.04), 0 3px 6px rgba(0,0,0,0.03)',
+    lg: '0 8px 16px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.04)',
+    xl: '0 12px 24px rgba(0,0,0,0.08), 0 6px 12px rgba(0,0,0,0.04)',
+    // Colored shadows
+    primary: '0 4px 14px 0 rgba(102, 126, 234, 0.2)',
+    success: '0 4px 14px 0 rgba(132, 250, 176, 0.2)',
+    warning: '0 4px 14px 0 rgba(250, 112, 154, 0.2)',
+    error: '0 4px 14px 0 rgba(240, 147, 251, 0.2)',
+    // Elevation shadows
+    elevation1: '0 2px 4px rgba(0,0,0,0.05)',
+    elevation2: '0 4px 8px rgba(0,0,0,0.05)',
+    elevation3: '0 8px 16px rgba(0,0,0,0.05)',
+    elevation4: '0 16px 24px rgba(0,0,0,0.05)',
+    // Inner shadows for depth
+    inner: 'inset 0 2px 4px rgba(0,0,0,0.06)',
+    innerDeep: 'inset 0 4px 8px rgba(0,0,0,0.08)'
+  },
+  
+  // Animation presets
+  animations: {
+    // Durations
+    duration: {
+      instant: 0,
+      fast: 150,
+      normal: 250,
+      slow: 350,
+      complex: 500
+    },
+    // Easings
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      spring: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    },
+    // Presets
+    presets: {
+      fadeIn: 'fadeIn 0.25s ease-out',
+      slideUp: 'slideUp 0.3s ease-out',
+      slideDown: 'slideDown 0.3s ease-out',
+      scaleIn: 'scaleIn 0.2s ease-out',
+      rotate: 'rotate 0.3s ease-in-out',
+      pulse: 'pulse 2s infinite',
+      shimmer: 'shimmer 2s infinite linear'
+    }
+  },
+  
   // Density modes for clinical data display
   density: {
     compact: { 
       padding: 4, 
       rowHeight: 32,
       fontSize: '0.75rem',
-      iconSize: 16
+      iconSize: 16,
+      borderRadius: 4
     },
     comfortable: { 
       padding: 8, 
       rowHeight: 48,
       fontSize: '0.875rem',
-      iconSize: 20
+      iconSize: 20,
+      borderRadius: 8
     },
     spacious: { 
       padding: 16, 
       rowHeight: 64,
       fontSize: '1rem',
-      iconSize: 24
+      iconSize: 24,
+      borderRadius: 12
     }
   },
   
-  // Clinical severity colors with semantic meaning
+  // Clinical severity colors with gradients and enhanced visuals
   severity: {
     critical: { 
       bg: '#FFEBEE', 
+      gradient: 'linear-gradient(135deg, rgba(255,107,107,0.1) 0%, rgba(238,90,111,0.1) 100%)',
       color: '#D32F2F', 
       icon: '🔴',
       borderColor: '#EF5350',
-      hoverBg: '#FFCDD2'
+      hoverBg: '#FFCDD2',
+      shadow: '0 4px 14px 0 rgba(211, 47, 47, 0.2)',
+      animation: 'pulse 2s infinite'
     },
     high: { 
       bg: '#FFF3E0', 
+      gradient: 'linear-gradient(135deg, rgba(255,154,0,0.1) 0%, rgba(255,118,67,0.1) 100%)',
       color: '#F57C00', 
       icon: '🟠',
       borderColor: '#FFB74D',
-      hoverBg: '#FFE0B2'
+      hoverBg: '#FFE0B2',
+      shadow: '0 4px 14px 0 rgba(245, 124, 0, 0.2)'
     },
     moderate: { 
       bg: '#FFF8E1', 
+      gradient: 'linear-gradient(135deg, rgba(255,217,61,0.1) 0%, rgba(249,202,36,0.1) 100%)',
       color: '#FBC02D', 
       icon: '🟡',
       borderColor: '#FFD54F',
-      hoverBg: '#FFF59D'
+      hoverBg: '#FFF59D',
+      shadow: '0 4px 14px 0 rgba(251, 192, 45, 0.2)'
     },
     low: { 
       bg: '#E8F5E9', 
+      gradient: 'linear-gradient(135deg, rgba(107,207,127,0.1) 0%, rgba(71,183,132,0.1) 100%)',
       color: '#388E3C', 
       icon: '🟢',
       borderColor: '#81C784',
-      hoverBg: '#C8E6C9'
+      hoverBg: '#C8E6C9',
+      shadow: '0 4px 14px 0 rgba(56, 142, 60, 0.2)'
     },
     normal: { 
       bg: '#F5F5F5', 
+      gradient: 'linear-gradient(135deg, rgba(224,231,255,0.5) 0%, rgba(207,217,243,0.5) 100%)',
       color: '#616161', 
       icon: '⚪',
       borderColor: '#E0E0E0',
-      hoverBg: '#EEEEEE'
+      hoverBg: '#EEEEEE',
+      shadow: '0 2px 8px 0 rgba(0, 0, 0, 0.08)'
     }
   },
   
@@ -390,5 +475,52 @@ export const {
   priority,
   clinicalTypography
 } = clinicalTokens;
+
+// Animation keyframes
+export const clinicalKeyframes = {
+  fadeIn: {
+    '@keyframes fadeIn': {
+      from: { opacity: 0 },
+      to: { opacity: 1 }
+    }
+  },
+  slideUp: {
+    '@keyframes slideUp': {
+      from: { transform: 'translateY(20px)', opacity: 0 },
+      to: { transform: 'translateY(0)', opacity: 1 }
+    }
+  },
+  slideDown: {
+    '@keyframes slideDown': {
+      from: { transform: 'translateY(-20px)', opacity: 0 },
+      to: { transform: 'translateY(0)', opacity: 1 }
+    }
+  },
+  scaleIn: {
+    '@keyframes scaleIn': {
+      from: { transform: 'scale(0.9)', opacity: 0 },
+      to: { transform: 'scale(1)', opacity: 1 }
+    }
+  },
+  pulse: {
+    '@keyframes pulse': {
+      '0%': { opacity: 1 },
+      '50%': { opacity: 0.6 },
+      '100%': { opacity: 1 }
+    }
+  },
+  shimmer: {
+    '@keyframes shimmer': {
+      '0%': { backgroundPosition: '-200% 0' },
+      '100%': { backgroundPosition: '200% 0' }
+    }
+  },
+  rotate: {
+    '@keyframes rotate': {
+      from: { transform: 'rotate(0deg)' },
+      to: { transform: 'rotate(360deg)' }
+    }
+  }
+};
 
 export default createClinicalTheme;

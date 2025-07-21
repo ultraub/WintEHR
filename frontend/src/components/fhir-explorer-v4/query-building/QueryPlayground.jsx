@@ -415,9 +415,27 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
           {(results || error) && (
             <Paper sx={{ p: 3 }}>
               {error ? (
-                <Alert severity="error" sx={{ mb: 2 }}>
+                <Alert 
+                  severity="error" 
+                  sx={{ mb: 2 }}
+                  action={
+                    <Button size="small" onClick={() => setError(null)}>
+                      Dismiss
+                    </Button>
+                  }
+                >
                   <Typography variant="subtitle2" gutterBottom>Query Error</Typography>
-                  {error}
+                  <Typography variant="body2">{error}</Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Suggestions:
+                    </Typography>
+                    <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                      <li><Typography variant="caption">Check that the resource type is valid</Typography></li>
+                      <li><Typography variant="caption">Verify parameter names match FHIR specification</Typography></li>
+                      <li><Typography variant="caption">Ensure the server is accessible</Typography></li>
+                    </ul>
+                  </Box>
                 </Alert>
               ) : results && (
                 <>

@@ -347,6 +347,13 @@ export const useFHIRData = () => {
     hasData: Object.keys(data.resources).length > 0,
     totalResources: Object.values(data.metadata).reduce((sum, meta) => sum + (meta.total || 0), 0),
     resourceTypes: Object.keys(data.resources),
-    lastUpdated: data.lastUpdated
+    lastUpdated: data.lastUpdated,
+    
+    // Additional methods from context for advanced usage
+    fetchResource: context?.fetchResource,
+    fetchPatientBundle: context?.fetchPatientBundle,
+    fetchPatientEverything: context?.fetchPatientEverything,
+    standardizeResponse: context?.standardizeResponse,
+    fhirClient: context?.fhirClient || fhirClient
   };
 };

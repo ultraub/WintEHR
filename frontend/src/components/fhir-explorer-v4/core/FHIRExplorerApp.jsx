@@ -39,6 +39,7 @@ import { alpha } from '@mui/material/styles';
 // Core components
 import UnifiedLayout from './UnifiedLayout';
 import DashboardHome from './DashboardHome';
+import FHIRExplorerErrorBoundary from '../components/ErrorBoundary';
 
 // Feature components
 import ResourceCatalog from '../discovery/ResourceCatalog';
@@ -380,24 +381,26 @@ function FHIRExplorerApp() {
         }}
       />
       
-      <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <UnifiedLayout
-          currentMode={currentMode}
-          currentView={currentView}
-          onModeChange={handleModeChange}
-          onThemeToggle={handleThemeToggle}
-          themeMode={themeMode}
-          isMobile={isMobile}
-          fhirData={fhirData}
-          dataLoading={fhirData.loading}
-        >
-          <Fade in={!loading} timeout={300}>
-            <Box>
-              {renderCurrentView()}
-            </Box>
-          </Fade>
-        </UnifiedLayout>
-      </Box>
+      <FHIRExplorerErrorBoundary>
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <UnifiedLayout
+            currentMode={currentMode}
+            currentView={currentView}
+            onModeChange={handleModeChange}
+            onThemeToggle={handleThemeToggle}
+            themeMode={themeMode}
+            isMobile={isMobile}
+            fhirData={fhirData}
+            dataLoading={fhirData.loading}
+          >
+            <Fade in={!loading} timeout={300}>
+              <Box>
+                {renderCurrentView()}
+              </Box>
+            </Fade>
+          </UnifiedLayout>
+        </Box>
+      </FHIRExplorerErrorBoundary>
     </ThemeProvider>
   );
 }
