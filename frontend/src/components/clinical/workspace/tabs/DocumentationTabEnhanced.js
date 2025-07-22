@@ -21,9 +21,6 @@ import {
   IconButton,
   Tooltip,
   Divider,
-  Card,
-  CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -51,10 +48,7 @@ import {
   Collapse,
   Badge,
   Fade,
-  Zoom as ZoomTransition,
-  LinearProgress,
-  Avatar,
-  AvatarGroup
+  Avatar
 } from '@mui/material';
 import { TreeView, TreeItem } from '@mui/x-tree-view';
 import {
@@ -79,11 +73,6 @@ import {
   EventNote as ProgressIcon,
   MedicalServices as ConsultIcon,
   Receipt as DischargeIcon,
-  FormatBold as BoldIcon,
-  FormatItalic as ItalicIcon,
-  FormatUnderlined as UnderlineIcon,
-  FormatListBulleted as BulletIcon,
-  FormatListNumbered as NumberedIcon,
   Visibility as VisibilityIcon,
   ChevronRight as ChevronRightIcon,
   FolderOpen as FolderOpenIcon,
@@ -105,27 +94,22 @@ import {
   Download as DownloadIcon,
   ContentCopy as DuplicateIcon,
   Compare as CompareIcon,
-  Group as CollaboratorsIcon,
-  VerifiedUser as VerifiedIcon
+  Group as CollaboratorsIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
-import { useNavigate } from 'react-router-dom';
 import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
-import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
 import { 
   extractDocumentContent, 
   formatDocumentForDisplay, 
-  createDocumentReferencePayload,
-  updateDocumentReferencePayload,
-  processDocumentForDisplay,
-  validateDocumentData
+  processDocumentForDisplay
 } from '../../../../core/documents/documentUtils';
 import ClinicalCard from '../../ui/ClinicalCard';
 import MetricsBar from '../../ui/MetricsBar';

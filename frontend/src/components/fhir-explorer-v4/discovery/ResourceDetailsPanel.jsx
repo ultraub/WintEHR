@@ -130,7 +130,7 @@ function ResourceDetailsPanel({
       setResourceData(resource);
     } catch (err) {
       setError(`Failed to load resource: ${err.message}`);
-      console.error('Error loading resource:', err);
+      // Error loading resource details
     } finally {
       setLoading(false);
     }
@@ -166,7 +166,7 @@ function ResourceDetailsPanel({
       
       setRelatedResources(grouped);
     } catch (err) {
-      console.error('Error loading related resources:', err);
+      // Error loading related resources
     }
   };
 
@@ -183,7 +183,7 @@ function ResourceDetailsPanel({
 
   const handleOpenInNewTab = () => {
     // This could open a dedicated resource viewer
-    console.log('Open in new tab:', selectedNode.id);
+    // Open resource in new tab functionality
   };
 
   const handleMoreActions = (event) => {

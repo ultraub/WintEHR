@@ -7,20 +7,12 @@ import {
   Box,
   Paper,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Stack,
   Button,
   IconButton,
   Tooltip,
   Divider,
-  Card,
-  CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -33,25 +25,12 @@ import {
   useTheme,
   alpha,
   Snackbar,
-  Fab,
   Badge,
-  Tab,
-  Tabs,
   Grid,
   ToggleButton,
   ToggleButtonGroup,
-  Collapse,
-  Avatar,
-  AvatarGroup
+  Collapse
 } from '@mui/material';
-import {
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-} from '@mui/lab';
 import {
   LocalHospital as HospitalIcon,
   MedicalServices as ClinicIcon,
@@ -355,7 +334,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   
   const [viewMode, setViewMode] = useState('timeline'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
-  const [filterPeriod, setFilterPeriod] = useState('6m'); // all, 1m, 3m, 6m, 1y
+  const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [expandedCards, setExpandedCards] = useState(new Set());
@@ -759,7 +738,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       label: 'Total Visits',
       value: encounterStats.total,
       icon: <CalendarIcon />,
-      color: 'primary'
+      color: 'primary',
+      severity: 'normal'
     },
     {
       label: 'In Progress',
@@ -780,6 +760,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       value: encounterStats.completed,
       icon: <CheckCircleIcon />,
       color: 'success',
+      severity: 'normal',
       progress: (encounterStats.completed / Math.max(encounterStats.total, 1)) * 100
     }
   ], [encounterStats]);

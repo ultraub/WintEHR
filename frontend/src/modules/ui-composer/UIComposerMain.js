@@ -56,7 +56,6 @@ import SimpleOrchestrator from './agents/SimpleOrchestrator';
 import componentRegistry from './utils/componentRegistry';
 import useClaudeStatus from './hooks/useClaudeStatus';
 import CostDisplay from './components/CostDisplay';
-import TestFHIRIntegration from './components/TestFHIRIntegration';
 import CreativeGenerationOptions from './components/CreativeGenerationOptions';
 import CostEstimator from './components/CostEstimator';
 import GenerationProgressIndicator from './components/GenerationProgressIndicator';
@@ -541,16 +540,6 @@ const UIComposerContent = () => {
               value={generationMode}
               onChange={setGenerationMode}
               disabled={processingRequest}
-            />
-          </Box>
-          
-          <Divider />
-          
-          {/* Temporary FHIR Test */}
-          <Box sx={{ p: 2 }}>
-            <TestFHIRIntegration 
-              selectedMethod={selectedMethod}
-              selectedModel={selectedModel}
             />
           </Box>
           

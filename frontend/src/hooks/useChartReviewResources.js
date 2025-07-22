@@ -50,11 +50,11 @@ const useChartReviewResources = (patientId, options = {}) => {
   // Load all resources
   const loadResources = useCallback(async () => {
     if (!patientId) {
-      console.log('useChartReviewResources: No patientId provided');
+      // No patientId provided - skip loading resources
       return;
     }
 
-    console.log('useChartReviewResources: Loading resources for patient:', patientId);
+    // Loading resources for patient
 
     try {
       setLoading(true);
@@ -64,7 +64,7 @@ const useChartReviewResources = (patientId, options = {}) => {
       const isWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'AllergyIntolerance']);
       
       if (!isWarm) {
-        console.log('useChartReviewResources: Cache not warm, fetching patient data');
+        // Cache not warm - fetching patient data
         // Fetch critical data first
         try {
           await fetchPatientEverything(patientId, {
@@ -74,7 +74,7 @@ const useChartReviewResources = (patientId, options = {}) => {
             forceRefresh: false
           });
         } catch (everythingError) {
-          console.warn('Patient $everything failed, trying batch bundle:', everythingError);
+          // Patient $everything failed - trying batch bundle fallback
           await fetchPatientBundle(patientId, false, 'critical');
         }
       }
@@ -98,15 +98,14 @@ const useChartReviewResources = (patientId, options = {}) => {
         getPatientResources(patientId, 'Encounter') || []
       ]);
 
-      console.log('useChartReviewResources: Loaded data:', {
-        conditions: conditionData.length,
-        medications: medicationData.length,
-        allergies: allergyData.length,
-        immunizations: immunizationData.length,
-        observations: observationData.length,
-        procedures: procedureData.length,
-        encounters: encounterData.length
-      });
+      // Loaded data summary:
+      // conditions: conditionData.length
+      // medications: medicationData.length
+      // allergies: allergyData.length
+      // immunizations: immunizationData.length
+      // observations: observationData.length
+      // procedures: procedureData.length
+      // encounters: encounterData.length
 
       // Apply filters and sorting
       setConditions(processConditions(conditionData, filters, sortOrder));
@@ -119,7 +118,7 @@ const useChartReviewResources = (patientId, options = {}) => {
 
       setLastUpdated(new Date());
     } catch (err) {
-      console.error('Error loading chart review resources:', err);
+      // Error loading chart review resources
       setError('Failed to load chart review data');
     } finally {
       setLoading(false);

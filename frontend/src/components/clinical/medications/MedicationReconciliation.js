@@ -8,11 +8,6 @@ import {
   CardContent,
   CardActions,
   Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Stack,
   Divider,
@@ -22,12 +17,7 @@ import {
   Tooltip,
   Collapse,
   TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Checkbox,
-  FormControlLabel,
   Select,
   MenuItem,
   FormControl,
@@ -42,8 +32,7 @@ import {
   Badge,
   Stepper,
   Step,
-  StepLabel,
-  StepContent
+  StepLabel
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
@@ -58,20 +47,16 @@ import {
   Assignment as ReportIcon,
   Print as PrintIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
-  Schedule as ScheduleIcon,
-  LocalPharmacy as PharmacyIcon,
-  PersonAdd as PrescribeIcon,
-  Update as UpdateIcon,
   Flag as FlagIcon,
   Visibility as ViewIcon,
   Home as HomeIcon,
-  LocalHospital as HospitalIcon
+  LocalHospital as HospitalIcon,
+  Update as UpdateIcon
 } from '@mui/icons-material';
-import { format, parseISO, isAfter, differenceInDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Medication item component for reconciliation

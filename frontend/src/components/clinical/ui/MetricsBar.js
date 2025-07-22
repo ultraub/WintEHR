@@ -6,7 +6,6 @@ import {
   Stack,
   Chip,
   LinearProgress,
-  IconButton,
   Tooltip,
   Skeleton,
   useTheme,
@@ -14,9 +13,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  TrendingFlat as TrendingFlatIcon,
   Info as InfoIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
@@ -101,8 +97,10 @@ const MetricItem = memo(({ metric, index, density = 'comfortable', animate = tru
           height: config.height,
           p: config.padding,
           backgroundColor: metric.severity 
-            ? severityTokens[metric.severity]?.bg 
-            : alpha(theme.palette.background.paper, 0.6),
+            ? theme.palette.mode === 'dark' 
+              ? alpha(color, 0.1)  // Dark mode: use transparent color overlay
+              : severityTokens[metric.severity]?.bg 
+            : theme.palette.background.paper,
           border: `1px solid ${alpha(color, 0.2)}`,
           borderRadius: 2,
           cursor: metric.onClick ? 'pointer' : 'default',
@@ -112,8 +110,10 @@ const MetricItem = memo(({ metric, index, density = 'comfortable', animate = tru
           '&:hover': metric.onClick ? {
             borderColor: alpha(color, 0.4),
             backgroundColor: metric.severity 
-              ? severityTokens[metric.severity]?.hoverBg
-              : alpha(theme.palette.background.paper, 0.8),
+              ? theme.palette.mode === 'dark'
+                ? alpha(color, 0.15)  // Dark mode hover: slightly more opacity
+                : severityTokens[metric.severity]?.hoverBg
+              : theme.palette.action.hover,
             transform: 'translateY(-1px)',
             boxShadow: theme.shadows[2]
           } : {}

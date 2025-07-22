@@ -9,11 +9,6 @@ import {
   Grid,
   Paper,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Stack,
   Button,
@@ -21,7 +16,6 @@ import {
   Tooltip,
   Card,
   CardContent,
-  CardActions,
   CardMedia,
   TextField,
   InputAdornment,
@@ -32,8 +26,6 @@ import {
   InputLabel,
   CircularProgress,
   Alert,
-  Tabs,
-  Tab,
   Badge,
   Dialog,
   DialogTitle,
@@ -44,12 +36,9 @@ import {
   ToggleButtonGroup,
   useTheme,
   alpha,
-  Skeleton,
   ImageList,
   ImageListItem,
-  ImageListItemBar,
-  Fade,
-  Zoom as ZoomTransition
+  Fade
 } from '@mui/material';
 import {
   Image as ImagingIcon,
@@ -70,7 +59,6 @@ import {
   Fullscreen as FullscreenIcon,
   ZoomIn as ZoomIcon,
   RotateRight as RotateIcon,
-  Brightness6 as WindowIcon,
   GridView as SeriesIcon,
   PhotoLibrary as InstanceIcon,
   Warning as WarningIcon,
@@ -80,7 +68,6 @@ import {
   ViewList as ListIcon,
   AccountCircle as BodyMapIcon,
   AccessTime as RecentIcon,
-  TrendingUp as TrendUpIcon,
   Collections as CollectionsIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';

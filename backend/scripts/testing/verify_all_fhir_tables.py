@@ -243,10 +243,10 @@ class FHIRTableVerifier:
         """)
         
         ref_types = await self.conn.fetch("""
-            SELECT target_resource_type, COUNT(*) as count
+            SELECT target_type, COUNT(*) as count
             FROM fhir.references
-            WHERE target_resource_type IS NOT NULL
-            GROUP BY target_resource_type
+            WHERE target_type IS NOT NULL
+            GROUP BY target_type
             ORDER BY count DESC
             LIMIT 10
         """)
@@ -258,17 +258,17 @@ class FHIRTableVerifier:
             logger.info(f"  Total references: {total_refs}")
             logger.info("  Top target types:")
             for rt in ref_types:
-                logger.info(f"    {rt['target_resource_type']}: {rt['count']}")
+                logger.info(f"    {rt['target_type']}: {rt['count']}")
         
         # Check for broken references
         broken = await self.conn.fetchval("""
             SELECT COUNT(*)
             FROM fhir.references ref
-            WHERE ref.target_resource_type = 'Patient'
+            WHERE ref.target_type = 'Patient'
             AND NOT EXISTS (
                 SELECT 1 FROM fhir.resources r
                 WHERE r.resource_type = 'Patient'
-                AND r.fhir_id = ref.target_resource_id
+                AND r.fhir_id = ref.target_id
                 AND (r.deleted = false OR r.deleted IS NULL)
             )
         """)

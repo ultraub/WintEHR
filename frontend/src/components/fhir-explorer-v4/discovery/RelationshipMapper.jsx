@@ -460,9 +460,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Initialize D3 visualization
   const initializeVisualization = useCallback((data) => {
-    console.log('initializeVisualization called, svgRef:', svgRef.current, 'data:', data);
+    // initializeVisualization called with svgRef and data
     if (!svgRef.current || !data) {
-      console.warn('Cannot initialize visualization - missing svgRef or data');
+      // Cannot initialize visualization - missing svgRef or data
       return;
     }
 
@@ -732,7 +732,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        console.log('Container resized:', { width, height });
+        // Container resized - width and height updated
         
         // Re-initialize visualization if we have data and dimensions changed significantly
         if (relationshipData && initializeVisualizationRef.current && width > 100 && height > 100) {
@@ -1077,7 +1077,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         setTimeout(() => setError(null), 3000);
       }
     } catch (error) {
-      console.error('Search error:', error);
+      // Search error occurred
       setError('Search failed. Please try again.');
     } finally {
       setLoadingStates(prev => ({ ...prev, search: false }));
@@ -1362,7 +1362,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   onChange={(e, resourceType) => {
                     if (resourceType && resources[resourceType]?.length > 0) {
                       const resource = resources[resourceType][0];
-                      console.log('Selected resource:', resourceType, resource);
+                      // Selected resource type and resource
                       // Extract just the ID part if it's prefixed
                       const resourceId = resource.id.includes('/') ? 
                         resource.id.split('/').pop() : 

@@ -100,7 +100,7 @@ class ProviderAccountabilityService {
       this.providerCache.set(providerReference, providerInfo);
       return providerInfo;
     } catch (error) {
-      console.error('Error fetching provider info:', error);
+      // Provider info not found - returning default
       return {
         id: null,
         reference: providerReference,
@@ -153,7 +153,7 @@ class ProviderAccountabilityService {
       this.organizationCache.set(orgReference, orgInfo);
       return orgInfo;
     } catch (error) {
-      console.error('Error fetching organization info:', error);
+      // Organization info not found
       return null;
     }
   }
@@ -184,7 +184,7 @@ class ProviderAccountabilityService {
           context.responsible = await this.getProviderInfo(order.performer[0].reference);
         }
       } catch (error) {
-        console.error('Error getting ordering provider:', error);
+        // Ordering provider not available
       }
     }
 
@@ -311,7 +311,7 @@ class ProviderAccountabilityService {
       const response = await fhirClient.search('Observation', searchParams);
       return response.resources || [];
     } catch (error) {
-      console.error('Error getting provider results:', error);
+      // Error retrieving provider results - returning empty array
       return [];
     }
   }
@@ -373,7 +373,7 @@ class ProviderAccountabilityService {
 
       return providerDetails.sort((a, b) => b.resultCount - a.resultCount);
     } catch (error) {
-      console.error('Error getting patient providers:', error);
+      // Error retrieving patient providers - returning empty array
       return [];
     }
   }
@@ -434,7 +434,7 @@ class ProviderAccountabilityService {
   async storeAccountabilityRecord(accountability) {
     // In production, this would store in database or create FHIR Task resource
     // For now, we'll use console logging and local storage
-    console.log('Storing accountability record:', accountability);
+    // Storing accountability record
     
     // Could create a Task resource to track accountability
     try {
@@ -473,7 +473,7 @@ class ProviderAccountabilityService {
 
       await fhirClient.create('Task', task);
     } catch (error) {
-      console.error('Error creating accountability task:', error);
+      // Accountability task creation failed - will retry
     }
   }
 

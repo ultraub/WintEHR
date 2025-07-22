@@ -2,7 +2,7 @@
 
 **Purpose**: Essential guide for AI agents working with WintEHR's data management and deployment scripts.
 
-**Last Updated**: 2025-01-20
+**Last Updated**: 2025-01-22
 
 ## 🎯 Overview
 
@@ -18,23 +18,28 @@ This directory contains critical scripts for:
 
 ```
 backend/scripts/
-├── active/                      # Production-ready scripts
+├── active/                      # Production-ready scripts ✅
 │   ├── synthea_master.py       # Master data import controller
 │   ├── data_processor.py       # Core data processing engine
 │   ├── generate_dicom_for_studies.py  # DICOM generation
 │   ├── consolidated_catalog_setup.py   # Clinical catalog setup
 │   └── master_build.py         # Build orchestration
 ├── setup/                       # Database and initial setup
-│   ├── init_database_definitive.py     # Create all 6 FHIR tables
+│   ├── init_database_definitive.py     # Create all 6 FHIR tables ✅
 │   ├── init_search_tables.py          # Search infrastructure
 │   └── comprehensive_setup.py          # Full system setup
-├── analysis/                    # Data analysis and validation
-│   ├── validate_deployment.py          # Deployment validation
-│   └── analyze_synthea_import.py       # Import analysis
-├── migrations/                  # Database migrations
+├── testing/                     # Testing and validation scripts ✅
+│   ├── check_synthea_resources.py      # Quick resource overview
+│   ├── validate_fhir_data.py           # Comprehensive validation
+│   └── verify_all_fhir_tables.py       # Table verification
+├── analysis/                    # Data analysis (mostly one-time use)
+├── migrations/                  # Database migrations (already applied) ⚠️
 ├── data/                        # Static data and backups
 │   └── synthea_backups/        # Patient data backups
 └── logs/                        # Operation logs
+
+✅ = Actively used in production
+⚠️ = Deprecated/Already applied
 ```
 
 ## 🔧 Critical Scripts
@@ -254,7 +259,7 @@ LIMIT 5;"
 python scripts/analysis/analyze_data_elements.py
 
 # Run EXPLAIN on slow queries
-python scripts/test_search_functionality.py
+python scripts/testing/test_search_functionality.py
 
 # Optimize indexes
 python scripts/optimize_database_indexes.py
@@ -294,6 +299,56 @@ python scripts/optimize_database_indexes.py
 - Monitor disk space during large imports
 - Use transaction mode for atomic operations
 - Validate reference integrity after imports
+
+## ✅ Cleanup Completed (2025-01-22)
+
+The following deprecated scripts have been removed:
+
+### Removed Scripts:
+**Root directory (6 scripts removed):**
+- `cleanup_invalid_observations.py` - Integrated into data_processor.py
+- `fix_urn_references.py` - URN references already fixed
+- `normalize_references.py` - Handled by data_processor.py
+- `populate_references_table.py` - Superseded by data_processor.py
+- `populate_references_urn_uuid.py` - Duplicate functionality
+- `update_patient_extraction.py` - Old migration, already applied
+
+**migrations/ directory (removed entirely - 7 scripts):**
+- `apply_aws_fixes.py` - One-time AWS fix
+- `apply_local_fixes.py` - One-time local fix  
+- `check_extension_import.py` - Old migration check
+- `check_import_progress.py` - Old import check
+- `check_migration_progress.py` - Old migration check
+- `check_references_status.py` - Old reference check
+- `check_synthea_coverage.py` - Old coverage check
+
+**setup/ directory (5 scripts removed):**
+- `sample_data.py` - Replaced by synthea_master.py
+- `import_new_patients.py` - Replaced by synthea_master.py
+- `start_fresh.sh` - Replaced by fresh-deploy.sh
+- `setup_postgres.sh` - Handled by docker-compose
+- `setup_postgres_fixed.sh` - Duplicate of above
+
+**testing/ directory (12 scripts removed):**
+- `debug_api_results.py` - Temporary debugging
+- `debug_gender_unknown.py` - Temporary debugging
+- `debug_reference_search.py` - Temporary debugging
+- `debug_search_join.py` - Temporary debugging
+- `debug_search_query.py` - Temporary debugging
+- `fix_sort_parameter.py` - One-time fix applied
+- `fix_sort_router.py` - One-time fix applied
+- `fix_token_search_params.py` - One-time fix applied
+- `test_gender_search_fix.py` - Fix already applied
+- `test_redis_cache.py` - Redis caching is working
+
+**analysis/ directory (3 scripts removed):**
+- `synthea_import_gap_analysis.py` - Analysis complete
+- `analyze_date_handling.py` - Analysis complete
+- `inspect_encounter_class.py` - One-time inspection
+
+### Scripts Kept (Still Needed):
+- `fix_cds_hooks_enabled_column.py` - Fixes CDS hooks table schema
+- `setup/fix_service_request_references.py` - Fixes ServiceRequest references
 
 ---
 

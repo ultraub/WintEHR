@@ -145,7 +145,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
         }
       });
     } else {
-      console.error('Invalid filter format. Expected URLSearchParams or object.');
+      // Invalid filter format - expected URLSearchParams or object
       return;
     }
 
@@ -233,7 +233,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
 
       return suggestions;
     } catch (error) {
-      console.error('Error getting search suggestions:', error);
+      // Error getting search suggestions - return empty array
       setSearchState(prev => ({
         ...prev,
         suggestions: [],
@@ -268,7 +268,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
 
       return recommendations;
     } catch (error) {
-      console.error('Error getting order recommendations:', error);
+      // Error getting order recommendations - return empty array
       setSearchState(prev => ({
         ...prev,
         recommendations: [],
@@ -363,7 +363,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
         loading: false
       }));
     } catch (error) {
-      console.error('Error loading more results:', error);
+      // Error loading more results - keep existing results
       setSearchState(prev => ({
         ...prev,
         loading: false,
@@ -391,7 +391,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
    */
   useEffect(() => {
     if (autoSearch && patientId && !searchState.hasSearched) {
-      console.log('useAdvancedOrderSearch: Executing initial search for patient:', patientId);
+      // Execute initial search for patient when autoSearch is enabled
       executeSearch();
     }
   }, [autoSearch, patientId]); // Only run when autoSearch or patientId changes

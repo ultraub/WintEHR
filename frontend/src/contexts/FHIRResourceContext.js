@@ -1064,16 +1064,15 @@ export function FHIRResourceProvider({ children }) {
                 referencesThisPatient = true;
               }
               
-              console.log(`Checking relationship for ${resourceType}/${resource.id}:`, {
-                patientRef,
-                patientId,
-                referencesThisPatient,
-                resourcePatient: resource.patient,
-                resourceSubject: resource.subject
-              });
+              // Check relationship for resource:
+              // - patientRef: reference to patient
+              // - patientId: current patient ID
+              // - referencesThisPatient: whether resource references this patient
+              // - resourcePatient: patient field value
+              // - resourceSubject: subject field value
               
               if (referencesThisPatient) {
-                console.log(`Adding relationship: ${patientId} -> ${resourceType}/${resource.id}`);
+                // Adding relationship: patientId -> resourceType/resourceId
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {
@@ -1104,7 +1103,7 @@ export function FHIRResourceProvider({ children }) {
         dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
         
         // Fallback to individual requests if batch fails
-        console.warn('Batch request failed, falling back to individual requests:', error);
+        // Batch request failed - falling back to individual requests
         
         // Use the original individual fetch approach
         const promises = types.map(async (resourceType) => {
@@ -1192,7 +1191,7 @@ export function FHIRResourceProvider({ children }) {
           });
         } catch (everythingError) {
           // Fall back to batch bundle if $everything fails
-          console.warn('Patient $everything failed in setCurrentPatient, using batch bundle:', everythingError);
+          // Patient $everything failed in setCurrentPatient - using batch bundle fallback
           await fetchPatientBundle(patientId, false, 'critical');
         }
       }
@@ -1336,7 +1335,7 @@ export function FHIRResourceProvider({ children }) {
         return { success: true, patientId };
       } catch (error) {
         // Log but don't throw - cache warming should fail silently
-        console.warn('Cache warming failed:', error);
+        // Cache warming failed - fail silently
         return { success: false, patientId, error };
       } finally {
         inFlightRequests.current.delete(requestKey);
@@ -1479,10 +1478,7 @@ export function FHIRResourceProvider({ children }) {
     // Add request interceptor for logging in development
     if (process.env.NODE_ENV === 'development') {
       fhirClient.addRequestInterceptor((config) => {
-        console.log(`[FHIR Request] ${config.method?.toUpperCase()} ${config.url}`, {
-          params: config.params,
-          data: config.data
-        });
+        // [FHIR Request] method url with params and data
         return config;
       });
     }
@@ -1491,7 +1487,7 @@ export function FHIRResourceProvider({ children }) {
     fhirClient.addErrorInterceptor(async (error) => {
       if (error.response?.status === 401) {
         // Handle unauthorized - could trigger re-authentication
-        console.error('[FHIR Auth Error] Unauthorized access');
+        // [FHIR Auth Error] Unauthorized access - dispatch auth error event
         // Dispatch auth error event
         window.dispatchEvent(new CustomEvent('fhir-auth-error', { detail: { error } }));
       } else if (error.response?.status === 404) {
@@ -1502,7 +1498,7 @@ export function FHIRResourceProvider({ children }) {
         }
       } else if (error.response?.status >= 500) {
         // Server errors
-        console.error('[FHIR Server Error]', error.response.status, error.response.data);
+        // [FHIR Server Error] - status and response data
       }
       
       // Re-throw the error for handling by calling code
