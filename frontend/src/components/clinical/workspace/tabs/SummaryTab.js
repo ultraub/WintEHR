@@ -691,7 +691,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         )}
 
         {/* Clinical Snapshot Grid - 2x2 Layout */}
-        <Grid container spacing={density === 'compact' ? 1 : 2}>
+        <Grid container spacing={3}>
           {/* Active Problems Card */}
           <Grid item xs={12} md={6}>
             <motion.div
@@ -1059,7 +1059,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
           Recent Activity
         </Typography>
-        <Grid container spacing={density === 'compact' ? 1 : 2}>
+        <Grid container spacing={3}>
           {/* Recent Encounters */}
           <Grid item xs={12} md={6}>
             <motion.div

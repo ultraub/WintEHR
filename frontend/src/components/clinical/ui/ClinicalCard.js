@@ -143,11 +143,10 @@ const ClinicalCard = memo(({
       <Card 
         elevation={0} 
         sx={{ 
-          borderRadius: 0,
-          border: '1px solid',
-          borderColor: 'divider',
-          borderLeft: '4px solid',
-          borderLeftColor: theme.palette.grey[300],
+          borderRadius: '4px',
+          border: '1px solid #E5E7EB',
+          backgroundColor: '#FFFFFF',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
           ...sx 
         }}
       >
@@ -171,16 +170,19 @@ const ClinicalCard = memo(({
         cursor: onClick ? 'pointer' : 'default',
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 0,  // Sharp corners for professional medical UI
-        border: '1px solid',
-        borderColor: 'divider',
-        borderLeft: `4px solid ${clinicalTokens.severity[severity]?.color || theme.palette.grey[300]}`,
-        backgroundColor: clinicalTokens.severity[severity]?.bg || theme.palette.background.paper,
+        borderRadius: '4px',  // Slightly rounded for modern look
+        border: '1px solid #E5E7EB',  // Subtle border
+        backgroundColor: '#FFFFFF',  // Clean white background
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',  // Minimal shadow
         transition: 'all 0.2s ease',
         '&:hover': onClick ? {
-          boxShadow: theme.shadows[2],
-          transform: 'translateY(-1px)'
+          backgroundColor: '#FAFBFC',
+          borderColor: '#D1D5DB'
         } : {},
+        // Add severity indicator as left border if critical/high
+        ...(severity && (severity === 'critical' || severity === 'high') && {
+          borderLeft: `4px solid ${clinicalTokens.severity[severity]?.color || theme.palette.error.main}`
+        }),
         ...sx
       }}
       {...otherProps}

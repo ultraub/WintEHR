@@ -259,26 +259,6 @@ const ClinicalWorkspaceEnhanced = ({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Enhanced Version Indicator - Remove after verification */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          p: 1,
-          backgroundColor: alpha(theme.palette.success.main, 0.1),
-          borderBottom: 1,
-          borderColor: 'divider'
-        }}
-      >
-        <Chip 
-          label="Enhanced Clinical Workspace v2 - Different from V3" 
-          color="success" 
-          size="small"
-          sx={{ fontWeight: 600 }}
-        />
-      </Box>
-      
       {/* CDS Alerts - Clean professional display */}
       {cdsAlerts && cdsAlerts.length > 0 && (
         <Box sx={{ 

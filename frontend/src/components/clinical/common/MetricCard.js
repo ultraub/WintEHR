@@ -142,27 +142,19 @@ const MetricCard = ({
   const cardSx = {
     height: '100%',
     cursor: onClick ? 'pointer' : 'default',
-    background: variant === 'gradient' 
-      ? `linear-gradient(135deg, ${cardColor} 0%, ${alpha(cardColor, 0.8)} 100%)`
-      : getSurfaceColor(),
-    color: variant === 'gradient' ? 'white' : 'inherit',
-    border: variant === 'clinical' ? 1 : 0,
-    borderColor: variant === 'clinical' ? alpha(cardColor, 0.2) : 'transparent',
-    borderRadius: 1,  // Consistent with clinical cards
-    transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
+    backgroundColor: '#FFFFFF',  // Clean white background
+    border: '1px solid #E5E7EB',  // Subtle border
+    borderRadius: '4px',  // Sharp corners
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',  // Minimal shadow
+    transition: 'all 200ms ease-in-out',
     '&:hover': onClick ? {
-      transform: hoverAnimation.transform,
-      boxShadow: `0 8px 24px ${alpha(cardColor, 0.15)}`,
-      borderColor: variant === 'clinical' ? alpha(cardColor, 0.4) : 'transparent'
+      backgroundColor: '#FAFBFC',
+      borderColor: '#D1D5DB'
     } : {},
     // Add urgency styling for critical situations
     ...(urgency === 'urgent' && {
       borderLeft: `4px solid ${cardColor}`,
       borderLeftColor: cardColor
-    }),
-    // Add subtle glow for severity indicators
-    ...(severity && ['severe', 'critical'].includes(severity) && {
-      boxShadow: `0 0 0 1px ${alpha(cardColor, 0.2)}, 0 2px 4px ${alpha(cardColor, 0.1)}`
     }),
     ...props.sx
   };
@@ -190,8 +182,11 @@ const MetricCard = ({
             <Typography 
               variant="body2" 
               sx={{ 
-                color: variant === 'gradient' ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary',
-                fontWeight: 500
+                color: 'text.secondary',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                fontSize: '0.75rem',
+                letterSpacing: '0.5px'
               }}
             >
               {title}
@@ -213,12 +208,13 @@ const MetricCard = ({
             {icon && (
               <Avatar 
                 sx={{ 
-                  bgcolor: variant === 'gradient' 
-                    ? alpha(theme.palette.common.white, 0.2)
-                    : alpha(cardColor, 0.1),
-                  color: variant === 'gradient' ? 'white' : cardColor,
-                  width: 32,
-                  height: 32
+                  bgcolor: alpha(cardColor, 0.1),
+                  color: cardColor,
+                  width: 40,
+                  height: 40,
+                  '& svg': {
+                    fontSize: '1.25rem'  // Ensure icon is properly sized
+                  }
                 }}
               >
                 {icon}
@@ -243,10 +239,10 @@ const MetricCard = ({
 
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.5 }}>
           <Typography 
-            variant="h5" 
+            variant="h4" 
             sx={{ 
-              fontWeight: 600, 
-              color: variant === 'gradient' ? 'white' : cardColor,
+              fontWeight: 700, 
+              color: cardColor,
               lineHeight: 1.2
             }}
           >
@@ -256,7 +252,7 @@ const MetricCard = ({
             <Typography 
               variant="body2" 
               sx={{ 
-                color: variant === 'gradient' ? 'rgba(255, 255, 255, 0.8)' : 'text.secondary',
+                color: 'text.secondary',
                 fontWeight: 500
               }}
             >

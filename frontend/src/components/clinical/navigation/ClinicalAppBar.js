@@ -128,18 +128,6 @@ const ClinicalAppBar = ({
         }}>
           {/* Left Section */}
           <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 0 }}>
-            <IconButton
-              edge="start"
-              aria-label="menu"
-              onClick={onMenuToggle}
-              sx={{ 
-                mr: 1,
-                color: '#FFFFFF'
-              }}
-            >
-              <MenuIcon />
-            </IconButton>
-
             {!isMobile && (
               <>
                 <Typography
