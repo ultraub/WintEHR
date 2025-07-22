@@ -2,7 +2,7 @@
  * Vitals Overview Component
  * Displays all vital signs in separate charts with abnormal indicators
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -115,19 +115,19 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       color: chartColors.vitals.temperature
     },
     'Body temperature': {
-      name: 'Temperature',
+      name: 'Temperature (Body)',
       unit: '°F',
       normalRanges: { value: [97.0, 99.5] },
       color: chartColors.vitals.temperature
     },
     'Oxygen Saturation': {
-      name: 'Oxygen Saturation',
+      name: 'O2 Saturation',
       unit: '%',
       normalRanges: { value: [95, 100] },
       color: chartColors.vitals.respiratoryRate
     },
     'Pulse Oximetry': {
-      name: 'Oxygen Saturation',
+      name: 'O2 Saturation (Pulse)',
       unit: '%',
       normalRanges: { value: [95, 100] },
       color: chartColors.vitals.respiratoryRate
@@ -191,7 +191,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
     }
   }, [patientId, vitalsData, timeRange]);
 
-  const fetchVitalsData = async () => {
+  const fetchVitalsData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -260,7 +260,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, timeRange]);
 
   const processVitalData = (vitalType) => {
     const cutoffDate = timeRange === 'all' ? new Date(0) : subDays(new Date(), timeRange);

@@ -277,7 +277,8 @@ const TimelineControls = ({
   onRefresh,
   onExport,
   isLive,
-  onToggleLive
+  onToggleLive,
+  RESOURCE_TRACKS
 }) => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   
@@ -751,6 +752,7 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         onExport={handleExport}
         isLive={isLive}
         onToggleLive={setIsLive}
+        RESOURCE_TRACKS={RESOURCE_TRACKS}
       />
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
