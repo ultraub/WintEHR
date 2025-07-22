@@ -134,34 +134,34 @@ const ClinicalCard = ({
   
   const cardSx = {
     position: 'relative',
-    backgroundColor: getCardBackground(),
-    border: `1px solid ${getBorderColor()}`,
-    borderRadius: 0,
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '4px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
     transition: `all ${animation.duration}ms ${animation.easing}`,
     cursor: onCardClick ? 'pointer' : 'default',
     '&:hover': onCardClick ? {
-      transform: animation.transform,
-      boxShadow: theme.shadows[4],
-      borderColor: alpha(getBorderColor(), 0.4)
+      boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+      borderColor: '#D1D5DB'
     } : {},
+    // Add severity indicator
+    ...(severity && {
+      borderLeft: `4px solid ${severityColor}`,
+      borderLeftWidth: '4px'
+    }),
     // Add urgency indicator
     ...(urgent && {
-      borderLeftWidth: 4,
-      borderLeftColor: theme.palette.error?.main || '#f44336',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 3,
-        backgroundColor: theme.palette.error?.main || '#f44336',
-        borderRadius: `${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0 0`
-      }
+      borderColor: theme.palette.error?.main || '#f44336',
+      backgroundColor: alpha(theme.palette.error?.main || '#f44336', 0.02)
     }),
-    // Add severity glow
-    ...(severity && ['severe', 'critical'].includes(severity) && {
-      boxShadow: `0 0 0 1px ${alpha(severityColor, 0.3)}, 0 2px 4px ${alpha(severityColor, 0.1)}`
+    // Clean styling for metric variant
+    ...(variant === 'metric' && {
+      textAlign: 'center',
+      minHeight: 120,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      padding: theme.spacing(2)
     }),
     ...props.sx
   };

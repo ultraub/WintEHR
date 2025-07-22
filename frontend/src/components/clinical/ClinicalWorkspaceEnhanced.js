@@ -36,16 +36,18 @@ import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
+import { usePatientCDSAlerts } from '../../contexts/CDSContext';
 import TabErrorBoundary from './workspace/TabErrorBoundary';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './ui/KeyboardShortcutsDialog';
+import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
 
 // Tab Components - Lazy Loaded for Performance
 // Using optimized/enhanced versions where available
 const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
-const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTabOptimized'));
+const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTabSplitLayout'));
 const EncountersTab = React.lazy(() => import('./workspace/tabs/EncountersTab'));
-const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTabOptimized'));
+const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTabWithSubNav'));
 const OrdersTab = React.lazy(() => import('./workspace/tabs/EnhancedOrdersTab'));
 const PharmacyTab = React.lazy(() => import('./workspace/tabs/PharmacyTab'));
 const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTabEnhanced'));
@@ -109,6 +111,9 @@ const ClinicalWorkspaceEnhanced = ({
   
   // Use parent's activeModule directly instead of maintaining separate state
   const activeTab = activeModule;
+  
+  // CDS Alerts
+  const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
 
   // Load patient data if not provided by parent
   useEffect(() => {
@@ -249,9 +254,8 @@ const ClinicalWorkspaceEnhanced = ({
     );
   }
 
-  // Add console log to verify enhanced version is loading
-  console.log('ClinicalWorkspaceEnhanced: Loading - enhanced version with fixes v2');
-  console.log('ClinicalWorkspaceEnhanced: activeModule =', activeModule, 'activeTab =', activeTab);
+  // Verify enhanced version is loading - enhanced version with fixes v2
+  // activeModule and activeTab should be synchronized
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -275,6 +279,27 @@ const ClinicalWorkspaceEnhanced = ({
         />
       </Box>
       
+      {/* CDS Alerts - Clean professional display */}
+      {cdsAlerts && cdsAlerts.length > 0 && (
+        <Box sx={{ 
+          px: 2, 
+          pt: 2,
+          pb: 0,
+          backgroundColor: '#FAFBFC'
+        }}>
+          <CDSPresentation
+            alerts={cdsAlerts}
+            mode={PRESENTATION_MODES.INLINE}
+            patientId={patientId}
+            maxAlerts={3}
+            onAlertAction={(alert, action, suggestion) => {
+              console.log('CDS Alert Action:', { alert, action, suggestion });
+              // Handle alert actions if needed
+            }}
+          />
+        </Box>
+      )}
+      
       {/* Tab Content - no extra spacing */}
       <Box 
         sx={{ flex: 1, overflow: 'auto', pt: 0 }}
@@ -291,7 +316,7 @@ const ClinicalWorkspaceEnhanced = ({
               // Only render active tab to improve performance
               if (!isActive) return null;
               
-              console.log(`Rendering tab: ${tab.id}, Component name: ${TabComponent.name || 'Unknown'}, Active: ${isActive}, TabComponent:`, TabComponent);
+              // Rendering tab: active tab will be displayed, others hidden
               
               return (
                 <Box

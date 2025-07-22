@@ -26,27 +26,27 @@ export const clinicalTokens = {
     severityNormal: 'linear-gradient(135deg, #e0e7ff 0%, #cfd9f3 100%)'
   },
   
-  // Enhanced shadows for depth - Professional medical UI
+  // Clean shadows for professional medical UI - matching older design
   modernShadows: {
     xs: 'none',
     sm: '0 1px 2px rgba(0,0,0,0.04)',
-    md: '0 2px 4px rgba(0,0,0,0.06)',
-    lg: '0 4px 8px rgba(0,0,0,0.08)',
-    xl: '0 8px 16px rgba(0,0,0,0.10)',
-    // Colored shadows - Very subtle
-    primary: '0 2px 8px 0 rgba(102, 126, 234, 0.15)',
-    success: '0 2px 8px 0 rgba(132, 250, 176, 0.15)',
-    warning: '0 2px 8px 0 rgba(250, 112, 154, 0.15)',
-    error: '0 2px 8px 0 rgba(240, 147, 251, 0.15)',
-    // Elevation shadows - Consistent with main shadows
+    md: '0 1px 3px rgba(0,0,0,0.08)',
+    lg: '0 2px 4px rgba(0,0,0,0.10)',
+    xl: '0 4px 8px rgba(0,0,0,0.12)',
+    // Minimal colored shadows
+    primary: '0 1px 3px rgba(41, 121, 255, 0.1)',
+    success: '0 1px 3px rgba(76, 175, 80, 0.1)',
+    warning: '0 1px 3px rgba(255, 152, 0, 0.1)',
+    error: '0 1px 3px rgba(244, 67, 54, 0.1)',
+    // Elevation shadows - Very subtle
     elevation0: 'none',
     elevation1: '0 1px 2px rgba(0,0,0,0.04)',
-    elevation2: '0 2px 4px rgba(0,0,0,0.06)',
-    elevation3: '0 4px 8px rgba(0,0,0,0.08)',
-    elevation4: '0 8px 16px rgba(0,0,0,0.10)',
-    // Inner shadows for depth
-    inner: 'inset 0 1px 2px rgba(0,0,0,0.04)',
-    innerDeep: 'inset 0 2px 4px rgba(0,0,0,0.06)'
+    elevation2: '0 1px 3px rgba(0,0,0,0.08)',
+    elevation3: '0 2px 4px rgba(0,0,0,0.10)',
+    elevation4: '0 4px 8px rgba(0,0,0,0.12)',
+    // Inner shadows for inputs
+    inner: 'inset 0 1px 2px rgba(0,0,0,0.02)',
+    innerDeep: 'inset 0 1px 3px rgba(0,0,0,0.04)'
   },
   
   // Animation presets

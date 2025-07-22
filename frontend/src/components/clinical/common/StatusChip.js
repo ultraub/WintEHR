@@ -125,31 +125,37 @@ const StatusChip = ({
   };
 
   if (variant === 'clinical') {
-    // Custom styling for clinical variant with dark mode support
-    const isDarkMode = theme.palette.mode === 'dark';
+    // Clean solid color styling matching older design
+    const solidColorMap = {
+      active: '#4CAF50',      // Green
+      completed: '#2196F3',   // Blue
+      pending: '#FF9800',     // Orange
+      cancelled: '#F44336',   // Red
+      'in-progress': '#2979FF', // Primary blue
+      draft: '#9E9E9E',       // Gray
+      inactive: '#757575'     // Dark gray
+    };
+    
+    const backgroundColor = solidColorMap[status?.toLowerCase()] || '#9E9E9E';
+    
     chipProps.sx = {
-      backgroundColor: theme.palette.mode === 'dark' 
-        ? `${statusConfig.color}30` 
-        : `${statusConfig.color}20`,
-      color: statusConfig.color,
-      borderColor: theme.palette.mode === 'dark'
-        ? `${statusConfig.color}50`
-        : `${statusConfig.color}40`,
-      border: 1,
+      backgroundColor: backgroundColor,
+      color: '#FFFFFF',
+      border: 'none',
       fontWeight: 500,
+      fontSize: size === 'small' ? '0.75rem' : '0.875rem',
+      height: size === 'small' ? '24px' : '32px',
       '& .MuiChip-icon': {
-        color: statusConfig.color
+        color: '#FFFFFF',
+        fontSize: size === 'small' ? '16px' : '20px'
       },
       '& .MuiChip-deleteIcon': {
-        color: statusConfig.color
+        color: '#FFFFFF'
       },
       transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
       '&:hover': {
-        backgroundColor: theme.palette.mode === 'dark'
-          ? `${statusConfig.color}40`
-          : `${statusConfig.color}30`,
-        transform: hoverAnimation.transform,
-        boxShadow: `0 2px 4px ${statusConfig.color}${isDarkMode ? '50' : '40'}`
+        backgroundColor: backgroundColor,
+        filter: 'brightness(0.9)'
       },
       // Add urgency indicator
       ...(urgency === 'urgent' && {
@@ -159,11 +165,6 @@ const StatusChip = ({
           '50%': { opacity: 0.7 },
           '100%': { opacity: 1 }
         }
-      }),
-      // Add department-specific styling
-      ...(enhancedContext.department !== 'general' && {
-        borderColor: `${statusConfig.color}60`,
-        borderWidth: 2
       }),
       ...props.sx
     };

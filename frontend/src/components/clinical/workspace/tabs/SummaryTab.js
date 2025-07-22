@@ -584,32 +584,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Compact Patient Header */}
-      <CompactPatientHeader
-        patient={currentPatient}
-        alerts={[
-          ...(criticalConditions.map(c => ({ 
-            indicator: 'critical', 
-            text: getResourceDisplayText(c) 
-          }))),
-          ...(stats.overdueItems > 0 ? [{ 
-            indicator: 'warning', 
-            text: `${stats.overdueItems} overdue items` 
-          }] : [])
-        ]}
-        vitals={{
-          bloodPressure: vitalsTrend.filter(v => v.value > 80 && v.value < 200),
-          heartRate: vitalsTrend.filter(v => v.value > 40 && v.value < 150)
-        }}
-        conditions={conditions}
-        medications={medications}
-        allergies={allergies}
-        lastEncounter={recentEncounters[0]}
-        onNavigateToTab={(tab) => navigate(`/clinical/${patientId}?tab=${tab}`)}
-      />
-      
-      {refreshing && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {refreshing && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
       
       {/* Main Content */}
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
@@ -899,7 +875,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                     showArea
                   />
                 ) : null}
-                sx={{ height: '100%' }}
+                sx={{ 
+                  height: '100%',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EB',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                }}
               >
                 <List disablePadding>
                   {recentLabs.length > 0 ? (
@@ -990,7 +971,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                     onClick: () => navigate(`/clinical/${patientId}?tab=encounters`)
                   }
                 ]}
-                sx={{ height: '100%' }}
+                sx={{ 
+                  height: '100%',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E5E7EB',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                }}
               >
                 <List disablePadding>
                   {encounters.filter(enc => {

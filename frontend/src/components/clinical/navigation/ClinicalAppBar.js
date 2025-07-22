@@ -111,14 +111,12 @@ const ClinicalAppBar = ({
         position="fixed"
         elevation={0}
         sx={{
-          backgroundColor: alpha('#FFFFFF', 0.98),  // Slightly transparent white
-          backdropFilter: 'blur(8px)',  // Glassmorphism effect
-          WebkitBackdropFilter: 'blur(8px)',  // Safari support
-          borderBottom: '2px solid',
-          borderColor: theme.palette.primary.main,  // Primary color border for visibility
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',  // Subtle shadow
+          backgroundColor: '#2979FF',  // Clean blue matching older design
+          backgroundImage: 'none',
+          borderBottom: 'none',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           zIndex: theme.zIndex.drawer + 1,
-          height: isMobile ? 56 : 56  // Consistent 56px height
+          height: 56
         }}
       >
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
@@ -132,39 +130,41 @@ const ClinicalAppBar = ({
           <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 0 }}>
             <IconButton
               edge="start"
-              color="inherit"
               aria-label="menu"
               onClick={onMenuToggle}
-              sx={{ mr: 1 }}
+              sx={{ 
+                mr: 1,
+                color: '#FFFFFF'
+              }}
             >
               <MenuIcon />
             </IconButton>
 
             {!isMobile && (
               <>
-                <HospitalIcon color="primary" sx={{ mr: 1 }} />
                 <Typography
                   variant="h6"
                   component="div"
                   sx={{
                     fontWeight: 600,
-                    color: theme.palette.text.primary,
+                    color: '#FFFFFF',
                     mr: 2
                   }}
                 >
-                  WintEHR Clinical
+                  WintEHR
                 </Typography>
                 
-                <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ mx: 2, backgroundColor: 'rgba(255,255,255,0.3)' }} />
                 
                 <Chip
                   label={department}
                   size="small"
                   sx={{
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#FFFFFF',
                     fontWeight: 600,
-                    borderRadius: '4px'  // Professional medical UI
+                    borderRadius: '4px',
+                    border: '1px solid rgba(255,255,255,0.3)'
                   }}
                 />
                 
@@ -172,10 +172,11 @@ const ClinicalAppBar = ({
                   label={shift}
                   size="small"
                   sx={{
-                    backgroundColor: alpha(getShiftColor(), 0.1),
-                    color: getShiftColor(),
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#FFFFFF',
                     fontWeight: 600,
-                    borderRadius: '4px'  // Professional medical UI
+                    borderRadius: '4px',
+                    border: '1px solid rgba(255,255,255,0.3)'
                   }}
                 />
               </>
@@ -207,11 +208,11 @@ const ClinicalAppBar = ({
                 
                 {!isMobile && (
                   <>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#FFFFFF' }}>
                       {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
                     </Typography>
                     
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
                       MRN: {patient.identifier?.[0]?.value} • {patient.age}y {patient.gender}
                     </Typography>
                   </>
@@ -229,7 +230,7 @@ const ClinicalAppBar = ({
                   onClick={handlePrint}
                   sx={{ 
                     display: { xs: 'none', sm: 'inline-flex' },
-                    color: theme.palette.action.active
+                    color: '#FFFFFF'
                   }}
                 >
                   <PrintIcon />
@@ -244,7 +245,7 @@ const ClinicalAppBar = ({
                   onClick={handleShare}
                   sx={{ 
                     display: { xs: 'none', sm: 'inline-flex' },
-                    color: theme.palette.action.active
+                    color: '#FFFFFF'
                   }}
                 >
                   <ShareIcon />
@@ -256,7 +257,7 @@ const ClinicalAppBar = ({
             <Tooltip title="Notifications">
               <IconButton
                 onClick={handleNotificationOpen}
-                sx={{ color: theme.palette.action.active }}
+                sx={{ color: '#FFFFFF' }}
               >
                 <Badge badgeContent={unreadNotifications} color="error">
                   <NotificationsIcon />
@@ -268,7 +269,7 @@ const ClinicalAppBar = ({
             <Tooltip title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
               <IconButton
                 onClick={onThemeToggle}
-                sx={{ color: theme.palette.action.active }}
+                sx={{ color: '#FFFFFF' }}
               >
                 {isDarkMode ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
@@ -285,7 +286,9 @@ const ClinicalAppBar = ({
                   sx={{
                     width: 32,
                     height: 32,
-                    backgroundColor: theme.palette.primary.main
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    border: '2px solid #FFFFFF',
+                    color: '#FFFFFF'
                   }}
                 >
                   {user?.name?.[0] || 'U'}
