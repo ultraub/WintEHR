@@ -103,7 +103,10 @@ const ResourceTimeline = memo(({
   highlightToday = true,
   animate = true,
   sx = {},
-  ...otherProps
+  // Props that shouldn't be passed to DOM - prefix with _ to indicate intentionally unused
+  showRangeSelector: _showRangeSelector,
+  enableZoom: _enableZoom,
+  groupByType: _groupByType
 }) => {
   const theme = useTheme();
   const svgRef = useRef(null);
@@ -297,7 +300,7 @@ const ResourceTimeline = memo(({
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
-        .on('click', (event, d) => {
+        .on('click', (_event, d) => {
           if (onResourceClick) {
             onResourceClick(d);
           }
@@ -318,7 +321,7 @@ const ResourceTimeline = memo(({
         })
         .transition()
         .duration(animate ? 500 : 0)
-        .delay((d, i) => animate ? i * 20 : 0)
+        .delay((_d, i) => animate ? i * 20 : 0)
         .attr('r', 6);
 
       // Period bars for resources with start/end dates
@@ -376,7 +379,7 @@ const ResourceTimeline = memo(({
 
   if (loading) {
     return (
-      <Paper sx={{ p: 2, height, ...sx }} {...otherProps}>
+      <Paper sx={{ p: 2, height, ...sx }}>
         <Stack spacing={2} height="100%">
           <Skeleton variant="rectangular" height={40} />
           <Skeleton variant="rectangular" flex={1} />
@@ -386,7 +389,7 @@ const ResourceTimeline = memo(({
   }
 
   return (
-    <Paper sx={{ p: 2, height, overflow: 'hidden', ...sx }} {...otherProps}>
+    <Paper sx={{ p: 2, height, overflow: 'hidden', ...sx }}>
       <Stack spacing={2} height="100%">
         {/* Controls */}
         {showControls && (

@@ -1169,7 +1169,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
     if (patientId) {
       loadResources();
     }
-  }, [patientId, refreshKey]); // Remove searchResources from dependencies to prevent loops
+  }, [patientId, refreshKey, searchResources]); // Added searchResources to dependencies
 
   if (loading) {
     return (

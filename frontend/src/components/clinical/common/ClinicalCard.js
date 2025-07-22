@@ -18,7 +18,6 @@ import {
   Divider,
   useTheme,
   alpha,
-  Fade,
   Tooltip
 } from '@mui/material';
 import {
@@ -99,51 +98,21 @@ const ClinicalCard = ({
   };
   
   // Get status icon
-  const getStatusIcon = () => {
-    const statusIcons = {
-      active: <CheckCircleIcon />,
-      pending: <ScheduleIcon />,
-      warning: <WarningIcon />,
-      error: <ErrorIcon />,
-      info: <InfoIcon />
-    };
-    return statusIcons[status] || <InfoIcon />;
-  };
-  
-  // Get card background based on variant and context
-  const getCardBackground = () => {
-    if (variant === 'clinical') {
-      if (enhancedContext.department !== 'general' && theme.clinical?.departments?.[enhancedContext.department]) {
-        return theme.clinical.departments[enhancedContext.department].surface;
-      }
-      return theme.clinical?.surfaces?.primary || alpha(theme.palette.primary?.main || '#1976D2', 0.05);
-    }
-    return theme.palette.background.paper;
-  };
-  
-  // Get border color for clinical importance
-  const getBorderColor = () => {
-    if (urgent) return theme.palette.error?.main || '#f44336';
-    if (severityColor) return severityColor;
-    if (priority === 'high') return theme.palette.warning?.main || '#ff9800';
-    return theme.palette.divider;
-  };
-  
   const handleExpandClick = () => {
     setExpanded(!isExpanded);
   };
   
   const cardSx = {
     position: 'relative',
-    backgroundColor: '#FFFFFF',
-    border: '1px solid #E5E7EB',
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: '4px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
     transition: `all ${animation.duration}ms ${animation.easing}`,
     cursor: onCardClick ? 'pointer' : 'default',
     '&:hover': onCardClick ? {
       boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
-      borderColor: '#D1D5DB'
+      borderColor: theme.palette.action.hover
     } : {},
     // Add severity indicator
     ...(severity && {

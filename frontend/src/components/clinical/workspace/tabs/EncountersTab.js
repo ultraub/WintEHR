@@ -712,11 +712,36 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
 
   // Sort by date descending - memoized for performance
   const sortedEncounters = useMemo(() => {
-    return [...filteredEncounters].sort((a, b) => {
+    const sorted = [...filteredEncounters].sort((a, b) => {
       const dateA = new Date(a.period?.start || 0);
       const dateB = new Date(b.period?.start || 0);
       return dateB - dateA;
     });
+    
+    // Transform data to match SmartTable expectations
+    const transformed = sorted.map(encounter => ({
+      ...encounter,
+      // Add computed fields that SmartTable can access via column.field
+      date: encounter.period?.start || null,
+      reason: encounter.reasonCode?.[0]?.text || 
+              encounter.reasonCode?.[0]?.coding?.[0]?.display || 
+              null,
+      type: getEncounterTypeLabel(encounter),
+      status: getEncounterStatus(encounter),
+      provider: encounter.participant || []
+    }));
+    
+    // Temporary debug log
+    if (transformed.length > 0) {
+      console.log('EncountersTab: transformed encounter sample:', transformed[0]);
+      console.log('EncountersTab: total encounters:', transformed.length);
+      console.log('EncountersTab: date field:', transformed[0].date);
+      console.log('EncountersTab: reason field:', transformed[0].reason);
+      console.log('EncountersTab: original period:', transformed[0].period);
+      console.log('EncountersTab: original reasonCode:', transformed[0].reasonCode);
+    }
+    
+    return transformed;
   }, [filteredEncounters]);
 
   // Memoize encounter statistics to avoid recalculating on every render
@@ -806,7 +831,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     <>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h5" fontWeight="bold">
@@ -908,7 +933,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       </Box>
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
         {sortedEncounters.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
             No encounters found matching your criteria
@@ -972,8 +997,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
           <SmartTable
             columns={[
               {
-                id: 'type',
-                label: 'Type',
+                field: 'type',
+                headerName: 'Type',
+                type: 'custom',
                 renderCell: (value, row) => (
                   <Stack direction="row" spacing={1} alignItems="center">
                     {getEncounterIcon(row)}
@@ -984,17 +1010,19 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
                 )
               },
               {
-                id: 'date',
-                label: 'Date',
+                field: 'date',
+                headerName: 'Date',
+                type: 'custom',
                 renderCell: (value, row) => (
-                  row.period?.start ? 
-                    format(parseISO(row.period.start), 'MMM d, yyyy h:mm a') : 
+                  value ? 
+                    format(parseISO(value), 'MMM d, yyyy h:mm a') : 
                     'N/A'
                 )
               },
               {
-                id: 'status',
-                label: 'Status',
+                field: 'status',
+                headerName: 'Status',
+                type: 'custom',
                 renderCell: (value, row) => (
                   <Chip
                     label={getEncounterStatus(row)}
@@ -1008,8 +1036,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
                 )
               },
               {
-                id: 'provider',
-                label: 'Provider',
+                field: 'provider',
+                headerName: 'Provider',
+                type: 'custom',
                 renderCell: (value, row) => (
                   <EnhancedProviderDisplay
                     participants={row.participant}
@@ -1020,20 +1049,20 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
                 )
               },
               {
-                id: 'reason',
-                label: 'Reason',
+                field: 'reason',
+                headerName: 'Reason',
+                type: 'custom',
                 renderCell: (value, row) => (
                   <Typography variant="body2" noWrap>
-                    {row.reasonCode?.[0]?.text || 
-                     row.reasonCode?.[0]?.coding?.[0]?.display || 
-                     '-'}
+                    {value || '-'}
                   </Typography>
                 )
               },
               {
-                id: 'actions',
-                label: 'Actions',
+                field: 'actions',
+                headerName: 'Actions',
                 align: 'right',
+                type: 'custom',
                 renderCell: (value, row) => (
                   <Stack direction="row" spacing={1}>
                     <IconButton

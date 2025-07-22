@@ -27,62 +27,71 @@ import {
   Legend
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
+import { getChartColors } from '../../../themes/chartColors';
 
-const VITAL_TYPES = {
-  bloodPressure: {
-    label: 'Blood Pressure',
-    codes: ['85354-9', '55284-4'],
-    unit: 'mmHg',
-    normalRanges: { systolic: [90, 140], diastolic: [60, 90] },
-    colors: { systolic: '#ff4444', diastolic: '#ff9999' }
-  },
-  heartRate: {
-    label: 'Heart Rate',
-    codes: ['8867-4'],
-    unit: 'bpm',
-    normalRange: [60, 100],
-    color: '#ff9800'
-  },
-  temperature: {
-    label: 'Temperature',
-    codes: ['8310-5'],
-    unit: '°F',
-    normalRange: [97.0, 99.5],
-    color: '#4caf50'
-  },
-  oxygenSaturation: {
-    label: 'Oxygen Saturation',
-    codes: ['2708-6', '59408-5'],
-    unit: '%',
-    normalRange: [95, 100],
-    color: '#2196f3'
-  },
-  respiratoryRate: {
-    label: 'Respiratory Rate',
-    codes: ['9279-1'],
-    unit: 'breaths/min',
-    normalRange: [12, 20],
-    color: '#9c27b0'
-  },
-  weight: {
-    label: 'Weight',
-    codes: ['29463-7', '3141-9'],
-    unit: 'kg',
-    color: '#607d8b'
-  },
-  bmi: {
-    label: 'BMI',
-    codes: ['39156-5'],
-    unit: 'kg/m²',
-    normalRange: [18.5, 25],
-    color: '#795548'
-  }
+const createVitalTypes = (theme) => {
+  const chartColors = getChartColors(theme);
+  
+  return {
+    bloodPressure: {
+      label: 'Blood Pressure',
+      codes: ['85354-9', '55284-4'],
+      unit: 'mmHg',
+      normalRanges: { systolic: [90, 140], diastolic: [60, 90] },
+      colors: { 
+        systolic: chartColors.vitals.bloodPressureSystolic, 
+        diastolic: chartColors.vitals.bloodPressureDiastolic 
+      }
+    },
+    heartRate: {
+      label: 'Heart Rate',
+      codes: ['8867-4'],
+      unit: 'bpm',
+      normalRange: [60, 100],
+      color: chartColors.vitals.heartRate
+    },
+    temperature: {
+      label: 'Temperature',
+      codes: ['8310-5'],
+      unit: '°F',
+      normalRange: [97.0, 99.5],
+      color: chartColors.vitals.temperature
+    },
+    oxygenSaturation: {
+      label: 'Oxygen Saturation',
+      codes: ['2708-6', '59408-5'],
+      unit: '%',
+      normalRange: [95, 100],
+      color: chartColors.vitals.oxygenSaturation
+    },
+    respiratoryRate: {
+      label: 'Respiratory Rate',
+      codes: ['9279-1'],
+      unit: 'breaths/min',
+      normalRange: [12, 20],
+      color: chartColors.vitals.respiratoryRate
+    },
+    weight: {
+      label: 'Weight',
+      codes: ['29463-7', '3141-9'],
+      unit: 'kg',
+      color: chartColors.vitals.weight
+    },
+    bmi: {
+      label: 'BMI',
+      codes: ['39156-5'],
+      unit: 'kg/m²',
+      normalRange: [18.5, 25],
+      color: chartColors.vitals.bmi
+    }
+  };
 };
 
 const VitalSignsChart = ({ patientId, vitalSigns, selectedVitalType = 'bloodPressure', height = 300 }) => {
   const theme = useTheme();
   const [vitalType, setVitalType] = useState(selectedVitalType);
   
+  const VITAL_TYPES = createVitalTypes(theme);
   const vitalConfig = VITAL_TYPES[vitalType];
   
   // Filter and process vital signs based on selected type

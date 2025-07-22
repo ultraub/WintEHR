@@ -1377,7 +1377,7 @@ const DocumentationTab = ({ patientId, onNotificationUpdate, newNoteDialogOpen, 
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.action.hover, borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
                     {(() => {
                       // Use standardized content formatting
                       const formattedContent = formatDocumentForDisplay(selectedNoteForView);

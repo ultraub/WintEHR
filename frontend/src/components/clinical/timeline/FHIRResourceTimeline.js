@@ -361,7 +361,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
     };
 
     fetchResources();
-  }, [patientId]);
+  }, [patientId, resourceConfig]);
 
   // Filter resources based on settings
   const filteredResources = useMemo(() => {

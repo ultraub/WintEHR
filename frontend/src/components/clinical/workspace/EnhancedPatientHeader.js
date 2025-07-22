@@ -229,7 +229,7 @@ const EnhancedPatientHeader = ({
                     width: 36,
                     height: 36,
                     borderRadius: 1,
-                    background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+                    background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

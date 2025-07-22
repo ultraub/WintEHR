@@ -452,11 +452,11 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                             primary={issue.message}
                             secondary={
                               <span>
-                                <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                                <span style={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
                                   Type: {issue.type}
                                 </span>
                                 {issue.medicationName && (
-                                  <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)', marginLeft: '16px' }}>
+                                  <span style={{ fontSize: '0.75rem', color: theme.palette.text.secondary, marginLeft: '16px' }}>
                                     • Medication: {issue.medicationName}
                                   </span>
                                 )}

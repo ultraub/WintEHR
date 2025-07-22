@@ -7,12 +7,10 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
-  Stack,
   CircularProgress,
   Alert,
   AlertTitle,
   Button,
-  Typography,
   useTheme,
   Snackbar,
   Chip,
@@ -41,6 +39,9 @@ import TabErrorBoundary from './workspace/TabErrorBoundary';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './ui/KeyboardShortcutsDialog';
 import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
+
+// Import the enhanced patient header
+import EnhancedPatientHeaderV2 from './workspace/EnhancedPatientHeaderV2';
 
 // Tab Components - Lazy Loaded for Performance
 // Using optimized/enhanced versions where available
@@ -89,7 +90,6 @@ const ClinicalWorkspaceEnhanced = ({
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
   
   // Route params
   const { id: encodedPatientId } = useParams();
@@ -113,7 +113,7 @@ const ClinicalWorkspaceEnhanced = ({
   const activeTab = activeModule;
   
   // CDS Alerts
-  const { alerts: cdsAlerts, loading: cdsLoading } = usePatientCDSAlerts(patientId);
+  const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
 
   // Load patient data if not provided by parent
   useEffect(() => {
@@ -131,7 +131,7 @@ const ClinicalWorkspaceEnhanced = ({
     if (!patient) {
       loadPatient();
     }
-  }, [patientId, patient, currentPatient?.id, setCurrentPatient]);
+  }, [patientId, patient, currentPatient, setCurrentPatient]);
 
   // Use provided patient or fallback to context patient
   const activePatient = patient || currentPatient;
@@ -160,7 +160,7 @@ const ClinicalWorkspaceEnhanced = ({
   }, [onModuleChange, publish, activePatient?.id]);
 
   // Handle refresh
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     if (activePatient) {
       try {
         await setCurrentPatient(patientId);
@@ -169,7 +169,7 @@ const ClinicalWorkspaceEnhanced = ({
         setSnackbar({ open: true, message: 'Failed to refresh data' });
       }
     }
-  };
+  }, [activePatient, patientId, setCurrentPatient]);
 
   // Handle keyboard navigation actions
   const handleKeyboardAction = useCallback((action) => {
@@ -196,11 +196,14 @@ const ClinicalWorkspaceEnhanced = ({
       case 'escape':
         setShowKeyboardHelp(false);
         break;
+      default:
+        // Unknown action - ignore
+        break;
     }
   }, [activeTab, publish, handleRefresh]);
 
   // Set up keyboard navigation
-  const { shortcuts } = useKeyboardNavigation({
+  useKeyboardNavigation({
     activeTab,
     onTabChange: handleTabChange,
     onAction: handleKeyboardAction,

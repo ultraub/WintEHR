@@ -3,7 +3,7 @@
  * Unified app bar for clinical workspace with integrated navigation
  * Combines functionality from multiple app bars into single component
  */
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -28,18 +28,13 @@ import {
   Paper
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
   Notifications as NotificationsIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
   Settings as SettingsIcon,
   Person as PersonIcon,
   ExitToApp as LogoutIcon,
   Print as PrintIcon,
   Share as ShareIcon,
   Home as HomeIcon,
-  LocalHospital as HospitalIcon,
-  AccessTime as ClockIcon,
   Warning as AlertIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -107,15 +102,6 @@ const ClinicalAppBar = ({
     console.log('Share patient data');
   };
 
-  const getShiftColor = () => {
-    switch (shift) {
-      case 'Day': return theme.palette.primary.main;
-      case 'Evening': return theme.palette.warning.main;
-      case 'Night': return theme.palette.info.main;
-      default: return theme.palette.grey[500];
-    }
-  };
-
   return (
     <>
       <AppBar
@@ -178,105 +164,11 @@ const ClinicalAppBar = ({
             </Box>
           </Stack>
 
-          {/* Center Section - Patient Info */}
-          <Box sx={{ flexGrow: 1, mx: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {patient && (
-              <Paper
-                elevation={0}
-                sx={{
-                  px: 3,
-                  py: 1,
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRadius: 1,
-                  maxWidth: 600,
-                  width: '100%'
-                }}
-              >
-                <Stack
-                  direction="row"
-                  spacing={2}
-                  alignItems="center"
-                  justifyContent="space-between"
-                >
-                  {/* Patient Identity */}
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <Avatar
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        bgcolor: 'primary.main',
-                        fontSize: '1.1rem'
-                      }}
-                    >
-                      {patient.name?.[0]?.given?.[0]?.[0]}{patient.name?.[0]?.family?.[0]}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                        {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        MRN: {patient.identifier?.[0]?.value} • {patient.age || calculateAge(patient.birthDate)}y {patient.gender} • DOB: {format(new Date(patient.birthDate), 'MM/dd/yyyy')}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  
-                  {/* Critical Info */}
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    {criticalAlerts > 0 && (
-                      <Chip
-                        icon={<AlertIcon />}
-                        label={`${criticalAlerts} Critical`}
-                        color="error"
-                        size="small"
-                        sx={{ 
-                          fontWeight: 600,
-                          animation: 'pulse 2s infinite'
-                        }}
-                      />
-                    )}
-                    {patient.allergies?.length > 0 && (
-                      <Chip
-                        icon={<AlertIcon />}
-                        label={`${patient.allergies.length} Allergies`}
-                        color="warning"
-                        size="small"
-                        sx={{ fontWeight: 600 }}
-                      />
-                    )}
-                  </Stack>
-                </Stack>
-              </Paper>
-            )}
-          </Box>
+          {/* Spacer - simplified without patient info */}
+          <Box sx={{ flexGrow: 1 }} />
 
           {/* Right Section - Actions */}
           <Stack direction="row" spacing={1} alignItems="center">
-            {/* Quick Actions for Patient */}
-            {patient && !isMobile && (
-              <>
-                <Tooltip title="Print Patient Summary">
-                  <IconButton
-                    onClick={handlePrint}
-                    color="inherit"
-                  >
-                    <PrintIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip title="Share Patient Chart">
-                  <IconButton
-                    onClick={handleShare}
-                    color="inherit"
-                  >
-                    <ShareIcon />
-                  </IconButton>
-                </Tooltip>
-                
-                <Divider orientation="vertical" flexItem sx={{ height: 32, mx: 1 }} />
-              </>
-            )}
-
             {/* Theme Toggle */}
             <QuickThemeToggle 
               showLabel={false}

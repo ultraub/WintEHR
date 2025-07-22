@@ -11,9 +11,9 @@ import {
   Badge,
   Typography,
   useTheme,
-  useMediaQuery,
-  alpha
+  useMediaQuery
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Dashboard as SummaryIcon,
   Assignment as ChartReviewIcon,
@@ -177,65 +177,112 @@ const ClinicalTabs = ({
   return (
     <Box
       sx={{
-        backgroundColor: '#FFFFFF',
-        borderBottom: '1px solid #E5E7EB',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#FFFFFF',
+        borderBottom: 1,
+        borderColor: 'divider',
+        boxShadow: theme.shadows[1],
         position: 'sticky',
-        top: 56, // Height of app bar
-        zIndex: theme.zIndex.appBar - 1
+        top: 64, // Height of app bar
+        zIndex: theme.zIndex.appBar - 1,
+        overflow: 'hidden'
       }}
     >
-      <Tabs
-        value={activeIndex}
-        onChange={handleChange}
-        orientation={orientation}
-        variant={isMobile ? 'scrollable' : variant}
-        scrollButtons={isMobile ? 'auto' : false}
-        indicatorColor="primary"
-        textColor="primary"
-        aria-label="Clinical navigation tabs"
-        sx={{
-          minHeight: dense ? 40 : 48,
-          '& .MuiTabs-indicator': {
-            backgroundColor: '#2979FF',
-            height: 3,
-            borderRadius: '3px 3px 0 0'
-          },
-          '& .MuiTabs-scrollButtons': {
-            color: '#6B7280',
-            '&.Mui-disabled': {
-              opacity: 0.3
+      <Box sx={{ position: 'relative' }}>
+        {/* Left fade for scroll indication */}
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 24,
+            background: `linear-gradient(to right, ${theme.palette.background.paper}, transparent)`,
+            pointerEvents: 'none',
+            zIndex: 1,
+            opacity: variant === 'scrollable' ? 1 : 0,
+            transition: 'opacity 0.3s ease'
+          }}
+        />
+        
+        {/* Right fade for scroll indication */}
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 24,
+            background: `linear-gradient(to left, ${theme.palette.background.paper}, transparent)`,
+            pointerEvents: 'none',
+            zIndex: 1,
+            opacity: variant === 'scrollable' ? 1 : 0,
+            transition: 'opacity 0.3s ease'
+          }}
+        />
+        
+        <Tabs
+          value={activeIndex}
+          onChange={handleChange}
+          orientation={orientation}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          indicatorColor="primary"
+          textColor="primary"
+          aria-label="Clinical navigation tabs"
+          sx={{
+            minHeight: dense ? 42 : 48,
+            '& .MuiTabs-indicator': {
+              backgroundColor: theme.palette.primary.main,
+              height: 3,
+              borderRadius: '3px 3px 0 0'
+            },
+            '& .MuiTabs-scrollButtons': {
+              color: theme.palette.text.secondary,
+              width: 40,
+              '&.Mui-disabled': {
+                opacity: 0.3
+              },
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.08)
+              }
+            },
+            '& .MuiTabs-flexContainer': {
+              gap: isSmall ? 0 : 0.5
             }
-          }
-        }}
-      >
+          }}
+        >
         {navItemsWithBadges.map((item, index) => (
           <Tab
             key={item.id}
             label={<TabLabel item={item} />}
             sx={{
               textTransform: 'none',
-              minHeight: dense ? 40 : 48,
-              paddingX: isSmall ? 1.5 : 2,
+              minHeight: dense ? 42 : 48,
+              paddingX: isSmall ? 1 : isMobile ? 1.5 : 2,
               paddingY: 1,
-              color: '#6B7280',
+              color: theme.palette.text.secondary,
               fontWeight: 400,
-              fontSize: dense ? '0.75rem' : '0.875rem',
-              minWidth: isSmall ? 'auto' : 120,
+              fontSize: dense ? '0.75rem' : isSmall ? '0.8125rem' : '0.875rem',
+              minWidth: isSmall ? 80 : isMobile ? 100 : 120,
+              maxWidth: isMobile ? 140 : 'none',
               '&.Mui-selected': {
-                color: '#2979FF',
+                color: theme.palette.primary.main,
                 fontWeight: 600
               },
               '&:hover': {
-                backgroundColor: alpha('#2979FF', 0.04),
-                color: '#2979FF'
+                backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                color: theme.palette.primary.main
               },
               // Professional medical UI - clean transitions
-              transition: 'all 0.2s ease-in-out'
+              transition: 'all 0.2s ease-in-out',
+              // Ensure text doesn't wrap
+              whiteSpace: 'nowrap'
             }}
           />
         ))}
       </Tabs>
+      </Box>
     </Box>
   );
 };

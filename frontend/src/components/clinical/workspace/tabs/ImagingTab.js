@@ -524,7 +524,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     if (patientId) {
       loadImagingStudies();
     }
-  }, [patientId]); // Only depend on patientId to avoid circular dependency with loadImagingStudies
+  }, [patientId, loadImagingStudies]); // Added loadImagingStudies to dependencies
 
   // Subscribe to imaging-related events
   useEffect(() => {
@@ -566,7 +566,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [patientId, subscribe]); // Removed loadImagingStudies dependency to avoid repeated subscriptions
+  }, [patientId, subscribe, loadImagingStudies]); // Added loadImagingStudies to dependencies
 
   // Filter studies - memoized for performance
   const filteredStudies = useMemo(() => {

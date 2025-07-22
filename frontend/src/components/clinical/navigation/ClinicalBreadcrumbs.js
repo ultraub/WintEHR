@@ -22,7 +22,7 @@ import {
   Bookmark as BookmarkIcon,
   BookmarkBorder as BookmarkBorderIcon
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const ClinicalBreadcrumbs = ({
   patient,
@@ -33,7 +33,6 @@ const ClinicalBreadcrumbs = ({
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
 
   // Build breadcrumb items
   const breadcrumbItems = [

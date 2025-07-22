@@ -588,6 +588,10 @@ const ObservationDialogEnhanced = ({
       case 2: // Review
         // Final validation
         break;
+        
+      default:
+        // No validation for other steps
+        break;
     }
     
     setErrors(newErrors);
@@ -672,6 +676,9 @@ const ObservationDialogEnhanced = ({
             } : undefined,
           };
         }
+        break;
+      default:
+        // No value for other types
         break;
     }
     

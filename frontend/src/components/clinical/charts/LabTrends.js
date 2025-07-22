@@ -2,7 +2,7 @@
  * Lab Trends Component
  * Displays laboratory test trends over time with filtering
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -17,8 +17,7 @@ import {
   Grid,
   ToggleButton,
   ToggleButtonGroup,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   LineChart,
@@ -27,7 +26,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
@@ -48,17 +46,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
   const [testInfo, setTestInfo] = useState(null);
   const [timeRange, setTimeRange] = useState(1095); // days - default to 3 years
 
-  useEffect(() => {
-    fetchAllLabData();
-  }, [patientId, timeRange]);
-
-  useEffect(() => {
-    if (selectedTest && allLabData.length > 0) {
-      filterLabDataByTest();
-    }
-  }, [selectedTest, allLabData]);
-
-  const fetchAllLabData = async () => {
+  const fetchAllLabData = useCallback(async () => {
     if (!patientId) return;
     
     setLoading(true);
@@ -79,7 +67,11 @@ const LabTrends = ({ patientId, height = 300 }) => {
         value_unit: obs.valueQuantity?.unit || '',
         unit: obs.valueQuantity?.unit || '',
         status: obs.status,
-        reference_range: obs.referenceRange?.[0]?.text
+        reference_range: obs.referenceRange?.[0]?.text,
+        reference_range_low: obs.referenceRange?.[0]?.low?.value,
+        reference_range_high: obs.referenceRange?.[0]?.high?.value,
+        interpretation: obs.interpretation?.[0]?.coding?.[0]?.code || obs.interpretation?.[0]?.text,
+        value_quantity: obs.valueQuantity?.value
       }));
 
       // Filter by time range on frontend
@@ -119,9 +111,9 @@ const LabTrends = ({ patientId, height = 300 }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, timeRange, selectedTest]);
 
-  const filterLabDataByTest = () => {
+  const filterLabDataByTest = useCallback(() => {
     if (!selectedTest || !allLabData.length) return;
     
     // Filter data for the selected test
@@ -156,7 +148,17 @@ const LabTrends = ({ patientId, height = 300 }) => {
         refHigh: latestResult.referenceRangeHigh
       });
     }
-  };
+  }, [selectedTest, allLabData, availableTests]);
+
+  useEffect(() => {
+    fetchAllLabData();
+  }, [fetchAllLabData]);
+
+  useEffect(() => {
+    if (selectedTest && allLabData.length > 0) {
+      filterLabDataByTest();
+    }
+  }, [selectedTest, allLabData, filterLabDataByTest]);
 
   const formatXAxisDate = (dateStr) => {
     return format(parseISO(dateStr), 'MM/dd');

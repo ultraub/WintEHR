@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Stack,
-  Chip,
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
@@ -31,9 +30,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Legend,
-  Area,
-  AreaChart,
-  ComposedChart
+  AreaChart
 } from 'recharts';
 import { format, parseISO, subDays, isWithinInterval } from 'date-fns';
 import {
@@ -156,7 +153,7 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
     });
     
     return Array.from(testMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [observations]);
+  }, [observations, LAB_PROFILES, chartColors.palette]);
   
   // Process observations for the selected test or all tests
   const processedData = useMemo(() => {
@@ -328,7 +325,6 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
           .filter(test => processedData.some(d => d[test.name] !== undefined))
           .map((test) => {
             const trend = testTrends[test.name];
-            const hasData = processedData.some(d => d[test.name] !== undefined);
             
             return (
               <Grid item xs={12} sm={6} md={4} key={test.code}>

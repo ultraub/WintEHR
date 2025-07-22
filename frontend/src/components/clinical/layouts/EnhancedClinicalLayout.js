@@ -14,7 +14,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
 import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
-import CompactPatientHeader from '../ui/CompactPatientHeader';
+import EnhancedPatientHeaderV2 from '../workspace/EnhancedPatientHeaderV2';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
@@ -152,15 +152,35 @@ const EnhancedClinicalLayout = ({
         shift={shift}
       />
       
+      {/* Breadcrumbs */}
+      <ClinicalBreadcrumbs
+        patient={patient}
+        activeModule={MODULES[activeModule]}
+        subContext={subContext}
+        onBookmark={handleBookmark}
+        bookmarked={bookmarked}
+      />
+      
+      {/* Enhanced Patient Header */}
+      {patient && (
+        <EnhancedPatientHeaderV2
+          patientId={patient.id}
+          onPrint={() => window.print()}
+          onNavigateToTab={handleModuleChange}
+          dataLoading={loading}
+        />
+      )}
+      
+      {/* Tab Navigation */}
+      <ClinicalTabs
+        activeTab={activeModule}
+        onTabChange={handleModuleChange}
+        variant="scrollable"
+        showIcons={!isMobile}
+      />
+      
       {/* Main Layout Container */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        {/* Tab Navigation */}
-        <ClinicalTabs
-          activeTab={activeModule}
-          onTabChange={handleModuleChange}
-          variant="scrollable"
-          showIcons={!isMobile}
-        />
         
         {/* Main Content Area */}
         <Box
@@ -172,31 +192,6 @@ const EnhancedClinicalLayout = ({
             overflow: 'hidden'
           }}
         >
-          {/* Header Section */}
-          <Box sx={{ flexShrink: 0 }}>
-            {/* Breadcrumbs */}
-            <ClinicalBreadcrumbs
-              patient={patient}
-              activeModule={MODULES[activeModule]}
-              subContext={subContext}
-              onBookmark={handleBookmark}
-              bookmarked={bookmarked}
-            />
-            
-            {/* Patient Header */}
-            {patient && (
-              <CompactPatientHeader
-                patient={patient}
-                alerts={patient.alerts || []}
-                vitals={patientData.vitals}
-                conditions={patientData.conditions}
-                medications={patientData.medications}
-                allergies={patientData.allergies}
-                lastEncounter={patientData.lastEncounter}
-                onNavigateToTab={handleModuleChange}
-              />
-            )}
-          </Box>
           
           {/* Content Area */}
           <Box

@@ -295,6 +295,7 @@ const SmartTable = memo(({
   dense = false,
   stickyHeader = false,
   loading = false,
+  filterable = false, // Consumed but not passed to DOM
   
   // Pagination props
   rowsPerPageOptions = [10, 25, 50, 100],
@@ -532,15 +533,15 @@ const SmartTable = memo(({
                 const isItemSelected = isSelected(rowId);
                 
                 return (
-                  <motion.tr
+                  <TableRow
                     key={rowId}
+                    component={motion.tr}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: 0.2, delay: rowIndex * 0.02 }}
-                    component={TableRow}
-                    hover
                     onClick={(event) => onRowClick && onRowClick(event, row)}
+                    hover={onRowClick ? true : false}
                     selected={isItemSelected}
                     sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
                   >
@@ -578,7 +579,7 @@ const SmartTable = memo(({
                     })}
                     
                     {(onRowClick || contextRow) && (
-                      <TableCell align="right">
+                      <TableCell key="actions" align="right">
                         <IconButton
                           size="small"
                           onClick={(event) => {
@@ -591,7 +592,7 @@ const SmartTable = memo(({
                         </IconButton>
                       </TableCell>
                     )}
-                  </motion.tr>
+                  </TableRow>
                 );
               })}
               

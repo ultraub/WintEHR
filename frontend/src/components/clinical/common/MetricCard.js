@@ -9,7 +9,6 @@ import {
   Typography,
   Box,
   Avatar,
-  Chip,
   useTheme,
   Skeleton,
   IconButton,
@@ -120,36 +119,21 @@ const MetricCard = ({
   };
 
   const trendConfig = getTrendConfig();
-
-  // Determine card surface color based on variant and context
-  const getSurfaceColor = () => {
-    if (variant === 'clinical') {
-      // Use department-specific surface if available
-      if (enhancedContext.department !== 'general' && theme.clinical?.departments?.[enhancedContext.department]) {
-        return theme.clinical.departments[enhancedContext.department].surface;
-      }
-      return theme.clinical?.surfaces?.primary || alpha(cardColor, 0.05);
-    }
-    return theme.palette.background.paper;
-  };
   
   // Get clinical spacing - use compact version for metric cards
   const spacing = variant === 'clinical' ? 2 : getClinicalSpacing(theme, enhancedContext, 'compact');
-  
-  // Get clinical animation
-  const hoverAnimation = getClinicalAnimation(theme, 'hover', enhancedContext);
 
   const cardSx = {
     height: '100%',
     cursor: onClick ? 'pointer' : 'default',
-    backgroundColor: '#FFFFFF',  // Clean white background
-    border: '1px solid #E5E7EB',  // Subtle border
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: '4px',  // Sharp corners
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',  // Minimal shadow
     transition: 'all 200ms ease-in-out',
     '&:hover': onClick ? {
-      backgroundColor: '#FAFBFC',
-      borderColor: '#D1D5DB'
+      backgroundColor: theme.palette.action.hover,
+      borderColor: theme.palette.action.focus
     } : {},
     // Add urgency styling for critical situations
     ...(urgency === 'urgent' && {

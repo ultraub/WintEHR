@@ -369,6 +369,9 @@ const DICOMViewer = ({ study, onClose }) => {
           e.preventDefault();
           onClose();
           break;
+        default:
+          // Ignore other keys
+          break;
       }
     };
 

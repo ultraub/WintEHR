@@ -32,8 +32,8 @@ module.exports = function(app) {
         }
       },
       onProxyReq: (proxyReq, req, res) => {
-        // Only log errors, not every request
-        // console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
+        // Log the actual request being made
+        console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
       }
     });
   };
@@ -49,7 +49,9 @@ module.exports = function(app) {
     '/fhir',
     createProxy('FHIR', (path, req) => {
       // Add /fhir back to the path since Express strips it
-      return '/fhir' + path;
+      const newPath = '/fhir' + path;
+      // console.log(`[FHIR Proxy] Rewriting ${path} -> ${newPath}`);
+      return newPath;
     })
   );
   
@@ -58,7 +60,9 @@ module.exports = function(app) {
     '/cds-hooks',
     createProxy('CDS', (path, req) => {
       // Add /cds-hooks back to the path
-      return '/cds-hooks' + path;
+      const newPath = '/cds-hooks' + path;
+      // console.log(`[CDS Proxy] Rewriting ${path} -> ${newPath}`);
+      return newPath;
     })
   );
   

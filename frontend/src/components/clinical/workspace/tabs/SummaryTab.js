@@ -367,7 +367,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         setLoading(false);
       }
     }
-  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length]);
+  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length, isResourceLoading, isCacheWarm, fetchPatientBundle, loadDashboardData]);
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
