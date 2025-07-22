@@ -1,6 +1,5 @@
 import React from 'react';
 import { AuthProvider } from '../contexts/AuthContext';
-import { WebSocketProvider } from '../contexts/WebSocketContext';
 import { FHIRResourceProvider } from '../contexts/FHIRResourceContext';
 import { WorkflowProvider } from '../contexts/WorkflowContext';
 import { ClinicalProvider } from '../contexts/ClinicalContext';
@@ -19,19 +18,17 @@ import { ProviderDirectoryProvider } from '../contexts/ProviderDirectoryContext'
  * 
  * Provider order matters:
  * 1. AuthProvider - Must be first as other providers may need auth
- * 2. WebSocketProvider - Needs auth for connection
- * 3. FHIRResourceProvider - Core data provider
- * 4. ProviderDirectoryProvider - Manages provider directory data centrally
- * 5. CDSProvider - Clinical Decision Support, needs FHIR data
- * 6. WorkflowProvider - General workflow state
- * 7. Domain-specific providers (Clinical, Documentation, etc.)
- * 8. ClinicalWorkflowProvider - Depends on other clinical contexts
+ * 2. FHIRResourceProvider - Core data provider
+ * 3. ProviderDirectoryProvider - Manages provider directory data centrally
+ * 4. CDSProvider - Clinical Decision Support, needs FHIR data
+ * 5. WorkflowProvider - General workflow state
+ * 6. Domain-specific providers (Clinical, Documentation, etc.)
+ * 7. ClinicalWorkflowProvider - Depends on other clinical contexts
  */
 export const AppProviders = ({ children }) => {
   return (
     <AuthProvider>
-      <WebSocketProvider>
-        <FHIRResourceProvider>
+      <FHIRResourceProvider>
           <ProviderDirectoryProvider>
             <CDSProvider>
               <WorkflowProvider>
@@ -53,8 +50,7 @@ export const AppProviders = ({ children }) => {
               </WorkflowProvider>
             </CDSProvider>
           </ProviderDirectoryProvider>
-        </FHIRResourceProvider>
-      </WebSocketProvider>
+      </FHIRResourceProvider>
     </AuthProvider>
   );
 };
@@ -66,13 +62,11 @@ export const AppProviders = ({ children }) => {
 export const CoreProviders = ({ children }) => {
   return (
     <AuthProvider>
-      <WebSocketProvider>
-        <FHIRResourceProvider>
+      <FHIRResourceProvider>
           <WorkflowProvider>
             {children}
           </WorkflowProvider>
-        </FHIRResourceProvider>
-      </WebSocketProvider>
+      </FHIRResourceProvider>
     </AuthProvider>
   );
 };

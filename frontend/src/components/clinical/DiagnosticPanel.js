@@ -4,7 +4,6 @@
 import React from 'react';
 import { Box, Paper, Typography, Chip, CircularProgress } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
-import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -12,7 +11,6 @@ import PendingIcon from '@mui/icons-material/Pending';
 
 const DiagnosticPanel = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const { isConnected, lastMessage } = useWebSocket();
   const { currentPatient, isLoading: fhirLoading, resources, globalLoading } = useFHIRResource();
 
   const diagnostics = [
@@ -25,21 +23,6 @@ const DiagnosticPanel = () => {
       label: 'Auth Token',
       status: localStorage.getItem('auth_token') ? 'success' : 'error',
       value: localStorage.getItem('auth_token') ? 'Token present' : 'No token'
-    },
-    {
-      label: 'WebSocket',
-      status: isConnected ? 'success' : 'error',
-      value: isConnected ? 'Connected' : 'Disconnected'
-    },
-    {
-      label: 'WebSocket URL',
-      status: 'info',
-      value: process.env.REACT_APP_WS_URL || 'ws://localhost:8000/api/ws'
-    },
-    {
-      label: 'Last WS Message',
-      status: lastMessage ? 'success' : 'warning',
-      value: lastMessage ? new Date(lastMessage.timestamp).toLocaleTimeString() : 'No messages'
     },
     {
       label: 'Patient Data',

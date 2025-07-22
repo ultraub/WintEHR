@@ -9,7 +9,6 @@ import EnhancedClinicalLayout from './layouts/EnhancedClinicalLayout';
 import ClinicalWorkspaceEnhanced from './ClinicalWorkspaceEnhanced';
 import { FHIRResourceProvider } from '../../contexts/FHIRResourceContext';
 import { ClinicalWorkflowProvider } from '../../contexts/ClinicalWorkflowContext';
-import { WebSocketProvider } from '../../contexts/WebSocketContext';
 import { MockAuthProvider } from './MockAuthProvider';
 
 const ClinicalWorkspaceDemo = () => {
@@ -75,8 +74,7 @@ const ClinicalWorkspaceDemo = () => {
 
   return (
     <MockAuthProvider>
-      <WebSocketProvider>
-        <FHIRResourceProvider>
+      <FHIRResourceProvider>
           <ClinicalWorkflowProvider>
             <Box sx={{ height: '100vh', overflow: 'hidden' }}>
               <Alert severity="warning" sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }}>
@@ -97,8 +95,7 @@ const ClinicalWorkspaceDemo = () => {
               </Box>
             </Box>
           </ClinicalWorkflowProvider>
-        </FHIRResourceProvider>
-      </WebSocketProvider>
+      </FHIRResourceProvider>
     </MockAuthProvider>
   );
 };

@@ -45,7 +45,6 @@ import {
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { fhirClient } from '../../../../services/fhirClient';
-import { useWebSocket } from '../../../../contexts/WebSocketContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 const MessageBubble = ({ message, currentUserId, onReply, onThread }) => {
@@ -239,7 +238,6 @@ const CommunicationPanel = ({
   const [unreadCount, setUnreadCount] = useState(0);
 
   const messagesEndRef = useRef(null);
-  const { subscribe, unsubscribe } = useWebSocket();
   const { publish, getCurrentUser } = useClinicalWorkflow();
   const currentUser = getCurrentUser();
 
@@ -247,11 +245,13 @@ const CommunicationPanel = ({
     loadMessages();
     loadAvailableRecipients();
     
-    // Subscribe to real-time communication updates
-    const unsubscribeComm = subscribe('communication-updates', handleCommunicationUpdate);
+    // Set up polling for new messages (every 30 seconds)
+    const pollInterval = setInterval(() => {
+      loadMessages();
+    }, 30000);
     
     return () => {
-      unsubscribeComm();
+      clearInterval(pollInterval);
     };
   }, [patientId, documentId, selectedThread]);
 
@@ -335,22 +335,6 @@ const CommunicationPanel = ({
     }
   };
 
-  const handleCommunicationUpdate = (data) => {
-    if (data.type === 'new_communication') {
-      const communication = data.data;
-      
-      // Check if this communication is relevant to current context
-      if (communication.subject?.reference === `Patient/${patientId}` || 
-          communication.subject?.reference === `urn:uuid:${patientId}`) {
-        setMessages(prev => [...prev, communication]);
-        
-        // Increment unread count if not from current user
-        if (!communication.sender?.reference?.includes(currentUser?.id)) {
-          setUnreadCount(prev => prev + 1);
-        }
-      }
-    }
-  };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || recipients.length === 0) return;

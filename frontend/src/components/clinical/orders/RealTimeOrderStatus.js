@@ -1,9 +1,9 @@
 /**
- * Real-time order status component
- * Shows live updates for order status changes
+ * Order status component
+ * Shows order status with visual indicators
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -17,36 +17,12 @@ import {
   PlayArrow as ActiveIcon,
   Cancel as CancelledIcon
 } from '@mui/icons-material';
-import { useWebSocket } from '../../../hooks/useWebSocket';
 
 const RealTimeOrderStatus = ({ orderId, initialStatus }) => {
   const [status, setStatus] = useState(initialStatus);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Subscribe to ServiceRequest updates
-  const { lastUpdate } = useWebSocket({
-    resourceTypes: ['ServiceRequest'],
-    enabled: !!orderId
-  });
-
-  useEffect(() => {
-    if (
-      lastUpdate &&
-      lastUpdate.resourceType === 'ServiceRequest' &&
-      lastUpdate.resourceId === orderId
-    ) {
-      setIsUpdating(true);
-      
-      // Update status from the resource
-      const newStatus = lastUpdate.resource?.status;
-      if (newStatus) {
-        setTimeout(() => {
-          setStatus(newStatus);
-          setIsUpdating(false);
-        }, 500); // Small delay for visual feedback
-      }
-    }
-  }, [lastUpdate, orderId]);
+  // Status updates would need to be handled by parent component refreshing
 
   const getStatusIcon = () => {
     switch (status) {

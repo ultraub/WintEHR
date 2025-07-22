@@ -66,22 +66,6 @@ module.exports = function(app) {
     })
   );
   
-  // WebSocket proxy with special handling
-  app.use(
-    '/ws',
-    createProxyMiddleware({
-      target: backendTarget,
-      changeOrigin: true,
-      ws: true,
-      logLevel: 'error',
-      pathRewrite: {
-        '^/ws': '/ws'
-      },
-      onError: (err, req, res) => {
-        console.error('[WebSocket Proxy Error]', err.message);
-      }
-    })
-  );
   
   // Health check endpoint for debugging proxy configuration
   app.get('/proxy-health', (req, res) => {

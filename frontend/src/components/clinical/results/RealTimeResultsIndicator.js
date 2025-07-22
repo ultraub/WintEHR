@@ -1,9 +1,9 @@
 /**
- * Real-time results indicator component
+ * Results indicator component
  * Shows when new results are available for the current patient
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Alert,
@@ -18,7 +18,6 @@ import {
   Refresh as RefreshIcon,
   NewReleases as NewIcon
 } from '@mui/icons-material';
-import { useWebSocket } from '../../../hooks/useWebSocket';
 import { useClinical } from '../../../contexts/ClinicalContext';
 
 const RealTimeResultsIndicator = ({ onRefresh }) => {
@@ -26,44 +25,7 @@ const RealTimeResultsIndicator = ({ onRefresh }) => {
   const [showAlert, setShowAlert] = useState(false);
   const [newResults, setNewResults] = useState([]);
 
-  // Subscribe to Observation and DiagnosticReport updates for current patient
-  const { connected, lastUpdate } = useWebSocket({
-    resourceTypes: ['Observation', 'DiagnosticReport'],
-    patientIds: currentPatient ? [currentPatient.id] : [],
-    enabled: !!currentPatient
-  });
-
-  useEffect(() => {
-    if (lastUpdate && lastUpdate.action !== 'deleted') {
-      const { resourceType, resource } = lastUpdate;
-      
-      // Check if this is a lab result
-      if (
-        resourceType === 'Observation' &&
-        resource?.category?.[0]?.coding?.[0]?.code === 'laboratory'
-      ) {
-        setNewResults(prev => [...prev, {
-          id: resource.id,
-          type: 'Lab Result',
-          name: resource.code?.text || 'Unknown test',
-          value: resource.valueQuantity?.value || resource.valueString || 'N/A',
-          unit: resource.valueQuantity?.unit || '',
-          status: resource.status,
-          timestamp: new Date()
-        }]);
-        setShowAlert(true);
-      } else if (resourceType === 'DiagnosticReport') {
-        setNewResults(prev => [...prev, {
-          id: resource.id,
-          type: 'Diagnostic Report',
-          name: resource.code?.text || 'Unknown report',
-          status: resource.status,
-          timestamp: new Date()
-        }]);
-        setShowAlert(true);
-      }
-    }
-  }, [lastUpdate]);
+  // Results updates would need to be handled by parent component refreshing
 
   const handleRefresh = () => {
     setShowAlert(false);
@@ -78,7 +40,7 @@ const RealTimeResultsIndicator = ({ onRefresh }) => {
     setNewResults([]);
   };
 
-  if (!connected || !currentPatient) {
+  if (!currentPatient) {
     return null;
   }
 

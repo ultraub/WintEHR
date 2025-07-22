@@ -6,8 +6,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { fhirClient } from '../core/fhir/services/fhirClient';
-import { usePatientUpdates } from '../hooks/useWebSocket';
-import websocketClient from '../services/websocket';
 
 const ClinicalContext = createContext();
 
@@ -26,27 +24,8 @@ export const ClinicalProvider = ({ children }) => {
   const [currentNote, setCurrentNote] = useState(null);
   const [workspaceMode, setWorkspaceMode] = useState('results');
   const [isLoading, setIsLoading] = useState(false);
-  const [realTimeUpdates, setRealTimeUpdates] = useState([]);
 
-  // Use WebSocket hook for patient updates
-  const { connected: wsConnected, lastUpdate } = usePatientUpdates(
-    currentPatient?.id,
-    { enabled: !!currentPatient }
-  );
 
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (token) {
-      websocketClient.connect(token).catch(() => {
-        // WebSocket connection error handled silently
-      });
-    }
-    return () => {
-      if (!token) {
-        websocketClient.disconnect();
-      }
-    };
-  }, [token]);
 
   // Helper function to transform FHIR Patient to our interface
   const transformFHIRPatient = (fhirPatient) => {
@@ -381,19 +360,6 @@ export const ClinicalProvider = ({ children }) => {
   // Missing deps: currentPatient, loadPatient. Adding them would cause infinite loops
   // since loadPatient sets currentPatient, and we only want to load on user change
 
-  // Handle real-time updates
-  useEffect(() => {
-    if (lastUpdate) {
-      setRealTimeUpdates(prev => [...prev, lastUpdate].slice(-50)); // Keep last 50 updates
-      
-      // Refresh specific data based on update type
-      if (lastUpdate.resourceType === 'Observation' && currentPatient) {
-        // Could trigger a refresh of observations here
-      } else if (lastUpdate.resourceType === 'DiagnosticReport' && currentPatient) {
-        // Could trigger a refresh of lab results here
-      }
-    }
-  }, [lastUpdate, currentPatient]);
 
   const value = {
     currentPatient,
@@ -401,8 +367,6 @@ export const ClinicalProvider = ({ children }) => {
     currentNote,
     workspaceMode,
     isLoading,
-    wsConnected,
-    realTimeUpdates,
     setCurrentPatient,
     setCurrentEncounter,
     setCurrentNote,

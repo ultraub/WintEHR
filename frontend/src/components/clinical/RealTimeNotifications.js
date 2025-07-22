@@ -26,96 +26,17 @@ import {
   CheckCircle as CheckIcon
 } from '@mui/icons-material';
 import { useClinical } from '../../contexts/ClinicalContext';
-import { useClinicalEvents } from '../../hooks/useWebSocket';
 import { formatDistanceToNow } from 'date-fns';
 
 const RealTimeNotifications = () => {
-  const { wsConnected, realTimeUpdates } = useClinical();
+  const { } = useClinical();
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Subscribe to critical clinical events
-  useClinicalEvents('critical_result', (event) => {
-    const notification = {
-      id: Date.now(),
-      type: 'critical',
-      title: 'Critical Result',
-      message: event.details.message || 'New critical result available',
-      resourceType: event.resourceType,
-      patientId: event.patientId,
-      timestamp: new Date(),
-      read: false,
-      priority: 'high'
-    };
-    
-    setNotifications(prev => [notification, ...prev].slice(0, 50));
-    setUnreadCount(prev => prev + 1);
-  });
+  // Critical events would need to be handled by polling or parent component
 
-  // Process real-time updates into notifications
-  useEffect(() => {
-    if (realTimeUpdates.length > 0) {
-      const latestUpdate = realTimeUpdates[realTimeUpdates.length - 1];
-      
-      // Create notification based on update type
-      let notification = null;
-      
-      switch (latestUpdate.resourceType) {
-        case 'Observation':
-          if (latestUpdate.resource?.category?.[0]?.coding?.[0]?.code === 'laboratory') {
-            notification = {
-              id: Date.now(),
-              type: 'lab',
-              title: 'New Lab Result',
-              message: `${latestUpdate.resource.code?.text || 'Lab result'} available`,
-              resourceType: 'Observation',
-              resourceId: latestUpdate.resourceId,
-              patientId: latestUpdate.patientId,
-              timestamp: latestUpdate.timestamp,
-              read: false,
-              priority: 'normal'
-            };
-          }
-          break;
-          
-        case 'DiagnosticReport':
-          notification = {
-            id: Date.now(),
-            type: 'report',
-            title: 'New Diagnostic Report',
-            message: `${latestUpdate.resource.code?.text || 'Diagnostic report'} ready`,
-            resourceType: 'DiagnosticReport',
-            resourceId: latestUpdate.resourceId,
-            patientId: latestUpdate.patientId,
-            timestamp: latestUpdate.timestamp,
-            read: false,
-            priority: 'normal'
-          };
-          break;
-          
-        case 'ServiceRequest':
-          notification = {
-            id: Date.now(),
-            type: 'order',
-            title: latestUpdate.action === 'created' ? 'New Order' : 'Order Updated',
-            message: `${latestUpdate.resource.code?.text || 'Order'} ${latestUpdate.action}`,
-            resourceType: 'ServiceRequest',
-            resourceId: latestUpdate.resourceId,
-            patientId: latestUpdate.patientId,
-            timestamp: latestUpdate.timestamp,
-            read: false,
-            priority: 'normal'
-          };
-          break;
-      }
-      
-      if (notification) {
-        setNotifications(prev => [notification, ...prev].slice(0, 50));
-        setUnreadCount(prev => prev + 1);
-      }
-    }
-  }, [realTimeUpdates]);
+  // Updates would need to be handled by polling or parent component
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -166,20 +87,6 @@ const RealTimeNotifications = () => {
         <SafeBadge badgeContent={unreadCount} color="error">
           <NotificationsIcon />
         </SafeBadge>
-        {wsConnected && (
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 4,
-              right: 4,
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: 'success.main',
-              border: '2px solid white'
-            }}
-          />
-        )}
       </IconButton>
 
       <Popover
@@ -199,22 +106,12 @@ const RealTimeNotifications = () => {
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Typography variant="h6" component="div">
               Notifications
-              {wsConnected && (
-                <Chip
-                  label="Live"
-                  size="small"
-                  color="success"
-                  sx={{ ml: 2 }}
-                />
-              )}
             </Typography>
           </Box>
 
-          {!wsConnected && (
-            <Alert severity="warning" sx={{ m: 2 }}>
-              Real-time updates disconnected
-            </Alert>
-          )}
+          <Alert severity="info" sx={{ m: 2 }}>
+            Refresh to check for new notifications.
+          </Alert>
 
           <List sx={{ maxHeight: 500, overflow: 'auto' }}>
             {notifications.length === 0 ? (
