@@ -820,6 +820,7 @@ const SocialHistory = ({ observations, patientId }) => {
 };
 
 const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
+  const theme = useTheme();
   const { 
     getPatientResources, 
     searchResources, 

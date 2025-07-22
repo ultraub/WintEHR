@@ -24,7 +24,8 @@ import {
   useTheme,
   useMediaQuery,
   alpha,
-  LinearProgress
+  LinearProgress,
+  Paper
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -42,7 +43,7 @@ import {
   Warning as AlertIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, differenceInYears } from 'date-fns';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import QuickThemeToggle from '../../theme/QuickThemeToggle';
 
@@ -66,6 +67,15 @@ const ClinicalAppBar = ({
   // Get critical alerts count
   const criticalAlerts = patient?.alerts?.filter(a => a.severity === 'critical').length || 0;
   const unreadNotifications = notifications.filter(n => !n.read).length;
+  
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 'Unknown';
+    try {
+      return differenceInYears(new Date(), new Date(birthDate));
+    } catch {
+      return 'Unknown';
+    }
+  };
 
   const handleUserMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -112,147 +122,160 @@ const ClinicalAppBar = ({
         position="fixed"
         elevation={0}
         sx={{
-          backgroundColor: theme.palette.primary.main,  // Clean blue matching older design
-          backgroundImage: 'none',
-          borderBottom: 'none',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          boxShadow: theme.shadows[1],
+          borderBottom: 1,
+          borderColor: 'divider',
           zIndex: theme.zIndex.drawer + 1,
-          height: 56
+          height: 64
         }}
       >
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
         
         <Toolbar sx={{ 
-          px: { xs: 1, sm: 2 }, 
-          minHeight: '56px !important',
-          height: 56
+          px: { xs: 2, sm: 3 }, 
+          minHeight: '64px !important',
+          height: 64
         }}>
-          {/* Left Section */}
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 0 }}>
-            {!isMobile && (
-              <>
-                <Typography
-                  variant="h6"
-                  component="div"
-                  sx={{
-                    fontWeight: 600,
-                    color: theme.palette.primary.contrastText,
-                    mr: 2
-                  }}
-                >
-                  WintEHR
+          {/* Left Section - Brand and Navigation */}
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ flexGrow: 0 }}>
+            {/* Back to Dashboard Button */}
+            <Tooltip title="Back to Dashboard">
+              <IconButton
+                onClick={() => navigate('/dashboard')}
+                sx={{ 
+                  color: 'text.primary',
+                  '&:hover': {
+                    bgcolor: 'action.hover'
+                  }
+                }}
+              >
+                <HomeIcon />
+              </IconButton>
+            </Tooltip>
+            
+            <Divider orientation="vertical" flexItem sx={{ height: 32 }} />
+            
+            {/* App Title and Context */}
+            <Box>
+              <Typography
+                variant="h6"
+                component="div"
+                sx={{
+                  fontWeight: 700,
+                  color: 'primary.main',
+                  lineHeight: 1.2
+                }}
+              >
+                Clinical Workspace
+              </Typography>
+              {!isMobile && (
+                <Typography variant="caption" color="text.secondary">
+                  {department} • {shift} Shift • {format(new Date(), 'MMM d, yyyy')}
                 </Typography>
-                
-                <Divider orientation="vertical" flexItem sx={{ mx: 2, backgroundColor: 'rgba(255,255,255,0.3)' }} />
-                
-                <Chip
-                  label={department}
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: theme.palette.primary.contrastText,
-                    fontWeight: 600,
-                    borderRadius: '4px',
-                    border: '1px solid rgba(255,255,255,0.3)'
-                  }}
-                />
-                
-                <Chip
-                  label={shift}
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: theme.palette.primary.contrastText,
-                    fontWeight: 600,
-                    borderRadius: '4px',
-                    border: '1px solid rgba(255,255,255,0.3)'
-                  }}
-                />
-              </>
-            )}
+              )}
+            </Box>
           </Stack>
 
           {/* Center Section - Patient Info */}
-          <Box sx={{ flexGrow: 1, mx: 2 }}>
+          <Box sx={{ flexGrow: 1, mx: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {patient && (
-              <Stack
-                direction="row"
-                spacing={2}
-                alignItems="center"
-                justifyContent="center"
+              <Paper
+                elevation={0}
+                sx={{
+                  px: 3,
+                  py: 1,
+                  bgcolor: alpha(theme.palette.primary.main, 0.05),
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 1,
+                  maxWidth: 600,
+                  width: '100%'
+                }}
               >
-                {criticalAlerts > 0 && (
-                  <Chip
-                    icon={<AlertIcon />}
-                    label={`${criticalAlerts} Critical Alert${criticalAlerts > 1 ? 's' : ''}`}
-                    color="error"
-                    size="small"
-                    sx={{ 
-                      fontWeight: 600,
-                      borderRadius: '4px',  // Professional medical UI
-                      animation: 'pulse 2s infinite'  // Draw attention to critical alerts
-                    }}
-                  />
-                )}
-                
-                {!isMobile && (
-                  <>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: theme.palette.primary.contrastText }}>
-                      {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
-                    </Typography>
-                    
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
-                      MRN: {patient.identifier?.[0]?.value} • {patient.age}y {patient.gender}
-                    </Typography>
-                  </>
-                )}
-              </Stack>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  {/* Patient Identity */}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'primary.main',
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      {patient.name?.[0]?.given?.[0]?.[0]}{patient.name?.[0]?.family?.[0]}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                        {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        MRN: {patient.identifier?.[0]?.value} • {patient.age || calculateAge(patient.birthDate)}y {patient.gender} • DOB: {format(new Date(patient.birthDate), 'MM/dd/yyyy')}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  
+                  {/* Critical Info */}
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {criticalAlerts > 0 && (
+                      <Chip
+                        icon={<AlertIcon />}
+                        label={`${criticalAlerts} Critical`}
+                        color="error"
+                        size="small"
+                        sx={{ 
+                          fontWeight: 600,
+                          animation: 'pulse 2s infinite'
+                        }}
+                      />
+                    )}
+                    {patient.allergies?.length > 0 && (
+                      <Chip
+                        icon={<AlertIcon />}
+                        label={`${patient.allergies.length} Allergies`}
+                        color="warning"
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    )}
+                  </Stack>
+                </Stack>
+              </Paper>
             )}
           </Box>
 
           {/* Right Section - Actions */}
           <Stack direction="row" spacing={1} alignItems="center">
-            {/* Print */}
-            {patient && (
-              <Tooltip title="Print">
-                <IconButton
-                  onClick={handlePrint}
-                  sx={{ 
-                    display: { xs: 'none', sm: 'inline-flex' },
-                    color: theme.palette.primary.contrastText
-                  }}
-                >
-                  <PrintIcon />
-                </IconButton>
-              </Tooltip>
-            )}
+            {/* Quick Actions for Patient */}
+            {patient && !isMobile && (
+              <>
+                <Tooltip title="Print Patient Summary">
+                  <IconButton
+                    onClick={handlePrint}
+                    color="inherit"
+                  >
+                    <PrintIcon />
+                  </IconButton>
+                </Tooltip>
 
-            {/* Share */}
-            {patient && (
-              <Tooltip title="Share">
-                <IconButton
-                  onClick={handleShare}
-                  sx={{ 
-                    display: { xs: 'none', sm: 'inline-flex' },
-                    color: theme.palette.primary.contrastText
-                  }}
-                >
-                  <ShareIcon />
-                </IconButton>
-              </Tooltip>
+                <Tooltip title="Share Patient Chart">
+                  <IconButton
+                    onClick={handleShare}
+                    color="inherit"
+                  >
+                    <ShareIcon />
+                  </IconButton>
+                </Tooltip>
+                
+                <Divider orientation="vertical" flexItem sx={{ height: 32, mx: 1 }} />
+              </>
             )}
-
-            {/* Notifications */}
-            <Tooltip title="Notifications">
-              <IconButton
-                onClick={handleNotificationOpen}
-                sx={{ color: theme.palette.primary.contrastText }}
-              >
-                <Badge badgeContent={unreadNotifications} color="error">
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
 
             {/* Theme Toggle */}
             <QuickThemeToggle 
@@ -261,20 +284,29 @@ const ClinicalAppBar = ({
               position="header"
             />
 
+            {/* Notifications */}
+            <Tooltip title="Notifications">
+              <IconButton
+                onClick={handleNotificationOpen}
+                color="inherit"
+              >
+                <Badge badgeContent={unreadNotifications} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+
             {/* User Menu */}
             <Tooltip title="Account">
               <IconButton
                 onClick={handleUserMenuOpen}
-                size="small"
-                sx={{ ml: 1 }}
+                color="inherit"
               >
                 <Avatar
                   sx={{
                     width: 32,
                     height: 32,
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    border: `2px solid ${theme.palette.primary.contrastText}`,
-                    color: theme.palette.primary.contrastText
+                    bgcolor: 'primary.main'
                   }}
                 >
                   {user?.name?.[0] || 'U'}
