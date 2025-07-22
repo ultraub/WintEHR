@@ -350,7 +350,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
 };
 
 const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
-  const { getPatientResources, isLoading, currentPatient, resources } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
   const [viewMode, setViewMode] = useState('timeline'); // 'cards', 'timeline', or 'table'
@@ -639,6 +639,25 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   const encounters = useMemo(() => {
     return getPatientResources(patientId, 'Encounter') || [];
   }, [patientId, getPatientResources]);
+
+  // Load encounters if not available in relationships
+  useEffect(() => {
+    const loadEncounters = async () => {
+      if (encounters.length === 0 && patientId && !isLoading) {
+        try {
+          await searchResources('Encounter', {
+            patient: patientId,
+            _sort: '-date',
+            _count: 100
+          });
+        } catch (error) {
+          // Failed to load encounters
+        }
+      }
+    };
+    
+    loadEncounters();
+  }, [patientId, encounters.length, searchResources, isLoading]);
 
   // Get all clinical resources for timeline
   const allClinicalResources = useMemo(() => {

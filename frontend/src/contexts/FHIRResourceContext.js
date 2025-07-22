@@ -769,13 +769,20 @@ export function FHIRResourceProvider({ children }) {
         const url = `/Patient/${patientId}/$everything${params.toString() ? `?${params.toString()}` : ''}`;
         const response = await fhirClient.httpClient.get(url);
         
-        const bundle = response.data || response;
+        // Check if response is already standardized by interceptor
+        let bundle;
+        if (response.data && response.data.resources !== undefined && response.data.bundle !== undefined) {
+          // Response was already transformed by standardizeResponse interceptor
+          bundle = response.data.bundle;
+        } else {
+          bundle = response.data || response;
+        }
+        
         
         // Process bundle entries and update state
         const resourcesByType = {};
         if (bundle.entry && bundle.entry.length > 0) {
-          
-          bundle.entry.forEach(entry => {
+          bundle.entry.forEach((entry, index) => {
             const resource = entry.resource;
             if (!resource || !resource.resourceType) return;
             
@@ -791,10 +798,91 @@ export function FHIRResourceProvider({ children }) {
             
             // Update relationships
             resources.forEach(resource => {
-              if (resource.subject?.reference === `Patient/${patientId}` ||
-                  resource.subject?.reference === `urn:uuid:${patientId}` ||
-                  resource.patient?.reference === `Patient/${patientId}` ||
-                  resource.patient?.reference === `urn:uuid:${patientId}`) {
+              
+              // Check various reference patterns that FHIR resources use
+              // Different resource types use different fields to reference patients
+              let patientRef = null;
+              
+              // Common patterns for patient references in FHIR
+              if (resource.subject?.reference) {
+                patientRef = resource.subject.reference;
+              } else if (resource.patient?.reference) {
+                patientRef = resource.patient.reference;
+              } else if (resource.performer?.reference) {
+                patientRef = resource.performer.reference;
+              } else if (resource.actor?.reference) {
+                patientRef = resource.actor.reference;
+              } else if (resource.for?.reference) {
+                patientRef = resource.for.reference;
+              } else if (resource.beneficiary?.reference) {
+                patientRef = resource.beneficiary.reference;
+              } else if (resource.individual?.reference) {
+                patientRef = resource.individual.reference;
+              }
+              
+              // Some resources might have direct patient ID without 'reference' wrapper
+              if (!patientRef && resource.subject && typeof resource.subject === 'string') {
+                patientRef = resource.subject;
+              }
+              if (!patientRef && resource.patient && typeof resource.patient === 'string') {
+                patientRef = resource.patient;
+              }
+              
+              
+              // Extract patient ID from reference (handles both "Patient/123" and "123" formats)
+              let referencesThisPatient = false;
+              if (patientRef) {
+                // Handle different reference formats:
+                // 1. "Patient/123" - standard FHIR reference
+                // 2. "123" - just the ID
+                // 3. Full URL references like "http://example.com/fhir/Patient/123"
+                // 4. "urn:uuid:123" - URN format (common in Synthea imports)
+                
+                // Handle URN format: urn:uuid:patient-id
+                if (patientRef.startsWith('urn:uuid:')) {
+                  const urnId = patientRef.substring('urn:uuid:'.length);
+                  referencesThisPatient = urnId === patientId;
+                } else if (patientRef.includes('/')) {
+                  // Handle standard FHIR references like "Patient/123"
+                  const refParts = patientRef.split('/');
+                  const refId = refParts[refParts.length - 1];
+                  referencesThisPatient = refId === patientId;
+                } else {
+                  // Direct ID comparison
+                  referencesThisPatient = patientRef === patientId;
+                }
+                
+                // Also check if the reference is in the format "Patient/[patientId]"
+                if (!referencesThisPatient) {
+                  referencesThisPatient = patientRef === `Patient/${patientId}`;
+                }
+                
+              }
+              
+              // For resources from $everything, they should all belong to this patient
+              // If no reference found, but we're processing from $everything, assume it belongs to the patient
+              if (!patientRef && !referencesThisPatient) {
+                // Some resources from $everything might not have explicit patient references
+                // but are still related to the patient (e.g., some Organizations, Practitioners)
+                // For clinical resources, we should still establish the relationship
+                const clinicalResourceTypes = [
+                  'Condition', 'MedicationRequest', 'Observation', 'Procedure',
+                  'AllergyIntolerance', 'Immunization', 'DiagnosticReport',
+                  'Encounter', 'CarePlan', 'CareTeam', 'Goal'
+                ];
+                
+                // For clinical resources from $everything, assume they belong to the patient
+                if (clinicalResourceTypes.includes(resource.resourceType)) {
+                  referencesThisPatient = true;
+                }
+              }
+              
+              // Also check if this is the patient resource itself
+              if (resource.resourceType === 'Patient' && resource.id === patientId) {
+                referencesThisPatient = true;
+              }
+              
+              if (referencesThisPatient) {
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {
@@ -957,11 +1045,35 @@ export function FHIRResourceProvider({ children }) {
             
             // Update relationships
             resources.forEach(resource => {
-              if (resource.subject?.reference === `Patient/${patientId}` ||
-                  resource.subject?.reference === `urn:uuid:${patientId}` ||
-                  resource.patient?.reference === `Patient/${patientId}` ||
-                  resource.patient?.reference === `urn:uuid:${patientId}` ||
-                  resource.resourceType === 'Patient') {
+              // Check various reference patterns that FHIR resources use
+              const patientRef = resource.subject?.reference || 
+                                resource.patient?.reference || 
+                                resource.performer?.reference ||
+                                resource.actor?.reference;
+              
+              // Extract patient ID from reference (handles both "Patient/123" and "123" formats)
+              let referencesThisPatient = false;
+              if (patientRef) {
+                const refParts = patientRef.split('/');
+                const refId = refParts.length > 1 ? refParts[refParts.length - 1] : patientRef;
+                referencesThisPatient = refId === patientId;
+              }
+              
+              // Also check if this is the patient resource itself
+              if (resource.resourceType === 'Patient' && resource.id === patientId) {
+                referencesThisPatient = true;
+              }
+              
+              console.log(`Checking relationship for ${resourceType}/${resource.id}:`, {
+                patientRef,
+                patientId,
+                referencesThisPatient,
+                resourcePatient: resource.patient,
+                resourceSubject: resource.subject
+              });
+              
+              if (referencesThisPatient) {
+                console.log(`Adding relationship: ${patientId} -> ${resourceType}/${resource.id}`);
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {

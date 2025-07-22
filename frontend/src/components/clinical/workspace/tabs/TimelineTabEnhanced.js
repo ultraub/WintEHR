@@ -90,6 +90,7 @@ import { useDebounce } from '../../../../hooks/useDebounce';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { resourceBelongsToPatient } from '../../../../utils/fhirReferenceUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Import new UI components
@@ -703,8 +704,7 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
         });
       } else if (resources[resourceType]) {
         const patientResources = Object.values(resources[resourceType] || {}).filter(r => 
-          r.subject?.reference === `Patient/${patientId}` || 
-          r.patient?.reference === `Patient/${patientId}`
+          resourceBelongsToPatient(r, patientId)
         );
         
         patientResources.forEach(resource => {

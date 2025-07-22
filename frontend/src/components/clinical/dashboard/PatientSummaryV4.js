@@ -104,7 +104,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             await warmPatientCache(patientId, 'summary');
           } catch (cacheError) {
             // If batch fails, try $everything with higher count
-            console.warn('Batch request failed, trying $everything:', cacheError);
             try {
               await fetchPatientEverything(patientId, {
                 types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
@@ -114,7 +113,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               });
             } catch (everythingError) {
               // Both methods failed, but continue anyway
-              console.warn('$everything also failed:', everythingError);
             }
           }
         }
@@ -241,35 +239,43 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
 
   // Get patient resources using centralized context - try to get data even if cache isn't fully warm
   const conditions = useMemo(() => {
-    return getPatientResources(patientId, 'Condition') || [];
+    const resources = getPatientResources(patientId, 'Condition') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const medications = useMemo(() => {
-    return getPatientResources(patientId, 'MedicationRequest') || [];
+    const resources = getPatientResources(patientId, 'MedicationRequest') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const observations = useMemo(() => {
-    return getPatientResources(patientId, 'Observation') || [];
+    const resources = getPatientResources(patientId, 'Observation') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const encounters = useMemo(() => {
-    return getPatientResources(patientId, 'Encounter') || [];
+    const resources = getPatientResources(patientId, 'Encounter') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const allergies = useMemo(() => {
-    return getPatientResources(patientId, 'AllergyIntolerance') || [];
+    const resources = getPatientResources(patientId, 'AllergyIntolerance') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const procedures = useMemo(() => {
-    return getPatientResources(patientId, 'Procedure') || [];
+    const resources = getPatientResources(patientId, 'Procedure') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const diagnosticReports = useMemo(() => {
-    return getPatientResources(patientId, 'DiagnosticReport') || [];
+    const resources = getPatientResources(patientId, 'DiagnosticReport') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const immunizations = useMemo(() => {
-    return getPatientResources(patientId, 'Immunization') || [];
+    const resources = getPatientResources(patientId, 'Immunization') || [];
+    return resources;
   }, [patientId, getPatientResources]);
 
   // Processed patient info
