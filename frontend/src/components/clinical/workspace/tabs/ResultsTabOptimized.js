@@ -202,38 +202,35 @@ const ResultsTabOptimized = ({ patientId }) => {
       const [labResults, vitalResults, diagnosticResults] = await Promise.all([
         // Lab observations
         fhirClient.search('Observation', {
-          patient: patientId,
+          patient: `Patient/${patientId}`,
           category: 'laboratory',
           _sort: '-date',
-          _count: 100, // Reasonable limit for initial load
-          _summary: 'true' // Only essential fields for list view
+          _count: 100 // Reasonable limit for initial load
         }),
         // Vital signs
         fhirClient.search('Observation', {
-          patient: patientId,
+          patient: `Patient/${patientId}`,
           category: 'vital-signs',
           _sort: '-date',
-          _count: 50, // Vital signs are more limited
-          _summary: 'true' // Only essential fields for list view
+          _count: 50 // Vital signs are more limited
         }),
         // Diagnostic reports
         fhirClient.search('DiagnosticReport', {
-          patient: patientId,
+          patient: `Patient/${patientId}`,
           _sort: '-date',
-          _count: 50, // Reasonable limit for reports
-          _summary: 'true' // Only essential fields for list view
+          _count: 50 // Reasonable limit for reports
         })
       ]);
 
       // Process bundles and extract entries
-      const labObservations = (labResults.entry || [])
-        .map(e => enhanceObservationWithReferenceRange(e.resource));
+      // Check if response is standardized or raw bundle
+      const labEntries = labResults.resources || labResults.entry?.map(e => e.resource) || [];
+      const vitalEntries = vitalResults.resources || vitalResults.entry?.map(e => e.resource) || [];
+      const diagnosticEntries = diagnosticResults.resources || diagnosticResults.entry?.map(e => e.resource) || [];
       
-      const vitalObservations = (vitalResults.entry || [])
-        .map(e => e.resource);
-      
-      const diagnosticReports = (diagnosticResults.entry || [])
-        .map(e => e.resource);
+      const labObservations = labEntries.map(resource => enhanceObservationWithReferenceRange(resource));
+      const vitalObservations = vitalEntries;
+      const diagnosticReports = diagnosticEntries;
 
       setAllData({
         labObservations,

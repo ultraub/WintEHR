@@ -55,6 +55,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useClinicalWorkflow } from '../../../../../contexts/ClinicalWorkflowContext';
+import { useFHIRResource } from '../../../../../contexts/FHIRResourceContext';
 import { cdsClinicalDataService } from '../../../../../services/cdsClinicalDataService';
 import { useProviderDirectory } from '../../../../../hooks/useProviderDirectory';
 import { format, subDays, subMonths, subYears } from 'date-fns';
@@ -66,7 +67,7 @@ const AdvancedOrderFilters = ({
   compact = false,
   patientId 
 }) => {
-  const { getActivePatient } = useClinicalWorkflow();
+  const { currentPatient } = useFHIRResource();
   const { searchProviders, getProvidersBySpecialty } = useProviderDirectory();
   const [filters, setFilters] = useState({
     // Basic FHIR R4 ServiceRequest filters
@@ -357,7 +358,7 @@ const AdvancedOrderFilters = ({
     if (filters.dosageInstruction) params.append('_text', filters.dosageInstruction);
     
     // Patient context (always include if available)
-    const activePatient = getActivePatient();
+    const activePatient = currentPatient;
     if (activePatient?.id || patientId) {
       params.append('subject', `Patient/${activePatient?.id || patientId}`);
     }
