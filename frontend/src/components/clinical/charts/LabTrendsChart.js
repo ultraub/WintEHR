@@ -42,76 +42,83 @@ import {
   Warning as WarningIcon,
   Science as LabIcon
 } from '@mui/icons-material';
+import { getChartColors } from '../../../themes/chartColors';
 
 // Common lab test configurations - Updated with actual Synthea LOINC codes
-const LAB_PROFILES = {
-  'basic-metabolic': {
-    name: 'Basic Metabolic Panel',
-    tests: [
-      { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: '#ff6b6b' },
-      { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: '#4ecdc4' },
-      { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: '#45b7d1' },
-      { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: '#f7b731' },
-      { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: '#5f27cd' },
-      { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: '#00d2d3' }
-    ]
-  },
-  'liver-function': {
-    name: 'Liver Function Tests',
-    tests: [
-      { code: '1742-6', name: 'ALT', unit: 'U/L', normalRange: [7, 55], color: '#ff6b6b' },
-      { code: '1920-8', name: 'AST', unit: 'U/L', normalRange: [8, 48], color: '#4ecdc4' },
-      { code: '1975-2', name: 'Bilirubin Total', unit: 'mg/dL', normalRange: [0.1, 1.2], color: '#f7b731' },
-      { code: '1968-7', name: 'Bilirubin Direct', unit: 'mg/dL', normalRange: [0, 0.3], color: '#45b7d1' },
-      { code: '6768-6', name: 'Alkaline Phosphatase', unit: 'U/L', normalRange: [45, 115], color: '#5f27cd' },
-      { code: '1751-7', name: 'Albumin', unit: 'g/dL', normalRange: [3.5, 5.0], color: '#00d2d3' }
-    ]
-  },
-  'lipid-panel': {
-    name: 'Lipid Panel',
-    tests: [
-      { code: '2093-3', name: 'Total Cholesterol', unit: 'mg/dL', normalRange: [0, 200], color: '#ff6b6b' },
-      { code: '2085-9', name: 'HDL Cholesterol', unit: 'mg/dL', normalRange: [40, 999], color: '#4ecdc4' },
-      { code: '2089-1', name: 'LDL Cholesterol', unit: 'mg/dL', normalRange: [0, 100], color: '#45b7d1' },
-      { code: '2571-8', name: 'Triglycerides', unit: 'mg/dL', normalRange: [0, 150], color: '#f7b731' }
-    ]
-  },
-  'complete-blood-count': {
-    name: 'Complete Blood Count',
-    tests: [
-      { code: '6690-2', name: 'WBC', unit: '10*3/uL', normalRange: [4.5, 11.0], color: '#ff6b6b' },
-      { code: '789-8', name: 'RBC', unit: '10*6/uL', normalRange: [4.2, 5.4], color: '#4ecdc4' },
-      { code: '718-7', name: 'Hemoglobin', unit: 'g/dL', normalRange: [12.0, 16.0], color: '#45b7d1' },
-      { code: '4544-3', name: 'Hematocrit', unit: '%', normalRange: [36, 46], color: '#f7b731' },
-      { code: '777-3', name: 'Platelets', unit: '10*3/uL', normalRange: [150, 400], color: '#5f27cd' }
-    ]
-  },
-  'thyroid-function': {
-    name: 'Thyroid Function',
-    tests: [
-      { code: '3051-0', name: 'TSH', unit: 'mIU/L', normalRange: [0.4, 4.0], color: '#ff6b6b' },
-      { code: '3053-6', name: 'T4 Free', unit: 'ng/dL', normalRange: [0.9, 1.7], color: '#4ecdc4' },
-      { code: '3052-8', name: 'T3 Free', unit: 'pg/mL', normalRange: [2.3, 4.2], color: '#45b7d1' }
-    ]
-  },
-  'synthea-available': {
-    name: 'Available Lab Tests',
-    tests: [
-      { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: '#ff6b6b' },
-      { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: '#4ecdc4' },
-      { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: '#45b7d1' },
-      { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: '#f7b731' },
-      { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: '#5f27cd' },
-      { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: '#00d2d3' },
-      { code: '4548-4', name: 'Hemoglobin A1c', unit: '%', normalRange: [4.0, 5.6], color: '#e17055' },
-      { code: '49765-1', name: 'Calcium', unit: 'mg/dL', normalRange: [8.5, 10.5], color: '#6c5ce7' },
-      { code: '6299-2', name: 'Urea Nitrogen', unit: 'mg/dL', normalRange: [7, 20], color: '#a29bfe' }
-    ]
-  }
+const createLabProfiles = (theme) => {
+  const chartColors = getChartColors(theme);
+  
+  return {
+    'basic-metabolic': {
+      name: 'Basic Metabolic Panel',
+      tests: [
+        { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: chartColors.labs.glucose },
+        { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: chartColors.labs.creatinine },
+        { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: chartColors.labs.sodium },
+        { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: chartColors.labs.potassium },
+        { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: chartColors.palette[4] },
+        { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: chartColors.palette[5] }
+      ]
+    },
+    'liver-function': {
+      name: 'Liver Function Tests',
+      tests: [
+        { code: '1742-6', name: 'ALT', unit: 'U/L', normalRange: [7, 55], color: chartColors.palette[0] },
+        { code: '1920-8', name: 'AST', unit: 'U/L', normalRange: [8, 48], color: chartColors.palette[1] },
+        { code: '1975-2', name: 'Bilirubin Total', unit: 'mg/dL', normalRange: [0.1, 1.2], color: chartColors.labs.bilirubin },
+        { code: '1968-7', name: 'Bilirubin Direct', unit: 'mg/dL', normalRange: [0, 0.3], color: chartColors.palette[3] },
+        { code: '6768-6', name: 'Alkaline Phosphatase', unit: 'U/L', normalRange: [45, 115], color: chartColors.palette[6] },
+        { code: '1751-7', name: 'Albumin', unit: 'g/dL', normalRange: [3.5, 5.0], color: chartColors.labs.albumin }
+      ]
+    },
+    'lipid-panel': {
+      name: 'Lipid Panel',
+      tests: [
+        { code: '2093-3', name: 'Total Cholesterol', unit: 'mg/dL', normalRange: [0, 200], color: chartColors.labs.cholesterol },
+        { code: '2085-9', name: 'HDL Cholesterol', unit: 'mg/dL', normalRange: [40, 999], color: chartColors.palette[2] },
+        { code: '2089-1', name: 'LDL Cholesterol', unit: 'mg/dL', normalRange: [0, 100], color: chartColors.palette[3] },
+        { code: '2571-8', name: 'Triglycerides', unit: 'mg/dL', normalRange: [0, 150], color: chartColors.palette[4] }
+      ]
+    },
+    'complete-blood-count': {
+      name: 'Complete Blood Count',
+      tests: [
+        { code: '6690-2', name: 'WBC', unit: '10*3/uL', normalRange: [4.5, 11.0], color: chartColors.palette[0] },
+        { code: '789-8', name: 'RBC', unit: '10*6/uL', normalRange: [4.2, 5.4], color: chartColors.palette[1] },
+        { code: '718-7', name: 'Hemoglobin', unit: 'g/dL', normalRange: [12.0, 16.0], color: chartColors.labs.hemoglobin },
+        { code: '4544-3', name: 'Hematocrit', unit: '%', normalRange: [36, 46], color: chartColors.palette[3] },
+        { code: '777-3', name: 'Platelets', unit: '10*3/uL', normalRange: [150, 400], color: chartColors.palette[4] }
+      ]
+    },
+    'thyroid-function': {
+      name: 'Thyroid Function',
+      tests: [
+        { code: '3051-0', name: 'TSH', unit: 'mIU/L', normalRange: [0.4, 4.0], color: chartColors.palette[5] },
+        { code: '3053-6', name: 'T4 Free', unit: 'ng/dL', normalRange: [0.9, 1.7], color: chartColors.palette[6] },
+        { code: '3052-8', name: 'T3 Free', unit: 'pg/mL', normalRange: [2.3, 4.2], color: chartColors.palette[7] }
+      ]
+    },
+    'synthea-available': {
+      name: 'Available Lab Tests',
+      tests: [
+        { code: '2339-0', name: 'Glucose', unit: 'mg/dL', normalRange: [70, 100], color: chartColors.labs.glucose },
+        { code: '38483-4', name: 'Creatinine', unit: 'mg/dL', normalRange: [0.6, 1.2], color: chartColors.labs.creatinine },
+        { code: '2947-0', name: 'Sodium', unit: 'mmol/L', normalRange: [136, 145], color: chartColors.labs.sodium },
+        { code: '6298-4', name: 'Potassium', unit: 'mmol/L', normalRange: [3.5, 5.0], color: chartColors.labs.potassium },
+        { code: '2069-3', name: 'Chloride', unit: 'mmol/L', normalRange: [98, 107], color: chartColors.palette[4] },
+        { code: '20565-8', name: 'CO2', unit: 'mmol/L', normalRange: [22, 29], color: chartColors.palette[5] },
+        { code: '4548-4', name: 'Hemoglobin A1c', unit: '%', normalRange: [4.0, 5.6], color: chartColors.palette[8] },
+        { code: '49765-1', name: 'Calcium', unit: 'mg/dL', normalRange: [8.5, 10.5], color: chartColors.labs.calcium },
+        { code: '6299-2', name: 'Urea Nitrogen', unit: 'mg/dL', normalRange: [7, 20], color: chartColors.palette[10] }
+      ]
+    }
+  };
 };
 
 const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-available', height = 400 }) => {
   const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const LAB_PROFILES = createLabProfiles(theme);
   const [selectedTest, setSelectedTest] = useState('');
   const [timeRange, setTimeRange] = useState(365); // days - default to 1 year for better trend visibility
   
@@ -143,7 +150,7 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
           name,
           unit,
           normalRange,
-          color: configTest?.color || `#${Math.floor(Math.random()*16777215).toString(16)}` // Random color if not predefined
+          color: configTest?.color || chartColors.palette[testMap.size % chartColors.palette.length] // Use palette colors
         });
       }
     });
@@ -383,7 +390,7 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              bgcolor: alpha(theme.palette.action.hover, 0.05),
+              bgcolor: theme.palette.action.hover,
               borderRadius: 1
             }}
           >

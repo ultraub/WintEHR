@@ -194,11 +194,13 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }, [patientId, fhirClient]);
 
   // Load optimized summary stats on patient change
-  useEffect(() => {
-    if (patientId) {
-      loadSummaryStats();
-    }
-  }, [patientId]); // Only depend on patientId to avoid infinite loop
+  // DISABLED: Using loadDashboardData instead which filters resources client-side
+  // The API search filtering isn't working properly, so we rely on client-side filtering
+  // useEffect(() => {
+  //   if (patientId) {
+  //     loadSummaryStats();
+  //   }
+  // }, [patientId]); // Only depend on patientId to avoid infinite loop
 
   // Get resources from context - these are already cached and shared
   const conditions = useMemo(() => {
@@ -588,7 +590,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       {refreshing && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
       
       {/* Main Content */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
         {/* Action Bar */}
         <Box sx={{ 
           display: 'flex', 
@@ -628,6 +630,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
+          style={{ marginBottom: theme.spacing(3) }}
         >
           <MetricsBar 
             metrics={metrics} 
@@ -877,8 +880,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 ) : null}
                 sx={{ 
                   height: '100%',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EB',
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${theme.palette.divider}`,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
                 }}
               >
@@ -973,8 +976,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 ]}
                 sx={{ 
                   height: '100%',
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EB',
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${theme.palette.divider}`,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
                 }}
               >

@@ -53,6 +53,8 @@ import {
   getObservationInterpretation,
   getResourceDisplayText
 } from '../../../../core/fhir/utils/fhirFieldUtils';
+import VitalSignsChart from '../../charts/VitalSignsChart';
+import LabTrends from '../../charts/LabTrends';
 
 // Reference ranges for common tests
 const REFERENCE_RANGES = {
@@ -238,11 +240,25 @@ const ResultsTabWithSubNav = ({ patientId }) => {
   
   // Render lab results table
   const renderLabResults = () => (
-    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: '#FAFBFC' }}>
-            <TableCell sx={{ fontWeight: 600 }}>Test Name</TableCell>
+    <Box sx={{ p: 2 }}>
+      {/* Lab Trends Chart */}
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 2, boxShadow: 1 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: theme.palette.text.primary }}>
+          Lab Trends
+        </Typography>
+        <LabTrends patientId={patientId} height={350} />
+      </Paper>
+      
+      {/* Lab Results Table */}
+      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 1 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: theme.palette.text.primary }}>
+          Recent Lab Results
+        </Typography>
+        <TableContainer component={Box} sx={{ boxShadow: 'none' }}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
+                <TableCell sx={{ fontWeight: 600 }}>Test Name</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Result</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Reference Range</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -304,48 +320,71 @@ const ResultsTabWithSubNav = ({ patientId }) => {
         </TableBody>
       </Table>
     </TableContainer>
+      </Paper>
+    </Box>
   );
   
   // Render vital signs table
   const renderVitalSigns = () => (
-    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: '#FAFBFC' }}>
-            <TableCell sx={{ fontWeight: 600 }}>Vital Sign</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Value</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Date/Time</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {paginatedData.map((vital) => (
-            <TableRow key={vital.id} hover>
-              <TableCell>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <VitalIcon fontSize="small" color="primary" />
-                  <Typography variant="body2" fontWeight={500}>
-                    {getResourceDisplayText(vital)}
-                  </Typography>
-                </Stack>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" fontWeight={600}>
-                  {vital.valueQuantity ? 
-                    `${vital.valueQuantity.value} ${vital.valueQuantity.unit || ''}` :
-                    vital.valueString || '-'}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
-                  {vital.effectiveDateTime ? 
-                    format(parseISO(vital.effectiveDateTime), 'MMM d, yyyy h:mm a') : '-'}
-                </Typography>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Box sx={{ p: 2 }}>
+      {/* Vital Signs Chart */}
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 2, boxShadow: 1 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: theme.palette.text.primary }}>
+          Vital Signs Trends
+        </Typography>
+        <VitalSignsChart 
+          patientId={patientId} 
+          vitalSigns={data.vitalSigns} 
+          selectedVitalType="bloodPressure" 
+          height={350} 
+        />
+      </Paper>
+      
+      {/* Recent Vital Signs Table */}
+      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 1 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: theme.palette.text.primary }}>
+          Recent Vital Signs
+        </Typography>
+        <TableContainer component={Box} sx={{ boxShadow: 'none' }}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
+                <TableCell sx={{ fontWeight: 600 }}>Vital Sign</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Value</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Date/Time</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedData.map((vital) => (
+                <TableRow key={vital.id} hover>
+                  <TableCell>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <VitalIcon fontSize="small" color="primary" />
+                      <Typography variant="body2" fontWeight={500}>
+                        {getResourceDisplayText(vital)}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>
+                      {vital.valueQuantity ? 
+                        `${vital.valueQuantity.value} ${vital.valueQuantity.unit || ''}` :
+                        vital.valueString || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {vital.effectiveDateTime ? 
+                        format(parseISO(vital.effectiveDateTime), 'MMM d, yyyy h:mm a') : '-'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+    </Box>
   );
   
   // Render diagnostic reports table
@@ -353,7 +392,7 @@ const ResultsTabWithSubNav = ({ patientId }) => {
     <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
       <Table>
         <TableHead>
-          <TableRow sx={{ backgroundColor: '#FAFBFC' }}>
+          <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
             <TableCell sx={{ fontWeight: 600 }}>Report</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -415,9 +454,9 @@ const ResultsTabWithSubNav = ({ patientId }) => {
   }
   
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#FAFBFC' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: theme.palette.background.default }}>
       {/* Header */}
-      <Box sx={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', p: 2 }}>
+      <Box sx={{ backgroundColor: theme.palette.background.paper, borderBottom: `1px solid ${theme.palette.divider}`, p: 3 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" spacing={3} alignItems="center">
             <TextField
@@ -434,7 +473,7 @@ const ResultsTabWithSubNav = ({ patientId }) => {
               }}
               sx={{ 
                 minWidth: 250,
-                backgroundColor: '#FAFBFC',
+                backgroundColor: theme.palette.action.hover,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '4px'
                 }
@@ -447,7 +486,7 @@ const ResultsTabWithSubNav = ({ patientId }) => {
                 value={filterPeriod}
                 onChange={(e) => setFilterPeriod(e.target.value)}
                 label="Time Period"
-                sx={{ backgroundColor: '#FFFFFF' }}
+                sx={{ backgroundColor: theme.palette.background.paper }}
               >
                 <MenuItem value="all">All Time</MenuItem>
                 <MenuItem value="7d">Last 7 Days</MenuItem>
@@ -483,21 +522,21 @@ const ResultsTabWithSubNav = ({ patientId }) => {
       </Box>
       
       {/* Tabs */}
-      <Box sx={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB' }}>
+      <Box sx={{ backgroundColor: theme.palette.background.paper, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Tabs 
           value={currentTab} 
           onChange={handleTabChange}
           sx={{
             '& .MuiTabs-indicator': {
-              backgroundColor: '#2979FF',
+              backgroundColor: theme.palette.primary.main,
               height: 3
             },
             '& .MuiTab-root': {
               textTransform: 'none',
               fontWeight: 500,
-              color: '#6B7280',
+              color: theme.palette.text.secondary,
               '&.Mui-selected': {
-                color: '#2979FF',
+                color: theme.palette.primary.main,
                 fontWeight: 600
               }
             }
@@ -546,12 +585,12 @@ const ResultsTabWithSubNav = ({ patientId }) => {
       </Box>
       
       {/* Content */}
-      <Box sx={{ flex: 1, overflow: 'auto', backgroundColor: '#FFFFFF', m: 2, borderRadius: '4px' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', backgroundColor: theme.palette.background.default }}>
         {currentTab === 0 && renderLabResults()}
         {currentTab === 1 && renderVitalSigns()}
         {currentTab === 2 && renderDiagnosticReports()}
         
-        {filteredData.length > 0 && (
+        {filteredData.length > 0 && currentTab === 2 && (
           <TablePagination
             component="div"
             count={filteredData.length}
@@ -562,7 +601,7 @@ const ResultsTabWithSubNav = ({ patientId }) => {
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{ borderTop: '1px solid #E5E7EB' }}
+            sx={{ borderTop: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.background.paper }}
           />
         )}
       </Box>

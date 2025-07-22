@@ -3,7 +3,7 @@
  * Display and manage medical imaging studies with gallery view, body map, and DICOM viewer
  * Part of the Clinical UI Improvements Initiative
  */
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -175,7 +175,7 @@ const getStudyStatusColor = (status) => {
 };
 
 // Body Map Component
-const BodyMap = memo(({ studies, selectedRegion, onRegionSelect }) => {
+const BodyMap = React.memo(({ studies, selectedRegion, onRegionSelect }) => {
   const theme = useTheme();
   
   // Count studies by region
@@ -279,7 +279,7 @@ const BodyMap = memo(({ studies, selectedRegion, onRegionSelect }) => {
 });
 
 // Enhanced Imaging Study Card Component
-const ImagingStudyCard = memo(({ study, onView, onAction, density = 'comfortable', viewMode = 'card' }) => {
+const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfortable', viewMode = 'card' }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   

@@ -44,6 +44,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import QuickThemeToggle from '../../theme/QuickThemeToggle';
 
 const ClinicalAppBar = ({
   onMenuToggle,
@@ -111,7 +112,7 @@ const ClinicalAppBar = ({
         position="fixed"
         elevation={0}
         sx={{
-          backgroundColor: '#2979FF',  // Clean blue matching older design
+          backgroundColor: theme.palette.primary.main,  // Clean blue matching older design
           backgroundImage: 'none',
           borderBottom: 'none',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -135,7 +136,7 @@ const ClinicalAppBar = ({
                   component="div"
                   sx={{
                     fontWeight: 600,
-                    color: '#FFFFFF',
+                    color: theme.palette.primary.contrastText,
                     mr: 2
                   }}
                 >
@@ -149,7 +150,7 @@ const ClinicalAppBar = ({
                   size="small"
                   sx={{
                     backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: '#FFFFFF',
+                    color: theme.palette.primary.contrastText,
                     fontWeight: 600,
                     borderRadius: '4px',
                     border: '1px solid rgba(255,255,255,0.3)'
@@ -161,7 +162,7 @@ const ClinicalAppBar = ({
                   size="small"
                   sx={{
                     backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: '#FFFFFF',
+                    color: theme.palette.primary.contrastText,
                     fontWeight: 600,
                     borderRadius: '4px',
                     border: '1px solid rgba(255,255,255,0.3)'
@@ -196,7 +197,7 @@ const ClinicalAppBar = ({
                 
                 {!isMobile && (
                   <>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#FFFFFF' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: theme.palette.primary.contrastText }}>
                       {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
                     </Typography>
                     
@@ -218,7 +219,7 @@ const ClinicalAppBar = ({
                   onClick={handlePrint}
                   sx={{ 
                     display: { xs: 'none', sm: 'inline-flex' },
-                    color: '#FFFFFF'
+                    color: theme.palette.primary.contrastText
                   }}
                 >
                   <PrintIcon />
@@ -233,7 +234,7 @@ const ClinicalAppBar = ({
                   onClick={handleShare}
                   sx={{ 
                     display: { xs: 'none', sm: 'inline-flex' },
-                    color: '#FFFFFF'
+                    color: theme.palette.primary.contrastText
                   }}
                 >
                   <ShareIcon />
@@ -245,7 +246,7 @@ const ClinicalAppBar = ({
             <Tooltip title="Notifications">
               <IconButton
                 onClick={handleNotificationOpen}
-                sx={{ color: '#FFFFFF' }}
+                sx={{ color: theme.palette.primary.contrastText }}
               >
                 <Badge badgeContent={unreadNotifications} color="error">
                   <NotificationsIcon />
@@ -254,14 +255,11 @@ const ClinicalAppBar = ({
             </Tooltip>
 
             {/* Theme Toggle */}
-            <Tooltip title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
-              <IconButton
-                onClick={onThemeToggle}
-                sx={{ color: '#FFFFFF' }}
-              >
-                {isDarkMode ? <LightModeIcon /> : <DarkModeIcon />}
-              </IconButton>
-            </Tooltip>
+            <QuickThemeToggle 
+              showLabel={false}
+              size="medium"
+              position="header"
+            />
 
             {/* User Menu */}
             <Tooltip title="Account">
@@ -275,8 +273,8 @@ const ClinicalAppBar = ({
                     width: 32,
                     height: 32,
                     backgroundColor: 'rgba(255,255,255,0.2)',
-                    border: '2px solid #FFFFFF',
-                    color: '#FFFFFF'
+                    border: `2px solid ${theme.palette.primary.contrastText}`,
+                    color: theme.palette.primary.contrastText
                   }}
                 >
                   {user?.name?.[0] || 'U'}
