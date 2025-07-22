@@ -135,7 +135,7 @@ const createResourceTracks = (chartColors) => ({
 /**
  * Timeline event component
  */
-const TimelineEvent = ({ event, scale, onEventClick, isSelected }) => {
+const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS }) => {
   const theme = useTheme();
   const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation;
   
@@ -193,7 +193,7 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected }) => {
 /**
  * Timeline track component
  */
-const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
+const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE_TRACKS }) => {
   const config = RESOURCE_TRACKS[trackData.resourceType];
   
   return (
@@ -256,6 +256,7 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
             scale={scale}
             onEventClick={onEventClick}
             isSelected={selectedEvent?.id === event.id}
+            RESOURCE_TRACKS={RESOURCE_TRACKS}
           />
         ))}
       </Box>
@@ -410,7 +411,7 @@ const TimelineControls = ({
 /**
  * Event details panel
  */
-const EventDetailsPanel = ({ event, onClose }) => {
+const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
   if (!event) return null;
 
   const config = RESOURCE_TRACKS[event.resourceType];
@@ -771,6 +772,7 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
             scale={scale}
             onEventClick={handleEventClick}
             selectedEvent={selectedEvent}
+            RESOURCE_TRACKS={RESOURCE_TRACKS}
           />
         ))}
 
@@ -794,6 +796,7 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
       <EventDetailsPanel
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        RESOURCE_TRACKS={RESOURCE_TRACKS}
       />
 
       {/* Add pulse animation for live mode */}
