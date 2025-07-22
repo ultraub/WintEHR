@@ -15,7 +15,7 @@ module.exports = function(app) {
     return createProxyMiddleware({
       target: backendTarget,
       changeOrigin: true,
-      logLevel: 'debug',
+      logLevel: 'error',
       pathRewrite: pathRewrite,
       onError: (err, req, res) => {
         console.error(`[${name} Proxy Error]`, err.message);
@@ -50,7 +50,7 @@ module.exports = function(app) {
     createProxy('FHIR', (path, req) => {
       // Add /fhir back to the path since Express strips it
       const newPath = '/fhir' + path;
-      console.log(`[FHIR Proxy] Rewriting ${path} -> ${newPath}`);
+      // console.log(`[FHIR Proxy] Rewriting ${path} -> ${newPath}`);
       return newPath;
     })
   );
@@ -61,7 +61,7 @@ module.exports = function(app) {
     createProxy('CDS', (path, req) => {
       // Add /cds-hooks back to the path
       const newPath = '/cds-hooks' + path;
-      console.log(`[CDS Proxy] Rewriting ${path} -> ${newPath}`);
+      // console.log(`[CDS Proxy] Rewriting ${path} -> ${newPath}`);
       return newPath;
     })
   );
@@ -73,7 +73,7 @@ module.exports = function(app) {
       target: backendTarget,
       changeOrigin: true,
       ws: true,
-      logLevel: 'debug',
+      logLevel: 'error',
       pathRewrite: {
         '^/ws': '/ws'
       },

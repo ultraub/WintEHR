@@ -737,7 +737,7 @@ class FHIRClient {
     if (cached) return cached;
 
     try {
-      const response = await this.httpClient.get('/metadata');
+      const response = await this.httpClient.get('metadata');
       this.capabilities = response.data;
       this.setInCache(cacheKey, this.capabilities, { ttl: 60 * 60 * 1000 }); // Cache for 1 hour
       return this.capabilities;
@@ -782,7 +782,7 @@ class FHIRClient {
    */
   async create<T extends FHIRResource>(resourceType: T['resourceType'], resource: Omit<T, 'id' | 'meta'>): Promise<T> {
     return this.queueRequest(async () => {
-      const response = await this.httpClient.post<T>(`/${resourceType}`, resource);
+      const response = await this.httpClient.post<T>(`${resourceType}`, resource);
       const createdResource = response.data;
       
       // Smart cache invalidation
@@ -810,11 +810,11 @@ class FHIRClient {
     if (cached) return cached;
 
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('GET', `/${resourceType}/${id}`);
+    const requestKey = this.createRequestKey('GET', `${resourceType}/${id}`);
 
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.get<T>(`/${resourceType}/${id}`);
+        const response = await this.httpClient.get<T>(`${resourceType}/${id}`);
         const resource = response.data;
         
         // Cache with resource metadata
@@ -881,7 +881,7 @@ class FHIRClient {
     resource.id = id;
     
     return this.queueRequest(async () => {
-      const response = await this.httpClient.put<T>(`/${resourceType}/${id}`, resource);
+      const response = await this.httpClient.put<T>(`${resourceType}/${id}`, resource);
       const updatedResource = response.data;
       
       // Smart cache invalidation
@@ -914,7 +914,7 @@ class FHIRClient {
    */
   async delete(resourceType: ResourceType, id: string): Promise<void> {
     return this.queueRequest(async () => {
-      await this.httpClient.delete(`/${resourceType}/${id}`);
+      await this.httpClient.delete(`${resourceType}/${id}`);
       
       // Smart cache invalidation
       if (this.cacheConfig.smartInvalidation) {
@@ -949,12 +949,12 @@ class FHIRClient {
     if (cached) return cached;
 
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('GET', `/${resourceType}`, params);
+    const requestKey = this.createRequestKey('GET', `${resourceType}`, params);
 
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
         try {
-          const response = await this.httpClient.get<any>(`/${resourceType}`, { params });
+          const response = await this.httpClient.get<any>(`${resourceType}`, { params });
           
           // Check if response is already standardized by FHIRResourceContext interceptor
           if (response.data.resources !== undefined && response.data.total !== undefined) {
@@ -1026,11 +1026,11 @@ class FHIRClient {
     };
     
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('POST', '/', bundle);
+    const requestKey = this.createRequestKey('POST', '', bundle);
     
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.post<Bundle>('/', bundle);
+        const response = await this.httpClient.post<Bundle>('', bundle);
         
         // Process results
         const results: BatchResult[] = response.data.entry?.map(entry => {
@@ -1113,13 +1113,13 @@ class FHIRClient {
     
     if (resourceType && id) {
       // Instance level operation
-      url = `/${resourceType}/${id}/$${operation}`;
+      url = `${resourceType}/${id}/$${operation}`;
     } else if (resourceType) {
       // Type level operation
-      url = `/${resourceType}/$${operation}`;
+      url = `${resourceType}/$${operation}`;
     } else {
       // System level operation
-      url = `/$${operation}`;
+      url = `$${operation}`;
     }
 
     return this.queueRequest(async () => {
@@ -1133,8 +1133,8 @@ class FHIRClient {
    */
   async history(resourceType: ResourceType, id?: string): Promise<Bundle> {
     const url = id 
-      ? `/${resourceType}/${id}/_history`
-      : `/${resourceType}/_history`;
+      ? `${resourceType}/${id}/_history`
+      : `${resourceType}/_history`;
     
     // Create request key for deduplication
     const requestKey = this.createRequestKey('GET', url);
@@ -1323,11 +1323,11 @@ class FHIRClient {
     }
     
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('GET', `/Patient/${patientId}/$bundle-optimized`, params);
+    const requestKey = this.createRequestKey('GET', `Patient/${patientId}/$bundle-optimized`, params);
     
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.get<Bundle>(`/Patient/${patientId}/$bundle-optimized`, { params });
+        const response = await this.httpClient.get<Bundle>(`Patient/${patientId}/$bundle-optimized`, { params });
         return response.data;
       })
     );
@@ -1348,11 +1348,11 @@ class FHIRClient {
     }
     
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('GET', `/Patient/${patientId}/$timeline`, params);
+    const requestKey = this.createRequestKey('GET', `Patient/${patientId}/$timeline`, params);
     
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.get(`/Patient/${patientId}/$timeline`, { params });
+        const response = await this.httpClient.get(`Patient/${patientId}/$timeline`, { params });
         return response.data;
       })
     );
@@ -1360,11 +1360,11 @@ class FHIRClient {
   
   async getPatientSummaryOptimized(patientId: string): Promise<any> {
     // Create request key for deduplication
-    const requestKey = this.createRequestKey('GET', `/Patient/${patientId}/$summary`);
+    const requestKey = this.createRequestKey('GET', `Patient/${patientId}/$summary`);
     
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.get(`/Patient/${patientId}/$summary`);
+        const response = await this.httpClient.get(`Patient/${patientId}/$summary`);
         return response.data;
       })
     );
