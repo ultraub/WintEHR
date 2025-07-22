@@ -280,7 +280,20 @@ const ClinicalCard = ({
       
       {actions && (
         <CardActions sx={{ justifyContent: 'flex-end', p: spacing }}>
-          {actions}
+          {Array.isArray(actions) 
+            ? actions.map((action, index) => (
+                <Button 
+                  key={index}
+                  size="small" 
+                  onClick={action.onClick}
+                  variant={action.variant || 'text'}
+                  color={action.color || 'primary'}
+                >
+                  {action.label}
+                </Button>
+              ))
+            : actions
+          }
         </CardActions>
       )}
     </Card>
