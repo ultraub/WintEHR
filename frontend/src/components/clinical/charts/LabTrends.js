@@ -16,7 +16,9 @@ import {
   Chip,
   Grid,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  useTheme,
+  alpha
 } from '@mui/material';
 import {
   LineChart,
@@ -30,9 +32,13 @@ import {
   ReferenceLine
 } from 'recharts';
 import { format, parseISO, subDays } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { getChartColors, getReferenceColors } from '../../../themes/chartColors';
 
 const LabTrends = ({ patientId, height = 300 }) => {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const refColors = getReferenceColors(theme);
   const [allLabData, setAllLabData] = useState([]);
   const [labData, setLabData] = useState([]);
   const [availableTests, setAvailableTests] = useState([]);
@@ -234,7 +240,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             {testInfo?.refLow && (
               <ReferenceLine 
                 y={testInfo.refLow} 
-                stroke="green" 
+                stroke={refColors.normal} 
                 strokeDasharray="3 3" 
                 label={{ value: "Lower limit", position: "right" }}
               />
@@ -242,7 +248,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             {testInfo?.refHigh && (
               <ReferenceLine 
                 y={testInfo.refHigh} 
-                stroke="red" 
+                stroke={refColors.abnormal} 
                 strokeDasharray="3 3" 
                 label={{ value: "Upper limit", position: "right" }}
               />
@@ -251,7 +257,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             <Line 
               type="monotone" 
               dataKey="value" 
-              stroke="#8884d8" 
+              stroke={chartColors.palette[0]} 
               strokeWidth={2}
               dot={(props) => {
                 const { cx, cy, payload } = props;
@@ -260,7 +266,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
                     cx={cx} 
                     cy={cy} 
                     r={4} 
-                    fill={payload.isAbnormal ? '#f44336' : '#8884d8'}
+                    fill={payload.isAbnormal ? theme.palette.error.main : chartColors.palette[0]}
                   />
                 );
               }}

@@ -211,7 +211,7 @@ const ProblemList = ({ conditions, patientId, onAddProblem, onEditProblem, onDel
                   borderRadius: 1,
                   mb: 1,
                   backgroundColor: expandedItems[condition.id] ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  '&:hover': { backgroundColor: theme.palette.action.hover }
                 }}
               >
                 <ListItemIcon>
@@ -491,7 +491,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              backgroundColor: alpha(theme.palette.background.paper, 0.8),
               zIndex: 1
             }}>
               <CircularProgress size={24} />
@@ -509,7 +509,7 @@ const MedicationList = ({ medications, patientId, onPrescribeMedication, onEditM
                   borderRadius: 1,
                   mb: 1,
                   backgroundColor: med.status === 'active' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': { backgroundColor: 'action.hover' }
+                  '&:hover': { backgroundColor: theme.palette.action.hover }
                 }}
               >
                 <ListItemIcon>
@@ -1185,7 +1185,7 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
         sx={{ 
           position: 'absolute',
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.7)'
+          backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.7)
         }}
         open={saveInProgress}
       >
