@@ -147,13 +147,11 @@ const EnhancedClinicalLayout = ({
     // Would save to user preferences
   };
 
-  // Calculate layout dimensions
-  const sidebarWidth = sidebarCollapsed ? 72 : 280;
-  const appBarHeight = isMobile ? 56 : 64;
-  const contextBarHeight = isMobile ? 0 : 32;
-  const totalHeaderHeight = appBarHeight + contextBarHeight;
-  const breadcrumbHeight = 48;
-  const patientHeaderHeight = patient ? (isMobile ? 140 : 160) : 0;
+  // Calculate layout dimensions - Optimized for screen real estate
+  const sidebarWidth = sidebarCollapsed ? 56 : 220;  // Reduced from 72/280 to 56/220
+  const appBarHeight = 56;  // Fixed height from our AppBar updates
+  const breadcrumbHeight = 40;  // Reduced from 48px
+  const patientHeaderHeight = patient ? 80 : 0;  // Fixed 80px from CompactPatientHeader
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -193,8 +191,9 @@ const EnhancedClinicalLayout = ({
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            // No margin needed - flexbox handles spacing
-            transition: theme.transitions.create(['width'], {
+            width: `calc(100% - ${sidebarOpen && !isMobile ? sidebarWidth : 0}px)`,
+            ml: sidebarOpen && !isMobile ? `${sidebarWidth}px` : 0,
+            transition: theme.transitions.create(['margin', 'width'], {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.enteringScreen
             })
@@ -234,8 +233,13 @@ const EnhancedClinicalLayout = ({
             flexGrow: 1,
             overflow: 'auto',
             backgroundColor: theme.palette.background.default,
-            p: isMobile ? 0.5 : 1,
-            minHeight: 0  // Important for flexbox overflow to work properly
+            p: isMobile ? 0.5 : 1.5,  // Slightly increased desktop padding for readability
+            minHeight: 0,  // Important for flexbox overflow to work properly
+            // Add subtle background pattern for professional medical UI
+            backgroundImage: theme.palette.mode === 'light' 
+              ? 'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.3) 21%, rgba(255,255,255,0.3) 34%, transparent 35%, transparent), linear-gradient(0deg, transparent 24%, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.05) 26%, transparent 27%, transparent 74%, rgba(255,255,255,0.05) 75%, rgba(255,255,255,0.05) 76%, transparent 77%, transparent)'
+              : 'none',
+            backgroundSize: '20px 20px'
           }}
         >
           {/* Pass enhanced props to children */}

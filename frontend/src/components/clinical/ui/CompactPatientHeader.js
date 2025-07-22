@@ -169,15 +169,21 @@ const CompactPatientHeader = ({
       elevation={0}
       sx={{
         borderRadius: 0,
-        borderBottom: 2,
+        borderBottom: '1px solid',
         borderColor: 'divider',
-        background: `linear-gradient(to right, ${alpha(theme.palette.background.paper, 0.9)}, ${theme.palette.background.paper})`
+        backgroundColor: theme.palette.background.paper,
+        height: 80,  // Fixed 80px height
+        display: 'flex',
+        alignItems: 'center',
+        position: 'relative',
+        overflow: 'hidden'
       }}
     >
-      {/* Acuity indicator bar */}
+      {/* Acuity indicator bar - vertical instead of horizontal */}
       <Box
         sx={{
-          height: 3,
+          width: 4,
+          height: '100%',
           background: patientAcuity === 'critical' ? theme.palette.error.main :
                       patientAcuity === 'high' ? theme.palette.warning.main :
                       patientAcuity === 'moderate' ? theme.palette.info.main :
@@ -185,206 +191,152 @@ const CompactPatientHeader = ({
         }}
       />
 
-      {/* Main header content */}
-      <Box sx={{ p: 1.5 }}>
-        <Grid container spacing={1.5} alignItems="center">
-          {/* Patient Identity */}
-          <Grid item xs={12} md={4}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Badge
-                overlap="circular"
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                badgeContent={
-                  <SeverityIndicator severity={patientAcuity} size="large" />
-                }
+      {/* Main header content - ultra-compact single line */}
+      <Box sx={{ px: 2, width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', height: '100%' }}>
+          {/* Patient Identity - Ultra compact */}
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+            <Avatar
+              sx={{ 
+                width: 32, 
+                height: 32,
+                bgcolor: theme.palette.primary.main,
+                fontSize: '0.875rem'
+              }}
+            >
+              {patient?.name?.[0]?.given?.[0]?.[0]}{patient?.name?.[0]?.family?.[0]}
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography 
+                variant="body2" 
+                fontWeight={600} 
+                noWrap 
+                sx={{ lineHeight: 1.2 }}
               >
-                <Avatar
-                  sx={{ 
-                    width: isMobile ? 40 : 48, 
-                    height: isMobile ? 40 : 48,
-                    bgcolor: theme.palette.primary.main
-                  }}
-                >
-                  {patient?.name?.[0]?.given?.[0]?.[0]}{patient?.name?.[0]?.family?.[0]}
-                </Avatar>
-              </Badge>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h6" noWrap>
-                  {patient?.name?.[0]?.given?.join(' ')} {patient?.name?.[0]?.family}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Chip 
-                    size="small" 
-                    label={`${age}y ${patient?.gender?.[0]?.toUpperCase()}`}
-                    variant="outlined"
-                  />
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    MRN: {mrn}
-                  </Typography>
-                </Stack>
-              </Box>
-            </Stack>
-          </Grid>
-
-          {/* Clinical Summary Cards */}
-          <Grid item xs={12} md={7}>
-            <Grid container spacing={1}>
-              <Grid item xs={6} sm={3}>
-                <InfoCard
-                  icon={<AlertIcon fontSize="small" />}
-                  label="Alerts"
-                  value={`${criticalAlerts}/${warningAlerts}`}
-                  severity={criticalAlerts > 0 ? 'critical' : warningAlerts > 0 ? 'high' : 'normal'}
-                  onClick={() => onNavigateToTab?.('summary')}
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <InfoCard
-                  icon={<ProblemIcon fontSize="small" />}
-                  label="Conditions"
-                  value={activeConditions}
-                  trend={activeConditions > 3 ? 1 : 0}
-                  onClick={() => onNavigateToTab?.('chart')}
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <InfoCard
-                  icon={<MedIcon fontSize="small" />}
-                  label="Medications"
-                  value={activeMeds}
-                  onClick={() => onNavigateToTab?.('chart')}
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <InfoCard
-                  icon={<CalendarIcon fontSize="small" />}
-                  label="Last Visit"
-                  value={(() => {
-                    if (!lastEncounter?.period?.start) return 'Never';
-                    try {
-                      const date = parseISO(lastEncounter.period.start);
-                      return formatDistanceToNow(date, { addSuffix: true });
-                    } catch (error) {
-                      console.error('Invalid encounter date:', lastEncounter.period.start);
-                      return 'Unknown';
-                    }
-                  })()}
-                  onClick={() => onNavigateToTab?.('encounters')}
-                />
-              </Grid>
-            </Grid>
-          </Grid>
-
-          {/* Expand/Collapse Button */}
-          <Grid item xs={12} md={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Tooltip title={expanded ? "Show less" : "Show more details"}>
-                <IconButton
-                  size="small"
-                  onClick={() => setExpanded(!expanded)}
-                  sx={{
-                    transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.3s'
-                  }}
-                >
-                  <ExpandIcon />
-                </IconButton>
-              </Tooltip>
+                {patient?.name?.[0]?.given?.join(' ')} {patient?.name?.[0]?.family}
+              </Typography>
+              <Typography 
+                variant="caption" 
+                color="text.secondary" 
+                noWrap
+                sx={{ lineHeight: 1.2, fontSize: '0.7rem' }}
+              >
+                {age}y {patient?.gender?.[0]?.toUpperCase()} • MRN: {mrn}
+              </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </Stack>
 
-        {/* Expanded Details */}
-        <Collapse in={expanded} timeout="auto">
-          <Divider sx={{ my: 2 }} />
-          <Grid container spacing={2}>
-            {/* Contact Information */}
-            <Grid item xs={12} md={3}>
-              <Typography variant="subtitle2" gutterBottom>
-                Contact Information
-              </Typography>
-              <Stack spacing={1}>
-                {phone && (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <PhoneIcon fontSize="small" color="action" />
-                    <Typography variant="body2">{phone}</Typography>
-                  </Stack>
-                )}
-                {email && (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <EmailIcon fontSize="small" color="action" />
-                    <Typography variant="body2" noWrap>{email}</Typography>
-                  </Stack>
-                )}
-              </Stack>
-            </Grid>
+          <Divider orientation="vertical" flexItem sx={{ mx: 1.5, height: 32 }} />
 
-            {/* Vital Signs Trends */}
-            <Grid item xs={12} md={5}>
-              <Typography variant="subtitle2" gutterBottom>
-                Recent Vitals
-              </Typography>
-              <Stack direction="row" spacing={2}>
-                {vitals.bloodPressure && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      BP
-                    </Typography>
-                    <TrendSparkline 
-                      data={vitals.bloodPressure} 
-                      width={80} 
-                      height={30}
-                      showLastValue
-                    />
-                  </Box>
-                )}
-                {vitals.heartRate && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      HR
-                    </Typography>
-                    <TrendSparkline 
-                      data={vitals.heartRate} 
-                      width={80} 
-                      height={30}
-                      showLastValue
-                      color="secondary"
-                    />
-                  </Box>
-                )}
-              </Stack>
-            </Grid>
+          {/* Critical Alert - Priority display */}
+          {criticalAlerts > 0 && (
+            <Chip
+              icon={<AlertIcon sx={{ fontSize: 16 }} />}
+              label={`${criticalAlerts} Critical`}
+              color="error"
+              size="small"
+              sx={{ 
+                height: 24,
+                fontWeight: 600,
+                borderRadius: '4px',
+                animation: 'pulse 2s infinite',
+                '& .MuiChip-label': { px: 1 }
+              }}
+            />
+          )}
+          
+          {/* Key Metrics - Ultra compact */}
+          <Stack 
+            direction="row" 
+            spacing={2} 
+            alignItems="center" 
+            sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}
+          >
+            {/* Conditions - Compact chip style */}
+            <Chip
+              size="small"
+              icon={<ProblemIcon sx={{ fontSize: 14 }} />}
+              label={`${activeConditions}`}
+              sx={{ 
+                height: 24,
+                borderRadius: '4px',
+                bgcolor: activeConditions > 0 ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+                '& .MuiChip-label': { px: 0.5, fontWeight: 600 }
+              }}
+            />
 
-            {/* Active Allergies */}
-            <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2" gutterBottom>
-                Allergies ({allergies.length})
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                {allergies.slice(0, 3).map((allergy, index) => (
-                  <Chip
-                    key={index}
-                    size="small"
-                    label={allergy.code?.text || 'Unknown'}
-                    color={allergy.criticality === 'high' ? 'error' : 'default'}
-                    variant={allergy.verificationStatus?.coding?.[0]?.code === 'confirmed' ? 'filled' : 'outlined'}
-                  />
-                ))}
-                {allergies.length > 3 && (
-                  <Chip
-                    size="small"
-                    label={`+${allergies.length - 3} more`}
-                    variant="outlined"
-                  />
-                )}
-              </Stack>
-            </Grid>
-          </Grid>
-        </Collapse>
+            {/* Medications - Compact chip style */}
+            <Chip
+              size="small"
+              icon={<MedIcon sx={{ fontSize: 14 }} />}
+              label={`${activeMeds}`}
+              sx={{ 
+                height: 24,
+                borderRadius: '4px',
+                bgcolor: activeMeds > 0 ? alpha(theme.palette.info.main, 0.08) : 'transparent',
+                '& .MuiChip-label': { px: 0.5, fontWeight: 600 }
+              }}
+            />
+
+            {/* Allergies - Only show if present */}
+            {allergies.length > 0 && (
+              <Chip
+                label={`${allergies.length} Allerg${allergies.length === 1 ? 'y' : 'ies'}`}
+                size="small"
+                color={allergies.some(a => a.criticality === 'high') ? 'warning' : 'default'}
+                variant="outlined"
+                sx={{ 
+                  height: 24,
+                  borderRadius: '4px',
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            )}
+          </Stack>
+
+          {/* Last Visit - Right aligned */}
+          <Stack 
+            direction="row" 
+            spacing={0.5} 
+            alignItems="center" 
+            sx={{ ml: 'auto', flexShrink: 0 }}
+          >
+            <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography 
+              variant="caption" 
+              color="text.secondary" 
+              noWrap
+              sx={{ fontSize: '0.75rem' }}
+            >
+              {(() => {
+                if (!lastEncounter?.period?.start) return 'No visits';
+                try {
+                  const date = parseISO(lastEncounter.period.start);
+                  const distance = formatDistanceToNow(date);
+                  // Shorten the output
+                  return distance.replace('about ', '').replace('less than ', '<');
+                } catch {
+                  return 'Unknown';
+                }
+              })()}
+            </Typography>
+          </Stack>
+
+          {/* Quick Actions - Optional expand button */}
+          <IconButton
+            size="small"
+            onClick={() => onNavigateToTab && onNavigateToTab('summary')}
+            sx={{ 
+              ml: 1,
+              padding: 0.5,
+              color: 'text.secondary',
+              '&:hover': { color: 'primary.main' }
+            }}
+          >
+            <ExpandIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Stack>
       </Box>
-
-      {/* Loading indicator for data refresh */}
-      {false && <LinearProgress sx={{ height: 2 }} />}
     </Paper>
   );
 };

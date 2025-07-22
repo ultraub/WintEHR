@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, CircularProgress, Alert } from '@mui/material';
 
 // NEW: Import from TypeScript files with proper types
-import { fhirClient } from '../services/fhirClient';
+import FHIRClient, { fhirClient } from '../services/fhirClient';
 import { notificationService } from '../../../services/notificationService';
 import type { Patient, Observation, SearchResult } from '../types';
 
@@ -88,7 +88,12 @@ const PatientHeaderExample: React.FC<{ patientId: string }> = ({ patientId }) =>
     loadPatient();
 
     // Prefetch related resources in background
-    fhirClient.prefetchCommonResources(patientId).catch(console.error);
+    const commonResources = [
+      { resourceType: 'Condition' as const, params: { patient: patientId } },
+      { resourceType: 'MedicationRequest' as const, params: { patient: patientId } },
+      { resourceType: 'Observation' as const, params: { patient: patientId } }
+    ];
+    fhirClient.prefetchResources(commonResources).catch(console.error);
   }, [patientId]);
 
   // Clear cache when patient data is updated
@@ -224,12 +229,13 @@ const OptimizedDataFetch: React.FC<{ patientId: string }> = ({ patientId }) => {
 const setupCustomInterceptors = () => {
   // Add performance tracking
   fhirClient.addRequestInterceptor((config) => {
-    config.metadata = { startTime: Date.now() };
+    // Store metadata on the config object
+    (config as any).metadata = { startTime: Date.now() };
     return config;
   });
 
   fhirClient.addResponseInterceptor((response) => {
-    const duration = Date.now() - response.config.metadata?.startTime;
+    const duration = Date.now() - (response.config as any).metadata?.startTime;
     console.log(`Request took ${duration}ms`);
     return response;
   });
@@ -247,12 +253,12 @@ const setupCustomInterceptors = () => {
 // Example 7: Reference Handling
 const ReferenceExample = () => {
   // Build references with proper types
-  const patientRef = fhirClient.reference('Patient', '123', 'John Doe');
+  const patientRef = FHIRClient.reference('Patient', '123', 'John Doe');
   
   // Extract IDs from various reference formats
-  const id1 = fhirClient.extractId('Patient/123');
-  const id2 = fhirClient.extractId({ reference: 'Patient/123' });
-  const id3 = fhirClient.extractId('http://example.com/fhir/Patient/123');
+  const id1 = FHIRClient.extractId('Patient/123');
+  const id2 = FHIRClient.extractId({ reference: 'Patient/123' });
+  const id3 = FHIRClient.extractId('http://example.com/fhir/Patient/123');
 
   return null;
 };

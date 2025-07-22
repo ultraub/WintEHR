@@ -73,7 +73,17 @@ import ConditionDialog from '../dialogs/ConditionDialog';
 import MedicationDialog from '../dialogs/MedicationDialog';
 import AllergyDialog from '../dialogs/AllergyDialog';
 import ImmunizationDialog from '../dialogs/ImmunizationDialog';
-// Removed chart imports - will create inline components instead
+// Modern theme utilities
+import { 
+  getClinicalCardStyles, 
+  getHoverEffect, 
+  getSeverityGradient,
+  getElevationShadow,
+  getBorderRadius,
+  getSmoothTransition,
+  getColoredShadow
+} from '../../../../themes/clinicalThemeUtils';
+import { clinicalTokens } from '../../../../themes/clinicalTheme';
 
 const ChartReviewTabOptimized = ({ patient }) => {
   const theme = useTheme();
@@ -327,14 +337,18 @@ const ChartReviewTabOptimized = ({ patient }) => {
   
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Enhanced Header */}
+      {/* Professional Header */}
       <Paper 
         elevation={0} 
         sx={{ 
           p: 2, 
           mb: 2, 
-          backgroundColor: alpha(theme.palette.primary.main, 0.02),
-          borderRadius: 2
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: 0,  // Sharp corners for professional UI
+          border: '1px solid',
+          borderColor: 'divider',
+          borderLeft: '4px solid',
+          borderLeftColor: theme.palette.primary.main
         }}
       >
         <Grid container spacing={2} alignItems="center">
@@ -465,10 +479,21 @@ const ChartReviewTabOptimized = ({ patient }) => {
         {viewMode === 'dashboard' && (
           <Fade in={true}>
             <Box>
-              {/* Summary Cards */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
+              {/* Summary Cards with modern gradients */}
+              <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} md={3}>
-                  <Card sx={{ height: '100%' }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    backgroundColor: clinicalTokens.severity.high.bg,
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.error.main,
+                    '&:hover': {
+                      boxShadow: theme.shadows[1]
+                    }
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
@@ -497,7 +522,18 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 </Grid>
                 
                 <Grid item xs={12} md={3}>
-                  <Card sx={{ height: '100%' }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.primary.main,
+                    '&:hover': {
+                      boxShadow: theme.shadows[1]
+                    }
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
@@ -526,7 +562,18 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 </Grid>
                 
                 <Grid item xs={12} md={3}>
-                  <Card sx={{ height: '100%' }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    backgroundColor: clinicalTokens.severity.moderate.bg,
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.warning.main,
+                    '&:hover': {
+                      boxShadow: theme.shadows[1]
+                    }
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
@@ -554,7 +601,18 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 </Grid>
                 
                 <Grid item xs={12} md={3}>
-                  <Card sx={{ height: '100%' }}>
+                  <Card sx={{ 
+                    height: '100%',
+                    backgroundColor: clinicalTokens.severity.low.bg,
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.success.main,
+                    '&:hover': {
+                      boxShadow: theme.shadows[1]
+                    }
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
@@ -583,21 +641,40 @@ const ChartReviewTabOptimized = ({ patient }) => {
               <Grid container spacing={3}>
                 {/* Conditions Panel */}
                 <Grid item xs={12} lg={6}>
-                  <Card>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.error.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6">Conditions</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
                           <Chip 
                             label={`${processedData.activeConditions.length} Active`} 
                             size="small" 
                             color="error"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600
+                            }}
                           />
                         </Stack>
                         <Button
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('condition')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
                         >
                           Add
                         </Button>
@@ -607,11 +684,12 @@ const ChartReviewTabOptimized = ({ patient }) => {
                         <Alert severity="info">No active conditions</Alert>
                       ) : (
                         <Stack spacing={1}>
-                          {processedData.activeConditions.slice(0, 5).map(condition => (
+                          {processedData.activeConditions.slice(0, 5).map((condition, index) => (
                             <EnhancedConditionCard
                               key={condition.id}
                               condition={condition}
                               onEdit={() => handleOpenDialog('condition', condition)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
                             />
                           ))}
                           {processedData.activeConditions.length > 5 && (
@@ -627,21 +705,40 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 
                 {/* Medications Panel */}
                 <Grid item xs={12} lg={6}>
-                  <Card>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.primary.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6">Medications</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
                           <Chip 
                             label={`${processedData.activeMedications.length} Active`} 
                             size="small" 
                             color="primary"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600
+                            }}
                           />
                         </Stack>
                         <Button
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('medication')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
                         >
                           Add
                         </Button>
@@ -651,11 +748,12 @@ const ChartReviewTabOptimized = ({ patient }) => {
                         <Alert severity="info">No active medications</Alert>
                       ) : (
                         <Stack spacing={1}>
-                          {processedData.activeMedications.slice(0, 5).map(medication => (
+                          {processedData.activeMedications.slice(0, 5).map((medication, index) => (
                             <EnhancedMedicationCard
                               key={medication.id}
                               medication={medication}
                               onEdit={() => handleOpenDialog('medication', medication)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
                             />
                           ))}
                           {processedData.activeMedications.length > 5 && (
@@ -671,17 +769,31 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 
                 {/* Allergies Panel */}
                 <Grid item xs={12} md={6}>
-                  <Card>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.warning.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6">Allergies</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Allergies</Typography>
                           {processedData.criticalAllergies.length > 0 && (
                             <Chip 
                               icon={<WarningIcon />}
                               label={`${processedData.criticalAllergies.length} Critical`} 
                               size="small" 
                               color="error"
+                              sx={{
+                                borderRadius: '4px',  // Professional UI
+                                fontWeight: 600,
+                                animation: 'pulse 2s infinite'
+                              }}
                             />
                           )}
                         </Stack>
@@ -689,6 +801,12 @@ const ChartReviewTabOptimized = ({ patient }) => {
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('allergy')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
                         >
                           Add
                         </Button>
@@ -700,11 +818,12 @@ const ChartReviewTabOptimized = ({ patient }) => {
                         <Stack spacing={1}>
                           {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
                             .slice(0, 5)
-                            .map(allergy => (
+                            .map((allergy, index) => (
                               <EnhancedAllergyCard
                                 key={allergy.id}
                                 allergy={allergy}
                                 onEdit={() => handleOpenDialog('allergy', allergy)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
                               />
                             ))}
                         </Stack>
@@ -715,13 +834,28 @@ const ChartReviewTabOptimized = ({ patient }) => {
                 
                 {/* Recent Encounters Panel */}
                 <Grid item xs={12} md={6}>
-                  <Card>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.info.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="h6">Recent Encounters</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Encounters</Typography>
                         <Chip 
                           label={`${processedData.recentEncounters.length}`} 
-                          size="small" 
+                          size="small"
+                          sx={{
+                            borderRadius: '4px',  // Professional UI
+                            fontWeight: 600,
+                            backgroundColor: alpha(theme.palette.info.main, 0.1),
+                            color: theme.palette.info.main
+                          }}
                         />
                       </Stack>
                       
@@ -729,15 +863,23 @@ const ChartReviewTabOptimized = ({ patient }) => {
                         <Alert severity="info">No recent encounters</Alert>
                       ) : (
                         <Stack spacing={1}>
-                          {processedData.recentEncounters.map(encounter => (
+                          {processedData.recentEncounters.map((encounter, index) => (
                             <Paper
                               key={encounter.id}
+                              elevation={0}
                               sx={{ 
                                 p: 2, 
-                                bgcolor: alpha(theme.palette.background.default, 0.5),
+                                borderRadius: 0,  // Sharp corners
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderLeft: '4px solid',
+                                borderLeftColor: theme.palette.info.main,
+                                backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
                                 '&:hover': {
-                                  bgcolor: 'action.hover'
-                                }
+                                  backgroundColor: alpha(theme.palette.action.hover, 0.08),
+                                  transform: 'translateX(2px)'
+                                },
+                                transition: 'all 0.2s ease'
                               }}
                             >
                               <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -826,27 +968,36 @@ const ChartReviewTabOptimized = ({ patient }) => {
   );
 };
 
-// Enhanced card components with FHIR R4 data utilization
-const EnhancedConditionCard = ({ condition, onEdit }) => {
+// Enhanced card components with professional styling
+const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   const theme = useTheme();
   const severity = condition.severity?.coding?.[0]?.display || condition.severity?.text;
   const stage = condition.stage?.[0]?.summary?.coding?.[0]?.display || condition.stage?.[0]?.summary?.text;
   const verification = condition.verificationStatus?.coding?.[0]?.code;
   const isActive = condition.clinicalStatus?.coding?.[0]?.code === 'active';
   
+  // Determine severity level for styling
+  const severityLevel = severity?.toLowerCase().includes('severe') ? 'high' : 
+                       severity?.toLowerCase().includes('moderate') ? 'moderate' : 
+                       isActive ? 'moderate' : 'low';
+  
+  const cardStyles = getClinicalCardStyles(severityLevel, 1, true);
+  
   return (
     <Paper
       elevation={0}
       sx={{
         p: 2,
-        border: 1,
-        borderColor: isActive ? 'error.light' : 'divider',
-        borderRadius: 2,
-        transition: 'all 0.2s',
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: '4px solid',
+        borderLeftColor: clinicalTokens.severity[severityLevel]?.color || theme.palette.grey[300],
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 1,
-          borderColor: isActive ? 'error.main' : 'primary.main'
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
         }
       }}
     >
@@ -895,7 +1046,7 @@ const EnhancedConditionCard = ({ condition, onEdit }) => {
   );
 };
 
-const EnhancedMedicationCard = ({ medication, onEdit }) => {
+const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => {
   const theme = useTheme();
   const medicationDisplay = medication.medicationCodeableConcept?.text || 
                           medication.medicationCodeableConcept?.coding?.[0]?.display || 
@@ -903,19 +1054,22 @@ const EnhancedMedicationCard = ({ medication, onEdit }) => {
   const dosage = medication.dosageInstruction?.[0];
   const isActive = ['active', 'on-hold'].includes(medication.status);
   
+  const cardStyles = getClinicalCardStyles(isActive ? 'normal' : 'low', 1, true);
+  
   return (
     <Paper
       elevation={0}
       sx={{
         p: 2,
-        border: 1,
-        borderColor: isActive ? 'primary.light' : 'divider',
-        borderRadius: 2,
-        transition: 'all 0.2s',
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${isActive ? theme.palette.primary.main : theme.palette.grey[300]}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 1,
-          borderColor: isActive ? 'primary.main' : 'grey.400'
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
         }
       }}
     >
@@ -972,7 +1126,7 @@ const EnhancedMedicationCard = ({ medication, onEdit }) => {
   );
 };
 
-const EnhancedAllergyCard = ({ allergy, onEdit }) => {
+const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   const theme = useTheme();
   const criticality = allergy.criticality || 'low';
   const criticalityColor = {
@@ -984,21 +1138,31 @@ const EnhancedAllergyCard = ({ allergy, onEdit }) => {
   const manifestations = allergy.reaction?.[0]?.manifestation || [];
   const severity = allergy.reaction?.[0]?.severity;
   
+  // Map criticality to severity level
+  const severityLevel = criticality === 'high' ? 'critical' : 
+                       criticality === 'unable-to-assess' ? 'moderate' : 'low';
+  
+  const cardStyles = getClinicalCardStyles(severityLevel, 1, true);
+  
   return (
     <Paper
       elevation={0}
       sx={{
         p: 2,
-        border: 2,
-        borderColor: `${criticalityColor}.light`,
-        borderRadius: 2,
-        backgroundColor: alpha(theme.palette[criticalityColor].main, 0.02),
-        transition: 'all 0.2s',
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${theme.palette[criticalityColor].main}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : 
+                         (criticality === 'high' ? clinicalTokens.severity.critical.bg : theme.palette.background.paper),
+        transition: 'all 0.2s ease',
         '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 1,
-          borderColor: `${criticalityColor}.main`
-        }
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
+        },
+        ...(criticality === 'high' && {
+          animation: 'pulse 3s ease-in-out infinite'
+        })
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">

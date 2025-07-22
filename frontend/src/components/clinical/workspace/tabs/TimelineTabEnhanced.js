@@ -442,7 +442,7 @@ const MultiTrackTimeline = ({ events, dateRange, zoom, density, onEventClick, ho
         height: Object.keys(tracks).length * trackHeight + 100,
         overflow: 'hidden',
         bgcolor: 'background.paper',
-        borderRadius: 1,
+        borderRadius: 0,
         border: 1,
         borderColor: 'divider'
       }}
@@ -1001,7 +1001,7 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           
           {/* Event type filters */}
           <Collapse in={showFilters}>
-            <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+            <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 0 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="subtitle2">Event Types</Typography>
                 <Stack direction="row" spacing={1}>

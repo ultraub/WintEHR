@@ -23,6 +23,77 @@ class SearchParameterExtractor:
     the application.
     """
     
+    # URN to resource mapping cache (populated during import)
+    _urn_to_resource_map = {}
+    
+    @classmethod
+    def set_urn_mapping(cls, urn_map: Dict[str, str]):
+        """Set the URN to resource ID mapping for reference resolution."""
+        cls._urn_to_resource_map = urn_map
+    
+    @classmethod
+    def resolve_reference(cls, reference: str) -> str:
+        """
+        Resolve a reference, converting URNs to proper FHIR references.
+        
+        Args:
+            reference: The reference string (e.g., 'Patient/123' or 'urn:uuid:abc')
+            
+        Returns:
+            Resolved reference (e.g., 'Patient/123')
+        """
+        if not reference:
+            return reference
+            
+        # If it's already a proper reference, return as-is
+        if not reference.startswith('urn:'):
+            return reference
+            
+        # Extract UUID from URN
+        if reference.startswith('urn:uuid:'):
+            uuid = reference[9:]  # Remove 'urn:uuid:' prefix
+            
+            # Check our URN mapping cache first
+            if uuid in cls._urn_to_resource_map:
+                return cls._urn_to_resource_map[uuid]
+            
+            # If not in cache, try to determine resource type from context
+            # For now, assume Patient if we can't determine otherwise
+            # This could be enhanced with more sophisticated logic
+            return f"Patient/{uuid}"
+        
+        return reference
+    
+    @staticmethod
+    def _extract_reference_param(resource_data: Dict[str, Any], field_path: str, 
+                               param_name: str, params: List[Dict[str, Any]]):
+        """
+        Extract a reference parameter from a resource, resolving URNs.
+        
+        Args:
+            resource_data: The resource data
+            field_path: Dot-separated path to the field (e.g., 'subject' or 'patient')
+            param_name: The search parameter name
+            params: List to append parameters to
+        """
+        # Navigate to the field
+        field_parts = field_path.split('.')
+        current = resource_data
+        
+        for part in field_parts:
+            if not isinstance(current, dict) or part not in current:
+                return
+            current = current[part]
+        
+        # Extract reference
+        if isinstance(current, dict) and 'reference' in current:
+            ref = SearchParameterExtractor.resolve_reference(current['reference'])
+            params.append({
+                'param_name': param_name,
+                'param_type': 'reference',
+                'value_reference': ref
+            })
+    
     @staticmethod
     def extract_parameters(resource_type: str, resource_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -1187,10 +1258,11 @@ class SearchParameterExtractor:
         
         # patient (note: uses 'patient' not 'subject' for AllergyIntolerance)
         if 'patient' in resource_data and 'reference' in resource_data['patient']:
+            ref = SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': ref
             })
         
         # date (recordedDate)

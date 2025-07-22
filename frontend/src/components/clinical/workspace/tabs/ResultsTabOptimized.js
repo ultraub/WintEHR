@@ -232,6 +232,19 @@ const ResultsTabOptimized = ({ patientId }) => {
       const vitalObservations = vitalEntries;
       const diagnosticReports = diagnosticEntries;
 
+      // Diagnostic logging to help identify the issue
+      if (labObservations.length > 0) {
+        const dates = labObservations.map(obs => obs.effectiveDateTime || obs.issued).filter(Boolean);
+        console.log('Results Tab - Lab observations loaded:', {
+          count: labObservations.length,
+          dateRange: dates.length > 0 ? {
+            earliest: dates.sort()[0],
+            latest: dates.sort()[dates.length - 1]
+          } : 'No dates found',
+          sampleObservation: labObservations[0]
+        });
+      }
+
       setAllData({
         labObservations,
         vitalObservations,
@@ -379,9 +392,9 @@ const ResultsTabOptimized = ({ patientId }) => {
       return (
         <Box sx={{ p: 2 }}>
           {tabValue === 0 ? (
-            <LabTrendsChart observations={observations} />
+            <LabTrendsChart patientId={patientId} observations={observations} />
           ) : (
-            <VitalsOverview observations={observations} />
+            <VitalsOverview patientId={patientId} observations={observations} />
           )}
         </Box>
       );
@@ -391,7 +404,7 @@ const ResultsTabOptimized = ({ patientId }) => {
       // Card view
       return (
         <Grid container spacing={2} sx={{ p: 2 }}>
-          {paginatedData.map((item) => (
+          {paginatedData.map((item, index) => (
             <Grid item xs={12} md={6} key={item.id}>
               <Card sx={{ cursor: 'pointer' }} onClick={() => handleViewDetails(item)}>
                 <CardContent>

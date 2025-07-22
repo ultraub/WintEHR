@@ -26,26 +26,27 @@ export const clinicalTokens = {
     severityNormal: 'linear-gradient(135deg, #e0e7ff 0%, #cfd9f3 100%)'
   },
   
-  // Enhanced shadows for depth
+  // Enhanced shadows for depth - Professional medical UI
   modernShadows: {
-    xs: '0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03)',
-    sm: '0 4px 6px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.03)',
-    md: '0 6px 12px rgba(0,0,0,0.04), 0 3px 6px rgba(0,0,0,0.03)',
-    lg: '0 8px 16px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.04)',
-    xl: '0 12px 24px rgba(0,0,0,0.08), 0 6px 12px rgba(0,0,0,0.04)',
-    // Colored shadows
-    primary: '0 4px 14px 0 rgba(102, 126, 234, 0.2)',
-    success: '0 4px 14px 0 rgba(132, 250, 176, 0.2)',
-    warning: '0 4px 14px 0 rgba(250, 112, 154, 0.2)',
-    error: '0 4px 14px 0 rgba(240, 147, 251, 0.2)',
-    // Elevation shadows
-    elevation1: '0 2px 4px rgba(0,0,0,0.05)',
-    elevation2: '0 4px 8px rgba(0,0,0,0.05)',
-    elevation3: '0 8px 16px rgba(0,0,0,0.05)',
-    elevation4: '0 16px 24px rgba(0,0,0,0.05)',
+    xs: 'none',
+    sm: '0 1px 2px rgba(0,0,0,0.04)',
+    md: '0 2px 4px rgba(0,0,0,0.06)',
+    lg: '0 4px 8px rgba(0,0,0,0.08)',
+    xl: '0 8px 16px rgba(0,0,0,0.10)',
+    // Colored shadows - Very subtle
+    primary: '0 2px 8px 0 rgba(102, 126, 234, 0.15)',
+    success: '0 2px 8px 0 rgba(132, 250, 176, 0.15)',
+    warning: '0 2px 8px 0 rgba(250, 112, 154, 0.15)',
+    error: '0 2px 8px 0 rgba(240, 147, 251, 0.15)',
+    // Elevation shadows - Consistent with main shadows
+    elevation0: 'none',
+    elevation1: '0 1px 2px rgba(0,0,0,0.04)',
+    elevation2: '0 2px 4px rgba(0,0,0,0.06)',
+    elevation3: '0 4px 8px rgba(0,0,0,0.08)',
+    elevation4: '0 8px 16px rgba(0,0,0,0.10)',
     // Inner shadows for depth
-    inner: 'inset 0 2px 4px rgba(0,0,0,0.06)',
-    innerDeep: 'inset 0 4px 8px rgba(0,0,0,0.08)'
+    inner: 'inset 0 1px 2px rgba(0,0,0,0.04)',
+    innerDeep: 'inset 0 2px 4px rgba(0,0,0,0.06)'
   },
   
   // Animation presets
@@ -103,53 +104,53 @@ export const clinicalTokens = {
     }
   },
   
-  // Clinical severity colors with gradients and enhanced visuals
+  // Clinical severity colors - Professional medical standards
   severity: {
     critical: { 
-      bg: '#FFEBEE', 
-      gradient: 'linear-gradient(135deg, rgba(255,107,107,0.1) 0%, rgba(238,90,111,0.1) 100%)',
-      color: '#D32F2F', 
-      icon: '🔴',
-      borderColor: '#EF5350',
-      hoverBg: '#FFCDD2',
-      shadow: '0 4px 14px 0 rgba(211, 47, 47, 0.2)',
-      animation: 'pulse 2s infinite'
+      bg: '#FEF2F2',  // Very light red background
+      gradient: 'none',  // No gradients for professional look
+      color: '#DC2626',  // red-600 - Strong but not alarming
+      icon: '●',
+      borderColor: '#DC2626',  // Same as text color for consistency
+      hoverBg: '#FEE2E2',
+      shadow: '0 1px 2px 0 rgba(220, 38, 38, 0.05)',
+      animation: 'pulse 2s infinite'  // Keep for critical alerts
     },
     high: { 
-      bg: '#FFF3E0', 
-      gradient: 'linear-gradient(135deg, rgba(255,154,0,0.1) 0%, rgba(255,118,67,0.1) 100%)',
-      color: '#F57C00', 
-      icon: '🟠',
-      borderColor: '#FFB74D',
-      hoverBg: '#FFE0B2',
-      shadow: '0 4px 14px 0 rgba(245, 124, 0, 0.2)'
+      bg: '#FFF7ED',  // Very light orange
+      gradient: 'none',
+      color: '#EA580C',  // orange-600
+      icon: '●',
+      borderColor: '#EA580C',
+      hoverBg: '#FED7AA',
+      shadow: '0 1px 2px 0 rgba(234, 88, 12, 0.05)'
     },
     moderate: { 
-      bg: '#FFF8E1', 
-      gradient: 'linear-gradient(135deg, rgba(255,217,61,0.1) 0%, rgba(249,202,36,0.1) 100%)',
-      color: '#FBC02D', 
-      icon: '🟡',
-      borderColor: '#FFD54F',
-      hoverBg: '#FFF59D',
-      shadow: '0 4px 14px 0 rgba(251, 192, 45, 0.2)'
+      bg: '#FFFBEB',  // Very light amber
+      gradient: 'none',
+      color: '#D97706',  // amber-600
+      icon: '●',
+      borderColor: '#D97706',
+      hoverBg: '#FEF3C7',
+      shadow: '0 1px 2px 0 rgba(217, 119, 6, 0.05)'
     },
     low: { 
-      bg: '#E8F5E9', 
-      gradient: 'linear-gradient(135deg, rgba(107,207,127,0.1) 0%, rgba(71,183,132,0.1) 100%)',
-      color: '#388E3C', 
-      icon: '🟢',
-      borderColor: '#81C784',
-      hoverBg: '#C8E6C9',
-      shadow: '0 4px 14px 0 rgba(56, 142, 60, 0.2)'
+      bg: '#F0FDF4',  // Very light emerald
+      gradient: 'none',
+      color: '#059669',  // emerald-600
+      icon: '●',
+      borderColor: '#059669',
+      hoverBg: '#D1FAE5',
+      shadow: '0 1px 2px 0 rgba(5, 150, 105, 0.05)'
     },
     normal: { 
-      bg: '#F5F5F5', 
-      gradient: 'linear-gradient(135deg, rgba(224,231,255,0.5) 0%, rgba(207,217,243,0.5) 100%)',
-      color: '#616161', 
-      icon: '⚪',
-      borderColor: '#E0E0E0',
-      hoverBg: '#EEEEEE',
-      shadow: '0 2px 8px 0 rgba(0, 0, 0, 0.08)'
+      bg: '#F9FAFB',  // gray-50
+      gradient: 'none',
+      color: '#6B7280',  // gray-500
+      icon: '●',
+      borderColor: '#E5E7EB',  // gray-200
+      hoverBg: '#F3F4F6',  // gray-100
+      shadow: 'none'
     }
   },
   
@@ -196,23 +197,24 @@ export const clinicalTokens = {
     xxl: 48  // 48px - Page sections
   },
 
-  // Border radius for clinical components
+  // Border radius for clinical components - Professional medical UI design
   borderRadius: {
-    xs: 2,
-    sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
-    pill: 9999
+    xs: 0,    // 0px - Clinical cards, data tables (sharp corners)
+    sm: 2,    // 2px - Buttons, input fields (subtle softness)
+    md: 4,    // 4px - Chips, tags, modals (slight rounding)
+    lg: 4,    // 4px - Larger components (consistent with md)
+    xl: 4,    // 4px - Maximum rounding for any component
+    pill: 9999,
+    sharp: 0  // 0px - Explicit sharp corners for clinical cards
   },
 
-  // Shadow depths for elevation
+  // Shadow depths for elevation - Subtle professional shadows
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-    md: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    lg: '0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)',
-    xl: '0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04)'
+    xs: 'none',  // No shadow for background surfaces
+    sm: '0 1px 2px rgba(0, 0, 0, 0.04)',  // Subtle shadow for cards
+    md: '0 2px 4px rgba(0, 0, 0, 0.06)',  // Hover states
+    lg: '0 4px 8px rgba(0, 0, 0, 0.08)',  // Dropdowns and floating elements
+    xl: '0 8px 16px rgba(0, 0, 0, 0.10)'  // Modals and overlays
   },
 
   // Clinical status indicators
@@ -289,32 +291,40 @@ export const createClinicalTheme = (baseTheme = 'professional', mode = 'light') 
     components: {
       ...medicalTheme.components,
       
-      // Clinical Card Component
+      // Clinical Card Component - Professional medical UI
       MuiCard: {
         ...medicalTheme.components?.MuiCard,
         styleOverrides: {
           ...medicalTheme.components?.MuiCard?.styleOverrides,
           root: {
             ...medicalTheme.components?.MuiCard?.styleOverrides?.root,
+            borderRadius: 0,  // Sharp corners for professional look
+            boxShadow: clinicalTokens.shadows.sm,  // Subtle shadow
+            border: '1px solid #E5E7EB',  // Light gray border
             '&.ClinicalCard-severity-critical': {
               borderLeft: `4px solid ${clinicalTokens.severity.critical.color}`,
-              backgroundColor: clinicalTokens.severity.critical.bg
+              backgroundColor: clinicalTokens.severity.critical.bg,
+              borderLeftWidth: 4
             },
             '&.ClinicalCard-severity-high': {
               borderLeft: `4px solid ${clinicalTokens.severity.high.color}`,
-              backgroundColor: clinicalTokens.severity.high.bg
+              backgroundColor: clinicalTokens.severity.high.bg,
+              borderLeftWidth: 4
             },
             '&.ClinicalCard-severity-moderate': {
               borderLeft: `4px solid ${clinicalTokens.severity.moderate.color}`,
-              backgroundColor: clinicalTokens.severity.moderate.bg
+              backgroundColor: clinicalTokens.severity.moderate.bg,
+              borderLeftWidth: 4
             },
             '&.ClinicalCard-severity-low': {
               borderLeft: `4px solid ${clinicalTokens.severity.low.color}`,
-              backgroundColor: clinicalTokens.severity.low.bg
+              backgroundColor: clinicalTokens.severity.low.bg,
+              borderLeftWidth: 4
             },
             '&.ClinicalCard-severity-normal': {
-              borderLeft: `4px solid ${clinicalTokens.severity.normal.color}`,
-              backgroundColor: clinicalTokens.severity.normal.bg
+              borderLeft: `4px solid ${clinicalTokens.severity.normal.borderColor}`,
+              backgroundColor: clinicalTokens.severity.normal.bg,
+              borderLeftWidth: 4
             }
           }
         }

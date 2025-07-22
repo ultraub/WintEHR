@@ -81,7 +81,7 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
       component="button"
       onClick={onClick}
       sx={{ 
-        borderRadius: theme.shape.borderRadius / 8,
+        borderRadius: 0,
         mb: theme.spacing(1),
         transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': { 
@@ -190,7 +190,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     } catch (error) {
       // Error loading summary stats - stats will not be displayed
       // Log error but don't call fetchPatientBundle to avoid infinite loop
-      console.error('Error loading summary stats:', error);
     }
   }, [patientId, fhirClient]);
 
@@ -614,23 +613,16 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       
       {/* Main Content */}
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
-        {/* Dashboard Header */}
+        {/* Action Bar */}
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: { xs: 'flex-start', md: 'center' }, 
-          mb: 2,
-          flexDirection: { xs: 'column', md: 'row' },
-          gap: { xs: 1, md: 0 }
+          alignItems: 'center', 
+          mb: 2
         }}>
-          <Box>
-            <Typography variant="h5" fontWeight="600">
-              Clinical Dashboard
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
-            </Typography>
-          </Box>
+          <Typography variant="caption" color="text.secondary">
+            Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
+          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <ViewControls
               density={density}
@@ -723,9 +715,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         )}
 
         {/* Clinical Snapshot Grid - 2x2 Layout */}
-        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-          Clinical Snapshot
-        </Typography>
         <Grid container spacing={density === 'compact' ? 1 : 2}>
           {/* Active Problems Card */}
           <Grid item xs={12} md={6}>

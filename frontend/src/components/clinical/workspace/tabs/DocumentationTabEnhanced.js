@@ -56,7 +56,7 @@ import {
   Avatar,
   AvatarGroup
 } from '@mui/material';
-import { SimpleTreeView, TreeItem } from '@mui/x-tree-view';
+import { TreeView, TreeItem } from '@mui/x-tree-view';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -995,7 +995,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               <Typography variant="h6" gutterBottom>
                 Document Categories
               </Typography>
-              <SimpleTreeView
+              <TreeView
                 defaultCollapseIcon={<ExpandMoreIcon />}
                 defaultExpandIcon={<ChevronRightIcon />}
                 expanded={expandedNodes}
@@ -1032,7 +1032,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                     </StyledTreeItem>
                   ))}
                 </StyledTreeItem>
-              </SimpleTreeView>
+              </TreeView>
             </Paper>
           </Grid>
         )}
@@ -1267,7 +1267,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1, maxHeight: 400, overflow: 'auto' }}>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 0, maxHeight: 400, overflow: 'auto' }}>
                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                       {selectedNoteForView.displayContent || 'No content available'}
                     </Typography>

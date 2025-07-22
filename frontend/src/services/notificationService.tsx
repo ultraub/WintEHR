@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { SnackbarKey, OptionsObject, VariantType } from 'notistack';
+import { SnackbarKey, OptionsObject, VariantType, SnackbarAction } from 'notistack';
 import { enqueueSnackbar, closeSnackbar } from 'notistack';
 import { AxiosError } from 'axios';
 import type { OperationOutcome } from '../core/fhir/types';
@@ -17,13 +17,15 @@ import type { OperationOutcome } from '../core/fhir/types';
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
 // Notification options
-export interface NotificationOptions extends Partial<OptionsObject> {
+export interface NotificationOptions {
   duration?: number;
   action?: {
     label: string;
     onClick: () => void;
   };
   persistent?: boolean;
+  variant?: NotificationType;
+  autoHideDuration?: number | null;
 }
 
 // FHIR-specific error details
@@ -54,7 +56,6 @@ class NotificationService {
   ): SnackbarKey {
     const snackbarOptions: OptionsObject = {
       ...this.defaultOptions,
-      ...options,
       variant: type,
       autoHideDuration: options?.persistent ? null : (options?.duration || this.defaultOptions.autoHideDuration),
     };
@@ -285,10 +286,37 @@ class NotificationService {
    * Show notification with custom component
    */
   custom(component: React.ReactNode, options?: NotificationOptions): SnackbarKey {
-    return enqueueSnackbar(component, {
+    // Convert action if provided
+    let action: SnackbarAction = undefined;
+    if (options?.action) {
+      action = (key) => (
+        <button 
+          onClick={() => {
+            options.action!.onClick();
+            closeSnackbar(key);
+          }}
+          style={{ 
+            background: 'transparent', 
+            border: '1px solid currentColor',
+            color: 'inherit',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          {options.action.label}
+        </button>
+      );
+    }
+
+    const snackbarOptions: OptionsObject = {
       ...this.defaultOptions,
-      ...options,
-    });
+      variant: options?.variant,
+      autoHideDuration: options?.persistent ? null : (options?.duration || this.defaultOptions.autoHideDuration),
+      action
+    };
+
+    return enqueueSnackbar(component, snackbarOptions);
   }
 
   /**
@@ -298,6 +326,34 @@ class NotificationService {
     // Notistack doesn't have a direct isActive method
     // This is a placeholder that always returns false
     return false;
+  }
+
+  /**
+   * Show authentication error notification
+   */
+  authError(message?: string): SnackbarKey {
+    return this.error(message || 'Authentication failed. Please log in again.');
+  }
+
+  /**
+   * Show permission error notification
+   */
+  permissionError(message?: string): SnackbarKey {
+    return this.error(message || 'You do not have permission to perform this action.');
+  }
+
+  /**
+   * Show validation error notification
+   */
+  validationError(message?: string): SnackbarKey {
+    return this.error(message || 'Validation failed. Please check your input.');
+  }
+
+  /**
+   * Show network error notification
+   */
+  networkError(message?: string): SnackbarKey {
+    return this.error(message || 'Network error. Please check your connection.');
   }
 }
 

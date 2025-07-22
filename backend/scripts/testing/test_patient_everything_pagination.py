@@ -17,18 +17,19 @@ import statistics
 # Add the backend directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from database_optimized import get_db_context
+from database import get_db_context
 from fhir.core.storage import FHIRStorageEngine
 from fhir.core.operations import OperationHandler
 from fhir.core.operations_optimized import OptimizedPatientEverythingOperation
 from fhir.core.validators.synthea import SyntheaFHIRValidator
+from sqlalchemy import text
 
 
 async def get_patient_with_most_resources():
     """Find a patient with many resources for testing."""
     async with get_db_context() as db:
         # Find patient with most resources
-        result = await db.execute("""
+        result = await db.execute(text("""
             SELECT 
                 sp.value_string as patient_ref,
                 COUNT(*) as resource_count
@@ -40,7 +41,7 @@ async def get_patient_with_most_resources():
             GROUP BY sp.value_string
             ORDER BY resource_count DESC
             LIMIT 1
-        """)
+        """))
         
         row = result.first()
         if row:

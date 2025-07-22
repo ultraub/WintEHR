@@ -280,7 +280,7 @@ const GoalProgressChart = ({ goal, observations }) => {
 
   if (chartData.length === 0) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper', borderRadius: 1 }}>
+      <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper', borderRadius: 0 }}>
         <Typography variant="body2" color="text.secondary">
           No progress data available
         </Typography>
@@ -289,7 +289,7 @@ const GoalProgressChart = ({ goal, observations }) => {
   }
 
   return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0 }}>
       <Typography variant="subtitle2" gutterBottom>
         Progress Trend
       </Typography>

@@ -276,6 +276,15 @@ generate_patient_data() {
     
     success "Generated $PATIENT_COUNT patients with complete data"
     
+    # Fix any URN references in the imported data
+    log "Resolving URN references in imported data..."
+    if docker exec emr-backend test -f /app/scripts/fix_urn_references.py; then
+        docker exec emr-backend python scripts/fix_urn_references.py || {
+            warning "URN reference resolution had issues but continuing..."
+        }
+        success "URN references resolved"
+    fi
+    
     # Index search parameters for all resources
     log "Indexing search parameters for FHIR resources..."
     

@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
-import { FHIRResourceContext } from '../../../contexts/FHIRResourceContext';
+import FHIRResourceContext from '../../../contexts/FHIRResourceContext';
 
 // Cache configuration
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes

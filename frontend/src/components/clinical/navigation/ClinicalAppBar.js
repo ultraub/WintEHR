@@ -111,15 +111,23 @@ const ClinicalAppBar = ({
         position="fixed"
         elevation={0}
         sx={{
-          backgroundColor: theme.palette.background.paper,
-          borderBottom: 1,
-          borderColor: 'divider',
-          zIndex: theme.zIndex.drawer + 1
+          backgroundColor: alpha('#FFFFFF', 0.98),  // Slightly transparent white
+          backdropFilter: 'blur(8px)',  // Glassmorphism effect
+          WebkitBackdropFilter: 'blur(8px)',  // Safari support
+          borderBottom: '2px solid',
+          borderColor: theme.palette.primary.main,  // Primary color border for visibility
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',  // Subtle shadow
+          zIndex: theme.zIndex.drawer + 1,
+          height: isMobile ? 56 : 56  // Consistent 56px height
         }}
       >
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
         
-        <Toolbar sx={{ px: { xs: 1, sm: 2 } }}>
+        <Toolbar sx={{ 
+          px: { xs: 1, sm: 2 }, 
+          minHeight: '56px !important',
+          height: 56
+        }}>
           {/* Left Section */}
           <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 0 }}>
             <IconButton
@@ -155,7 +163,8 @@ const ClinicalAppBar = ({
                   sx={{
                     backgroundColor: alpha(theme.palette.primary.main, 0.1),
                     color: theme.palette.primary.main,
-                    fontWeight: 600
+                    fontWeight: 600,
+                    borderRadius: '4px'  // Professional medical UI
                   }}
                 />
                 
@@ -165,7 +174,8 @@ const ClinicalAppBar = ({
                   sx={{
                     backgroundColor: alpha(getShiftColor(), 0.1),
                     color: getShiftColor(),
-                    fontWeight: 600
+                    fontWeight: 600,
+                    borderRadius: '4px'  // Professional medical UI
                   }}
                 />
               </>
@@ -187,7 +197,11 @@ const ClinicalAppBar = ({
                     label={`${criticalAlerts} Critical Alert${criticalAlerts > 1 ? 's' : ''}`}
                     color="error"
                     size="small"
-                    sx={{ fontWeight: 600 }}
+                    sx={{ 
+                      fontWeight: 600,
+                      borderRadius: '4px',  // Professional medical UI
+                      animation: 'pulse 2s infinite'  // Draw attention to critical alerts
+                    }}
                   />
                 )}
                 
@@ -281,38 +295,7 @@ const ClinicalAppBar = ({
           </Stack>
         </Toolbar>
 
-        {/* Clinical Context Bar - Desktop Only */}
-        {!isMobile && (
-          <Box
-            sx={{
-              backgroundColor: alpha(theme.palette.primary.main, 0.05),
-              borderTop: 1,
-              borderColor: 'divider',
-              px: 2,
-              py: 0.5
-            }}
-          >
-            <Stack
-              direction="row"
-              spacing={2}
-              alignItems="center"
-              justifyContent="space-between"
-            >
-              <Stack direction="row" spacing={2} alignItems="center">
-                <ClockIcon fontSize="small" color="action" />
-                <Typography variant="caption" color="text.secondary">
-                  {format(new Date(), 'EEEE, MMMM d, yyyy • h:mm a')}
-                </Typography>
-              </Stack>
-              
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="caption" color="text.secondary">
-                  Provider: {user?.name || 'Current User'} • {user?.role || 'Physician'}
-                </Typography>
-              </Stack>
-            </Stack>
-          </Box>
-        )}
+        {/* Clinical Context Bar removed to save vertical space - information moved to header */}
       </AppBar>
 
       {/* User Menu */}

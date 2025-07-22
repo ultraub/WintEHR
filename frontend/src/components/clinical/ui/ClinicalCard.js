@@ -29,16 +29,7 @@ import {
   Error as ErrorIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getClinicalCardStyles, 
-  getHoverEffect, 
-  getElevationShadow,
-  getSeverityGradient,
-  getSpacing,
-  getBorderRadius,
-  getSmoothTransition
-} from '../../../themes/clinicalThemeUtils';
+import { AnimatePresence, motion } from 'framer-motion';
 import { clinicalTokens } from '../../../themes/clinicalTheme';
 
 // Severity icon mapping
@@ -119,9 +110,7 @@ const ClinicalCard = memo(({
   const [expanded, setExpanded] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
 
-  // Get modern clinical card styles
-  const cardStyles = getClinicalCardStyles(severity, elevation, hoverable);
-  const hoverStyles = hoverable ? getHoverEffect('lift', theme) : {};
+  // No additional styles needed - keeping it simple and professional
 
   // Handle expansion
   const handleExpand = () => {
@@ -132,29 +121,7 @@ const ClinicalCard = memo(({
     }
   };
 
-  // Enhanced animation variants
-  const cardVariants = {
-    initial: { opacity: 0, y: 10, scale: 0.98 },
-    animate: { 
-      opacity: 1, 
-      y: 0, 
-      scale: 1,
-      transition: {
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1]
-      }
-    },
-    hover: hoverable ? { 
-      y: -2, 
-      scale: 1.01,
-      transition: {
-        duration: 0.2,
-        ease: [0.4, 0, 0.2, 1]
-      }
-    } : {},
-    tap: { scale: 0.98 }
-  };
-
+  // Simple expand/collapse for professional UI
   const contentVariants = {
     collapsed: { height: 0, opacity: 0 },
     expanded: { 
@@ -162,11 +129,10 @@ const ClinicalCard = memo(({
       opacity: 1,
       transition: {
         height: {
-          duration: 0.3
+          duration: 0.2
         },
         opacity: {
-          duration: 0.2,
-          delay: 0.1
+          duration: 0.15
         }
       }
     }
@@ -174,7 +140,17 @@ const ClinicalCard = memo(({
 
   if (loading) {
     return (
-      <Card elevation={elevation} sx={{ ...sx }}>
+      <Card 
+        elevation={0} 
+        sx={{ 
+          borderRadius: 0,
+          border: '1px solid',
+          borderColor: 'divider',
+          borderLeft: '4px solid',
+          borderLeftColor: theme.palette.grey[300],
+          ...sx 
+        }}
+      >
         <CardContent>
           <Skeleton variant="text" width="60%" height={32} />
           <Skeleton variant="text" width="40%" height={24} />
@@ -187,58 +163,28 @@ const ClinicalCard = memo(({
   }
 
   return (
-    <motion.div
-      variants={cardVariants}
-      initial="initial"
-      animate="animate"
-      whileHover="hover"
-      whileTap="tap"
+    <Card 
+      elevation={0}  // No elevation for professional look
+      onClick={onClick}
+      className={`ClinicalCard-severity-${severity}`}
+      sx={{
+        cursor: onClick ? 'pointer' : 'default',
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 0,  // Sharp corners for professional medical UI
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${clinicalTokens.severity[severity]?.color || theme.palette.grey[300]}`,
+        backgroundColor: clinicalTokens.severity[severity]?.bg || theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': onClick ? {
+          boxShadow: theme.shadows[2],
+          transform: 'translateY(-1px)'
+        } : {},
+        ...sx
+      }}
+      {...otherProps}
     >
-      <Card 
-        elevation={elevation}
-        onClick={onClick}
-        className={`ClinicalCard-severity-${severity}`}
-        sx={{
-          cursor: onClick ? 'pointer' : 'default',
-          position: 'relative',
-          overflow: 'hidden',
-          borderRadius: getBorderRadius('lg'),
-          ...cardStyles,
-          ...hoverStyles,
-          ...sx
-        }}
-        {...otherProps}
-      >
-        {/* Modern gradient background */}
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: getSeverityGradient(severity),
-            opacity: theme.palette.mode === 'dark' ? 0.08 : 0.03,
-            pointerEvents: 'none'
-          }}
-        />
-        
-        {/* Severity indicator bar with gradient */}
-        <Box
-          sx={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            background: clinicalTokens.severity[severity]?.gradient || clinicalTokens.severity[severity]?.color,
-            boxShadow: theme.palette.mode === 'dark' 
-              ? `2px 0 12px ${alpha(clinicalTokens.severity[severity]?.color || '#fff', 0.3)}`
-              : `2px 0 8px ${alpha(clinicalTokens.severity[severity]?.color || '#000', 0.1)}`,
-            borderTopLeftRadius: getBorderRadius('lg'),
-            borderBottomLeftRadius: getBorderRadius('lg')
-          }}
-        />
 
         <CardContent sx={{ 
           pl: 3,
@@ -286,40 +232,30 @@ const ClinicalCard = memo(({
               {(tags.length > 0 || status) && (
                 <Stack direction="row" spacing={1} mt={1} flexWrap="wrap">
                   {status && (
-                    <Zoom in={true} style={{ transitionDelay: '100ms' }}>
-                      <Chip
+                    <Chip
                         size="small"
                         label={status}
                         color={statusColors[status] || 'default'}
                         sx={{ 
                           height: 24,
-                          borderRadius: '12px',
+                          borderRadius: '4px',  // Professional medical UI
                           fontWeight: 600,
-                          fontSize: '0.75rem',
-                          boxShadow: `0 2px 4px ${alpha(theme.palette[statusColors[status] || 'grey'].main, 0.2)}`,
-                          ...getSmoothTransition(['all'])
+                          fontSize: '0.75rem'
                         }}
                       />
-                    </Zoom>
                   )}
                   {tags.map((tag, index) => (
-                    <Zoom key={index} in={true} style={{ transitionDelay: `${150 + index * 50}ms` }}>
-                      <Chip
+                    <Chip
                         size="small"
                         label={tag}
                         variant="outlined"
                         sx={{ 
                           height: 24,
-                          borderRadius: '12px',
-                          borderWidth: 1.5,
-                          '&:hover': {
-                            backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                            borderColor: theme.palette.primary.main
-                          },
-                          ...getSmoothTransition(['all'])
+                          borderRadius: '4px',  // Professional medical UI
+                          borderWidth: 1,
+                          borderColor: 'divider'
                         }}
                       />
-                    </Zoom>
                   ))}
                 </Stack>
               )}
@@ -476,7 +412,6 @@ const ClinicalCard = memo(({
         {/* Menu - implement if needed */}
         {/* TODO: Add Menu component for menuItems */}
       </Card>
-    </motion.div>
   );
 });
 

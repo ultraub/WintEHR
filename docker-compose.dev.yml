@@ -75,6 +75,7 @@ services:
       - ./frontend/craco.config.js:/app/craco.config.js
       - ./frontend/setupProxy.js:/app/setupProxy.js
       # Exclude node_modules to prevent conflicts
+      - /app/node_modules
     environment:
       - REACT_APP_API_URL=/api
       - REACT_APP_FHIR_ENDPOINT=/fhir/R4

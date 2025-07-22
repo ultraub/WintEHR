@@ -310,6 +310,7 @@ function PatientList() {
       setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {
+      console.error('Error fetching patients:', err);
       setError('Failed to load patient directory');
     } finally {
       setLoading(false);

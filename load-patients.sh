@@ -41,7 +41,7 @@ echo -e "${BLUE}🏥 WintEHR Patient Data Loader${NC}"
 echo "=================================="
 
 # Check if backend is running
-if ! docker ps | grep -q emr-backend; then
+if ! docker ps | grep -q emr-backend-dev; then
     echo -e "${YELLOW}Backend container is not running. Starting services...${NC}"
     ./dev-start.sh
     sleep 5
@@ -50,11 +50,11 @@ fi
 # Execute synthea_master.py
 if [ "$WIPE_EXISTING" = "true" ]; then
     echo -e "${YELLOW}⚠️  Wiping existing data...${NC}"
-    docker exec emr-backend python scripts/active/synthea_master.py wipe
+    docker exec emr-backend-dev python scripts/active/synthea_master.py wipe
 fi
 
 echo -e "${BLUE}Generating $PATIENT_COUNT patients...${NC}"
-docker exec emr-backend python scripts/active/synthea_master.py full \
+docker exec emr-backend-dev python scripts/active/synthea_master.py full \
     --count "$PATIENT_COUNT" \
     --validation-mode light \
     --include-dicom
@@ -73,10 +73,19 @@ else
     echo -e "${GREEN}✅ Database indexes optimized${NC}"
 fi
 
+# Fix any URN references in the imported data
+echo -e "${BLUE}Resolving URN references...${NC}"
+if docker exec emr-backend-dev test -f /app/scripts/fix_urn_references.py; then
+    docker exec emr-backend-dev python scripts/fix_urn_references.py || {
+        echo -e "${YELLOW}⚠️  URN reference resolution had issues but continuing...${NC}"
+    }
+    echo -e "${GREEN}✅ URN references resolved${NC}"
+fi
+
 # Populate FHIR references
 echo -e "${BLUE}Populating FHIR references for relationship visualization...${NC}"
-if docker exec emr-backend test -f /app/scripts/populate_references_urn_uuid.py; then
-    docker exec emr-backend python scripts/populate_references_urn_uuid.py || {
+if docker exec emr-backend-dev test -f /app/scripts/populate_references_urn_uuid.py; then
+    docker exec emr-backend-dev python scripts/populate_references_urn_uuid.py || {
         echo -e "${YELLOW}⚠️  Reference population failed - relationship viewer may not work${NC}"
     }
 else
@@ -85,7 +94,7 @@ fi
 
 # Show patient count
 echo -e "${BLUE}Verifying data...${NC}"
-docker exec emr-backend python -c "
+docker exec emr-backend-dev python -c "
 import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine

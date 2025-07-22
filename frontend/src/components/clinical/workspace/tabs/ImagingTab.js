@@ -213,7 +213,7 @@ const BodyMap = memo(({ studies, selectedRegion, onRegionSelect }) => {
         background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
         border: 1,
         borderColor: 'divider',
-        borderRadius: 2,
+        borderRadius: 0,
         overflow: 'hidden'
       }}
     >
@@ -1309,7 +1309,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
                     height: 400,
                     border: 1,
                     borderColor: 'divider',
-                    borderRadius: 2,
+                    borderRadius: 0,
                     overflow: 'auto'
                   }}
                 >
@@ -1330,7 +1330,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
                           }}
                           sx={{
                             p: 1.5,
-                            borderRadius: 1,
+                            borderRadius: 0,
                             border: 1,
                             borderColor: filterBodyRegion === region ? 'primary.main' : 'divider',
                             backgroundColor: filterBodyRegion === region ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
