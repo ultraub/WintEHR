@@ -1185,8 +1185,8 @@ const ChartReviewTab = ({ patientId, onNotificationUpdate }) => {
       <Backdrop
         sx={{ 
           position: 'absolute',
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.7)
+          zIndex: (t) => t.zIndex.drawer + 1,
+          backgroundColor: (t) => alpha(t.palette.background.paper, 0.7)
         }}
         open={saveInProgress}
       >
