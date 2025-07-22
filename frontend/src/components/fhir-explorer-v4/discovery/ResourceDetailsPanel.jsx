@@ -5,7 +5,7 @@
  * Includes resource data, metadata, relationships, and actions.
  */
 
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useContext } from 'react';
 import {
   Box,
   Paper,
@@ -68,7 +68,7 @@ import {
   Warning as ConditionIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
-import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import FHIRResourceContext from '../../../contexts/FHIRResourceContext';
 import { fhirRelationshipService } from '../../../services/fhirRelationshipService';
 
 // Resource type icons mapping
@@ -96,6 +96,7 @@ function ResourceDetailsPanel({
   onFindPath,
   width = 400 
 }) {
+  const fhirContext = useContext(FHIRResourceContext);
   const [resourceData, setResourceData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -126,8 +127,23 @@ function ResourceDetailsPanel({
     
     try {
       const [resourceType, resourceId] = selectedNode.id.split('/');
-      const resource = await fhirClient.read(resourceType, resourceId);
-      setResourceData(resource);
+      let resource;
+      
+      if (fhirContext && fhirContext.fetchResource) {
+        resource = await fhirContext.fetchResource(resourceType, resourceId);
+      } else if (fhirContext && fhirContext.searchResources) {
+        // Fallback to search by ID
+        const searchResult = await fhirContext.searchResources(resourceType, { _id: resourceId });
+        resource = searchResult.resources?.[0];
+      } else {
+        throw new Error('FHIRResourceContext not available');
+      }
+      
+      if (resource) {
+        setResourceData(resource);
+      } else {
+        throw new Error('Resource not found');
+      }
     } catch (err) {
       setError(`Failed to load resource: ${err.message}`);
       // Error loading resource details

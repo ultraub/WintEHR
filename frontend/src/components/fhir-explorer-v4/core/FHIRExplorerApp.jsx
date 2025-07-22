@@ -8,7 +8,7 @@
  * - Progressive learning system
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
 import {
   Box,
   CssBaseline,
@@ -66,9 +66,12 @@ import {
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useQueryHistory } from '../hooks/useQueryHistory';
 
+// Theme Context
+import { MedicalThemeContext } from '../../../App';
+
 // FHIR Services - using FHIRResourceContext instead of direct fhirClient
 
-// FHIR Explorer v4 Theme
+// FHIR Explorer v4 Theme (deprecated - using MedicalThemeContext)
 const createFHIRTheme = (mode) => createTheme({
   palette: {
     mode,
@@ -139,16 +142,12 @@ function FHIRExplorerApp() {
   const [currentMode, setCurrentMode] = useState(APP_MODES.DASHBOARD);
   const [currentView, setCurrentView] = useState('');
   const [loading, setLoading] = useState(false);
-  const [themeMode, setThemeMode] = useState('light');
   const [loadedQuery, setLoadedQuery] = useState(null);
   
-  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const isMobile = useMediaQuery('(max-width:768px)');
+  // Use MedicalThemeContext instead of local theme
+  const { theme } = useContext(MedicalThemeContext);
   
-  const theme = useMemo(() => 
-    createFHIRTheme(themeMode === 'auto' ? (prefersDarkMode ? 'dark' : 'light') : themeMode),
-    [themeMode, prefersDarkMode]
-  );
+  const isMobile = useMediaQuery('(max-width:768px)');
 
   // Initialize FHIR data and query history hooks
   const fhirContext = useFHIRResource();
@@ -283,9 +282,7 @@ function FHIRExplorerApp() {
     setTimeout(() => setLoading(false), 300);
   }, []);
 
-  const handleThemeToggle = useCallback(() => {
-    setThemeMode(prev => prev === 'light' ? 'dark' : 'light');
-  }, []);
+  // Theme toggle is now handled by MedicalThemeContext
 
   // Render current view
   const renderCurrentView = () => {
@@ -387,8 +384,6 @@ function FHIRExplorerApp() {
             currentMode={currentMode}
             currentView={currentView}
             onModeChange={handleModeChange}
-            onThemeToggle={handleThemeToggle}
-            themeMode={themeMode}
             isMobile={isMobile}
             fhirData={fhirData}
             dataLoading={fhirData.loading}

@@ -104,7 +104,6 @@ import * as d3 from 'd3';
 
 // Import services
 import { fhirRelationshipService } from '../../../services/fhirRelationshipService';
-import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Import components
 import ResourceDetailsPanel from './ResourceDetailsPanel';

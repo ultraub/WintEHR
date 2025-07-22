@@ -28,7 +28,8 @@ import {
   FormControl,
   InputLabel,
   ToggleButtonGroup,
-  ToggleButton
+  ToggleButton,
+  useTheme
 } from '@mui/material';
 import {
   BarChart,
@@ -68,16 +69,15 @@ import {
 import ChartTypeSelector from './components/ChartTypeSelector';
 import VitalSignsChart from './components/VitalSignsChart';
 import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
-
-// Chart color palette
-const CHART_COLORS = [
-  '#1976d2', '#dc004e', '#9c27b0', '#673ab7', '#3f51b5',
-  '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50',
-  '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800',
-  '#ff5722', '#795548', '#9e9e9e', '#607d8b'
-];
+import { getChartColors } from '../../../themes/chartColors';
 
 function DataCharts({ onNavigate, fhirData }) {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  
+  // Use the palette colors for charts
+  const CHART_COLORS = chartColors.palette;
+  
   const [currentTab, setCurrentTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -558,11 +558,11 @@ function DataCharts({ onNavigate, fhirData }) {
                   <YAxis />
                   <RechartsTooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="Patient" stroke="#1976d2" strokeWidth={2} />
-                  <Line type="monotone" dataKey="Encounter" stroke="#9c27b0" strokeWidth={2} />
-                  <Line type="monotone" dataKey="Observation" stroke="#4caf50" strokeWidth={2} />
-                  <Line type="monotone" dataKey="Condition" stroke="#f44336" strokeWidth={2} />
-                  <Line type="monotone" dataKey="MedicationRequest" stroke="#ff9800" strokeWidth={2} />
+                  <Line type="monotone" dataKey="Patient" stroke={chartColors.timeline.patient} strokeWidth={2} />
+                  <Line type="monotone" dataKey="Encounter" stroke={chartColors.timeline.encounter} strokeWidth={2} />
+                  <Line type="monotone" dataKey="Observation" stroke={chartColors.timeline.observation} strokeWidth={2} />
+                  <Line type="monotone" dataKey="Condition" stroke={chartColors.timeline.condition} strokeWidth={2} />
+                  <Line type="monotone" dataKey="MedicationRequest" stroke={chartColors.timeline.medication} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

@@ -6,7 +6,6 @@
  * - Observations and vital signs over time
  * - Interactive filtering and zoom capabilities
  * - Multi-track timeline with resource type grouping
- * - Real-time WebSocket updates
  * - Advanced zoom/pan controls
  * - Export to PNG/PDF/SVG
  */
@@ -67,6 +66,7 @@ import {
 } from '@mui/icons-material';
 import { alpha, darken, lighten } from '@mui/material/styles';
 import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
+import { getChartColors } from '../../../themes/chartColors';
 
 // Timeline configuration
 const TIMELINE_CONFIG = {
@@ -85,58 +85,52 @@ const TIMELINE_CONFIG = {
   }
 };
 
-// WebSocket event types for real-time updates
-const WS_EVENTS = {
-  RESOURCE_CREATED: 'fhir.resource.created',
-  RESOURCE_UPDATED: 'fhir.resource.updated',
-  RESOURCE_DELETED: 'fhir.resource.deleted'
-};
-
 // Resource type configurations with colors and tracks
-const RESOURCE_TRACKS = {
+// Will be populated with theme-aware colors
+const createResourceTracks = (chartColors) => ({
   Encounter: {
     label: 'Encounters',
-    color: '#1976d2',
+    color: chartColors.timeline.encounter,
     icon: <HospitalIcon />,
     track: 0,
     priority: 1
   },
   Condition: {
     label: 'Conditions',
-    color: '#d32f2f',
+    color: chartColors.timeline.condition,
     icon: <AssessmentIcon />,
     track: 1,
     priority: 2
   },
   MedicationRequest: {
     label: 'Medications',
-    color: '#ed6c02',
+    color: chartColors.timeline.medication,
     icon: <MedicationIcon />,
     track: 2,
     priority: 3
   },
   Procedure: {
     label: 'Procedures',
-    color: '#7b1fa2',
+    color: chartColors.timeline.procedure,
     icon: <HospitalIcon />,
     track: 3,
     priority: 4
   },
   Observation: {
     label: 'Observations',
-    color: '#2e7d32',
+    color: chartColors.timeline.observation,
     icon: <ScienceIcon />,
     track: 4,
     priority: 5
   },
   DiagnosticReport: {
     label: 'Reports',
-    color: '#1565c0',
+    color: chartColors.timeline.diagnosticReport,
     icon: <AssessmentIcon />,
     track: 5,
     priority: 6
   }
-};
+});
 
 /**
  * Timeline event component
@@ -515,11 +509,13 @@ const EventDetailsPanel = ({ event, onClose }) => {
  */
 function PatientTimeline({ patientId, fhirData, onNavigate }) {
   const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const RESOURCE_TRACKS = useMemo(() => createResourceTracks(chartColors), [chartColors]);
   const timelineRef = useRef(null);
   
   const [timeRange, setTimeRange] = useState('6months');
   const [scale, setScale] = useState(TIMELINE_CONFIG.timeScale.default);
-  const [filters, setFilters] = useState(Object.keys(RESOURCE_TRACKS));
+  const [filters, setFilters] = useState(Object.keys(createResourceTracks(chartColors)));
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);

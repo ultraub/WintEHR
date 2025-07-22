@@ -68,6 +68,9 @@ import { alpha } from '@mui/material/styles';
 // Import mode constants
 import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '../constants/appConstants';
 
+// Import QuickThemeToggle
+import QuickThemeToggle from '../../theme/QuickThemeToggle';
+
 // Navigation structure with icons and descriptions
 const NAVIGATION_STRUCTURE = {
   [APP_MODES.DASHBOARD]: {
@@ -160,8 +163,6 @@ const MINI_DRAWER_WIDTH = 64;
  */
 const AppHeader = ({ 
   onMenuToggle, 
-  onThemeToggle, 
-  themeMode, 
   isMobile,
   dataLoading 
 }) => {
@@ -265,11 +266,11 @@ const AppHeader = ({
         {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* Theme toggle */}
-          <Tooltip title={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} mode`}>
-            <IconButton onClick={onThemeToggle} color="inherit">
-              {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
-            </IconButton>
-          </Tooltip>
+          <QuickThemeToggle 
+            showLabel={false}
+            size="medium"
+            position="header"
+          />
 
           {/* Notifications */}
           <Tooltip title="Notifications">
@@ -655,8 +656,6 @@ function UnifiedLayout({
   currentMode,
   currentView,
   onModeChange,
-  onThemeToggle,
-  themeMode,
   isMobile,
   fhirData,
   dataLoading 
@@ -677,8 +676,6 @@ function UnifiedLayout({
       {/* Header */}
       <AppHeader
         onMenuToggle={isMobile ? handleMobileDrawerToggle : handleDesktopDrawerToggle}
-        onThemeToggle={onThemeToggle}
-        themeMode={themeMode}
         isMobile={isMobile}
         dataLoading={dataLoading}
       />
