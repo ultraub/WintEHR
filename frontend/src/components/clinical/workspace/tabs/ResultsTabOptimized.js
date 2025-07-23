@@ -517,7 +517,7 @@ const ResultsTabOptimized = ({ patientId }) => {
       <ClinicalTabHeader
         title="Results"
         subtitle={`${allData.labObservations.length + allData.vitalObservations.length + allData.diagnosticReports.length} total results`}
-        icon={<AssessmentIcon />}
+        icon={AssessmentIcon}
         onPrint={() => {/* Add print handler */}}
         onExport={() => {/* Add export handler */}}
         onRefresh={fetchAllData}

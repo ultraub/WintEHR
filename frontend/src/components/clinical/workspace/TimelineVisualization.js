@@ -24,22 +24,33 @@ import {
   ZoomOut as ZoomOutIcon,
   FitScreen as FitScreenIcon,
   NavigateBefore as PrevIcon,
-  NavigateNext as NextIcon
+  NavigateNext as NextIcon,
+  LocalHospital as EncounterIcon,
+  MedicalServices as ConditionIcon,
+  Medication as MedicationIcon,
+  Science as ObservationIcon,
+  Healing as ProcedureIcon,
+  Warning as AllergyIcon,
+  Vaccines as ImmunizationIcon,
+  Description as ReportIcon,
+  Assignment as CarePlanIcon,
+  Flag as GoalIcon,
+  Circle as DefaultIcon
 } from '@mui/icons-material';
 import { format, parseISO, differenceInDays, addDays, startOfDay, endOfDay } from 'date-fns';
 
 // Event type configuration
 const eventTypeConfig = {
-  Encounter: { color: '#2196f3', label: 'Visit' },
-  Condition: { color: '#f44336', label: 'Condition' },
-  MedicationRequest: { color: '#4caf50', label: 'Medication' },
-  Observation: { color: '#ff9800', label: 'Lab/Vital' },
-  Procedure: { color: '#9c27b0', label: 'Procedure' },
-  AllergyIntolerance: { color: '#ff5722', label: 'Allergy' },
-  Immunization: { color: '#00bcd4', label: 'Vaccine' },
-  DiagnosticReport: { color: '#3f51b5', label: 'Report' },
-  CarePlan: { color: '#009688', label: 'Care Plan' },
-  Goal: { color: '#795548', label: 'Goal' }
+  Encounter: { color: '#2196f3', label: 'Visit', icon: EncounterIcon },
+  Condition: { color: '#f44336', label: 'Condition', icon: ConditionIcon },
+  MedicationRequest: { color: '#4caf50', label: 'Medication', icon: MedicationIcon },
+  Observation: { color: '#ff9800', label: 'Lab/Vital', icon: ObservationIcon },
+  Procedure: { color: '#9c27b0', label: 'Procedure', icon: ProcedureIcon },
+  AllergyIntolerance: { color: '#ff5722', label: 'Allergy', icon: AllergyIcon },
+  Immunization: { color: '#00bcd4', label: 'Vaccine', icon: ImmunizationIcon },
+  DiagnosticReport: { color: '#3f51b5', label: 'Report', icon: ReportIcon },
+  CarePlan: { color: '#009688', label: 'Care Plan', icon: CarePlanIcon },
+  Goal: { color: '#795548', label: 'Goal', icon: GoalIcon }
 };
 
 const TimelineVisualization = ({
@@ -180,35 +191,62 @@ const TimelineVisualization = ({
   if (isMobile) {
     return (
       <Box sx={{ p: 2 }}>
-        {Object.entries(eventsByTrack).map(([type, trackEvents]) => (
-          <Box key={type} sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              {eventTypeConfig[type]?.label || type} ({trackEvents.length})
-            </Typography>
-            <Stack spacing={1}>
-              {trackEvents.map((event, idx) => (
-                <Paper
-                  key={`${event.id}-${idx}`}
-                  sx={{
-                    p: 1.5,
-                    cursor: 'pointer',
-                    borderLeft: 3,
-                    borderLeftColor: eventTypeConfig[type]?.color || '#666',
-                    '&:hover': { bgcolor: 'action.hover' }
-                  }}
-                  onClick={() => onEventClick?.(event)}
-                >
-                  <Typography variant="body2">
-                    {event.title || event.code?.text || 'Untitled'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {format(parseISO(event.date || event.effectiveDateTime), 'MMM d, yyyy')}
-                  </Typography>
-                </Paper>
-              ))}
-            </Stack>
-          </Box>
-        ))}
+        {Object.entries(eventsByTrack).map(([type, trackEvents]) => {
+          const config = eventTypeConfig[type] || { color: '#666', label: type, icon: DefaultIcon };
+          const MobileIcon = config.icon;
+          
+          return (
+            <Box key={type} sx={{ mb: 3 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <MobileIcon sx={{ fontSize: 24, color: config.color }} />
+                <Typography variant="subtitle2">
+                  {config.label} ({trackEvents.length})
+                </Typography>
+              </Stack>
+              <Stack spacing={1}>
+                {trackEvents.map((event, idx) => (
+                  <Paper
+                    key={`${event.id}-${idx}`}
+                    sx={{
+                      p: 1.5,
+                      cursor: 'pointer',
+                      borderLeft: 3,
+                      borderLeftColor: config.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      '&:hover': { bgcolor: 'action.hover' }
+                    }}
+                    onClick={() => onEventClick?.(event)}
+                  >
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1,
+                        bgcolor: alpha(config.color, 0.1),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                    >
+                      <MobileIcon sx={{ fontSize: 18, color: config.color }} />
+                    </Box>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="body2" noWrap>
+                        {event.title || event.code?.text || 'Untitled'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {format(parseISO(event.date || event.effectiveDateTime), 'MMM d, yyyy')}
+                      </Typography>
+                    </Box>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
+          );
+        })}
       </Box>
     );
   }
@@ -316,7 +354,8 @@ const TimelineVisualization = ({
           {/* Tracks */}
           {Object.entries(eventsByTrack).map(([type, trackEvents], trackIndex) => {
             const y = 40 + trackIndex * trackHeight;
-            const config = eventTypeConfig[type] || { color: '#666', label: type };
+            const config = eventTypeConfig[type] || { color: '#666', label: type, icon: DefaultIcon };
+            const TrackIcon = config.icon;
 
             return (
               <Box
@@ -348,14 +387,28 @@ const TimelineVisualization = ({
                     zIndex: 5
                   }}
                 >
-                  <Typography variant="body2" noWrap>
-                    {config.label}
-                  </Typography>
-                  <Chip
-                    label={trackEvents.length}
-                    size="small"
-                    sx={{ ml: 1, height: 20 }}
-                  />
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TrackIcon 
+                      sx={{ 
+                        fontSize: 20,
+                        color: config.color
+                      }} 
+                    />
+                    <Typography variant="body2" noWrap>
+                      {config.label}
+                    </Typography>
+                    <Chip
+                      label={trackEvents.length}
+                      size="small"
+                      sx={{ 
+                        ml: 0.5, 
+                        height: 20,
+                        bgcolor: alpha(config.color, 0.1),
+                        color: config.color,
+                        fontWeight: 600
+                      }}
+                    />
+                  </Stack>
                 </Box>
 
                 {/* Events */}
@@ -366,6 +419,7 @@ const TimelineVisualization = ({
                   const x = getEventPosition(eventDate);
                   const isHovered = hoveredEvent === event.id;
                   const isSelected = selectedEventId === event.id;
+                  const EventIcon = config.icon || DefaultIcon;
 
                   return (
                     <Tooltip
@@ -390,8 +444,13 @@ const TimelineVisualization = ({
                           transform: 'translateY(-50%)',
                           width: eventSize,
                           height: eventSize,
-                          borderRadius: '50%',
-                          bgcolor: config.color,
+                          borderRadius: 1,
+                          background: `linear-gradient(135deg, ${alpha(config.color, 0.1)} 0%, ${alpha(config.color, 0.2)} 100%)`,
+                          border: 2,
+                          borderColor: config.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           cursor: 'pointer',
                           zIndex: isHovered || isSelected ? 10 : 1,
                           boxShadow: isHovered || isSelected ? theme.shadows[4] : theme.shadows[1],
@@ -399,7 +458,8 @@ const TimelineVisualization = ({
                           transition: 'all 0.2s ease',
                           '&:hover': {
                             transform: 'translateY(-50%) scale(1.3)',
-                            boxShadow: theme.shadows[6]
+                            boxShadow: theme.shadows[6],
+                            background: `linear-gradient(135deg, ${alpha(config.color, 0.2)} 0%, ${alpha(config.color, 0.3)} 100%)`,
                           }
                         }}
                         onClick={(e) => {
@@ -408,7 +468,16 @@ const TimelineVisualization = ({
                         }}
                         onMouseEnter={() => setHoveredEvent(event.id)}
                         onMouseLeave={() => setHoveredEvent(null)}
-                      />
+                      >
+                        <EventIcon 
+                          sx={{ 
+                            fontSize: eventSize * 0.6,
+                            color: config.color,
+                            transition: 'transform 0.2s ease',
+                            transform: isHovered ? 'rotate(12deg)' : 'rotate(0deg)'
+                          }} 
+                        />
+                      </Box>
                     </Tooltip>
                   );
                 })}

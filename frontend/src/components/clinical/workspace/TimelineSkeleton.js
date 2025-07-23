@@ -25,12 +25,18 @@ const TimelineSkeleton = ({ density = 'comfortable' }) => {
       <Box sx={{ p: 2 }}>
         {[1, 2, 3].map((i) => (
           <Box key={i} sx={{ mb: 3 }}>
-            <Skeleton variant="text" width="40%" height={24} sx={{ mb: 1 }} />
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+              <Skeleton variant="circular" width={24} height={24} />
+              <Skeleton variant="text" width="40%" height={24} />
+            </Stack>
             <Stack spacing={1}>
               {[1, 2, 3].map((j) => (
-                <Paper key={j} sx={{ p: 1.5 }}>
-                  <Skeleton variant="text" width="60%" height={20} />
-                  <Skeleton variant="text" width="30%" height={16} />
+                <Paper key={j} sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Skeleton variant="rectangular" width={32} height={32} sx={{ borderRadius: 1, flexShrink: 0 }} />
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Skeleton variant="text" width="60%" height={20} />
+                    <Skeleton variant="text" width="30%" height={16} />
+                  </Box>
                 </Paper>
               ))}
             </Stack>
@@ -82,14 +88,15 @@ const TimelineSkeleton = ({ density = 'comfortable' }) => {
               {[1, 2, 3, 4, 5].map((i) => (
                 <Skeleton
                   key={i}
-                  variant="circular"
+                  variant="rectangular"
                   width={density === 'compact' ? 24 : 32}
                   height={density === 'compact' ? 24 : 32}
                   sx={{
                     position: 'absolute',
                     left: `${i * 20}%`,
                     top: '50%',
-                    transform: 'translateY(-50%)'
+                    transform: 'translateY(-50%)',
+                    borderRadius: 1
                   }}
                 />
               ))}
