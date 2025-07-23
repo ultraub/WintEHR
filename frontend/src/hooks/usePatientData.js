@@ -17,23 +17,45 @@ export const usePatientData = (patientId) => {
 
   const [localLoading, setLocalLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Load patient if needed
   useEffect(() => {
-    if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
-      setCurrentPatient(patientId);
-    }
+    const loadPatient = async () => {
+      if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
+        setLocalLoading(true);
+        setError(null);
+        try {
+          await setCurrentPatient(patientId);
+          setIsInitialLoad(false);
+        } catch (err) {
+          console.error('Failed to load patient:', err);
+          setError(err.message || 'Failed to load patient data');
+          setIsInitialLoad(false);
+        }
+      } else if (currentPatient && currentPatient.id === patientId) {
+        // Patient already loaded
+        setIsInitialLoad(false);
+        setLocalLoading(false);
+      }
+    };
+    
+    loadPatient();
   }, [patientId, currentPatient, setCurrentPatient]);
 
-  // Combine loading states
+  // Combine loading states - but consider initial load separately
   useEffect(() => {
-    setLocalLoading(fhirLoading);
-  }, [fhirLoading]);
+    if (!isInitialLoad) {
+      setLocalLoading(fhirLoading);
+    }
+  }, [fhirLoading, isInitialLoad]);
 
   // Set error state
   useEffect(() => {
-    setError(fhirError);
-  }, [fhirError]);
+    if (!isInitialLoad && fhirError) {
+      setError(fhirError);
+    }
+  }, [fhirError, isInitialLoad]);
 
   // Memoized patient data
   const patientData = useMemo(() => {
@@ -159,6 +181,16 @@ export const usePatientData = (patientId) => {
     
     // Derived data
     ...derivedData,
+    
+    // Additional summary counts
+    encounterCount: patientData.encounters.length,
+    conditionCount: patientData.conditions.length,
+    medicationCount: patientData.medications.length,
+    allergyCount: patientData.allergies.length,
+    
+    // Commonly needed derived data
+    latestVitals: derivedData.vitalSigns[0] || null,
+    criticalAllergies: patientData.allergies.filter(a => a.criticality === 'high'),
     
     // State
     loading: localLoading,

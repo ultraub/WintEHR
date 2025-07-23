@@ -67,7 +67,7 @@ export const lazyLoadTabs = {
   TimelineTab: lazy(() => import(
     /* webpackChunkName: "timeline-tab" */
     /* webpackPrefetch: true */
-    '../workspace/tabs/TimelineTabEnhanced'
+    '../workspace/tabs/TimelineTabRedesigned'
   ))
 };
 

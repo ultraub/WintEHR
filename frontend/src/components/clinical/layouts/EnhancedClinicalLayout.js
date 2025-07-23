@@ -134,10 +134,10 @@ const EnhancedClinicalLayout = ({
         />
       )}
       
-      {/* Collapsible Patient Header - now sticky with scroll behavior */}
-      {patient && (
+      {/* Collapsible Patient Header - show loading state if patient not yet loaded */}
+      {(patient || loading) && (
         <CollapsiblePatientHeader
-          patientId={patient.id}
+          patientId={patient?.id || patientId}
           onPrint={() => window.print()}
           onNavigateToTab={handleModuleChange}
           dataLoading={loading}

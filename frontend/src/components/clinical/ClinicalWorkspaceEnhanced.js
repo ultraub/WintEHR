@@ -14,7 +14,8 @@ import {
   useTheme,
   Snackbar,
   Chip,
-  alpha
+  alpha,
+  Typography
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -26,7 +27,8 @@ import {
   Assignment as CarePlanIcon,
   Assignment as OrdersIcon,
   Timeline as TimelineIcon,
-  Image as ImagingIcon
+  Image as ImagingIcon,
+  ChevronLeft as ChevronLeftIcon
 } from '@mui/icons-material';
 
 // Contexts
@@ -123,9 +125,10 @@ const ClinicalWorkspaceEnhanced = ({
   const theme = useTheme();
   const navigate = useNavigate();
   
-  // Route params - still needed for CDS alerts
+  // Route params - still needed for CDS alerts and direct navigation
   const { id: encodedPatientId } = useParams();
-  const patientId = patient?.id || decodeFhirId(encodedPatientId).toLowerCase();
+  const decodedPatientId = encodedPatientId ? decodeFhirId(encodedPatientId).toLowerCase() : null;
+  const patientId = patient?.id || decodedPatientId;
   
   // Contexts
   const { currentUser } = useAuth();
@@ -223,13 +226,52 @@ const ClinicalWorkspaceEnhanced = ({
     enabled: true
   });
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <CircularProgress />
-      </Box>
-    );
+  // Loading state - show spinner while patient is being loaded
+  if (isLoading || !activePatient) {
+    // If we have a patient ID in the URL but no patient loaded yet, show loading
+    if (patientId && isLoading) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          gap: 2
+        }}>
+          <CircularProgress size={48} />
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h6" color="text.secondary">
+              Loading Patient Data...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Patient ID: {patientId}
+            </Typography>
+          </Box>
+        </Box>
+      );
+    }
+    
+    // No patient ID provided
+    if (!patientId) {
+      return (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="warning">
+            <AlertTitle>No Patient ID Provided</AlertTitle>
+            Please navigate from the patient list or provide a valid patient ID.
+            <Box sx={{ mt: 2 }}>
+              <Button 
+                variant="contained" 
+                onClick={() => navigate('/patients')}
+                startIcon={<ChevronLeftIcon />}
+              >
+                Go to Patient List
+              </Button>
+            </Box>
+          </Alert>
+        </Box>
+      );
+    }
   }
 
   // Error state
@@ -239,26 +281,19 @@ const ClinicalWorkspaceEnhanced = ({
         <Alert severity="error">
           <AlertTitle>Error Loading Patient</AlertTitle>
           {loadError}
-          <Box sx={{ mt: 2 }}>
-            <Button onClick={() => window.location.reload()}>
-              Reload Page
+          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+            <Button 
+              variant="contained" 
+              onClick={() => window.location.reload()}
+            >
+              Retry
             </Button>
-          </Box>
-        </Alert>
-      </Box>
-    );
-  }
-
-  // No patient state
-  if (!activePatient) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="info">
-          <AlertTitle>No Patient Selected</AlertTitle>
-          Please select a patient from the patient list.
-          <Box sx={{ mt: 2 }}>
-            <Button onClick={() => navigate('/patients')}>
-              Go to Patient List
+            <Button 
+              variant="outlined"
+              onClick={() => navigate('/patients')}
+              startIcon={<ChevronLeftIcon />}
+            >
+              Back to Patient List
             </Button>
           </Box>
         </Alert>
