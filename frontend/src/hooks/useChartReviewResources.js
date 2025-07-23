@@ -38,6 +38,8 @@ const useChartReviewResources = (patientId, options = {}) => {
   const [observations, setObservations] = useState([]);
   const [procedures, setProcedures] = useState([]);
   const [encounters, setEncounters] = useState([]);
+  const [carePlans, setCarePlans] = useState([]);
+  const [documentReferences, setDocumentReferences] = useState([]);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -68,7 +70,7 @@ const useChartReviewResources = (patientId, options = {}) => {
         // Fetch critical data first
         try {
           await fetchPatientEverything(patientId, {
-            types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter'],
+            types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'],
             count: 100,
             autoSince: true, // Last 3 months
             forceRefresh: false
@@ -87,7 +89,9 @@ const useChartReviewResources = (patientId, options = {}) => {
         immunizationData,
         observationData,
         procedureData,
-        encounterData
+        encounterData,
+        carePlanData,
+        documentReferenceData
       ] = await Promise.all([
         getPatientResources(patientId, 'Condition') || [],
         getPatientResources(patientId, 'MedicationRequest') || [],
@@ -95,7 +99,9 @@ const useChartReviewResources = (patientId, options = {}) => {
         getPatientResources(patientId, 'Immunization') || [],
         getPatientResources(patientId, 'Observation') || [],
         getPatientResources(patientId, 'Procedure') || [],
-        getPatientResources(patientId, 'Encounter') || []
+        getPatientResources(patientId, 'Encounter') || [],
+        getPatientResources(patientId, 'CarePlan') || [],
+        getPatientResources(patientId, 'DocumentReference') || []
       ]);
 
       // Loaded data summary:
@@ -115,6 +121,8 @@ const useChartReviewResources = (patientId, options = {}) => {
       setObservations(processObservations(observationData, filters, sortOrder));
       setProcedures(processProcedures(procedureData, filters, sortOrder));
       setEncounters(processEncounters(encounterData, filters, sortOrder));
+      setCarePlans(processCarePlans(carePlanData, filters, sortOrder));
+      setDocumentReferences(processDocumentReferences(documentReferenceData, filters, sortOrder));
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -362,6 +370,76 @@ const useChartReviewResources = (patientId, options = {}) => {
     return processed;
   };
 
+  // Process care plans
+  const processCarePlans = (data, filters, sortOrder) => {
+    let processed = data;
+
+    // Filter by status
+    if (filters.status !== 'all') {
+      processed = processed.filter(cp => 
+        cp.status === filters.status
+      );
+    }
+
+    // Filter by search text
+    if (filters.searchText) {
+      const searchLower = filters.searchText.toLowerCase();
+      processed = processed.filter(cp => {
+        const text = cp.title || 
+                    cp.category?.[0]?.text || 
+                    cp.category?.[0]?.coding?.[0]?.display || '';
+        return text.toLowerCase().includes(searchLower);
+      });
+    }
+
+    // Sort by created date
+    processed.sort((a, b) => {
+      const dateA = a.created || a.period?.start;
+      const dateB = b.created || b.period?.start;
+      if (!dateA || !dateB) return 0;
+      return sortOrder === 'desc' 
+        ? new Date(dateB) - new Date(dateA)
+        : new Date(dateA) - new Date(dateB);
+    });
+
+    return processed;
+  };
+
+  // Process document references
+  const processDocumentReferences = (data, filters, sortOrder) => {
+    let processed = data;
+
+    // Filter by status
+    if (filters.status !== 'all') {
+      processed = processed.filter(doc => 
+        doc.status === filters.status
+      );
+    }
+
+    // Filter by search text
+    if (filters.searchText) {
+      const searchLower = filters.searchText.toLowerCase();
+      processed = processed.filter(doc => {
+        const text = doc.description || 
+                    doc.type?.text || 
+                    doc.type?.coding?.[0]?.display || '';
+        return text.toLowerCase().includes(searchLower);
+      });
+    }
+
+    // Sort by created date
+    processed.sort((a, b) => {
+      const dateA = a.date || a.content?.[0]?.attachment?.creation;
+      const dateB = b.date || b.content?.[0]?.attachment?.creation;
+      if (!dateA || !dateB) return 0;
+      return sortOrder === 'desc' 
+        ? new Date(dateB) - new Date(dateA)
+        : new Date(dateA) - new Date(dateB);
+    });
+
+    return processed;
+  };
+
   // Update filters
   const updateFilters = useCallback((newFilters) => {
     setFilters(prev => ({
@@ -421,9 +499,19 @@ const useChartReviewResources = (patientId, options = {}) => {
         total: encounters.length,
         inProgress: encounters.filter(e => e.status === 'in-progress').length,
         finished: encounters.filter(e => e.status === 'finished').length
+      },
+      carePlans: {
+        total: carePlans.length,
+        active: carePlans.filter(cp => cp.status === 'active').length,
+        completed: carePlans.filter(cp => cp.status === 'completed').length
+      },
+      documents: {
+        total: documentReferences.length,
+        current: documentReferences.filter(doc => doc.status === 'current').length,
+        superseded: documentReferences.filter(doc => doc.status === 'superseded').length
       }
     };
-  }, [conditions, medications, allergies, immunizations, observations, procedures, encounters]);
+  }, [conditions, medications, allergies, immunizations, observations, procedures, encounters, carePlans, documentReferences]);
 
   // Real-time updates subscription
   useEffect(() => {
@@ -434,7 +522,8 @@ const useChartReviewResources = (patientId, options = {}) => {
     // Subscribe to resource update events
     const resourceTypes = [
       'Condition', 'MedicationRequest', 'AllergyIntolerance', 
-      'Immunization', 'Observation', 'Procedure', 'Encounter'
+      'Immunization', 'Observation', 'Procedure', 'Encounter',
+      'CarePlan', 'DocumentReference'
     ];
 
     resourceTypes.forEach(resourceType => {
@@ -468,6 +557,8 @@ const useChartReviewResources = (patientId, options = {}) => {
     observations,
     procedures,
     encounters,
+    carePlans,
+    documentReferences,
     
     // State
     loading,

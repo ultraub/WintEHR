@@ -62,7 +62,11 @@ import {
   Favorite as HeartIcon,
   MonitorHeart as MonitorIcon,
   Psychology as PsychologyIcon,
-  BugReport as BugIcon
+  BugReport as BugIcon,
+  Assignment as AssignmentIcon,
+  Description as DescriptionIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
@@ -73,6 +77,9 @@ import ConditionDialog from '../dialogs/ConditionDialog';
 import MedicationDialog from '../dialogs/MedicationDialog';
 import AllergyDialog from '../dialogs/AllergyDialog';
 import ImmunizationDialog from '../dialogs/ImmunizationDialog';
+import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
+import CarePlanDialog from '../dialogs/CarePlanDialog';
+import DocumentReferenceDialog from '../dialogs/DocumentReferenceDialog';
 // Modern theme utilities
 import { 
   getClinicalCardStyles, 
@@ -100,6 +107,8 @@ const ChartReviewTabOptimized = ({ patient }) => {
     observations,
     procedures,
     encounters,
+    carePlans,
+    documentReferences,
     loading, 
     error,
     refresh,
@@ -122,7 +131,11 @@ const ChartReviewTabOptimized = ({ patient }) => {
     conditions: true,
     medications: true,
     allergies: true,
-    vitals: true
+    vitals: true,
+    immunizations: true,
+    procedures: true,
+    carePlans: true,
+    documents: true
   });
   
   // Dialog states
@@ -130,7 +143,10 @@ const ChartReviewTabOptimized = ({ patient }) => {
     condition: false,
     medication: false,
     allergy: false,
-    immunization: false
+    immunization: false,
+    procedure: false,
+    carePlan: false,
+    document: false
   });
   
   const [selectedResource, setSelectedResource] = useState(null);
@@ -235,7 +251,9 @@ const ChartReviewTabOptimized = ({ patient }) => {
       recentVitals,
       recentEncounters,
       procedures: procedures.filter(filteredByDate),
-      immunizations: immunizations.filter(filteredByDate)
+      immunizations: immunizations.filter(filteredByDate),
+      carePlans: carePlans.filter(filteredByDate),
+      documentReferences: documentReferences.filter(filteredByDate)
     };
   }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, filteredByDate]);
   
@@ -816,6 +834,266 @@ const ChartReviewTabOptimized = ({ patient }) => {
                   </Card>
                 </Grid>
                 
+                {/* Immunizations Panel */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.success.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Immunizations</Typography>
+                          <Chip 
+                            label={`${processedData.immunizations.length}`} 
+                            size="small"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.success.main, 0.1),
+                              color: theme.palette.success.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('immunization')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.immunizations.length === 0 ? (
+                        <Alert severity="info">No immunization records</Alert>
+                      ) : (
+                        <Stack spacing={1}>
+                          {processedData.immunizations.slice(0, 5).map((immunization, index) => (
+                            <EnhancedImmunizationCard
+                              key={immunization.id}
+                              immunization={immunization}
+                              onEdit={() => handleOpenDialog('immunization', immunization)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
+                            />
+                          ))}
+                          {processedData.immunizations.length > 5 && (
+                            <Button size="small" fullWidth>
+                              View {processedData.immunizations.length - 5} more immunizations
+                            </Button>
+                          )}
+                        </Stack>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                {/* Procedures Panel */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.secondary.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Procedures</Typography>
+                          <Chip 
+                            label={`${processedData.procedures.length}`} 
+                            size="small"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                              color: theme.palette.secondary.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('procedure')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.procedures.length === 0 ? (
+                        <Alert severity="info">No procedure records</Alert>
+                      ) : (
+                        <Stack spacing={1}>
+                          {processedData.procedures.slice(0, 5).map((procedure, index) => (
+                            <EnhancedProcedureCard
+                              key={procedure.id}
+                              procedure={procedure}
+                              onEdit={() => handleOpenDialog('procedure', procedure)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
+                            />
+                          ))}
+                          {processedData.procedures.length > 5 && (
+                            <Button size="small" fullWidth>
+                              View {processedData.procedures.length - 5} more procedures
+                            </Button>
+                          )}
+                        </Stack>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                {/* Care Plans Panel */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.indigo?.[500] || theme.palette.primary.dark,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Care Plans</Typography>
+                          <Chip 
+                            label={`${processedData.carePlans.length}`} 
+                            size="small"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                              color: theme.palette.primary.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('carePlan')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.carePlans.length === 0 ? (
+                        <Alert severity="info">No care plans</Alert>
+                      ) : (
+                        <Stack spacing={1}>
+                          {processedData.carePlans.slice(0, 5).map((carePlan, index) => (
+                            <EnhancedCarePlanCard
+                              key={carePlan.id}
+                              carePlan={carePlan}
+                              onEdit={() => handleOpenDialog('carePlan', carePlan)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
+                            />
+                          ))}
+                          {processedData.carePlans.length > 5 && (
+                            <Button size="small" fullWidth>
+                              View {processedData.carePlans.length - 5} more care plans
+                            </Button>
+                          )}
+                        </Stack>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                {/* Clinical Documents Panel */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    borderRadius: 0,  // Sharp corners
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.grey[600],
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Clinical Documents</Typography>
+                          <Chip 
+                            label={`${processedData.documentReferences.length}`} 
+                            size="small"
+                            sx={{
+                              borderRadius: '4px',  // Professional UI
+                              fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.grey[600], 0.1),
+                              color: theme.palette.grey[600]
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('document')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.documentReferences.length === 0 ? (
+                        <Alert severity="info">No clinical documents</Alert>
+                      ) : (
+                        <Stack spacing={1}>
+                          {processedData.documentReferences.slice(0, 5).map((document, index) => (
+                            <EnhancedDocumentCard
+                              key={document.id}
+                              document={document}
+                              onEdit={() => handleOpenDialog('document', document)}
+                              isAlternate={index % 2 === 1}  // For alternating rows
+                            />
+                          ))}
+                          {processedData.documentReferences.length > 5 && (
+                            <Button size="small" fullWidth>
+                              View {processedData.documentReferences.length - 5} more documents
+                            </Button>
+                          )}
+                        </Stack>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
                 {/* Recent Encounters Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
@@ -945,6 +1223,30 @@ const ChartReviewTabOptimized = ({ patient }) => {
         open={openDialogs.immunization}
         onClose={() => handleCloseDialog('immunization')}
         immunization={selectedResource}
+        patientId={patientId}
+        onSaved={handleResourceSaved}
+      />
+      
+      <ProcedureDialogEnhanced
+        open={openDialogs.procedure}
+        onClose={() => handleCloseDialog('procedure')}
+        procedure={selectedResource}
+        patientId={patientId}
+        onSaved={handleResourceSaved}
+      />
+      
+      <CarePlanDialog
+        open={openDialogs.carePlan}
+        onClose={() => handleCloseDialog('carePlan')}
+        carePlan={selectedResource}
+        patientId={patientId}
+        onSaved={handleResourceSaved}
+      />
+      
+      <DocumentReferenceDialog
+        open={openDialogs.document}
+        onClose={() => handleCloseDialog('document')}
+        document={selectedResource}
         patientId={patientId}
         onSaved={handleResourceSaved}
       />
@@ -1186,6 +1488,338 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
             {allergy.recordedDate && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Recorded:</strong> {format(new Date(allergy.recordedDate), 'MMM d, yyyy')}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+        
+        <IconButton size="small" onClick={onEdit}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+    </Paper>
+  );
+};
+
+const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false }) => {
+  const theme = useTheme();
+  const vaccineDisplay = immunization.vaccineCode?.text || 
+                        immunization.vaccineCode?.coding?.[0]?.display || 
+                        'Unknown vaccine';
+  const status = immunization.status;
+  const isCompleted = status === 'completed';
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${isCompleted ? theme.palette.success.main : theme.palette.warning.main}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
+        }
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box flex={1}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+            <VaccinesIcon fontSize="small" color={isCompleted ? "success" : "warning"} />
+            <Typography variant="body1" fontWeight={600}>
+              {vaccineDisplay}
+            </Typography>
+            <Chip 
+              label={status} 
+              size="small" 
+              color={isCompleted ? 'success' : 'warning'}
+            />
+          </Stack>
+          
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              <strong>Date:</strong> {immunization.occurrenceDateTime ? 
+                format(new Date(immunization.occurrenceDateTime), 'MMM d, yyyy') : 
+                'Unknown'}
+            </Typography>
+            {immunization.protocolApplied?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Dose:</strong> {immunization.protocolApplied[0].doseNumberString || 
+                  immunization.protocolApplied[0].doseNumberPositiveInt || 'Unknown'} 
+                {immunization.protocolApplied[0].seriesDosesString && 
+                  ` of ${immunization.protocolApplied[0].seriesDosesString}`}
+              </Typography>
+            )}
+            {immunization.site && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Site:</strong> {immunization.site.text || immunization.site.coding?.[0]?.display}
+              </Typography>
+            )}
+            {immunization.manufacturer && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Manufacturer:</strong> {immunization.manufacturer.display}
+              </Typography>
+            )}
+            {immunization.lotNumber && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Lot:</strong> {immunization.lotNumber}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+        
+        <IconButton size="small" onClick={onEdit}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+    </Paper>
+  );
+};
+
+const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
+  const theme = useTheme();
+  const procedureDisplay = procedure.code?.text || 
+                          procedure.code?.coding?.[0]?.display || 
+                          'Unknown procedure';
+  const status = procedure.status;
+  const isCompleted = status === 'completed';
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${isCompleted ? theme.palette.secondary.main : theme.palette.info.main}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
+        }
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box flex={1}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+            <HealingIcon fontSize="small" color="secondary" />
+            <Typography variant="body1" fontWeight={600}>
+              {procedureDisplay}
+            </Typography>
+            <Chip 
+              label={status} 
+              size="small" 
+              color={isCompleted ? 'secondary' : 'info'}
+            />
+          </Stack>
+          
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              <strong>Date:</strong> {procedure.performedDateTime ? 
+                format(new Date(procedure.performedDateTime), 'MMM d, yyyy') : 
+                procedure.performedPeriod?.start ? 
+                format(new Date(procedure.performedPeriod.start), 'MMM d, yyyy') : 
+                'Unknown'}
+            </Typography>
+            {procedure.performer?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Performer:</strong> {procedure.performer[0].actor?.display || 
+                  procedure.performer[0].actor?.reference || 'Unknown'}
+              </Typography>
+            )}
+            {procedure.bodySite?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Body Site:</strong> {procedure.bodySite[0].text || 
+                  procedure.bodySite[0].coding?.[0]?.display}
+              </Typography>
+            )}
+            {procedure.outcome && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Outcome:</strong> {procedure.outcome.text || 
+                  procedure.outcome.coding?.[0]?.display}
+              </Typography>
+            )}
+            {procedure.reasonCode?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Reason:</strong> {procedure.reasonCode[0].text || 
+                  procedure.reasonCode[0].coding?.[0]?.display}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+        
+        <IconButton size="small" onClick={onEdit}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+    </Paper>
+  );
+};
+
+const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
+  const theme = useTheme();
+  const title = carePlan.title || carePlan.category?.[0]?.text || 
+                carePlan.category?.[0]?.coding?.[0]?.display || 'Care Plan';
+  const status = carePlan.status;
+  const isActive = status === 'active';
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${isActive ? theme.palette.primary.main : theme.palette.grey[400]}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
+        }
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box flex={1}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+            <AssignmentIcon fontSize="small" color="primary" />
+            <Typography variant="body1" fontWeight={600}>
+              {title}
+            </Typography>
+            <Chip 
+              label={status} 
+              size="small" 
+              color={isActive ? 'primary' : 'default'}
+            />
+            {carePlan.intent && (
+              <Chip 
+                label={carePlan.intent} 
+                size="small" 
+                variant="outlined"
+              />
+            )}
+          </Stack>
+          
+          <Stack spacing={0.5}>
+            {carePlan.description && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {carePlan.description}
+              </Typography>
+            )}
+            {carePlan.period && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Period:</strong> {carePlan.period.start && 
+                  format(new Date(carePlan.period.start), 'MMM d, yyyy')}
+                {carePlan.period.end && ` - ${format(new Date(carePlan.period.end), 'MMM d, yyyy')}`}
+              </Typography>
+            )}
+            {carePlan.goal && carePlan.goal.length > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Goals:</strong> {carePlan.goal.length} defined
+              </Typography>
+            )}
+            {carePlan.activity && carePlan.activity.length > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Activities:</strong> {carePlan.activity.length} scheduled
+              </Typography>
+            )}
+            {carePlan.careTeam?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Care Team:</strong> {carePlan.careTeam[0].display || 'Assigned'}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+        
+        <IconButton size="small" onClick={onEdit}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+    </Paper>
+  );
+};
+
+const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
+  const theme = useTheme();
+  const title = document.description || document.type?.text || 
+                document.type?.coding?.[0]?.display || 'Clinical Document';
+  const status = document.status || 'current';
+  const isCurrent = status === 'current';
+  
+  const getDocumentIcon = () => {
+    const mimeType = document.content?.[0]?.attachment?.contentType;
+    if (mimeType?.includes('pdf')) return <PictureAsPdfIcon fontSize="small" />;
+    if (mimeType?.includes('image')) return <ImageIcon fontSize="small" />;
+    return <DescriptionIcon fontSize="small" />;
+  };
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: 0,  // Sharp corners
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: `4px solid ${isCurrent ? theme.palette.grey[600] : theme.palette.grey[400]}`,
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.action.hover, 0.08),
+          transform: 'translateX(2px)'
+        }
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box flex={1}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+            {getDocumentIcon()}
+            <Typography variant="body1" fontWeight={600}>
+              {title}
+            </Typography>
+            <Chip 
+              label={status} 
+              size="small" 
+              color={isCurrent ? 'default' : 'warning'}
+            />
+            {document.docStatus && (
+              <Chip 
+                label={document.docStatus} 
+                size="small" 
+                variant="outlined"
+              />
+            )}
+          </Stack>
+          
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              <strong>Date:</strong> {document.date ? 
+                format(new Date(document.date), 'MMM d, yyyy h:mm a') : 
+                'Unknown'}
+            </Typography>
+            {document.author?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Author:</strong> {document.author[0].display || 'Unknown'}
+              </Typography>
+            )}
+            {document.content?.[0]?.attachment && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Type:</strong> {document.content[0].attachment.contentType || 'Unknown'} 
+                {document.content[0].attachment.size && 
+                  ` • ${Math.round(document.content[0].attachment.size / 1024)} KB`}
+              </Typography>
+            )}
+            {document.context?.encounter?.[0] && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Encounter:</strong> {document.context.encounter[0].display || 
+                  'Related encounter'}
               </Typography>
             )}
           </Stack>

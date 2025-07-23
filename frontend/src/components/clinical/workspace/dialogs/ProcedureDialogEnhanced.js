@@ -76,7 +76,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInMinutes, addMinutes, isAfter, isBefore } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -183,7 +183,7 @@ const ProcedureDialogEnhanced = ({
 }) => {
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
-  const fhirClient = useFHIRClient();
+  // FHIRClient is imported directly, not from hook
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
