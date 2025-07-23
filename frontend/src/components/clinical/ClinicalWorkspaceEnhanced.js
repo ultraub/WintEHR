@@ -127,7 +127,7 @@ const ClinicalWorkspaceEnhanced = ({
   
   // Route params - still needed for CDS alerts and direct navigation
   const { id: encodedPatientId } = useParams();
-  const decodedPatientId = encodedPatientId ? decodeFhirId(encodedPatientId).toLowerCase() : null;
+  const decodedPatientId = encodedPatientId ? decodeFhirId(encodedPatientId) : null;
   const patientId = patient?.id || decodedPatientId;
   
   // Contexts
@@ -227,9 +227,9 @@ const ClinicalWorkspaceEnhanced = ({
   });
 
   // Loading state - show spinner while patient is being loaded
-  if (isLoading || !activePatient) {
+  if (isLoading || (!activePatient && patientId)) {
     // If we have a patient ID in the URL but no patient loaded yet, show loading
-    if (patientId && isLoading) {
+    if (patientId) {
       return (
         <Box sx={{ 
           display: 'flex', 

@@ -15,14 +15,20 @@ export const usePatientData = (patientId) => {
     searchResources,
   } = useFHIRResource();
 
-  const [localLoading, setLocalLoading] = useState(true);
+  // Initialize loading state based on whether we need to load a patient
+  const needsPatientLoad = patientId && (!currentPatient || currentPatient.id !== patientId);
+  const [localLoading, setLocalLoading] = useState(needsPatientLoad);
   const [error, setError] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Load patient if needed
   useEffect(() => {
     const loadPatient = async () => {
-      if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
+      // Normalize IDs for comparison - handle potential case or format differences
+      const normalizedPatientId = patientId?.trim();
+      const normalizedCurrentId = currentPatient?.id?.trim();
+      
+      if (normalizedPatientId && (!currentPatient || normalizedCurrentId !== normalizedPatientId)) {
         setLocalLoading(true);
         setError(null);
         try {
@@ -35,8 +41,12 @@ export const usePatientData = (patientId) => {
           setIsInitialLoad(false);
           setLocalLoading(false);
         }
-      } else if (currentPatient && currentPatient.id === patientId) {
+      } else if (currentPatient && normalizedCurrentId === normalizedPatientId) {
         // Patient already loaded
+        setIsInitialLoad(false);
+        setLocalLoading(false);
+      } else if (!normalizedPatientId) {
+        // No patient ID provided
         setIsInitialLoad(false);
         setLocalLoading(false);
       }
