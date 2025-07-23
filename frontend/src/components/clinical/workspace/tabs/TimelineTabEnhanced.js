@@ -607,12 +607,21 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   const [selectedTypes, setSelectedTypes] = useState(new Set(Object.keys(eventTypes)));
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // Use ref to track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      isLoadingRef.current = false;
+    };
+  }, []);
   
   // Date range based on filter period
   const dateRange = useMemo(() => {
@@ -633,31 +642,63 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     };
   }, [filterPeriod]);
   
-  // Load timeline data
+  // Track loading state to prevent duplicate requests
+  const isLoadingRef = useRef(false);
+  
+  // Load timeline data - with stability check to prevent unnecessary reloads
   useEffect(() => {
     const loadData = async () => {
       if (!patientId) return;
       
+      // Skip if we're already loading to prevent duplicate requests
+      if (isLoadingRef.current) return;
+      
+      isLoadingRef.current = true;
       setLoading(true);
+      
       try {
-        await fetchPatientEverything(patientId, {
+        // For "all" time period, fetch without a since date to get all historical data
+        const options = {
           types: Array.from(selectedTypes),
-          count: 500,
-          since: dateRange.start.toISOString().split('T')[0]
-        });
+          count: 500
+        };
+        
+        // Only add 'since' parameter if not fetching all data
+        if (filterPeriod !== 'all') {
+          // Use the actual calculated date range
+          const periodMap = {
+            '7d': subDays(new Date(), 7),
+            '30d': subDays(new Date(), 30),
+            '90d': subDays(new Date(), 90),
+            '6m': subMonths(new Date(), 6),
+            '1y': subYears(new Date(), 1),
+            '5y': subYears(new Date(), 5)
+          };
+          const startDate = periodMap[filterPeriod];
+          if (startDate) {
+            options.since = startDate.toISOString().split('T')[0];
+          }
+        }
+        
+        await fetchPatientEverything(patientId, options);
       } catch (error) {
-        setSnackbar({
-          open: true,
-          message: 'Error loading timeline data',
-          severity: 'error'
-        });
+        if (isMountedRef.current) {
+          setSnackbar({
+            open: true,
+            message: 'Error loading timeline data',
+            severity: 'error'
+          });
+        }
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+          isLoadingRef.current = false;
+        }
       }
     };
     
     loadData();
-  }, [patientId, selectedTypes, dateRange, fetchPatientEverything]);
+  }, [patientId, selectedTypes, filterPeriod, fetchPatientEverything]);
   
   // Subscribe to workflow events
   useEffect(() => {
@@ -931,7 +972,9 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
               <InputLabel>Period</InputLabel>
               <Select
                 value={filterPeriod}
-                onChange={(e) => setFilterPeriod(e.target.value)}
+                onChange={(e) => {
+                  setFilterPeriod(e.target.value);
+                }}
                 label="Period"
               >
                 <MenuItem value="7d">Last 7 Days</MenuItem>
