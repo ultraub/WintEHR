@@ -596,6 +596,8 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   const navigate = useNavigate();
   const [themeDensity] = useThemeDensity();
   const density = propDensity || themeDensity;
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const { 
     resources, 
@@ -624,7 +626,6 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      isLoadingRef.current = false;
     };
   }, []);
   
@@ -982,9 +983,6 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     );
   }
   
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Metrics Bar */}
