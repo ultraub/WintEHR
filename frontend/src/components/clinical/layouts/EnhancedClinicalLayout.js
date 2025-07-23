@@ -17,7 +17,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
 import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
-import EnhancedPatientHeaderV2 from '../workspace/EnhancedPatientHeaderV2';
+import CollapsiblePatientHeader from '../workspace/CollapsiblePatientHeader';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { usePatientData } from '../../../hooks/usePatientData';
@@ -57,6 +57,7 @@ const EnhancedClinicalLayout = ({
   
   const [bookmarked, setBookmarked] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const scrollContainerRef = React.useRef(null);
   
   const { publish } = useClinicalWorkflow();
   
@@ -133,26 +134,22 @@ const EnhancedClinicalLayout = ({
         />
       )}
       
-      {/* Enhanced Patient Header - responsive sizing */}
+      {/* Collapsible Patient Header - now sticky with scroll behavior */}
       {patient && (
-        <Box sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
-          <EnhancedPatientHeaderV2
-            patientId={patient.id}
-            onPrint={() => window.print()}
-            onNavigateToTab={handleModuleChange}
-            dataLoading={loading}
-          />
-        </Box>
+        <CollapsiblePatientHeader
+          patientId={patient.id}
+          onPrint={() => window.print()}
+          onNavigateToTab={handleModuleChange}
+          dataLoading={loading}
+          scrollContainerRef={scrollContainerRef}
+        />
       )}
       
-      {/* Tab Navigation - horizontal scrollable on mobile */}
+      {/* Tab Navigation - part of the scrollable content, not sticky */}
       <Box sx={{ 
         borderBottom: 1, 
         borderColor: 'divider',
-        position: 'sticky',
-        top: { xs: 56, sm: 64 }, // Account for app bar height
         backgroundColor: 'background.paper',
-        zIndex: theme.zIndex.appBar - 1,
       }}>
         <ClinicalTabs
           activeTab={activeModule}
@@ -177,8 +174,9 @@ const EnhancedClinicalLayout = ({
           }}
         >
           
-          {/* Content Area - responsive padding */}
+          {/* Content Area - responsive padding with ref for scroll tracking */}
           <Box
+            ref={scrollContainerRef}
             sx={{
               flexGrow: 1,
               overflow: 'auto',
