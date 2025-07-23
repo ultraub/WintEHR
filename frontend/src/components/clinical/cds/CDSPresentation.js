@@ -24,7 +24,11 @@ import {
   Card,
   CardContent,
   CardActions,
-  TextField
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -35,8 +39,12 @@ import {
   Cancel as RejectIcon,
   Lightbulb as SuggestionIcon,
   Link as LinkIcon,
-  Launch as LaunchIcon
+  Launch as LaunchIcon,
+  Snooze as SnoozeIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
+import { cdsFeedbackService } from '../../../services/cdsFeedbackService';
+import { cdsActionExecutor } from '../../../services/cdsActionExecutor';
 
 // Presentation modes according to CDS Hooks best practices
 export const PRESENTATION_MODES = {
@@ -49,6 +57,50 @@ export const PRESENTATION_MODES = {
   CARD: 'card',              // Card format
   COMPACT: 'compact',        // Minimal icon
   DRAWER: 'drawer'           // Slide-out drawer
+};
+
+// Predefined override reason codes
+export const OVERRIDE_REASONS = {
+  PATIENT_PREFERENCE: {
+    code: 'patient-preference',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Patient preference or contraindication'
+  },
+  CLINICAL_JUDGMENT: {
+    code: 'clinical-judgment',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Clinical judgment based on patient context'
+  },
+  ALTERNATIVE_TREATMENT: {
+    code: 'alternative-treatment',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Alternative treatment selected'
+  },
+  RISK_BENEFIT: {
+    code: 'risk-benefit',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Risk-benefit analysis favors override'
+  },
+  FALSE_POSITIVE: {
+    code: 'false-positive',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Alert appears to be false positive'
+  },
+  NOT_APPLICABLE: {
+    code: 'not-applicable',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Alert not applicable to this patient'
+  },
+  EMERGENCY: {
+    code: 'emergency',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Emergency situation requires override'
+  },
+  OTHER: {
+    code: 'other',
+    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    display: 'Other reason (see comments)'
+  }
 };
 
 const CDSPresentation = ({ 
@@ -80,6 +132,33 @@ const CDSPresentation = ({
   const [acknowledgmentReason, setAcknowledgmentReason] = useState('');
   const [showReasonDialog, setShowReasonDialog] = useState(false);
   const [currentAlertForAck, setCurrentAlertForAck] = useState(null);
+  
+  // Override reason dialog state
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
+  const [currentOverride, setCurrentOverride] = useState(null);
+  const [overrideReasonCode, setOverrideReasonCode] = useState('');
+  const [overrideUserComment, setOverrideUserComment] = useState('');
+  
+  // Snooze functionality state
+  const [snoozedAlerts, setSnoozedAlerts] = useState(() => {
+    // Load snoozed alerts from sessionStorage
+    if (!patientId) return new Map();
+    const sessionKey = `cds-snoozed-alerts-${patientId}`;
+    try {
+      const stored = sessionStorage.getItem(sessionKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Convert array back to Map with Date objects
+        return new Map(parsed.map(([key, timestamp]) => [key, new Date(timestamp)]));
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+    return new Map();
+  });
+  const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
+  const [alertToSnooze, setAlertToSnooze] = useState(null);
+  const [snoozeDuration, setSnoozeDuration] = useState(60); // Default 60 minutes
 
   // Handle alert dismissal
   const handleDismissAlert = (alert, reason = '') => {
@@ -106,6 +185,60 @@ const CDSPresentation = ({
     }
   };
 
+  // Handle alert snooze
+  const handleSnoozeAlert = (alert, durationMinutes) => {
+    const alertKey = `${alert.serviceId}-${alert.summary}`;
+    const snoozeUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
+    
+    setSnoozedAlerts(prev => {
+      const newSnoozed = new Map(prev);
+      newSnoozed.set(alertKey, snoozeUntil);
+      
+      // Persist to sessionStorage
+      if (patientId) {
+        const sessionKey = `cds-snoozed-alerts-${patientId}`;
+        try {
+          // Convert Map to array for JSON serialization
+          const toStore = Array.from(newSnoozed.entries());
+          sessionStorage.setItem(sessionKey, JSON.stringify(toStore));
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      
+      return newSnoozed;
+    });
+    
+    // Log snooze action
+    console.log(`Alert snoozed until ${snoozeUntil.toLocaleString()}`);
+    
+    // Call parent callback
+    if (onAlertAction) {
+      onAlertAction(alert, 'snooze', { durationMinutes, snoozeUntil });
+    }
+  };
+
+  // Check if alert is snoozed
+  const isAlertSnoozed = (alert) => {
+    const alertKey = `${alert.serviceId}-${alert.summary}`;
+    const snoozeUntil = snoozedAlerts.get(alertKey);
+    
+    if (snoozeUntil && snoozeUntil > new Date()) {
+      return true;
+    }
+    
+    // Remove expired snooze
+    if (snoozeUntil) {
+      setSnoozedAlerts(prev => {
+        const newSnoozed = new Map(prev);
+        newSnoozed.delete(alertKey);
+        return newSnoozed;
+      });
+    }
+    
+    return false;
+  };
+
   const getSeverityIcon = (indicator) => {
     switch (indicator) {
       case 'critical': return <ErrorIcon color="error" />;
@@ -124,10 +257,17 @@ const CDSPresentation = ({
     }
   };
 
-  const handleAlertAction = (alert, action, suggestion = null) => {
+  const handleAlertAction = async (alert, action, suggestion = null) => {
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     
     if (action === 'dismiss') {
+      // Check if override reason is required for critical alerts
+      if (alert.indicator === 'critical' && !currentOverride) {
+        setCurrentOverride({ alert, suggestion });
+        setShowOverrideDialog(true);
+        return;
+      }
+      
       setDismissedAlerts(prev => {
         const newSet = new Set([...prev, alertKey]);
         // Save to sessionStorage if patientId is provided
@@ -136,11 +276,67 @@ const CDSPresentation = ({
           try {
             sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
           } catch (e) {
-            
+            // Ignore storage errors
           }
         }
         return newSet;
       });
+      
+      // Send override feedback for dismissals
+      if (alert.serviceId && alert.uuid) {
+        await cdsFeedbackService.sendOverrideFeedback(
+          alert.serviceId,
+          alert.uuid,
+          'clinical-judgment',
+          'Alert dismissed by user'
+        );
+      }
+    } else if (action === 'accept' && suggestion) {
+      try {
+        // Execute the suggestion actions
+        const executionResult = await cdsActionExecutor.executeSuggestion(alert, suggestion);
+        
+        if (executionResult.success) {
+          // Show success notification if available
+          if (window.showNotification) {
+            window.showNotification('CDS suggestion accepted and executed successfully', 'success');
+          }
+          
+          // Dismiss the alert after successful execution
+          setDismissedAlerts(prev => {
+            const newSet = new Set([...prev, alertKey]);
+            if (patientId) {
+              const sessionKey = `cds-dismissed-alerts-${patientId}`;
+              try {
+                sessionStorage.setItem(sessionKey, JSON.stringify([...newSet]));
+              } catch (e) {
+                // Ignore storage errors
+              }
+            }
+            return newSet;
+          });
+        } else {
+          // Show error notification if available
+          if (window.showNotification) {
+            window.showNotification('Some actions failed to execute. Check console for details.', 'error');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to execute CDS suggestion:', error);
+        if (window.showNotification) {
+          window.showNotification('Failed to execute CDS suggestion', 'error');
+        }
+      }
+    } else if (action === 'reject' && suggestion) {
+      // Send override feedback for rejection
+      if (alert.serviceId && alert.uuid) {
+        await cdsFeedbackService.sendOverrideFeedback(
+          alert.serviceId,
+          alert.uuid,
+          'clinical-judgment',
+          `Suggestion "${suggestion.label}" rejected by user`
+        );
+      }
     }
     
     if (onAlertAction) {
@@ -187,6 +383,7 @@ const CDSPresentation = ({
   const renderAlert = (alert, compact = false) => {
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     if (dismissedAlerts.has(alertKey)) return null;
+    if (isAlertSnoozed(alert)) return null;
 
     const content = (
       <>
@@ -212,6 +409,19 @@ const CDSPresentation = ({
           renderSuggestionButton(suggestion, alert)
         )}
         {renderLinks(alert.links)}
+        {!compact && alert.indicator !== 'critical' && (
+          <Tooltip title="Snooze alert">
+            <IconButton
+              size="small"
+              onClick={() => {
+                setAlertToSnooze(alert);
+                setShowSnoozeDialog(true);
+              }}
+            >
+              <SnoozeIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         {!compact && (
           <IconButton
             size="small"
@@ -523,6 +733,171 @@ const CDSPresentation = ({
               onClick={() => handleAlertAction(selectedAlert.alert, 'accept', selectedAlert.suggestion)}
             >
               Accept
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Override Reason Dialog */}
+      {showOverrideDialog && currentOverride && (
+        <Dialog open={showOverrideDialog} onClose={() => setShowOverrideDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Override Clinical Alert</DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" gutterBottom>
+              You are overriding a {currentOverride.alert.indicator} alert. Please provide a reason:
+            </Typography>
+            
+            <Alert severity={getSeverityColor(currentOverride.alert.indicator)} sx={{ my: 2 }}>
+              <Typography variant="subtitle2">{currentOverride.alert.summary}</Typography>
+              {currentOverride.alert.detail && (
+                <Typography variant="body2">{currentOverride.alert.detail}</Typography>
+              )}
+            </Alert>
+
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Override Reason</InputLabel>
+              <Select
+                value={overrideReasonCode}
+                onChange={(e) => setOverrideReasonCode(e.target.value)}
+                label="Override Reason"
+              >
+                {Object.entries(OVERRIDE_REASONS).map(([key, reason]) => (
+                  <MenuItem key={key} value={reason.code}>
+                    {reason.display}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              value={overrideUserComment}
+              onChange={(e) => setOverrideUserComment(e.target.value)}
+              placeholder="Additional comments (optional, required for 'Other' reason)..."
+              label="Comments"
+              variant="outlined"
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => {
+              setShowOverrideDialog(false);
+              setCurrentOverride(null);
+              setOverrideReasonCode('');
+              setOverrideUserComment('');
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="contained" 
+              color="primary"
+              onClick={async () => {
+                if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
+                  return;
+                }
+                
+                const alert = currentOverride.alert;
+                const alertKey = `${alert.serviceId}-${alert.summary}`;
+                
+                // Send override feedback
+                if (alert.serviceId && alert.uuid) {
+                  await cdsFeedbackService.sendFeedback({
+                    serviceId: alert.serviceId,
+                    cardUuid: alert.uuid,
+                    outcome: 'overridden',
+                    overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key => 
+                      OVERRIDE_REASONS[key].code === overrideReasonCode
+                    )],
+                    userComment: overrideUserComment
+                  });
+                }
+                
+                // Dismiss the alert
+                handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
+                
+                // Close dialog
+                setShowOverrideDialog(false);
+                setCurrentOverride(null);
+                setOverrideReasonCode('');
+                setOverrideUserComment('');
+              }}
+              disabled={!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())}
+            >
+              Override Alert
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Snooze Dialog */}
+      {showSnoozeDialog && alertToSnooze && (
+        <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <SnoozeIcon color="primary" />
+              <Typography>Snooze Alert</Typography>
+            </Stack>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" gutterBottom>
+              How long would you like to snooze this alert?
+            </Typography>
+            
+            <Alert severity={getSeverityColor(alertToSnooze.indicator)} sx={{ my: 2 }}>
+              <Typography variant="subtitle2">{alertToSnooze.summary}</Typography>
+            </Alert>
+
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Snooze Duration</InputLabel>
+              <Select
+                value={snoozeDuration}
+                onChange={(e) => setSnoozeDuration(e.target.value)}
+                label="Snooze Duration"
+              >
+                <MenuItem value={15}>15 minutes</MenuItem>
+                <MenuItem value={30}>30 minutes</MenuItem>
+                <MenuItem value={60}>1 hour</MenuItem>
+                <MenuItem value={120}>2 hours</MenuItem>
+                <MenuItem value={240}>4 hours</MenuItem>
+                <MenuItem value={480}>8 hours</MenuItem>
+                <MenuItem value={1440}>24 hours</MenuItem>
+              </Select>
+            </FormControl>
+
+            {snoozedAlerts.size > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                You have {snoozedAlerts.size} snoozed alert{snoozedAlerts.size > 1 ? 's' : ''}.
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => {
+              setShowSnoozeDialog(false);
+              setAlertToSnooze(null);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="contained" 
+              color="primary"
+              startIcon={<ScheduleIcon />}
+              onClick={() => {
+                handleSnoozeAlert(alertToSnooze, snoozeDuration);
+                setShowSnoozeDialog(false);
+                setAlertToSnooze(null);
+                
+                // Show notification if available
+                if (window.showNotification) {
+                  const duration = snoozeDuration < 60 
+                    ? `${snoozeDuration} minutes` 
+                    : `${snoozeDuration / 60} hour${snoozeDuration > 60 ? 's' : ''}`;
+                  window.showNotification(`Alert snoozed for ${duration}`, 'info');
+                }
+              }}
+            >
+              Snooze
             </Button>
           </DialogActions>
         </Dialog>

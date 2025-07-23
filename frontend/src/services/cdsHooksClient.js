@@ -3,6 +3,7 @@
  * Handles communication with CDS Hooks endpoints
  */
 import axios from 'axios';
+import { cdsPrefetchResolver } from './cdsPrefetchResolver';
 
 class CDSHooksClient {
   constructor() {
@@ -78,8 +79,11 @@ class CDSHooksClient {
 
   /**
    * Execute a specific CDS Hook
+   * @param {string} hookId - Hook service ID
+   * @param {Object} context - Hook request context
+   * @param {Object} prefetch - Optional prefetch data
    */
-  async executeHook(hookId, context) {
+  async executeHook(hookId, context, prefetch = null) {
     // Create cache key from hookId and context
     const cacheKey = `${hookId}-${JSON.stringify(context)}`;
     const now = Date.now();
@@ -98,7 +102,13 @@ class CDSHooksClient {
     // Create a new request promise
     const requestPromise = (async () => {
       try {
-        const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
+        // Build request with optional prefetch
+        const request = { ...context };
+        if (prefetch) {
+          request.prefetch = prefetch;
+        }
+        
+        const response = await this.httpClient.post(`/cds-services/${hookId}`, request);
         
         // Cache the response
         this.requestCache.set(cacheKey, {
@@ -144,7 +154,7 @@ class CDSHooksClient {
   }
 
   /**
-   * Fire patient-view hook
+   * Fire patient-view hook with prefetch optimization
    */
   async firePatientView(patientId, userId, encounterId = null) {
     const services = await this.discoverServices();
@@ -154,20 +164,32 @@ class CDSHooksClient {
     
     for (const service of patientViewServices) {
       // Properly format context according to CDS Hooks v1.0 spec
-      const hookContext = {
-        hook: 'patient-view',
-        hookInstance: `${service.id}-${Date.now()}`,
-        context: {
-          patientId,
-          userId
-        }
+      const context = {
+        patientId,
+        userId
       };
       
       if (encounterId) {
-        hookContext.context.encounterId = encounterId;
+        context.encounterId = encounterId;
       }
       
-      const result = await this.executeHook(service.id, hookContext);
+      // Resolve prefetch data if service has prefetch templates
+      let prefetch = null;
+      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+        try {
+          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+        } catch (error) {
+          console.warn('Prefetch resolution failed, continuing without prefetch', error);
+        }
+      }
+      
+      const hookContext = {
+        hook: 'patient-view',
+        hookInstance: `${service.id}-${Date.now()}`,
+        context
+      };
+      
+      const result = await this.executeHook(service.id, hookContext, prefetch);
       if (result.cards && result.cards.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
@@ -181,7 +203,7 @@ class CDSHooksClient {
   }
 
   /**
-   * Fire medication-prescribe hook
+   * Fire medication-prescribe hook with prefetch optimization
    */
   async fireMedicationPrescribe(patientId, userId, medications = []) {
     const services = await this.discoverServices();
@@ -190,18 +212,36 @@ class CDSHooksClient {
     const allCards = [];
     
     for (const service of prescribeServices) {
-      // Properly format context according to CDS Hooks v1.0 spec
+      const context = {
+        patientId,
+        userId,
+        medications
+      };
+      
+      // Resolve prefetch data if service has prefetch templates
+      let prefetch = null;
+      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+        try {
+          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+        } catch (error) {
+          console.warn('Prefetch resolution failed, continuing without prefetch', error);
+        }
+      } else {
+        // Use common prefetch for medication prescribe if no templates defined
+        try {
+          prefetch = await cdsPrefetchResolver.buildCommonPrefetch('medication-prescribe', context);
+        } catch (error) {
+          console.warn('Common prefetch failed, continuing without prefetch', error);
+        }
+      }
+      
       const hookContext = {
         hook: 'medication-prescribe',
         hookInstance: `${service.id}-${Date.now()}`,
-        context: {
-          patientId,
-          userId,
-          medications
-        }
+        context
       };
       
-      const result = await this.executeHook(service.id, hookContext);
+      const result = await this.executeHook(service.id, hookContext, prefetch);
       if (result.cards && result.cards.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
