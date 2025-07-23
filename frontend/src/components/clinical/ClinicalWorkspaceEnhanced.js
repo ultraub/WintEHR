@@ -120,7 +120,8 @@ const ClinicalWorkspaceEnhanced = ({
   activeModule = 'summary',
   onModuleChange,
   onRefresh,
-  error: parentError
+  error: parentError,
+  scrollContainerRef
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -319,9 +320,13 @@ const ClinicalWorkspaceEnhanced = ({
             mode={PRESENTATION_MODES.INLINE}
             patientId={patientId}
             maxAlerts={3}
-            onAlertAction={(alert, action, suggestion) => {
-              console.log('CDS Alert Action:', { alert, action, suggestion });
-              // Handle alert actions if needed
+            allowInteraction={true}
+            onAlertAction={(alertId, action, data) => {
+              console.log('CDS Alert Action:', { alertId, action, data });
+              // Alert has been dismissed/snoozed, persistence is handled by CDSPresentation
+              if (action === 'dismiss' || action === 'snooze') {
+                // Optionally refresh alerts or update local state
+              }
             }}
           />
         </Box>
@@ -360,6 +365,7 @@ const ClinicalWorkspaceEnhanced = ({
                     onRefresh={handleRefresh}
                     onNavigateToTab={handleTabChange}
                     department={currentUser?.department || 'general'}
+                    scrollContainerRef={scrollContainerRef}
                   />
                 </Box>
               );

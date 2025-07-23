@@ -7,7 +7,7 @@
  * - Data visualizations
  * - Clinical alerts and recommendations
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -66,7 +66,8 @@ import {
   Assignment as AssignmentIcon,
   Description as DescriptionIcon,
   PictureAsPdf as PictureAsPdfIcon,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
@@ -80,6 +81,7 @@ import ImmunizationDialog from '../dialogs/ImmunizationDialog';
 import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
 import CarePlanDialog from '../dialogs/CarePlanDialog';
 import DocumentReferenceDialog from '../dialogs/DocumentReferenceDialog';
+import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 // Modern theme utilities
 import { 
   getClinicalCardStyles, 
@@ -91,8 +93,9 @@ import {
   getColoredShadow
 } from '../../../../themes/clinicalThemeUtils';
 import { clinicalTokens } from '../../../../themes/clinicalTheme';
+import { cdsAlertPersistence } from '../../../../services/cdsAlertPersistenceService';
 
-const ChartReviewTabOptimized = ({ patient }) => {
+const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
@@ -151,6 +154,23 @@ const ChartReviewTabOptimized = ({ patient }) => {
   
   const [selectedResource, setSelectedResource] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
+  
+  // Alert dismissal state
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    if (!patientId) return new Set();
+    return cdsAlertPersistence.getDismissedAlerts(patientId);
+  });
+  
+  // Handle alert dismissal
+  const handleDismissAlert = useCallback((alertId, permanent = false) => {
+    // Update local state
+    setDismissedAlerts(prev => new Set([...prev, alertId]));
+    
+    // Persist dismissal
+    if (patientId) {
+      cdsAlertPersistence.dismissAlert(patientId, alertId, 'User dismissed alert', permanent);
+    }
+  }, [patientId]);
   
   // Filter data by date range
   const filteredByDate = useMemo(() => {
@@ -263,22 +283,30 @@ const ChartReviewTabOptimized = ({ patient }) => {
     
     // Critical allergies alert
     if (processedData.criticalAllergies.length > 0) {
-      alerts.push({
-        severity: 'error',
-        title: 'Critical Allergies',
-        message: `Patient has ${processedData.criticalAllergies.length} critical allergies`,
-        icon: <WarningIcon />
-      });
+      const alertId = 'critical-allergies';
+      if (!dismissedAlerts.has(alertId)) {
+        alerts.push({
+          id: alertId,
+          severity: 'error',
+          title: 'Critical Allergies',
+          message: `Patient has ${processedData.criticalAllergies.length} critical allergies`,
+          icon: <WarningIcon />
+        });
+      }
     }
     
     // Polypharmacy alert
     if (processedData.activeMedications.length >= 5) {
-      alerts.push({
-        severity: 'warning',
-        title: 'Polypharmacy Risk',
-        message: `Patient is on ${processedData.activeMedications.length} active medications`,
-        icon: <MedicationIcon />
-      });
+      const alertId = 'polypharmacy-risk';
+      if (!dismissedAlerts.has(alertId)) {
+        alerts.push({
+          id: alertId,
+          severity: 'warning',
+          title: 'Polypharmacy Risk',
+          message: `Patient is on ${processedData.activeMedications.length} active medications`,
+          icon: <MedicationIcon />
+        });
+      }
     }
     
     // Multiple chronic conditions
@@ -286,12 +314,16 @@ const ChartReviewTabOptimized = ({ patient }) => {
       c.category?.some(cat => cat.coding?.[0]?.code === 'problem-list-item')
     );
     if (chronicConditions.length >= 3) {
-      alerts.push({
-        severity: 'info',
-        title: 'Complex Patient',
-        message: `Managing ${chronicConditions.length} chronic conditions`,
-        icon: <HealingIcon />
-      });
+      const alertId = 'complex-patient';
+      if (!dismissedAlerts.has(alertId)) {
+        alerts.push({
+          id: alertId,
+          severity: 'info',
+          title: 'Complex Patient',
+          message: `Managing ${chronicConditions.length} chronic conditions`,
+          icon: <HealingIcon />
+        });
+      }
     }
     
     // Overdue immunizations
@@ -299,16 +331,20 @@ const ChartReviewTabOptimized = ({ patient }) => {
       i.status === 'not-done'
     );
     if (overdueImmunizations.length > 0) {
-      alerts.push({
-        severity: 'info',
-        title: 'Immunizations Due',
-        message: `${overdueImmunizations.length} immunizations need attention`,
-        icon: <VaccinesIcon />
-      });
+      const alertId = 'immunizations-due';
+      if (!dismissedAlerts.has(alertId)) {
+        alerts.push({
+          id: alertId,
+          severity: 'info',
+          title: 'Immunizations Due',
+          message: `${overdueImmunizations.length} immunizations need attention`,
+          icon: <VaccinesIcon />
+        });
+      }
     }
     
     return alerts;
-  }, [processedData]);
+  }, [processedData, dismissedAlerts]);
   
   // Handler functions
   const handleOpenDialog = (type, resource = null) => {
@@ -355,122 +391,65 @@ const ChartReviewTabOptimized = ({ patient }) => {
   
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Professional Header */}
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: 2, 
-          mb: 2, 
-          backgroundColor: theme.palette.background.paper,
-          borderRadius: 0,  // Sharp corners for professional UI
-          border: '1px solid',
-          borderColor: 'divider',
-          borderLeft: '4px solid',
-          borderLeftColor: theme.palette.primary.main
-        }}
-      >
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Stack direction="row" spacing={1} justifyContent="flex-end">
-              {/* View Mode Toggle */}
-              <ToggleButtonGroup
-                value={viewMode}
-                exclusive
-                onChange={(e, newMode) => newMode && setViewMode(newMode)}
-                size="small"
-              >
-                <ToggleButton value="dashboard">
-                  <Tooltip title="Dashboard View">
-                    <DashboardIcon />
-                  </Tooltip>
-                </ToggleButton>
-                <ToggleButton value="timeline">
-                  <Tooltip title="Timeline View">
-                    <TimelineIcon />
-                  </Tooltip>
-                </ToggleButton>
-                <ToggleButton value="list">
-                  <Tooltip title="List View">
-                    <ListIcon />
-                  </Tooltip>
-                </ToggleButton>
-              </ToggleButtonGroup>
-              
-              {/* Filter Menu */}
-              <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-                <Badge badgeContent={selectedCategories.length - 1} color="primary">
-                  <FilterIcon />
-                </Badge>
-              </IconButton>
-              
-              {/* Refresh */}
-              <Tooltip title="Refresh data">
-                <IconButton onClick={refresh} disabled={loading}>
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          </Grid>
-        </Grid>
-        
-        {/* Search and Date Range */}
-        <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search conditions, medications, procedures..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                )
-              }}
-            />
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <ToggleButtonGroup
-              value={dateRange}
-              exclusive
-              onChange={handleDateRangeChange}
-              size="small"
-              fullWidth
-            >
-              <ToggleButton value="30d">Last 30 Days</ToggleButton>
-              <ToggleButton value="90d">Last 90 Days</ToggleButton>
-              <ToggleButton value="1y">Last Year</ToggleButton>
-              <ToggleButton value="all">All Time</ToggleButton>
-            </ToggleButtonGroup>
-          </Grid>
-        </Grid>
-      </Paper>
+      {/* Collapsible Filter Panel */}
+      <CollapsibleFilterPanel
+        searchQuery={searchQuery}
+        onSearchChange={handleSearch}
+        dateRange={dateRange}
+        onDateRangeChange={handleDateRangeChange}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        showInactive={showInactive}
+        onShowInactiveChange={setShowInactive}
+        onRefresh={refresh}
+        searchPlaceholder="Search conditions, medications, procedures..."
+        categories={[
+          { value: 'conditions', label: 'Conditions' },
+          { value: 'medications', label: 'Medications' },
+          { value: 'allergies', label: 'Allergies' },
+          { value: 'procedures', label: 'Procedures' },
+          { value: 'immunizations', label: 'Immunizations' }
+        ]}
+        selectedCategories={selectedCategories}
+        onCategoriesChange={setSelectedCategories}
+        showCategories={false} // Hide for now, can enable later
+        scrollContainerRef={scrollContainerRef} // Pass the scroll container ref
+      />
       
       {/* Clinical Alerts */}
       {clinicalAlerts.length > 0 && (
         <Stack spacing={1} sx={{ mb: 2 }}>
-          {clinicalAlerts.map((alert, index) => (
+          {clinicalAlerts.map((alert) => (
             <Alert 
-              key={index} 
+              key={alert.id} 
               severity={alert.severity}
               icon={alert.icon}
               action={
-                <Button size="small" color="inherit">
-                  Review
-                </Button>
+                <Stack direction="row" spacing={0.5}>
+                  <Tooltip title="Dismiss for this session">
+                    <IconButton 
+                      size="small" 
+                      color="inherit"
+                      onClick={() => handleDismissAlert(alert.id, false)}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
               }
+              sx={{
+                '& .MuiAlert-action': {
+                  alignItems: 'flex-start',
+                  pt: 0.5
+                }
+              }}
             >
-              <AlertTitle>{alert.title}</AlertTitle>
-              {alert.message}
+              <AlertTitle sx={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                {alert.title}
+              </AlertTitle>
+              <Typography variant="body2" sx={{ fontSize: '0.813rem' }}>
+                {alert.message}
+              </Typography>
             </Alert>
           ))}
         </Stack>

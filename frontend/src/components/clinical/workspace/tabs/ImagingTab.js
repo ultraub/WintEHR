@@ -3,7 +3,7 @@
  * Display and manage medical imaging studies with gallery view, body map, and DICOM viewer
  * Part of the Clinical UI Improvements Initiative
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -87,6 +87,7 @@ import SmartTable from '../../ui/SmartTable';
 import { ContextualFAB } from '../../ui/QuickActionFAB';
 import DensityControl from '../../ui/DensityControl';
 import { useThemeDensity } from '../../../../hooks/useThemeDensity';
+import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
 
 // Body regions map
 const bodyRegions = {
@@ -476,6 +477,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const scrollContainerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [viewerDialog, setViewerDialog] = useState({ open: false, study: null });
   const [reportDialog, setReportDialog] = useState({ open: false, study: null });
@@ -1015,47 +1017,14 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   }
 
   return (
-    <Box sx={{ p: density === 'compact' ? 2 : 3 }}>
-      {/* Header with View Controls */}
+    <Box sx={{ p: density === 'compact' ? 2 : 3, height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+      {/* Header */}
       <Stack spacing={2} mb={3}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h5" fontWeight="bold">
             Medical Imaging
           </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <DensityControl density={density} onChange={setDensity} />
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(e, newMode) => newMode && setViewMode(newMode)}
-              size="small"
-            >
-              <ToggleButton value="timeline">
-                <Tooltip title="Timeline View">
-                  <TimelineIcon />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="gallery">
-                <Tooltip title="Gallery View">
-                  <GalleryIcon />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="cards">
-                <Tooltip title="Card View">
-                  <GalleryIcon />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="table">
-                <Tooltip title="Table View">
-                  <ListIcon />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="bodymap">
-                <Tooltip title="Body Map View">
-                  <BodyMapIcon />
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
+          <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"
               size="small"
@@ -1063,14 +1032,6 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
               onClick={handlePrintAll}
             >
               Print
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ImagingIcon />}
-              onClick={loadImagingStudies}
-            >
-              Refresh
             </Button>
           </Stack>
         </Stack>
@@ -1081,82 +1042,82 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
           density={density} 
           animate
         />
+
+        {/* Collapsible Filter Panel - only show when not in bodymap view */}
+        {viewMode !== 'bodymap' && (
+          <CollapsibleFilterPanel
+            searchQuery={searchTerm}
+            onSearchChange={setSearchTerm}
+            dateRange={filterPeriod}
+            onDateRangeChange={setFilterPeriod}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            searchPlaceholder="Search studies..."
+            dateRangeOptions={[
+              { value: 'all', label: 'All Time' },
+              { value: '7d', label: 'Last 7 Days' },
+              { value: '30d', label: 'Last 30 Days' },
+              { value: '3m', label: 'Last 3 Months' },
+              { value: '6m', label: 'Last 6 Months' },
+              { value: '1y', label: 'Last Year' }
+            ]}
+            viewModeOptions={[
+              { value: 'timeline', label: 'Timeline', icon: <TimelineIcon /> },
+              { value: 'gallery', label: 'Gallery', icon: <GalleryIcon /> },
+              { value: 'cards', label: 'Cards', icon: <CollectionsIcon /> },
+              { value: 'table', label: 'Table', icon: <ListIcon /> },
+              { value: 'bodymap', label: 'Body Map', icon: <BodyMapIcon /> }
+            ]}
+            showCategories={false}
+            showInactiveToggle={false}
+            onRefresh={loadImagingStudies}
+            onExport={() => {/* Add export handler */}}
+            scrollContainerRef={scrollContainerRef}
+          >
+            {/* Custom filters for imaging */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Modality</InputLabel>
+                <Select
+                  value={filterModality}
+                  onChange={(e) => setFilterModality(e.target.value)}
+                  label="Modality"
+                >
+                  <MenuItem value="all">All Modalities</MenuItem>
+                  {modalities.map(modality => (
+                    <MenuItem key={modality} value={modality}>{modality}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              {filterBodyRegion && (
+                <Chip
+                  label={`Body Region: ${bodyRegions[filterBodyRegion]?.label}`}
+                  onDelete={() => setFilterBodyRegion(null)}
+                  color="primary"
+                  icon={<span>{bodyRegions[filterBodyRegion]?.icon}</span>}
+                />
+              )}
+
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="available">Available</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <DensityControl density={density} onChange={setDensity} />
+            </Stack>
+          </CollapsibleFilterPanel>
+        )}
       </Stack>
-
-      {/* Filters */}
-      <Fade in={viewMode !== 'bodymap'}>
-        <Paper sx={{ p: 2, mb: 3, display: viewMode === 'bodymap' ? 'none' : 'block' }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <TextField
-              placeholder="Search studies..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              size="small"
-              sx={{ flex: 1 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                )
-              }}
-            />
-            
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Modality</InputLabel>
-              <Select
-                value={filterModality}
-                onChange={(e) => setFilterModality(e.target.value)}
-                label="Modality"
-              >
-                <MenuItem value="all">All Modalities</MenuItem>
-                {modalities.map(modality => (
-                  <MenuItem key={modality} value={modality}>{modality}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            {filterBodyRegion && (
-              <Chip
-                label={`Body Region: ${bodyRegions[filterBodyRegion]?.label}`}
-                onDelete={() => setFilterBodyRegion(null)}
-                color="primary"
-                icon={<span>{bodyRegions[filterBodyRegion]?.icon}</span>}
-              />
-            )}
-
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                label="Status"
-              >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="available">Available</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Period</InputLabel>
-              <Select
-                value={filterPeriod}
-                onChange={(e) => setFilterPeriod(e.target.value)}
-                label="Period"
-              >
-                <MenuItem value="all">All Time</MenuItem>
-                <MenuItem value="7d">Last 7 Days</MenuItem>
-                <MenuItem value="30d">Last 30 Days</MenuItem>
-                <MenuItem value="3m">Last 3 Months</MenuItem>
-                <MenuItem value="6m">Last 6 Months</MenuItem>
-                <MenuItem value="1y">Last Year</MenuItem>
-              </Select>
-            </FormControl>
-          </Stack>
-        </Paper>
-      </Fade>
 
       {/* Content Views */}
       <AnimatePresence mode="wait">

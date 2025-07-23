@@ -5,7 +5,7 @@
  * 2. Proper bundle handling for all data
  * 3. Single source of truth for each data type
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -80,7 +80,10 @@ import {
   CheckCircle,
   Timeline as TimelineIcon,
   Person as PersonIcon,
-  LocationOn as LocationIcon
+  LocationOn as LocationIcon,
+  TableChart as TableIcon,
+  ViewModule as CardsIcon,
+  ShowChart as TrendsIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -99,6 +102,8 @@ import {
   getReferenceId 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
+import ClinicalTabHeader from '../../ClinicalTabHeader';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -176,6 +181,7 @@ const ResultsTabOptimized = ({ patientId }) => {
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const scrollContainerRef = useRef(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedResult, setSelectedResult] = useState(null);
@@ -506,90 +512,59 @@ const ResultsTabOptimized = ({ patientId }) => {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
       {/* Header */}
-      <Paper sx={{ p: 2, borderRadius: 0 }}>
-        <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h5">Results</Typography>
-            <Stack direction="row" spacing={1}>
-              <Button
-                size="small"
-                startIcon={<PrintIcon />}
-                onClick={() => {/* Add print handler */}}
-              >
-                Print
-              </Button>
-              <Button
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={() => {/* Add export handler */}}
-              >
-                Export
-              </Button>
-            </Stack>
-          </Stack>
-          
-          {/* Filters */}
-          <Stack direction="row" spacing={2} alignItems="center">
-            <TextField
-              size="small"
-              placeholder="Search results..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 200 }}
-            />
-            
+      <ClinicalTabHeader
+        title="Results"
+        subtitle={`${allData.labObservations.length + allData.vitalObservations.length + allData.diagnosticReports.length} total results`}
+        icon={<AssessmentIcon />}
+        onPrint={() => {/* Add print handler */}}
+        onExport={() => {/* Add export handler */}}
+        onRefresh={fetchAllData}
+        dense={false}
+      >
+        {/* Collapsible Filter Panel */}
+        <CollapsibleFilterPanel
+          searchQuery={searchTerm}
+          onSearchChange={setSearchTerm}
+          dateRange={filterPeriod}
+          onDateRangeChange={setFilterPeriod}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          searchPlaceholder="Search results..."
+          dateRangeOptions={[
+            { value: 'all', label: 'All Time' },
+            { value: '24h', label: 'Last 24 Hours' },
+            { value: '7d', label: 'Last 7 Days' },
+            { value: '30d', label: 'Last 30 Days' },
+            { value: '90d', label: 'Last 90 Days' }
+          ]}
+          viewModeOptions={[
+            { value: 'table', label: 'Table', icon: <TableIcon /> },
+            { value: 'cards', label: 'Cards', icon: <CardsIcon /> },
+            ...(tabValue < 2 ? [{ value: 'trends', label: 'Trends', icon: <TrendsIcon /> }] : [])
+          ]}
+          showCategories={false}
+          showInactiveToggle={false}
+          scrollContainerRef={scrollContainerRef}
+        >
+          {/* Additional custom filter for Status when showing observations */}
+          {tabValue < 2 && (
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Period</InputLabel>
+              <InputLabel>Status</InputLabel>
               <Select
-                value={filterPeriod}
-                onChange={(e) => setFilterPeriod(e.target.value)}
-                label="Period"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="Status"
               >
-                <MenuItem value="all">All Time</MenuItem>
-                <MenuItem value="24h">Last 24 Hours</MenuItem>
-                <MenuItem value="7d">Last 7 Days</MenuItem>
-                <MenuItem value="30d">Last 30 Days</MenuItem>
-                <MenuItem value="90d">Last 90 Days</MenuItem>
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="abnormal">Abnormal</MenuItem>
+                <MenuItem value="normal">Normal</MenuItem>
               </Select>
             </FormControl>
-            
-            {tabValue < 2 && (
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  label="Status"
-                >
-                  <MenuItem value="all">All</MenuItem>
-                  <MenuItem value="abnormal">Abnormal</MenuItem>
-                  <MenuItem value="normal">Normal</MenuItem>
-                </Select>
-              </FormControl>
-            )}
-            
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(e, newMode) => newMode && setViewMode(newMode)}
-              size="small"
-            >
-              <ToggleButton value="table">Table</ToggleButton>
-              <ToggleButton value="cards">Cards</ToggleButton>
-              {tabValue < 2 && <ToggleButton value="trends">Trends</ToggleButton>}
-            </ToggleButtonGroup>
-          </Stack>
-        </Stack>
-      </Paper>
+          )}
+        </CollapsibleFilterPanel>
+      </ClinicalTabHeader>
       
       {/* Tabs */}
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>

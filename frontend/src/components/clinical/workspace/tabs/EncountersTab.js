@@ -2,7 +2,7 @@
  * Encounters Tab Component
  * Display and manage patient encounters
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -71,6 +71,7 @@ import { ContextualFAB } from '../../ui/QuickActionFAB';
 import { ViewControls, useDensity } from '../../ui/DensityControl';
 import MetricsBar from '../../ui/MetricsBar';
 import { motion, AnimatePresence } from 'framer-motion';
+import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounter) => {
@@ -336,6 +337,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   const [filterType, setFilterType] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
+  const scrollContainerRef = useRef(null);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [density, setDensity] = useDensity('comfortable');
@@ -847,9 +849,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
 
   return (
     <>
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
       {/* Header */}
-      <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 3, pb: 0 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h5" fontWeight="bold">
@@ -860,15 +862,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
             </Typography>
           </Box>
           <Stack direction="row" spacing={1}>
-            <ViewControls
-              density={density}
-              onDensityChange={setDensity}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              showViewMode
-              availableViews={['timeline', 'cards', 'table']}
-              size="small"
-            />
             <Button
               variant="outlined"
               size="small"
@@ -876,14 +869,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
               onClick={handlePrintEncounters}
             >
               Print
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ExportIcon />}
-              onClick={(e) => setExportAnchorEl(e.currentTarget)}
-            >
-              Export
             </Button>
           </Stack>
         </Stack>
@@ -895,59 +880,68 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
           animate
         />
 
-        {/* Quick Filters */}
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <TextField
-            placeholder="Search encounters..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{ width: 300 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              )
-            }}
-          />
-          
-          <ToggleButtonGroup
-            value={filterType}
-            exclusive
-            onChange={(e, value) => value && setFilterType(value)}
-            size="small"
+        {/* Collapsible Filter Panel */}
+        <Box sx={{ mt: 2 }}>
+          <CollapsibleFilterPanel
+            searchQuery={searchTerm}
+            onSearchChange={setSearchTerm}
+            dateRange={filterPeriod}
+            onDateRangeChange={setFilterPeriod}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            searchPlaceholder="Search encounters..."
+            dateRangeOptions={[
+              { value: 'all', label: 'All Time' },
+              { value: '1m', label: 'Last Month' },
+              { value: '3m', label: 'Last 3 Months' },
+              { value: '6m', label: 'Last 6 Months' },
+              { value: '1y', label: 'Last Year' }
+            ]}
+            viewModeOptions={[
+              { value: 'cards', label: 'Cards', icon: <CalendarIcon /> },
+              { value: 'timeline', label: 'Timeline', icon: <TimeIcon /> },
+              { value: 'table', label: 'Table', icon: <AssignmentIcon /> }
+            ]}
+            showCategories={false}
+            showInactiveToggle={false}
+            onRefresh={() => fetchEncounters(patientId)}
+            onExport={() => handleExportEncounters('csv')}
+            scrollContainerRef={scrollContainerRef}
           >
-            <ToggleButton value="all">
-              All Types
-            </ToggleButton>
-            <ToggleButton value="AMB">
-              <ClinicIcon fontSize="small" sx={{ mr: 0.5 }} />
-              Ambulatory
-            </ToggleButton>
-            <ToggleButton value="IMP">
-              <HospitalIcon fontSize="small" sx={{ mr: 0.5 }} />
-              Inpatient
-            </ToggleButton>
-            <ToggleButton value="EMER">
-              <EmergencyIcon fontSize="small" sx={{ mr: 0.5 }} />
-              Emergency
-            </ToggleButton>
-          </ToggleButtonGroup>
-
-          <ToggleButtonGroup
-            value={filterPeriod}
-            exclusive
-            onChange={(e, value) => value && setFilterPeriod(value)}
-            size="small"
-          >
-            <ToggleButton value="1m">1M</ToggleButton>
-            <ToggleButton value="3m">3M</ToggleButton>
-            <ToggleButton value="6m">6M</ToggleButton>
-            <ToggleButton value="1y">1Y</ToggleButton>
-            <ToggleButton value="all">All</ToggleButton>
-          </ToggleButtonGroup>
-        </Stack>
+            {/* Custom filter for encounter type */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <ToggleButtonGroup
+                value={filterType}
+                exclusive
+                onChange={(e, value) => value && setFilterType(value)}
+                size="small"
+              >
+                <ToggleButton value="all">
+                  All Types
+                </ToggleButton>
+                <ToggleButton value="AMB">
+                  <ClinicIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Ambulatory
+                </ToggleButton>
+                <ToggleButton value="IMP">
+                  <HospitalIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Inpatient
+                </ToggleButton>
+                <ToggleButton value="EMER">
+                  <EmergencyIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Emergency
+                </ToggleButton>
+              </ToggleButtonGroup>
+              
+              <ViewControls
+                density={density}
+                onDensityChange={setDensity}
+                showViewMode={false}
+                size="small"
+              />
+            </Stack>
+          </CollapsibleFilterPanel>
+        </Box>
       </Box>
 
       {/* Main Content Area */}

@@ -17,7 +17,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
 import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
-import CollapsiblePatientHeader from '../workspace/CollapsiblePatientHeader';
+import CollapsiblePatientHeaderOptimized from '../workspace/CollapsiblePatientHeaderOptimized';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { usePatientData } from '../../../hooks/usePatientData';
@@ -136,7 +136,7 @@ const EnhancedClinicalLayout = ({
       
       {/* Collapsible Patient Header - show loading state if patient not yet loaded */}
       {(patient || loading) && (
-        <CollapsiblePatientHeader
+        <CollapsiblePatientHeaderOptimized
           patientId={patient?.id || patientId}
           onPrint={() => window.print()}
           onNavigateToTab={handleModuleChange}
@@ -218,7 +218,8 @@ const EnhancedClinicalLayout = ({
               activeModule,
               onModuleChange: handleModuleChange,
               onRefresh: refreshPatientData,
-              error
+              error,
+              scrollContainerRef  // Pass the scroll container ref
             })}
           </Box>
         </Box>
