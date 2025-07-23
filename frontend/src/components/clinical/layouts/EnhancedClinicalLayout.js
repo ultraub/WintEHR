@@ -48,7 +48,7 @@ const EnhancedClinicalLayout = ({
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { patientId } = useParams();
+  const { id: patientId } = useParams();
   const { user } = useAuth();
   const { currentMode, onModeChange } = React.useContext(MedicalThemeContext);
   const isDarkMode = currentMode === 'dark';
