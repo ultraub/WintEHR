@@ -29,7 +29,7 @@ clinical/
 │   └── tabs/
 │       ├── SummaryTab.js        # Patient summary
 │       ├── ChartReviewTab.js    # Standard version
-│       ├── ChartReviewTabOptimized.js # Enhanced version
+│       ├── ChartReviewTabOptimized.js # Enhanced version (updated 2025-01-23)
 │       ├── EncountersTab.js     # Visit history
 │       ├── ResultsTab.js        # Standard version
 │       ├── ResultsTabOptimized.js # Enhanced version
@@ -96,6 +96,31 @@ const tabs = [
   { id: 'orders', label: 'Orders', component: OrdersTab },
   // ...
 ];
+```
+
+### ChartReviewTabOptimized.js (Enhanced Version)
+Comprehensive patient clinical overview with all major FHIR resources.
+
+**Features**:
+- **Core Clinical Data**: Conditions, Medications, Allergies with enhanced cards
+- **Additional Resources** (as of 2025-01-23):
+  - Immunizations with vaccine series tracking
+  - Procedures with outcomes and body site info
+  - Care Plans with goals and activities
+  - Clinical Documents with preview capability
+- **Views**: Dashboard (default), Timeline, List views
+- **Real-time Updates**: Auto-refresh on resource changes
+- **Professional UI**: Sharp corners, clinical color coding, alternating rows
+- **Search & Filter**: Full-text search, date range filters, status filters
+- **Clinical Alerts**: Polypharmacy, critical allergies, overdue immunizations
+
+**Data Hook**: `useChartReviewResources` provides all FHIR resources:
+```javascript
+const { 
+  conditions, medications, allergies, immunizations,
+  observations, procedures, encounters, carePlans, 
+  documentReferences, loading, error, refresh, stats
+} = useChartReviewResources(patientId);
 ```
 
 ### ChartReviewTab.js
@@ -215,6 +240,14 @@ npm run test:e2e:clinical
 
 ## Recent Updates
 
+- **2025-01-23**: Enhanced Chart Review tab with comprehensive clinical resources:
+  - Added Immunizations section with vaccine details and series tracking
+  - Added Procedures section with procedure outcomes and body site info
+  - Added Care Plans section with goals and activities display
+  - Added Clinical Documents section with document preview capability
+  - Updated useChartReviewResources hook to fetch CarePlan and DocumentReference data
+  - Implemented EnhancedCard components for all new resource types
+  - Added stub dialogs for CarePlan and DocumentReference
 - **2025-01-20**: Updated documentation for V3 and Enhanced workspace versions
 - **2025-01-19**: Added ClinicalWorkspaceEnhanced with modular architecture
 - **2025-01-17**: Documented module structure and patterns
