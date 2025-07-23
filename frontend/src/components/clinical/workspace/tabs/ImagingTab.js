@@ -87,7 +87,8 @@ import SmartTable from '../../ui/SmartTable';
 import { ContextualFAB } from '../../ui/QuickActionFAB';
 import DensityControl from '../../ui/DensityControl';
 import { useThemeDensity } from '../../../../hooks/useThemeDensity';
-import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
+import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
+import ClinicalTabHeader from '../ClinicalTabHeader';
 
 // Body regions map
 const bodyRegions = {
@@ -1017,32 +1018,25 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   }
 
   return (
-    <Box sx={{ p: density === 'compact' ? 2 : 3, height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
       {/* Header */}
-      <Stack spacing={2} mb={3}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h5" fontWeight="bold">
-            Medical Imaging
-          </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<PrintIcon />}
-              onClick={handlePrintAll}
-            >
-              Print
-            </Button>
-          </Stack>
-        </Stack>
-
-        {/* Metrics Bar */}
-        <MetricsBar 
-          metrics={metrics} 
-          density={density} 
-          animate
-        />
-
+      <ClinicalTabHeader
+        title="Medical Imaging"
+        subtitle={`${filteredStudies.length} studies found`}
+        icon={ModalityIcon}
+        loading={loading}
+        metrics={metrics.map(m => ({
+          label: m.label,
+          value: m.value,
+          color: m.color,
+          trend: m.severity === 'critical' ? 'up' : undefined
+        }))}
+        onRefresh={loadImagingStudies}
+        onPrint={handlePrintAll}
+        onExport={() => {/* Add export handler */}}
+        compact={density === 'compact'}
+        showDivider
+      >
         {/* Collapsible Filter Panel - only show when not in bodymap view */}
         {viewMode !== 'bodymap' && (
           <CollapsibleFilterPanel
@@ -1117,10 +1111,11 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
             </Stack>
           </CollapsibleFilterPanel>
         )}
-      </Stack>
+      </ClinicalTabHeader>
 
       {/* Content Views */}
-      <AnimatePresence mode="wait">
+      <Box sx={{ flex: 1, overflow: 'auto', p: density === 'compact' ? 2 : 3 }}>
+        <AnimatePresence mode="wait">
         {viewMode === 'timeline' && (
           <motion.div
             key="timeline"
@@ -1319,7 +1314,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
             </Grid>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </Box>
       
       {/* Empty State */}
       {filteredStudies.length === 0 && viewMode !== 'bodymap' ? (

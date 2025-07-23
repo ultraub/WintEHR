@@ -325,7 +325,7 @@ const QuickActionFAB = memo(({
       >
         {mergedActions.map((action, index) => (
           <SpeedDialAction
-            key={action.name}
+            key={`${action.name}-${index}`}
             icon={
               <Badge
                 badgeContent={action.badge}

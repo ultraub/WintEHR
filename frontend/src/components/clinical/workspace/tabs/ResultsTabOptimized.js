@@ -102,8 +102,8 @@ import {
   getReferenceId 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
-import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
-import ClinicalTabHeader from '../../ClinicalTabHeader';
+import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
+import ClinicalTabHeader from '../ClinicalTabHeader';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {

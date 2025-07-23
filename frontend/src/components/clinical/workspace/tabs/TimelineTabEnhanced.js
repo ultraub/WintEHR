@@ -32,6 +32,7 @@ import {
   alpha,
   Snackbar,
   Paper,
+  useMediaQuery,
   FormGroup,
   FormControlLabel,
   Checkbox,
@@ -39,6 +40,7 @@ import {
   Badge,
   Slider,
   CircularProgress,
+  Skeleton,
   List,
   ListItem,
   ListItemIcon,
@@ -102,6 +104,8 @@ import TrendSparkline from '../../ui/TrendSparkline';
 import { ContextualFAB } from '../../ui/QuickActionFAB';
 import { useThemeDensity, densityConfigs } from '../../../../hooks/useThemeDensity';
 import DensityControl from '../../ui/DensityControl';
+import TimelineVisualization from '../TimelineVisualization';
+import TimelineSkeleton from '../TimelineSkeleton';
 
 // Enhanced event type configuration with track assignment
 const eventTypes = {
@@ -607,12 +611,13 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   const [selectedTypes, setSelectedTypes] = useState(new Set(Object.keys(eventTypes)));
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
+  const [loadingError, setLoadingError] = useState(null);
   
   // Use ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -642,30 +647,23 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     };
   }, [filterPeriod]);
   
-  // Track loading state to prevent duplicate requests
-  const isLoadingRef = useRef(false);
-  
-  // Load timeline data - with stability check to prevent unnecessary reloads
+  // Load timeline data
   useEffect(() => {
     const loadData = async () => {
       if (!patientId) return;
       
-      // Skip if we're already loading to prevent duplicate requests
-      if (isLoadingRef.current) return;
-      
-      isLoadingRef.current = true;
-      setLoading(true);
-      
       try {
-        // For "all" time period, fetch without a since date to get all historical data
+        setLoadingError(null);
+        console.log('Timeline: Starting data load for patient', patientId);
+        
+        // Start with a smaller count for better performance
         const options = {
           types: Array.from(selectedTypes),
-          count: 500
+          count: 100 // Reduced from 500
         };
         
         // Only add 'since' parameter if not fetching all data
         if (filterPeriod !== 'all') {
-          // Use the actual calculated date range
           const periodMap = {
             '7d': subDays(new Date(), 7),
             '30d': subDays(new Date(), 30),
@@ -680,25 +678,30 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           }
         }
         
-        await fetchPatientEverything(patientId, options);
-      } catch (error) {
+        const result = await fetchPatientEverything(patientId, options);
+        console.log('Timeline: Data loaded successfully', result);
+        
         if (isMountedRef.current) {
+          setHasLoadedInitialData(true);
+        }
+      } catch (error) {
+        console.error('Timeline: Error loading data', error);
+        if (isMountedRef.current) {
+          setLoadingError(error.message || 'Failed to load timeline data');
           setSnackbar({
             open: true,
-            message: 'Error loading timeline data',
+            message: `Error loading timeline data: ${error.message || 'Unknown error'}`,
             severity: 'error'
           });
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setLoading(false);
-          isLoadingRef.current = false;
         }
       }
     };
     
-    loadData();
-  }, [patientId, selectedTypes, filterPeriod, fetchPatientEverything]);
+    // Only load once when component mounts or patient changes
+    if (!hasLoadedInitialData) {
+      loadData();
+    }
+  }, [patientId, selectedTypes, filterPeriod, fetchPatientEverything, hasLoadedInitialData]);
   
   // Subscribe to workflow events
   useEffect(() => {
@@ -786,18 +789,24 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     });
   }, [allEvents, dateRange, debouncedSearchTerm]);
   
-  // Sort events by date
+  // Sort events by date and prepare for visualization
   const sortedEvents = useMemo(() => {
-    return [...filteredEvents].sort((a, b) => {
-      const dateA = getEventDate(a);
-      const dateB = getEventDate(b);
-      
-      if (!dateA && !dateB) return 0;
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      
-      return new Date(dateB) - new Date(dateA);
-    });
+    return [...filteredEvents]
+      .map(event => ({
+        ...event,
+        title: getEventTitle(event),
+        date: getEventDate(event)
+      }))
+      .sort((a, b) => {
+        const dateA = a.date;
+        const dateB = b.date;
+        
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        
+        return new Date(dateB) - new Date(dateA);
+      });
   }, [filteredEvents]);
   
   // Calculate metrics
@@ -833,13 +842,25 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     {
       icon: <RefreshIcon />,
       label: 'Refresh',
-      onClick: () => {
-        setLoading(true);
-        fetchPatientEverything(patientId, {
-          types: Array.from(selectedTypes),
-          count: 500,
-          forceRefresh: true
-        }).finally(() => setLoading(false));
+      onClick: async () => {
+        try {
+          setHasLoadedInitialData(false);
+          setLoadingError(null);
+          await fetchPatientEverything(patientId, {
+            types: Array.from(selectedTypes),
+            count: 100,
+            forceRefresh: true
+          });
+          setHasLoadedInitialData(true);
+          setSnackbar({
+            open: true,
+            message: 'Timeline refreshed successfully',
+            severity: 'success'
+          });
+        } catch (error) {
+          console.error('Timeline: Refresh failed', error);
+          setLoadingError(error.message || 'Failed to refresh timeline data');
+        }
       }
     }
   ];
@@ -936,21 +957,41 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
     }
   }
   
-  if (loading) {
+  // Use isResourceLoading from context instead of local loading state
+  const loading = isResourceLoading('Patient') || isResourceLoading('Observation') || isResourceLoading('Encounter');
+  
+  if (loading && !hasLoadedInitialData) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <CircularProgress />
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Skeleton variant="rectangular" height={80} sx={{ mb: 2 }} />
+        <TimelineSkeleton density={density} />
       </Box>
     );
   }
   
+  if (loadingError) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          {loadingError}
+          <Button onClick={() => window.location.reload()} sx={{ ml: 2 }}>
+            Reload
+          </Button>
+        </Alert>
+      </Box>
+    );
+  }
+  
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Metrics Bar */}
       <MetricsBar metrics={metrics} density={density} />
       
       {/* Controls */}
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper sx={{ p: isMobile ? 1 : 2, mb: 2 }}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
             <TextField
@@ -1021,26 +1062,7 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
             </Button>
           </Stack>
           
-          {/* Zoom controls for timeline views */}
-          {(viewMode === 'multi-track' || viewMode === 'single-track') && (
-            <Stack direction="row" spacing={2} alignItems="center">
-              <IconButton size="small" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}>
-                <ZoomOutIcon />
-              </IconButton>
-              <Slider
-                value={zoom}
-                onChange={(e, v) => setZoom(v)}
-                min={0.5}
-                max={2}
-                step={0.1}
-                sx={{ width: 200 }}
-              />
-              <IconButton size="small" onClick={() => setZoom(Math.min(2, zoom + 0.1))}>
-                <ZoomInIcon />
-              </IconButton>
-              <Chip label={`${Math.round(zoom * 100)}%`} size="small" />
-            </Stack>
-          )}
+          {/* Zoom controls are now integrated in TimelineVisualization component */}
           
           {/* Event type filters */}
           <Collapse in={showFilters}>
@@ -1096,21 +1118,21 @@ const TimelineTabEnhanced = ({ patientId, patient, density: propDensity }) => {
       </Paper>
       
       {/* Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {sortedEvents.length === 0 ? (
-          <Alert severity="info">
+          <Alert severity="info" sx={{ m: 2 }}>
             No events found in the selected time period
           </Alert>
         ) : viewMode === 'multi-track' ? (
-          <MultiTrackTimeline
-            events={sortedEvents}
-            dateRange={dateRange}
-            zoom={zoom}
-            density={density}
-            onEventClick={handleEventClick}
-            hoveredEvent={hoveredEvent}
-            onEventHover={setHoveredEvent}
-          />
+          <Box sx={{ height: '100%', p: isMobile ? 0 : 2 }}>
+            <TimelineVisualization
+              events={sortedEvents}
+              height={isMobile ? 400 : isTablet ? 500 : 600}
+              onEventClick={handleEventClick}
+              selectedEventId={hoveredEvent}
+              density={density}
+            />
+          </Box>
         ) : viewMode === 'single-track' ? (
           <Box>
             <ResourceTimeline

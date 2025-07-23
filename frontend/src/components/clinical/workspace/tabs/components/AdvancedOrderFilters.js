@@ -516,9 +516,12 @@ const AdvancedOrderFilters = ({
         <Stack spacing={2}>
           {/* Header */}
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" startIcon={<AdvancedIcon />}>
-              Advanced Order Filters
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <AdvancedIcon />
+              <Typography variant="h6">
+                Advanced Order Filters
+              </Typography>
+            </Stack>
             <Stack direction="row" spacing={1} alignItems="center">
               {getActiveFilterCount() > 0 && (
                 <Chip 

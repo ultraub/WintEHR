@@ -71,7 +71,8 @@ import { ContextualFAB } from '../../ui/QuickActionFAB';
 import { ViewControls, useDensity } from '../../ui/DensityControl';
 import MetricsBar from '../../ui/MetricsBar';
 import { motion, AnimatePresence } from 'framer-motion';
-import CollapsibleFilterPanel from '../../CollapsibleFilterPanel';
+import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
+import EnhancedEncounterCard from '../cards/EnhancedEncounterCard';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounter) => {
@@ -623,24 +624,27 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     return getPatientResources(patientId, 'Encounter') || [];
   }, [patientId, getPatientResources]);
 
+  // Load encounters function
+  const loadEncounters = useCallback(async () => {
+    if (patientId && !isLoading) {
+      try {
+        await searchResources('Encounter', {
+          patient: patientId,
+          _sort: '-date',
+          _count: 100
+        });
+      } catch (error) {
+        // Failed to load encounters
+      }
+    }
+  }, [patientId, searchResources, isLoading]);
+
   // Load encounters if not available in relationships
   useEffect(() => {
-    const loadEncounters = async () => {
-      if (encounters.length === 0 && patientId && !isLoading) {
-        try {
-          await searchResources('Encounter', {
-            patient: patientId,
-            _sort: '-date',
-            _count: 100
-          });
-        } catch (error) {
-          // Failed to load encounters
-        }
-      }
-    };
-    
-    loadEncounters();
-  }, [patientId, encounters.length, searchResources, isLoading]);
+    if (encounters.length === 0) {
+      loadEncounters();
+    }
+  }, [encounters.length, loadEncounters]);
 
   // Get all clinical resources for timeline
   const allClinicalResources = useMemo(() => {
@@ -904,7 +908,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
             ]}
             showCategories={false}
             showInactiveToggle={false}
-            onRefresh={() => fetchEncounters(patientId)}
+            onRefresh={loadEncounters}
             onExport={() => handleExportEncounters('csv')}
             scrollContainerRef={scrollContainerRef}
           >
@@ -990,15 +994,16 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
-                  <EncounterCard
+                  <EnhancedEncounterCard
                     encounter={encounter}
-                    onViewDetails={() => handleViewEncounterDetails(encounter)}
-                    onEdit={() => handleEditEncounter(encounter)}
-                    onSign={() => handleSignEncounter(encounter)}
+                    onViewDetails={handleViewEncounterDetails}
+                    onEdit={handleEditEncounter}
+                    onSign={handleSignEncounter}
                     onAddNote={handleAddNoteToEncounter}
-                    density={density}
-                    expanded={expandedCards.has(encounter.id)}
-                    onToggleExpand={handleToggleCardExpand}
+                    onMenuAction={(e, enc) => {/* Add menu handler */}}
+                    isExpanded={true}
+                    showRelatedResources={true}
+                    elevation={1}
                   />
                 </motion.div>
               ))}
