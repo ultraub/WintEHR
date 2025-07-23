@@ -28,10 +28,12 @@ export const usePatientData = (patientId) => {
         try {
           await setCurrentPatient(patientId);
           setIsInitialLoad(false);
+          setLocalLoading(false);
         } catch (err) {
           console.error('Failed to load patient:', err);
           setError(err.message || 'Failed to load patient data');
           setIsInitialLoad(false);
+          setLocalLoading(false);
         }
       } else if (currentPatient && currentPatient.id === patientId) {
         // Patient already loaded
@@ -43,14 +45,11 @@ export const usePatientData = (patientId) => {
     loadPatient();
   }, [patientId, currentPatient, setCurrentPatient]);
 
-  // Combine loading states - but consider initial load separately
-  useEffect(() => {
-    if (!isInitialLoad) {
-      setLocalLoading(fhirLoading);
-    }
-  }, [fhirLoading, isInitialLoad]);
-
-  // Set error state
+  // Remove the automatic syncing of loading states after initial load
+  // This was causing the infinite loading issue because global loading state
+  // might be true for other FHIR operations unrelated to this patient
+  
+  // Only sync error state after initial load
   useEffect(() => {
     if (!isInitialLoad && fhirError) {
       setError(fhirError);
