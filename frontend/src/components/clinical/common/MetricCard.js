@@ -28,6 +28,7 @@ import {
   getClinicalAnimation,
   getClinicalSpacing 
 } from '../../../themes/clinicalThemeUtils';
+import { useResponsive } from '../../../hooks/useResponsive';
 
 const MetricCard = ({
   title,
@@ -52,6 +53,7 @@ const MetricCard = ({
   ...props
 }) => {
   const theme = useTheme();
+  const { isMobile, getResponsiveValue } = useResponsive();
   
   // Get clinical context for enhanced theming
   const context = clinicalContext || getClinicalContext(
@@ -146,13 +148,13 @@ const MetricCard = ({
   if (loading) {
     return (
       <Card sx={cardSx} {...props}>
-        <CardContent sx={{ p: spacing }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: spacing / 4 }}>
-            <Skeleton variant="text" width={120} height={20} />
-            <Skeleton variant="circular" width={40} height={40} />
+        <CardContent sx={{ p: { xs: 1.5, sm: 2, md: spacing } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 0.5, sm: spacing / 4 } }}>
+            <Skeleton variant="text" width={isMobile ? 80 : 120} height={20} />
+            <Skeleton variant="circular" width={isMobile ? 32 : 40} height={isMobile ? 32 : 40} />
           </Box>
-          <Skeleton variant="text" width={80} height={32} />
-          <Skeleton variant="text" width={100} height={16} />
+          <Skeleton variant="text" width={isMobile ? 60 : 80} height={isMobile ? 24 : 32} />
+          <Skeleton variant="text" width={isMobile ? 80 : 100} height={16} />
         </CardContent>
       </Card>
     );
@@ -160,16 +162,16 @@ const MetricCard = ({
 
   return (
     <Card sx={cardSx} onClick={onClick} {...props}>
-      <CardContent sx={{ p: spacing }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: spacing / 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2, md: spacing } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 0.5, sm: spacing / 4 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
             <Typography 
               variant="body2" 
               sx={{ 
                 color: 'text.secondary',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                fontSize: '0.75rem',
+                fontSize: { xs: '0.625rem', sm: '0.75rem' },
                 letterSpacing: '0.5px'
               }}
             >
@@ -194,10 +196,10 @@ const MetricCard = ({
                 sx={{ 
                   bgcolor: alpha(cardColor, 0.1),
                   color: cardColor,
-                  width: 40,
-                  height: 40,
+                  width: { xs: 32, sm: 40 },
+                  height: { xs: 32, sm: 40 },
                   '& svg': {
-                    fontSize: '1.25rem'  // Ensure icon is properly sized
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
                   }
                 }}
               >
@@ -221,13 +223,14 @@ const MetricCard = ({
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: { xs: 0.25, sm: 0.5 } }}>
           <Typography 
             variant="h4" 
             sx={{ 
               fontWeight: 700, 
               color: cardColor,
-              lineHeight: 1.2
+              lineHeight: 1.2,
+              fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
             }}
           >
             {value?.toLocaleString() || '0'}
@@ -237,7 +240,8 @@ const MetricCard = ({
               variant="body2" 
               sx={{ 
                 color: 'text.secondary',
-                fontWeight: 500
+                fontWeight: 500,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
               }}
             >
               {unit}
@@ -283,4 +287,4 @@ const MetricCard = ({
   );
 };
 
-export default MetricCard;
+export default React.memo(MetricCard);

@@ -1307,14 +1307,9 @@ const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }
       {/* Header */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h5" fontWeight="bold">
-              Pharmacy Management
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {medicationRequests.length} prescriptions • {dispenses.length} dispenses
-            </Typography>
-          </Box>
+          <Typography variant="caption" color="text.secondary">
+            {medicationRequests.length} prescriptions • {dispenses.length} dispenses
+          </Typography>
           <Stack direction="row" spacing={1}>
             <ViewControls
               density={density}

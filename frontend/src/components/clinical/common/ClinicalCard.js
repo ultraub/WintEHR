@@ -36,6 +36,7 @@ import {
   getClinicalSpacing 
 } from '../../../themes/clinicalThemeUtils';
 import StatusChip from './StatusChip';
+import { useClinicalSpacing } from '../../../hooks/useClinicalSpacing';
 
 const ClinicalCard = ({
   title,
@@ -61,6 +62,7 @@ const ClinicalCard = ({
 }) => {
   const theme = useTheme();
   const [internalExpanded, setInternalExpanded] = useState(false);
+  const { patterns, p, gap } = useClinicalSpacing();
   
   // Use controlled or internal expansion state
   const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
@@ -80,7 +82,6 @@ const ClinicalCard = ({
   };
   
   // Get clinical styling
-  const spacing = getClinicalSpacing(theme, enhancedContext, 'comfortable');
   const animation = getClinicalAnimation(theme, 'hover', enhancedContext);
   
   // Get severity color
@@ -232,14 +233,14 @@ const ClinicalCard = ({
         sx={{ pb: 0 }}
       />
       
-      <CardContent sx={{ pt: spacing / 2 }}>
+      <CardContent sx={{ ...patterns.cardContent }}>
         {children}
       </CardContent>
       
       {expandable && (
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <CardContent sx={{ pt: 0 }}>
-            <Divider sx={{ mb: spacing }} />
+            <Divider sx={{ mb: 2 }} />
             {/* Expandable content would go here */}
             <Typography variant="body2" color="text.secondary">
               Additional clinical details and expanded information...
@@ -249,7 +250,7 @@ const ClinicalCard = ({
       )}
       
       {actions && (
-        <CardActions sx={{ justifyContent: 'flex-end', p: spacing }}>
+        <CardActions sx={{ justifyContent: 'flex-end', ...p(2), gap: 1 }}>
           {Array.isArray(actions) 
             ? actions.map((action, index) => (
                 <Button 
@@ -270,4 +271,4 @@ const ClinicalCard = ({
   );
 };
 
-export default ClinicalCard;
+export default React.memo(ClinicalCard);

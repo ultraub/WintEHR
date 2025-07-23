@@ -494,8 +494,10 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       formatForPrint: (data) => {
         let html = '<h2>Encounter History</h2>';
         data.forEach(encounter => {
-          const startDate = encounter.period?.start ? format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
-          const endDate = encounter.period?.end ? format(parseISO(encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
+          const startDate = encounter.actualPeriod?.start || encounter.period?.start ? 
+            format(parseISO(encounter.actualPeriod?.start || encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
+          const endDate = encounter.actualPeriod?.end || encounter.period?.end ? 
+            format(parseISO(encounter.actualPeriod?.end || encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
           
           html += `
             <div class="section">
@@ -648,7 +650,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       allResources.push({
         ...enc,
         resourceType: 'Encounter',
-        date: enc.period?.start || enc.meta?.lastUpdated
+        date: enc.actualPeriod?.start || enc.period?.start || enc.meta?.lastUpdated
       });
     });
     
@@ -685,8 +687,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
 
       // Period filter
       let matchesPeriod = true;
-      if (filterPeriod !== 'all' && encounter.period?.start) {
-        const startDate = parseISO(encounter.period.start);
+      if (filterPeriod !== 'all' && (encounter.actualPeriod?.start || encounter.period?.start)) {
+        const startDate = parseISO(encounter.actualPeriod?.start || encounter.period.start);
         const periodMap = {
           '1m': subMonths(new Date(), 1),
           '3m': subMonths(new Date(), 3),
@@ -713,8 +715,8 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   // Sort by date descending - memoized for performance
   const sortedEncounters = useMemo(() => {
     const sorted = [...filteredEncounters].sort((a, b) => {
-      const dateA = new Date(a.period?.start || 0);
-      const dateB = new Date(b.period?.start || 0);
+      const dateA = new Date(a.actualPeriod?.start || a.period?.start || 0);
+      const dateB = new Date(b.actualPeriod?.start || b.period?.start || 0);
       return dateB - dateA;
     });
     
@@ -722,9 +724,11 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     const transformed = sorted.map(encounter => ({
       ...encounter,
       // Add computed fields that SmartTable can access via column.field
-      date: encounter.period?.start || null,
+      date: encounter.actualPeriod?.start || encounter.period?.start || null,
       reason: encounter.reasonCode?.[0]?.text || 
               encounter.reasonCode?.[0]?.coding?.[0]?.display || 
+              encounter.type?.[0]?.text ||
+              encounter.type?.[0]?.coding?.[0]?.display ||
               null,
       type: getEncounterTypeLabel(encounter),
       status: getEncounterStatus(encounter),
@@ -735,10 +739,24 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
     if (transformed.length > 0) {
       console.log('EncountersTab: transformed encounter sample:', transformed[0]);
       console.log('EncountersTab: total encounters:', transformed.length);
-      console.log('EncountersTab: date field:', transformed[0].date);
-      console.log('EncountersTab: reason field:', transformed[0].reason);
-      console.log('EncountersTab: original period:', transformed[0].period);
-      console.log('EncountersTab: original reasonCode:', transformed[0].reasonCode);
+      console.log('EncountersTab: encounter keys:', Object.keys(sorted[0]));
+      // Log all properties that might contain date/time info
+      console.log('EncountersTab: checking date properties:', {
+        period: sorted[0].period,
+        date: sorted[0].date,
+        effectiveDateTime: sorted[0].effectiveDateTime,
+        authoredOn: sorted[0].authoredOn,
+        created: sorted[0].created,
+        recordedDate: sorted[0].recordedDate
+      });
+      // Log all properties that might contain reason info
+      console.log('EncountersTab: checking reason properties:', {
+        reasonCode: sorted[0].reasonCode,
+        reason: sorted[0].reason,
+        reasonReference: sorted[0].reasonReference,
+        diagnosis: sorted[0].diagnosis,
+        type: sorted[0].type
+      });
     }
     
     return transformed;
@@ -1191,9 +1209,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
               <Typography variant="body2" color="text.secondary">
                 Status: {getEncounterStatus(selectedEncounterForEdit)}
               </Typography>
-              {selectedEncounterForEdit.period?.start && (
+              {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
                 <Typography variant="body2" color="text.secondary">
-                  Date: {format(parseISO(selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
                 </Typography>
               )}
             </Box>
@@ -1340,9 +1358,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
               <Typography variant="body2" color="text.secondary">
                 Status: {getEncounterStatus(selectedEncounterForEdit)}
               </Typography>
-              {selectedEncounterForEdit.period?.start && (
+              {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
                 <Typography variant="body2" color="text.secondary">
-                  Date: {format(parseISO(selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
                 </Typography>
               )}
             </Box>

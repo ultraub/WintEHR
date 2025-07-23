@@ -3,13 +3,16 @@
  * Improved clinical workspace layout with integrated navigation
  * Now uses horizontal tab navigation matching older design
  */
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   Box,
   useTheme,
   useMediaQuery,
-  CssBaseline
+  CssBaseline,
+  Drawer,
+  IconButton
 } from '@mui/material';
+import { Menu as MenuIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
@@ -17,7 +20,8 @@ import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
 import EnhancedPatientHeaderV2 from '../workspace/EnhancedPatientHeaderV2';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { usePatientData } from '../../../hooks/usePatientData';
+import { useResponsive } from '../../../hooks/useResponsive';
 import { MedicalThemeContext } from '../../../App';
 
 // Module configuration
@@ -49,71 +53,37 @@ const EnhancedClinicalLayout = ({
   const { currentMode, onModeChange } = React.useContext(MedicalThemeContext);
   const isDarkMode = currentMode === 'dark';
   const toggleTheme = () => onModeChange(isDarkMode ? 'light' : 'dark');
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  const { isMobile, isTablet, isDesktop, patterns } = useResponsive();
   
-  const [patient, setPatient] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [patientData, setPatientData] = useState({
-    conditions: [],
-    medications: [],
-    allergies: [],
-    vitals: {},
-    lastEncounter: null
-  });
   const [bookmarked, setBookmarked] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   
   const { publish } = useClinicalWorkflow();
-  const { 
-    currentPatient,
-    setCurrentPatient,
-    getResourcesByType,
-    isLoading: fhirLoading
-  } = useFHIRResource();
+  
+  // Use the centralized patient data hook
+  const {
+    patient,
+    loading,
+    conditions,
+    medications,
+    allergies,
+    vitals,
+    lastEncounter,
+    activeConditions,
+    activeMedications,
+    criticalAllergies,
+    latestVitals,
+    encounterCount,
+    conditionCount,
+    medicationCount,
+    allergyCount,
+    error,
+    refreshPatientData
+  } = usePatientData(patientId);
 
-  // Load patient data through context
-  useEffect(() => {
-    if (patientId && (!currentPatient || currentPatient.id !== patientId)) {
-      setCurrentPatient(patientId);
-    }
-  }, [patientId, currentPatient, setCurrentPatient]);
-
-  // Update local state when patient changes
-  useEffect(() => {
-    if (currentPatient) {
-      setPatient(currentPatient);
-      
-      // Get resources from context
-      const conditions = getResourcesByType('Condition') || [];
-      const medications = getResourcesByType('MedicationRequest') || [];
-      const allergies = getResourcesByType('AllergyIntolerance') || [];
-      const encounters = getResourcesByType('Encounter') || [];
-      
-      // Sort encounters by date
-      const sortedEncounters = [...encounters].sort((a, b) => {
-        const dateA = a.period?.start ? new Date(a.period.start) : new Date(0);
-        const dateB = b.period?.start ? new Date(b.period.start) : new Date(0);
-        return dateB - dateA;
-      });
-      
-      setPatientData({
-        conditions,
-        medications,
-        allergies,
-        vitals: {}, // Would be extracted from Observations
-        lastEncounter: sortedEncounters[0] || null
-      });
-    }
-  }, [currentPatient, getResourcesByType]);
-
-  // Combined loading state
-  useEffect(() => {
-    setLoading(fhirLoading);
-  }, [fhirLoading]);
-
-  // Handle menu toggle - now just for mobile drawer if needed
+  // Handle menu toggle for mobile drawer
   const handleMenuToggle = () => {
-    // Could be used for mobile menu in future
+    setMobileDrawerOpen(!mobileDrawerOpen);
   };
 
   // Handle module navigation
@@ -152,32 +122,46 @@ const EnhancedClinicalLayout = ({
         shift={shift}
       />
       
-      {/* Breadcrumbs */}
-      <ClinicalBreadcrumbs
-        patient={patient}
-        activeModule={MODULES[activeModule]}
-        subContext={subContext}
-        onBookmark={handleBookmark}
-        bookmarked={bookmarked}
-      />
-      
-      {/* Enhanced Patient Header */}
-      {patient && (
-        <EnhancedPatientHeaderV2
-          patientId={patient.id}
-          onPrint={() => window.print()}
-          onNavigateToTab={handleModuleChange}
-          dataLoading={loading}
+      {/* Breadcrumbs - hide on mobile */}
+      {!isMobile && (
+        <ClinicalBreadcrumbs
+          patient={patient}
+          activeModule={MODULES[activeModule]}
+          subContext={subContext}
+          onBookmark={handleBookmark}
+          bookmarked={bookmarked}
         />
       )}
       
-      {/* Tab Navigation */}
-      <ClinicalTabs
-        activeTab={activeModule}
-        onTabChange={handleModuleChange}
-        variant="scrollable"
-        showIcons={!isMobile}
-      />
+      {/* Enhanced Patient Header - responsive sizing */}
+      {patient && (
+        <Box sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
+          <EnhancedPatientHeaderV2
+            patientId={patient.id}
+            onPrint={() => window.print()}
+            onNavigateToTab={handleModuleChange}
+            dataLoading={loading}
+          />
+        </Box>
+      )}
+      
+      {/* Tab Navigation - horizontal scrollable on mobile */}
+      <Box sx={{ 
+        borderBottom: 1, 
+        borderColor: 'divider',
+        position: 'sticky',
+        top: { xs: 56, sm: 64 }, // Account for app bar height
+        backgroundColor: 'background.paper',
+        zIndex: theme.zIndex.appBar - 1,
+      }}>
+        <ClinicalTabs
+          activeTab={activeModule}
+          onTabChange={handleModuleChange}
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons={isMobile ? "auto" : false}
+          showIcons={!isMobile}
+        />
+      </Box>
       
       {/* Main Layout Container */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -193,13 +177,19 @@ const EnhancedClinicalLayout = ({
           }}
         >
           
-          {/* Content Area */}
+          {/* Content Area - responsive padding */}
           <Box
             sx={{
               flexGrow: 1,
               overflow: 'auto',
-              backgroundColor: '#FAFBFC', // Clean light gray background matching older design
-              p: isMobile ? 1 : 2,
+              backgroundColor: theme.palette.mode === 'dark' 
+                ? theme.palette.background.default 
+                : theme.palette.grey[50], // Clean light gray background
+              p: {
+                xs: 1,      // 8px on mobile
+                sm: 2,      // 16px on tablet
+                md: 3,      // 24px on desktop
+              },
               minHeight: 0, // Important for flexbox overflow to work properly
             }}
           >
@@ -207,16 +197,71 @@ const EnhancedClinicalLayout = ({
             {React.cloneElement(children, {
               patient,
               loading,
-              patientData,
+              patientData: {
+                conditions,
+                medications,
+                allergies,
+                vitals,
+                lastEncounter,
+                // Additional computed data from hook
+                activeConditions,
+                activeMedications,
+                criticalAllergies,
+                latestVitals,
+                encounterCount,
+                conditionCount,
+                medicationCount,
+                allergyCount
+              },
               isMobile,
               isTablet,
-              density: isMobile ? 'compact' : 'comfortable',
+              isDesktop,
+              density: isMobile ? 'compact' : isTablet ? 'comfortable' : 'comfortable',
               activeModule,
-              onModuleChange: handleModuleChange
+              onModuleChange: handleModuleChange,
+              onRefresh: refreshPatientData,
+              error
             })}
           </Box>
         </Box>
       </Box>
+      
+      {/* Mobile Navigation Drawer */}
+      {isMobile && (
+        <Drawer
+          anchor="bottom"
+          open={mobileDrawerOpen}
+          onClose={() => setMobileDrawerOpen(false)}
+          sx={{
+            '& .MuiDrawer-paper': {
+              maxHeight: '60vh',
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+            },
+          }}
+        >
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ 
+              width: 40, 
+              height: 4, 
+              backgroundColor: 'grey.300',
+              borderRadius: 2,
+              mx: 'auto',
+              mb: 2
+            }} />
+            <ClinicalTabs
+              activeTab={activeModule}
+              onTabChange={(moduleId) => {
+                handleModuleChange(moduleId);
+                setMobileDrawerOpen(false);
+              }}
+              variant="fullWidth"
+              orientation="vertical"
+              showIcons={true}
+            />
+          </Box>
+        </Drawer>
+      )}
     </Box>
   );
 };

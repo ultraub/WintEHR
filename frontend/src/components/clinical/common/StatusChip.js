@@ -176,4 +176,4 @@ const StatusChip = ({
   return <Chip {...chipProps} />;
 };
 
-export default StatusChip;
+export default React.memo(StatusChip);

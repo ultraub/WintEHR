@@ -917,11 +917,8 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   return (
     <Box sx={{ p: density === 'compact' ? 2 : 3 }}>
       {/* Header with View Controls */}
-      <Stack spacing={2} mb={3}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h5" fontWeight="bold">
-            Clinical Documentation
-          </Typography>
+      <Stack spacing={2} mb={2}>
+        <Stack direction="row" justifyContent="flex-end" alignItems="center">
           <Stack direction="row" spacing={2} alignItems="center">
             <DensityControl density={density} onChange={setDensity} />
             <ToggleButtonGroup

@@ -27,6 +27,7 @@ import {
   Timeline as TimelineIcon
 } from '@mui/icons-material';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 
 // Navigation items configuration
 const NAVIGATION_ITEMS = [
@@ -182,8 +183,8 @@ const ClinicalTabs = ({
         borderColor: 'divider',
         boxShadow: theme.shadows[1],
         position: 'sticky',
-        top: 64, // Height of app bar
-        zIndex: theme.zIndex.appBar - 1,
+        top: LAYOUT_HEIGHTS.appBar,
+        zIndex: Z_INDEX.appBar - 1,
         overflow: 'hidden'
       }}
     >

@@ -45,6 +45,7 @@ import {
 } from '@mui/icons-material';
 import { cdsFeedbackService } from '../../../services/cdsFeedbackService';
 import { cdsActionExecutor } from '../../../services/cdsActionExecutor';
+import { cdsAlertPersistence } from '../../../services/cdsAlertPersistenceService';
 
 // Presentation modes according to CDS Hooks best practices
 export const PRESENTATION_MODES = {
@@ -117,15 +118,9 @@ const CDSPresentation = ({
   const [open, setOpen] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
-    // Persist dismissed alerts in sessionStorage for the current browser session
+    // Use persistent storage for dismissed alerts
     if (!patientId) return new Set();
-    const sessionKey = `cds-dismissed-alerts-${patientId}`;
-    try {
-      const stored = sessionStorage.getItem(sessionKey);
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch (e) {
-      return new Set();
-    }
+    return cdsAlertPersistence.getDismissedAlerts(patientId);
   });
 
   // Modal mode state hooks - must be at top level
@@ -141,43 +136,49 @@ const CDSPresentation = ({
   
   // Snooze functionality state
   const [snoozedAlerts, setSnoozedAlerts] = useState(() => {
-    // Load snoozed alerts from sessionStorage
+    // Use persistent storage for snoozed alerts
     if (!patientId) return new Map();
-    const sessionKey = `cds-snoozed-alerts-${patientId}`;
-    try {
-      const stored = sessionStorage.getItem(sessionKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Convert array back to Map with Date objects
-        return new Map(parsed.map(([key, timestamp]) => [key, new Date(timestamp)]));
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-    return new Map();
+    const persistedSnoozes = cdsAlertPersistence.getSnoozedAlerts(patientId);
+    
+    // Convert to the expected format for backward compatibility
+    const snoozedMap = new Map();
+    persistedSnoozes.forEach((snoozeUntil, alertId) => {
+      // Generate the key format expected by isAlertSnoozed
+      const alertKey = alertId.includes('-') ? alertId : alertId;
+      snoozedMap.set(alertKey, new Date(snoozeUntil));
+    });
+    
+    return snoozedMap;
   });
   const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
   const [alertToSnooze, setAlertToSnooze] = useState(null);
   const [snoozeDuration, setSnoozeDuration] = useState(60); // Default 60 minutes
 
   // Handle alert dismissal
-  const handleDismissAlert = (alert, reason = '') => {
+  const handleDismissAlert = (alert, reason = '', permanent = false) => {
     const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
-    setDismissedAlerts(prev => {
-      const newDismissed = new Set([...prev, alertId]);
-      
-      // Persist to sessionStorage
-      if (patientId) {
-        const sessionKey = `cds-dismissed-alerts-${patientId}`;
-        try {
-          sessionStorage.setItem(sessionKey, JSON.stringify([...newDismissed]));
-        } catch (e) {
-          // Ignore storage errors
+    
+    // Update local state
+    setDismissedAlerts(prev => new Set([...prev, alertId]));
+    
+    // Persist dismissal
+    if (patientId) {
+      cdsAlertPersistence.dismissAlert(patientId, alertId, reason, permanent);
+    }
+    
+    // Send feedback to CDS service
+    if (alert.uuid && alert.serviceId) {
+      cdsFeedbackService.sendFeedback({
+        serviceId: alert.serviceId,
+        cardUuid: alert.uuid,
+        outcome: 'overridden',
+        overrideReason: {
+          code: 'user-override',
+          system: 'https://winterhr.com/cds-hooks/override-reasons',
+          display: reason || 'Alert dismissed by user'
         }
-      }
-      
-      return newDismissed;
-    });
+      });
+    }
     
     // Call parent onAlertAction callback
     if (onAlertAction) {
@@ -187,34 +188,39 @@ const CDSPresentation = ({
 
   // Handle alert snooze
   const handleSnoozeAlert = (alert, durationMinutes) => {
+    const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     const snoozeUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
     
+    // Update local state
     setSnoozedAlerts(prev => {
       const newSnoozed = new Map(prev);
       newSnoozed.set(alertKey, snoozeUntil);
-      
-      // Persist to sessionStorage
-      if (patientId) {
-        const sessionKey = `cds-snoozed-alerts-${patientId}`;
-        try {
-          // Convert Map to array for JSON serialization
-          const toStore = Array.from(newSnoozed.entries());
-          sessionStorage.setItem(sessionKey, JSON.stringify(toStore));
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
-      
       return newSnoozed;
     });
     
-    // Log snooze action
-    console.log(`Alert snoozed until ${snoozeUntil.toLocaleString()}`);
+    // Persist snooze
+    if (patientId) {
+      cdsAlertPersistence.snoozeAlert(patientId, alertId, durationMinutes);
+    }
+    
+    // Send feedback to CDS service
+    if (alert.uuid && alert.serviceId) {
+      cdsFeedbackService.sendFeedback({
+        serviceId: alert.serviceId,
+        cardUuid: alert.uuid,
+        outcome: 'overridden',
+        overrideReason: {
+          code: 'snoozed',
+          system: 'https://winterhr.com/cds-hooks/override-reasons',
+          display: `Alert snoozed for ${durationMinutes} minutes`
+        }
+      });
+    }
     
     // Call parent callback
     if (onAlertAction) {
-      onAlertAction(alert, 'snooze', { durationMinutes, snoozeUntil });
+      onAlertAction(alertId, 'snooze', { durationMinutes, snoozeUntil });
     }
   };
 

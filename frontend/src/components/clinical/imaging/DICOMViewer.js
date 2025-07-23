@@ -37,9 +37,11 @@ import {
   Info as InfoIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
 import api from '../../../services/api';
 
 const DICOMViewer = ({ study, onClose }) => {
+  const theme = useTheme();
   const canvasRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -274,8 +276,8 @@ const DICOMViewer = ({ study, onClose }) => {
     
     ctx.save();
     ctx.font = '14px Arial';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillStyle = theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.5)';
     ctx.lineWidth = 1;
     
     const metadata = currentImage.metadata;
@@ -410,7 +412,7 @@ const DICOMViewer = ({ study, onClose }) => {
       right: 0,
       bottom: 0,
       zIndex: 1300,
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.9)',
       overflow: 'hidden'
     }}>
       {/* Close button */}
@@ -422,9 +424,9 @@ const DICOMViewer = ({ study, onClose }) => {
           right: 8, 
           color: 'white',
           zIndex: 1301,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.5)',
           '&:hover': {
-            backgroundColor: 'rgba(0, 0, 0, 0.7)'
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.7)'
           }
         }}
       >
@@ -432,7 +434,7 @@ const DICOMViewer = ({ study, onClose }) => {
       </IconButton>
       
       {/* Controls */}
-      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
+      <Paper sx={{ p: 1, mb: 1, mx: 2, mt: 2, backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)' }}>
         <Grid container spacing={2} alignItems="center">
           {/* Navigation Controls */}
           <Grid item>
@@ -549,7 +551,7 @@ const DICOMViewer = ({ study, onClose }) => {
       <Box sx={{ 
         flex: 1, 
         position: 'relative', 
-        backgroundColor: '#000',
+        backgroundColor: theme.palette.mode === 'dark' ? '#000' : '#000',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -579,7 +581,7 @@ const DICOMViewer = ({ study, onClose }) => {
             bottom: 20,
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0,0,0,0.7)',
+            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(50, 50, 50, 0.8)' : 'rgba(0, 0, 0, 0.7)',
             borderRadius: 1,
             p: 2,
             minWidth: 200

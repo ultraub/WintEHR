@@ -353,25 +353,9 @@ const ChartReviewTabOptimized = ({ patient }) => {
       >
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={6}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar 
-                sx={{ 
-                  bgcolor: theme.palette.primary.main,
-                  width: 48,
-                  height: 48 
-                }}
-              >
-                <AssessmentIcon />
-              </Avatar>
-              <Box>
-                <Typography variant="h5" fontWeight="bold">
-                  Clinical Chart Review
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
-                </Typography>
-              </Box>
-            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
+            </Typography>
           </Grid>
           
           <Grid item xs={12} md={6}>

@@ -1067,11 +1067,8 @@ const ResultsTab = ({ patientId, onNotificationUpdate, department = 'general' })
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">
-          Test Results
-        </Typography>
+      {/* Header Actions */}
+      <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
         <Stack direction="row" spacing={2}>
           {/* Provider Accountability */}
           <Button

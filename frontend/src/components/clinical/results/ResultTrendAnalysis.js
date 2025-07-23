@@ -441,7 +441,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f5f5f5' }}>
+              <tr style={{ backgroundColor: theme.palette.action.hover }}>
                 <th style={{ padding: 8, textAlign: 'left' }}>Date</th>
                 <th style={{ padding: 8, textAlign: 'left' }}>Value</th>
                 <th style={{ padding: 8, textAlign: 'left' }}>Status</th>
@@ -450,7 +450,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
             </thead>
             <tbody>
               {trendData.map((row, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                <tr key={index} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
                   <td style={{ padding: 8 }}>
                     {format(parseISO(row.fullDate), 'MMM dd, yyyy HH:mm')}
                   </td>

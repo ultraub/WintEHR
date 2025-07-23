@@ -43,18 +43,48 @@ import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
 // Import the enhanced patient header
 import EnhancedPatientHeaderV2 from './workspace/EnhancedPatientHeaderV2';
 
-// Tab Components - Lazy Loaded for Performance
+// Tab Components - Lazy Loaded for Performance with webpack magic comments
 // Using optimized/enhanced versions where available
-const SummaryTab = React.lazy(() => import('./workspace/tabs/SummaryTab'));
-const ChartReviewTab = React.lazy(() => import('./workspace/tabs/ChartReviewTabSplitLayout'));
-const EncountersTab = React.lazy(() => import('./workspace/tabs/EncountersTab'));
-const ResultsTab = React.lazy(() => import('./workspace/tabs/ResultsTabWithSubNav'));
-const OrdersTab = React.lazy(() => import('./workspace/tabs/EnhancedOrdersTab'));
-const PharmacyTab = React.lazy(() => import('./workspace/tabs/PharmacyTab'));
-const DocumentationTab = React.lazy(() => import('./workspace/tabs/DocumentationTabEnhanced'));
-const CarePlanTab = React.lazy(() => import('./workspace/tabs/CarePlanTabEnhanced'));
-const TimelineTab = React.lazy(() => import('./workspace/tabs/TimelineTabEnhanced'));
-const ImagingTab = React.lazy(() => import('./workspace/tabs/ImagingTab'));
+const SummaryTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-summary" */
+  './workspace/tabs/SummaryTab'
+));
+const ChartReviewTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-chart-review" */
+  './workspace/tabs/ChartReviewTabOptimized'
+));
+const EncountersTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-encounters" */
+  './workspace/tabs/EncountersTab'
+));
+const ResultsTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-results" */
+  './workspace/tabs/ResultsTabOptimized'
+));
+const OrdersTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-orders" */
+  './workspace/tabs/EnhancedOrdersTab'
+));
+const PharmacyTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-pharmacy" */
+  './workspace/tabs/PharmacyTab'
+));
+const DocumentationTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-documentation" */
+  './workspace/tabs/DocumentationTabEnhanced'
+));
+const CarePlanTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-care-plan" */
+  './workspace/tabs/CarePlanTabEnhanced'
+));
+const TimelineTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-timeline" */
+  './workspace/tabs/TimelineTabEnhanced'
+));
+const ImagingTab = React.lazy(() => import(
+  /* webpackChunkName: "clinical-imaging" */
+  './workspace/tabs/ImagingTab'
+));
 
 // Tab Loading Component
 const TabLoadingFallback = () => (
@@ -86,56 +116,35 @@ const ClinicalWorkspaceEnhanced = ({
   isTablet,
   density = 'comfortable',
   activeModule = 'summary',
-  onModuleChange
+  onModuleChange,
+  onRefresh,
+  error: parentError
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   
-  // Route params
+  // Route params - still needed for CDS alerts
   const { id: encodedPatientId } = useParams();
-  const patientId = decodeFhirId(encodedPatientId).toLowerCase();
+  const patientId = patient?.id || decodeFhirId(encodedPatientId).toLowerCase();
   
   // Contexts
   const { currentUser } = useAuth();
   const { publish } = useClinicalWorkflow();
-  const { 
-    currentPatient, 
-    setCurrentPatient, 
-    isLoading: isGlobalLoading
-  } = useFHIRResource();
   
   // State
-  const [loadError, setLoadError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   
-  // Use parent's activeModule directly instead of maintaining separate state
+  // Use parent's activeModule directly
   const activeTab = activeModule;
   
   // CDS Alerts
   const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
 
-  // Load patient data if not provided by parent
-  useEffect(() => {
-    const loadPatient = async () => {
-      if (!patient && patientId && (!currentPatient || currentPatient.id !== patientId)) {
-        try {
-          setLoadError(null);
-          await setCurrentPatient(patientId);
-        } catch (error) {
-          setLoadError(error.message || 'Failed to load patient');
-        }
-      }
-    };
-    
-    if (!patient) {
-      loadPatient();
-    }
-  }, [patientId, patient, currentPatient, setCurrentPatient]);
-
-  // Use provided patient or fallback to context patient
-  const activePatient = patient || currentPatient;
-  const isLoading = parentLoading || isGlobalLoading;
+  // Use parent-provided data
+  const activePatient = patient;
+  const isLoading = parentLoading;
+  const loadError = parentError;
 
   // Get the active tab configuration
   const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);
@@ -159,17 +168,17 @@ const ClinicalWorkspaceEnhanced = ({
     });
   }, [onModuleChange, publish, activePatient?.id]);
 
-  // Handle refresh
+  // Handle refresh - delegate to parent
   const handleRefresh = useCallback(async () => {
-    if (activePatient) {
+    if (onRefresh && activePatient) {
       try {
-        await setCurrentPatient(patientId);
+        await onRefresh();
         setSnackbar({ open: true, message: 'Patient data refreshed successfully' });
       } catch (error) {
         setSnackbar({ open: true, message: 'Failed to refresh data' });
       }
     }
-  }, [activePatient, patientId, setCurrentPatient]);
+  }, [activePatient, onRefresh]);
 
   // Handle keyboard navigation actions
   const handleKeyboardAction = useCallback((action) => {
@@ -268,7 +277,7 @@ const ClinicalWorkspaceEnhanced = ({
           px: 2, 
           pt: 2,
           pb: 0,
-          backgroundColor: '#FAFBFC'
+          backgroundColor: theme.palette.background.default
         }}>
           <CDSPresentation
             alerts={cdsAlerts}
@@ -292,20 +301,17 @@ const ClinicalWorkspaceEnhanced = ({
       >
         <TabErrorBoundary onReset={handleRefresh}>
           <Suspense fallback={<TabLoadingFallback />}>
-            {TAB_CONFIG.map((tab) => {
-              const TabComponent = tab.component;
-              const isActive = activeTab === tab.id;
+            {(() => {
+              // Only render the active tab component for better performance
+              const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);
+              if (!activeTabConfig) return null;
               
-              // Only render active tab to improve performance
-              if (!isActive) return null;
-              
-              // Rendering tab: active tab will be displayed, others hidden
+              const TabComponent = activeTabConfig.component;
               
               return (
                 <Box
-                  key={tab.id}
+                  key={activeTabConfig.id}
                   sx={{
-                    display: isActive ? 'block' : 'none',
                     height: '100%'
                   }}
                 >
@@ -322,7 +328,7 @@ const ClinicalWorkspaceEnhanced = ({
                   />
                 </Box>
               );
-            })}
+            })()}
           </Suspense>
         </TabErrorBoundary>
       </Box>

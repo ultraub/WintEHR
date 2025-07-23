@@ -41,6 +41,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, differenceInYears } from 'date-fns';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import QuickThemeToggle from '../../theme/QuickThemeToggle';
+import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 
 const ClinicalAppBar = ({
   onMenuToggle,
@@ -113,16 +114,16 @@ const ClinicalAppBar = ({
           boxShadow: theme.shadows[1],
           borderBottom: 1,
           borderColor: 'divider',
-          zIndex: theme.zIndex.drawer + 1,
-          height: 64
+          zIndex: Z_INDEX.appBar,
+          height: LAYOUT_HEIGHTS.appBar
         }}
       >
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
         
         <Toolbar sx={{ 
           px: { xs: 2, sm: 3 }, 
-          minHeight: '64px !important',
-          height: 64
+          minHeight: `${LAYOUT_HEIGHTS.appBar}px !important`,
+          height: LAYOUT_HEIGHTS.appBar
         }}>
           {/* Left Section - Brand and Navigation */}
           <Stack direction="row" spacing={2} alignItems="center" sx={{ flexGrow: 0 }}>
