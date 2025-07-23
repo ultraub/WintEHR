@@ -249,6 +249,79 @@ class DefinitiveDatabaseInitializer:
                 version INTEGER DEFAULT 1,
                 tags JSONB DEFAULT '[]'::jsonb
             );
+            
+            -- Create CDS Hooks feedback table for persistence
+            CREATE TABLE cds_hooks.feedback (
+                id BIGSERIAL PRIMARY KEY,
+                feedback_id UUID DEFAULT gen_random_uuid(),
+                hook_instance_id VARCHAR(255) NOT NULL,
+                service_id VARCHAR(255) NOT NULL,
+                card_uuid VARCHAR(255) NOT NULL,
+                outcome VARCHAR(50) NOT NULL CHECK (outcome IN ('accepted', 'overridden', 'ignored')),
+                override_reason JSONB,
+                accepted_suggestions JSONB,
+                user_id VARCHAR(255),
+                patient_id VARCHAR(255),
+                encounter_id VARCHAR(255),
+                context JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Indexes for performance
+                INDEX idx_feedback_service (service_id),
+                INDEX idx_feedback_patient (patient_id),
+                INDEX idx_feedback_user (user_id),
+                INDEX idx_feedback_created (created_at),
+                INDEX idx_feedback_outcome (outcome)
+            );
+            
+            -- Create CDS Hooks feedback analytics table
+            CREATE TABLE cds_hooks.feedback_analytics (
+                id BIGSERIAL PRIMARY KEY,
+                service_id VARCHAR(255) NOT NULL,
+                period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+                period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+                total_cards INT DEFAULT 0,
+                accepted_count INT DEFAULT 0,
+                overridden_count INT DEFAULT 0,
+                ignored_count INT DEFAULT 0,
+                acceptance_rate DECIMAL(5,2),
+                common_override_reasons JSONB,
+                user_patterns JSONB,
+                patient_patterns JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Ensure unique periods per service
+                CONSTRAINT unique_analytics_period UNIQUE (service_id, period_start, period_end),
+                
+                -- Indexes
+                INDEX idx_analytics_service (service_id),
+                INDEX idx_analytics_period (period_start, period_end),
+                INDEX idx_analytics_created (created_at)
+            );
+            
+            -- Create CDS Hooks execution log table
+            CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
+                id BIGSERIAL PRIMARY KEY,
+                service_id VARCHAR(255) NOT NULL,
+                hook_type VARCHAR(100) NOT NULL,
+                patient_id VARCHAR(255),
+                user_id VARCHAR(255),
+                context JSONB,
+                request_data JSONB,
+                response_data JSONB,
+                cards_returned INT DEFAULT 0,
+                execution_time_ms INT,
+                success BOOLEAN DEFAULT true,
+                error_message TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Indexes
+                INDEX idx_execution_service (service_id),
+                INDEX idx_execution_patient (patient_id),
+                INDEX idx_execution_created (created_at),
+                INDEX idx_execution_success (success)
+            );
         """)
         
             logger.info("✅ Tables created successfully")
@@ -322,7 +395,16 @@ class DefinitiveDatabaseInitializer:
             logger.info(f"✅ Audit logs table accessible (count: {result})")
             
             result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.hook_configurations")
-            logger.info(f"✅ CDS Hooks table accessible (count: {result})")
+            logger.info(f"✅ CDS Hooks configurations table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.feedback")
+            logger.info(f"✅ CDS Hooks feedback table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.feedback_analytics")
+            logger.info(f"✅ CDS Hooks analytics table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.execution_log")
+            logger.info(f"✅ CDS Hooks execution log table accessible (count: {result})")
             
             logger.info("🎉 Database initialization completed successfully!")
             return True
@@ -371,7 +453,7 @@ class DefinitiveDatabaseInitializer:
             """)
             
             existing_cds_tables = [row['table_name'] for row in cds_tables]
-            expected_cds_tables = ['hook_configurations']
+            expected_cds_tables = ['hook_configurations', 'feedback', 'feedback_analytics', 'execution_log']
             missing_cds_tables = set(expected_cds_tables) - set(existing_cds_tables)
             
             if missing_cds_tables:

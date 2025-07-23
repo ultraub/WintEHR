@@ -18,6 +18,16 @@ from .hook_persistence import (
     load_hooks_from_database, 
     save_sample_hooks_to_database
 )
+from .feedback_persistence import (
+    get_feedback_manager,
+    process_cds_feedback,
+    get_service_analytics,
+    log_hook_execution
+)
+from .prefetch_engine import (
+    get_prefetch_engine,
+    execute_hook_prefetch
+)
 from .models import (
     CDSHookRequest,
     CDSHookResponse,
@@ -1011,17 +1021,68 @@ async def execute_service(
             detail=f"Hook type mismatch: service expects {hook_config.hook}, got {request.hook}"
         )
     
+    # Execute prefetch if configured and not provided
+    if hook_config.prefetch and not request.prefetch:
+        try:
+            prefetch_start = datetime.now()
+            request.prefetch = await execute_hook_prefetch(
+                db, 
+                hook_config.prefetch, 
+                request.context if isinstance(request.context, dict) else request.context.dict()
+            )
+            prefetch_time = int((datetime.now() - prefetch_start).total_seconds() * 1000)
+            logger.debug(f"Executed prefetch for {service_id} in {prefetch_time}ms")
+        except Exception as e:
+            logger.warning(f"Prefetch execution failed for {service_id}: {e}")
+            # Continue without prefetch data
+            request.prefetch = {}
+    
     # Create execution engine
     engine = CDSHookEngine(db)
     
-    # Execute hook
+    # Execute hook with performance tracking
+    start_time = datetime.now()
+    execution_success = True
+    error_message = None
+    cards = []
+    
     try:
         cards = await engine.evaluate_hook(hook_config, request)
-        return CDSHookResponse(cards=cards)
+        response = CDSHookResponse(cards=cards)
     except Exception as e:
         logger.error(f"Error executing CDS Service {service_id}: {str(e)}")
+        execution_success = False
+        error_message = str(e)
         # CDS Hooks should be non-blocking - return empty cards on error
-        return CDSHookResponse(cards=[])
+        response = CDSHookResponse(cards=[])
+    
+    # Calculate execution time
+    execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    
+    # Log the execution (fire and forget - don't block response)
+    try:
+        patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
+        user_id = request.context.get('userId') if isinstance(request.context, dict) else None
+        
+        await log_hook_execution(
+            db=db,
+            service_id=service_id,
+            hook_type=request.hook.value,
+            patient_id=patient_id,
+            user_id=user_id,
+            context=request.context if isinstance(request.context, dict) else request.context.dict(),
+            request_data=request.dict(),
+            response_data=response.dict(),
+            cards_returned=len(cards),
+            execution_time_ms=execution_time_ms,
+            success=execution_success,
+            error_message=error_message
+        )
+    except Exception as log_error:
+        logger.warning(f"Failed to log hook execution: {log_error}")
+        # Don't fail the response due to logging issues
+    
+    return response
 
 
 # CDS Service Feedback Endpoint
@@ -1031,22 +1092,156 @@ async def provide_feedback(
     feedback: FeedbackRequest,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Provide feedback on CDS service recommendations"""
-    # Get the hook configuration
-    hook_config = SAMPLE_HOOKS.get(service_id)
-    if not hook_config:
-        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
-    
-    # Log feedback for monitoring/analytics
-    logger.debug(f"Received feedback for service {service_id}: {feedback.feedback}")
-    
-    # In a production system, you would:
-    # 1. Store feedback in database
-    # 2. Update recommendation algorithms
-    # 3. Generate analytics reports
-    # 4. Trigger quality improvement processes
-    
-    return {"message": "Feedback received successfully"}
+    """Provide feedback on CDS service recommendations - CDS Hooks v2.0 compliant"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Process and store the feedback
+        feedback_data = {
+            'hookInstance': feedback.hookInstance,
+            'service': service_id,
+            'card': feedback.card,
+            'outcome': feedback.outcome,
+            'overrideReason': feedback.overrideReason,
+            'acceptedSuggestions': feedback.acceptedSuggestions,
+            # Extract additional context if available
+            'userId': getattr(feedback, 'userId', None),
+            'patientId': getattr(feedback, 'patientId', None),
+            'encounterId': getattr(feedback, 'encounterId', None),
+            'context': getattr(feedback, 'context', None)
+        }
+        
+        feedback_id = await process_cds_feedback(db, feedback_data)
+        
+        logger.info(f"Stored feedback {feedback_id} for service {service_id}: outcome={feedback.outcome}")
+        
+        # Return success response per CDS Hooks specification
+        return {
+            "status": "success",
+            "feedbackId": feedback_id,
+            "message": "Feedback received and stored successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing feedback for service {service_id}: {e}")
+        # CDS Hooks specification allows for graceful error handling
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to process feedback. The feedback has been logged for manual review."
+        )
+
+
+# CDS Analytics Endpoint
+@router.get("/cds-services/{service_id}/analytics")
+async def get_feedback_analytics(
+    service_id: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get analytics for a specific CDS service"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Get analytics
+        analytics = await get_service_analytics(db, service_id, days)
+        
+        return {
+            "status": "success",
+            "service_id": service_id,
+            "analytics": analytics,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analytics for service {service_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve analytics"
+        )
+
+
+# Global Analytics Endpoint
+@router.get("/cds-services/analytics/summary")
+async def get_global_analytics(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get analytics summary for all CDS services"""
+    try:
+        feedback_manager = await get_feedback_manager(db)
+        summary = await feedback_manager.get_analytics_summary(period_days=days)
+        
+        return {
+            "status": "success",
+            "period_days": days,
+            "summary": summary,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting global analytics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve analytics summary"
+        )
+
+
+# Prefetch Analysis Endpoint
+@router.get("/cds-services/{service_id}/prefetch-analysis")
+async def analyze_prefetch_patterns(
+    service_id: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Analyze prefetch patterns for optimization"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Get prefetch analysis
+        engine = await get_prefetch_engine(db)
+        analysis = await engine.analyze_prefetch_patterns(service_id, days)
+        
+        # Add current prefetch configuration
+        if hook_config and hook_config.prefetch:
+            analysis['current_prefetch_config'] = hook_config.prefetch
+        
+        # Add recommended prefetch based on hook type
+        if hook_config:
+            analysis['recommended_prefetch'] = engine.get_recommended_prefetch(
+                hook_config.hook.value
+            )
+        
+        return {
+            "status": "success",
+            "service_id": service_id,
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing prefetch patterns for service {service_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to analyze prefetch patterns"
+        )
 
 
 # Hook Management Endpoints (for CRUD operations)
