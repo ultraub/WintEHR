@@ -161,8 +161,19 @@ export function useOptimizedPatientData(patientId, tabName, options = {}) {
       });
     });
 
-    const batchResult = await fhirClient.batch(batchBundle);
-    const entries = batchResult.entry || [];
+    // The batch method expects an array of requests, not a Bundle
+    // Convert the Bundle to the expected format
+    const batchRequests = batchBundle.entry.map(e => ({
+      method: e.request.method,
+      url: e.request.url
+    }));
+    
+    const batchResults = await fhirClient.batch(batchRequests);
+    
+    // Convert batch results back to Bundle format for compatibility
+    const entries = batchResults.map(result => ({
+      resource: result.resource
+    }));
     
     const counts = {};
     config.resources.forEach((resourceType, index) => {
@@ -262,8 +273,19 @@ export function useOptimizedPatientData(patientId, tabName, options = {}) {
       });
     });
 
-    const batchResult = await fhirClient.batch(batchBundle);
-    const entries = batchResult.entry || [];
+    // The batch method expects an array of requests, not a Bundle
+    // Convert the Bundle to the expected format
+    const batchRequests = batchBundle.entry.map(e => ({
+      method: e.request.method,
+      url: e.request.url
+    }));
+    
+    const batchResults = await fhirClient.batch(batchRequests);
+    
+    // Convert batch results back to Bundle format for compatibility
+    const entries = batchResults.map(result => ({
+      resource: result.resource
+    }));
     
     const batchData = {};
     config.resources.forEach((resourceType, index) => {

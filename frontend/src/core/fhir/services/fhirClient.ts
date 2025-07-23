@@ -1030,7 +1030,7 @@ class FHIRClient {
     
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
-        const response = await this.httpClient.post<Bundle>('', bundle);
+        const response = await this.httpClient.post<Bundle>('/', bundle);
         
         // Process results
         const results: BatchResult[] = response.data.entry?.map(entry => {
