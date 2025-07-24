@@ -112,7 +112,6 @@ import {
 // Import old UI components to be replaced
 import MetricsBar from '../../ui/MetricsBar';
 import ResourceTimeline from '../../ui/ResourceTimeline';
-import { ContextualFAB } from '../../ui/QuickActionFAB';
 import { AlertTitle } from '@mui/material';
 
 // Custom hooks

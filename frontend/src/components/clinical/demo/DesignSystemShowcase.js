@@ -33,7 +33,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
-import ClinicalLayout from '../layouts/ClinicalLayout';
+import EnhancedClinicalLayout from '../layouts/EnhancedClinicalLayout';
 import ClinicalCard from '../common/ClinicalCard';
 import ClinicalDataTable from '../common/ClinicalDataTable';
 import MetricCard from '../common/MetricCard';
@@ -201,19 +201,9 @@ const DesignSystemShowcase = () => {
   
   return (
     <ThemeProvider theme={theme}>
-      <ClinicalLayout
-        title="WintEHR Design System Showcase"
-        subtitle="Enhanced Clinical Interface Demonstration"
-        department={selectedDepartment}
-        urgency={urgencyMode ? 'urgent' : 'normal'}
-        patientContext={samplePatient}
-        currentTheme={currentTheme}
-        currentMode={currentMode}
-        onThemeChange={handleThemeChange}
-        onModeChange={handleModeChange}
-        showPatientInfo={true}
-        showDepartmentInfo={true}
-        showTimeInfo={true}
+      <EnhancedClinicalLayout
+        activeModule="design-system"
+        onModuleChange={() => {}}
       >
         <Stack spacing={4}>
           {/* Control Panel */}
@@ -439,7 +429,7 @@ const DesignSystemShowcase = () => {
             </Grid>
           </Paper>
         </Stack>
-      </ClinicalLayout>
+      </EnhancedClinicalLayout>
     </ThemeProvider>
   );
 };

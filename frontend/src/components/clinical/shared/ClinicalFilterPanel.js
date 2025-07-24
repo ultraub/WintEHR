@@ -23,9 +23,9 @@ import {
   InputLabel,
   Chip,
   Button,
-  Badge
+  Badge,
+  Typography
 } from '@mui/material';
-import { Typography } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
