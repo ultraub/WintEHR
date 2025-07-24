@@ -49,8 +49,8 @@ import {
   Fade,
   Avatar
 } from '@mui/material';
-import TreeView from '@mui/lab/TreeView';
-import TreeItem from '@mui/lab/TreeItem';
+import { TreeView } from '@mui/x-tree-view/TreeView';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -96,7 +96,7 @@ import {
   Compare as CompareIcon,
   Group as CollaboratorsIcon
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+// Removed framer-motion for better performance
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
@@ -1146,15 +1146,9 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
           </Paper>
 
           {/* Content Views */}
-          <AnimatePresence mode="wait">
+          <Box>
             {viewMode === 'timeline' && (
-              <motion.div
-                key="timeline"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.2 }}
-              >
+              <Box>
                 <ResourceTimeline
                   resources={timelineResources}
                   onResourceClick={(resource) => handleViewNote(resource)}
@@ -1167,17 +1161,11 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                     { date: new Date().toISOString(), label: 'Today', color: 'primary' }
                   ]}
                 />
-              </motion.div>
+              </Box>
             )}
             
             {(viewMode === 'cards' || viewMode === 'tree') && (
-              <motion.div
-                key="cards"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-              >
+              <Box>
                 <Stack spacing={2}>
                   {sortedDocuments.length === 0 ? (
                     <Alert severity="info">
@@ -1200,17 +1188,11 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                     ))
                   )}
                 </Stack>
-              </motion.div>
+              </Box>
             )}
             
             {viewMode === 'table' && (
-              <motion.div
-                key="table"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-              >
+              <Box>
                 <SmartTable
                   columns={tableColumns}
                   data={sortedDocuments}
@@ -1221,9 +1203,9 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                   stickyHeader
                   emptyMessage="No documentation found"
                 />
-              </motion.div>
+              </Box>
             )}
-          </AnimatePresence>
+          </Box>
         </Grid>
       </Grid>
 
