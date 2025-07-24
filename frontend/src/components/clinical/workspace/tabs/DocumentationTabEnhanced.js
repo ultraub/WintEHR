@@ -49,7 +49,7 @@ import {
   Fade,
   Avatar
 } from '@mui/material';
-import { TreeView } from '@mui/x-tree-view/TreeView';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import {
   Description as NoteIcon,
@@ -1020,7 +1020,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               <Typography variant="h6" gutterBottom>
                 Document Categories
               </Typography>
-              <TreeView
+              <SimpleTreeView
                 defaultCollapseIcon={<ExpandMoreIcon />}
                 defaultExpandIcon={<ChevronRightIcon />}
                 expanded={expandedNodes}
@@ -1057,7 +1057,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                     </StyledTreeItem>
                   ))}
                 </StyledTreeItem>
-              </TreeView>
+              </SimpleTreeView>
             </Paper>
           </Grid>
         )}
