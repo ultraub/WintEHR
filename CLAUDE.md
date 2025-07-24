@@ -520,6 +520,14 @@ GROUP BY r.resource_type;"
 | Pharmacy | `pages/PharmacyDashboard.js` | Prescription queue, dispensing workflow |
 | Imaging | `components/tabs/ImagingTab.js` | DICOM viewer, multi-slice support |
 
+## 🎨 Clinical Design System
+
+WintEHR now includes a comprehensive Clinical Design System:
+- **Design Documentation**: [Clinical Design System](docs/CLINICAL_DESIGN_SYSTEM.md) - Complete design standards
+- **Usage Examples**: [Clinical Design System Examples](docs/CLINICAL_DESIGN_SYSTEM_EXAMPLES.md) - Practical code examples
+- **Shared Components**: 6 core clinical UI components with FHIR templates
+- **Consistent Styling**: Sharp corners, clinical severity colors, professional appearance
+
 ## 🆕 Recent Improvements (2025)
 
 ### Major Architecture Changes

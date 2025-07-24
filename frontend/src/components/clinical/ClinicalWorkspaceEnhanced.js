@@ -121,7 +121,9 @@ const ClinicalWorkspaceEnhanced = ({
   onModuleChange,
   onRefresh,
   error: parentError,
-  scrollContainerRef
+  scrollContainerRef,
+  navigationContext = {},
+  onNavigateToTab
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -154,23 +156,26 @@ const ClinicalWorkspaceEnhanced = ({
   const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);
 
   // Handle tab change notification to parent
-  const handleTabChange = useCallback((newTab) => {
-    if (onModuleChange) {
-      // Find the tab config
+  const handleTabChange = useCallback((newTab, params = {}) => {
+    if (onNavigateToTab) {
+      // Use the onNavigateToTab prop from wrapper
+      onNavigateToTab(newTab, params);
+    } else if (onModuleChange) {
+      // Fallback to onModuleChange for backward compatibility
       const tabConfig = TAB_CONFIG.find(t => t.id === newTab);
       if (tabConfig) {
-        // Call parent's onModuleChange with the tab id (not index)
         onModuleChange(newTab);
       }
     }
     
-    // Publish tab change event
+    // Publish tab change event with navigation context
     publish('clinical.tab.changed', {
       tab: newTab,
       patientId: activePatient?.id,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      navigationContext: params
     });
-  }, [onModuleChange, publish, activePatient?.id]);
+  }, [onNavigateToTab, onModuleChange, publish, activePatient?.id]);
 
   // Handle refresh - delegate to parent
   const handleRefresh = useCallback(async () => {
@@ -366,6 +371,7 @@ const ClinicalWorkspaceEnhanced = ({
                     onNavigateToTab={handleTabChange}
                     department={currentUser?.department || 'general'}
                     scrollContainerRef={scrollContainerRef}
+                    navigationContext={navigationContext}
                   />
                 </Box>
               );

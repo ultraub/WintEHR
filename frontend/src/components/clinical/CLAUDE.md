@@ -2,7 +2,7 @@
 
 **Purpose**: Essential guide for AI agents working with WintEHR's clinical user interface components.
 
-**Last Updated**: 2025-01-20
+**Last Updated**: 2025-01-23
 
 ## 🎯 Overview
 
@@ -21,27 +21,43 @@ frontend/src/components/clinical/
 ├── ClinicalWorkspaceV3.js      # Legacy workspace (self-contained)
 ├── ClinicalWorkspaceEnhanced.js # New workspace (modular)
 ├── ClinicalWorkspaceWrapper.js  # Bridge component
+├── shared/                      # Shared UI components (NEW 2025-01-23)
+│   ├── ClinicalResourceCard.js  # Base card with severity borders
+│   ├── ClinicalSummaryCard.js   # Summary statistics card
+│   ├── ClinicalFilterPanel.js   # Unified filter panel
+│   ├── ClinicalDataGrid.js      # Consistent data table
+│   ├── ClinicalEmptyState.js    # Standardized empty states
+│   ├── ClinicalLoadingState.js  # Skeleton loaders
+│   ├── index.js                 # Shared components export
+│   └── templates/               # FHIR resource card templates
+│       ├── ConditionCardTemplate.js
+│       ├── MedicationCardTemplate.js
+│       ├── AllergyCardTemplate.js
+│       ├── ObservationCardTemplate.js
+│       ├── ProcedureCardTemplate.js
+│       ├── DocumentCardTemplate.js
+│       └── index.js
 ├── workspace/                    # Workspace components
 │   ├── EnhancedPatientHeader.js # Patient header (V3 only)
 │   ├── WorkspaceContent.js      # Content wrapper (V3 only)
 │   ├── TabErrorBoundary.js      # Error handling (Enhanced only)
 │   ├── tabs/                     # Clinical tabs (both versions)
-│   │   ├── SummaryTab.js        # Patient summary
-│   │   ├── ChartReviewTab.js    # Standard version (V3)
-│   │   ├── ChartReviewTabOptimized.js  # Enhanced version
-│   │   ├── EncountersTab.js     # Visit history
-│   │   ├── ResultsTab.js        # Standard version (V3)
-│   │   ├── ResultsTabOptimized.js      # Enhanced version
-│   │   ├── OrdersTab.js         # Standard version (V3)
-│   │   ├── EnhancedOrdersTab.js # Enhanced version
-│   │   ├── PharmacyTab.js       # Medication management
-│   │   ├── ImagingTab.js        # DICOM viewer
-│   │   ├── DocumentationTab.js  # Standard version (V3)
-│   │   ├── DocumentationTabEnhanced.js # Enhanced version
-│   │   ├── CarePlanTab.js       # Standard version (V3)
-│   │   ├── CarePlanTabEnhanced.js     # Enhanced version
-│   │   ├── TimelineTab.js       # Standard version (V3)
-│   │   └── TimelineTabEnhanced.js     # Enhanced version
+│   │   ├── SummaryTab.js        # Patient summary (shared)
+│   │   ├── ChartReviewTab.js    # DEPRECATED - V3 only
+│   │   ├── ChartReviewTabOptimized.js  # ✅ Current version
+│   │   ├── EncountersTab.js     # Visit history (shared)
+│   │   ├── ResultsTab.js        # DEPRECATED - V3 only
+│   │   ├── ResultsTabOptimized.js      # ✅ Current version
+│   │   ├── OrdersTab.js         # DEPRECATED - V3 only
+│   │   ├── EnhancedOrdersTab.js # ✅ Current version
+│   │   ├── PharmacyTab.js       # Medication management (shared)
+│   │   ├── ImagingTab.js        # DICOM viewer (shared)
+│   │   ├── DocumentationTab.js  # DEPRECATED - V3 only
+│   │   ├── DocumentationTabEnhanced.js # ✅ Current version
+│   │   ├── CarePlanTab.js       # DEPRECATED - V3 only
+│   │   ├── CarePlanTabEnhanced.js     # ✅ Current version
+│   │   ├── TimelineTab.js       # DEPRECATED - V3 only
+│   │   └── TimelineTabEnhanced.js     # ✅ Current version
 │   ├── dialogs/                  # Modal dialogs
 │   └── sections/                 # Reusable sections
 ├── layouts/                      # Layout components
@@ -49,7 +65,7 @@ frontend/src/components/clinical/
 │   └── EnhancedClinicalLayout.js # New modular layout
 ├── ui/                           # UI utilities
 │   └── KeyboardShortcutsDialog.js # Keyboard help (Enhanced)
-├── common/                       # Shared components
+├── common/                       # Shared components (legacy)
 │   ├── SafeBadge.js             # Safe rendering badge (V3 only)
 │   ├── ClinicalCard.js          # Context-aware cards
 │   ├── StatusChip.js            # Status indicators
@@ -187,6 +203,25 @@ V3 → Enhanced:
 | DocumentationTab | DocumentationTabEnhanced | Rich text editor, templates |
 | CarePlanTab | CarePlanTabEnhanced | Goal tracking, timeline view |
 | TimelineTab | TimelineTabEnhanced | Event grouping, filtering |
+
+### ⚠️ Deprecated Components
+
+**DO NOT USE these components in new code:**
+- `ChartReviewTab.js` - Use `ChartReviewTabOptimized.js` instead
+- `ResultsTab.js` - Use `ResultsTabOptimized.js` instead
+- `OrdersTab.js` - Use `EnhancedOrdersTab.js` instead
+- `DocumentationTab.js` - Use `DocumentationTabEnhanced.js` instead
+- `CarePlanTab.js` - Use `CarePlanTabEnhanced.js` instead
+- `TimelineTab.js` - Use `TimelineTabEnhanced.js` instead
+
+**Note**: These deprecated components are maintained only for backward compatibility with ClinicalWorkspaceV3. All new development should use ClinicalWorkspaceWrapper/Enhanced with the optimized tab components.
+
+**Removed Experimental Components** (2025-01-24):
+- `ChartReviewTabRefactored.js` - Experimental version removed
+- `ChartReviewTabSplitLayout.js` - Experimental version removed
+- `ResultsTabWithSubNav.js` - Experimental version removed
+- `TimelineTabD3Enhanced.js` - Experimental version removed
+- `TimelineTabRedesigned.js` - Experimental version removed
 
 ## ⚠️ Critical Rules
 
@@ -352,6 +387,87 @@ useEffect(() => {
 }, []);
 ```
 
+## 🧭 Navigation System
+
+### Navigation Props Pattern
+All tab components now receive navigation props for consistent navigation:
+
+```javascript
+// Tab components receive onNavigateToTab prop
+<TabComponent
+  patientId={patientId}
+  patient={patient}
+  onNavigateToTab={handleTabChange}
+  navigationContext={navigationContext}
+/>
+
+// Usage within tabs
+import { TAB_IDS } from '../utils/navigationHelper';
+
+const handleResourceClick = (resource) => {
+  onNavigateToTab(TAB_IDS.RESULTS, {
+    resourceId: resource.id,
+    resourceType: resource.resourceType,
+    action: 'view'
+  });
+};
+```
+
+### Standardized Tab IDs
+Use constants from navigationHelper for consistent tab references:
+
+```javascript
+import { TAB_IDS } from '../utils/navigationHelper';
+
+// Available tab IDs:
+TAB_IDS.SUMMARY         // 'summary'
+TAB_IDS.CHART_REVIEW   // 'chart-review'
+TAB_IDS.ENCOUNTERS     // 'encounters'
+TAB_IDS.RESULTS        // 'results'
+TAB_IDS.ORDERS         // 'orders'
+TAB_IDS.PHARMACY       // 'pharmacy'
+TAB_IDS.IMAGING        // 'imaging'
+TAB_IDS.DOCUMENTATION  // 'documentation'
+TAB_IDS.CARE_PLAN      // 'care-plan'
+TAB_IDS.TIMELINE       // 'timeline'
+```
+
+### Deep Linking Support
+Navigation supports query parameters for deep linking:
+
+```javascript
+// Navigate to specific resource
+import { navigateToResource } from '../utils/navigationHelper';
+
+navigateToResource(onNavigateToTab, 'Observation', 'obs-123');
+
+// Results in: /clinical/patient-123?tab=results&resourceId=obs-123&resourceType=Observation
+```
+
+### Navigation Helper Utilities
+```javascript
+import { 
+  TAB_IDS,
+  navigateToTab,
+  navigateToResource,
+  getTabForResourceType,
+  parseNavigationParams
+} from '../utils/navigationHelper';
+
+// Navigate to tab with context
+navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+  action: 'create',
+  orderType: 'medication'
+});
+
+// Get appropriate tab for resource type
+const tabId = getTabForResourceType('MedicationRequest'); // returns 'chart-review'
+
+// Parse URL parameters
+const context = parseNavigationParams(searchParams);
+// { tab: 'results', resourceId: 'obs-123', resourceType: 'Observation' }
+```
+
 ## 🎨 Clinical Context Integration
 
 ### Theme Awareness
@@ -420,6 +536,105 @@ export default NewComponent;
 # 5. Verify performance metrics
 ```
 
+## 📍 Important Component Locations (Updated 2025-01-24)
+
+### UI Components with Non-Obvious Names
+- **ContextualFAB**: Located in `ui/QuickActionFAB.js` (not ContextualFAB.js)
+- **ClinicalCard**: Two versions exist:
+  - `common/ClinicalCard.js` - Legacy version
+  - `ui/ClinicalCard.js` - UI utilities version
+- **ResourceTimeline**: Located in `ui/ResourceTimeline.js`
+- **SmartTable**: Located in `ui/SmartTable.js`
+
+### Shared Components Export Pattern
+```javascript
+// Import from shared index
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalFilterPanel,
+  ClinicalDataGrid,
+  ClinicalEmptyState,
+  ClinicalLoadingState
+} from '../../shared';
+
+// Import templates separately
+import { DocumentCardTemplate } from '../../shared/templates';
+```
+
+### Common Import Patterns
+```javascript
+// UI Components
+import { ContextualFAB } from '../../ui/QuickActionFAB';
+import ResourceTimeline from '../../ui/ResourceTimeline';
+import SmartTable from '../../ui/SmartTable';
+import MetricsBar from '../../ui/MetricsBar';
+
+// Animation Libraries
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Tree View Components
+import { TreeView } from '@mui/x-tree-view/TreeView';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
+```
+
+## 🚨 Common Import Errors & Fixes (Updated 2025-01-24)
+
+### Import Path Issues
+```javascript
+// ❌ Wrong - Looking for wrong filename
+import ContextualFAB from '../../ui/ContextualFAB';
+
+// ✅ Correct - Component exported from QuickActionFAB.js
+import { ContextualFAB } from '../../ui/QuickActionFAB';
+```
+
+### TypeScript Syntax in JavaScript Files
+```javascript
+// ❌ Wrong - TypeScript syntax in .js file
+color: getModalityColor(mod) as any
+
+// ✅ Correct - Plain JavaScript
+color: getModalityColor(mod)
+```
+
+### Missing Material-UI Imports
+```javascript
+// ❌ Incomplete imports
+import { Box, Stack } from '@mui/material';
+// Using Typography, IconButton, useTheme without importing
+
+// ✅ Complete imports
+import { 
+  Box, 
+  Stack, 
+  Typography,
+  IconButton,
+  useTheme 
+} from '@mui/material';
+```
+
+### Undefined Variables in Components
+```javascript
+// ❌ Using undefined variables
+<Component severity={severity} metrics={metrics} />
+// Where severity and metrics are not defined
+
+// ✅ Define or provide defaults
+const severity = 'normal'; // or calculate based on logic
+// OR remove if not needed
+<Component severity="normal" />
+```
+
+### Missing Component State
+```javascript
+// ❌ Using state without defining
+{expanded ? 'Show More' : 'Show Less'}
+
+// ✅ Define state in component
+const [expanded, setExpanded] = useState(false);
+```
+
 ## 🐛 Common Issues & Solutions
 
 ### Performance Issues
@@ -478,6 +693,7 @@ if (loading) return <LoadingStates.Table rows={5} />;
 - **Frontend Services**: `/frontend/src/services/CLAUDE.md`
 - **Component Docs**: `/docs/modules/frontend/`
 - **Performance Guide**: `/docs/performance/frontend-optimization.md`
+- **Navigation Helper**: `/frontend/src/components/clinical/utils/navigationHelper.js`
 
 ## 💡 Quick Tips
 

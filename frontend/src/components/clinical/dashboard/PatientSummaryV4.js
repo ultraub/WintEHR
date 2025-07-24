@@ -612,7 +612,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   transform: 'translateY(-2px)'
                 }
               }}
-              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
                 <Box>
@@ -679,7 +679,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   transform: 'translateY(-2px)'
                 }
               }}
-              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
                 <Box>
@@ -820,7 +820,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   transform: 'translateY(-2px)'
                 }
               }}
-              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
                 <Box>

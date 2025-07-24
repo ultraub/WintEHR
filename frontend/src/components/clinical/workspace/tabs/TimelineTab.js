@@ -308,18 +308,18 @@ const TimelineEvent = ({ event, position, isFirst, isLast }) => {
     // Navigate to appropriate tab in clinical workspace based on resource type
     const resourceTypeToTab = {
       'Encounter': 'encounters',
-      'MedicationRequest': 'chart',  // Medications are in Chart Review tab
-      'MedicationStatement': 'chart',
+      'MedicationRequest': 'chart-review',  // Medications are in Chart Review tab
+      'MedicationStatement': 'chart-review',
       'Observation': 'results',
-      'Condition': 'chart',  // Conditions are in Chart Review tab
-      'AllergyIntolerance': 'chart',  // Allergies are in Chart Review tab
-      'Immunization': 'chart',  // Immunizations could be in Chart Review
+      'Condition': 'chart-review',  // Conditions are in Chart Review tab
+      'AllergyIntolerance': 'chart-review',  // Allergies are in Chart Review tab
+      'Immunization': 'chart-review',  // Immunizations could be in Chart Review
       'ImagingStudy': 'imaging',
       'DocumentReference': 'documentation',
-      'Goal': 'careplan',
-      'CarePlan': 'careplan',
-      'CareTeam': 'careplan',
-      'Procedure': 'chart',
+      'Goal': 'care-plan',
+      'CarePlan': 'care-plan',
+      'CareTeam': 'care-plan',
+      'Procedure': 'chart-review',
       'DiagnosticReport': 'results'
     };
     
@@ -1265,18 +1265,18 @@ const TimelineTab = ({ patientId, onNotificationUpdate, department = 'general' }
             
             const resourceTypeToTab = {
               'Encounter': 'encounters',
-              'MedicationRequest': 'chart',
-              'MedicationStatement': 'chart',
+              'MedicationRequest': 'chart-review',
+              'MedicationStatement': 'chart-review',
               'Observation': 'results',
-              'Condition': 'chart',
-              'AllergyIntolerance': 'chart',
-              'Immunization': 'chart',
+              'Condition': 'chart-review',
+              'AllergyIntolerance': 'chart-review',
+              'Immunization': 'chart-review',
               'ImagingStudy': 'imaging',
               'DocumentReference': 'documentation',
-              'Goal': 'careplan',
-              'CarePlan': 'careplan',
-              'CareTeam': 'careplan',
-              'Procedure': 'chart',
+              'Goal': 'care-plan',
+              'CarePlan': 'care-plan',
+              'CareTeam': 'care-plan',
+              'Procedure': 'chart-review',
               'DiagnosticReport': 'results'
             };
             

@@ -240,13 +240,14 @@ const MedicationDialogEnhanced = ({
   onClose,
   medication = null,
   onSave,
+  onSaved, // Support both prop names for compatibility
   patientId,
   encounterId = null,
   mode = 'prescribe' // 'prescribe', 'edit', 'refill'
 }) => {
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
-  const { evaluateCDS } = useCDS();
+  const { executeCDSHooks } = useCDS();
   const { publish } = useClinicalWorkflow();
   
   // State
@@ -445,7 +446,7 @@ const MedicationDialogEnhanced = ({
       
       // Evaluate CDS for drug interactions
       try {
-        const alerts = await evaluateCDS('medication-prescribe', {
+        const alerts = await executeCDSHooks('medication-prescribe', {
           patient: patientId,
           medication: selectedMedication,
           context: 'prescribe'
@@ -577,7 +578,11 @@ const MedicationDialogEnhanced = ({
         })
       };
 
-      await onSave(fhirMedication);
+      // Support both onSave and onSaved prop names
+      const saveHandler = onSave || onSaved;
+      if (saveHandler) {
+        await saveHandler(fhirMedication);
+      }
       
       // Publish event
       publish(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {

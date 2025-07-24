@@ -189,6 +189,7 @@ const ConditionDialogEnhanced = ({
   onClose,
   condition = null,
   onSave,
+  onSaved, // Support both prop names for compatibility
   patientId,
   encounterId = null
 }) => {
@@ -422,7 +423,11 @@ const ConditionDialogEnhanced = ({
         }
       };
 
-      await onSave(fhirCondition);
+      // Support both onSave and onSaved prop names
+      const saveHandler = onSave || onSaved;
+      if (saveHandler) {
+        await saveHandler(fhirCondition);
+      }
       
       // Publish event
       publish(CLINICAL_EVENTS.CONDITION_ADDED, {

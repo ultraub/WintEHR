@@ -44,7 +44,8 @@ const EnhancedClinicalLayout = ({
   onModuleChange,
   subContext = null,
   department = 'Emergency',
-  shift = 'Day'
+  shift = 'Day',
+  navigationContext = {}
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -131,6 +132,7 @@ const EnhancedClinicalLayout = ({
           subContext={subContext}
           onBookmark={handleBookmark}
           bookmarked={bookmarked}
+          navigationContext={navigationContext}
         />
       )}
       

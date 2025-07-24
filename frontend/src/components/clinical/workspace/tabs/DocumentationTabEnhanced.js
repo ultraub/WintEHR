@@ -39,7 +39,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  TextareaAutosize,
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
@@ -50,7 +49,8 @@ import {
   Fade,
   Avatar
 } from '@mui/material';
-import { TreeView, TreeItem } from '@mui/x-tree-view';
+import TreeView from '@mui/lab/TreeView';
+import TreeItem from '@mui/lab/TreeItem';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -98,7 +98,6 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
@@ -111,13 +110,25 @@ import {
   formatDocumentForDisplay, 
   processDocumentForDisplay
 } from '../../../../core/documents/documentUtils';
-import ClinicalCard from '../../ui/ClinicalCard';
-import MetricsBar from '../../ui/MetricsBar';
+// Import shared clinical components
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalFilterPanel,
+  ClinicalDataGrid,
+  ClinicalEmptyState,
+  ClinicalLoadingState
+} from '../../shared';
+import { DocumentCardTemplate } from '../../shared/templates';
+import { ContextualFAB } from '../../ui/QuickActionFAB';
 import ResourceTimeline from '../../ui/ResourceTimeline';
 import SmartTable from '../../ui/SmartTable';
-import { ContextualFAB } from '../../ui/QuickActionFAB';
-import DensityControl from '../../ui/DensityControl';
-import { useThemeDensity } from '../../../../hooks/useThemeDensity';
+
+// Custom hooks
+const useDensity = () => {
+  const [density, setDensity] = useState('comfortable');
+  return { density, setDensity };
+};
 
 // Note type configuration with enhanced metadata
 const noteTypes = {
@@ -143,8 +154,8 @@ const documentCategories = {
   other: { label: 'Other Documents', icon: <AttachmentIcon />, color: 'default' }
 };
 
-// Enhanced Note Card Component with ClinicalCard base
-const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport, onFavorite, onPin, density = 'comfortable' }) => {
+// Enhanced Note Card Component using shared components
+const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport, onFavorite, onPin, density = 'comfortable', isAlternate = false }) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   
@@ -155,21 +166,30 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
   const isSigned = note.docStatus === 'final';
   
   // Determine severity based on note status
-  const severity = note.docStatus === 'draft' ? 'warning' : 
-                   note.docStatus === 'preliminary' ? 'info' : 'normal';
+  const getSeverity = () => {
+    if (note.docStatus === 'draft') return 'high';
+    if (note.docStatus === 'preliminary') return 'moderate';
+    if (noteType === 'discharge') return 'high';
+    if (noteType === 'consult') return 'moderate';
+    return 'normal';
+  };
   
-  const metrics = [
-    {
-      label: 'Words',
-      value: note.displayContent ? note.displayContent.split(/\s+/).length : 0,
-      icon: <NoteIcon fontSize="small" />
-    },
-    {
-      label: 'Sections',
-      value: note.section?.length || 0,
-      icon: <ListIcon fontSize="small" />
-    }
+  const getStatusColor = () => {
+    if (note.docStatus === 'draft') return 'warning';
+    if (note.docStatus === 'final') return 'success';
+    return 'info';
+  };
+  
+  const details = [
+    { label: 'Type', value: typeConfig.label },
+    { label: 'Author', value: author },
+    { label: 'Date', value: format(parseISO(date), 'MMM d, yyyy h:mm a') },
+    { label: 'Status', value: note.docStatus || 'unknown' }
   ];
+  
+  if (note.displayContent) {
+    details.push({ label: 'Words', value: note.displayContent.split(/\s+/).length });
+  }
   
   const actions = [
     {
@@ -203,12 +223,11 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
   const tags = note.meta?.tag?.map(tag => tag.display || tag.code) || [];
   
   return (
-    <ClinicalCard
-      severity={severity}
+    <ClinicalResourceCard
+      severity="normal"
       title={typeConfig.label}
       subtitle={note.description || 'Clinical Note'}
       status={isSigned ? 'Signed' : note.docStatus === 'preliminary' ? 'Ready for Review' : 'Draft'}
-      metrics={metrics}
       actions={actions}
       density={density}
       icon={typeConfig.icon}
@@ -255,7 +274,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
         {note.section && note.section.length > 0 && (
           <Box>
             {note.section.map((section, index) => (
-              <Accordion key={index} expanded={expanded}>
+              <Accordion key={index}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                   <Typography variant="subtitle2">
                     {section.title || 'Section'}
@@ -299,7 +318,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
           )}
         </Stack>
       </Stack>
-    </ClinicalCard>
+    </ClinicalResourceCard>
   );
 });
 
@@ -348,10 +367,9 @@ StyledTreeItem.displayName = 'StyledTreeItem';
 
 const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
-  const [density, setDensity] = useThemeDensity();
+  const { density, setDensity } = useDensity();
   
   const [viewMode, setViewMode] = useState('tree'); // tree, cards, table, timeline
   const [expandedNodes, setExpandedNodes] = useState(['root']);
@@ -908,8 +926,14 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
+      <Box sx={{ p: 3 }}>
+        <ClinicalLoadingState.SummaryCards count={4} />
+        <Box sx={{ mt: 3 }}>
+          <ClinicalLoadingState.FilterPanel />
+        </Box>
+        <Box sx={{ mt: 3 }}>
+          <ClinicalLoadingState.ResourceCard count={5} />
+        </Box>
       </Box>
     );
   }
@@ -920,12 +944,24 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       <Stack spacing={2} mb={2}>
         <Stack direction="row" justifyContent="flex-end" alignItems="center">
           <Stack direction="row" spacing={2} alignItems="center">
-            <DensityControl density={density} onChange={setDensity} />
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Density</InputLabel>
+              <Select
+                value={density}
+                onChange={(e) => setDensity(e.target.value)}
+                label="Density"
+                sx={{ borderRadius: 0 }}
+              >
+                <MenuItem value="comfortable">Comfortable</MenuItem>
+                <MenuItem value="compact">Compact</MenuItem>
+              </Select>
+            </FormControl>
             <ToggleButtonGroup
               value={viewMode}
               exclusive
               onChange={(e, newMode) => newMode && setViewMode(newMode)}
               size="small"
+              sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
             >
               <ToggleButton value="tree">
                 <Tooltip title="Tree View">
@@ -953,18 +989,26 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               startIcon={<AddIcon />}
               onClick={handleNewNote}
               size="small"
+              sx={{ borderRadius: 0 }}
             >
               New Note
             </Button>
           </Stack>
         </Stack>
         
-        {/* Metrics Bar */}
-        <MetricsBar 
-          metrics={metrics} 
-          density={density} 
-          animate
-        />
+        {/* Metrics Summary Cards */}
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {metrics.map((metric, index) => (
+            <ClinicalSummaryCard
+              key={index}
+              title={metric.label}
+              value={metric.value}
+              severity="normal"
+              icon={metric.icon}
+              chips={metric.chips}
+            />
+          ))}
+        </Box>
       </Stack>
 
       {/* Main Content Area */}
@@ -972,7 +1016,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         {/* Tree View Sidebar */}
         {viewMode === 'tree' && (
           <Grid item xs={12} md={3}>
-            <Paper sx={{ p: 2, height: 'calc(100vh - 300px)', overflow: 'auto' }}>
+            <Paper sx={{ p: 2, height: 'calc(100vh - 300px)', overflow: 'auto', borderRadius: 0 }}>
               <Typography variant="h6" gutterBottom>
                 Document Categories
               </Typography>

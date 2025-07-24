@@ -53,7 +53,8 @@ import {
   Card,
   CardContent,
   CardActions,
-  CardHeader
+  CardHeader,
+  Fab
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -96,16 +97,29 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
-import { motion, AnimatePresence } from 'framer-motion';
+// Removed framer-motion for consistency
 
-// Import new UI components
-import ClinicalCard from '../../ui/ClinicalCard';
+// Import shared clinical components
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalFilterPanel,
+  ClinicalDataGrid,
+  ClinicalEmptyState,
+  ClinicalLoadingState
+} from '../../shared';
+
+// Import old UI components to be replaced
 import MetricsBar from '../../ui/MetricsBar';
 import ResourceTimeline from '../../ui/ResourceTimeline';
-import SmartTable from '../../ui/SmartTable';
-import TrendSparkline from '../../ui/TrendSparkline';
 import { ContextualFAB } from '../../ui/QuickActionFAB';
-import { useThemeDensity } from '../../../../hooks/useThemeDensity';
+import { AlertTitle } from '@mui/material';
+
+// Custom hooks
+const useDensity = () => {
+  const [density, setDensity] = useState('comfortable');
+  return { density, setDensity };
+};
 
 // Enhanced goal categories with colors and icons
 const goalCategories = {
@@ -142,9 +156,8 @@ const goalCategories = {
 };
 
 // Enhanced Goal Card Component
-const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, density }) => {
+const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, density, isAlternate = false }) => {
   const theme = useTheme();
-  const [expanded, setExpanded] = useState(false);
   
   const category = goal.category?.[0]?.coding?.[0]?.code || 'health-maintenance';
   const categoryConfig = goalCategories[category] || goalCategories['health-maintenance'];
@@ -160,11 +173,18 @@ const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, dens
 
   // Determine severity based on status and due date
   const getSeverity = () => {
-    if (goal.lifecycleStatus === 'completed') return 'success';
     if (goal.lifecycleStatus === 'cancelled') return 'low';
     if (isOverdue) return 'critical';
     if (daysUntilDue && daysUntilDue <= 7) return 'high';
+    if (goal.lifecycleStatus === 'completed') return 'normal';
     return 'normal';
+  };
+
+  const getStatusColor = () => {
+    if (goal.lifecycleStatus === 'completed') return 'success';
+    if (goal.lifecycleStatus === 'cancelled') return 'default';
+    if (goal.lifecycleStatus === 'on-hold') return 'warning';
+    return 'primary';
   };
 
   // Progress trend indicator
@@ -175,53 +195,68 @@ const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, dens
     return <NoChangeIcon fontSize="small" color="action" />;
   };
 
-  const metrics = [
-    {
-      label: 'Progress',
-      value: `${progressPercentage}%`,
-      color: progressPercentage >= 80 ? 'success' : progressPercentage >= 50 ? 'warning' : 'error',
-      showProgress: true,
-      progress: progressPercentage
-    },
-    {
-      label: 'Days Until Due',
-      value: daysUntilDue !== null ? (daysUntilDue < 0 ? `${Math.abs(daysUntilDue)}d overdue` : `${daysUntilDue}d`) : 'No deadline',
-      color: isOverdue ? 'error' : daysUntilDue && daysUntilDue <= 7 ? 'warning' : 'default'
-    }
+  const details = [
+    { label: 'Category', value: categoryConfig.label },
+    { label: 'Progress', value: `${progressPercentage}%` },
+    { label: 'Target Date', value: targetDate ? format(parseISO(targetDate), 'MMM d, yyyy') : 'No deadline' },
+    { label: 'Status', value: goal.lifecycleStatus || 'active' }
   ];
 
+  if (daysUntilDue !== null && goal.lifecycleStatus === 'active') {
+    details.push({ 
+      label: 'Time Remaining', 
+      value: daysUntilDue < 0 ? `${Math.abs(daysUntilDue)}d overdue` : `${daysUntilDue}d` 
+    });
+  }
+
   const actions = [
-    { icon: <EditIcon />, onClick: () => onEdit(goal), tooltip: 'Edit Goal' },
-    { icon: <ChartIcon />, onClick: () => onViewProgress(goal), tooltip: 'View Progress' },
-    { icon: <ProgressIcon />, onClick: () => onUpdateProgress(goal), tooltip: 'Update Progress' }
+    { icon: <EditIcon />, onClick: () => onEdit(goal), label: 'Edit Goal' },
+    { icon: <ChartIcon />, onClick: () => onViewProgress(goal), label: 'View Progress' },
+    { icon: <ProgressIcon />, onClick: () => onUpdateProgress(goal), label: 'Update Progress' }
   ];
 
   return (
-    <ClinicalCard
-      severity={getSeverity()}
+    <ClinicalResourceCard
       title={goal.description?.text || 'Goal'}
-      subtitle={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Chip 
-            label={categoryConfig.label} 
-            size="small" 
-            variant="outlined"
-            icon={categoryConfig.icon}
-          />
-          {getTrendIcon()}
-        </Stack>
-      }
-      status={goal.lifecycleStatus}
-      expandable
-      expanded={expanded}
-      onExpandChange={setExpanded}
-      metrics={metrics}
+      severity={getSeverity()}
+      status={goal.lifecycleStatus || 'active'}
+      statusColor={getStatusColor()}
+      icon={categoryConfig.icon}
+      details={details}
+      onEdit={() => onEdit(goal)}
       actions={actions}
-      density={density}
+      isAlternate={isAlternate}
     >
-      <Stack spacing={2}>
+      <Box sx={{ mt: 2 }}>
+        {/* Progress bar */}
+        <Box sx={{ mb: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Typography variant="body2">Progress</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              {getTrendIcon()}
+              <Typography variant="body2" fontWeight="medium">
+                {progressPercentage}%
+              </Typography>
+            </Stack>
+          </Stack>
+          <LinearProgress 
+            variant="determinate" 
+            value={progressPercentage} 
+            sx={{ 
+              height: 8, 
+              borderRadius: 0,
+              backgroundColor: theme.palette.action.disabledBackground,
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: progressPercentage >= 80 ? theme.palette.success.main : 
+                                progressPercentage >= 50 ? theme.palette.warning.main : 
+                                theme.palette.error.main
+              }
+            }}
+          />
+        </Box>
+        
         {goal.target?.[0]?.measure && (
-          <Box>
+          <Box sx={{ mb: 2 }}>
             <Typography variant="caption" color="text.secondary">Target Measure</Typography>
             <Typography variant="body2">
               {goal.target[0].measure.text || goal.target[0].measure.coding?.[0]?.display}
@@ -233,7 +268,7 @@ const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, dens
         )}
         
         {goal.note?.[0] && (
-          <Box>
+          <Box sx={{ mb: 2 }}>
             <Typography variant="caption" color="text.secondary">Notes</Typography>
             <Typography variant="body2">{goal.note[0].text}</Typography>
           </Box>
@@ -242,20 +277,21 @@ const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, dens
         {goal.addresses?.length > 0 && (
           <Box>
             <Typography variant="caption" color="text.secondary">Addresses</Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
               {goal.addresses.map((condition, idx) => (
                 <Chip
                   key={idx}
                   label={condition.display || 'Condition'}
                   size="small"
                   variant="outlined"
+                  sx={{ borderRadius: '4px' }}
                 />
               ))}
             </Stack>
           </Box>
         )}
-      </Stack>
-    </ClinicalCard>
+      </Box>
+    </ClinicalResourceCard>
   );
 };
 
@@ -280,26 +316,32 @@ const GoalProgressChart = ({ goal, observations }) => {
 
   if (chartData.length === 0) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper', borderRadius: 0 }}>
-        <Typography variant="body2" color="text.secondary">
-          No progress data available
-        </Typography>
-      </Box>
+      <ClinicalEmptyState
+        title="No progress data available"
+        message="Start tracking progress to see trends over time."
+      />
     );
   }
 
   return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0 }}>
+    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0, border: 1, borderColor: 'divider' }}>
       <Typography variant="subtitle2" gutterBottom>
         Progress Trend
       </Typography>
-      <TrendSparkline
-        data={chartData.map(d => d.value)}
-        width={300}
-        height={100}
-        color={theme.palette.primary.main}
-        showArea
-      />
+      {/* Simplified trend display */}
+      <Box sx={{ height: 100, display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+        {chartData.map((d, idx) => (
+          <Box
+            key={idx}
+            sx={{
+              flex: 1,
+              height: `${(d.value / Math.max(...chartData.map(p => p.value))) * 100}%`,
+              bgcolor: theme.palette.primary.main,
+              minHeight: 4
+            }}
+          />
+        ))}
+      </Box>
       <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
         <Typography variant="caption" color="text.secondary">
           {format(parseISO(chartData[0].date), 'MMM d')}
@@ -333,7 +375,7 @@ const CareTeamMember = ({ participant, onEdit }) => {
         primary={participant.member?.display || 'Team Member'}
         secondary={
           <Stack direction="row" spacing={1} alignItems="center">
-            <Chip label={role} size="small" variant="outlined" />
+            <Chip label={role} size="small" variant="outlined" sx={{ borderRadius: '4px' }} />
             <Typography variant="caption" color="text.secondary">
               • {memberSince}
             </Typography>
@@ -351,8 +393,7 @@ const CareTeamMember = ({ participant, onEdit }) => {
 
 const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   const theme = useTheme();
-  const [themeDensity] = useThemeDensity();
-  const density = propDensity || themeDensity;
+  const { density, setDensity } = useDensity();
   
   const { getPatientResources, isLoading, refreshPatientResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
@@ -609,7 +650,17 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Metrics Bar */}
-      <MetricsBar metrics={metrics} density={density} />
+      <Stack direction="row" spacing={2} sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
+        {metrics.map((metric, index) => (
+          <ClinicalSummaryCard
+            key={index}
+            title={metric.label}
+            value={metric.value}
+            severity={metric.color === 'error' ? 'high' : metric.color === 'warning' ? 'moderate' : 'normal'}
+            icon={metric.icon}
+          />
+        ))}
+      </Stack>
       
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -640,86 +691,82 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
       </Box>
       
       {/* Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
         {/* Goals Tab */}
         {activeTab === 0 && (
+          <Box sx={{ p: 2 }}>
           <Stack spacing={2}>
             {/* Filters */}
-            <Paper sx={{ p: 2 }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField
-                  placeholder="Search goals..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  size="small"
-                  sx={{ flex: 1 }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-                
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    label="Status"
-                  >
-                    <MenuItem value="all">All Status</MenuItem>
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="completed">Completed</MenuItem>
-                    <MenuItem value="cancelled">Cancelled</MenuItem>
-                    <MenuItem value="on-hold">On Hold</MenuItem>
-                  </Select>
-                </FormControl>
+            <ClinicalFilterPanel
+              searchQuery={searchTerm}
+              onSearchChange={setSearchTerm}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              viewModes={[
+                { value: 'cards', label: 'Cards' },
+                { value: 'list', label: 'List' }
+              ]}
+              additionalFilters={
+                <>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      label="Status"
+                      sx={{ borderRadius: 0 }}
+                    >
+                      <MenuItem value="all">All Status</MenuItem>
+                      <MenuItem value="active">Active</MenuItem>
+                      <MenuItem value="completed">Completed</MenuItem>
+                      <MenuItem value="cancelled">Cancelled</MenuItem>
+                      <MenuItem value="on-hold">On Hold</MenuItem>
+                    </Select>
+                  </FormControl>
 
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    label="Category"
-                  >
-                    <MenuItem value="all">All Categories</MenuItem>
-                    {Object.entries(goalCategories).map(([key, config]) => (
-                      <MenuItem key={key} value={key}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          {config.icon}
-                          <span>{config.label}</span>
-                        </Stack>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <ToggleButtonGroup
-                  value={viewMode}
-                  exclusive
-                  onChange={(e, v) => v && setViewMode(v)}
-                  size="small"
-                >
-                  <ToggleButton value="cards">
-                    <CardView />
-                  </ToggleButton>
-                  <ToggleButton value="list">
-                    <ListView />
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Stack>
-            </Paper>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      label="Category"
+                      sx={{ borderRadius: 0 }}
+                    >
+                      <MenuItem value="all">All Categories</MenuItem>
+                      {Object.entries(goalCategories).map(([key, config]) => (
+                        <MenuItem key={key} value={key}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            {config.icon}
+                            <span>{config.label}</span>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </>
+              }
+            />
             
             {/* Goals Display */}
             {sortedGoals.length === 0 ? (
-              <Alert severity="info">
-                No goals found matching your criteria
-              </Alert>
+              <ClinicalEmptyState
+                title="No goals found"
+                message="Try adjusting your search criteria or create a new goal."
+                actions={[
+                  { label: 'Clear Filters', onClick: () => {
+                    setSearchTerm('');
+                    setFilterStatus('all');
+                    setFilterCategory('all');
+                  }},
+                  { label: 'New Goal', onClick: () => {
+                    setSelectedGoal(null);
+                    setGoalDialogOpen(true);
+                  }}
+                ]}
+              />
             ) : viewMode === 'cards' ? (
               <Grid container spacing={2}>
-                {sortedGoals.map((goal) => (
+                {sortedGoals.map((goal, index) => (
                   <Grid item xs={12} md={6} key={goal.id}>
                     <EnhancedGoalCard
                       goal={goal}
@@ -736,12 +783,13 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
                         setProgressDialogOpen(true);
                       }}
                       density={density}
+                      isAlternate={index % 2 === 1}
                     />
                   </Grid>
                 ))}
               </Grid>
             ) : (
-              <SmartTable
+              <ClinicalDataGrid
                 columns={[
                   { 
                     id: 'description', 
@@ -754,6 +802,7 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
                             label={goalCategories[row.category?.[0]?.coding?.[0]?.code || 'health-maintenance'].label} 
                             size="small" 
                             variant="outlined"
+                            sx={{ borderRadius: '4px' }}
                           />
                         </Stack>
                       </Stack>
@@ -767,7 +816,7 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
                       const color = status === 'completed' ? 'success' : 
                                    status === 'cancelled' ? 'error' : 
                                    status === 'active' ? 'primary' : 'default';
-                      return <Chip label={status} size="small" color={color} />;
+                      return <Chip label={status} size="small" color={color} sx={{ borderRadius: '4px' }} />;
                     }
                   },
                   { 
@@ -784,7 +833,7 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
                             <LinearProgress 
                               variant="determinate" 
                               value={progress} 
-                              sx={{ height: 6 }}
+                              sx={{ height: 6, borderRadius: 0 }}
                               color={progress >= 80 ? 'success' : progress >= 50 ? 'warning' : 'error'}
                             />
                           </Box>
@@ -822,19 +871,32 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
               />
             )}
           </Stack>
+          </Box>
         )}
         
         {/* Activities Tab */}
         {activeTab === 1 && (
+          <Box sx={{ p: 2 }}>
           <Stack spacing={2}>
-            <Paper sx={{ p: 2 }}>
+            <Paper sx={{ p: 2, borderRadius: 0 }}>
               <Typography variant="h6" gutterBottom>
                 Activities & Interventions
               </Typography>
               {activities.length === 0 ? (
-                <Alert severity="info">
-                  No activities or interventions defined
-                </Alert>
+                <ClinicalEmptyState
+                  title="No activities defined"
+                  message="Add activities and interventions to the care plan."
+                  actions={[
+                    {
+                      label: 'Add Activity',
+                      onClick: () => {
+                        setSelectedActivity(null);
+                        setActivityDialogOpen(true);
+                      },
+                      color: 'primary'
+                    }
+                  ]}
+                />
               ) : (
                 <List>
                   {activities.map((activity, index) => {
@@ -900,12 +962,14 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
               )}
             </Paper>
           </Stack>
+          </Box>
         )}
         
         {/* Care Team Tab */}
         {activeTab === 2 && (
+          <Box sx={{ p: 2 }}>
           <Stack spacing={2}>
-            <Paper sx={{ p: 2 }}>
+            <Paper sx={{ p: 2, borderRadius: 0 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">
                   Care Team Members
@@ -923,9 +987,20 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
               </Stack>
               
               {!careTeam || careTeam.participant?.length === 0 ? (
-                <Alert severity="info">
-                  No care team members assigned
-                </Alert>
+                <ClinicalEmptyState
+                  title="No care team members"
+                  message="Add care team members to collaborate on patient care."
+                  actions={[
+                    {
+                      label: 'Add Member',
+                      onClick: () => {
+                        setSelectedParticipant(null);
+                        setTeamDialogOpen(true);
+                      },
+                      color: 'primary'
+                    }
+                  ]}
+                />
               ) : (
                 <List>
                   {careTeam.participant.map((participant, index) => (
@@ -943,19 +1018,26 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
             </Paper>
             
             {/* Team Collaboration Summary */}
-            <Paper sx={{ p: 2 }}>
+            <Paper sx={{ p: 2, borderRadius: 0 }}>
               <Typography variant="h6" gutterBottom>
                 Collaboration Summary
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <MetricsBar 
-                    metrics={[
-                      { label: 'Total Members', value: careTeam?.participant?.length || 0, color: 'primary' },
-                      { label: 'Active Tasks', value: activities.filter(a => a.detail?.status === 'in-progress').length, color: 'warning' }
-                    ]}
-                    density="compact"
-                  />
+                  <Stack direction="row" spacing={2}>
+                    <ClinicalSummaryCard
+                      title="Total Members"
+                      value={careTeam?.participant?.length || 0}
+                      severity="normal"
+                      icon={<TeamIcon />}
+                    />
+                    <ClinicalSummaryCard
+                      title="Active Tasks"
+                      value={activities.filter(a => a.detail?.status === 'in-progress').length}
+                      severity="moderate"
+                      icon={<TaskIcon />}
+                    />
+                  </Stack>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2" gutterBottom>Role Distribution</Typography>
@@ -973,7 +1055,7 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
                     ).map(([role, count]) => (
                       <Stack key={role} direction="row" justifyContent="space-between">
                         <Typography variant="body2">{role}</Typography>
-                        <Chip label={count} size="small" />
+                        <Chip label={count} size="small" sx={{ borderRadius: '4px' }} />
                       </Stack>
                     ))}
                   </Stack>
@@ -981,31 +1063,80 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
               </Grid>
             </Paper>
           </Stack>
+          </Box>
         )}
         
         {/* Timeline Tab */}
         {activeTab === 3 && (
-          <Box>
-            <ResourceTimeline
-              resources={timelineData}
-              height={600}
-              onResourceClick={(resource) => {
-                if (resource.type === 'Goal') {
-                  setSelectedGoal(resource.resource);
-                  setProgressDialogOpen(true);
-                }
-              }}
+          <Box sx={{ p: 2 }}>
+            <ClinicalFilterPanel
+              searchQuery={searchTerm}
+              onSearchChange={setSearchTerm}
+              onRefresh={() => refreshPatientResources(patientId)}
             />
+            
+            <List sx={{ mt: 2 }}>
+              {timelineData.map((item, index) => (
+                <ListItem
+                  key={item.id}
+                  button
+                  onClick={() => {
+                    if (item.type === 'Goal') {
+                      setSelectedGoal(item.resource);
+                      setProgressDialogOpen(true);
+                    }
+                  }}
+                  sx={{ 
+                    backgroundColor: index % 2 === 1 ? 'action.hover' : 'transparent',
+                    borderRadius: 0,
+                    '&:hover': {
+                      backgroundColor: 'action.selected'
+                    }
+                  }}
+                >
+                  <ListItemIcon>
+                    {goalCategories[item.category]?.icon || <GoalIcon />}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.title}
+                    secondary={
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption">
+                          {format(parseISO(item.date), 'MMM d, yyyy')}
+                        </Typography>
+                        <Chip
+                          label={item.status || 'active'}
+                          size="small"
+                          sx={{ borderRadius: '4px' }}
+                          color={item.status === 'completed' ? 'success' : 'default'}
+                        />
+                      </Stack>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
           </Box>
         )}
       </Box>
       
-      {/* Contextual FAB */}
-      <ContextualFAB
-        module="care-plan"
-        actions={quickActions}
-        density={density}
-      />
+      {/* Floating Action Button */}
+      <Fab
+        color="primary"
+        aria-label="add goal"
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          borderRadius: 0
+        }}
+        onClick={() => {
+          setSelectedGoal(null);
+          setGoalDialogOpen(true);
+        }}
+      >
+        <AddIcon />
+      </Fab>
       
       {/* Dialogs would go here - keeping them simple for now */}
       {/* Goal Editor Dialog */}
@@ -1020,20 +1151,20 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGoalDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Save</Button>
+          <Button onClick={() => setGoalDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
         </DialogActions>
       </Dialog>
       
       {/* Progress Dialog */}
-      <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
         <DialogTitle>
           Goal Progress
         </DialogTitle>
         <DialogContent>
           {selectedGoal && (
             <Stack spacing={3} sx={{ mt: 2 }}>
-              <Alert severity="info">
+              <Alert severity="info" sx={{ borderRadius: 0 }}>
                 {selectedGoal.description?.text || 'Goal'}
               </Alert>
               
@@ -1045,13 +1176,13 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setProgressDialogOpen(false)}>Close</Button>
-          <Button variant="contained">Update Progress</Button>
+          <Button onClick={() => setProgressDialogOpen(false)} sx={{ borderRadius: 0 }}>Close</Button>
+          <Button variant="contained" sx={{ borderRadius: 0 }}>Update Progress</Button>
         </DialogActions>
       </Dialog>
       
       {/* Team Member Dialog */}
-      <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
         <DialogTitle>
           {selectedParticipant ? 'Edit Team Member' : 'Add Team Member'}
         </DialogTitle>
@@ -1061,13 +1192,13 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTeamDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Save</Button>
+          <Button onClick={() => setTeamDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
         </DialogActions>
       </Dialog>
       
       {/* Activity Dialog */}
-      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
         <DialogTitle>
           {selectedActivity ? 'Edit Activity' : 'Add Activity'}
         </DialogTitle>
@@ -1077,8 +1208,8 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setActivityDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Save</Button>
+          <Button onClick={() => setActivityDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
         </DialogActions>
       </Dialog>
       
@@ -1092,7 +1223,7 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{ width: '100%', borderRadius: 0 }}
         >
           {snackbar.message}
         </Alert>

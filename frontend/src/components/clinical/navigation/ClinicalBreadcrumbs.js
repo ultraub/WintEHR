@@ -29,7 +29,8 @@ const ClinicalBreadcrumbs = ({
   activeModule,
   subContext = null,
   onBookmark,
-  bookmarked = false
+  bookmarked = false,
+  navigationContext = {}
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -50,7 +51,7 @@ const ClinicalBreadcrumbs = ({
     ...(patient ? [{
       label: `${patient.name?.[0]?.given?.[0]} ${patient.name?.[0]?.family}`,
       icon: PatientIcon,
-      path: `/clinical/${patient.id}`,
+      path: `/clinical/${patient.id}?tab=${activeModule?.id || 'summary'}`,
       clickable: true,
       chip: patient.identifier?.[0]?.value
     }] : []),
@@ -61,7 +62,12 @@ const ClinicalBreadcrumbs = ({
       clickable: false,
       current: true
     }] : []),
-    ...(subContext ? [{
+    ...(navigationContext?.resourceType ? [{
+      label: navigationContext.resourceType,
+      path: null,
+      clickable: false,
+      current: true
+    }] : subContext ? [{
       label: subContext,
       path: null,
       clickable: false,

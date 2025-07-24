@@ -25,6 +25,7 @@ import {
   Button,
   Badge
 } from '@mui/material';
+import { Typography } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,

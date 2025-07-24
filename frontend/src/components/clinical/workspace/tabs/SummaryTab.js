@@ -41,8 +41,8 @@ import {
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useStableCallback } from '../../../../hooks/useStableReferences';
-import { useNavigate } from 'react-router-dom';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { TAB_IDS } from '../../utils/navigationHelper';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -118,9 +118,8 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
   );
 };
 
-const SummaryTab = ({ patientId, onNotificationUpdate }) => {
+const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { 
     resources,
     fetchPatientBundle,
@@ -653,7 +652,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   severity="error" 
                   sx={{ mb: 1 }}
                   action={
-                    <Button size="small" onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
+                    <Button size="small" onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}>
                       Manage
                     </Button>
                   }
@@ -673,7 +672,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   severity="warning" 
                   sx={{ mb: 1 }}
                   action={
-                    <Button size="small" onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
+                    <Button size="small" onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}>
                       View All
                     </Button>
                   }
@@ -710,7 +709,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 actions={[
                   {
                     label: 'View All',
-                    onClick: () => navigate(`/clinical/${patientId}?tab=chart`)
+                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)
                   }
                 ]}
                 sx={{ height: '100%' }}
@@ -780,7 +779,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 actions={[
                   {
                     label: 'Manage',
-                    onClick: () => navigate(`/medications`)
+                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.MEDICATIONS)
                   }
                 ]}
                 metrics={[
@@ -864,7 +863,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 actions={[
                   {
                     label: 'View All',
-                    onClick: () => navigate(`/clinical/${patientId}?tab=results`)
+                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.RESULTS)
                   }
                 ]}
                 trend={recentLabs.length > 0 ? (
@@ -971,7 +970,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                 actions={[
                   {
                     label: 'Schedule',
-                    onClick: () => navigate(`/clinical/${patientId}?tab=encounters`)
+                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)
                   }
                 ]}
                 sx={{ 
@@ -1077,7 +1076,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
                   action={
                     <IconButton 
                       size="small"
-                      onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
+                      onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)}
                     >
                       <ArrowIcon />
                     </IconButton>
@@ -1124,7 +1123,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
             >
               <CareTeamSummary
                 patientId={patientId}
-                onViewFullTeam={() => navigate(`/clinical/${patientId}?tab=carePlan`)}
+                onViewFullTeam={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CARE_PLAN)}
               />
             </motion.div>
           </Grid>
