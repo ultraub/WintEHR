@@ -34,9 +34,11 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   ArrowForward as ArrowIcon,
+  ArrowForward as ArrowForwardIcon,
   Refresh as RefreshIcon,
   CalendarMonth as CalendarIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Event as EventIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -61,14 +63,14 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
-import MetricCard from '../../common/MetricCard';
 import StatusChip from '../../common/StatusChip';
-import ClinicalCard from '../../ui/ClinicalCard';
-import MetricsBar from '../../ui/MetricsBar';
-import TrendSparkline from '../../ui/TrendSparkline';
-import CompactPatientHeader from '../../ui/CompactPatientHeader';
 import { ViewControls, useDensity } from '../../ui/DensityControl';
-import { motion } from 'framer-motion';
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalLoadingState,
+  ClinicalEmptyState
+} from '../../shared';
 
 // Use the new MetricCard component from common components
 
@@ -527,47 +529,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     if (stats.activeProblems > 5) return 'moderate';
     return 'low';
   }, [criticalConditions.length, stats]);
-  
-  // Prepare metrics for MetricsBar
-  const metrics = useMemo(() => [
-    {
-      label: 'Active Problems',
-      value: stats.activeProblems,
-      icon: <ProblemIcon />,
-      color: 'warning',
-      trend: stats.activeProblems > 3 ? 'up' : 'stable',
-      severity: stats.activeProblems > 5 ? 'high' : 'normal'
-    },
-    {
-      label: 'Medications',
-      value: stats.activeMedications,
-      icon: <MedicationIcon />,
-      color: 'primary',
-      sublabel: `${stats.overdueItems} need refill`
-    },
-    {
-      label: 'Recent Labs',
-      value: stats.recentLabs,
-      icon: <LabIcon />,
-      color: 'info',
-      sublabel: 'Last 7 days'
-    },
-    {
-      label: 'Allergies',
-      value: stats.totalAllergies,
-      icon: <WarningIcon />,
-      color: stats.totalAllergies > 0 ? 'error' : 'default',
-      severity: stats.totalAllergies > 3 ? 'high' : 'normal'
-    },
-    {
-      label: 'Overdue',
-      value: stats.overdueItems,
-      icon: <CalendarIcon />,
-      color: 'error',
-      severity: stats.overdueItems > 0 ? 'high' : 'normal',
-      progress: stats.overdueItems > 0 ? (stats.overdueItems / 10) * 100 : 0
-    }
-  ], [stats]);
 
   if (loading && !refreshing) {
     return (
@@ -624,28 +585,57 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
           </Box>
         </Box>
 
-        {/* Key Metrics Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          style={{ marginBottom: theme.spacing(3) }}
-        >
-          <MetricsBar 
-            metrics={metrics} 
-            density={density}
-            animate={!loading}
-          />
-        </motion.div>
+        {/* Key Metrics */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Active Problems"
+              value={stats.activeProblems}
+              icon={<ProblemIcon />}
+              severity={stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
+              trend={stats.activeProblems > 3 ? { direction: 'up' } : null}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Medications"
+              value={stats.activeMedications}
+              icon={<MedicationIcon />}
+              severity="normal"
+              chips={stats.overdueItems > 0 ? [{ label: `${stats.overdueItems} need refill`, color: 'error' }] : []}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Recent Labs"
+              value={stats.recentLabs}
+              icon={<LabIcon />}
+              severity="info"
+              chips={[{ label: 'Last 7 days', color: 'default' }]}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Allergies"
+              value={stats.totalAllergies}
+              icon={<WarningIcon />}
+              severity={stats.totalAllergies > 3 ? 'high' : stats.totalAllergies > 0 ? 'moderate' : 'normal'}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Overdue"
+              value={stats.overdueItems}
+              icon={<CalendarIcon />}
+              severity={stats.overdueItems > 0 ? 'high' : 'normal'}
+              progress={stats.overdueItems > 0 ? (stats.overdueItems / 10) * 100 : 0}
+            />
+          </Grid>
+        </Grid>
 
 
         {/* Clinical Alerts */}
         {(allergies.length > 0 || criticalConditions.length > 0) && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
             <Box sx={{ mt: 2, mb: 2 }}>
               {criticalConditions.length > 0 && (
                 <Alert 
@@ -689,29 +679,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                 </Alert>
               )}
             </Box>
-          </motion.div>
         )}
 
         {/* Clinical Snapshot Grid - 2x2 Layout */}
         <Grid container spacing={3}>
           {/* Active Problems Card */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-            >
-              <ClinicalCard
+              <ClinicalResourceCard
                 title="Active Problems"
                 subtitle={`${stats.activeProblems} conditions`}
-                severity={criticalConditions.length > 0 ? 'critical' : 'normal'}
-                expandable={false}
-                actions={[
-                  {
-                    label: 'View All',
-                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)
-                  }
-                ]}
+                icon={<ProblemIcon />}
+                severity={criticalConditions.length > 0 ? 'critical' : stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
                 sx={{ height: '100%' }}
               >
                 <List disablePadding>
@@ -760,40 +747,27 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                     </Typography>
                   )}
                 </List>
-              </ClinicalCard>
-            </motion.div>
+              </ClinicalResourceCard>
           </Grid>
 
           {/* Current Medications Card */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-            >
-              <ClinicalCard
+              <ClinicalResourceCard
                 title="Current Medications"
-                subtitle={`${stats.activeMedications} active`}
+                subtitle={`${stats.activeMedications} active medications`}
+                icon={<MedicationIcon />}
+                severity={stats.overdueItems > 0 ? 'high' : stats.activeMedications > 10 ? 'moderate' : 'normal'}
                 status={stats.overdueItems > 0 ? `${stats.overdueItems} need refill` : null}
-                expandable={false}
-                actions={[
-                  {
-                    label: 'Manage',
-                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.MEDICATIONS)
-                  }
-                ]}
-                metrics={[
-                  {
-                    label: 'Active',
-                    value: stats.activeMedications,
-                    color: 'primary'
-                  },
-                  {
-                    label: 'Need Refill',
-                    value: stats.overdueItems,
-                    color: stats.overdueItems > 0 ? 'error' : 'default'
-                  }
-                ]}
+                statusColor={stats.overdueItems > 0 ? 'error' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.PHARMACY)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
                 sx={{ height: '100%' }}
               >
                 <List disablePadding>
@@ -845,44 +819,40 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                     </Typography>
                   )}
                 </List>
-              </ClinicalCard>
-            </motion.div>
+              </ClinicalResourceCard>
           </Grid>
 
           {/* Recent Lab Results Card */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: 0.4 }}
-            >
-              <ClinicalCard
+              <ClinicalResourceCard
                 title="Recent Lab Results"
-                subtitle="Last 7 days"
-                expandable={false}
-                actions={[
-                  {
-                    label: 'View All',
-                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.RESULTS)
-                  }
-                ]}
-                trend={recentLabs.length > 0 ? (
-                  <TrendSparkline
-                    data={recentLabs.slice(0, 10).map(lab => 
-                      lab.valueQuantity?.value || 0
-                    ).reverse()}
-                    width={60}
-                    height={20}
-                    color="info"
-                    showArea
-                  />
-                ) : null}
-                sx={{ 
-                  height: '100%',
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${theme.palette.divider}`,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                }}
+                subtitle={`${recentLabs.length} results in last 7 days`}
+                icon={<LabIcon />}
+                severity={recentLabs.some(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }) ? 'high' : 'normal'}
+                status={recentLabs.filter(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }).length > 0 ? `${recentLabs.filter(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }).length} abnormal` : null}
+                statusColor={recentLabs.some(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }) ? 'warning' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.RESULTS)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
               >
                 <List disablePadding>
                   {recentLabs.length > 0 ? (
@@ -952,33 +922,28 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                     </Typography>
                   )}
                 </List>
-              </ClinicalCard>
-            </motion.div>
+              </ClinicalResourceCard>
           </Grid>
 
           {/* Upcoming Care Card */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: 0.5 }}
-            >
-              <ClinicalCard
+              <ClinicalResourceCard
                 title="Upcoming Care"
-                subtitle="Next appointments & tasks"
-                expandable={false}
-                actions={[
-                  {
-                    label: 'Schedule',
-                    onClick: () => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)
-                  }
-                ]}
-                sx={{ 
-                  height: '100%',
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${theme.palette.divider}`,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                }}
+                subtitle="Next scheduled activities"
+                icon={<EventIcon />}
+                severity={stats.overdueItems > 0 ? 'high' : 'normal'}
+                status={stats.overdueItems > 0 ? `${stats.overdueItems} overdue` : null}
+                statusColor={stats.overdueItems > 0 ? 'error' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)}
+                    title="View Calendar"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
               >
                 <List disablePadding>
                   {encounters.filter(enc => {
@@ -1052,8 +1017,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                     </Typography>
                   )}
                 </List>
-              </ClinicalCard>
-            </motion.div>
+              </ClinicalResourceCard>
           </Grid>
         </Grid>
 
@@ -1064,11 +1028,6 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
         <Grid container spacing={3}>
           {/* Recent Encounters */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.6 }}
-            >
               <Card sx={{ height: '100%' }}>
                 <CardHeader
                   title="Recent Visits"
@@ -1111,21 +1070,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                   </List>
                 </CardContent>
               </Card>
-            </motion.div>
           </Grid>
 
           {/* Care Team Summary */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.7 }}
-            >
-              <CareTeamSummary
-                patientId={patientId}
-                onViewFullTeam={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CARE_PLAN)}
-              />
-            </motion.div>
+            <CareTeamSummary
+              patientId={patientId}
+              onViewFullTeam={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CARE_PLAN)}
+            />
           </Grid>
         </Grid>
       </Box>
