@@ -80,40 +80,10 @@ frontend/src/components/clinical/
 └── orders/                       # Order components
 ```
 
-## 🔄 Workspace Versions
+## 🔄 Workspace Architecture
 
-### ClinicalWorkspaceV3 (Legacy)
-Self-contained workspace with integrated layout and patient header.
-
-**Dependency Graph:**
-```
-ClinicalWorkspaceV3
-├── React Core (useState, useEffect, useCallback, Suspense, useMemo, useRef)
-├── React Router (useParams, useLocation, useNavigate)
-├── Material-UI Components
-├── Internal Components
-│   ├── SafeBadge
-│   ├── EnhancedPatientHeader
-│   ├── WorkspaceContent
-│   └── ClinicalLayout
-├── Contexts
-│   ├── FHIRResourceContext
-│   ├── AuthContext
-│   └── CDSContext (CDS alerts)
-├── Lazy Loaded Components
-│   ├── CDSPresentation
-│   ├── LayoutBuilder
-│   └── All Tab Components (standard versions)
-└── Utilities
-    ├── decodeFhirId
-    └── getClinicalContext
-```
-
-**Key Features:**
-- Manages own activeTab state
-- Built-in CDS alerts display
-- Layout builder support
-- Self-contained navigation
+### Current Implementation (2025-01-24)
+The clinical workspace has been streamlined to use a single, modular architecture.
 
 ### ClinicalWorkspaceEnhanced (Current)
 Modular workspace designed to work with EnhancedClinicalLayout.
@@ -169,59 +139,33 @@ const ClinicalWorkspaceWrapper = () => {
 };
 ```
 
-### Migration Path
-```
-V3 → Enhanced:
-1. Replace ClinicalWorkspaceV3 with ClinicalWorkspaceWrapper
-2. Update tab imports to optimized versions
-3. Remove CDSContext dependency
-4. Add ClinicalWorkflowContext
-5. Update event handling to use workflow events
-```
+### Key Features
+- Modular architecture with separation of concerns
+- Enhanced performance with lazy loading
+- Keyboard navigation support
+- Clinical workflow event integration
+- Error boundaries for each tab
+- Streamlined state management
 
-### Choosing Between Versions
+**Current Tab Components:**
+| Component | Location | Key Features |
+|-----------|----------|--------------|
+| ChartReviewTabOptimized | workspace/tabs/ | Virtual scrolling, memoization |
+| ResultsTabOptimized | workspace/tabs/ | Trend visualization, batch loading |
+| EnhancedOrdersTab | workspace/tabs/ | Real-time updates, catalog integration |
+| DocumentationTabEnhanced | workspace/tabs/ | Rich text editor, templates |
+| CarePlanTabEnhanced | workspace/tabs/ | Goal tracking, timeline view |
+| TimelineTabEnhanced | workspace/tabs/ | Event grouping, filtering |
 
-**Use ClinicalWorkspaceV3 when:**
-- Working with legacy code that expects self-contained workspace
-- Need built-in CDS alerts display
-- Require layout builder functionality
-- Want minimal refactoring of existing integrations
+### ⚠️ Cleanup Completed (2025-01-24)
 
-**Use ClinicalWorkspaceEnhanced when:**
-- Building new features or refactoring
-- Need better performance and error handling
-- Want keyboard navigation support
-- Require clinical workflow event integration
-- Need modular architecture for flexibility
-
-**Tab Component Mapping:**
-| V3 Component | Enhanced Component | Key Improvements |
-|--------------|-------------------|------------------|
-| ChartReviewTab | ChartReviewTabOptimized | Virtual scrolling, memoization |
-| ResultsTab | ResultsTabOptimized | Trend visualization, batch loading |
-| OrdersTab | EnhancedOrdersTab | Real-time updates, catalog integration |
-| DocumentationTab | DocumentationTabEnhanced | Rich text editor, templates |
-| CarePlanTab | CarePlanTabEnhanced | Goal tracking, timeline view |
-| TimelineTab | TimelineTabEnhanced | Event grouping, filtering |
-
-### ⚠️ Deprecated Components
-
-**DO NOT USE these components in new code:**
-- `ChartReviewTab.js` - Use `ChartReviewTabOptimized.js` instead
-- `ResultsTab.js` - Use `ResultsTabOptimized.js` instead
-- `OrdersTab.js` - Use `EnhancedOrdersTab.js` instead
-- `DocumentationTab.js` - Use `DocumentationTabEnhanced.js` instead
-- `CarePlanTab.js` - Use `CarePlanTabEnhanced.js` instead
-- `TimelineTab.js` - Use `TimelineTabEnhanced.js` instead
-
-**Note**: These deprecated components are maintained only for backward compatibility with ClinicalWorkspaceV3. All new development should use ClinicalWorkspaceWrapper/Enhanced with the optimized tab components.
-
-**Removed Experimental Components** (2025-01-24):
-- `ChartReviewTabRefactored.js` - Experimental version removed
-- `ChartReviewTabSplitLayout.js` - Experimental version removed
-- `ResultsTabWithSubNav.js` - Experimental version removed
-- `TimelineTabD3Enhanced.js` - Experimental version removed
-- `TimelineTabRedesigned.js` - Experimental version removed
+**Removed Components:**
+- All deprecated tab versions (ChartReviewTab, ResultsTab, OrdersTab, etc.)
+- Legacy workspace components (ClinicalWorkspaceV3, ClinicalWorkspaceDemo, SimpleClinicalDemo)
+- Old patient headers (PatientHeader, PatientOverview, EnhancedPatientHeader, CollapsiblePatientHeader)
+- Old layout (ClinicalLayout)
+- Test/demo components
+- Experimental components (already removed earlier)
 
 ## ⚠️ Critical Rules
 

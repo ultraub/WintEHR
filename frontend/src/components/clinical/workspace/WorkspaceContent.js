@@ -8,26 +8,33 @@ import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-// Import all available components
+// Import all available components - using enhanced versions where available
 import SummaryTab from './tabs/SummaryTab';
-import ChartReviewTab from './tabs/ChartReviewTab';
+import ChartReviewTab from './tabs/ChartReviewTabOptimized';
 import EncountersTab from './tabs/EncountersTab';
-import ResultsTab from './tabs/ResultsTab';
-import OrdersTab from './tabs/OrdersTab';
-import DocumentationTab from './tabs/DocumentationTab';
-import CarePlanTab from './tabs/CarePlanTab';
-import TimelineTab from './tabs/TimelineTab';
+import ResultsTab from './tabs/ResultsTabOptimized';
+import OrdersTab from './tabs/EnhancedOrdersTab';
+import PharmacyTab from './tabs/PharmacyTab';
+import ImagingTab from './tabs/ImagingTab';
+import DocumentationTab from './tabs/DocumentationTabEnhanced';
+import CarePlanTab from './tabs/CarePlanTabEnhanced';
+import TimelineTab from './tabs/TimelineTabEnhanced';
 
-// Component registry
+// Component registry - updated with standardized IDs and enhanced components
 const COMPONENT_REGISTRY = {
   'summary': { component: SummaryTab, name: 'Summary Dashboard' },
-  'chart': { component: ChartReviewTab, name: 'Chart Review' },
+  'chart-review': { component: ChartReviewTab, name: 'Chart Review' }, // Uses ChartReviewTabOptimized
   'encounters': { component: EncountersTab, name: 'Encounters' },
-  'results': { component: ResultsTab, name: 'Results' },
-  'orders': { component: OrdersTab, name: 'Orders' },
-  'documentation': { component: DocumentationTab, name: 'Documentation' },
-  'careplan': { component: CarePlanTab, name: 'Care Plan' },
-  'timeline': { component: TimelineTab, name: 'Timeline' }
+  'results': { component: ResultsTab, name: 'Results' }, // Uses ResultsTabOptimized
+  'orders': { component: OrdersTab, name: 'Orders' }, // Uses EnhancedOrdersTab
+  'pharmacy': { component: PharmacyTab, name: 'Pharmacy' },
+  'imaging': { component: ImagingTab, name: 'Imaging' },
+  'documentation': { component: DocumentationTab, name: 'Documentation' }, // Uses DocumentationTabEnhanced
+  'care-plan': { component: CarePlanTab, name: 'Care Plan' }, // Uses CarePlanTabEnhanced
+  'timeline': { component: TimelineTab, name: 'Timeline' }, // Uses TimelineTabEnhanced
+  // Legacy mappings for backward compatibility
+  'chart': { component: ChartReviewTab, name: 'Chart Review' },
+  'careplan': { component: CarePlanTab, name: 'Care Plan' }
 };
 
 const WorkspaceContent = ({ layout, patientId, onLayoutChange }) => {

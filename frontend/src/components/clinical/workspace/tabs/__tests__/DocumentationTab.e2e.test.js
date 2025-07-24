@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-import DocumentationTab from '../DocumentationTab';
+import DocumentationTab from '../DocumentationTabEnhanced';
 import { FHIRResourceProvider } from '../../../../../contexts/FHIRResourceContext';
 import { ClinicalWorkflowProvider } from '../../../../../contexts/ClinicalWorkflowContext';
 

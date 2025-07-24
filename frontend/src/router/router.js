@@ -2,15 +2,10 @@ import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import LayoutV3 from '../components/LayoutV3';
-import ClinicalLayout from '../components/ClinicalLayout';
-import EnhancedClinicalLayout from '../components/clinical/layouts/EnhancedClinicalLayout';
 import Login from '../pages/Login';
 import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
-import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
-import ClinicalWorkspaceEnhanced from '../components/clinical/ClinicalWorkspaceEnhanced';
 import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWrapper';
-import SimpleClinicalDemo from '../components/clinical/SimpleClinicalDemo';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
 import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
@@ -42,11 +37,6 @@ export const router = createBrowserRouter([
     path: '/login',
     element: <Login />
   },
-  // Demo route for testing enhanced clinical workspace without auth
-  {
-    path: '/clinical-demo/:id',
-    element: <SimpleClinicalDemo />
-  },
   {
     path: '/',
     element: <Navigate to="/patients" replace />
@@ -76,17 +66,6 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <ClinicalWorkspaceWrapper />
-      </ProtectedRoute>
-    )
-  },
-  // Legacy route for comparison
-  {
-    path: '/patients/:id/clinical-v3',
-    element: (
-      <ProtectedRoute>
-        <ClinicalLayout>
-          <ClinicalWorkspaceV3 />
-        </ClinicalLayout>
       </ProtectedRoute>
     )
   },
