@@ -334,7 +334,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
-  const [viewMode, setViewMode] = useState('timeline'); // 'cards', 'timeline', or 'table'
+  const [viewMode, setViewMode] = useState('cards'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
@@ -854,38 +854,55 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
   return (
     <>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
-      {/* Header */}
-      <Box sx={{ p: 3, pb: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h5" fontWeight="bold">
-              Encounter History
+      {/* Compact Header */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          {/* Inline Statistics */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {encounterStats.total} total visits
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {encounterStats.total} total visits • {encounterStats.inProgress} in progress
-            </Typography>
-          </Box>
+            {encounterStats.inProgress > 0 && (
+              <Chip
+                label={`${encounterStats.inProgress} in progress`}
+                size="small"
+                color="warning"
+                icon={<TimeIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {encounterStats.emergency > 0 && (
+              <Chip
+                label={`${encounterStats.emergency} emergency`}
+                size="small"
+                color="error"
+                icon={<EmergencyIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+          </Stack>
+          
+          {/* Quick Actions */}
           <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
+            <IconButton
               size="small"
-              startIcon={<PrintIcon />}
-              onClick={handlePrintEncounters}
+              onClick={handleNewEncounter}
+              title="New Encounter"
             >
-              Print
-            </Button>
+              <AddIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={handlePrintEncounters}
+              title="Print"
+            >
+              <PrintIcon />
+            </IconButton>
           </Stack>
         </Stack>
 
-        {/* Metrics Bar */}
-        <MetricsBar 
-          metrics={encounterMetrics} 
-          density={density}
-          animate
-        />
-
         {/* Collapsible Filter Panel */}
-        <Box sx={{ mt: 2 }}>
+        <Box>
           <CollapsibleFilterPanel
             searchQuery={searchTerm}
             onSearchChange={setSearchTerm}
@@ -955,32 +972,30 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
             No encounters found matching your criteria
           </Alert>
         ) : viewMode === 'timeline' ? (
-          <Box sx={{ height: 'calc(100% - 16px)' }}>
+          <Box sx={{ p: 2, height: 'calc(100% - 16px)' }}>
             <ResourceTimeline
-              resources={allClinicalResources.filter(r => {
-                // Apply same filters to timeline resources
-                if (r.resourceType === 'Encounter') {
-                  const enc = filteredEncounters.find(e => e.id === r.id);
-                  return !!enc;
-                }
-                // For other resources, check if they belong to filtered encounters
-                const encRef = r.encounter?.reference || r.context?.reference;
-                if (encRef) {
-                  const encId = encRef.split('/').pop();
-                  return filteredEncounters.some(e => e.id === encId);
-                }
-                return false;
-              })}
-              onResourceClick={(resource) => {
-                if (resource.resourceType === 'Encounter') {
-                  handleViewEncounterDetails(resource);
-                }
-              }}
-              height={600}
+              resources={sortedEncounters.map(enc => ({
+                ...enc,
+                date: enc.actualPeriod?.start || enc.period?.start || enc.meta?.lastUpdated,
+                title: getEncounterTypeLabel(enc),
+                severity: getEncounterClass(enc) === 'EMER' ? 'critical' : 
+                         getEncounterClass(enc) === 'IMP' ? 'high' : 'normal'
+              }))}
+              onResourceClick={(resource) => handleViewEncounterDetails(resource)}
+              height="100%"
               showLegend
-              showRangeSelector
+              showControls
               enableZoom
-              groupByType
+              groupByType={false}
+              colorByType={false}
+              colorBySeverity={true}
+              dateRange={filterPeriod !== 'all' ? {
+                start: filterPeriod === '1m' ? subMonths(new Date(), 1) :
+                       filterPeriod === '3m' ? subMonths(new Date(), 3) :
+                       filterPeriod === '6m' ? subMonths(new Date(), 6) :
+                       subMonths(new Date(), 12),
+                end: new Date()
+              } : undefined}
             />
           </Box>
         ) : viewMode === 'cards' ? (

@@ -27,7 +27,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  useTheme
+  useTheme,
+  Divider,
+  Collapse,
+  Checkbox
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
@@ -43,7 +46,11 @@ import {
   Analytics as AnalyticsIcon,
   Close as CloseIcon,
   Pending as PendingIcon,
-  CheckCircle
+  CheckCircle,
+  Visibility as ViewIcon,
+  Edit as EditIcon,
+  ViewAgenda as CompactIcon,
+  ViewStream as StandardIcon
 } from '@mui/icons-material';
 
 // Enhanced components and hooks
@@ -74,8 +81,8 @@ import {
 // import OrderStatisticsPanel from './components/OrderStatisticsPanel';
 // import OrderCard from './components/OrderCard';
 
-// Temporary OrderCard component using ClinicalResourceCard
-const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAlternate = false }) => {
+// Optimized OrderCard component with better information density
+const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAlternate = false, compact = false }) => {
   // Determine order type and icon
   const getOrderIcon = () => {
     if (order.resourceType === 'MedicationRequest') return <MedicationIcon />;
@@ -91,13 +98,86 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
     return 'normal';
   };
 
-  // Build details array
+  const title = order.resourceType === 'MedicationRequest' 
+    ? getMedicationName(order)
+    : (order.code?.text || order.code?.coding?.[0]?.display || 'Order');
+
+  const orderDate = order.authoredOn ? new Date(order.authoredOn) : null;
+  
+  // Compact inline display for better density
+  if (compact) {
+    return (
+      <Box sx={{ 
+        mb: 0.5, 
+        p: 1, 
+        bgcolor: isAlternate ? 'action.hover' : 'background.paper',
+        borderLeft: `3px solid ${getSeverity() === 'critical' ? '#d32f2f' : getSeverity() === 'high' ? '#f57c00' : '#1976d2'}`,
+        '&:hover': { bgcolor: 'action.selected' }
+      }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Checkbox
+            checked={selected}
+            onChange={(e) => onSelect(order, e.target.checked)}
+            size="small"
+            sx={{ p: 0 }}
+          />
+          {getOrderIcon()}
+          <Stack spacing={0} flex={1}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="body2" fontWeight="medium">
+                {title}
+              </Typography>
+              <Chip 
+                label={order.status} 
+                size="small" 
+                color={order.status === 'active' ? 'success' : order.status === 'cancelled' ? 'error' : 'default'}
+                sx={{ height: 20, borderRadius: '4px' }}
+              />
+              {order.priority && order.priority !== 'routine' && (
+                <Chip 
+                  label={order.priority.toUpperCase()} 
+                  size="small" 
+                  color="error"
+                  sx={{ height: 20, fontWeight: 'bold', borderRadius: '4px' }}
+                />
+              )}
+            </Stack>
+            <Stack direction="row" spacing={2}>
+              <Typography variant="caption" color="text.secondary">
+                {orderDate ? `${orderDate.toLocaleDateString()} ${orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'No date'}
+              </Typography>
+              {order.requester?.display && (
+                <Typography variant="caption" color="text.secondary">
+                  by {order.requester.display}
+                </Typography>
+              )}
+              {order.dosageInstruction?.[0]?.text && (
+                <Typography variant="caption" color="text.secondary">
+                  {order.dosageInstruction[0].text}
+                </Typography>
+              )}
+            </Stack>
+          </Stack>
+          <Stack direction="row" spacing={0.5}>
+            <IconButton size="small" onClick={() => onAction(order, 'view')} sx={{ p: 0.5 }}>
+              <ViewIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => onAction(order, 'edit')} sx={{ p: 0.5 }}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </Stack>
+      </Box>
+    );
+  }
+
+  // Standard card display
   const details = [];
   
-  if (order.authoredOn) {
+  if (orderDate) {
     details.push({ 
       label: 'Ordered', 
-      value: new Date(order.authoredOn).toLocaleDateString() 
+      value: `${orderDate.toLocaleDateString()} at ${orderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     });
   }
   
@@ -108,10 +188,6 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
   if (order.dosageInstruction?.[0]?.text) {
     details.push({ value: order.dosageInstruction[0].text });
   }
-
-  const title = order.resourceType === 'MedicationRequest' 
-    ? getMedicationName(order)
-    : (order.code?.text || order.code?.coding?.[0]?.display || 'Order');
 
   return (
     <Box sx={{ mb: 1 }}>
@@ -134,7 +210,7 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
 };
 
 // Enhanced OrderStatisticsPanel component
-const OrderStatisticsPanel = ({ statistics, onClose }) => {
+const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
   const theme = useTheme();
   
   // Calculate additional statistics
@@ -144,6 +220,88 @@ const OrderStatisticsPanel = ({ statistics, onClose }) => {
   const labOrders = statistics?.byType?.laboratory || 0;
   const imagingOrders = statistics?.byType?.imaging || 0;
   
+  if (compact) {
+    // Compact inline chip-based view
+    return (
+      <Box sx={{ mb: 1 }}>
+        <Stack spacing={1}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" color="text.secondary">
+              Order Statistics
+            </Typography>
+            {onClose && (
+              <IconButton size="small" onClick={onClose} sx={{ p: 0.5 }}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Stack>
+          
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5 }}>
+            <Chip
+              icon={<OrderIcon fontSize="small" />}
+              label={`Total: ${statistics?.total || 0}`}
+              size="small"
+              variant="outlined"
+              sx={{ borderRadius: '4px' }}
+            />
+            <Chip
+              icon={<OrderIcon fontSize="small" />}
+              label={`Active: ${statistics?.active || 0}`}
+              size="small"
+              color="primary"
+              sx={{ borderRadius: '4px' }}
+            />
+            {(statistics?.urgent || 0) > 0 && (
+              <Chip
+                label={`Urgent: ${statistics?.urgent || 0}`}
+                size="small"
+                color="error"
+                sx={{ fontWeight: 'bold', borderRadius: '4px' }}
+              />
+            )}
+            <Chip
+              icon={<PendingIcon fontSize="small" />}
+              label={`Pending: ${pendingOrders}`}
+              size="small"
+              color="warning"
+              sx={{ borderRadius: '4px' }}
+            />
+            <Chip
+              icon={<CheckCircle fontSize="small" />}
+              label={`Today: ${completedToday}`}
+              size="small"
+              color="success"
+              sx={{ borderRadius: '4px' }}
+            />
+            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+            <Chip
+              icon={<MedicationIcon fontSize="small" />}
+              label={`Meds: ${medicationOrders}`}
+              size="small"
+              variant="outlined"
+              sx={{ borderRadius: '4px' }}
+            />
+            <Chip
+              icon={<LabIcon fontSize="small" />}
+              label={`Labs: ${labOrders}`}
+              size="small"
+              variant="outlined"
+              sx={{ borderRadius: '4px' }}
+            />
+            <Chip
+              icon={<ImagingIcon fontSize="small" />}
+              label={`Imaging: ${imagingOrders}`}
+              size="small"
+              variant="outlined"
+              sx={{ borderRadius: '4px' }}
+            />
+          </Stack>
+        </Stack>
+      </Box>
+    );
+  }
+  
+  // Full card-based view (original)
   return (
     <Box sx={{ mb: 3 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
@@ -276,6 +434,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [showStatistics, setShowStatistics] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // Added for ClinicalFilterPanel
+  const [compactView, setCompactView] = useState(true); // Default to compact for better density
   const scrollContainerRef = useRef(null); // Added for auto-collapse on scroll
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -610,69 +769,98 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ p: 3, height: '100%', overflow: 'auto' }} ref={scrollContainerRef}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">
-          Enhanced Orders & Prescriptions
-        </Typography>
-        <Stack direction="row" spacing={2}>
-          {selectedOrders.size > 0 && (
-            <>
-              <Button
-                variant="outlined"
-                startIcon={<SignIcon />}
-                onClick={() => setSignOrdersDialog({ open: true, orders: [] })}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+      {/* Compact Header with inline stats */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          {/* Inline Statistics */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {processedResults.all.length} total orders
+            </Typography>
+            {activeOrdersCount > 0 && (
+              <Chip
+                label={`${activeOrdersCount} active`}
+                size="small"
                 color="primary"
-                sx={{ borderRadius: 0 }}
-              >
-                Sign Orders ({selectedOrders.size})
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<SendIcon />}
-                onClick={() => {/* Handle batch send to pharmacy */}}
-                sx={{ borderRadius: 0 }}
-              >
-                Send to Pharmacy
-              </Button>
-              <Button
-                variant="outlined"
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {urgentOrdersCount > 0 && (
+              <Chip
+                label={`${urgentOrdersCount} urgent`}
+                size="small"
                 color="error"
-                startIcon={<DeleteIcon />}
-                onClick={() => {/* Handle batch cancel */}}
-                sx={{ borderRadius: 0 }}
-              >
-                Cancel Selected
-              </Button>
-            </>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<AnalyticsIcon />}
-            onClick={() => setShowStatistics(!showStatistics)}
-            sx={{ borderRadius: 0 }}
-          >
-            Statistics
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setCpoeDialogOpen(true)}
-            sx={{ borderRadius: 0 }}
-          >
-            CPOE Order Entry
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<ExportIcon />}
-            onClick={() => handleExportOrders('csv')}
-            sx={{ borderRadius: 0 }}
-          >
-            Export
-          </Button>
+                icon={<OrderIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {selectedOrders.size > 0 && (
+              <Chip
+                label={`${selectedOrders.size} selected`}
+                size="small"
+                variant="outlined"
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+          </Stack>
+          
+          {/* Quick Actions */}
+          <Stack direction="row" spacing={1}>
+            {selectedOrders.size > 0 && (
+              <>
+                <IconButton
+                  size="small"
+                  onClick={() => setSignOrdersDialog({ open: true, orders: [] })}
+                  title="Sign Selected Orders"
+                  color="primary"
+                >
+                  <SignIcon />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => {/* Handle batch send to pharmacy */}}
+                  title="Send to Pharmacy"
+                >
+                  <SendIcon />
+                </IconButton>
+              </>
+            )}
+            <IconButton
+              size="small"
+              onClick={() => setCompactView(!compactView)}
+              title={compactView ? "Standard View" : "Compact View"}
+              color={compactView ? "primary" : "default"}
+            >
+              {compactView ? <StandardIcon /> : <CompactIcon />}
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={() => setShowStatistics(!showStatistics)}
+              title={showStatistics ? "Hide Statistics" : "Show Statistics"}
+              color={showStatistics ? "primary" : "default"}
+            >
+              <AnalyticsIcon />
+            </IconButton>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCpoeDialogOpen(true)}
+              sx={{ borderRadius: 0 }}
+            >
+              New Order
+            </Button>
+            <IconButton
+              size="small"
+              onClick={() => handleExportOrders('csv')}
+              title="Export"
+            >
+              <ExportIcon />
+            </IconButton>
+          </Stack>
         </Stack>
-      </Stack>
+      </Box>
 
       {/* Alerts */}
       {urgentOrdersCount > 0 && (
@@ -796,46 +984,18 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         }
       />
 
-      {/* Statistics Panel */}
+      {/* Statistics Panel - Collapsible */}
       {showStatistics && statistics && (
-        <OrderStatisticsPanel 
-          statistics={statistics}
-          onClose={() => setShowStatistics(false)}
-        />
+        <Collapse in={showStatistics}>
+          <Box sx={{ px: 2, pb: 1 }}>
+            <OrderStatisticsPanel 
+              statistics={statistics}
+              onClose={() => setShowStatistics(false)}
+              compact
+            />
+          </Box>
+        </Collapse>
       )}
-
-      {/* Summary Stats */}
-      <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
-        <Chip 
-          label={`${activeOrdersCount} Active Orders`} 
-          color="primary" 
-          icon={<Assignment />}
-          sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-        />
-        <Chip 
-          label={`${processedResults.medications.filter(o => o.status === 'active').length} Active Medications`} 
-          color="info" 
-          sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-        />
-        <Chip 
-          label={`${processedResults.lab.filter(o => o.status === 'active').length} Pending Labs`} 
-          color="warning" 
-          sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-        />
-        <Chip 
-          label={`Total: ${results?.total || 0}`} 
-          color="default" 
-          sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-        />
-        {loading && (
-          <Chip 
-            label="Searching..." 
-            color="default"
-            icon={<CircularProgress size={16} />}
-            sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-          />
-        )}
-      </Stack>
 
       {/* Tabs */}
       <Tabs 
@@ -844,9 +1004,10 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         variant="scrollable"
         scrollButtons="auto"
         sx={{ 
-          mb: 3,
+          mb: 2,
           '& .MuiTab-root': {
-            borderRadius: 0
+            borderRadius: 0,
+            minHeight: '40px'
           }
         }}
       >
@@ -892,7 +1053,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         // Use virtual scrolling for large lists in list mode
         <VirtualizedList
           items={currentOrders}
-          itemHeight={120}
+          itemHeight={compactView ? 60 : 120}
           containerHeight={600}
           renderItem={(order, index, key) => (
             <OrderCard
@@ -903,6 +1064,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
               onAction={handleOrderAction}
               getRelatedOrders={getRelatedOrders}
               isAlternate={index % 2 === 1}
+              compact={compactView}
             />
           )}
         />
@@ -918,6 +1080,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
               onAction={handleOrderAction}
               getRelatedOrders={getRelatedOrders}
               isAlternate={index % 2 === 1}
+              compact={compactView}
             />
           ))}
         </Box>

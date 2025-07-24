@@ -109,7 +109,7 @@ class MasterBuildOrchestrator:
             {
                 "name": "index_search_parameters",
                 "description": "Index search parameters for all FHIR resources",
-                "script": "../consolidated_search_indexing.py",
+                "script": "consolidated_search_indexing.py",
                 "args": ["--mode", "index"],
                 "required": True,
                 "estimated_time": 180
@@ -141,7 +141,7 @@ class MasterBuildOrchestrator:
             {
                 "name": "populate_compartments",
                 "description": "Populate patient compartments for efficient queries",
-                "script": "../populate_compartments.py",
+                "script": "../setup/populate_compartments.py",
                 "args": [],
                 "required": True,
                 "estimated_time": 60
@@ -149,7 +149,7 @@ class MasterBuildOrchestrator:
             {
                 "name": "populate_references",
                 "description": "Populate FHIR resource references table",
-                "script": "../populate_references_urn_uuid.py",
+                "script": "../setup/populate_references_urn_uuid.py",
                 "args": [],
                 "required": True,
                 "estimated_time": 90
@@ -157,7 +157,7 @@ class MasterBuildOrchestrator:
             {
                 "name": "fix_cds_hooks_schema",
                 "description": "Fix CDS hooks schema if needed",
-                "script": "../fix_cds_hooks_enabled_column.py",
+                "script": "../migrations/fix_cds_hooks_enabled_column.py",
                 "args": [],
                 "required": False,
                 "estimated_time": 30

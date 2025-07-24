@@ -177,11 +177,18 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       ]
     };
 
-    if ((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) {
-      const reasons = encounter.reasonCode || encounter.reason || [];
+    // Handle both array and non-array formats for reasons
+    const hasReasonCode = encounter.reasonCode && (Array.isArray(encounter.reasonCode) ? encounter.reasonCode.length > 0 : true);
+    const hasReason = encounter.reason && (Array.isArray(encounter.reason) ? encounter.reason.length > 0 : true);
+    
+    if (hasReasonCode || hasReason) {
+      const reasonsArray = Array.isArray(encounter.reasonCode) ? encounter.reasonCode : 
+                          Array.isArray(encounter.reason) ? encounter.reason :
+                          encounter.reasonCode ? [encounter.reasonCode] :
+                          encounter.reason ? [encounter.reason] : [];
       printContent.sections.push({
         title: 'Reason for Visit',
-        content: reasons.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
+        content: reasonsArray.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
       });
     }
 
@@ -424,7 +431,12 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </Grid>
             </Grid>
 
-            {((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) && (
+            {(() => {
+              // Check if there are any reasons to display (handling both array and non-array formats)
+              const hasReasonCode = encounter.reasonCode && (Array.isArray(encounter.reasonCode) ? encounter.reasonCode.length > 0 : true);
+              const hasReason = encounter.reason && (Array.isArray(encounter.reason) ? encounter.reason.length > 0 : true);
+              return hasReasonCode || hasReason;
+            })() && (
               <Box sx={{ 
                 mt: 3, 
                 pt: 3,
@@ -434,18 +446,26 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   Reason for Visit
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                  {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
-                    <Chip 
-                      key={idx}
-                      label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
-                      variant="filled"
-                      sx={{ 
-                        bgcolor: theme.palette.primary.main + '15',
-                        color: theme.palette.primary.main,
-                        fontWeight: 500
-                      }}
-                    />
-                  ))}
+                  {(() => {
+                    // Handle both array and non-array formats for FHIR data consistency
+                    const reasonsArray = Array.isArray(encounter.reasonCode) ? encounter.reasonCode : 
+                                        Array.isArray(encounter.reason) ? encounter.reason :
+                                        encounter.reasonCode ? [encounter.reasonCode] :
+                                        encounter.reason ? [encounter.reason] : [];
+                    
+                    return reasonsArray.map((reason, idx) => (
+                      <Chip 
+                        key={idx}
+                        label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
+                        variant="filled"
+                        sx={{ 
+                          bgcolor: theme.palette.primary.main + '15',
+                          color: theme.palette.primary.main,
+                          fontWeight: 500
+                        }}
+                      />
+                    ));
+                  })()}
                 </Stack>
               </Box>
             )}

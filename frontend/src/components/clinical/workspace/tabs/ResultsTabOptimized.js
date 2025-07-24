@@ -83,7 +83,8 @@ import {
   LocationOn as LocationIcon,
   TableChart as TableIcon,
   ViewModule as CardsIcon,
-  ShowChart as TrendsIcon
+  ShowChart as TrendsIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -566,26 +567,83 @@ const ResultsTabOptimized = ({ patientId }) => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
-      {/* Header */}
-      <ClinicalTabHeader
-        title="Results"
-        subtitle={`${allData.labObservations.length + allData.vitalObservations.length + allData.diagnosticReports.length} total results`}
-        icon={AssessmentIcon}
-        onPrint={() => {/* Add print handler */}}
-        onExport={() => {/* Add export handler */}}
-        onRefresh={fetchAllData}
-        dense={false}
-      >
-        {/* Clinical Filter Panel */}
+      {/* Compact Header with inline stats */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          {/* Inline Statistics */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {allData.labObservations.length + allData.vitalObservations.length + allData.diagnosticReports.length} total results
+            </Typography>
+            {allData.labObservations.filter(obs => getResultStatus(obs).label === 'High' || getResultStatus(obs).label === 'Low').length > 0 && (
+              <Chip
+                label={`${allData.labObservations.filter(obs => getResultStatus(obs).label !== 'Normal').length} abnormal`}
+                size="small"
+                color="warning"
+                icon={<AbnormalIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {filterPeriod !== 'all' && (
+              <Chip
+                label={filterPeriod}
+                size="small"
+                variant="outlined"
+                onDelete={() => setFilterPeriod('all')}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+          </Stack>
+          
+          {/* Quick Actions with View Toggle */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, value) => value && setViewMode(value)}
+              size="small"
+            >
+              <ToggleButton value="table" title="Table View">
+                <TableIcon fontSize="small" />
+              </ToggleButton>
+              <ToggleButton value="cards" title="Card View">
+                <CardsIcon fontSize="small" />
+              </ToggleButton>
+              <ToggleButton value="trends" title="Trends View">
+                <Tooltip title="View lab trends and vital sign graphs">
+                  <TrendsIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
+            <Divider orientation="vertical" flexItem />
+            <IconButton
+              size="small"
+              onClick={() => {/* Add print handler */}}
+              title="Print"
+            >
+              <PrintIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={fetchAllData}
+              title="Refresh"
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Stack>
+        </Stack>
+      </Box>
+      
+      {/* Filter Panel */}
+      <Box sx={{ px: 2 }}>
         <ClinicalFilterPanel
           searchQuery={searchTerm}
           onSearchChange={setSearchTerm}
           dateRange={filterPeriod}
           onDateRangeChange={setFilterPeriod}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
           onRefresh={fetchAllData}
           scrollContainerRef={scrollContainerRef}
+          compact
         >
           {/* Additional custom filter for Status when showing observations */}
           {tabValue < 2 && (
@@ -603,7 +661,7 @@ const ResultsTabOptimized = ({ patientId }) => {
             </FormControl>
           )}
         </ClinicalFilterPanel>
-      </ClinicalTabHeader>
+      </Box>
       
       {/* Tabs */}
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>

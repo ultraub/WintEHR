@@ -8,7 +8,6 @@ import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
 import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWrapper';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
-import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
 import FHIRExplorerApp from '../components/fhir-explorer-v4/core/FHIRExplorerApp';
 import { AppProviders } from '../providers/AppProviders';
 import Settings from '../pages/Settings';
@@ -195,16 +194,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '/fhir-explorer',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <FHIRExplorerRedesigned />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/fhir-explorer-v4',
     element: (
       <ProtectedRoute>
         <AppProviders>

@@ -107,6 +107,8 @@ import {
   ClinicalEmptyState,
   ClinicalLoadingState
 } from '../../shared';
+// Import the actual ResourceTimeline component
+import ResourceTimeline from '../../ui/ResourceTimeline';
 
 // Enhanced event type configuration with track assignment
 const eventTypes = {
@@ -331,6 +333,15 @@ const TimelineEventCard = ({ event, onClick, isAlternate }) => {
   );
 };
 
+// Date range presets
+const dateRangePresets = [
+  { label: 'Last Week', getValue: () => ({ start: subDays(new Date(), 7), end: new Date() }) },
+  { label: 'Last Month', getValue: () => ({ start: subMonths(new Date(), 1), end: new Date() }) },
+  { label: 'Last 3 Months', getValue: () => ({ start: subMonths(new Date(), 3), end: new Date() }) },
+  { label: 'Last Year', getValue: () => ({ start: subYears(new Date(), 1), end: new Date() }) },
+  { label: 'All Time', getValue: () => ({ start: null, end: null }) }
+];
+
 const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -356,6 +367,7 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
   const [loadingError, setLoadingError] = useState(null);
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [timelineDensity, setTimelineDensity] = useState('normal'); // 'compact', 'normal', 'comfortable'
   
   // Use ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -383,10 +395,10 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
         setLoadingError(null);
         console.log('Timeline: Starting data load for patient', patientId);
         
-        // Start with a smaller count for better performance
+        // Start with a smaller count for faster initial load
         const options = {
           types: Array.from(selectedTypes),
-          count: 100,
+          count: 50, // Reduced for faster initial render
           since: dateRange.start.toISOString().split('T')[0]
         };
         
@@ -506,7 +518,8 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       .map(event => ({
         ...event,
         title: getEventTitle(event),
-        date: getEventDate(event)
+        date: getEventDate(event),
+        display: getEventTitle(event) // Add display field for ResourceTimeline
       }))
       .sort((a, b) => {
         const dateA = a.date;
@@ -519,6 +532,11 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
         return new Date(dateB) - new Date(dateA);
       });
   }, [filteredEvents]);
+  
+  // Prepare resources for timeline component with proper format
+  const timelineResources = useMemo(() => {
+    return sortedEvents.filter(event => event.date); // Only include events with dates
+  }, [sortedEvents]);
   
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
@@ -702,16 +720,16 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
   
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Summary Cards */}
-      <Box sx={{ mb: 2, px: isMobile ? 1 : 0 }}>
+      {/* Summary Cards - More compact */}
+      <Box sx={{ mb: 1.5, px: isMobile ? 1 : 0 }}>
         <Stack 
           direction="row" 
-          spacing={isMobile ? 1 : 2} 
+          spacing={isMobile ? 0.5 : 1} 
           sx={{ 
             overflowX: 'auto', 
-            pb: 1,
+            pb: 0.5,
             '& > *': {
-              minWidth: isMobile ? '120px' : '150px'
+              minWidth: isMobile ? '100px' : '120px'
             }
           }}
         >
@@ -720,14 +738,16 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             value={sortedEvents.length}
             severity="normal"
             icon={<TimelineIcon />}
+            sx={{ height: 64 }} // Reduced height
           />
-          {summaryMetrics.map(({ type, count, config }) => (
+          {summaryMetrics.slice(0, 3).map(({ type, count, config }) => ( // Show only top 3
             <ClinicalSummaryCard
               key={type}
               title={config.label}
               value={count}
               severity="normal"
               icon={config.icon}
+              sx={{ height: 64 }} // Reduced height
             />
           ))}
         </Stack>
@@ -766,6 +786,25 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             setLoadingError(error.message || 'Failed to refresh timeline data');
           }
         }}
+        additionalFilters={
+          <Stack direction="row" spacing={0.5}>
+            {dateRangePresets.slice(0, 3).map(preset => (
+              <Button
+                key={preset.label}
+                size="small"
+                variant={
+                  dateRange.start && preset.getValue().start &&
+                  Math.abs(dateRange.start - preset.getValue().start) < 86400000 ? 
+                  'contained' : 'outlined'
+                }
+                onClick={() => setDateRange(preset.getValue())}
+                sx={{ borderRadius: 0, minWidth: 'auto', fontSize: '0.75rem' }}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </Stack>
+        }
         customFilters={
           <>
             <Button
@@ -776,6 +815,31 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             >
               Event Types ({selectedTypes.size})
             </Button>
+            {viewMode === 'timeline' && (
+              <ToggleButtonGroup
+                value={timelineDensity}
+                exclusive
+                onChange={(e, value) => value && setTimelineDensity(value)}
+                size="small"
+                sx={{ borderRadius: 0 }}
+              >
+                <ToggleButton value="compact" sx={{ borderRadius: 0 }}>
+                  <Tooltip title="Compact View">
+                    <SingleTrackIcon />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value="normal" sx={{ borderRadius: 0 }}>
+                  <Tooltip title="Normal View">
+                    <ViewWeek />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value="comfortable" sx={{ borderRadius: 0 }}>
+                  <Tooltip title="Comfortable View">
+                    <ListViewIcon />
+                  </Tooltip>
+                </ToggleButton>
+              </ToggleButtonGroup>
+            )}
             <IconButton onClick={handlePrintTimeline}>
               <PrintIcon />
             </IconButton>
@@ -783,56 +847,65 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
         }
       />
       
-      {/* Event type filters */}
+      {/* Event type filters - More compact */}
       <Collapse in={showFilters}>
-        <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 0, mb: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="subtitle2">Event Types</Typography>
-            <Stack direction="row" spacing={1}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default', borderRadius: 0, mb: 1 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>Event Types</Typography>
+            <Stack direction="row" spacing={0.5}>
               <Button 
                 size="small" 
                 onClick={() => setSelectedTypes(new Set(Object.keys(eventTypes)))}
-                sx={{ borderRadius: 0 }}
+                sx={{ borderRadius: 0, py: 0.5, fontSize: '0.75rem' }}
               >
-                Select All
+                All
               </Button>
               <Button 
                 size="small" 
                 onClick={() => setSelectedTypes(new Set())}
-                sx={{ borderRadius: 0 }}
+                sx={{ borderRadius: 0, py: 0.5, fontSize: '0.75rem' }}
               >
-                Clear All
+                None
               </Button>
             </Stack>
           </Stack>
-          <FormGroup row>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {Object.entries(eventTypes).map(([type, config]) => (
-              <FormControlLabel
+              <Chip
                 key={type}
-                control={
-                  <Checkbox
-                    checked={selectedTypes.has(type)}
-                    onChange={(e) => {
-                      const newTypes = new Set(selectedTypes);
-                      if (e.target.checked) {
-                        newTypes.add(type);
-                      } else {
-                        newTypes.delete(type);
-                      }
-                      setSelectedTypes(newTypes);
-                    }}
-                    color={config.color === 'inherit' ? 'default' : config.color}
-                  />
-                }
                 label={
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    {config.icon}
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    {React.cloneElement(config.icon, { sx: { fontSize: 16 } })}
                     <span>{config.label}</span>
                   </Stack>
                 }
+                onClick={() => {
+                  const newTypes = new Set(selectedTypes);
+                  if (selectedTypes.has(type)) {
+                    newTypes.delete(type);
+                  } else {
+                    newTypes.add(type);
+                  }
+                  setSelectedTypes(newTypes);
+                }}
+                sx={{ 
+                  borderRadius: '4px',
+                  bgcolor: selectedTypes.has(type) ? 
+                    alpha(theme.palette[config.color === 'inherit' ? 'grey' : config.color].main, 0.1) : 
+                    'transparent',
+                  borderColor: selectedTypes.has(type) ? 
+                    theme.palette[config.color === 'inherit' ? 'grey' : config.color].main : 
+                    theme.palette.divider,
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette[config.color === 'inherit' ? 'grey' : config.color].main, 0.2)
+                  }
+                }}
+                size="small"
               />
             ))}
-          </FormGroup>
+          </Box>
         </Box>
       </Collapse>
       
@@ -914,45 +987,32 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             }}
           />
         ) : (
-          // Timeline view - simplified
-          <Box sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Timeline View</Typography>
-            <List>
-              {sortedEvents.map((event, index) => {
-                const eventDate = getEventDate(event);
-                const dateStr = eventDate ? format(parseISO(eventDate), 'MMM d, yyyy') : 'No date';
-                const config = eventTypes[event.resourceType];
-                
-                return (
-                  <React.Fragment key={`${event.id}-${index}`}>
-                    <ListItem
-                      button
-                      onClick={() => handleEventClick(event)}
-                      sx={{ 
-                        borderRadius: 0,
-                        bgcolor: index % 2 === 1 ? 'action.hover' : 'transparent'
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Avatar sx={{ bgcolor: `${config?.color || 'grey'}.main` }}>
-                          {config?.icon}
-                        </Avatar>
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={getEventTitle(event)}
-                        secondary={`${config?.label || event.resourceType} • ${dateStr}`}
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton edge="end" onClick={() => handleEventClick(event)}>
-                          <MoreIcon />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                    {index < sortedEvents.length - 1 && <Divider />}
-                  </React.Fragment>
-                );
-              })}
-            </List>
+          // Timeline view - using actual ResourceTimeline component
+          <Box sx={{ height: '100%', p: 1 }}>
+            <ResourceTimeline
+              resources={timelineResources}
+              height={timelineDensity === 'compact' ? 300 : timelineDensity === 'comfortable' ? 500 : 400}
+              loading={loading && !hasLoadedInitialData}
+              onResourceClick={handleEventClick}
+              onRangeSelect={(range) => {
+                setDateRange({ start: range.start, end: range.end });
+              }}
+              showLegend={true}
+              showControls={false} // We're using our own controls
+              groupBy="resourceType"
+              initialTimeRange={dateRange.start && dateRange.end ? 
+                Math.ceil((dateRange.end - dateRange.start) / (1000 * 60 * 60 * 24)) : 
+                365
+              }
+              highlightToday={true}
+              animate={true}
+              sx={{ 
+                borderRadius: 0,
+                '& .MuiPaper-root': {
+                  borderRadius: 0
+                }
+              }}
+            />
           </Box>
         )}
       </Box>

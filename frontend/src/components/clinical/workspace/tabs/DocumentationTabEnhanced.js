@@ -49,8 +49,7 @@ import {
   Fade,
   Avatar
 } from '@mui/material';
-// import { TreeView } from '@mui/lab';
-// import { TreeItem } from '@mui/lab';
+// TreeView components removed - using custom implementation
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -94,7 +93,8 @@ import {
   Download as DownloadIcon,
   ContentCopy as DuplicateIcon,
   Compare as CompareIcon,
-  Group as CollaboratorsIcon
+  Group as CollaboratorsIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 // Removed framer-motion for better performance
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
@@ -324,47 +324,106 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
 
 EnhancedNoteCard.displayName = 'EnhancedNoteCard';
 
-// Tree Item Component with custom styling
-// Temporarily disabled - TreeItem import issue
-// const StyledTreeItem = memo(({ nodeId, label, icon, count, color = 'default', children, ...props }) => {
-//   const theme = useTheme();
-//   
-//   return (
-//     <TreeItem
-//       nodeId={nodeId}
-//       label={
-//         <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 0.5 }}>
-//           <Box sx={{ 
-//             color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main,
-//             display: 'flex'
-//           }}>
-//             {icon}
-//           </Box>
-//           <Typography variant="body2" sx={{ flexGrow: 1 }}>
-//             {label}
-//           </Typography>
-//           {count > 0 && (
-//             <Chip 
-//               label={count} 
-//               size="small" 
-//               sx={{ 
-//                 height: 20, 
-//                 fontSize: '0.75rem',
-//                 backgroundColor: color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[color].main, 0.1),
-//                 color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main
-//               }} 
-//             />
-//           )}
-//         </Stack>
-//       }
-//       {...props}
-//     >
-//       {children}
-//     </TreeItem>
-//   );
-// });
-// 
-// StyledTreeItem.displayName = 'StyledTreeItem';
+// Custom Collapsible Category Component
+const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCategory, onSelectCategory }) => {
+  const theme = useTheme();
+  const [expanded, setExpanded] = useState(true);
+  
+  const handleToggle = () => {
+    setExpanded(!expanded);
+  };
+  
+  const handleSelect = () => {
+    onSelectCategory(categoryKey);
+  };
+  
+  const isSelected = selectedCategory === `category-${categoryKey}`;
+  
+  return (
+    <Box sx={{ mb: 1 }}>
+      <ListItemButton 
+        onClick={handleSelect}
+        selected={isSelected}
+        sx={{ 
+          borderRadius: 0,
+          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+          '&:hover': {
+            bgcolor: alpha(theme.palette.primary.main, 0.04)
+          }
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 40 }}>
+          <IconButton 
+            size="small" 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggle();
+            }}
+            sx={{ p: 0.5 }}
+          >
+            {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+          </IconButton>
+        </ListItemIcon>
+        <ListItemIcon sx={{ minWidth: 40, color: theme.palette[category.color || 'primary'].main }}>
+          {category.icon}
+        </ListItemIcon>
+        <ListItemText 
+          primary={category.label}
+          primaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+        />
+        {documents.length > 0 && (
+          <Chip 
+            label={documents.length} 
+            size="small" 
+            sx={{ 
+              height: 20, 
+              fontSize: '0.75rem',
+              bgcolor: alpha(theme.palette[category.color || 'primary'].main, 0.1),
+              color: theme.palette[category.color || 'primary'].main
+            }} 
+          />
+        )}
+      </ListItemButton>
+      
+      <Collapse in={expanded}>
+        <List sx={{ pl: 4 }}>
+          {Object.entries(category.types || {}).map(([typeKey, typeData]) => {
+            const typeDocCount = typeData.documents?.length || 0;
+            const isTypeSelected = selectedCategory === `type-${typeKey}`;
+            
+            return (
+              <ListItemButton
+                key={typeKey}
+                onClick={() => onSelectCategory(`type-${typeKey}`)}
+                selected={isTypeSelected}
+                sx={{ 
+                  py: 0.5,
+                  borderRadius: 0,
+                  bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, 0.04) : 'transparent'
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 32, color: theme.palette[typeData.color || 'inherit'].main }}>
+                  {typeData.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={typeData.label}
+                  primaryTypographyProps={{ variant: 'caption' }}
+                />
+                {typeDocCount > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {typeDocCount}
+                  </Typography>
+                )}
+              </ListItemButton>
+            );
+          })}
+        </List>
+      </Collapse>
+    </Box>
+  );
+});
+
+CollapsibleCategory.displayName = 'CollapsibleCategory';
 
 const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
   const theme = useTheme();
@@ -373,8 +432,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   const { density, setDensity } = useDensity();
   
   const [viewMode, setViewMode] = useState('tree'); // tree, cards, table, timeline
-  const [expandedNodes, setExpandedNodes] = useState(['root']);
-  const [selectedNode, setSelectedNode] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('root');
   const [filterType, setFilterType] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -474,13 +532,13 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   const filterDocuments = useCallback((docs) => {
     return docs.filter(doc => {
       // Category filter based on selected tree node
-      if (selectedNode && selectedNode !== 'root') {
+      if (selectedCategory && selectedCategory !== 'root') {
         const noteType = doc.type?.coding?.[0]?.code || 'other';
         const typeConfig = noteTypes[noteType] || noteTypes.other;
-        if (selectedNode.startsWith('category-') && typeConfig.category !== selectedNode.replace('category-', '')) {
+        if (selectedCategory.startsWith('category-') && typeConfig.category !== selectedCategory.replace('category-', '')) {
           return false;
         }
-        if (selectedNode.startsWith('type-') && noteType !== selectedNode.replace('type-', '')) {
+        if (selectedCategory.startsWith('type-') && noteType !== selectedCategory.replace('type-', '')) {
           return false;
         }
       }
@@ -543,7 +601,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
 
       return true;
     });
-  }, [selectedNode, filterType, filterStatus, filterAuthor, filterPeriod, searchTerm]);
+  }, [selectedCategory, filterType, filterStatus, filterAuthor, filterPeriod, searchTerm]);
 
   const filteredDocuments = filterDocuments(allDocuments);
   const sortedDocuments = [...filteredDocuments].sort((a, b) => {
@@ -732,13 +790,6 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
     }
   ];
 
-  const handleTreeNodeToggle = (event, nodeIds) => {
-    setExpandedNodes(nodeIds);
-  };
-
-  const handleTreeNodeSelect = (event, nodeId) => {
-    setSelectedNode(nodeId);
-  };
 
   const handleNewNote = () => {
     setSelectedNote(null);
@@ -940,23 +991,45 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   }
 
   return (
-    <Box sx={{ p: density === 'compact' ? 2 : 3 }}>
-      {/* Header with View Controls */}
-      <Stack spacing={2} mb={2}>
-        <Stack direction="row" justifyContent="flex-end" alignItems="center">
-          <Stack direction="row" spacing={2} alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Density</InputLabel>
-              <Select
-                value={density}
-                onChange={(e) => setDensity(e.target.value)}
-                label="Density"
-                sx={{ borderRadius: 0 }}
-              >
-                <MenuItem value="comfortable">Comfortable</MenuItem>
-                <MenuItem value="compact">Compact</MenuItem>
-              </Select>
-            </FormControl>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Compact Header with inline stats */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          {/* Inline Statistics */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {allDocuments.length} total documents
+            </Typography>
+            {metrics.find(m => m.label === 'Signed')?.value > 0 && (
+              <Chip
+                icon={<SignedIcon fontSize="small" />}
+                label={`${metrics.find(m => m.label === 'Signed').value} signed`}
+                size="small"
+                color="success"
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {metrics.find(m => m.label === 'Draft')?.value > 0 && (
+              <Chip
+                icon={<DraftIcon fontSize="small" />}
+                label={`${metrics.find(m => m.label === 'Draft').value} draft`}
+                size="small"
+                color="warning"
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {searchTerm && (
+              <Chip
+                label={`"${searchTerm}"`}
+                size="small"
+                onDelete={() => setSearchTerm('')}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+          </Stack>
+          
+          {/* View Controls */}
+          <Stack direction="row" spacing={1} alignItems="center">
             <ToggleButtonGroup
               value={viewMode}
               exclusive
@@ -985,6 +1058,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                 </Tooltip>
               </ToggleButton>
             </ToggleButtonGroup>
+            <Divider orientation="vertical" flexItem />
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -996,125 +1070,122 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             </Button>
           </Stack>
         </Stack>
-        
-        {/* Metrics Summary Cards */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          {metrics.map((metric, index) => (
-            <ClinicalSummaryCard
-              key={index}
-              title={metric.label}
-              value={metric.value}
-              severity={metric.severity || 'normal'}
-              icon={metric.icon}
-              trend={metric.trend}
-            />
-          ))}
-        </Box>
-      </Stack>
+      </Box>
 
       {/* Main Content Area */}
-      <Grid container spacing={2}>
-        {/* Tree View Sidebar - Temporarily disabled */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', p: 2 }}>
+        {/* Tree View Sidebar with Custom Implementation */}
         {viewMode === 'tree' && (
-          <Grid item xs={12} md={3}>
-            <Paper sx={{ p: 2, height: 'calc(100vh - 300px)', overflow: 'auto', borderRadius: 0 }}>
-              <Typography variant="h6" gutterBottom>
-                Document Categories
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Tree view temporarily disabled
-              </Typography>
+          <Box sx={{ width: 280, flexShrink: 0, mr: 2 }}>
+            <Paper sx={{ p: 2, height: '100%', overflow: 'auto', borderRadius: 0 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">
+                  Categories
+                </Typography>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setSelectedCategory('root')}
+                  title="Clear selection"
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+              
+              <List sx={{ width: '100%' }}>
+                {Object.entries(documentTree).map(([categoryKey, categoryData]) => (
+                  <CollapsibleCategory
+                    key={categoryKey}
+                    category={categoryData}
+                    categoryKey={categoryKey}
+                    documents={categoryData.documents}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={setSelectedCategory}
+                  />
+                ))}
+              </List>
             </Paper>
-          </Grid>
+          </Box>
         )}
         
         {/* Main Content */}
-        <Grid item xs={12} md={viewMode === 'tree' ? 9 : 12}>
-          {/* Filters */}
-          <Paper sx={{ p: 2, mb: 2 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                placeholder="Search documentation..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                size="small"
-                sx={{ flex: 1 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  )
-                }}
-              />
-              
-              {viewMode !== 'tree' && (
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Type</InputLabel>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Filters using ClinicalFilterPanel */}
+          <ClinicalFilterPanel
+            searchQuery={searchTerm}
+            onSearchChange={setSearchTerm}
+            dateRange={filterPeriod}
+            onDateRangeChange={setFilterPeriod}
+            onRefresh={() => window.location.reload()}
+            compact
+            customFilters={
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {viewMode !== 'tree' && (
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>Type</InputLabel>
+                    <Select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      label="Type"
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      {Object.entries(noteTypes).map(([key, config]) => (
+                        <MenuItem key={key} value={key}>{config.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Author</InputLabel>
                   <Select
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    label="Type"
+                    value={filterAuthor}
+                    onChange={(e) => setFilterAuthor(e.target.value)}
+                    label="Author"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
                   >
-                    <MenuItem value="all">All Types</MenuItem>
-                    {Object.entries(noteTypes).map(([key, config]) => (
-                      <MenuItem key={key} value={key}>{config.label}</MenuItem>
+                    <MenuItem value="all">All Authors</MenuItem>
+                    {authors.map(author => (
+                      <MenuItem key={author} value={author}>{author}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
-              )}
 
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Author</InputLabel>
-                <Select
-                  value={filterAuthor}
-                  onChange={(e) => setFilterAuthor(e.target.value)}
-                  label="Author"
-                >
-                  <MenuItem value="all">All Authors</MenuItem>
-                  {authors.map(author => (
-                    <MenuItem key={author} value={author}>{author}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    label="Status"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+                  >
+                    <MenuItem value="all">All Status</MenuItem>
+                    <MenuItem value="draft">Draft</MenuItem>
+                    <MenuItem value="preliminary">Review</MenuItem>
+                    <MenuItem value="final">Signed</MenuItem>
+                  </Select>
+                </FormControl>
 
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  label="Status"
-                >
-                  <MenuItem value="all">All Status</MenuItem>
-                  <MenuItem value="draft">Draft</MenuItem>
-                  <MenuItem value="preliminary">Ready for Review</MenuItem>
-                  <MenuItem value="final">Signed</MenuItem>
-                </Select>
-              </FormControl>
-
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Period</InputLabel>
-                <Select
-                  value={filterPeriod}
-                  onChange={(e) => setFilterPeriod(e.target.value)}
-                  label="Period"
-                >
-                  <MenuItem value="all">All Time</MenuItem>
-                  <MenuItem value="today">Today</MenuItem>
-                  <MenuItem value="7d">Last 7 Days</MenuItem>
-                  <MenuItem value="30d">Last 30 Days</MenuItem>
-                  <MenuItem value="3m">Last 3 Months</MenuItem>
-                  <MenuItem value="6m">Last 6 Months</MenuItem>
-                  <MenuItem value="1y">Last Year</MenuItem>
-                </Select>
-              </FormControl>
-            </Stack>
-          </Paper>
+                <FormControl size="small" sx={{ minWidth: 100 }}>
+                  <InputLabel>Density</InputLabel>
+                  <Select
+                    value={density}
+                    onChange={(e) => setDensity(e.target.value)}
+                    label="Density"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+                  >
+                    <MenuItem value="comfortable">Comfort</MenuItem>
+                    <MenuItem value="compact">Compact</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            }
+          />
 
           {/* Content Views */}
-          <Box>
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
             {viewMode === 'timeline' && (
-              <Box>
+              <Box sx={{ p: 2 }}>
                 <ResourceTimeline
                   resources={timelineResources}
                   onResourceClick={(resource) => handleViewNote(resource)}
@@ -1131,8 +1202,8 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             )}
             
             {(viewMode === 'cards' || viewMode === 'tree') && (
-              <Box>
-                <Stack spacing={2}>
+              <Box sx={{ p: 2 }}>
+                <Stack spacing={density === 'compact' ? 1 : 2}>
                   {sortedDocuments.length === 0 ? (
                     <Alert severity="info">
                       No documentation found matching your criteria
@@ -1158,7 +1229,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             )}
             
             {viewMode === 'table' && (
-              <Box>
+              <Box sx={{ p: 2 }}>
                 <SmartTable
                   columns={tableColumns}
                   data={sortedDocuments}
@@ -1172,8 +1243,8 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               </Box>
             )}
           </Box>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
       {/* Template Wizard Dialog */}
       <NoteTemplateWizard
