@@ -49,8 +49,8 @@ import {
   Fade,
   Avatar
 } from '@mui/material';
-import TreeView from '@mui/lab/TreeView';
-import TreeItem from '@mui/lab/TreeItem';
+// import { TreeView } from '@mui/lab';
+// import { TreeItem } from '@mui/lab';
 import {
   Description as NoteIcon,
   Assignment as FormIcon,
@@ -325,45 +325,46 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
 EnhancedNoteCard.displayName = 'EnhancedNoteCard';
 
 // Tree Item Component with custom styling
-const StyledTreeItem = memo(({ nodeId, label, icon, count, color = 'default', children, ...props }) => {
-  const theme = useTheme();
-  
-  return (
-    <TreeItem
-      nodeId={nodeId}
-      label={
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 0.5 }}>
-          <Box sx={{ 
-            color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main,
-            display: 'flex'
-          }}>
-            {icon}
-          </Box>
-          <Typography variant="body2" sx={{ flexGrow: 1 }}>
-            {label}
-          </Typography>
-          {count > 0 && (
-            <Chip 
-              label={count} 
-              size="small" 
-              sx={{ 
-                height: 20, 
-                fontSize: '0.75rem',
-                backgroundColor: color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[color].main, 0.1),
-                color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main
-              }} 
-            />
-          )}
-        </Stack>
-      }
-      {...props}
-    >
-      {children}
-    </TreeItem>
-  );
-});
-
-StyledTreeItem.displayName = 'StyledTreeItem';
+// Temporarily disabled - TreeItem import issue
+// const StyledTreeItem = memo(({ nodeId, label, icon, count, color = 'default', children, ...props }) => {
+//   const theme = useTheme();
+//   
+//   return (
+//     <TreeItem
+//       nodeId={nodeId}
+//       label={
+//         <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 0.5 }}>
+//           <Box sx={{ 
+//             color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main,
+//             display: 'flex'
+//           }}>
+//             {icon}
+//           </Box>
+//           <Typography variant="body2" sx={{ flexGrow: 1 }}>
+//             {label}
+//           </Typography>
+//           {count > 0 && (
+//             <Chip 
+//               label={count} 
+//               size="small" 
+//               sx={{ 
+//                 height: 20, 
+//                 fontSize: '0.75rem',
+//                 backgroundColor: color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[color].main, 0.1),
+//                 color: color === 'default' ? theme.palette.text.secondary : theme.palette[color].main
+//               }} 
+//             />
+//           )}
+//         </Stack>
+//       }
+//       {...props}
+//     >
+//       {children}
+//     </TreeItem>
+//   );
+// });
+// 
+// StyledTreeItem.displayName = 'StyledTreeItem';
 
 const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
   const theme = useTheme();
@@ -1013,51 +1014,16 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
 
       {/* Main Content Area */}
       <Grid container spacing={2}>
-        {/* Tree View Sidebar */}
+        {/* Tree View Sidebar - Temporarily disabled */}
         {viewMode === 'tree' && (
           <Grid item xs={12} md={3}>
             <Paper sx={{ p: 2, height: 'calc(100vh - 300px)', overflow: 'auto', borderRadius: 0 }}>
               <Typography variant="h6" gutterBottom>
                 Document Categories
               </Typography>
-              <TreeView
-                defaultCollapseIcon={<ExpandMoreIcon />}
-                defaultExpandIcon={<ChevronRightIcon />}
-                expanded={expandedNodes}
-                selected={selectedNode}
-                onNodeToggle={handleTreeNodeToggle}
-                onNodeSelect={handleTreeNodeSelect}
-                sx={{ flexGrow: 1, overflowY: 'auto' }}
-              >
-                <StyledTreeItem 
-                  nodeId="root" 
-                  label="All Documents" 
-                  icon={<FolderOpenIcon />}
-                  count={allDocuments.length}
-                >
-                  {Object.entries(documentTree).map(([categoryKey, category]) => (
-                    <StyledTreeItem
-                      key={categoryKey}
-                      nodeId={`category-${categoryKey}`}
-                      label={category.label}
-                      icon={category.icon}
-                      count={category.documents.length}
-                      color={category.color}
-                    >
-                      {Object.entries(category.types).map(([typeKey, type]) => (
-                        <StyledTreeItem
-                          key={typeKey}
-                          nodeId={`type-${typeKey}`}
-                          label={type.label}
-                          icon={type.icon}
-                          count={type.documents.length}
-                          color={type.color}
-                        />
-                      ))}
-                    </StyledTreeItem>
-                  ))}
-                </StyledTreeItem>
-              </TreeView>
+              <Typography variant="body2" color="text.secondary">
+                Tree view temporarily disabled
+              </Typography>
             </Paper>
           </Grid>
         )}
