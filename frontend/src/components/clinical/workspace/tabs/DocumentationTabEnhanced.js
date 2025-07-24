@@ -1004,9 +1004,9 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               key={index}
               title={metric.label}
               value={metric.value}
-              severity="normal"
+              severity={metric.severity || 'normal'}
               icon={metric.icon}
-              chips={metric.chips}
+              trend={metric.trend}
             />
           ))}
         </Box>
