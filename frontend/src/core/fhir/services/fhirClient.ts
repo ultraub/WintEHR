@@ -182,11 +182,11 @@ class FHIRClient {
     // Configure base URL
     this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
     
-    // Configure cache
+    // Configure cache with optimized TTLs for better performance
     this.cache = new Map();
     this.cacheConfig = {
-      defaultTTL: 5 * 60 * 1000, // 5 minutes default
-      maxSize: 100,
+      defaultTTL: 30 * 60 * 1000, // 30 minutes default (increased from 5 for better performance)
+      maxSize: 500, // Increased from 100 to cache more resources
       enabled: true,
       smartInvalidation: true,
       versionTracking: true,
@@ -831,22 +831,31 @@ class FHIRClient {
 
   /**
    * Get resource-specific TTL based on resource type
+   * Optimized TTLs for better performance while maintaining data freshness
    */
   private getResourceSpecificTTL(resourceType: string): number {
     // Different TTLs for different resource types based on how often they change
+    // TTLs increased proportionally for better performance
     const ttlMap: Record<string, number> = {
-      Patient: 30 * 60 * 1000, // 30 minutes - patient demographics rarely change
-      Practitioner: 60 * 60 * 1000, // 1 hour - practitioner info is stable
-      Organization: 60 * 60 * 1000, // 1 hour - org info is stable
-      Coverage: 15 * 60 * 1000, // 15 minutes - insurance info can change
-      Observation: 5 * 60 * 1000, // 5 minutes - lab results are time-sensitive
-      MedicationRequest: 10 * 60 * 1000, // 10 minutes - medications can be updated
-      Condition: 15 * 60 * 1000, // 15 minutes - conditions are relatively stable
-      Encounter: 10 * 60 * 1000, // 10 minutes - encounters can be updated during visit
-      ServiceRequest: 5 * 60 * 1000, // 5 minutes - orders are time-sensitive
-      DiagnosticReport: 10 * 60 * 1000, // 10 minutes - reports are relatively stable once created
-      AllergyIntolerance: 30 * 60 * 1000, // 30 minutes - allergies rarely change
-      Procedure: 15 * 60 * 1000, // 15 minutes - procedures are stable once documented
+      Patient: 2 * 60 * 60 * 1000, // 2 hours - patient demographics rarely change
+      Practitioner: 4 * 60 * 60 * 1000, // 4 hours - practitioner info is very stable
+      Organization: 4 * 60 * 60 * 1000, // 4 hours - org info is very stable
+      Coverage: 60 * 60 * 1000, // 1 hour - insurance info can change but not frequently
+      Observation: 15 * 60 * 1000, // 15 minutes - lab results are somewhat time-sensitive
+      MedicationRequest: 30 * 60 * 1000, // 30 minutes - medications relatively stable
+      Condition: 60 * 60 * 1000, // 1 hour - conditions are quite stable
+      Encounter: 30 * 60 * 1000, // 30 minutes - encounters stable after initial creation
+      ServiceRequest: 15 * 60 * 1000, // 15 minutes - orders are somewhat time-sensitive
+      DiagnosticReport: 45 * 60 * 1000, // 45 minutes - reports stable once created
+      AllergyIntolerance: 2 * 60 * 60 * 1000, // 2 hours - allergies very rarely change
+      Procedure: 60 * 60 * 1000, // 1 hour - procedures stable once documented
+      Immunization: 2 * 60 * 60 * 1000, // 2 hours - immunizations very stable
+      DocumentReference: 2 * 60 * 60 * 1000, // 2 hours - documents don't change after creation
+      CarePlan: 45 * 60 * 1000, // 45 minutes - care plans relatively stable
+      CareTeam: 2 * 60 * 60 * 1000, // 2 hours - care teams stable
+      Location: 4 * 60 * 60 * 1000, // 4 hours - locations very stable
+      Medication: 4 * 60 * 60 * 1000, // 4 hours - medication definitions very stable
+      ImagingStudy: 2 * 60 * 60 * 1000, // 2 hours - imaging studies stable after creation
     };
     
     return ttlMap[resourceType] || this.cacheConfig.defaultTTL;

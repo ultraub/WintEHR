@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback } from '../hooks/useStableReferences';
+import performanceMonitor from '../utils/performanceMonitor';
 
 // Action Types
 const FHIR_ACTIONS = {
@@ -392,6 +393,8 @@ export function FHIRResourceProvider({ children }) {
   const inFlightRequests = useRef(new Map());
   // Track timeouts for cleanup
   const timeoutRefs = useRef(new Set());
+  // Request coalescing for identical concurrent requests
+  const coalescedRequests = useRef(new Map());
 
   // Enhanced cache utilities using intelligent cache
   const getCachedData = useCallback((cacheType, key) => {
@@ -568,21 +571,53 @@ export function FHIRResourceProvider({ children }) {
     
     if (!forceRefresh) {
       const cached = getCachedData('resources', cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        // Track cache hit
+        performanceMonitor.recordMetric('fhirFetch', {
+          resourceType,
+          resourceId,
+          duration: 0,
+          cached: true,
+          status: 'cache-hit'
+        });
+        return cached;
+      }
     }
 
     dispatch({ type: FHIR_ACTIONS.SET_LOADING, payload: { resourceType, loading: true } });
     dispatch({ type: FHIR_ACTIONS.CLEAR_ERROR, payload: { resourceType } });
 
     const fetchPromise = (async () => {
+      const startTime = performance.now();
       try {
         const resource = await fhirClient.read(resourceType, resourceId);
       
       addResource(resourceType, resource);
       setCachedData('resources', cacheKey, resource, 600000, resourceType); // 10 minute default
       
+        // Track performance
+        const duration = performance.now() - startTime;
+        performanceMonitor.recordMetric('fhirFetch', {
+          resourceType,
+          resourceId,
+          duration,
+          cached: false,
+          status: 'success'
+        });
+      
         return resource;
       } catch (error) {
+        // Track error
+        const duration = performance.now() - startTime;
+        performanceMonitor.recordMetric('fhirFetch', {
+          resourceType,
+          resourceId,
+          duration,
+          cached: false,
+          status: 'error',
+          error: error.message
+        });
+        
         dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
         throw error;
       } finally {
@@ -615,6 +650,15 @@ export function FHIRResourceProvider({ children }) {
       const cached = getCachedData('searches', searchKey);
       if (cached) {
         setResources(resourceType, cached.resources);
+        // Track cache hit
+        performanceMonitor.recordMetric('fhirSearch', {
+          resourceType,
+          params: enhancedParams,
+          duration: 0,
+          cached: true,
+          status: 'cache-hit',
+          resultCount: cached.resources ? cached.resources.length : 0
+        });
         return cached;
       }
     }
@@ -624,6 +668,7 @@ export function FHIRResourceProvider({ children }) {
 
     // Create the promise and store it
     const searchPromise = (async () => {
+      const startTime = performance.now();
       try {
         const rawResult = await fhirClient.search(resourceType, enhancedParams);
         
@@ -679,8 +724,30 @@ export function FHIRResourceProvider({ children }) {
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
       dispatch({ type: FHIR_ACTIONS.SET_SEARCH_RESULTS, payload: { searchKey, results: result } });
       
+        // Track performance
+        const duration = performance.now() - startTime;
+        performanceMonitor.recordMetric('fhirSearch', {
+          resourceType,
+          params: enhancedParams,
+          duration,
+          cached: false,
+          status: 'success',
+          resultCount: result.resources ? result.resources.length : 0
+        });
+      
         return result;
       } catch (error) {
+        // Track error
+        const duration = performance.now() - startTime;
+        performanceMonitor.recordMetric('fhirSearch', {
+          resourceType,
+          params: enhancedParams,
+          duration,
+          cached: false,
+          status: 'error',
+          error: error.message
+        });
+        
         dispatch({ type: FHIR_ACTIONS.SET_ERROR, payload: { resourceType, error: error.message } });
         throw error;
       } finally {
@@ -1539,8 +1606,8 @@ export function FHIRResourceProvider({ children }) {
     };
   }, []);
 
-  // Context Value
-  const contextValue = {
+  // Context Value - MEMOIZED to prevent unnecessary re-renders
+  const contextValue = React.useMemo(() => ({
     // State
     ...state,
     
@@ -1579,7 +1646,33 @@ export function FHIRResourceProvider({ children }) {
     
     // Direct fhirClient access for advanced usage
     fhirClient
-  };
+  }), [
+    // State dependencies
+    state,
+    // Function dependencies
+    setResources,
+    addResource,
+    updateResource,
+    removeResource,
+    getResource,
+    getResourcesByType,
+    getPatientResources,
+    fetchResource,
+    searchResources,
+    searchWithInclude,
+    fetchPatientBundle,
+    fetchPatientEverything,
+    refreshPatientResources,
+    setCurrentPatient,
+    setCurrentEncounter,
+    isResourceLoading,
+    getError,
+    clearCache,
+    getCachedData,
+    setCachedData,
+    warmPatientCache,
+    isCacheWarm
+  ]);
 
   return (
     <FHIRResourceContext.Provider value={contextValue}>

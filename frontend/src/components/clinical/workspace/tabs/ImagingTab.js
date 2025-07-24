@@ -1387,4 +1387,4 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   );
 };
 
-export default ImagingTab;
+export default React.memo(ImagingTab);

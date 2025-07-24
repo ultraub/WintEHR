@@ -1745,4 +1745,4 @@ const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }
   );
 };
 
-export default PharmacyTab;
+export default React.memo(PharmacyTab);

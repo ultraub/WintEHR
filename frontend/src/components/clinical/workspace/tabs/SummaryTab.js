@@ -1085,4 +1085,4 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   );
 };
 
-export default SummaryTab;
+export default React.memo(SummaryTab);

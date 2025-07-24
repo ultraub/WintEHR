@@ -996,7 +996,9 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
-        <ClinicalLoadingState.SummaryCards count={4} />
+        <Grid container spacing={2}>
+          <ClinicalLoadingState.SummaryCard count={4} />
+        </Grid>
         <Box sx={{ mt: 3 }}>
           <ClinicalLoadingState.FilterPanel />
         </Box>

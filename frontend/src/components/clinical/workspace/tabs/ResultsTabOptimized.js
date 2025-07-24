@@ -730,4 +730,4 @@ const ResultsTabOptimized = ({ patientId }) => {
   );
 };
 
-export default ResultsTabOptimized;
+export default React.memo(ResultsTabOptimized);

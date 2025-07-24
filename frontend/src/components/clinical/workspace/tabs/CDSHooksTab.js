@@ -1413,4 +1413,4 @@ const CDSHooksTab = ({ patientId }) => {
   );
 };
 
-export default CDSHooksTab;
+export default React.memo(CDSHooksTab);

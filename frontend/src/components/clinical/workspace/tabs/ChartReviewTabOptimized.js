@@ -1812,4 +1812,4 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
   );
 };
 
-export default ChartReviewTabOptimized;
+export default React.memo(ChartReviewTabOptimized);
