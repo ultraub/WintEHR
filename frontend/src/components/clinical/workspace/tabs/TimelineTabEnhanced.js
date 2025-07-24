@@ -891,15 +891,28 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
                 sx={{ 
                   borderRadius: '4px',
                   bgcolor: selectedTypes.has(type) ? 
-                    alpha(theme.palette[config.color === 'inherit' ? 'grey' : config.color].main, 0.1) : 
+                    alpha(
+                      config.color === 'inherit' ? 
+                        theme.palette.grey[500] : 
+                        (theme.palette[config.color]?.main || theme.palette.grey[500]),
+                      0.1
+                    ) : 
                     'transparent',
                   borderColor: selectedTypes.has(type) ? 
-                    theme.palette[config.color === 'inherit' ? 'grey' : config.color].main : 
+                    (config.color === 'inherit' ? 
+                      theme.palette.grey[500] : 
+                      (theme.palette[config.color]?.main || theme.palette.grey[500])
+                    ) : 
                     theme.palette.divider,
                   borderWidth: 1,
                   borderStyle: 'solid',
                   '&:hover': {
-                    bgcolor: alpha(theme.palette[config.color === 'inherit' ? 'grey' : config.color].main, 0.2)
+                    bgcolor: alpha(
+                      config.color === 'inherit' ? 
+                        theme.palette.grey[500] : 
+                        (theme.palette[config.color]?.main || theme.palette.grey[500]),
+                      0.2
+                    )
                   }
                 }}
                 size="small"

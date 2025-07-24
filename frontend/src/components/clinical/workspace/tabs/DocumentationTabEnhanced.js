@@ -429,6 +429,23 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
+  
+  // Debug: Check if components are properly imported
+  if (typeof SmartTable === 'undefined') {
+    console.error('DocumentationTabEnhanced: SmartTable is undefined');
+  }
+  if (typeof ResourceTimeline === 'undefined') {
+    console.error('DocumentationTabEnhanced: ResourceTimeline is undefined');
+  }
+  if (typeof ContextualFAB === 'undefined') {
+    console.error('DocumentationTabEnhanced: ContextualFAB is undefined');
+  }
+  if (typeof EnhancedNoteEditor === 'undefined') {
+    console.error('DocumentationTabEnhanced: EnhancedNoteEditor is undefined');
+  }
+  if (typeof NoteTemplateWizard === 'undefined') {
+    console.error('DocumentationTabEnhanced: NoteTemplateWizard is undefined');
+  }
   const { density, setDensity } = useDensity();
   
   const [viewMode, setViewMode] = useState('tree'); // tree, cards, table, timeline
@@ -1184,7 +1201,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
 
           {/* Content Views */}
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {viewMode === 'timeline' && (
+            {viewMode === 'timeline' && ResourceTimeline && (
               <Box sx={{ p: 2 }}>
                 <ResourceTimeline
                   resources={timelineResources}
@@ -1228,7 +1245,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               </Box>
             )}
             
-            {viewMode === 'table' && (
+            {viewMode === 'table' && SmartTable && (
               <Box sx={{ p: 2 }}>
                 <SmartTable
                   columns={tableColumns}
@@ -1247,34 +1264,38 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       </Box>
 
       {/* Template Wizard Dialog */}
-      <NoteTemplateWizard
-        open={templateWizardOpen}
-        onClose={() => setTemplateWizardOpen(false)}
-        onTemplateSelected={handleTemplateSelected}
-        patientConditions={
-          getPatientResources(patientId, 'Condition')
-            ?.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active')
-            .map(c => c.code?.text || c.code?.coding?.[0]?.display || 'Unknown condition')
-            .slice(0, 10) || []
-        }
-      />
+      {NoteTemplateWizard && (
+        <NoteTemplateWizard
+          open={templateWizardOpen}
+          onClose={() => setTemplateWizardOpen(false)}
+          onTemplateSelected={handleTemplateSelected}
+          patientConditions={
+            getPatientResources(patientId, 'Condition')
+              ?.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active')
+              .map(c => c.code?.text || c.code?.coding?.[0]?.display || 'Unknown condition')
+              .slice(0, 10) || []
+          }
+        />
+      )}
 
       {/* Enhanced Note Editor Dialog */}
-      <EnhancedNoteEditor
-        open={enhancedEditorOpen}
-        onClose={() => {
-          setEnhancedEditorOpen(false);
-          setAmendmentMode(false);
-          setOriginalNoteForAmendment(null);
-          setTemplateData(null);
-        }}
-        note={selectedNote}
-        patientId={patientId}
-        defaultTemplate={selectedTemplate}
+      {EnhancedNoteEditor && (
+        <EnhancedNoteEditor
+          open={enhancedEditorOpen}
+          onClose={() => {
+            setEnhancedEditorOpen(false);
+            setAmendmentMode(false);
+            setOriginalNoteForAmendment(null);
+            setTemplateData(null);
+          }}
+          note={selectedNote}
+          patientId={patientId}
+          defaultTemplate={selectedTemplate}
         templateData={templateData}
         amendmentMode={amendmentMode}
         originalNote={originalNoteForAmendment}
       />
+      )}
 
       {/* View Note Dialog */}
       <Dialog
@@ -1359,12 +1380,13 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       </Snackbar>
       
       {/* Floating Action Button */}
-      <ContextualFAB
-        currentModule="documentation"
-        actions={[
-          {
-            icon: <NoteIcon />,
-            name: 'Progress Note',
+      {ContextualFAB && (
+        <ContextualFAB
+          currentModule="documentation"
+          actions={[
+            {
+              icon: <NoteIcon />,
+              name: 'Progress Note',
             shortcut: 'Ctrl+P',
             onClick: () => {
               setSelectedTemplate('progress');
@@ -1397,6 +1419,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         position="bottom-right"
         offsetY={density === 'compact' ? 16 : 24}
       />
+      )}
     </Box>
   );
 };
