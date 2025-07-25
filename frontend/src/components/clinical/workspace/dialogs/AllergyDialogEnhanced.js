@@ -72,7 +72,7 @@ import {
   Notes as NotesIcon,
   LocalPharmacy as MedicationIcon,
   Restaurant as FoodIcon,
-  Eco as EnvironmentalIcon,
+  Park as EnvironmentalIcon,
   Science as LabIcon,
   AutoAwesome as SmartIcon,
   HealthAndSafety as SafetyIcon,
@@ -176,14 +176,14 @@ const STEPS = ['Allergen Selection', 'Reaction Details', 'Review & Save'];
 const CLINICAL_STATUS_OPTIONS = [
   { value: 'active', label: 'Active', icon: <ActiveIcon />, color: 'error', default: true },
   { value: 'inactive', label: 'Inactive', icon: <InactiveIcon />, color: 'default' },
-  { value: 'resolved', label: 'Resolved', icon: <CheckCircle />, color: 'success' }
+  { value: 'resolved', label: 'Resolved', icon: <ActiveIcon />, color: 'success' }
 ];
 
 const VERIFICATION_STATUS_OPTIONS = [
   { value: 'unconfirmed', label: 'Unconfirmed', icon: <UnknownIcon />, color: 'warning' },
   { value: 'confirmed', label: 'Confirmed', icon: <VerifiedIcon />, color: 'success', default: true },
-  { value: 'refuted', label: 'Refuted', icon: <CancelIcon />, color: 'error' },
-  { value: 'entered-in-error', label: 'Entered in Error', icon: <CancelIcon />, color: 'error' }
+  { value: 'refuted', label: 'Refuted', icon: <InactiveIcon />, color: 'error' },
+  { value: 'entered-in-error', label: 'Entered in Error', icon: <InactiveIcon />, color: 'error' }
 ];
 
 const CRITICALITY_OPTIONS = [
