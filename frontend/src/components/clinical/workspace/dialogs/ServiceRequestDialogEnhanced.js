@@ -85,6 +85,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import { useDialogSave, useDialogValidation } from './utils/dialogHelpers';
 
 const searchServiceRequests = async (query) => {
   try {
@@ -98,8 +99,8 @@ const searchServiceRequests = async (query) => {
       searchParams._text = query;
     }
     
-    const bundle = await fhirClient.search('ServiceRequest', searchParams);
-    const requests = bundle.entry?.map(entry => entry.resource) || [];
+    const result = await fhirClient.search('ServiceRequest', searchParams);
+    const requests = result.resources || [];
     
     // Extract unique services
     const serviceMap = new Map();
@@ -257,9 +258,12 @@ const ServiceRequestDialogEnhanced = ({
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
   const [alerts, setAlerts] = useState([]);
+  
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
+  const [errors, setErrors] = useState({});
 
   // Form state
   const [selectedService, setSelectedService] = useState(null);
@@ -375,21 +379,21 @@ const ServiceRequestDialogEnhanced = ({
 
       // Count service usage
       const serviceCount = {};
-      recentRequests.entry?.forEach(entry => {
-        const service = entry.resource.code?.coding?.[0];
+      recentRequests.resources?.forEach(request => {
+        const service = request.code?.coding?.[0];
         if (service) {
           const key = service.code || service.display;
           if (!serviceCount[key]) {
             serviceCount[key] = {
               ...service,
               count: 0,
-              lastOrdered: entry.resource.authoredOn,
-              category: entry.resource.category?.[0]?.coding?.[0]?.code,
+              lastOrdered: request.authoredOn,
+              category: request.category?.[0]?.coding?.[0]?.code,
               avgPriority: [],
             };
           }
           serviceCount[key].count++;
-          serviceCount[key].avgPriority.push(entry.resource.priority);
+          serviceCount[key].avgPriority.push(request.priority);
         }
       });
 
@@ -416,13 +420,13 @@ const ServiceRequestDialogEnhanced = ({
         _count: 5,
       });
 
-      if (recentRequests.entry?.length > 0) {
-        const duplicates = recentRequests.entry.map(entry => ({
-          id: entry.resource.id,
-          authoredOn: entry.resource.authoredOn,
-          status: entry.resource.status,
-          priority: entry.resource.priority,
-          requester: entry.resource.requester?.display,
+      if (recentRequests.resources?.length > 0) {
+        const duplicates = recentRequests.resources.map(request => ({
+          id: request.id,
+          authoredOn: request.authoredOn,
+          status: request.status,
+          priority: request.priority,
+          requester: request.requester?.display,
         }));
         
         setDuplicateCheck(duplicates);
@@ -528,8 +532,8 @@ const ServiceRequestDialogEnhanced = ({
           clinical_status: 'active',
         });
         
-        const contrastAllergy = allergies.entry?.some(entry => 
-          entry.resource.code?.coding?.some(c => 
+        const contrastAllergy = allergies.resources?.some(allergy => 
+          allergy.code?.coding?.some(c => 
             c.display?.toLowerCase().includes('contrast') ||
             c.display?.toLowerCase().includes('iodine')
           )
@@ -708,30 +712,29 @@ const ServiceRequestDialogEnhanced = ({
       return;
     }
     
-    setSaving(true);
     try {
       const fhirResource = buildFHIRResource();
       
-      // Call the parent's save handler
-      await onSave(fhirResource);
+      // Use the consistent save handler
+      const success = await performSave(fhirResource, `Service request ${serviceRequest ? 'updated' : 'created'} successfully`);
       
-      // Publish clinical event
-      await publish(CLINICAL_EVENTS.SERVICE_REQUEST_CREATED, {
-        patientId,
-        serviceRequestId: fhirResource.id,
-        service: selectedService.display,
-        priority: formData.priority,
-        status: formData.status,
-        category: formData.category[0]?.coding?.[0]?.code,
-      });
-      
-      // Close dialog
-      handleClose();
+      if (success) {
+        // Publish clinical event
+        await publish(CLINICAL_EVENTS.SERVICE_REQUEST_CREATED, {
+          patientId,
+          serviceRequestId: fhirResource.id,
+          service: selectedService.display,
+          priority: formData.priority,
+          status: formData.status,
+          category: formData.category[0]?.coding?.[0]?.code,
+        });
+        
+        // Close dialog
+        handleClose();
+      }
     } catch (error) {
-      console.error('Error saving service request:', error);
-      setErrors({ submit: 'Failed to save service request. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing service request:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1429,9 +1432,9 @@ const ServiceRequestDialogEnhanced = ({
                 </CardContent>
               </Card>
               
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
               
@@ -1533,11 +1536,11 @@ const ServiceRequestDialogEnhanced = ({
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={isSaving}
                   color="success"
-                  endIcon={saving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
+                  endIcon={isSaving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
                 >
-                  {saving ? 'Creating...' : 'Create Order'}
+                  {isSaving ? 'Creating...' : 'Create Order'}
                 </Button>
               </Box>
             </StepContent>

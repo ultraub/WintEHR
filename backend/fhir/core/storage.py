@@ -9,6 +9,7 @@ import json
 import uuid
 import re
 import logging
+import os
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
@@ -120,6 +121,15 @@ class FHIRStorageEngine:
         self.default_version = default_version
         self.version_negotiator = version_negotiator
         self.version_transformer = fhir_transformer
+        
+        # Initialize cache service
+        try:
+            from fhir.core.cache import FHIRCacheService
+            self.cache_service = FHIRCacheService()
+            logger.info("FHIR cache service initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize cache service: {e}")
+            self.cache_service = None
     
     def _get_search_parameter_definitions(self) -> Dict[str, Dict]:
         """Get search parameter definitions for all resource types."""
@@ -688,6 +698,11 @@ class FHIRStorageEngine:
         
         await self.session.commit()
         
+        # Invalidate search cache for this resource type
+        if self.cache_service:
+            # For creates, we need to invalidate search results but not individual resources
+            await self.cache_service.clear_cache(resource_type)
+        
         # Send WebSocket notification
         if notification_service:
             await notification_service.notify_resource_created(
@@ -717,6 +732,15 @@ class FHIRStorageEngine:
         """
         import logging
         logger.info(f"Reading resource: {resource_type}/{fhir_id} (version: {version_id})")
+        
+        # Check cache first (only for current version)
+        if self.cache_service and version_id is None:
+            cached_resource = await self.cache_service.get_cached_resource(
+                resource_type, fhir_id
+            )
+            if cached_resource is not None:
+                logger.info(f"Cache hit for {resource_type}/{fhir_id}")
+                return cached_resource
         if version_id:
             # Read specific version from history
             query = text("""
@@ -753,7 +777,13 @@ class FHIRStorageEngine:
         logger.info(f"Query result: {'Found' if row else 'Not found'}")
         
         if row:
-            return json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            resource_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            
+            # Cache the resource (only for current version)
+            if self.cache_service and version_id is None:
+                await self.cache_service.cache_resource(resource_data)
+            
+            return resource_data
         return None
     
     async def check_resource_deleted(
@@ -992,6 +1022,10 @@ class FHIRStorageEngine:
             logging.error(f"ERROR: Failed to update search parameters/references for {resource_type} {fhir_id}: {e}")
             raise ValueError(f"Failed to update resource indexing: {str(e)}")
         
+        # Invalidate cache for this resource
+        if self.cache_service:
+            await self.cache_service.invalidate_resource(resource_type, fhir_id)
+        
         # Send WebSocket notification
         if notification_service:
             await notification_service.notify_resource_updated(
@@ -1051,6 +1085,10 @@ class FHIRStorageEngine:
             
             await self.session.commit()
             
+            # Invalidate cache for this resource
+            if self.cache_service:
+                await self.cache_service.invalidate_resource(resource_type, fhir_id)
+            
             # Send WebSocket notification
             if notification_service:
                 await notification_service.notify_resource_deleted(
@@ -1081,101 +1119,151 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (resources, total_count)
         """
-        from fhir.core.search.basic import SearchParameterHandler
+        # Check cache first
+        if self.cache_service:
+            cached_result = await self.cache_service.get_cached_search(
+                resource_type, search_params, offset, limit
+            )
+            if cached_result is not None:
+                logger.info(f"Cache hit for {resource_type} search")
+                return cached_result
         
-        # Initialize search handler
-        search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+        # Use optimized query builder if available
+        use_optimized = os.getenv('USE_OPTIMIZED_SEARCH', 'true').lower() == 'true'
         
-        # Build search query using the handler
-        join_clauses, where_clauses, sql_params = search_handler.build_search_query(
-            resource_type, search_params
-        )
+        if use_optimized:
+            try:
+                from fhir.core.search.optimized import OptimizedSearchBuilder
+                
+                # Use optimized query builder
+                optimized_builder = OptimizedSearchBuilder()
+                query, sql_params = optimized_builder.build_optimized_query(
+                    resource_type=resource_type,
+                    search_params=search_params,
+                    limit=limit,
+                    offset=offset,
+                    count_only=False
+                )
+                
+                # Also build count query
+                count_query, count_params = optimized_builder.build_optimized_query(
+                    resource_type=resource_type,
+                    search_params=search_params,
+                    limit=limit,
+                    offset=offset,
+                    count_only=True
+                )
+                
+                logger.info(f"Using OPTIMIZED search query for {resource_type}")
+                
+            except ImportError:
+                logger.warning("OptimizedSearchBuilder not available, falling back to basic search")
+                use_optimized = False
         
-        # Build base query
-        base_query = """
-            SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated
-            FROM fhir.resources r
-        """
-        
-        # Add base where clauses
-        base_where = [
-            "r.resource_type = :resource_type",
-            "r.deleted = false"
-        ]
-        sql_params['resource_type'] = resource_type
-        
-        # Combine clauses
-        all_where_clauses = base_where + where_clauses
-        
-        # Build final query
-        query = base_query
-        if join_clauses:
-            query += " " + " ".join(join_clauses)
-        query += " WHERE " + " AND ".join(all_where_clauses)
+        if not use_optimized:
+            from fhir.core.search.basic import SearchParameterHandler
+            
+            # Initialize search handler
+            search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+            
+            # Build search query using the handler
+            join_clauses, where_clauses, sql_params = search_handler.build_search_query(
+                resource_type, search_params
+            )
+            
+            # Build base query
+            base_query = """
+                SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated
+                FROM fhir.resources r
+            """
+            
+            # Add base where clauses
+            base_where = [
+                "r.resource_type = :resource_type",
+                "r.deleted = false"
+            ]
+            sql_params['resource_type'] = resource_type
+            
+            # Combine clauses
+            all_where_clauses = base_where + where_clauses
+            
+            # Build final query
+            query = base_query
+            if join_clauses:
+                query += " " + " ".join(join_clauses)
+            query += " WHERE " + " AND ".join(all_where_clauses)
         
         # Log the query for debugging
         logger.info(f"Search query for {resource_type}: {query}")
         logger.info(f"Search params: {sql_params}")
-        logger.info(f"Where clauses: {where_clauses}")
-        print(f"FULL SEARCH QUERY: {query}")
-        print(f"SQL PARAMS: {sql_params}")
         
-        # Add ordering based on _sort parameter
-        sort_clauses = []
-        
-        # Check if _sort parameter was provided
-        if '_sort' in search_params:
-            sort_params = search_params.get('_sort', [])
-            if isinstance(sort_params, str):
-                sort_params = [sort_params]
-            
-            # Parse sort parameters using the handler
-            parsed_sorts = search_handler.parse_sort_params(sort_params)
-            
-            for sort_field, sort_order in parsed_sorts:
-                # Map sort fields to database columns
-                if sort_field == '_id':
-                    sort_clauses.append(f"r.fhir_id {sort_order}")
-                elif sort_field == '_lastUpdated':
-                    sort_clauses.append(f"r.last_updated {sort_order}")
-                elif sort_field == 'birthdate' and resource_type == 'Patient':
-                    sort_clauses.append(f"r.resource->>'birthDate' {sort_order}")
-                elif sort_field == 'name' and resource_type == 'Patient':
-                    sort_clauses.append(f"r.resource->'name'->0->>'family' {sort_order}")
-                elif sort_field == 'date' and resource_type == 'Observation':
-                    sort_clauses.append(f"r.resource->>'effectiveDateTime' {sort_order}")
-                elif sort_field == 'date' and resource_type == 'Encounter':
-                    sort_clauses.append(f"r.resource->'period'->>'start' {sort_order}")
-                elif sort_field == 'onset-date' and resource_type == 'Condition':
-                    sort_clauses.append(f"r.resource->>'onsetDateTime' {sort_order}")
-                elif sort_field == 'authoredon' and resource_type == 'MedicationRequest':
-                    sort_clauses.append(f"r.resource->>'authoredOn' {sort_order}")
-                elif sort_field == 'status':
-                    sort_clauses.append(f"r.resource->>'status' {sort_order}")
-                elif sort_field == 'gender' and resource_type == 'Patient':
-                    sort_clauses.append(f"r.resource->>'gender' {sort_order}")
-                # Add more field mappings as needed
-        
-        # Apply sorting or use default
-        if sort_clauses:
-            query += " ORDER BY " + ", ".join(sort_clauses)
+        # Handle the optimized path differently
+        if use_optimized and 'count_query' in locals():
+            # Execute count query
+            count_result = await self.session.execute(text(count_query), count_params)
+            total_count = count_result.scalar() or 0
         else:
-            query += " ORDER BY r.last_updated DESC"
-        
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(DISTINCT r.id) 
-            FROM fhir.resources r
-            {" ".join(join_clauses) if join_clauses else ""}
-            WHERE {" AND ".join(all_where_clauses)}
-        """
-        count_result = await self.session.execute(text(count_query), sql_params)
-        total_count = count_result.scalar() or 0
-        
-        # Add pagination
-        query += " LIMIT :limit OFFSET :offset"
-        sql_params['limit'] = limit
-        sql_params['offset'] = offset
+            # For basic search, continue with existing logic
+            logger.info(f"Where clauses: {where_clauses}")
+            print(f"FULL SEARCH QUERY: {query}")
+            print(f"SQL PARAMS: {sql_params}")
+            
+            # Add ordering based on _sort parameter
+            sort_clauses = []
+            
+            # Check if _sort parameter was provided
+            if '_sort' in search_params:
+                sort_params = search_params.get('_sort', [])
+                if isinstance(sort_params, str):
+                    sort_params = [sort_params]
+                
+                # Parse sort parameters using the handler
+                parsed_sorts = search_handler.parse_sort_params(sort_params)
+                
+                for sort_field, sort_order in parsed_sorts:
+                    # Map sort fields to database columns
+                    if sort_field == '_id':
+                        sort_clauses.append(f"r.fhir_id {sort_order}")
+                    elif sort_field == '_lastUpdated':
+                        sort_clauses.append(f"r.last_updated {sort_order}")
+                    elif sort_field == 'birthdate' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->>'birthDate' {sort_order}")
+                    elif sort_field == 'name' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->'name'->0->>'family' {sort_order}")
+                    elif sort_field == 'date' and resource_type == 'Observation':
+                        sort_clauses.append(f"r.resource->>'effectiveDateTime' {sort_order}")
+                    elif sort_field == 'date' and resource_type == 'Encounter':
+                        sort_clauses.append(f"r.resource->'period'->>'start' {sort_order}")
+                    elif sort_field == 'onset-date' and resource_type == 'Condition':
+                        sort_clauses.append(f"r.resource->>'onsetDateTime' {sort_order}")
+                    elif sort_field == 'authoredon' and resource_type == 'MedicationRequest':
+                        sort_clauses.append(f"r.resource->>'authoredOn' {sort_order}")
+                    elif sort_field == 'status':
+                        sort_clauses.append(f"r.resource->>'status' {sort_order}")
+                    elif sort_field == 'gender' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->>'gender' {sort_order}")
+                    # Add more field mappings as needed
+            
+            # Apply sorting or use default
+            if sort_clauses:
+                query += " ORDER BY " + ", ".join(sort_clauses)
+            else:
+                query += " ORDER BY r.last_updated DESC"
+            
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(DISTINCT r.id) 
+                FROM fhir.resources r
+                {" ".join(join_clauses) if join_clauses else ""}
+                WHERE {" AND ".join(all_where_clauses)}
+            """
+            count_result = await self.session.execute(text(count_query), sql_params)
+            total_count = count_result.scalar() or 0
+            
+            # Add pagination
+            query += " LIMIT :limit OFFSET :offset"
+            sql_params['limit'] = limit
+            sql_params['offset'] = offset
         
         # Execute search
         result = await self.session.execute(text(query), sql_params)
@@ -1184,6 +1272,13 @@ class FHIRStorageEngine:
         for row in result:
             resource_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
             resources.append(resource_data)
+        
+        # Cache the results
+        if self.cache_service and resources is not None:
+            await self.cache_service.cache_search_results(
+                resource_type, search_params, offset, limit,
+                resources, total_count
+            )
         
         return resources, total_count
     

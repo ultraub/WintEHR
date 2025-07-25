@@ -95,6 +95,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 // Helper functions
 const getMedicationName = (medication) => {
@@ -253,11 +254,14 @@ const MedicationDialogEnhanced = ({
   // State
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  
+  // Use consistent dialog helpers
+  const saveHandler = onSave || onSaved; // Support both prop names
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(saveHandler, null); // Don't auto-close, we'll handle it
   
   // Form data
   const [formData, setFormData] = useState({
@@ -468,7 +472,6 @@ const MedicationDialogEnhanced = ({
   const handleSave = async () => {
     if (!validateStep()) return;
     
-    setSaving(true);
     try {
       const fhirMedication = {
         resourceType: 'MedicationRequest',
@@ -578,25 +581,23 @@ const MedicationDialogEnhanced = ({
         })
       };
 
-      // Support both onSave and onSaved prop names
-      const saveHandler = onSave || onSaved;
-      if (saveHandler) {
-        await saveHandler(fhirMedication);
+      // Use the consistent save handler
+      const success = await performSave(fhirMedication, `Medication ${mode === 'edit' ? 'updated' : 'prescribed'} successfully`);
+      
+      if (success) {
+        // Publish event
+        publish(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
+          patientId,
+          medicationRequestId: fhirMedication.id,
+          medication: fhirMedication
+        });
+        
+        // Close dialog on success
+        handleClose();
       }
-      
-      // Publish event
-      publish(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
-        patientId,
-        medicationRequestId: fhirMedication.id,
-        medication: fhirMedication
-      });
-      
-      handleClose();
     } catch (error) {
-      console.error('Error saving medication:', error);
-      setErrors({ submit: 'Failed to save medication. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing medication data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1256,9 +1257,9 @@ const MedicationDialogEnhanced = ({
                 </Stack>
               </Paper>
 
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
             </Box>
@@ -1329,8 +1330,8 @@ const MedicationDialogEnhanced = ({
         </Stack>
       </DialogTitle>
 
-      {/* Progress Indicator */}
-      {(loading || saving) && <LinearProgress />}
+      {/* Progress Indicator - shows loading state */}
+      {(loading || isSaving) && <LinearProgress />}
 
       {/* Stepper */}
       <Box sx={{ px: 3, pt: 3, pb: 1 }}>
@@ -1370,7 +1371,7 @@ const MedicationDialogEnhanced = ({
         <Stack direction="row" spacing={2} justifyContent="space-between" width="100%">
           <Button
             onClick={handleClose}
-            disabled={loading || saving}
+            disabled={loading || isSaving}
             sx={{ minWidth: 100 }}
           >
             Cancel
@@ -1380,7 +1381,7 @@ const MedicationDialogEnhanced = ({
             {activeStep > 0 && (
               <Button
                 onClick={handleBack}
-                disabled={loading || saving}
+                disabled={loading || isSaving}
                 startIcon={<BackIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1392,7 +1393,7 @@ const MedicationDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleNext}
-                disabled={loading || saving || (activeStep === 0 && !selectedMedication)}
+                disabled={loading || isSaving || (activeStep === 0 && !selectedMedication)}
                 endIcon={<NextIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1402,11 +1403,11 @@ const MedicationDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={loading || saving}
-                startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                disabled={loading || isSaving}
+                startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />}
                 sx={{ minWidth: 100 }}
               >
-                {saving ? 'Saving...' : mode === 'refill' ? 'Send Refill' : 'Prescribe'}
+                {isSaving ? 'Saving...' : mode === 'refill' ? 'Send Refill' : 'Prescribe'}
               </Button>
             )}
           </Stack>

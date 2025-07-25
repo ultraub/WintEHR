@@ -364,7 +364,7 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
             {expanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
           </IconButton>
         </ListItemIcon>
-        <ListItemIcon sx={{ minWidth: 40, color: theme.palette[category.color || 'primary'].main }}>
+        <ListItemIcon sx={{ minWidth: 40, color: category.color === 'default' ? theme.palette.text.secondary : theme.palette[category.color || 'primary'].main }}>
           {category.icon}
         </ListItemIcon>
         <ListItemText 
@@ -378,8 +378,8 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
             sx={{ 
               height: 20, 
               fontSize: '0.75rem',
-              bgcolor: alpha(theme.palette[category.color || 'primary'].main, 0.1),
-              color: theme.palette[category.color || 'primary'].main
+              bgcolor: category.color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[category.color || 'primary'].main, 0.1),
+              color: category.color === 'default' ? theme.palette.text.secondary : theme.palette[category.color || 'primary'].main
             }} 
           />
         )}
@@ -402,7 +402,7 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
                   bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, 0.04) : 'transparent'
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: theme.palette[typeData.color || 'inherit'].main }}>
+                <ListItemIcon sx={{ minWidth: 32, color: typeData.color === 'inherit' || !typeData.color ? 'inherit' : theme.palette[typeData.color].main }}>
                   {typeData.icon}
                 </ListItemIcon>
                 <ListItemText 
@@ -734,7 +734,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         const typeConfig = noteTypes[noteType] || noteTypes.other;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
-            <Box sx={{ color: (theme) => theme.palette[typeConfig.color].main }}>
+            <Box sx={{ color: (theme) => typeConfig.color === 'default' ? theme.palette.text.secondary : theme.palette[typeConfig.color].main }}>
               {typeConfig.icon}
             </Box>
             <Typography variant="body2">{typeConfig.label}</Typography>

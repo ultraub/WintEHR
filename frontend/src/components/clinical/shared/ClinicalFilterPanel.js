@@ -276,7 +276,7 @@ const ClinicalFilterPanel = ({
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
-                onChange={(e, value) => value && onViewModeChange(value)}
+                onChange={(e, value) => value && onViewModeChange && onViewModeChange(value)}
                 size="small"
                 sx={{
                   '& .MuiToggleButton-root': {

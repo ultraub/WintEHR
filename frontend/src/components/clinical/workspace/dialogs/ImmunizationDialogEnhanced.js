@@ -78,6 +78,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 const searchImmunizations = async (query) => {
   try {
@@ -205,12 +206,15 @@ const ImmunizationDialogEnhanced = ({
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const { resources } = useFHIRResource();
+  
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({}); // Local UI errors only
   const [alerts, setAlerts] = useState([]);
 
   // Form state
@@ -649,28 +653,27 @@ const ImmunizationDialogEnhanced = ({
       return;
     }
     
-    setSaving(true);
     try {
       const fhirResource = buildFHIRResource();
       
-      // Call the parent's save handler
-      await onSave(fhirResource);
+      // Use the consistent save handler
+      const success = await performSave(fhirResource, `Immunization ${immunization ? 'updated' : 'recorded'} successfully`);
       
-      // Publish clinical event
-      await publish(CLINICAL_EVENTS.IMMUNIZATION_ADMINISTERED, {
-        patientId,
-        immunizationId: fhirResource.id,
-        vaccine: selectedVaccine.display,
-        status: formData.status,
-      });
-      
-      // Close dialog
-      handleClose();
+      if (success) {
+        // Publish clinical event
+        await publish(CLINICAL_EVENTS.IMMUNIZATION_ADMINISTERED, {
+          patientId,
+          immunizationId: fhirResource.id,
+          vaccine: selectedVaccine.display,
+          status: formData.status,
+        });
+        
+        // Close dialog
+        handleClose();
+      }
     } catch (error) {
-      console.error('Error saving immunization:', error);
-      setErrors({ submit: 'Failed to save immunization. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing immunization data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1347,9 +1350,9 @@ const ImmunizationDialogEnhanced = ({
                 </CardContent>
               </Card>
               
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
               
@@ -1451,11 +1454,11 @@ const ImmunizationDialogEnhanced = ({
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={isSaving}
                   color="success"
-                  endIcon={saving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
+                  endIcon={isSaving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
                 >
-                  {saving ? 'Saving...' : 'Save Immunization'}
+                  {isSaving ? 'Saving...' : 'Save Immunization'}
                 </Button>
               </Box>
             </StepContent>

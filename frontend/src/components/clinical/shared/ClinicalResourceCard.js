@@ -12,7 +12,8 @@ import {
   IconButton,
   Chip,
   useTheme,
-  alpha
+  alpha,
+  Tooltip
 } from '@mui/material';
 import { Edit as EditIcon, MoreVert as MoreIcon } from '@mui/icons-material';
 import { clinicalTokens } from '../../../themes/clinicalTheme';
@@ -137,7 +138,20 @@ const ClinicalResourceCard = ({
         
         {/* Actions */}
         <Stack direction="row" spacing={0.5}>
-          {actions}
+          {Array.isArray(actions) && actions.map((action, index) => 
+            action && (
+              <Tooltip key={index} title={action.label || ''}>
+                <IconButton 
+                  size="small" 
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                  color={action.color || 'default'}
+                >
+                  {action.icon}
+                </IconButton>
+              </Tooltip>
+            )
+          )}
           {onEdit && (
             <IconButton size="small" onClick={onEdit}>
               <EditIcon fontSize="small" />

@@ -94,6 +94,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import { useDialogSave, useDialogValidation } from './utils/dialogHelpers';
 
 const searchDiagnosticReports = async (query) => {
   try {
@@ -258,9 +259,12 @@ const DiagnosticReportDialogEnhanced = ({
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
   const [alerts, setAlerts] = useState([]);
+  
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
+  const [errors, setErrors] = useState({});
 
   // Form state
   const [selectedReport, setSelectedReport] = useState(null);
@@ -351,18 +355,18 @@ const DiagnosticReportDialogEnhanced = ({
             reportCount[key] = {
               ...rep,
               count: 0,
-              lastIssued: entry.resource.issued,
-              category: entry.resource.category?.[0]?.coding?.[0]?.code,
+              lastIssued: report.issued,
+              category: report.category?.[0]?.coding?.[0]?.code,
               turnaroundTime: 0,
             };
           }
           reportCount[key].count++;
           
           // Calculate average turnaround time
-          if (entry.resource.effectiveDateTime && entry.resource.issued) {
+          if (report.effectiveDateTime && report.issued) {
             const tat = differenceInDays(
-              new Date(entry.resource.issued),
-              new Date(entry.resource.effectiveDateTime)
+              new Date(report.issued),
+              new Date(report.effectiveDateTime)
             );
             reportCount[key].turnaroundTime = 
               (reportCount[key].turnaroundTime * (reportCount[key].count - 1) + tat) / reportCount[key].count;
@@ -637,30 +641,29 @@ const DiagnosticReportDialogEnhanced = ({
       return;
     }
     
-    setSaving(true);
     try {
       const fhirResource = buildFHIRResource();
       
-      // Call the parent's save handler
-      await onSave(fhirResource);
+      // Use the consistent save handler
+      const success = await performSave(fhirResource, `Diagnostic report ${report ? 'updated' : 'created'} successfully`);
       
-      // Publish clinical event
-      await publish(CLINICAL_EVENTS.DIAGNOSTIC_REPORT_CREATED, {
-        patientId,
-        reportId: fhirResource.id,
-        reportType: selectedReport.display,
-        status: formData.status,
-        category: formData.category[0]?.coding?.[0]?.code,
-        resultCount: selectedObservations.length,
-      });
-      
-      // Close dialog
-      handleClose();
+      if (success) {
+        // Publish clinical event
+        await publish(CLINICAL_EVENTS.DIAGNOSTIC_REPORT_CREATED, {
+          patientId,
+          reportId: fhirResource.id,
+          reportType: selectedReport.display,
+          status: formData.status,
+          category: formData.category[0]?.coding?.[0]?.code,
+          resultCount: selectedObservations.length,
+        });
+        
+        // Close dialog
+        handleClose();
+      }
     } catch (error) {
-      console.error('Error saving diagnostic report:', error);
-      setErrors({ submit: 'Failed to save diagnostic report. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing diagnostic report:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1197,9 +1200,9 @@ const DiagnosticReportDialogEnhanced = ({
                 </Grid>
               </Grid>
               
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
               
@@ -1301,11 +1304,11 @@ const DiagnosticReportDialogEnhanced = ({
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={isSaving}
                   color="success"
-                  endIcon={saving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
+                  endIcon={isSaving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
                 >
-                  {saving ? 'Saving...' : 'Save Report'}
+                  {isSaving ? 'Saving...' : 'Save Report'}
                 </Button>
               </Box>
             </StepContent>

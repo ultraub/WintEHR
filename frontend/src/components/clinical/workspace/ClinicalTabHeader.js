@@ -260,7 +260,7 @@ const ClinicalTabHeader = ({
                 disabled={action.disabled}
                 color={action.color || 'default'}
               >
-                <action.icon fontSize="small" />
+                {React.createElement(action.icon, { fontSize: "small" })}
               </IconButton>
             </Tooltip>
           ))}

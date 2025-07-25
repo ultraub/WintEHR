@@ -86,6 +86,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 // Helper function for searching conditions
 const searchConditions = async (query) => {
@@ -201,10 +202,14 @@ const ConditionDialogEnhanced = ({
   // State
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  
+  // Use consistent dialog helpers
+  const saveHandler = onSave || onSaved; // Support both prop names
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(saveHandler, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
   const [cdsAlerts, setCdsAlerts] = useState([]);
   
   // Form data
@@ -347,7 +352,6 @@ const ConditionDialogEnhanced = ({
   const handleSave = async () => {
     if (!validateStep()) return;
     
-    setSaving(true);
     try {
       const fhirCondition = {
         resourceType: 'Condition',
@@ -423,25 +427,23 @@ const ConditionDialogEnhanced = ({
         }
       };
 
-      // Support both onSave and onSaved prop names
-      const saveHandler = onSave || onSaved;
-      if (saveHandler) {
-        await saveHandler(fhirCondition);
+      // Use the consistent save handler
+      const success = await performSave(fhirCondition, `Condition ${condition ? 'updated' : 'added'} successfully`);
+      
+      if (success) {
+        // Publish event
+        publish(CLINICAL_EVENTS.CONDITION_ADDED, {
+          patientId,
+          conditionId: fhirCondition.id,
+          condition: fhirCondition
+        });
+        
+        // Close dialog on success
+        handleClose();
       }
-      
-      // Publish event
-      publish(CLINICAL_EVENTS.CONDITION_ADDED, {
-        patientId,
-        conditionId: fhirCondition.id,
-        condition: fhirCondition
-      });
-      
-      handleClose();
     } catch (error) {
-      console.error('Error saving condition:', error);
-      setErrors({ submit: 'Failed to save condition. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing condition data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -910,9 +912,9 @@ const ConditionDialogEnhanced = ({
                 </Stack>
               </Paper>
 
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
             </Box>
@@ -977,7 +979,7 @@ const ConditionDialogEnhanced = ({
       </DialogTitle>
 
       {/* Progress Indicator */}
-      {(loading || saving) && <LinearProgress />}
+      {(loading || isSaving) && <LinearProgress />}
 
       {/* Stepper */}
       <Box sx={{ px: 3, pt: 3, pb: 1 }}>
@@ -1017,7 +1019,7 @@ const ConditionDialogEnhanced = ({
         <Stack direction="row" spacing={2} justifyContent="space-between" width="100%">
           <Button
             onClick={handleClose}
-            disabled={loading || saving}
+            disabled={loading || isSaving}
             sx={{ minWidth: 100 }}
           >
             Cancel
@@ -1027,7 +1029,7 @@ const ConditionDialogEnhanced = ({
             {activeStep > 0 && (
               <Button
                 onClick={handleBack}
-                disabled={loading || saving}
+                disabled={loading || isSaving}
                 startIcon={<BackIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1039,7 +1041,7 @@ const ConditionDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleNext}
-                disabled={loading || saving || (activeStep === 0 && !selectedCondition)}
+                disabled={loading || isSaving || (activeStep === 0 && !selectedCondition)}
                 endIcon={<NextIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1049,11 +1051,11 @@ const ConditionDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={loading || saving}
-                startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                disabled={loading || isSaving}
+                startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />}
                 sx={{ minWidth: 100 }}
               >
-                {saving ? 'Saving...' : 'Save'}
+                {isSaving ? 'Saving...' : 'Save'}
               </Button>
             )}
           </Stack>

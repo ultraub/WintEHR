@@ -86,6 +86,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 const searchObservations = async (query) => {
   try {
@@ -199,12 +200,15 @@ const ObservationDialogEnhanced = ({
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const fhirClient = useFHIRClient();
+  
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({}); // Local UI errors only
   const [alerts, setAlerts] = useState([]);
 
   // Form state
@@ -767,7 +771,6 @@ const ObservationDialogEnhanced = ({
       return;
     }
     
-    setSaving(true);
     try {
       if (quickVitalsMode) {
         // Save all vital signs
@@ -800,31 +803,34 @@ const ObservationDialogEnhanced = ({
           vitals: vitalsData,
           timestamp: new Date().toISOString(),
         });
+        
+        // Close dialog
+        handleClose();
       } else {
         // Save single observation
         const fhirResource = buildFHIRResource();
         
-        // Call the parent's save handler
-        await onSave(fhirResource);
+        // Use the consistent save handler
+        const success = await performSave(fhirResource, `Observation ${observation ? 'updated' : 'recorded'} successfully`);
         
-        // Publish clinical event
-        await publish(CLINICAL_EVENTS.OBSERVATION_RECORDED, {
-          patientId,
-          observationId: fhirResource.id,
-          observation: selectedObservation.display,
-          value: fhirResource.valueQuantity || fhirResource.valueString,
-          status: formData.status,
-          interpretation: formData.interpretation?.[0]?.coding?.[0]?.code,
-        });
+        if (success) {
+          // Publish clinical event
+          await publish(CLINICAL_EVENTS.OBSERVATION_RECORDED, {
+            patientId,
+            observationId: fhirResource.id,
+            observation: selectedObservation.display,
+            value: fhirResource.valueQuantity || fhirResource.valueString,
+            status: formData.status,
+            interpretation: formData.interpretation?.[0]?.coding?.[0]?.code,
+          });
+          
+          // Close dialog
+          handleClose();
+        }
       }
-      
-      // Close dialog
-      handleClose();
     } catch (error) {
-      console.error('Error saving observation:', error);
-      setErrors({ submit: 'Failed to save observation. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing observation data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1589,9 +1595,9 @@ const ObservationDialogEnhanced = ({
                 </Card>
               )}
               
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
               
@@ -1693,11 +1699,11 @@ const ObservationDialogEnhanced = ({
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={isSaving}
                   color="success"
-                  endIcon={saving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
+                  endIcon={isSaving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
                 >
-                  {saving ? 'Saving...' : 'Save Observation'}
+                  {isSaving ? 'Saving...' : 'Save Observation'}
                 </Button>
               </Box>
             </StepContent>

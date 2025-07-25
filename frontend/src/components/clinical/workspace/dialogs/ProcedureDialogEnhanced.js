@@ -82,6 +82,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 const searchProcedures = async (query) => {
   try {
@@ -184,12 +185,15 @@ const ProcedureDialogEnhanced = ({
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   // FHIRClient is imported directly, not from hook
+  
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({}); // Local UI errors only
   const [alerts, setAlerts] = useState([]);
 
   // Form state
@@ -718,29 +722,28 @@ const ProcedureDialogEnhanced = ({
       return;
     }
     
-    setSaving(true);
     try {
       const fhirResource = buildFHIRResource();
       
-      // Call the parent's save handler
-      await onSave(fhirResource);
+      // Use the consistent save handler
+      const success = await performSave(fhirResource, `Procedure ${procedure ? 'updated' : 'scheduled'} successfully`);
       
-      // Publish clinical event
-      await publish(CLINICAL_EVENTS.PROCEDURE_PERFORMED, {
-        patientId,
-        procedureId: fhirResource.id,
-        procedure: selectedProcedure.display,
-        status: formData.status,
-        category: formData.category,
-      });
-      
-      // Close dialog
-      handleClose();
+      if (success) {
+        // Publish clinical event
+        await publish(CLINICAL_EVENTS.PROCEDURE_PERFORMED, {
+          patientId,
+          procedureId: fhirResource.id,
+          procedure: selectedProcedure.display,
+          status: formData.status,
+          category: formData.category,
+        });
+        
+        // Close dialog
+        handleClose();
+      }
     } catch (error) {
-      console.error('Error saving procedure:', error);
-      setErrors({ submit: 'Failed to save procedure. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing procedure data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1510,9 +1513,9 @@ const ProcedureDialogEnhanced = ({
                 </CardContent>
               </Card>
               
-              {errors.submit && (
+              {(errors.submit || saveError) && (
                 <Alert severity="error" sx={{ mb: 2 }}>
-                  {errors.submit}
+                  {errors.submit || saveError}
                 </Alert>
               )}
               
@@ -1614,11 +1617,11 @@ const ProcedureDialogEnhanced = ({
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={isSaving}
                   color="success"
-                  endIcon={saving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
+                  endIcon={isSaving ? <CircularProgress size={20} /> : <CheckCircleIcon />}
                 >
-                  {saving ? 'Saving...' : 'Save Procedure'}
+                  {isSaving ? 'Saving...' : 'Save Procedure'}
                 </Button>
               </Box>
             </StepContent>

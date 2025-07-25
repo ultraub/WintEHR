@@ -95,6 +95,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
+import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
 const searchAllergens = async (query) => {
   try {
@@ -322,10 +323,13 @@ const AllergyDialogEnhanced = ({
   const { evaluateCDS } = useCDS();
   const { publish } = useClinicalWorkflow();
   
+  // Use consistent dialog helpers
+  const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
+  const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
+  
   // State
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAllergen, setSelectedAllergen] = useState(null);
   const [cdsAlerts, setCdsAlerts] = useState([]);
@@ -352,7 +356,7 @@ const AllergyDialogEnhanced = ({
     reactionNote: ''
   });
   
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({}); // Local UI errors only
 
   // Search hook
   const { loading: searchLoading, options: searchOptions } = useAllergenSearch(searchTerm, formData.category);
@@ -492,7 +496,6 @@ const AllergyDialogEnhanced = ({
   const handleSave = async () => {
     if (!validateStep()) return;
     
-    setSaving(true);
     try {
       const fhirAllergy = {
         resourceType: 'AllergyIntolerance',
@@ -581,21 +584,23 @@ const AllergyDialogEnhanced = ({
         }] : []
       };
 
-      await onSave(fhirAllergy);
+      // Use the consistent save handler
+      const success = await performSave(fhirAllergy, `Allergy ${allergy ? 'updated' : 'added'} successfully`);
       
-      // Publish event
-      publish(CLINICAL_EVENTS.ALLERGY_ADDED, {
-        patientId,
-        allergyId: fhirAllergy.id,
-        allergy: fhirAllergy
-      });
-      
-      handleClose();
+      if (success) {
+        // Publish event
+        publish(CLINICAL_EVENTS.ALLERGY_ADDED, {
+          patientId,
+          allergyId: fhirAllergy.id,
+          allergy: fhirAllergy
+        });
+        
+        // Close dialog on success
+        handleClose();
+      }
     } catch (error) {
-      console.error('Error saving allergy:', error);
-      setErrors({ submit: 'Failed to save allergy. Please try again.' });
-    } finally {
-      setSaving(false);
+      console.error('Error preparing allergy data:', error);
+      // The performSave function handles its own error display
     }
   };
 
@@ -1244,9 +1249,9 @@ const AllergyDialogEnhanced = ({
                 </Stack>
               </Paper>
 
-              {errors.submit && (
+              {saveError && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  {errors.submit}
+                  {saveError}
                 </Alert>
               )}
             </Box>
@@ -1311,7 +1316,7 @@ const AllergyDialogEnhanced = ({
       </DialogTitle>
 
       {/* Progress Indicator */}
-      {(loading || saving) && <LinearProgress />}
+      {(loading || isSaving) && <LinearProgress />}
 
       {/* Stepper */}
       <Box sx={{ px: 3, pt: 3, pb: 1 }}>
@@ -1351,7 +1356,7 @@ const AllergyDialogEnhanced = ({
         <Stack direction="row" spacing={2} justifyContent="space-between" width="100%">
           <Button
             onClick={handleClose}
-            disabled={loading || saving}
+            disabled={loading || isSaving}
             sx={{ minWidth: 100 }}
           >
             Cancel
@@ -1361,7 +1366,7 @@ const AllergyDialogEnhanced = ({
             {activeStep > 0 && (
               <Button
                 onClick={handleBack}
-                disabled={loading || saving}
+                disabled={loading || isSaving}
                 startIcon={<BackIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1373,7 +1378,7 @@ const AllergyDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleNext}
-                disabled={loading || saving || (activeStep === 0 && !selectedAllergen)}
+                disabled={loading || isSaving || (activeStep === 0 && !selectedAllergen)}
                 endIcon={<NextIcon />}
                 sx={{ minWidth: 100 }}
               >
@@ -1383,12 +1388,12 @@ const AllergyDialogEnhanced = ({
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={loading || saving}
-                startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                disabled={loading || isSaving}
+                startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />}
                 sx={{ minWidth: 100 }}
                 color="warning"
               >
-                {saving ? 'Saving...' : 'Save Allergy'}
+                {isSaving ? 'Saving...' : 'Save Allergy'}
               </Button>
             )}
           </Stack>

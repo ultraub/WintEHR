@@ -70,14 +70,16 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
+import { useSnackbar } from 'notistack';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import ResourceDataGrid from '../../../common/ResourceDataGrid';
-import ConditionDialog from '../dialogs/ConditionDialog';
-import MedicationDialog from '../dialogs/MedicationDialog';
-import AllergyDialog from '../dialogs/AllergyDialog';
-import ImmunizationDialog from '../dialogs/ImmunizationDialog';
+import ConditionDialogEnhanced from '../dialogs/ConditionDialogEnhanced';
+import MedicationDialogEnhanced from '../dialogs/MedicationDialogEnhanced';
+import AllergyDialogEnhanced from '../dialogs/AllergyDialogEnhanced';
+import ImmunizationDialogEnhanced from '../dialogs/ImmunizationDialogEnhanced';
 import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
 import CarePlanDialog from '../dialogs/CarePlanDialog';
 import DocumentReferenceDialog from '../dialogs/DocumentReferenceDialog';
@@ -97,6 +99,7 @@ import { cdsAlertPersistence } from '../../../../services/cdsAlertPersistenceSer
 
 const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const { currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   const patientId = patient?.id || currentPatient?.id;
@@ -357,9 +360,32 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     setSelectedResource(null);
   };
   
-  const handleResourceSaved = async () => {
-    // Refresh data after save
-    await refresh();
+  const handleResourceSaved = async (resource) => {
+    try {
+      // Determine if this is an update or create based on whether the resource has an ID
+      const isUpdate = resource.id && selectedResource?.id === resource.id;
+      let result;
+      
+      if (isUpdate) {
+        // Update existing resource
+        result = await fhirClient.update(resource.resourceType, resource.id, resource);
+        enqueueSnackbar(`${resource.resourceType} updated successfully`, { variant: 'success' });
+      } else {
+        // Create new resource
+        result = await fhirClient.create(resource.resourceType, resource);
+        enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
+      }
+      
+      // Refresh data after save
+      refresh();
+      
+      // Return the saved resource
+      return result;
+    } catch (error) {
+      console.error('Error saving resource:', error);
+      enqueueSnackbar(`Failed to save ${resource.resourceType}. Please try again.`, { variant: 'error' });
+      throw error; // Re-throw to let dialog handle error state
+    }
   };
   
   // Search and filter handlers
@@ -1174,36 +1200,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       </Box>
       
       {/* Dialogs */}
-      <ConditionDialog
+      <ConditionDialogEnhanced
         open={openDialogs.condition}
         onClose={() => handleCloseDialog('condition')}
         condition={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
-      <MedicationDialog
+      <MedicationDialogEnhanced
         open={openDialogs.medication}
         onClose={() => handleCloseDialog('medication')}
         medication={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
-      <AllergyDialog
+      <AllergyDialogEnhanced
         open={openDialogs.allergy}
         onClose={() => handleCloseDialog('allergy')}
         allergy={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
-      <ImmunizationDialog
+      <ImmunizationDialogEnhanced
         open={openDialogs.immunization}
         onClose={() => handleCloseDialog('immunization')}
         immunization={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
       <ProcedureDialogEnhanced
@@ -1211,7 +1237,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         onClose={() => handleCloseDialog('procedure')}
         procedure={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
       <CarePlanDialog
@@ -1219,7 +1245,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         onClose={() => handleCloseDialog('carePlan')}
         carePlan={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
       
       <DocumentReferenceDialog
@@ -1227,7 +1253,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         onClose={() => handleCloseDialog('document')}
         document={selectedResource}
         patientId={patientId}
-        onSaved={handleResourceSaved}
+        onSave={handleResourceSaved}
       />
     </Box>
   );
