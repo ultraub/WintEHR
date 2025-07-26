@@ -571,6 +571,13 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **Virtual Scrolling**: Efficient rendering for long lists
 - **Performance Monitoring**: Built-in performance tracking utilities
 
+### FHIR Explorer Enhancements (2025-01-26)
+- **Query Studio**: Unified query building experience combining Visual Builder and Playground
+- **Full Dark Mode Support**: Comprehensive theme integration across all FHIR Explorer components
+- **Multi-Mode Interface**: Visual, Code, and Split view modes with real-time synchronization
+- **Enhanced Export**: Export queries as cURL, JavaScript, Python, Postman, or OpenAPI
+- **Improved Performance**: Real-time metrics and optimization suggestions
+
 ## 🔍 Where to Find Things
 
 ### Frontend Services
@@ -624,6 +631,8 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **[docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)** - Search indexing details
 - **[docs/modules/](docs/modules/)** - Individual module guides
 - **[docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)** - Integration patterns
+- **[docs/modules/fhir-explorer/QUERY_STUDIO_GUIDE.md](docs/modules/fhir-explorer/QUERY_STUDIO_GUIDE.md)** - Query Studio user guide
+- **[docs/modules/fhir-explorer/FHIR_EXPLORER_V4_IMPROVEMENTS.md](docs/modules/fhir-explorer/FHIR_EXPLORER_V4_IMPROVEMENTS.md)** - v4 improvements summary
 
 ## 🛡️ Best Practices Summary
 
