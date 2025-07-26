@@ -236,9 +236,9 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
       statusIcon={isSigned ? <SignedIcon /> : <UnsignedIcon />}
       tags={tags}
     >
-      <Stack spacing={2}>
+      <Stack spacing={1}>
         {/* Author and metadata */}
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center">
           <Chip
             icon={<AuthorIcon />}
             label={author}
@@ -262,9 +262,10 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             display: '-webkit-box',
-            WebkitLineClamp: expanded ? 'unset' : 3,
+            WebkitLineClamp: expanded ? 'unset' : 2,
             WebkitBoxOrient: 'vertical',
-            whiteSpace: 'pre-line'
+            whiteSpace: 'pre-line',
+            fontSize: density === 'compact' ? '0.8125rem' : '0.875rem'
           }}
         >
           {note.displayContent || note.text?.div || note.text || 'No content available'}
@@ -281,7 +282,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ fontSize: density === 'compact' ? '0.8125rem' : '0.875rem' }}>
                     {section.text?.div || section.text || ''}
                   </Typography>
                 </AccordionDetails>
@@ -346,9 +347,10 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
         selected={isSelected}
         sx={{ 
           borderRadius: 0,
-          bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+          py: 0.5,
+          bgcolor: isSelected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08) : 'transparent',
           '&:hover': {
-            bgcolor: alpha(theme.palette.primary.main, 0.04)
+            bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04)
           }
         }}
       >
@@ -376,9 +378,9 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
             label={documents.length} 
             size="small" 
             sx={{ 
-              height: 20, 
-              fontSize: '0.75rem',
-              bgcolor: category.color === 'default' ? alpha(theme.palette.text.secondary, 0.1) : alpha(theme.palette[category.color || 'primary'].main, 0.1),
+              height: 18, 
+              fontSize: '0.7rem',
+              bgcolor: category.color === 'default' ? alpha(theme.palette.text.secondary, theme.palette.mode === 'dark' ? 0.2 : 0.1) : alpha(theme.palette[category.color || 'primary'].main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
               color: category.color === 'default' ? theme.palette.text.secondary : theme.palette[category.color || 'primary'].main
             }} 
           />
@@ -397,9 +399,9 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
                 onClick={() => onSelectCategory(`type-${typeKey}`)}
                 selected={isTypeSelected}
                 sx={{ 
-                  py: 0.5,
+                  py: 0.25,
                   borderRadius: 0,
-                  bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, 0.04) : 'transparent'
+                  bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04) : 'transparent'
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 32, color: typeData.color === 'inherit' || !typeData.color ? 'inherit' : theme.palette[typeData.color].main }}>
@@ -1011,79 +1013,132 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Compact Header with inline stats */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-          {/* Inline Statistics */}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="body2" color="text.secondary">
-              {allDocuments.length} total documents
+      {/* Ultra-Compact Header */}
+      <Box sx={{ 
+        px: 1.5, 
+        py: 0.5, 
+        borderBottom: 1, 
+        borderColor: 'divider',
+        backgroundColor: theme.palette.mode === 'dark' ? 'background.paper' : 'background.default',
+        minHeight: 40
+      }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+          {/* Left side - Search and filters in one line */}
+          <Stack direction="row" spacing={1} alignItems="center" flex={1}>
+            <TextField
+              size="small"
+              placeholder="Search notes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 0 }
+              }}
+              sx={{ width: 180 }}
+            />
+            
+            <Select
+              size="small"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              sx={{ minWidth: 90, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              displayEmpty
+            >
+              <MenuItem value="all">All Types</MenuItem>
+              {Object.entries(noteTypes).map(([key, config]) => (
+                <MenuItem key={key} value={key}>{config.label}</MenuItem>
+              ))}
+            </Select>
+            
+            <Select
+              size="small"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              sx={{ minWidth: 70, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              displayEmpty
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="draft">Draft</MenuItem>
+              <MenuItem value="preliminary">Review</MenuItem>
+              <MenuItem value="final">Signed</MenuItem>
+            </Select>
+            
+            <Select
+              size="small"
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value)}
+              sx={{ minWidth: 75, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              displayEmpty
+            >
+              <MenuItem value="all">All Time</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="7d">7 Days</MenuItem>
+              <MenuItem value="30d">30 Days</MenuItem>
+              <MenuItem value="3m">3 Months</MenuItem>
+            </Select>
+            
+            {/* Inline stats */}
+            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+              {filteredDocuments.length} of {allDocuments.length} documents
             </Typography>
-            {metrics.find(m => m.label === 'Signed')?.value > 0 && (
-              <Chip
-                icon={<SignedIcon fontSize="small" />}
-                label={`${metrics.find(m => m.label === 'Signed').value} signed`}
-                size="small"
-                color="success"
-                sx={{ borderRadius: '4px' }}
-              />
-            )}
             {metrics.find(m => m.label === 'Draft')?.value > 0 && (
               <Chip
-                icon={<DraftIcon fontSize="small" />}
-                label={`${metrics.find(m => m.label === 'Draft').value} draft`}
+                icon={<DraftIcon sx={{ fontSize: 16 }} />}
+                label={metrics.find(m => m.label === 'Draft').value}
                 size="small"
                 color="warning"
-                sx={{ borderRadius: '4px' }}
-              />
-            )}
-            {searchTerm && (
-              <Chip
-                label={`"${searchTerm}"`}
-                size="small"
-                onDelete={() => setSearchTerm('')}
-                sx={{ borderRadius: '4px' }}
+                sx={{ height: 24, '& .MuiChip-label': { px: 1 } }}
               />
             )}
           </Stack>
           
-          {/* View Controls */}
+          {/* Right side - View controls and actions */}
           <Stack direction="row" spacing={1} alignItems="center">
             <ToggleButtonGroup
               value={viewMode}
               exclusive
               onChange={(e, newMode) => newMode && setViewMode(newMode)}
               size="small"
-              sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+              sx={{ 
+                height: 28,
+                '& .MuiToggleButton-root': { 
+                  borderRadius: 0,
+                  px: 1,
+                  py: 0.25,
+                  minWidth: 32
+                } 
+              }}
             >
               <ToggleButton value="tree">
-                <Tooltip title="Tree View">
-                  <TreeIcon />
-                </Tooltip>
+                <TreeIcon fontSize="small" />
               </ToggleButton>
               <ToggleButton value="cards">
-                <Tooltip title="Card View">
-                  <CardViewIcon />
-                </Tooltip>
+                <CardViewIcon fontSize="small" />
               </ToggleButton>
               <ToggleButton value="table">
-                <Tooltip title="Table View">
-                  <ListIcon />
-                </Tooltip>
+                <ListIcon fontSize="small" />
               </ToggleButton>
               <ToggleButton value="timeline">
-                <Tooltip title="Timeline View">
-                  <TimelineIcon />
-                </Tooltip>
+                <TimelineIcon fontSize="small" />
               </ToggleButton>
             </ToggleButtonGroup>
-            <Divider orientation="vertical" flexItem />
+            
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleNewNote}
               size="small"
-              sx={{ borderRadius: 0 }}
+              sx={{ 
+                borderRadius: 0,
+                height: 28,
+                px: 1.5,
+                fontSize: '0.8125rem'
+              }}
             >
               New Note
             </Button>
@@ -1092,22 +1147,31 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       </Box>
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', p: 2 }}>
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Tree View Sidebar with Custom Implementation */}
         {viewMode === 'tree' && (
-          <Box sx={{ width: 280, flexShrink: 0, mr: 2 }}>
-            <Paper sx={{ p: 2, height: '100%', overflow: 'auto', borderRadius: 0 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
+          <Box sx={{ 
+            width: 200, 
+            flexShrink: 0, 
+            borderRight: 1, 
+            borderColor: 'divider',
+            backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'grey.50'
+          }}>
+            <Box sx={{ p: 1, height: '100%', overflow: 'auto' }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="subtitle2" fontWeight={600}>
                   Categories
                 </Typography>
-                <IconButton 
-                  size="small" 
-                  onClick={() => setSelectedCategory('root')}
-                  title="Clear selection"
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
+                {selectedCategory !== 'root' && (
+                  <IconButton 
+                    size="small" 
+                    onClick={() => setSelectedCategory('root')}
+                    title="Clear selection"
+                    sx={{ p: 0.5 }}
+                  >
+                    <CloseIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                )}
               </Stack>
               
               <List sx={{ width: '100%' }}>
@@ -1122,89 +1186,21 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                   />
                 ))}
               </List>
-            </Paper>
+            </Box>
           </Box>
         )}
         
         {/* Main Content */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Filters using ClinicalFilterPanel */}
-          <ClinicalFilterPanel
-            searchQuery={searchTerm}
-            onSearchChange={setSearchTerm}
-            dateRange={filterPeriod}
-            onDateRangeChange={setFilterPeriod}
-            onRefresh={() => window.location.reload()}
-            compact
-            customFilters={
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                {viewMode !== 'tree' && (
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Type</InputLabel>
-                    <Select
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      label="Type"
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-                    >
-                      <MenuItem value="all">All Types</MenuItem>
-                      {Object.entries(noteTypes).map(([key, config]) => (
-                        <MenuItem key={key} value={key}>{config.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                )}
-
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Author</InputLabel>
-                  <Select
-                    value={filterAuthor}
-                    onChange={(e) => setFilterAuthor(e.target.value)}
-                    label="Author"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-                  >
-                    <MenuItem value="all">All Authors</MenuItem>
-                    {authors.map(author => (
-                      <MenuItem key={author} value={author}>{author}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    label="Status"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-                  >
-                    <MenuItem value="all">All Status</MenuItem>
-                    <MenuItem value="draft">Draft</MenuItem>
-                    <MenuItem value="preliminary">Review</MenuItem>
-                    <MenuItem value="final">Signed</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 100 }}>
-                  <InputLabel>Density</InputLabel>
-                  <Select
-                    value={density}
-                    onChange={(e) => setDensity(e.target.value)}
-                    label="Density"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-                  >
-                    <MenuItem value="comfortable">Comfort</MenuItem>
-                    <MenuItem value="compact">Compact</MenuItem>
-                  </Select>
-                </FormControl>
-              </Stack>
-            }
-          />
 
           {/* Content Views */}
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
+          <Box sx={{ 
+            flex: 1, 
+            overflow: 'auto',
+            backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper'
+          }}>
             {viewMode === 'timeline' && ResourceTimeline && (
-              <Box sx={{ p: 2 }}>
+              <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
                 <ResourceTimeline
                   resources={timelineResources}
                   onResourceClick={(resource) => handleViewNote(resource)}
@@ -1221,8 +1217,8 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             )}
             
             {(viewMode === 'cards' || viewMode === 'tree') && (
-              <Box sx={{ p: 2 }}>
-                <Stack spacing={density === 'compact' ? 1 : 2}>
+              <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
+                <Stack spacing={density === 'compact' ? 0.5 : 0.75}>
                   {sortedDocuments.length === 0 ? (
                     <Alert severity="info">
                       No documentation found matching your criteria
@@ -1248,7 +1244,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             )}
             
             {viewMode === 'table' && SmartTable && (
-              <Box sx={{ p: 2 }}>
+              <Box sx={{ p: 0 }}>
                 <SmartTable
                   columns={tableColumns}
                   data={sortedDocuments}
@@ -1334,7 +1330,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: 'grey.50', borderRadius: 0, maxHeight: 400, overflow: 'auto' }}>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'grey.50', borderRadius: 0, maxHeight: 400, overflow: 'auto' }}>
                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                       {selectedNoteForView.displayContent || 'No content available'}
                     </Typography>

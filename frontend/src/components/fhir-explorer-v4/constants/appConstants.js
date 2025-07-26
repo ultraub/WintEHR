@@ -19,9 +19,8 @@ export const DISCOVERY_VIEWS = {
 };
 
 export const QUERY_VIEWS = {
-  VISUAL: 'visual',
+  STUDIO: 'studio',
   NATURAL_LANGUAGE: 'natural-language',
-  PLAYGROUND: 'playground',
   WORKSPACE: 'workspace'
 };
 

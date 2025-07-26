@@ -141,16 +141,7 @@ const ClinicalTabs = ({
         {showIcons && !isSmall && (
           <item.icon sx={{ fontSize: dense ? 18 : 20 }} />
         )}
-        <Typography 
-          variant={dense ? "caption" : "body2"} 
-          sx={{ 
-            fontWeight: activeTab === item.id ? 600 : 400,
-            textTransform: 'none'
-          }}
-        >
-          {item.label}
-        </Typography>
-        {hasBadge && (
+        {hasBadge ? (
           <Badge
             badgeContent={
               typeof item.badge === 'number' ? item.badge :
@@ -159,17 +150,35 @@ const ClinicalTabs = ({
             color={item.badge === 'new' ? 'primary' : 'error'}
             variant={item.badge === 'new' ? 'dot' : 'standard'}
             sx={{
-              position: 'absolute',
-              top: -8,
-              right: -16,
               '& .MuiBadge-badge': {
-                fontSize: '0.625rem',
-                height: 16,
-                minWidth: 16,
-                padding: '0 4px'
+                fontSize: '0.65rem',
+                height: 18,
+                minWidth: 18,
+                padding: '0 5px',
+                transform: 'translate(50%, -30%)'
               }
             }}
-          />
+          >
+            <Typography 
+              variant={dense ? "caption" : "body2"} 
+              sx={{ 
+                fontWeight: activeTab === item.id ? 600 : 400,
+                textTransform: 'none'
+              }}
+            >
+              {item.label}
+            </Typography>
+          </Badge>
+        ) : (
+          <Typography 
+            variant={dense ? "caption" : "body2"} 
+            sx={{ 
+              fontWeight: activeTab === item.id ? 600 : 400,
+              textTransform: 'none'
+            }}
+          >
+            {item.label}
+          </Typography>
         )}
       </Box>
     );

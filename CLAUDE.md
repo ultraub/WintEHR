@@ -4,8 +4,10 @@
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
-**Last Updated**: 2025-01-20  
-**Version**: 2.1
+**Last Updated**: 2025-07-26  
+**Version**: 3.0
+
+> **NEW**: Simplified deployment! See [DEPLOYMENT_SIMPLIFIED.md](./DEPLOYMENT_SIMPLIFIED.md) for the new streamlined approach.
 
 ## 🎯 Project Overview
 
@@ -19,48 +21,41 @@
 - Modern React 18 frontend with Material-UI
 - FastAPI backend with async Python and PostgreSQL
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Simplified!)
 
 ### Development Environment (Recommended)
 ```bash
-# Fresh deployment with 20 patients (creates all 6 FHIR tables)
-./fresh-deploy.sh
+# ONE COMMAND for complete deployment with 20 patients
+./deploy.sh dev
 
 # Custom patient count
-./fresh-deploy.sh --patients 50
-
-# Alternative: Master deployment (full modular process)
-./scripts/master-deploy.sh
-
-# Quick start for development
-./dev-start.sh
+./deploy.sh dev --patients 50
 ```
 
 ### Production Deployment
 ```bash
 # Production deployment with 100 patients
-./fresh-deploy.sh --mode production --patients 100
-
-# Alternative: Master deployment in production mode
-./scripts/master-deploy.sh --production --patients=100
+./deploy.sh prod --patients 100
 ```
 
-### Validation Commands
+### Other Operations
 ```bash
-# Quick check of available Synthea resources
-docker exec emr-backend python scripts/testing/check_synthea_resources.py
+# Check system status
+./deploy.sh status
 
-# Comprehensive data validation
-docker exec emr-backend python scripts/testing/validate_fhir_data.py --verbose
+# Stop all services
+./deploy.sh stop
 
-# Verify all 6 FHIR tables
-docker exec emr-backend python scripts/testing/verify_all_fhir_tables.py
+# Clean deployment (removes all data)
+./deploy.sh clean
+```
 
-# Check search parameter health
-docker exec emr-backend python scripts/testing/monitor_search_params.py
-
-# Test data summary for all modules
-docker exec emr-backend python scripts/testing/test_data_summary.py
+### Data Management (Simplified!)
+```bash
+# All data operations through one script
+docker exec emr-backend python scripts/manage_data.py load     # Load patients
+docker exec emr-backend python scripts/manage_data.py validate  # Validate data
+docker exec emr-backend python scripts/manage_data.py status    # Check status
 ```
 
 ### Authentication Modes
@@ -154,9 +149,8 @@ WintEHR/
 # 2. Create feature branch
 git checkout -b feat/your-feature-name
 
-# 3. Implement with real data
-./dev-start.sh  # Start dev environment
-# Test with multiple Synthea patients
+# 3. Start development environment
+./deploy.sh dev  # Simplified!
 
 # 4. Run quality checks
 docker exec emr-backend pytest tests/ -v
@@ -173,17 +167,17 @@ git commit -m "feat: Add your feature description"
 
 ### Debugging Workflow
 ```bash
-# 1. Enable verbose logging
+# 1. Check system status
+./deploy.sh status
+
+# 2. Enable verbose logging
 docker-compose logs -f backend frontend
 
-# 2. Check database state
-docker exec emr-backend python scripts/validate_deployment.py --docker --verbose
+# 3. Validate data integrity
+docker exec emr-backend python scripts/manage_data.py validate --verbose
 
-# 3. Test specific FHIR queries
+# 4. Test specific FHIR queries
 curl http://localhost:8000/fhir/R4/Patient?name=Smith
-
-# 4. Verify search parameters
-docker exec emr-backend python scripts/monitor_search_params.py
 ```
 
 ### Performance Testing
@@ -199,16 +193,18 @@ docker exec emr-backend python -m cProfile -o profile.stats your_script.py
 docker exec emr-postgres psql -U emr_user -d emr_db -c "EXPLAIN ANALYZE your_query;"
 ```
 
-## 🔧 Common Commands
+## 🔧 Common Commands (Simplified!)
 
 ### Development Workflow
 ```bash
 # Start development environment
-./dev-start.sh
+./deploy.sh dev
 
-# Load patient data
-./load-patients.sh 20              # Add 20 patients
-./load-patients.sh --wipe 50       # Clear and load 50 patients
+# Stop services
+./deploy.sh stop
+
+# Check status
+./deploy.sh status
 
 # Run tests
 docker exec emr-backend pytest tests/ -v
@@ -221,13 +217,17 @@ docker-compose logs -f frontend    # Frontend logs
 
 ### Data Management
 ```bash
-# Using synthea_master.py directly
-docker exec emr-backend python scripts/active/synthea_master.py full --count 20
-docker exec emr-backend python scripts/active/synthea_master.py wipe
-docker exec emr-backend python scripts/active/synthea_master.py validate
+# Load patient data
+docker exec emr-backend python scripts/manage_data.py load --patients 20
 
-# DICOM generation
-docker exec emr-backend python scripts/generate_dicom_for_studies.py
+# Validate data
+docker exec emr-backend python scripts/manage_data.py validate
+
+# Check data status
+docker exec emr-backend python scripts/manage_data.py status
+
+# Re-index search parameters
+docker exec emr-backend python scripts/manage_data.py index
 ```
 
 ### Git Workflow

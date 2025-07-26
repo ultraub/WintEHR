@@ -335,7 +335,13 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                 mb: 2,
                 '& .MuiInputBase-input': {
                   fontFamily: 'monospace',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  color: (theme) => theme.palette.text.primary
+                },
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: (theme) => theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.background.paper, 0.1)
+                    : 'transparent'
                 }
               }}
             />
@@ -476,7 +482,9 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                     sx={{
                       maxHeight: 400,
                       overflow: 'auto',
-                      bgcolor: 'background.surface',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' 
+                        ? theme.palette.grey[900] 
+                        : theme.palette.grey[50],
                       borderRadius: 1,
                       p: 2
                     }}

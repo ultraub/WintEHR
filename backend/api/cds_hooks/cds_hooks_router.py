@@ -1101,29 +1101,38 @@ async def provide_feedback(
             raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
         
         # Process and store the feedback
-        feedback_data = {
-            'hookInstance': feedback.hookInstance,
-            'service': service_id,
-            'card': feedback.card,
-            'outcome': feedback.outcome,
-            'overrideReason': feedback.overrideReason,
-            'acceptedSuggestions': feedback.acceptedSuggestions,
-            # Extract additional context if available
-            'userId': getattr(feedback, 'userId', None),
-            'patientId': getattr(feedback, 'patientId', None),
-            'encounterId': getattr(feedback, 'encounterId', None),
-            'context': getattr(feedback, 'context', None)
-        }
+        # The feedback request contains an array of feedback items
+        if not feedback.feedback or len(feedback.feedback) == 0:
+            raise HTTPException(status_code=400, detail="No feedback items provided")
         
-        feedback_id = await process_cds_feedback(db, feedback_data)
-        
-        logger.info(f"Stored feedback {feedback_id} for service {service_id}: outcome={feedback.outcome}")
+        # Process each feedback item
+        feedback_ids = []
+        for feedback_item in feedback.feedback:
+            feedback_data = {
+                'hookInstance': getattr(feedback_item, 'hookInstance', None),
+                'service': service_id,
+                'card': feedback_item.card,
+                'outcome': feedback_item.outcome,
+                'overrideReason': getattr(feedback_item, 'overrideReason', None) or getattr(feedback_item, 'overrideReasons', None),
+                'acceptedSuggestions': getattr(feedback_item, 'acceptedSuggestions', None),
+                # Extract additional context if available from the request
+                'userId': getattr(feedback, 'userId', None),
+                'patientId': getattr(feedback, 'patientId', None),
+                'encounterId': getattr(feedback, 'encounterId', None),
+                'context': getattr(feedback, 'context', None),
+                'outcomeTimestamp': getattr(feedback_item, 'outcomeTimestamp', None)
+            }
+            
+            feedback_id = await process_cds_feedback(db, feedback_data)
+            feedback_ids.append(feedback_id)
+            
+            logger.info(f"Stored feedback {feedback_id} for service {service_id}: outcome={feedback_item.outcome}")
         
         # Return success response per CDS Hooks specification
         return {
             "status": "success",
-            "feedbackId": feedback_id,
-            "message": "Feedback received and stored successfully"
+            "feedbackIds": feedback_ids,
+            "message": f"Feedback received and stored successfully ({len(feedback_ids)} items)"
         }
         
     except HTTPException:

@@ -321,7 +321,7 @@ const TimelineEventCard = ({ event, onClick, isAlternate }) => {
       title={getEventTitle()}
       severity={getSeverity()}
       status={eventType.label}
-      statusColor={eventType.color}
+      statusColor={eventType.color === 'inherit' ? 'default' : eventType.color}
       icon={eventType.icon}
       details={[
         { label: 'Date', value: dateStr },

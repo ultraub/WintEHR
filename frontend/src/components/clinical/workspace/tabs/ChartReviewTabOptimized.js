@@ -416,7 +416,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   }
   
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper' }}>
       {/* Collapsible Filter Panel */}
       <CollapsibleFilterPanel
         searchQuery={searchQuery}
@@ -444,7 +444,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       
       {/* Clinical Alerts */}
       {clinicalAlerts.length > 0 && (
-        <Stack spacing={1} sx={{ mb: 2 }}>
+        <Stack spacing={0.5} sx={{ mb: 1, px: 1 }}>
           {clinicalAlerts.map((alert) => (
             <Alert 
               key={alert.id} 
@@ -482,16 +482,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       )}
       
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, sm: 2 } }}>
         {viewMode === 'dashboard' && (
           <Fade in={true}>
             <Box>
               {/* Summary Cards with modern gradients */}
-              <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid container spacing={1} sx={{ mb: 2 }}>
                 <Grid item xs={12} md={3}>
                   <Card sx={{ 
                     height: '100%',
-                    backgroundColor: clinicalTokens.severity.high.bg,
+                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.error.main, 0.08) : clinicalTokens.severity.high.bg,
                     borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
@@ -531,7 +531,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                 <Grid item xs={12} md={3}>
                   <Card sx={{ 
                     height: '100%',
-                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.08) : alpha(theme.palette.primary.main, 0.04),
                     borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
@@ -571,7 +571,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                 <Grid item xs={12} md={3}>
                   <Card sx={{ 
                     height: '100%',
-                    backgroundColor: clinicalTokens.severity.moderate.bg,
+                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.warning.main, 0.08) : clinicalTokens.severity.moderate.bg,
                     borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
@@ -610,7 +610,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                 <Grid item xs={12} md={3}>
                   <Card sx={{ 
                     height: '100%',
-                    backgroundColor: clinicalTokens.severity.low.bg,
+                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.success.main, 0.08) : clinicalTokens.severity.low.bg,
                     borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
@@ -659,7 +659,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
                           <Chip 
@@ -667,7 +667,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             size="small" 
                             color="error"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600
                             }}
                           />
@@ -690,7 +690,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.activeConditions.length === 0 ? (
                         <Alert severity="info">No active conditions</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.activeConditions.slice(0, 5).map((condition, index) => (
                             <EnhancedConditionCard
                               key={condition.id}
@@ -723,7 +723,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
                           <Chip 
@@ -731,7 +731,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             size="small" 
                             color="primary"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600
                             }}
                           />
@@ -754,7 +754,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.activeMedications.length === 0 ? (
                         <Alert severity="info">No active medications</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.activeMedications.slice(0, 5).map((medication, index) => (
                             <EnhancedMedicationCard
                               key={medication.id}
@@ -787,7 +787,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Allergies</Typography>
                           {processedData.criticalAllergies.length > 0 && (
@@ -797,7 +797,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               size="small" 
                               color="error"
                               sx={{
-                                borderRadius: '4px',  // Professional UI
+                                borderRadius: 0,  // Sharp corners
                                 fontWeight: 600,
                                 animation: 'pulse 2s infinite'
                               }}
@@ -822,7 +822,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {allergies.length === 0 ? (
                         <Alert severity="success">No known allergies</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
                             .slice(0, 5)
                             .map((allergy, index) => (
@@ -852,14 +852,14 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Immunizations</Typography>
                           <Chip 
                             label={`${processedData.immunizations.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600,
                               backgroundColor: alpha(theme.palette.success.main, 0.1),
                               color: theme.palette.success.main
@@ -884,7 +884,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.immunizations.length === 0 ? (
                         <Alert severity="info">No immunization records</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.immunizations.slice(0, 5).map((immunization, index) => (
                             <EnhancedImmunizationCard
                               key={immunization.id}
@@ -917,14 +917,14 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Procedures</Typography>
                           <Chip 
                             label={`${processedData.procedures.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600,
                               backgroundColor: alpha(theme.palette.secondary.main, 0.1),
                               color: theme.palette.secondary.main
@@ -949,7 +949,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.procedures.length === 0 ? (
                         <Alert severity="info">No procedure records</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.procedures.slice(0, 5).map((procedure, index) => (
                             <EnhancedProcedureCard
                               key={procedure.id}
@@ -982,14 +982,14 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Care Plans</Typography>
                           <Chip 
                             label={`${processedData.carePlans.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600,
                               backgroundColor: alpha(theme.palette.primary.main, 0.1),
                               color: theme.palette.primary.main
@@ -1014,7 +1014,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.carePlans.length === 0 ? (
                         <Alert severity="info">No care plans</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.carePlans.slice(0, 5).map((carePlan, index) => (
                             <EnhancedCarePlanCard
                               key={carePlan.id}
@@ -1047,14 +1047,14 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Clinical Documents</Typography>
                           <Chip 
                             label={`${processedData.documentReferences.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: '4px',  // Professional UI
+                              borderRadius: 0,  // Sharp corners
                               fontWeight: 600,
                               backgroundColor: alpha(theme.palette.grey[600], 0.1),
                               color: theme.palette.grey[600]
@@ -1079,7 +1079,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.documentReferences.length === 0 ? (
                         <Alert severity="info">No clinical documents</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.documentReferences.slice(0, 5).map((document, index) => (
                             <EnhancedDocumentCard
                               key={document.id}
@@ -1112,13 +1112,13 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Encounters</Typography>
                         <Chip 
                           label={`${processedData.recentEncounters.length}`} 
                           size="small"
                           sx={{
-                            borderRadius: '4px',  // Professional UI
+                            borderRadius: 0,  // Sharp corners
                             fontWeight: 600,
                             backgroundColor: alpha(theme.palette.info.main, 0.1),
                             color: theme.palette.info.main
@@ -1129,7 +1129,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.recentEncounters.length === 0 ? (
                         <Alert severity="info">No recent encounters</Alert>
                       ) : (
-                        <Stack spacing={1}>
+                        <Stack spacing={0.5}>
                           {processedData.recentEncounters.map((encounter, index) => (
                             <Paper
                               key={encounter.id}

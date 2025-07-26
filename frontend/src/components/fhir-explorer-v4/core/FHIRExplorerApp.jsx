@@ -44,9 +44,8 @@ import ResourceCatalog from '../discovery/ResourceCatalog';
 import SchemaExplorer from '../discovery/SchemaExplorer';
 import RelationshipMapper from '../discovery/RelationshipMapper';
 import RelationshipMapperErrorBoundary from '../discovery/RelationshipMapperErrorBoundary';
-import VisualQueryBuilder from '../query-building/VisualQueryBuilder';
+import QueryStudio from '../query-building/QueryStudio';
 import NaturalLanguageInterface from '../query-building/NaturalLanguageInterface';
-import QueryPlayground from '../query-building/QueryPlayground';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
 import NetworkDiagram from '../visualization/NetworkDiagram';
@@ -247,23 +246,21 @@ function FHIRExplorerApp() {
         
       case APP_MODES.QUERY_BUILDING:
         switch (currentView) {
-          case QUERY_VIEWS.VISUAL:
-            return <VisualQueryBuilder onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
+          case QUERY_VIEWS.STUDIO:
+            return <QueryStudio onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.NATURAL_LANGUAGE:
             return <NaturalLanguageInterface onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
-          case QUERY_VIEWS.PLAYGROUND:
-            return <QueryPlayground onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.WORKSPACE:
             return <QueryWorkspace 
               onNavigate={handleModeChange} 
               onLoadQuery={(query) => {
                 // Set the loaded query in the appropriate component
                 setLoadedQuery(query);
-                handleModeChange(APP_MODES.DISCOVERY, DISCOVERY_VIEWS.CATALOG);
+                handleModeChange(APP_MODES.QUERY_BUILDING, QUERY_VIEWS.STUDIO);
               }}
             />;
           default:
-            return <VisualQueryBuilder onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
+            return <QueryStudio onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
         }
         
       case APP_MODES.VISUALIZATION:

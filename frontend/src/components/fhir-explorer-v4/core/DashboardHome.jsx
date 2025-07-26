@@ -92,12 +92,12 @@ const QUICK_ACTIONS = [
     view: DISCOVERY_VIEWS.CATALOG
   },
   {
-    title: 'Build Queries',
-    description: 'Create powerful FHIR queries visually',
+    title: 'Query Studio',
+    description: 'Unified query building experience',
     icon: <BuildIcon />,
     color: '#f57c00',
     mode: APP_MODES.QUERY_BUILDING,
-    view: QUERY_VIEWS.VISUAL
+    view: QUERY_VIEWS.STUDIO
   },
   {
     title: 'Visualize Data',

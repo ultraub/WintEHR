@@ -387,10 +387,6 @@ const CDSPresentation = ({
     ));
 
   const renderAlert = (alert, compact = false) => {
-    const alertKey = `${alert.serviceId}-${alert.summary}`;
-    if (dismissedAlerts.has(alertKey)) return null;
-    if (isAlertSnoozed(alert)) return null;
-
     const content = (
       <>
         <Typography variant={compact ? "caption" : "subtitle2"} gutterBottom>
@@ -442,9 +438,10 @@ const CDSPresentation = ({
     return { content, actions };
   };
 
-  const visibleAlerts = alerts.filter(alert => 
-    !dismissedAlerts.has(`${alert.serviceId}-${alert.summary}`)
-  ).slice(0, maxAlerts);
+  const visibleAlerts = alerts.filter(alert => {
+    const alertKey = `${alert.serviceId}-${alert.summary}`;
+    return !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
+  }).slice(0, maxAlerts);
 
   if (visibleAlerts.length === 0) return null;
 
@@ -476,20 +473,23 @@ const CDSPresentation = ({
   if (mode === PRESENTATION_MODES.TOAST) {
     return (
       <>
-        {visibleAlerts.map((alert, index) => (
-          <Snackbar
-            key={`toast-${alert.summary}-${index}`}
-            open={open}
-            autoHideDuration={autoHide ? hideDelay : null}
-            onClose={() => setOpen(false)}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            TransitionComponent={Slide}
-          >
-            <Alert severity={getSeverityColor(alert.indicator)}>
-              {renderAlert(alert, true).content}
-            </Alert>
-          </Snackbar>
-        ))}
+        {visibleAlerts.map((alert, index) => {
+          const { content } = renderAlert(alert, true);
+          return (
+            <Snackbar
+              key={`toast-${alert.summary}-${index}`}
+              open={open}
+              autoHideDuration={autoHide ? hideDelay : null}
+              onClose={() => setOpen(false)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              TransitionComponent={Slide}
+            >
+              <Alert severity={getSeverityColor(alert.indicator)}>
+                {content}
+              </Alert>
+            </Snackbar>
+          );
+        })}
       </>
     );
   }

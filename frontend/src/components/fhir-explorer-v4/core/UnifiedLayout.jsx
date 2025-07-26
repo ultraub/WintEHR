@@ -108,20 +108,15 @@ const NAVIGATION_STRUCTURE = {
     description: 'Build and test FHIR queries',
     color: '#f57c00',
     views: {
-      [QUERY_VIEWS.VISUAL]: {
-        label: 'Visual Builder',
-        icon: <BuildIcon />,
-        description: 'Drag-and-drop query building'
+      [QUERY_VIEWS.STUDIO]: {
+        label: 'Query Studio',
+        icon: <CodeIcon />,
+        description: 'Unified query building experience'
       },
       [QUERY_VIEWS.NATURAL_LANGUAGE]: {
         label: 'Natural Language',
         icon: <ChatIcon />,
         description: 'Query in plain English'
-      },
-      [QUERY_VIEWS.PLAYGROUND]: {
-        label: 'Playground',
-        icon: <CodeIcon />,
-        description: 'Advanced query testing'
       },
       [QUERY_VIEWS.WORKSPACE]: {
         label: 'Workspace',

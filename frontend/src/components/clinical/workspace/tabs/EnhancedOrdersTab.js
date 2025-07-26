@@ -28,6 +28,7 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
+  alpha,
   Divider,
   Collapse,
   Checkbox
@@ -83,6 +84,7 @@ import {
 
 // Optimized OrderCard component with better information density
 const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAlternate = false, compact = false }) => {
+  const theme = useTheme();
   // Determine order type and icon
   const getOrderIcon = () => {
     if (order.resourceType === 'MedicationRequest') return <MedicationIcon />;
@@ -108,11 +110,17 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
   if (compact) {
     return (
       <Box sx={{ 
-        mb: 0.5, 
-        p: 1, 
-        bgcolor: isAlternate ? 'action.hover' : 'background.paper',
-        borderLeft: `3px solid ${getSeverity() === 'critical' ? '#d32f2f' : getSeverity() === 'high' ? '#f57c00' : '#1976d2'}`,
-        '&:hover': { bgcolor: 'action.selected' }
+        mb: 0.25, 
+        p: 0.75, 
+        bgcolor: isAlternate ? 
+          (theme.palette.mode === 'dark' ? alpha(theme.palette.action.hover, 0.5) : 'action.hover') : 
+          'background.paper',
+        borderLeft: `3px solid ${getSeverity() === 'critical' ? theme.palette.error.main : getSeverity() === 'high' ? theme.palette.warning.main : theme.palette.primary.main}`,
+        '&:hover': { 
+          bgcolor: theme.palette.mode === 'dark' ? 
+            alpha(theme.palette.action.selected, 0.8) : 
+            'action.selected'
+        }
       }}>
         <Stack direction="row" alignItems="center" spacing={1}>
           <Checkbox
@@ -131,14 +139,14 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
                 label={order.status} 
                 size="small" 
                 color={order.status === 'active' ? 'success' : order.status === 'cancelled' ? 'error' : 'default'}
-                sx={{ height: 20, borderRadius: '4px' }}
+                sx={{ height: 18, borderRadius: 0, fontSize: '0.7rem' }}
               />
               {order.priority && order.priority !== 'routine' && (
                 <Chip 
                   label={order.priority.toUpperCase()} 
                   size="small" 
                   color="error"
-                  sx={{ height: 20, fontWeight: 'bold', borderRadius: '4px' }}
+                  sx={{ height: 18, fontWeight: 'bold', borderRadius: 0, fontSize: '0.7rem' }}
                 />
               )}
             </Stack>
@@ -190,7 +198,7 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
   }
 
   return (
-    <Box sx={{ mb: 1 }}>
+    <Box sx={{ mb: 0.75 }}>
       <ClinicalResourceCard
         title={title}
         icon={getOrderIcon()}
@@ -223,7 +231,7 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
   if (compact) {
     // Compact inline chip-based view
     return (
-      <Box sx={{ mb: 1 }}>
+      <Box sx={{ mb: 0.5 }}>
         <Stack spacing={1}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="subtitle2" color="text.secondary">
@@ -242,14 +250,14 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
               label={`Total: ${statistics?.total || 0}`}
               size="small"
               variant="outlined"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             <Chip
               icon={<OrderIcon fontSize="small" />}
               label={`Active: ${statistics?.active || 0}`}
               size="small"
               color="primary"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             {(statistics?.urgent || 0) > 0 && (
               <Chip
@@ -264,14 +272,14 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
               label={`Pending: ${pendingOrders}`}
               size="small"
               color="warning"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             <Chip
               icon={<CheckCircle fontSize="small" />}
               label={`Today: ${completedToday}`}
               size="small"
               color="success"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
             <Chip
@@ -279,21 +287,21 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
               label={`Meds: ${medicationOrders}`}
               size="small"
               variant="outlined"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             <Chip
               icon={<LabIcon fontSize="small" />}
               label={`Labs: ${labOrders}`}
               size="small"
               variant="outlined"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
             <Chip
               icon={<ImagingIcon fontSize="small" />}
               label={`Imaging: ${imagingOrders}`}
               size="small"
               variant="outlined"
-              sx={{ borderRadius: '4px' }}
+              sx={{ borderRadius: 0, height: 20 }}
             />
           </Stack>
         </Stack>
@@ -770,9 +778,9 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
-      {/* Compact Header with inline stats */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+      {/* Ultra-Compact Header with inline stats */}
+      <Box sx={{ px: 1, pt: 0.75, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
           {/* Inline Statistics */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" color="text.secondary">
@@ -783,7 +791,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
                 label={`${activeOrdersCount} active`}
                 size="small"
                 color="primary"
-                sx={{ borderRadius: '4px' }}
+                sx={{ borderRadius: 0, height: 20 }}
               />
             )}
             {urgentOrdersCount > 0 && (
@@ -792,7 +800,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
                 size="small"
                 color="error"
                 icon={<OrderIcon fontSize="small" />}
-                sx={{ borderRadius: '4px' }}
+                sx={{ borderRadius: 0, height: 20 }}
               />
             )}
             {selectedOrders.size > 0 && (
@@ -800,7 +808,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
                 label={`${selectedOrders.size} selected`}
                 size="small"
                 variant="outlined"
-                sx={{ borderRadius: '4px' }}
+                sx={{ borderRadius: 0, height: 20 }}
               />
             )}
           </Stack>
@@ -847,7 +855,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
               size="small"
               startIcon={<AddIcon />}
               onClick={() => setCpoeDialogOpen(true)}
-              sx={{ borderRadius: 0 }}
+              sx={{ borderRadius: 0, height: 28, fontSize: '0.8125rem' }}
             >
               New Order
             </Button>
@@ -1004,11 +1012,13 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         variant="scrollable"
         scrollButtons="auto"
         sx={{ 
-          mb: 2,
+          mb: 1,
           '& .MuiTab-root': {
             borderRadius: 0,
-            minHeight: '40px'
-          }
+            minHeight: '36px',
+            py: 0.5
+          },
+          minHeight: 36
         }}
       >
         <Tab label={`All Orders (${processedResults.all.length})`} />
@@ -1020,11 +1030,11 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
 
       {/* Orders List */}
       {loading && entries.length === 0 ? (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
           {viewMode === 'list' ? (
             <ClinicalLoadingState.Table rows={10} columns={6} />
           ) : (
-            <Grid container spacing={2}>
+            <Grid container spacing={1}>
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <Grid item xs={12} md={6} key={i}>
                   <ClinicalLoadingState.ResourceCard />
@@ -1053,7 +1063,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         // Use virtual scrolling for large lists in list mode
         <VirtualizedList
           items={currentOrders}
-          itemHeight={compactView ? 60 : 120}
+          itemHeight={compactView ? 50 : 100}
           containerHeight={600}
           renderItem={(order, index, key) => (
             <OrderCard

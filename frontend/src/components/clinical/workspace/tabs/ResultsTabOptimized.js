@@ -420,7 +420,7 @@ const ResultsTabOptimized = ({ patientId }) => {
       // Show trends view for observations
       const observations = tabValue === 0 ? allData.labObservations : allData.vitalObservations;
       return (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
           {tabValue === 0 ? (
             <LabTrendsChart patientId={patientId} observations={observations} />
           ) : (
@@ -433,7 +433,7 @@ const ResultsTabOptimized = ({ patientId }) => {
     if (viewMode === 'cards') {
       // Card view using ObservationCardTemplate
       return (
-        <Grid container spacing={2} sx={{ p: 2 }}>
+        <Grid container spacing={1} sx={{ p: { xs: 0.5, sm: 1 } }}>
           {paginatedData.map((item, index) => (
             <Grid item xs={12} md={6} key={item.id}>
               <ObservationCardTemplate
@@ -501,9 +501,16 @@ const ResultsTabOptimized = ({ patientId }) => {
                   key={item.id} 
                   hover
                   sx={{ 
-                    bgcolor: index % 2 === 1 ? 'action.hover' : 'background.paper',
+                    bgcolor: index % 2 === 1 ? 
+                      (theme.palette.mode === 'dark' ? alpha(theme.palette.action.hover, 0.5) : 'action.hover') : 
+                      'background.paper',
                     '&:hover': {
-                      bgcolor: 'action.selected'
+                      bgcolor: theme.palette.mode === 'dark' ? 
+                        alpha(theme.palette.action.selected, 0.8) : 
+                        'action.selected'
+                    },
+                    '& .MuiTableCell-root': {
+                      py: 0.75
                     }
                   }}
                 >
@@ -533,7 +540,8 @@ const ResultsTabOptimized = ({ patientId }) => {
                         color={status.color}
                         sx={{ 
                           fontWeight: 'bold',
-                          borderRadius: '4px'
+                          borderRadius: 0,
+                          height: 22
                         }}
                       />
                     )}
@@ -567,9 +575,9 @@ const ResultsTabOptimized = ({ patientId }) => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
-      {/* Compact Header with inline stats */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+      {/* Ultra-Compact Header with inline stats */}
+      <Box sx={{ px: 1, pt: 0.75, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
           {/* Inline Statistics */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" color="text.secondary">
@@ -581,7 +589,7 @@ const ResultsTabOptimized = ({ patientId }) => {
                 size="small"
                 color="warning"
                 icon={<AbnormalIcon fontSize="small" />}
-                sx={{ borderRadius: '4px' }}
+                sx={{ borderRadius: 0, height: 24 }}
               />
             )}
             {filterPeriod !== 'all' && (
@@ -590,7 +598,7 @@ const ResultsTabOptimized = ({ patientId }) => {
                 size="small"
                 variant="outlined"
                 onDelete={() => setFilterPeriod('all')}
-                sx={{ borderRadius: '4px' }}
+                sx={{ borderRadius: 0, height: 24 }}
               />
             )}
           </Stack>
