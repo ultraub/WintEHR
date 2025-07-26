@@ -50,10 +50,9 @@ import {
   Error as ErrorIcon
 } from '@mui/icons-material';
 
-// Import child components (to be created)
+// Import child components
 import CDSLearnMode from '../components/cds-studio/learn/CDSLearnMode';
-import CDSBuildMode from '../components/cds-studio/build/CDSBuildMode';
-import CDSBuildModeImproved from '../components/cds-studio/build/CDSBuildModeImproved';
+import { CDSBuildMode, CDSBuildModeImproved } from '../components/cds-studio/build/CDSBuildModeWrapper';
 import CDSManageMode from '../components/cds-studio/manage/CDSManageMode';
 
 // Import error boundary and loading states
