@@ -22,7 +22,7 @@ import {
   getClinicalContext, 
   getClinicalAnimation,
   getClinicalSpacing 
-} from '../../../themes/clinicalThemeUtils';
+} from '../../../../themes/clinicalThemeUtils';
 
 const ClinicalTextField = ({
   label,

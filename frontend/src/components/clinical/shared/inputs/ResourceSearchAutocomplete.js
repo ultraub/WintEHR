@@ -57,8 +57,8 @@ import {
   MedicalServices as MedicalServicesIcon
 } from '@mui/icons-material';
 import debounce from 'lodash/debounce';
-import { fhirClient } from '../../../core/fhir/services/fhirClient';
-import catalogService from '../../../services/cdsClinicalDataService';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import catalogService from '../../../../services/cdsClinicalDataService';
 
 // Resource type configurations
 const RESOURCE_CONFIGS = {

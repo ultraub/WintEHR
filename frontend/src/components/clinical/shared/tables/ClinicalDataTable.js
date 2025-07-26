@@ -40,9 +40,9 @@ import {
   getElevationShadow,
   getSmoothTransition,
   getHoverEffect
-} from '../../../themes/clinicalThemeUtils';
-import { clinicalTokens } from '../../../themes/clinicalTheme';
-import StatusChip from './StatusChip';
+} from '../../../../themes/clinicalThemeUtils';
+import { clinicalTokens } from '../../../../themes/clinicalTheme';
+import StatusChip from '../display/StatusChip';
 
 const ClinicalDataTable = ({
   data = [],

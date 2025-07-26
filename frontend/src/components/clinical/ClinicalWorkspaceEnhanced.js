@@ -39,7 +39,7 @@ import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
 import { usePatientCDSAlerts } from '../../contexts/CDSContext';
 import TabErrorBoundary from './workspace/TabErrorBoundary';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
-import KeyboardShortcutsDialog from './ui/KeyboardShortcutsDialog';
+import KeyboardShortcutsDialog from './shared/dialogs/KeyboardShortcutsDialog';
 import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
 
 // Import the enhanced patient header

@@ -7,7 +7,7 @@ import React from 'react';
 import { Chip, Stack, Typography } from '@mui/material';
 import { Medication as MedicationIcon } from '@mui/icons-material';
 import { format } from 'date-fns';
-import ClinicalResourceCard from '../ClinicalResourceCard';
+import ClinicalResourceCard from '../cards/ClinicalResourceCard';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 
 /**

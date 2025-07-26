@@ -37,7 +37,7 @@ import {
   FiberManualRecord as StatusIcon
 } from '@mui/icons-material';
 import { format, differenceInYears, parseISO, formatDistanceToNow } from 'date-fns';
-import TrendSparkline from './TrendSparkline';
+import TrendSparkline from '../display/TrendSparkline';
 
 // Severity indicator component
 const SeverityIndicator = ({ severity, size = 'small' }) => {

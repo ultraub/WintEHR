@@ -42,8 +42,8 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { visuallyHidden } from '@mui/utils';
-import TrendSparkline from './TrendSparkline';
-import { severity as severityTokens } from '../../../themes/clinicalTheme';
+import TrendSparkline from '../display/TrendSparkline';
+import { severity as severityTokens } from '../../../../themes/clinicalTheme';
 
 // Status icon mapping
 const statusIcons = {

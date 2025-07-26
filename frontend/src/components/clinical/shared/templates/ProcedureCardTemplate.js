@@ -7,7 +7,7 @@ import React from 'react';
 import { Chip, Stack, Typography } from '@mui/material';
 import { Healing as HealingIcon, MedicalServices as ProcedureIcon } from '@mui/icons-material';
 import { format } from 'date-fns';
-import ClinicalResourceCard from '../ClinicalResourceCard';
+import ClinicalResourceCard from '../cards/ClinicalResourceCard';
 
 /**
  * Template for displaying procedure information

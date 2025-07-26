@@ -22,7 +22,7 @@ import {
   Remove as RemoveIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { severity as severityTokens } from '../../../themes/clinicalTheme';
+import { severity as severityTokens } from '../../../../themes/clinicalTheme';
 
 // Trend arrow mapping
 const trendArrows = {

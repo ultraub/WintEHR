@@ -17,7 +17,7 @@ import {
   getClinicalContext, 
   getStatusColor, 
   getClinicalAnimation 
-} from '../../../themes/clinicalThemeUtils';
+} from '../../../../themes/clinicalThemeUtils';
 
 const StatusChip = ({ 
   status, 

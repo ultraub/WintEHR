@@ -29,9 +29,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { useTabSearch, useExpandableList } from '../../../hooks/clinical';
-import { getStatusColor, truncateText } from '../../../utils/clinicalHelpers';
-import ClinicalEmptyState from './ClinicalEmptyState';
+import { useTabSearch, useExpandableList } from '../../../../hooks/clinical';
+import { getStatusColor, truncateText } from '../../../../utils/clinicalHelpers';
+import ClinicalEmptyState from '../ClinicalEmptyState';
 
 const ClinicalDataList = ({
   // Data props

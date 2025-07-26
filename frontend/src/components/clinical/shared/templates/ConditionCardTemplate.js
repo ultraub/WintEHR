@@ -7,7 +7,7 @@ import React from 'react';
 import { Chip, Stack, Typography } from '@mui/material';
 import { Warning as WarningIcon } from '@mui/icons-material';
 import { format } from 'date-fns';
-import ClinicalResourceCard from '../ClinicalResourceCard';
+import ClinicalResourceCard from '../cards/ClinicalResourceCard';
 
 /**
  * Template for displaying condition/diagnosis information

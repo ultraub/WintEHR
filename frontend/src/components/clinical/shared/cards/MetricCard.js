@@ -27,8 +27,8 @@ import {
   getSeverityColor, 
   getClinicalAnimation,
   getClinicalSpacing 
-} from '../../../themes/clinicalThemeUtils';
-import { useResponsive } from '../../../hooks/useResponsive';
+} from '../../../../themes/clinicalThemeUtils';
+import { useResponsive } from '../../../../hooks/useResponsive';
 
 const MetricCard = ({
   title,

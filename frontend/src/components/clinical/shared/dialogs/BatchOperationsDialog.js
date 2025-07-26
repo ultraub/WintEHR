@@ -98,10 +98,10 @@ import {
   IndeterminateCheckBox as IndeterminateCheckBoxIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { fhirClient } from '../../../core/fhir/services/fhirClient';
-import { useClinical as useClinicalContext } from '../../../contexts/ClinicalContext';
-import { useAuth } from '../../../contexts/AuthContext';
-import { CLINICAL_EVENTS } from '../../../constants/clinicalEvents';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 
 // Operation types
 const OPERATION_TYPES = {

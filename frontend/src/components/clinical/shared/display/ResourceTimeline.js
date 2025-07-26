@@ -38,7 +38,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
 import { format, startOfDay, endOfDay, subDays, addDays } from 'date-fns';
-import { severity as severityTokens } from '../../../themes/clinicalTheme';
+import { severity as severityTokens } from '../../../../themes/clinicalTheme';
 
 // Resource type configurations
 const resourceTypeConfig = {

@@ -135,13 +135,13 @@ const SimplifiedClinicalDialog: React.FC<SimplifiedClinicalDialogProps> = ({
     {
       label: 'Cancel',
       onClick: onClose,
-      variant: 'outlined' as const
+      variant: 'outlined'
     },
     {
       label: 'Save',
       onClick: onClose,
-      variant: 'contained' as const,
-      color: 'primary' as const,
+      variant: 'contained',
+      color: 'primary',
       startIcon: <SaveIcon />
     }
   ] : actions;

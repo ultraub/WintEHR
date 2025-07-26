@@ -43,7 +43,7 @@ import {
   Search as SearchIcon,
   FilterList as FilterIcon
 } from '@mui/icons-material';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 
 const COMMON_RESOURCES = [
   'Patient',

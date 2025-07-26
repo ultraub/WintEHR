@@ -32,7 +32,7 @@ import {
   getClinicalContext,
   getSeverityColor,
   getClinicalAnimation 
-} from '../../../themes/clinicalThemeUtils';
+} from '../../../../themes/clinicalThemeUtils';
 
 const ClinicalSelect = ({
   label,
