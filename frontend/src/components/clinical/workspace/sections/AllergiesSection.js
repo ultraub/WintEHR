@@ -28,8 +28,8 @@ import {
   CheckCircle as VerifiedIcon,
   HelpOutline as UnverifiedIcon
 } from '@mui/icons-material';
-import ClinicalCard from '../../common/ClinicalCard';
-import ClinicalDataList from '../../common/ClinicalDataList';
+import { ClinicalResourceCard } from '../../shared/cards';
+import { ClinicalDataList } from '../../shared/tables';
 import { useTabFilters, useTabSearch } from '../../../../hooks/clinical';
 import {
   getStatusColor,
@@ -145,7 +145,7 @@ const AllergiesSection = ({
   const hasCriticalAllergies = criticalCount > 0;
   
   return (
-    <ClinicalCard
+    <ClinicalResourceCard
       title="Allergies & Intolerances"
       icon={<WarningIcon />}
       department={department}
@@ -339,7 +339,7 @@ const AllergiesSection = ({
           </Box>
         )}
       />
-    </ClinicalCard>
+    </ClinicalResourceCard>
   );
 };
 

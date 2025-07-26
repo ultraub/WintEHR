@@ -120,9 +120,9 @@ import {
   ClinicalLoadingState
 } from '../../shared';
 import { DocumentCardTemplate } from '../../shared/templates';
-import { ContextualFAB } from '../../ui/QuickActionFAB';
-import ResourceTimeline from '../../ui/ResourceTimeline';
-import SmartTable from '../../ui/SmartTable';
+import { ContextualFAB } from '../../shared/layout';
+import { ResourceTimeline } from '../../shared/display';
+import { SmartTable } from '../../shared/tables';
 
 // Custom hooks
 const useDensity = () => {

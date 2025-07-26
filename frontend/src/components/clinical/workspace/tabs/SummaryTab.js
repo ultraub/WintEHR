@@ -63,8 +63,8 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
-import StatusChip from '../../common/StatusChip';
-import { ViewControls, useDensity } from '../../ui/DensityControl';
+import { StatusChip } from '../../shared/display';
+import { ViewControls, useDensity } from '../../shared/layout';
 import { 
   ClinicalResourceCard,
   ClinicalSummaryCard,

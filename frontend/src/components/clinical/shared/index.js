@@ -3,7 +3,25 @@
  * Export all shared clinical UI components from a single location
  */
 
-export { default as ClinicalResourceCard } from './ClinicalResourceCard';
+// Card Components
+export * from './cards';
+
+// Dialog Components
+export * from './dialogs';
+
+// Table Components
+export * from './tables';
+
+// Input Components
+export * from './inputs';
+
+// Display Components
+export * from './display';
+
+// Layout Components
+export * from './layout';
+
+// Core Components (remain in root for backward compatibility)
 export { default as ClinicalSummaryCard } from './ClinicalSummaryCard';
 export { default as ClinicalFilterPanel } from './ClinicalFilterPanel';
 export { default as ClinicalDataGrid } from './ClinicalDataGrid';

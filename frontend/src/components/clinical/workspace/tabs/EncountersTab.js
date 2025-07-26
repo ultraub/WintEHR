@@ -64,12 +64,12 @@ import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
-import ClinicalCard from '../../ui/ClinicalCard';
-import ResourceTimeline from '../../ui/ResourceTimeline';
-import SmartTable from '../../ui/SmartTable';
-import { ContextualFAB } from '../../ui/QuickActionFAB';
-import { ViewControls, useDensity } from '../../ui/DensityControl';
-import MetricsBar from '../../ui/MetricsBar';
+import { ClinicalResourceCard } from '../../shared/cards';
+import { ResourceTimeline } from '../../shared/display';
+import { SmartTable } from '../../shared/tables';
+import { ContextualFAB } from '../../shared/layout';
+import { ViewControls, useDensity } from '../../shared/layout';
+import { MetricsBar } from '../../shared/display';
 import { motion, AnimatePresence } from 'framer-motion';
 import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 import EnhancedEncounterCard from '../cards/EnhancedEncounterCard';
@@ -169,7 +169,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <ClinicalCard
+      <ClinicalResourceCard
         severity={getEncounterSeverity(encounter)}
         title={
           <Stack direction="row" spacing={1} alignItems="center">
@@ -325,7 +325,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
             </Box>
           </Collapse>
         </Stack>
-      </ClinicalCard>
+      </ClinicalResourceCard>
     </motion.div>
   );
 };

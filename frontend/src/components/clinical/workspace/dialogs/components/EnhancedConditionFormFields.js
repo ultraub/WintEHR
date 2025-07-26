@@ -20,7 +20,7 @@ import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocom
 import { useCatalogConditionSearch } from '../../../../../hooks/useResourceSearch';
 import ClinicalTextField from '../../../common/ClinicalTextField';
 import ClinicalSelect from '../../../common/ClinicalSelect';
-import ClinicalCard from '../../../common/ClinicalCard';
+import { ClinicalResourceCard } from '../../../shared/cards';
 import {
   CLINICAL_STATUS_OPTIONS,
   VERIFICATION_STATUS_OPTIONS,
@@ -140,7 +140,7 @@ const EnhancedConditionFormFields = ({
       ) : null}
 
       {/* Problem Selection Section */}
-      <ClinicalCard
+      <ClinicalResourceCard
         title="Condition Details"
         severity={safeFormData.severity}
         urgency={formUrgency}
@@ -254,7 +254,7 @@ const EnhancedConditionFormFields = ({
             />
           </Box>
         </Stack>
-      </ClinicalCard>
+      </ClinicalResourceCard>
 
       {/* Clinical Status Section */}
       <Paper 

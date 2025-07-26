@@ -29,7 +29,7 @@ import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocom
 import { useCatalogMedicationSearch } from '../../../../../hooks/useResourceSearch';
 import ClinicalTextField from '../../../common/ClinicalTextField';
 import ClinicalSelect from '../../../common/ClinicalSelect';
-import ClinicalCard from '../../../common/ClinicalCard';
+import { ClinicalResourceCard } from '../../../shared/cards';
 import {
   MEDICATION_STATUS_OPTIONS,
   MEDICATION_PRIORITY_OPTIONS,
@@ -164,7 +164,7 @@ const MedicationFormFields = ({
       )}
 
       {/* Medication Selection */}
-      <ClinicalCard
+      <ClinicalResourceCard
         title="Medication Details"
         icon={<PharmacyIcon />}
         urgency={formUrgency}
@@ -304,7 +304,7 @@ const MedicationFormFields = ({
             />
           </Box>
         </Stack>
-      </ClinicalCard>
+      </ClinicalResourceCard>
 
       {/* Dosing Information */}
       <Paper 

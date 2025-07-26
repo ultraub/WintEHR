@@ -110,8 +110,8 @@ import {
 } from '../../shared';
 
 // Import old UI components to be replaced
-import MetricsBar from '../../ui/MetricsBar';
-import ResourceTimeline from '../../ui/ResourceTimeline';
+import { MetricsBar } from '../../shared/display';
+import { ResourceTimeline } from '../../shared/display';
 import { AlertTitle } from '@mui/material';
 
 // Custom hooks

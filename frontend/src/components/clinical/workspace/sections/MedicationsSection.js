@@ -32,8 +32,8 @@ import {
   Assessment as EffectivenessIcon,
   Security as SafetyIcon
 } from '@mui/icons-material';
-import ClinicalCard from '../../common/ClinicalCard';
-import ClinicalDataList from '../../common/ClinicalDataList';
+import { ClinicalResourceCard } from '../../shared/cards';
+import { ClinicalDataList } from '../../shared/tables';
 import { useTabFilters, useTabSearch, useExportData } from '../../../../hooks/clinical';
 import {
   getStatusColor,
@@ -160,7 +160,7 @@ const MedicationsSection = ({
   };
   
   return (
-    <ClinicalCard
+    <ClinicalResourceCard
       title="Medications"
       icon={<MedicationIcon />}
       department={department}
@@ -351,7 +351,7 @@ const MedicationsSection = ({
         <MenuItem onClick={() => handleExport('json')}>Export as JSON</MenuItem>
         <MenuItem onClick={() => handleExport('pdf')}>Export as PDF</MenuItem>
       </Menu>
-    </ClinicalCard>
+    </ClinicalResourceCard>
   );
 };
 

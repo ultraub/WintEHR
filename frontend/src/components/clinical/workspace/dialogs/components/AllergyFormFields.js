@@ -31,7 +31,7 @@ import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocom
 import { searchService } from '../../../../../services/searchService';
 import ClinicalTextField from '../../../common/ClinicalTextField';
 import ClinicalSelect from '../../../common/ClinicalSelect';
-import ClinicalCard from '../../../common/ClinicalCard';
+import { ClinicalResourceCard } from '../../../shared/cards';
 import {
   ALLERGY_TYPES,
   CRITICALITY_LEVELS,
@@ -188,7 +188,7 @@ const AllergyFormFields = ({
       )}
 
       {/* Allergen Selection */}
-      <ClinicalCard
+      <ClinicalResourceCard
         title="Allergen Information"
         icon={<HospitalIcon />}
         urgency={formUrgency}
@@ -280,7 +280,7 @@ const AllergyFormFields = ({
             />
           </Box>
         </Stack>
-      </ClinicalCard>
+      </ClinicalResourceCard>
 
       {/* Clinical Details */}
       <Paper 

@@ -43,9 +43,9 @@ import { format, parseISO } from 'date-fns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import ClinicalCard from '../../common/ClinicalCard';
-import ClinicalDataList from '../../common/ClinicalDataList';
-import ClinicalFilterBar from '../../common/ClinicalFilterBar';
+import { ClinicalResourceCard } from '../../shared/cards';
+import { ClinicalDataList } from '../../shared/tables';
+import { ClinicalFilterBar } from '../../shared/inputs';
 import { useTabFilters, useTabSearch } from '../../../../hooks/clinical';
 import {
   getStatusColor,
@@ -170,7 +170,7 @@ const ProblemsSection = ({
   ).length;
   
   return (
-    <ClinicalCard
+    <ClinicalResourceCard
       title="Problem List"
       icon={<ProblemIcon />}
       department={department}
@@ -348,7 +348,7 @@ const ProblemsSection = ({
           </Box>
         )}
       />
-    </ClinicalCard>
+    </ClinicalResourceCard>
   );
 };
 
