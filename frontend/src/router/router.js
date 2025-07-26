@@ -26,7 +26,6 @@ import AuditTrailPage from '../pages/AuditTrailPage';
 import PharmacyPage from '../pages/PharmacyPage';
 import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
-import DesignSystemShowcase from '../components/clinical/demo/DesignSystemShowcase';
 import PerformanceTestPage from '../pages/PerformanceTestPage';
 import PageTransitionProvider, { transitionPresets } from '../components/transitions/PageTransitionProvider';
 
@@ -221,16 +220,6 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <CDSHooksStudio />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/design-system',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <DesignSystemShowcase />
         </LayoutV3>
       </ProtectedRoute>
     )
