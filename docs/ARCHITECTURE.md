@@ -1,10 +1,12 @@
-# MedGenEMR Architecture
+# WintEHR Architecture
 
-This document provides a detailed overview of the MedGenEMR system architecture. The system is designed to be a modern, scalable, and maintainable Electronic Medical Record (EMR) application, with a strong focus on FHIR R4 compliance and a clear separation of concerns.
+**Last Updated**: 2025-01-26
+
+This document provides a detailed overview of the WintEHR system architecture. The system is designed to be a modern, scalable, and maintainable Electronic Medical Record (EMR) application, with a strong focus on FHIR R4 compliance and a clear separation of concerns.
 
 ## High-Level Overview
 
-The MedGenEMR system is composed of three main components:
+The WintEHR system is composed of three main components:
 
 1.  **Frontend**: A React-based single-page application (SPA) that provides the user interface for the EMR.
 2.  **Backend**: A FastAPI application that serves as the main API, providing a complete FHIR R4 interface, as well as other EMR-specific services.

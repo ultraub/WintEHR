@@ -1,6 +1,6 @@
 # WintEHR Deployment Checklist
 
-**Last Updated**: 2025-01-18  
+**Last Updated**: 2025-01-26  
 **Purpose**: Comprehensive checklist for fresh deployments of WintEHR
 
 ## Pre-Deployment Requirements
@@ -22,13 +22,12 @@ All files must exist before deployment:
 
 #### Database Scripts
 - [ ] `/backend/scripts/setup/init_database_definitive.py` - Creates all 6 FHIR tables
-- [ ] `/backend/scripts/init_database_unified.py` (fallback location)
 
 #### Data Management Scripts
 - [ ] `/backend/scripts/active/synthea_master.py` - Data generation and import
-- [ ] `/backend/scripts/consolidated_search_indexing.py` - Search parameter indexing
-- [ ] `/backend/scripts/populate_compartments.py` - Patient compartment population
-- [ ] `/backend/scripts/fix_cds_hooks_enabled_column.py` - CDS hooks schema fix
+- [ ] `/backend/scripts/active/consolidated_search_indexing.py` - Search parameter indexing
+- [ ] `/backend/scripts/setup/populate_compartments.py` - Patient compartment population
+- [ ] `/backend/scripts/migrations/fix_cds_hooks_enabled_column.py` - CDS hooks schema fix
 - [ ] `/backend/scripts/verify_all_fhir_tables.py` - Comprehensive validation
 
 #### Validation Scripts
@@ -37,17 +36,12 @@ All files must exist before deployment:
 
 ## Deployment Methods
 
-### Method 1: Fresh Deploy Script (Recommended)
+### Simplified Deployment (Recommended)
 ```bash
-./fresh-deploy.sh                    # Default: 20 patients
-./fresh-deploy.sh --patients 50      # Custom patient count
-./fresh-deploy.sh --mode production  # Production mode
-```
-
-### Method 2: Master Deploy Script
-```bash
-./scripts/master-deploy.sh              # Development mode
-./scripts/master-deploy.sh --production # Production mode
+./deploy.sh dev              # Development mode with 20 patients
+./deploy.sh dev --patients 50    # Custom patient count
+./deploy.sh prod             # Production mode
+./deploy.sh prod --patients 100  # Production with 100 patients
 ./scripts/master-deploy.sh --patients=50 --production
 ```
 

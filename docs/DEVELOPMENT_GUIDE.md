@@ -1,4 +1,6 @@
-# MedGenEMR Development Guide
+# WintEHR Development Guide
+
+**Last Updated**: 2025-01-26
 
 This guide provides a comprehensive overview of the development process for the MedGenEMR application. It covers how to set up a local development environment, run the application, and contribute to the project.
 
@@ -17,15 +19,16 @@ The recommended way to set up a local development environment is to use the prov
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/MedGenEMR.git
-    cd MedGenEMR
+    git clone https://github.com/your-username/WintEHR.git
+    cd WintEHR
     ```
 
-2.  **Run the development startup script:**
+2.  **Run the simplified deployment script:**
     ```bash
-    ./start-dev.sh
+    ./deploy.sh dev              # Development mode with 20 patients
+    ./deploy.sh dev --patients 50    # Custom patient count
     ```
-    This script will build and start all the necessary Docker containers, including the frontend, backend, and database. It will also set up hot-reloading for both the frontend and backend, so that any changes you make to the code will be automatically reflected in the running application.
+    This script will build and start all the necessary Docker containers, including the frontend, backend, and database. It automatically handles database initialization, data loading, and search parameter indexing.
 
 3.  **Access the application:**
     *   **EMR Frontend**: [http://localhost:3000](http://localhost:3000)
@@ -75,6 +78,37 @@ If you prefer to run the frontend and backend services locally on your host mach
     ```bash
     npm start
     ```
+
+### Data Management
+
+All data operations are handled through a single management script:
+
+```bash
+# Load patient data
+docker exec emr-backend python scripts/manage_data.py load --patients 20
+
+# Validate data integrity
+docker exec emr-backend python scripts/manage_data.py validate
+
+# Check system status
+docker exec emr-backend python scripts/manage_data.py status
+
+# Index search parameters
+docker exec emr-backend python scripts/manage_data.py index
+```
+
+### Other Operations
+
+```bash
+# Check system status
+./deploy.sh status
+
+# Stop all services
+./deploy.sh stop
+
+# Clean deployment (removes all data)
+./deploy.sh clean
+```
 
 ## Development Workflow
 
