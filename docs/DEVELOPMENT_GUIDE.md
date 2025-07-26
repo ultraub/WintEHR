@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-01-26
 
-This guide provides a comprehensive overview of the development process for the MedGenEMR application. It covers how to set up a local development environment, run the application, and contribute to the project.
+This guide provides a comprehensive overview of the development process for the WintEHR application. It covers how to set up a local development environment, run the application, and contribute to the project.
 
 ## Getting Started
 

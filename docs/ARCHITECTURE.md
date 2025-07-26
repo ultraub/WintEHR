@@ -70,7 +70,7 @@ The database is a [PostgreSQL](https://www.postgresql.org/) database that is use
 
 ## Containerization and Deployment
 
-The entire MedGenEMR system is containerized with [Docker](https://www.docker.com/), and the different services are orchestrated with [Docker Compose](https://docs.docker.com/compose/). This provides a number of benefits, including:
+The entire WintEHR system is containerized with [Docker](https://www.docker.com/), and the different services are orchestrated with [Docker Compose](https://docs.docker.com/compose/). This provides a number of benefits, including:
 
 *   **Portability**: The application can be run on any machine that has Docker installed, regardless of the underlying operating system.
 *   **Consistency**: The development, testing, and production environments are all identical, which reduces the risk of environment-specific bugs.

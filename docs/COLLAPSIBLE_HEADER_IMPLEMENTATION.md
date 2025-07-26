@@ -10,10 +10,16 @@ Implemented a dynamic collapsible patient header that automatically compresses w
 ## Key Features
 
 ### 1. Scroll-Based Behavior
-- **Collapse Threshold**: Header collapses after 100px of scrolling
-- **Smooth Transitions**: Fade effects between expanded and collapsed states
+- **Progressive Collapse with Hysteresis**: Three states with different thresholds to prevent flickering:
+  - EXPANDED → COMPACT: Triggers at 70px down
+  - COMPACT → EXPANDED: Triggers at 40px up (30px hysteresis)
+  - COMPACT → MINIMAL: Triggers at 170px down  
+  - MINIMAL → COMPACT: Triggers at 130px up (40px hysteresis)
+- **Debounced Updates**: 50ms delay prevents rapid state changes
+- **Minimum Scroll Distance**: 10px movement required to trigger state change
+- **Smooth Transitions**: Standard duration with easeInOut for natural feel
 - **Auto-Expand**: Clicking expand button scrolls to top and shows full details
-- **Shadow on Scroll**: Visual indication when header is in collapsed state
+- **Shadow on Scroll**: Visual indication when header is in collapsed states
 
 ### 2. Collapsed State (Minimal View)
 - Compact height of 56px
@@ -43,9 +49,9 @@ Implemented a dynamic collapsible patient header that automatically compresses w
 
 ### Component Structure
 ```javascript
-CollapsiblePatientHeader
+CollapsiblePatientHeaderOptimized
 ├── State Management
-│   ├── isCollapsed (scroll state)
+│   ├── collapseState (EXPANDED/COMPACT/MINIMAL)
 │   ├── isDetailsExpanded (details visibility)
 │   └── scrollY (scroll position)
 ├── Scroll Handling
@@ -53,14 +59,15 @@ CollapsiblePatientHeader
 │   ├── scrollContainerRef integration
 │   └── Passive event listeners
 └── Render Methods
-    ├── renderCollapsedHeader()
+    ├── renderMinimalHeader()
+    ├── renderCompactHeader()
     └── renderExpandedHeader()
 ```
 
 ### Integration Points
 
 1. **EnhancedClinicalLayout**
-   - Replaced `EnhancedPatientHeaderV2` with `CollapsiblePatientHeader`
+   - Replaced `EnhancedPatientHeaderV2` with `CollapsiblePatientHeaderOptimized`
    - Added `scrollContainerRef` to track scroll events
    - Passed ref to main content area
 
@@ -135,7 +142,7 @@ fade: in/out 200ms
 
 ## Related Files
 
-- `/frontend/src/components/clinical/workspace/CollapsiblePatientHeader.js` - Main component
+- `/frontend/src/components/clinical/workspace/CollapsiblePatientHeaderOptimized.js` - Main component
 - `/frontend/src/components/clinical/layouts/EnhancedClinicalLayout.js` - Integration point
 - `/frontend/src/components/clinical/workspace/EnhancedPatientHeaderV2.js` - Previous version (reference)
 
@@ -161,13 +168,13 @@ fade: in/out 200ms
 To use the collapsible header in other layouts:
 
 ```javascript
-import CollapsiblePatientHeader from './workspace/CollapsiblePatientHeader';
+import CollapsiblePatientHeaderOptimized from './workspace/CollapsiblePatientHeaderOptimized';
 
 // Add ref for scroll container
 const scrollContainerRef = useRef(null);
 
 // Replace existing header
-<CollapsiblePatientHeader
+<CollapsiblePatientHeaderOptimized
   patientId={patient.id}
   onPrint={handlePrint}
   onNavigateToTab={handleTabChange}

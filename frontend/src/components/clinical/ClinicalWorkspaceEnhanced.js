@@ -42,9 +42,6 @@ import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './shared/dialogs/KeyboardShortcutsDialog';
 import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
 
-// Import the enhanced patient header
-import EnhancedPatientHeaderV2 from './workspace/EnhancedPatientHeaderV2';
-
 // Tab Components - Lazy Loaded for Performance with webpack magic comments
 // Using optimized/enhanced versions where available
 const SummaryTab = React.lazy(() => import(

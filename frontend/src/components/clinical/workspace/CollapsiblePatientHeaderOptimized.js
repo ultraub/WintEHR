@@ -84,6 +84,9 @@ const CollapsiblePatientHeaderOptimized = ({
   const [scrollY, setScrollY] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
   const headerRef = useRef(null);
+  const scrollTimeoutRef = useRef(null);
+  const lastScrollTopRef = useRef(0);
+  const lastStateChangeRef = useRef(0);
 
   // Get patient resources
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
@@ -106,7 +109,7 @@ const CollapsiblePatientHeaderOptimized = ({
   const criticalAlerts = alerts.filter(a => a.indicator === 'critical');
   const warningAlerts = alerts.filter(a => a.indicator === 'warning');
 
-  // Progressive scroll handling
+  // Progressive scroll handling with debouncing and hysteresis
   useEffect(() => {
     const handleScroll = () => {
       const container = scrollContainerRef?.current || window;
@@ -116,15 +119,51 @@ const CollapsiblePatientHeaderOptimized = ({
       
       setScrollY(scrollTop);
       
-      // Progressive collapse based on scroll position
-      if (scrollTop < 50) {
-        setCollapseState(COLLAPSE_STATES.EXPANDED);
-      } else if (scrollTop < 150) {
-        setCollapseState(COLLAPSE_STATES.COMPACT);
-        if (isDetailsExpanded) setIsDetailsExpanded(false);
-      } else {
-        setCollapseState(COLLAPSE_STATES.MINIMAL);
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
       }
+      
+      // Debounce the state change to prevent flickering
+      scrollTimeoutRef.current = setTimeout(() => {
+        const currentState = collapseState;
+        const scrollDirection = scrollTop > lastScrollTopRef.current ? 'down' : 'up';
+        const scrollDistance = Math.abs(scrollTop - lastStateChangeRef.current);
+        lastScrollTopRef.current = scrollTop;
+        
+        // Only change state if we've scrolled enough distance (prevents micro-movements)
+        if (scrollDistance < 10) return;
+        
+        // Apply hysteresis to prevent flickering at boundaries
+        // Different thresholds for expanding vs collapsing
+        let newState = currentState;
+        
+        if (currentState === COLLAPSE_STATES.EXPANDED) {
+          // Collapsing from expanded state
+          if (scrollTop > 70) { // Higher threshold to start collapsing
+            newState = COLLAPSE_STATES.COMPACT;
+            if (isDetailsExpanded) setIsDetailsExpanded(false);
+          }
+        } else if (currentState === COLLAPSE_STATES.COMPACT) {
+          // From compact state
+          if (scrollDirection === 'up' && scrollTop < 40) { // Lower threshold to expand
+            newState = COLLAPSE_STATES.EXPANDED;
+          } else if (scrollDirection === 'down' && scrollTop > 170) { // Higher threshold to minimize
+            newState = COLLAPSE_STATES.MINIMAL;
+          }
+        } else if (currentState === COLLAPSE_STATES.MINIMAL) {
+          // Expanding from minimal state
+          if (scrollTop < 130) { // Lower threshold to expand to compact
+            newState = COLLAPSE_STATES.COMPACT;
+          }
+        }
+        
+        // Only update if state actually changed
+        if (newState !== currentState) {
+          setCollapseState(newState);
+          lastStateChangeRef.current = scrollTop;
+        }
+      }, 50); // 50ms debounce delay
     };
 
     const container = scrollContainerRef?.current || window;
@@ -141,8 +180,11 @@ const CollapsiblePatientHeaderOptimized = ({
       if (container) {
         container.removeEventListener('scroll', handleScroll);
       }
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
     };
-  }, [scrollContainerRef, isDetailsExpanded]);
+  }, [scrollContainerRef, isDetailsExpanded, collapseState]);
 
   // Helper functions
   const calculateAge = (birthDate) => {
@@ -660,8 +702,9 @@ const CollapsiblePatientHeaderOptimized = ({
         elevation={collapseState === COLLAPSE_STATES.MINIMAL ? 3 : 1}
         sx={{
           backgroundColor: 'background.paper',
-          transition: theme.transitions.create(['all'], {
-            duration: theme.transitions.duration.short,
+          transition: theme.transitions.create(['height', 'box-shadow'], {
+            duration: theme.transitions.duration.standard, // Slower transition for smoother effect
+            easing: theme.transitions.easing.easeInOut,
           }),
           borderRadius: 0,
           borderBottom: `1px solid ${theme.palette.divider}`,

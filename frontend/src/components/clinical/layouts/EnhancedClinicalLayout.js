@@ -136,32 +136,6 @@ const EnhancedClinicalLayout = ({
         />
       )}
       
-      {/* Collapsible Patient Header - show loading state if patient not yet loaded */}
-      {(patient || loading) && (
-        <CollapsiblePatientHeaderOptimized
-          patientId={patient?.id || patientId}
-          onPrint={() => window.print()}
-          onNavigateToTab={handleModuleChange}
-          dataLoading={loading}
-          scrollContainerRef={scrollContainerRef}
-        />
-      )}
-      
-      {/* Tab Navigation - part of the scrollable content, not sticky */}
-      <Box sx={{ 
-        borderBottom: 1, 
-        borderColor: 'divider',
-        backgroundColor: 'background.paper',
-      }}>
-        <ClinicalTabs
-          activeTab={activeModule}
-          onTabChange={handleModuleChange}
-          variant={isMobile ? "scrollable" : "fullWidth"}
-          scrollButtons={isMobile ? "auto" : false}
-          showIcons={!isMobile}
-        />
-      </Box>
-      
       {/* Main Layout Container */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
         
@@ -185,16 +159,55 @@ const EnhancedClinicalLayout = ({
               backgroundColor: theme.palette.mode === 'dark' 
                 ? theme.palette.background.default 
                 : theme.palette.grey[50], // Clean light gray background
+              position: 'relative', // For sticky positioning to work
+            }}
+          >
+            {/* Collapsible Patient Header - INSIDE scrolling container with sticky positioning */}
+            {(patient || loading) && (
+              <Box sx={{ 
+                position: 'sticky', 
+                top: 0, 
+                zIndex: 1100,
+                backgroundColor: 'background.paper'
+              }}>
+                <CollapsiblePatientHeaderOptimized
+                  patientId={patient?.id || patientId}
+                  onPrint={() => window.print()}
+                  onNavigateToTab={handleModuleChange}
+                  dataLoading={loading}
+                  scrollContainerRef={scrollContainerRef}
+                />
+              </Box>
+            )}
+            
+            {/* Tab Navigation - also sticky below header */}
+            <Box sx={{ 
+              position: 'sticky',
+              top: 'auto', // Will stick after header
+              zIndex: 1000,
+              borderBottom: 1, 
+              borderColor: 'divider',
+              backgroundColor: 'background.paper',
+            }}>
+              <ClinicalTabs
+                activeTab={activeModule}
+                onTabChange={handleModuleChange}
+                variant={isMobile ? "scrollable" : "fullWidth"}
+                scrollButtons={isMobile ? "auto" : false}
+                showIcons={!isMobile}
+              />
+            </Box>
+
+            {/* Content with padding */}
+            <Box sx={{
               p: {
                 xs: 1,      // 8px on mobile
                 sm: 2,      // 16px on tablet
                 md: 3,      // 24px on desktop
               },
-              minHeight: 0, // Important for flexbox overflow to work properly
-            }}
-          >
-            {/* Pass enhanced props to children */}
-            {React.cloneElement(children, {
+            }}>
+              {/* Pass enhanced props to children */}
+              {React.cloneElement(children, {
               patient,
               loading,
               patientData: {
@@ -223,6 +236,7 @@ const EnhancedClinicalLayout = ({
               error,
               scrollContainerRef  // Pass the scroll container ref
             })}
+            </Box>
           </Box>
         </Box>
       </Box>

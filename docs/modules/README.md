@@ -1,6 +1,6 @@
-# MedGenEMR Module Documentation
+# WintEHR Module Documentation
 
-This directory contains module documentation for MedGenEMR. Due to rapid development, some documentation has been consolidated or moved to be closer to the code.
+This directory contains module documentation for WintEHR. Due to rapid development, some documentation has been consolidated or moved to be closer to the code.
 
 ## 📚 Current Documentation
 
