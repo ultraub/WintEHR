@@ -54,7 +54,7 @@ import {
 import {
   ViewModule as VisualIcon,
   Code as CodeIcon,
-  SplitScreen as SplitIcon,
+  ViewColumn as SplitIcon,
   PlayArrow as RunIcon,
   Save as SaveIcon,
   Share as ShareIcon,
