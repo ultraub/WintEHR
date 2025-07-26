@@ -15,6 +15,7 @@ import {
   updateServiceRequestResource,
   ORDER_CATEGORIES
 } from './config/serviceRequestDialogConfig';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 const CPOEDialog = ({ 
   open, 
@@ -26,6 +27,7 @@ const CPOEDialog = ({
   patientConditions = [],
   recentOrders = []
 }) => {
+  const { user } = useAuth();
   
   // Parse existing resource for edit mode
   const parsedInitialValues = serviceRequest && mode === 'edit' 
@@ -80,16 +82,16 @@ const CPOEDialog = ({
         savedResource = updateServiceRequestResource(
           formData, 
           serviceRequest, 
-          'current-user', // TODO: Get from auth context
-          'Dr. Current User' // TODO: Get from auth context
+          user?.username || 'current-user',
+          user?.display_name || 'Dr. Current User'
         );
       } else {
         // Create new ServiceRequest
         savedResource = createServiceRequestResource(
           formData, 
           patientId,
-          'current-user', // TODO: Get from auth context
-          'Dr. Current User' // TODO: Get from auth context
+          user?.username || 'current-user',
+          user?.display_name || 'Dr. Current User'
         );
       }
       
