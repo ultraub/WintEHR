@@ -252,16 +252,30 @@ class OptimizedSearchBuilder:
                 value = value_dict
             
             ref_key = f"ref_{counter}_{i}"
+            urn_key = f"urn_{counter}_{i}"
             
             # Handle different reference formats
             if '/' in str(value):
                 # Full reference like "Patient/123"
-                conditions.append(f"sp{counter}.value_reference = :{ref_key}")
+                # Check both value_reference and value_string columns
+                conditions.append(f"(sp{counter}.value_reference = :{ref_key} OR sp{counter}.value_string = :{ref_key})")
                 sql_params[ref_key] = value
             else:
-                # Just ID - need to match any resource type
-                conditions.append(f"sp{counter}.value_reference LIKE :{ref_key}")
-                sql_params[ref_key] = f"%/{value}"
+                # Just ID - need to check multiple formats:
+                # 1. Reference format: "ResourceType/id" in value_reference
+                # 2. URN format: "urn:uuid:id" in value_string (Synthea format)
+                # 3. Direct ID in value_reference
+                ref_pattern_key = f"ref_pattern_{counter}_{i}"
+                condition_parts = [
+                    f"sp{counter}.value_reference LIKE :{ref_pattern_key}",  # Matches "ResourceType/id"
+                    f"sp{counter}.value_string = :{urn_key}",  # Matches "urn:uuid:id"
+                    f"sp{counter}.value_string LIKE :{ref_pattern_key}",  # Matches "ResourceType/id" in value_string
+                    f"sp{counter}.value_reference = :{ref_key}"  # Direct ID match
+                ]
+                conditions.append(f"({' OR '.join(condition_parts)})")
+                sql_params[ref_key] = value
+                sql_params[ref_pattern_key] = f"%/{value}"
+                sql_params[urn_key] = f"urn:uuid:{value}"
         
         return conditions
     
