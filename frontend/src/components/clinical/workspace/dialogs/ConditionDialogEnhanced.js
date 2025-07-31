@@ -684,7 +684,7 @@ const ConditionDialogEnhanced = ({
                   </RadioGroup>
                 </FormControl>
 
-                {/* Verification Status */}
+                {/* Verification Status - Horizontal Grid Layout */}
                 <FormControl component="fieldset" error={!!errors.verificationStatus}>
                   <FormLabel component="legend" sx={{ mb: 1 }}>
                     Verification Status *
@@ -692,22 +692,33 @@ const ConditionDialogEnhanced = ({
                   <RadioGroup
                     value={formData.verificationStatus}
                     onChange={(e) => setFormData({ ...formData, verificationStatus: e.target.value })}
+                    sx={{ display: 'block' }}
                   >
-                    {VERIFICATION_STATUS_OPTIONS.map((option) => (
-                      <FormControlLabel
-                        key={option.value}
-                        value={option.value}
-                        control={<Radio size="small" />}
-                        label={
-                          <Stack direction="row" alignItems="center" spacing={0.5}>
-                            <Box sx={{ color: `${option.color}.main` }}>
-                              {option.icon}
-                            </Box>
-                            <Typography variant="body2">{option.label}</Typography>
-                          </Stack>
-                        }
-                      />
-                    ))}
+                    <Grid container spacing={1}>
+                      {VERIFICATION_STATUS_OPTIONS.map((option) => (
+                        <Grid item xs={12} sm={6} md={4} key={option.value}>
+                          <FormControlLabel
+                            value={option.value}
+                            control={<Radio size="small" />}
+                            label={
+                              <Stack direction="row" alignItems="center" spacing={0.5}>
+                                <Box sx={{ color: `${option.color}.main`, display: 'flex', alignItems: 'center' }}>
+                                  {option.icon}
+                                </Box>
+                                <Typography variant="body2" noWrap>{option.label}</Typography>
+                              </Stack>
+                            }
+                            sx={{ 
+                              width: '100%', 
+                              m: 0,
+                              '& .MuiFormControlLabel-label': {
+                                width: '100%'
+                              }
+                            }}
+                          />
+                        </Grid>
+                      ))}
+                    </Grid>
                   </RadioGroup>
                 </FormControl>
 

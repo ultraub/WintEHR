@@ -765,6 +765,11 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               variant="outlined"
                               hoverEffect="lift"
                               onClick={() => {
+                                // Close condition dialog if open
+                                if (openDialogs.condition) {
+                                  handleCloseDialog('condition');
+                                }
+                                // Navigate to conditions list view
                                 navigate('/404', { 
                                   state: { 
                                     message: 'Detailed conditions view is not yet implemented',
