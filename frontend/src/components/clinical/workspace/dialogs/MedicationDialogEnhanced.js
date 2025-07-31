@@ -99,7 +99,12 @@ import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/di
 
 // Helper functions
 const getMedicationName = (medication) => {
-  return medication?.code?.coding?.[0]?.display || medication?.code?.text || 'Unknown Medication';
+  // FHIR R4 MedicationRequest uses medicationCodeableConcept
+  return medication?.medicationCodeableConcept?.text || 
+         medication?.medicationCodeableConcept?.coding?.[0]?.display || 
+         medication?.code?.coding?.[0]?.display || 
+         medication?.code?.text || 
+         'Unknown Medication';
 };
 
 const getMedicationDosageDisplay = (dosage) => {
@@ -480,7 +485,7 @@ const MedicationDialogEnhanced = ({
       setFormData(prev => ({
         ...prev,
         medicationCode: selectedMedication.code,
-        medicationDisplay: selectedMedication.display
+        medicationDisplay: selectedMedication.display || selectedMedication.label || 'Unknown Medication'
       }));
       
       // Evaluate CDS for drug interactions
