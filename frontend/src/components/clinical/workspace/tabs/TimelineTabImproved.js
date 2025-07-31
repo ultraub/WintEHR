@@ -115,7 +115,7 @@ import {
   ClinicalLoadingState
 } from '../../shared';
 // Import the actual ResourceTimeline component
-import { ResourceTimeline } from '../../shared/display';
+import ResourceTimeline from '../../shared/display/ResourceTimeline';
 
 // Enhanced event type configuration with track assignment
 const eventTypes = {

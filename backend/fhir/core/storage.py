@@ -1196,6 +1196,13 @@ class FHIRStorageEngine:
         logger.info(f"Search query for {resource_type}: {query}")
         logger.info(f"Search params: {sql_params}")
         
+        # Also print for immediate debugging
+        print(f"\n=== SEARCH QUERY DEBUG ===")
+        print(f"Resource type: {resource_type}")
+        print(f"Query: {query}")
+        print(f"SQL params: {sql_params}")
+        print(f"========================\n")
+        
         # Handle the optimized path differently
         if use_optimized and 'count_query' in locals():
             # Execute count query

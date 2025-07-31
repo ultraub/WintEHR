@@ -265,6 +265,7 @@ class OptimizedSearchBuilder:
                 # 1. Reference format: "ResourceType/id" in value_reference
                 # 2. URN format: "urn:uuid:id" in value_string (Synthea format)
                 # 3. Direct ID in value_reference
+                # 4. Numeric ID if this is a UUID
                 ref_pattern_key = f"ref_pattern_{counter}_{i}"
                 condition_parts = [
                     f"sp{counter}.value_reference LIKE :{ref_pattern_key}",  # Matches "ResourceType/id"
@@ -272,6 +273,31 @@ class OptimizedSearchBuilder:
                     f"sp{counter}.value_string LIKE :{ref_pattern_key}",  # Matches "ResourceType/id" in value_string
                     f"sp{counter}.value_reference = :{ref_key}"  # Direct ID match
                 ]
+                
+                # If this looks like a UUID, also search for the numeric ID mapping
+                if '-' in str(value) and len(str(value)) == 36:
+                    # This is likely a UUID - add conditions for numeric ID references
+                    numeric_id_key = f"ref_numeric_{counter}_{i}"
+                    
+                    # Add subqueries to find resources by numeric ID
+                    # Note: We need to guess the resource type - default to Patient for patient searches
+                    target_type = 'Patient' if param_name in ['patient', 'subject'] else None
+                    
+                    if target_type:
+                        condition_parts.append(
+                            f"sp{counter}.value_string IN ("
+                            f"SELECT '{target_type}/' || id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        condition_parts.append(
+                            f"sp{counter}.value_reference IN ("
+                            f"SELECT id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        sql_params[numeric_id_key] = value
+                
                 conditions.append(f"({' OR '.join(condition_parts)})")
                 sql_params[ref_key] = value
                 sql_params[ref_pattern_key] = f"%/{value}"

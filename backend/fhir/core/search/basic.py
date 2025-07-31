@@ -822,9 +822,27 @@ class SearchParameterHandler:
                     # Check both storage formats:
                     # 1. Just ID in value_reference (e.g., "patient-id")
                     # 2. Full reference in value_string (e.g., "Patient/patient-id")
-                    conditions.append(f"({alias}.value_reference = :{ref_key} OR {alias}.value_string = :{ref_full_key})")
+                    # 3. Numeric ID reference if this is a UUID
+                    condition_parts = [
+                        f"{alias}.value_reference = :{ref_key}",
+                        f"{alias}.value_string = :{ref_full_key}"
+                    ]
                     sql_params[ref_key] = ref_id
                     sql_params[ref_full_key] = f"{modifier}/{ref_id}"
+                    
+                    # If this looks like a UUID, also search for the numeric ID mapping
+                    if '-' in ref_id and len(ref_id) == 36:
+                        # This is likely a UUID - add subquery to find numeric ID
+                        numeric_id_key = f"ref_numeric_{counter}_{i}"
+                        condition_parts.append(
+                            f"{alias}.value_string IN ("
+                            f"SELECT '{modifier}/' || id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{modifier}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        sql_params[numeric_id_key] = ref_id
+                    
+                    conditions.append(f"({' OR '.join(condition_parts)})")
         else:
             # Standard reference handling
             for i, value_dict in enumerate(values):
@@ -859,6 +877,28 @@ class SearchParameterHandler:
                         condition_parts.append(f"{alias}.value_reference = :{patient_full_key}")
                         condition_parts.append(f"{alias}.value_string = :{patient_full_key}")
                         sql_params[patient_full_key] = f"Patient/{ref_id}"
+                    
+                    # If this looks like a UUID, also search for the numeric ID mapping
+                    if '-' in ref_id and len(ref_id) == 36:
+                        # This is likely a UUID - add subquery to find numeric ID
+                        numeric_id_key = f"ref_numeric_{counter}_{i}"
+                        target_type = ref_type or 'Patient'  # Default to Patient if no type specified
+                        
+                        # Add conditions for numeric ID references
+                        condition_parts.append(
+                            f"{alias}.value_string IN ("
+                            f"SELECT '{target_type}/' || id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        # Also check just the numeric ID without resource type prefix
+                        condition_parts.append(
+                            f"{alias}.value_reference IN ("
+                            f"SELECT id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        sql_params[numeric_id_key] = ref_id
                     
                     conditions.append(f"({' OR '.join(condition_parts)})")
         
