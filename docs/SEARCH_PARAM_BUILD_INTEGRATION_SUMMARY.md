@@ -1,7 +1,7 @@
 # Search Parameter Build Integration Summary
 
 **Date**: 2025-01-18  
-**Updated**: 2025-01-18 - Post-implementation with FHIR table management  
+**Updated**: 2025-01-31 - Added URN reference format fix documentation  
 **Purpose**: Summary of consolidated search parameter indexing and FHIR table management integration  
 **Status**: ✅ COMPLETE
 
@@ -205,5 +205,30 @@ The FHIR data management system is now comprehensive and self-maintaining:
 - ✅ CDS hooks functioning correctly
 - ✅ Clean, maintainable script structure
 - ✅ Comprehensive monitoring and auto-recovery
+- ✅ URN reference format support (Synthea compatibility)
+
+## 🔧 Critical Fix: URN Reference Format Support
+
+### Issue Discovered (2025-01-31)
+- Patient parameter searches returning empty results despite correct data
+- Root cause: Synthea uses URN format (`urn:uuid:`) for references
+- These references stored in `value_string` column, not `value_reference`
+- Optimized search builder only checked `value_reference` column
+
+### Solution Implemented
+Updated `/backend/fhir/core/search/optimized.py` to check both columns:
+```python
+# Now checks multiple formats and columns:
+- value_reference LIKE '%/id'  # Standard format
+- value_string = 'urn:uuid:id'  # Synthea URN format
+- value_string LIKE '%/id'      # Standard in string column
+- value_reference = 'id'        # Direct ID
+```
+
+### Key Learnings
+1. **Always support multiple reference formats** in FHIR search
+2. **Test with real Synthea data** to catch format differences
+3. **Check all relevant columns** when building search queries
+4. **Patient parameter is an alias** for subject reference
 
 The build process now automatically ensures all FHIR tables are properly populated and maintained, with multiple verification points and automatic recovery mechanisms. This provides confidence that the FHIR API will work reliably in both development and production environments.

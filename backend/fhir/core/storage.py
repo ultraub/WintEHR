@@ -730,7 +730,6 @@ class FHIRStorageEngine:
         Returns:
             Resource data or None if not found
         """
-        import logging
         logger.info(f"Reading resource: {resource_type}/{fhir_id} (version: {version_id})")
         
         # Check cache first (only for current version)

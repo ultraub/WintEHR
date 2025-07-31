@@ -28,7 +28,7 @@ class FeedbackPersistenceManager:
         self.db = db
     
     async def store_feedback(self, 
-                           hook_instance_id: str,
+                           hook_instance_id: Optional[str],
                            service_id: str,
                            card_uuid: str,
                            outcome: FeedbackOutcome,
@@ -41,6 +41,10 @@ class FeedbackPersistenceManager:
         """Store feedback for a CDS card"""
         try:
             feedback_id = str(uuid.uuid4())
+            
+            # Generate hook_instance_id if not provided
+            if hook_instance_id is None:
+                hook_instance_id = str(uuid.uuid4())
             
             insert_sql = text("""
                 INSERT INTO cds_hooks.feedback (

@@ -140,8 +140,18 @@ async def discover_relationships(
     
     try:
         # Get the source resource
-        source_resource = await storage.read_resource(resource_type, resource_id)
+        logger.info(f"Attempting to read resource: {resource_type}/{resource_id}")
+        try:
+            source_resource = await storage.read_resource(resource_type, resource_id)
+        except AttributeError as ae:
+            logger.error(f"AttributeError when reading resource: {ae}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Storage engine error: {str(ae)}")
+        except Exception as e:
+            logger.error(f"Unexpected error reading resource: {e}", exc_info=True)
+            raise
+            
         if not source_resource:
+            logger.warning(f"Resource not found: {resource_type}/{resource_id}")
             raise HTTPException(status_code=404, detail=f"{resource_type}/{resource_id} not found")
         
         # Initialize result structure
@@ -175,8 +185,11 @@ async def discover_relationships(
         
         return result
         
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Error discovering relationships: {str(e)}")
+        logger.error(f"Error discovering relationships: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @relationships_router.get("/statistics")

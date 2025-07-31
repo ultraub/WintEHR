@@ -567,8 +567,8 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                                 </ListItemIcon>
                                 <ListItemText 
                                   primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Typography variant="body2" sx={{ fontWeight: element.required ? 600 : 400 }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <Typography variant="body2" component="span" sx={{ fontWeight: element.required ? 600 : 400 }}>
                                         {elementSearchTerm ? highlightText(displayKey, elementSearchTerm) : displayKey}
                                       </Typography>
                                       {element.required && (
@@ -585,14 +585,12 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                                           sx={{ height: 16, fontSize: '0.65rem' }} 
                                         />
                                       )}
-                                    </Box>
+                                    </span>
                                   }
                                   secondary={
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {elementSearchTerm ? highlightText(element.type, elementSearchTerm) : element.type} - {element.description?.substring(0, 100)}...
-                                      </Typography>
-                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" component="span">
+                                      {elementSearchTerm ? highlightText(element.type, elementSearchTerm) : element.type} - {element.description?.substring(0, 100)}...
+                                    </Typography>
                                   }
                                 />
                               </ListItem>
@@ -683,21 +681,21 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                           <ListItemText
                             primary="Value Set Binding"
                             secondary={
-                              <Box>
-                                <Typography variant="body2">
+                              <span>
+                                <Typography variant="body2" component="span" display="block">
                                   Strength: {selectedElement.binding.strength}
                                 </Typography>
                                 {selectedElement.binding.valueSet && (
-                                  <Typography variant="caption" color="text.secondary">
+                                  <Typography variant="caption" color="text.secondary" component="span" display="block">
                                     {selectedElement.binding.valueSet}
                                   </Typography>
                                 )}
                                 {selectedElement.binding.description && (
-                                  <Typography variant="caption" display="block">
+                                  <Typography variant="caption" component="span" display="block">
                                     {selectedElement.binding.description}
                                   </Typography>
                                 )}
-                              </Box>
+                              </span>
                             }
                           />
                           <CategoryIcon color="secondary" />
@@ -718,7 +716,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                           <ListItemText
                             primary="Choice Types"
                             secondary={
-                              <Box>
+                              <span>
                                 {selectedElement.choices.map((choice, idx) => (
                                   <Chip 
                                     key={idx} 
@@ -727,7 +725,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                                     sx={{ mr: 0.5, mb: 0.5 }} 
                                   />
                                 ))}
-                              </Box>
+                              </span>
                             }
                           />
                         </ListItem>

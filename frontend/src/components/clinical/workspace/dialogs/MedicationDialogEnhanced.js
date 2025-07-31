@@ -290,9 +290,44 @@ const MedicationDialogEnhanced = ({
   });
   
   const [errors, setErrors] = useState({});
+  const [searchOptions, setSearchOptions] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  // Search hook
-  const { loading: searchLoading, options: searchOptions } = useMedicationSearch(searchTerm);
+  // Search for medications when search term changes
+  useEffect(() => {
+    const searchMedications = async () => {
+      if (!searchTerm || searchTerm.length < 2) {
+        setSearchOptions([]);
+        return;
+      }
+      
+      setSearchLoading(true);
+      try {
+        const results = await cdsClinicalDataService.getDynamicMedicationCatalog(searchTerm, 10);
+        const formatted = results.map(med => ({
+          id: med.id,
+          code: med.rxnorm_code || med.id,
+          display: med.generic_name || med.brand_name || med.display,
+          label: `${med.generic_name || med.brand_name || med.display} ${med.strength || ''}`.trim(),
+          system: med.rxnorm_code ? 'http://www.nlm.nih.gov/research/umls/rxnorm' : undefined,
+          strength: med.strength,
+          dosage_form: med.dosage_form,
+          route: med.route,
+          frequency: med.usage_count || 0,
+          category: med.drug_class || 'General'
+        }));
+        setSearchOptions(formatted);
+      } catch (error) {
+        console.error('Error searching medications:', error);
+        setSearchOptions([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchMedications, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   // Get trending medications
   const [trendingMedications, setTrendingMedications] = useState([]);
@@ -455,9 +490,10 @@ const MedicationDialogEnhanced = ({
           medication: selectedMedication,
           context: 'prescribe'
         });
-        setCdsAlerts(alerts);
+        setCdsAlerts(alerts || []);
       } catch (error) {
         console.error('CDS evaluation error:', error);
+        setCdsAlerts([]);
       }
     }
     
@@ -832,7 +868,7 @@ const MedicationDialogEnhanced = ({
           <Fade in timeout={300}>
             <Box>
               {/* CDS Alerts */}
-              {cdsAlerts.length > 0 && (
+              {cdsAlerts && cdsAlerts.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   {cdsAlerts.map((alert, index) => (
                     <Alert

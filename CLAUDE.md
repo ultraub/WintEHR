@@ -411,13 +411,23 @@ All tables are created by `init_database_definitive.py` during deployment.
 - **Search parameters MUST be indexed** for all FHIR resources during deployment
 - The backend extracts search params during resource creation/update
 - A migration step re-indexes existing resources during deployment
+- **Critical**: Synthea uses URN format (`urn:uuid:`) for references - search must handle this
 
 ### Key Search Parameters
 - **patient/subject**: Required for Condition, Observation, MedicationRequest, etc.
+  - Note: `patient` is an alias for `subject` reference in many resources
+  - Synthea stores these as `urn:uuid:patient-id` in `value_string` column
 - **_id**: Resource identifier
 - **code**: Clinical codes (conditions, medications, observations)
 - **status**: Resource status
 - **date**: Temporal queries
+
+### Reference Format Support
+The system supports multiple reference formats:
+- **Standard FHIR**: `Patient/123` or `Observation/456`
+- **URN format**: `urn:uuid:123` (used by Synthea)
+- **Relative**: Just the ID like `123`
+All formats are checked in both `value_reference` and `value_string` columns.
 
 ### Build Process Integration
 The deployment automatically runs search parameter indexing:
@@ -629,6 +639,8 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **[docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)** - API endpoint documentation
 - **[docs/FHIR_API_TEST_SUMMARY.md](docs/FHIR_API_TEST_SUMMARY.md)** - Comprehensive FHIR API test suite
 - **[docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md)** - Search indexing details
+- **[docs/SETUP_FROM_SCRATCH.md](docs/SETUP_FROM_SCRATCH.md)** - Complete setup guide from empty system
+- **[docs/FHIR_SEARCH_PARAMETER_FIX.md](docs/FHIR_SEARCH_PARAMETER_FIX.md)** - URN reference search fix details
 - **[docs/modules/](docs/modules/)** - Individual module guides
 - **[docs/modules/integration/cross-module-integration.md](docs/modules/integration/cross-module-integration.md)** - Integration patterns
 - **[docs/modules/fhir-explorer/QUERY_STUDIO_GUIDE.md](docs/modules/fhir-explorer/QUERY_STUDIO_GUIDE.md)** - Query Studio user guide
