@@ -78,7 +78,7 @@ const CarePlanTab = React.lazy(() => import(
 ));
 const TimelineTab = React.lazy(() => import(
   /* webpackChunkName: "clinical-timeline" */
-  './workspace/tabs/TimelineTabEnhanced'
+  './workspace/tabs/TimelineTabImproved'
 ));
 const ImagingTab = React.lazy(() => import(
   /* webpackChunkName: "clinical-imaging" */
@@ -148,6 +148,14 @@ const ClinicalWorkspaceEnhanced = ({
   const activePatient = patient;
   const isLoading = parentLoading;
   const loadError = parentError;
+
+  // Enable FHIR debug mode
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      window.__FHIR_DEBUG__ = true;
+      console.log('[ClinicalWorkspace] FHIR Debug mode enabled');
+    }
+  }, []);
 
   // Get the active tab configuration
   const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);

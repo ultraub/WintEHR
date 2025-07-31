@@ -433,7 +433,15 @@ All formats are checked in both `value_reference` and `value_string` columns.
 The deployment automatically runs search parameter indexing:
 1. Data import (Phase 3)
 2. **Search parameter indexing** (Phase 4) - Consolidated script
-3. DICOM generation (Phase 5)
+3. **URN reference fix** (Phase 4, Step 5) - Maps UUIDs to patient IDs (Added 2025-07-31)
+4. DICOM generation (Phase 5)
+
+### URN Reference Fix (Added 2025-07-31)
+Synthea data uses URN format references that need special handling:
+- **Issue**: Resources reference patients as `urn:uuid:patient-uuid` instead of `Patient/id`
+- **Affected**: AllergyIntolerance, Condition, Observation, MedicationRequest, Procedure, Immunization
+- **Fix**: Run `fix_allergy_intolerance_search_params_v2.py` to map UUIDs to patient IDs
+- **Integrated**: Automatically runs during deployment at Module 04, Step 5
 
 ### Common Search Examples
 ```bash

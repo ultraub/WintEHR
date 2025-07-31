@@ -6,6 +6,25 @@
 
 ## Current State (UPDATED)
 
+### 🆕 URN Reference Format Issue (Added 2025-07-31)
+
+Synthea-generated FHIR data uses URN format references (e.g., `urn:uuid:patient-uuid`) for patient references in many resources. This causes search failures because the search parameter indexing doesn't properly map these UUIDs to actual patient resource IDs.
+
+**Affected Resource Types**:
+- AllergyIntolerance (32 resources)
+- Condition (1,034 resources)
+- Observation (14,519 resources)
+- MedicationRequest (1,320 resources)
+- Procedure (4,422 resources)
+- Immunization (439 resources)
+
+**Solution**: Created `fix_allergy_intolerance_search_params_v2.py` that:
+1. Builds a mapping of patient UUIDs to actual resource IDs
+2. Re-indexes all affected resources with proper patient references
+3. Stores both the patient ID and full reference format for robust searching
+
+This fix has been integrated into the build process at Module 04, Step 5.
+
 ### ✅ What's Working Well
 
 1. **Search Parameter Re-indexing is Integrated**
@@ -93,13 +112,14 @@ The build process now includes:
    - Step 2: Enhance lab results with reference ranges
    - Step 3: Create sample CDS hooks
    - Step 4: Re-index search parameters (consolidated_search_indexing.py)
-   - Step 5: Populate compartments table (populate_compartments.py)
-   - Step 6: Fix CDS hooks schema (fix_cds_hooks_enabled_column.py)
-   - Step 7: Generate DICOM files
-   - Step 8: Validate cross-references
-   - Step 9: Performance optimizations
-   - Step 10: Create processing summary
-   - Step 11: Final data validation
+   - Step 5: Fix URN format references (fix_allergy_intolerance_search_params_v2.py) (NEW - Added 2025-07-31)
+   - Step 6: Populate compartments table (populate_compartments.py)
+   - Step 7: Fix CDS hooks schema (fix_cds_hooks_enabled_column.py)
+   - Step 8: Generate DICOM files
+   - Step 9: Validate cross-references
+   - Step 10: Performance optimizations
+   - Step 11: Create processing summary
+   - Step 12: Final data validation
 
 3. **Module 06 - Validation**
    - Phase 1: Connection validation

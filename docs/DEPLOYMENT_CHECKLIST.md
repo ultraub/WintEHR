@@ -26,6 +26,7 @@ All files must exist before deployment:
 #### Data Management Scripts
 - [ ] `/backend/scripts/active/synthea_master.py` - Data generation and import
 - [ ] `/backend/scripts/active/consolidated_search_indexing.py` - Search parameter indexing
+- [ ] `/backend/scripts/fix_allergy_intolerance_search_params_v2.py` - URN reference fix
 - [ ] `/backend/scripts/setup/populate_compartments.py` - Patient compartment population
 - [ ] `/backend/scripts/migrations/fix_cds_hooks_enabled_column.py` - CDS hooks schema fix
 - [ ] `/backend/scripts/verify_all_fhir_tables.py` - Comprehensive validation
@@ -83,9 +84,10 @@ All files must exist before deployment:
 2. [ ] Lab results enhanced
 3. [ ] CDS hooks created
 4. [ ] Search parameters re-indexed
-5. [ ] Compartments populated
-6. [ ] CDS hooks schema fixed
-7. [ ] DICOM files generated
+5. [ ] URN format references fixed (for AllergyIntolerance, Condition, Observation, etc.)
+6. [ ] Compartments populated
+7. [ ] CDS hooks schema fixed
+8. [ ] DICOM files generated
 
 ### Phase 6: System Configuration
 1. [ ] Nginx configured
@@ -159,6 +161,9 @@ curl "http://localhost:8000/fhir/R4/Patient?_count=5"
 ```bash
 # Re-index all search parameters
 docker exec emr-backend python scripts/consolidated_search_indexing.py --mode fix
+
+# Fix URN format references (if AllergyIntolerance or other resources not showing)
+docker exec emr-backend python scripts/fix_allergy_intolerance_search_params_v2.py --docker
 
 # Verify fix
 docker exec emr-backend python scripts/monitor_search_params.py

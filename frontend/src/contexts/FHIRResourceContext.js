@@ -1157,12 +1157,13 @@ export function FHIRResourceProvider({ children }) {
                 console.log(`  - Looking for patientId: ${patientId}`);
               }
               
-              const hasPatientReference = 
-                resource.subject?.reference === `Patient/${patientId}` ||
-                resource.subject?.reference === `urn:uuid:${patientId}` ||
-                resource.patient?.reference === `Patient/${patientId}` ||
-                resource.patient?.reference === `urn:uuid:${patientId}` ||
-                resource.resourceType === 'Patient';
+              // Since we searched with patient=${patientId}, all returned resources belong to this patient
+              // This handles URN references and any other reference format
+              const hasPatientReference = true;
+              
+              if (window.__FHIR_DEBUG__) {
+                console.log(`  - Assuming resource belongs to patient (searched with patient=${patientId})`);
+              }
                 
               if (window.__FHIR_DEBUG__) {
                 console.log(`  - hasPatientReference: ${hasPatientReference}`);

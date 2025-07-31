@@ -353,7 +353,43 @@ else
     fi
 fi
 
-# Step 5: Populate compartments table
+# Step 5: Fix URN format references in search parameters
+log "🔗 Fixing URN format references for proper patient search..."
+
+if docker exec emr-backend test -f "/app/scripts/fix_allergy_intolerance_search_params_v2.py"; then
+    URN_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_allergy_intolerance_search_params_v2.py --docker" 2>&1 || echo "URN_FIX_FAILED")
+    
+    if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* AllergyIntolerance resources"; then
+        # Extract statistics
+        ALLERGIES_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* AllergyIntolerance" | grep -o "[0-9]*" || echo "0")
+        success "URN reference fix completed"
+        log "  AllergyIntolerance resources fixed: $ALLERGIES_FIXED"
+        
+        # Check if other resource types were fixed
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* Condition"; then
+            CONDITIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* Condition" | grep -o "[0-9]*" || echo "0")
+            log "  Condition resources fixed: $CONDITIONS_FIXED"
+        fi
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* Observation"; then
+            OBSERVATIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* Observation" | grep -o "[0-9]*" || echo "0")
+            log "  Observation resources fixed: $OBSERVATIONS_FIXED"
+        fi
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* MedicationRequest"; then
+            MEDICATIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* MedicationRequest" | grep -o "[0-9]*" || echo "0")
+            log "  MedicationRequest resources fixed: $MEDICATIONS_FIXED"
+        fi
+    elif echo "$URN_FIX_RESULT" | grep -q "URN_FIX_FAILED"; then
+        warning "URN reference fix failed, but continuing..."
+        warning "Some resources may not appear in patient searches"
+    else
+        log "URN reference fix output: $URN_FIX_RESULT"
+    fi
+else
+    warning "URN reference fix script not found, skipping..."
+    warning "AllergyIntolerance and other resources may not show in Chart Review"
+fi
+
+# Step 6: Populate compartments table
 log "📦 Populating patient compartments for all resources..."
 
 COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
@@ -382,7 +418,7 @@ else
     log "Compartment population output: $COMPARTMENT_RESULT"
 fi
 
-# Step 6: Fix CDS hooks schema if needed
+# Step 7: Fix CDS hooks schema if needed
 log "🔧 Checking CDS hooks schema..."
 
 CDS_HOOKS_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_cds_hooks_enabled_column.py" 2>&1 || echo "CDS_HOOKS_FIX_FAILED")
@@ -396,7 +432,7 @@ else
     warning "CDS hooks may not work properly"
 fi
 
-# Step 7: Generate DICOM files for imaging studies
+# Step 8: Generate DICOM files for imaging studies
 log "🏥 Generating DICOM files for imaging studies..."
 
 DICOM_GENERATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/generate_dicom_for_studies.py" 2>&1 || echo "DICOM_GENERATION_FAILED")
@@ -417,7 +453,7 @@ else
     warning "DICOM generation completed with warnings: $DICOM_GENERATION_RESULT"
 fi
 
-# Step 8: Validate cross-references and data integrity
+# Step 9: Validate cross-references and data integrity
 log "🔗 Validating data cross-references..."
 
 REFERENCE_VALIDATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -508,7 +544,7 @@ else
     warning "Reference validation completed with warnings: $REFERENCE_VALIDATION_RESULT"
 fi
 
-# Step 9: Performance optimizations based on mode
+# Step 10: Performance optimizations based on mode
 if [ "$MODE" = "production" ]; then
     log "⚡ Applying production performance optimizations..."
     
@@ -523,7 +559,7 @@ else
     log "Development mode - skipping heavy optimizations"
 fi
 
-# Step 10: Create processing summary
+# Step 11: Create processing summary
 log "📋 Creating data processing summary..."
 
 docker exec emr-backend bash -c "cd /app && python -c '
@@ -556,7 +592,7 @@ with open(\"/app/backend/data/processing_summary.json\", \"w\") as f:
 
 success "Processing summary created"
 
-# Step 11: Final data validation
+# Step 12: Final data validation
 log "🔍 Running final data validation..."
 
 FINAL_VALIDATION=$(docker exec emr-backend bash -c "cd /app && python -c '
