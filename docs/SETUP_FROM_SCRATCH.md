@@ -211,7 +211,7 @@ docker exec emr-backend-dev python scripts/migrations/fix_cds_hooks_enabled_colu
 docker exec emr-backend-dev python scripts/migrations/fix_cds_hooks_execution_log.py
 ```
 
-### Search Parameter Fixes
+### Search Parameter and References Fixes
 
 If you see transaction errors or missing search parameters:
 
@@ -219,10 +219,31 @@ If you see transaction errors or missing search parameters:
 # Fix missing quantity columns in search_params table
 docker exec emr-backend-dev python scripts/migrations/fix_search_params_quantity_columns.py
 
+# Fix missing value_token column (needed for token type search parameters)
+docker exec emr-backend-dev python scripts/migrations/fix_search_params_value_token_column.py
+
 # Fix missing search parameters for Immunization and AllergyIntolerance
 docker exec emr-backend-dev python scripts/migrations/fix_missing_search_params_v2.py
 
 # Restart backend to clear any failed transactions
+docker restart emr-backend-dev
+```
+
+### References Table Fixes
+
+If you see errors about missing columns in the references table:
+
+```bash
+# Add missing columns (source_type, target_type, target_id, reference_path, reference_value)
+docker exec emr-backend-dev python scripts/migrations/fix_references_table_columns.py
+
+# Fix INSERT query to include source_resource_id
+docker exec emr-backend-dev python scripts/migrations/fix_storage_references_insert.py
+
+# Fix INSERT query to include source_path
+docker exec emr-backend-dev python scripts/migrations/fix_storage_source_path.py
+
+# Restart backend to apply the fixes
 docker restart emr-backend-dev
 ```
 
@@ -280,6 +301,36 @@ WHERE param_name = 'patient'
 AND value_string LIKE 'urn:uuid:%';"
 ```
 
+### Medication Creation Returns Null
+
+If medication creation returns null response body despite 201 Created status:
+
+```bash
+# This is usually caused by transaction failures in the references table
+# Run the references table fixes above, specifically:
+docker exec emr-backend-dev python scripts/migrations/fix_references_table_columns.py
+docker exec emr-backend-dev python scripts/migrations/fix_storage_references_insert.py
+docker exec emr-backend-dev python scripts/migrations/fix_storage_source_path.py
+docker restart emr-backend-dev
+
+# Test medication creation
+curl -X POST http://localhost:8000/fhir/R4/MedicationRequest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceType": "MedicationRequest",
+    "status": "active",
+    "intent": "order",
+    "subject": {"reference": "Patient/YOUR-PATIENT-ID"},
+    "medicationCodeableConcept": {
+      "coding": [{
+        "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+        "code": "197381",
+        "display": "Aspirin 81 MG"
+      }]
+    }
+  }'
+```
+
 ## Best Practices
 
 1. **Always use the deployment script** for initial setup - it handles all steps correctly
@@ -287,6 +338,7 @@ AND value_string LIKE 'urn:uuid:%';"
 3. **Use Synthea data only** - never create mock patient data
 4. **Monitor search parameter indexing** during large imports
 5. **Verify compartments** after loading new patients
+6. **Run migration scripts if you encounter column-related errors**
 
 ## Related Documentation
 

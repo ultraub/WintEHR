@@ -359,7 +359,7 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
   const [viewMode, setViewMode] = useState('cards'); // 'cards', 'list', 'timeline'
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState({ start: null, end: null });
-  const [selectedTypes, setSelectedTypes] = useState(new Set(Object.keys(eventTypes)));
+  const [selectedTypes, setSelectedTypes] = useState(new Set(Object.keys(eventTypes).filter(type => type !== 'WorkflowEvent')));
   const [showFilters, setShowFilters] = useState(false);
   const [workflowEvents, setWorkflowEvents] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -398,8 +398,9 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
         // Start with a smaller count for faster initial load
         const options = {
           types: Array.from(selectedTypes),
-          count: 50, // Reduced for faster initial render
-          since: dateRange.start.toISOString().split('T')[0]
+          count: 100, // Increased for better coverage
+          since: dateRange.start.toISOString().split('T')[0],
+          before: dateRange.end ? dateRange.end.toISOString().split('T')[0] : undefined
         };
         
         const result = await fetchPatientEverything(patientId, options);
@@ -421,11 +422,11 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       }
     };
     
-    // Only load once when component mounts or patient changes
-    if (!hasLoadedInitialData && dateRange.start) {
+    // Load data when component mounts, patient changes, or date range changes
+    if (dateRange.start) {
       loadData();
     }
-  }, [patientId, selectedTypes, dateRange.start, fetchPatientEverything, hasLoadedInitialData]);
+  }, [patientId, selectedTypes, dateRange.start, dateRange.end, fetchPatientEverything]);
   
   // Subscribe to workflow events
   useEffect(() => {
@@ -460,6 +461,10 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
     const events = [];
     const seenIds = new Set();
     
+    // Debug logging
+    console.log('Timeline: Collecting events for types:', Array.from(selectedTypes));
+    console.log('Timeline: Available resources:', Object.keys(resources || {}));
+    
     // Add FHIR resources
     selectedTypes.forEach(resourceType => {
       if (resourceType === 'WorkflowEvent') {
@@ -470,10 +475,13 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             events.push(event);
           }
         });
-      } else if (resources[resourceType]) {
-        const patientResources = Object.values(resources[resourceType] || {}).filter(r => 
-          resourceBelongsToPatient(r, patientId)
-        );
+      } else if (resources && resources[resourceType]) {
+        const resourceTypeData = resources[resourceType] || {};
+        const patientResources = Array.isArray(resourceTypeData) 
+          ? resourceTypeData.filter(r => resourceBelongsToPatient(r, patientId))
+          : Object.values(resourceTypeData).filter(r => resourceBelongsToPatient(r, patientId));
+        
+        console.log(`Timeline: Found ${patientResources.length} ${resourceType} resources for patient`);
         
         patientResources.forEach(resource => {
           const uniqueKey = `${resource.resourceType}-${resource.id}`;
@@ -485,6 +493,7 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       }
     });
     
+    console.log('Timeline: Total events collected:', events.length);
     return events;
   }, [patientId, resources, workflowEvents, selectedTypes]);
   
@@ -496,8 +505,12 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       if (!eventDate) return false;
       
       const date = new Date(eventDate);
-      if (dateRange.start && date < dateRange.start) return false;
-      if (dateRange.end && date > dateRange.end) return false;
+      // Use date boundaries for proper filtering
+      const startOfRangeDay = dateRange.start ? startOfDay(dateRange.start) : null;
+      const endOfRangeDay = dateRange.end ? endOfDay(dateRange.end) : null;
+      
+      if (startOfRangeDay && date < startOfRangeDay) return false;
+      if (endOfRangeDay && date > endOfRangeDay) return false;
       
       // Search filter
       if (searchQuery) {
@@ -576,6 +589,8 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
           await fetchPatientEverything(patientId, {
             types: Array.from(selectedTypes),
             count: 100,
+            since: dateRange.start.toISOString().split('T')[0],
+            before: dateRange.end ? dateRange.end.toISOString().split('T')[0] : undefined,
             forceRefresh: true
           });
           setHasLoadedInitialData(true);
@@ -689,9 +704,9 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
   }
   
   // Use isResourceLoading from context instead of local loading state
-  const loading = isResourceLoading('Patient') || isResourceLoading('Observation') || isResourceLoading('Encounter');
+  const loading = isResourceLoading('Patient') || isResourceLoading('Observation') || isResourceLoading('Encounter') || !resources;
   
-  if (loading && !hasLoadedInitialData) {
+  if ((loading && !hasLoadedInitialData) || !resources) {
     return (
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
         <ClinicalLoadingState.SummaryCard count={4} />
@@ -733,14 +748,7 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             }
           }}
         >
-          <ClinicalSummaryCard
-            title="Total Events"
-            value={sortedEvents.length}
-            severity="normal"
-            icon={<TimelineIcon />}
-            sx={{ height: 64 }} // Reduced height
-          />
-          {summaryMetrics.slice(0, 3).map(({ type, count, config }) => ( // Show only top 3
+          {summaryMetrics.slice(0, 4).map(({ type, count, config }) => ( // Show top 4 event types
             <ClinicalSummaryCard
               key={type}
               title={config.label}
@@ -773,6 +781,8 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
             await fetchPatientEverything(patientId, {
               types: Array.from(selectedTypes),
               count: 100,
+              since: dateRange.start.toISOString().split('T')[0],
+              before: dateRange.end ? dateRange.end.toISOString().split('T')[0] : undefined,
               forceRefresh: true
             });
             setHasLoadedInitialData(true);
