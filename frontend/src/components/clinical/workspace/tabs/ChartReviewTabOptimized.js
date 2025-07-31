@@ -41,6 +41,33 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material';
+// Enhanced UX components
+import { 
+  CardSkeleton, 
+  GridSkeleton, 
+  FadeInContainer, 
+  StaggeredFadeIn,
+  LoadingOverlay 
+} from './components/EnhancedLoadingStates';
+import { 
+  InteractiveIconButton, 
+  InteractiveButton, 
+  InteractiveChip,
+  RichTooltip,
+  CopyButton,
+  AnimatedCounter 
+} from './components/EnhancedInteractions';
+import {
+  EmptyConditions,
+  EmptyMedications,
+  EmptyAllergies,
+  EmptyImmunizations,
+  EmptyProcedures,
+  EmptyCarePlans,
+  EmptyDocuments,
+  EmptyEncounters,
+  EmptyVitals
+} from './components/EnhancedEmptyStates';
 import {
   Refresh as RefreshIcon,
   Add as AddIcon,
@@ -411,8 +438,18 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
-        <CircularProgress />
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: { xs: 1, sm: 2 } }}>
+        {/* Summary Cards Skeleton */}
+        <Grid container spacing={1} sx={{ mb: 2 }}>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Grid item xs={12} md={3} key={index}>
+              <CardSkeleton lines={2} showChips height={120} />
+            </Grid>
+          ))}
+        </Grid>
+        
+        {/* Main Content Grid Skeleton */}
+        <GridSkeleton count={6} columns={2} cardProps={{ lines: 4, showAvatar: true, showChips: true }} />
       </Box>
     );
   }
@@ -486,7 +523,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       {/* Main Content Area */}
       <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, sm: 2 } }}>
         {viewMode === 'dashboard' && (
-          <Fade in={true}>
+          <FadeInContainer>
             <Box>
               {/* Summary Cards with modern gradients */}
               <Grid container spacing={1} sx={{ mb: 2 }}>
@@ -499,8 +536,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     borderColor: 'divider',
                     borderLeft: '4px solid',
                     borderLeftColor: theme.palette.error.main,
+                    transition: 'all 0.2s ease',
                     '&:hover': {
-                      boxShadow: theme.shadows[1]
+                      boxShadow: theme.shadows[2],
+                      transform: 'translateY(-2px)'
                     }
                   }}>
                     <CardContent>
@@ -509,20 +548,30 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           <Typography color="text.secondary" variant="caption">
                             Active Conditions
                           </Typography>
-                          <Typography variant="h3" fontWeight="bold">
-                            {processedData.activeConditions.length}
-                          </Typography>
+                          <AnimatedCounter 
+                            value={processedData.activeConditions.length}
+                            variant="h3"
+                            duration={800}
+                          />
                           <Stack direction="row" spacing={0.5} mt={1}>
                             {processedData.conditionsByCategory['problem-list-item']?.length > 0 && (
-                              <Chip 
+                              <InteractiveChip 
                                 label={`${processedData.conditionsByCategory['problem-list-item'].length} Chronic`}
                                 size="small"
                                 color="error"
+                                hoverEffect="scale"
+                                tooltip="Long-term conditions requiring ongoing management"
                               />
                             )}
                           </Stack>
                         </Box>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette.error.main, 0.1) }}>
+                        <Avatar sx={{ 
+                          bgcolor: alpha(theme.palette.error.main, 0.1),
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            bgcolor: alpha(theme.palette.error.main, 0.2)
+                          }
+                        }}>
                           <HealingIcon color="error" />
                         </Avatar>
                       </Stack>
@@ -539,8 +588,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                     borderColor: 'divider',
                     borderLeft: '4px solid',
                     borderLeftColor: theme.palette.primary.main,
+                    transition: 'all 0.2s ease',
                     '&:hover': {
-                      boxShadow: theme.shadows[1]
+                      boxShadow: theme.shadows[2],
+                      transform: 'translateY(-2px)'
                     }
                   }}>
                     <CardContent>
@@ -549,20 +600,30 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           <Typography color="text.secondary" variant="caption">
                             Active Medications
                           </Typography>
-                          <Typography variant="h3" fontWeight="bold">
-                            {processedData.activeMedications.length}
-                          </Typography>
+                          <AnimatedCounter 
+                            value={processedData.activeMedications.length}
+                            variant="h3"
+                            duration={800}
+                          />
                           <Stack direction="row" spacing={0.5} mt={1}>
                             {processedData.medicationsByIntent.order?.length > 0 && (
-                              <Chip 
+                              <InteractiveChip 
                                 label={`${processedData.medicationsByIntent.order.length} Orders`}
                                 size="small"
                                 color="primary"
+                                hoverEffect="scale"
+                                tooltip="Active medication orders"
                               />
                             )}
                           </Stack>
                         </Box>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
+                        <Avatar sx={{ 
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.2)
+                          }
+                        }}>
                           <MedicationIcon color="primary" />
                         </Avatar>
                       </Stack>
@@ -674,25 +735,21 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             }}
                           />
                         </Stack>
-                        <Button
+                        <InteractiveButton
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('condition')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
+                          hoverEffect="scale"
+                          tooltip="Add new condition"
                         >
                           Add
-                        </Button>
+                        </InteractiveButton>
                       </Stack>
                       
                       {processedData.activeConditions.length === 0 ? (
-                        <Alert severity="info">No active conditions</Alert>
+                        <EmptyConditions onAdd={() => handleOpenDialog('condition')} />
                       ) : (
-                        <Stack spacing={0.5}>
+                        <StaggeredFadeIn staggerDelay={50}>
                           {processedData.activeConditions.slice(0, 5).map((condition, index) => (
                             <EnhancedConditionCard
                               key={condition.id}
@@ -702,9 +759,11 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.activeConditions.length > 5 && (
-                            <Button 
+                            <InteractiveButton 
                               size="small" 
                               fullWidth
+                              variant="outlined"
+                              hoverEffect="lift"
                               onClick={() => {
                                 navigate('/404', { 
                                   state: { 
@@ -716,9 +775,9 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               }}
                             >
                               View {processedData.activeConditions.length - 5} more conditions
-                            </Button>
+                            </InteractiveButton>
                           )}
-                        </Stack>
+                        </StaggeredFadeIn>
                       )}
                     </CardContent>
                   </Card>
@@ -750,25 +809,21 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             }}
                           />
                         </Stack>
-                        <Button
+                        <InteractiveButton
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('medication')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
+                          hoverEffect="scale"
+                          tooltip="Prescribe new medication"
                         >
                           Add
-                        </Button>
+                        </InteractiveButton>
                       </Stack>
                       
                       {processedData.activeMedications.length === 0 ? (
-                        <Alert severity="info">No active medications</Alert>
+                        <EmptyMedications onAdd={() => handleOpenDialog('medication')} />
                       ) : (
-                        <Stack spacing={0.5}>
+                        <StaggeredFadeIn staggerDelay={50}>
                           {processedData.activeMedications.slice(0, 5).map((medication, index) => (
                             <EnhancedMedicationCard
                               key={medication.id}
@@ -778,9 +833,11 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.activeMedications.length > 5 && (
-                            <Button 
+                            <InteractiveButton 
                               size="small" 
                               fullWidth
+                              variant="outlined"
+                              hoverEffect="lift"
                               onClick={() => {
                                 navigate('/404', { 
                                   state: { 
@@ -792,9 +849,9 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               }}
                             >
                               View {processedData.activeMedications.length - 5} more medications
-                            </Button>
+                            </InteractiveButton>
                           )}
-                        </Stack>
+                        </StaggeredFadeIn>
                       )}
                     </CardContent>
                   </Card>
@@ -830,25 +887,21 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           )}
                         </Stack>
-                        <Button
+                        <InteractiveButton
                           startIcon={<AddIcon />}
                           size="small"
                           onClick={() => handleOpenDialog('allergy')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
+                          hoverEffect="scale"
+                          tooltip="Document new allergy"
                         >
                           Add
-                        </Button>
+                        </InteractiveButton>
                       </Stack>
                       
                       {allergies.length === 0 ? (
-                        <Alert severity="success">No known allergies</Alert>
+                        <EmptyAllergies onAdd={() => handleOpenDialog('allergy')} />
                       ) : (
-                        <Stack spacing={0.5}>
+                        <StaggeredFadeIn staggerDelay={50}>
                           {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
                             .slice(0, 5)
                             .map((allergy, index) => (
@@ -859,7 +912,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                                 isAlternate={index % 2 === 1}  // For alternating rows
                               />
                             ))}
-                        </Stack>
+                        </StaggeredFadeIn>
                       )}
                     </CardContent>
                   </Card>
@@ -1383,9 +1436,40 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
         <Box flex={1}>
           <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <Typography variant="body1" fontWeight={600}>
-              {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
-            </Typography>
+            <RichTooltip
+              title="Condition Details"
+              content={
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Full Name:</strong> {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
+                  </Typography>
+                  {clinicalCode && (
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      <strong>Code:</strong> {clinicalCode}
+                    </Typography>
+                  )}
+                  {category && (
+                    <Typography variant="body2">
+                      <strong>Category:</strong> {category}
+                    </Typography>
+                  )}
+                </Box>
+              }
+            >
+              <Typography 
+                variant="body1" 
+                fontWeight={600}
+                sx={{ 
+                  cursor: 'help',
+                  maxWidth: '300px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
+              </Typography>
+            </RichTooltip>
             {verification === 'confirmed' && (
               <Chip label="Confirmed" size="small" color="success" />
             )}
@@ -1483,9 +1567,14 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
           )}
         </Box>
         
-        <IconButton size="small" onClick={onEdit}>
+        <InteractiveIconButton 
+          size="small" 
+          onClick={onEdit}
+          tooltip="Edit condition"
+          hoverEffect="scale"
+        >
           <EditIcon fontSize="small" />
-        </IconButton>
+        </InteractiveIconButton>
       </Stack>
     </Paper>
   );

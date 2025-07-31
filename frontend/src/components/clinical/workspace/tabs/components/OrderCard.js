@@ -20,6 +20,13 @@ import {
   useTheme,
   alpha
 } from '@mui/material';
+// Enhanced UX components
+import { 
+  InteractiveIconButton, 
+  InteractiveButton, 
+  InteractiveChip,
+  RichTooltip 
+} from './EnhancedInteractions';
 import {
   MoreVert as MoreIcon,
   Edit as EditIcon,
@@ -126,10 +133,16 @@ const OrderCard = ({
       elevation={selected ? 3 : 1}
       sx={{
         mb: 1,
-        borderLeft: selected ? `4px solid ${theme.palette.primary.main}` : 'none',
+        borderRadius: 0,
+        borderLeft: selected ? `4px solid ${theme.palette.primary.main}` : '4px solid transparent',
         borderColor: selected ? 'primary.main' : 'divider',
         backgroundColor: selected ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
-        transition: 'all 0.2s ease'
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: theme.shadows[3],
+          transform: 'translateY(-2px)',
+          borderLeftColor: selected ? theme.palette.primary.main : theme.palette.grey[400]
+        }
       }}
     >
       <CardContent sx={{ pb: dense ? 1 : 2 }}>
@@ -148,22 +161,55 @@ const OrderCard = ({
           </Box>
           
           <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600}>
-              {getOrderTitle()}
-            </Typography>
+            <RichTooltip
+              title="Order Details"
+              content={
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Full Name:</strong> {getOrderTitle()}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Type:</strong> {order.resourceType}
+                  </Typography>
+                  {order.code?.coding?.[0]?.code && (
+                    <Typography variant="body2">
+                      <strong>Code:</strong> {order.code.coding[0].code}
+                    </Typography>
+                  )}
+                </Box>
+              }
+            >
+              <Typography 
+                variant="subtitle1" 
+                fontWeight={600}
+                sx={{ 
+                  cursor: 'help',
+                  maxWidth: '300px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {getOrderTitle()}
+              </Typography>
+            </RichTooltip>
             
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-              <Chip
+              <InteractiveChip
                 label={order.status}
                 size="small"
                 color={getStatusColor(order.status)}
+                tooltip={`Order status: ${order.status}`}
+                hoverEffect="scale"
               />
               {order.priority && (
-                <Chip
+                <InteractiveChip
                   label={order.priority}
                   size="small"
                   color={getPriorityColor(order.priority)}
                   variant="outlined"
+                  tooltip={`Priority: ${order.priority}`}
+                  hoverEffect="scale"
                 />
               )}
             </Stack>
@@ -211,9 +257,14 @@ const OrderCard = ({
           </Box>
 
           {showActions && (
-            <IconButton onClick={handleMenuOpen} size="small">
+            <InteractiveIconButton 
+              onClick={handleMenuOpen} 
+              size="small"
+              tooltip="More actions"
+              hoverEffect="scale"
+            >
               <MoreIcon />
-            </IconButton>
+            </InteractiveIconButton>
           )}
         </Stack>
       </CardContent>
@@ -221,32 +272,39 @@ const OrderCard = ({
       {showActions && order.status === 'active' && (
         <CardActions sx={{ pt: 0 }}>
           {onSend && (
-            <Button 
+            <InteractiveButton 
               size="small" 
               startIcon={<SendIcon />}
               onClick={() => onSend(order)}
+              tooltip="Send order to pharmacy"
+              hoverEffect="lift"
             >
               Send
-            </Button>
+            </InteractiveButton>
           )}
           {onEdit && (
-            <Button 
+            <InteractiveButton 
               size="small" 
               startIcon={<EditIcon />}
               onClick={() => onEdit(order)}
+              tooltip="Edit order details"
+              hoverEffect="lift"
+              variant="outlined"
             >
               Edit
-            </Button>
+            </InteractiveButton>
           )}
           {onComplete && (
-            <Button 
+            <InteractiveButton 
               size="small" 
               startIcon={<CompleteIcon />}
               onClick={() => onComplete(order)}
               color="success"
+              tooltip="Mark order as complete"
+              hoverEffect="lift"
             >
               Complete
-            </Button>
+            </InteractiveButton>
           )}
         </CardActions>
       )}

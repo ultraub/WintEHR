@@ -64,6 +64,24 @@ import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplay
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 
+// Enhanced UX components
+import { 
+  CardSkeleton, 
+  GridSkeleton, 
+  FadeInContainer, 
+  StaggeredFadeIn,
+  LoadingOverlay 
+} from './components/EnhancedLoadingStates';
+import { 
+  InteractiveIconButton, 
+  InteractiveButton, 
+  InteractiveChip,
+  RichTooltip 
+} from './components/EnhancedInteractions';
+import {
+  HelpfulEmptyState
+} from './components/EnhancedEmptyStates';
+
 // Existing dialogs
 import CPOEDialog from '../dialogs/CPOEDialog';
 import QuickOrderDialog from '../dialogs/QuickOrderDialog';
