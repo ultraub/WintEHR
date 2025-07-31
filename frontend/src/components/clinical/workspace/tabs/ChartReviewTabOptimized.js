@@ -159,7 +159,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   // View and filter states
   const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
   const [dateRange, setDateRange] = useState('all'); // all, 30d, 90d, 1y
-  const [showInactive, setShowInactive] = useState(false);
+  const [showInactive, setShowInactive] = useState(true); // Changed to true - show all by default
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState(['all']);
   const [expandedSections, setExpandedSections] = useState({
@@ -222,7 +222,12 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           resource.authoredOn || 
                           resource.occurrenceDateTime ||
                           resource.effectiveDateTime ||
-                          resource.period?.start;
+                          resource.performedDateTime ||  // For Procedures
+                          resource.performedPeriod?.start ||  // For Procedures with period
+                          resource.date ||  // For DocumentReference
+                          resource.created ||  // For CarePlan
+                          resource.period?.start ||  // For Encounters and others
+                          resource.issued;  // For some Observations
       
       if (!resourceDate) return true;
       return new Date(resourceDate) >= cutoffDate;
@@ -231,12 +236,17 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   
   // Process and categorize data with FHIR R4 structure
   const processedData = useMemo(() => {
+    // Filter conditions based on showInactive toggle
+    const filteredConditions = showInactive 
+      ? conditions.filter(filteredByDate)
+      : conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active' && filteredByDate(c));
+    
     // Active vs Inactive conditions using FHIR R4 clinicalStatus
-    const activeConditions = conditions.filter(c => 
-      c.clinicalStatus?.coding?.[0]?.code === 'active' && filteredByDate(c)
+    const activeConditions = filteredConditions.filter(c => 
+      c.clinicalStatus?.coding?.[0]?.code === 'active'
     );
-    const inactiveConditions = conditions.filter(c => 
-      c.clinicalStatus?.coding?.[0]?.code !== 'active' && filteredByDate(c)
+    const inactiveConditions = filteredConditions.filter(c => 
+      c.clinicalStatus?.coding?.[0]?.code !== 'active'
     );
     
     // Categorize conditions by FHIR R4 category
@@ -249,12 +259,17 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       )
     };
     
+    // Filter medications based on showInactive toggle
+    const filteredMedications = showInactive 
+      ? medications.filter(filteredByDate)
+      : medications.filter(m => ['active', 'on-hold'].includes(m.status) && filteredByDate(m));
+    
     // Medications by FHIR R4 status and intent
-    const activeMedications = medications.filter(m => 
-      ['active', 'on-hold'].includes(m.status) && filteredByDate(m)
+    const activeMedications = filteredMedications.filter(m => 
+      ['active', 'on-hold'].includes(m.status)
     );
-    const inactiveMedications = medications.filter(m => 
-      !['active', 'on-hold'].includes(m.status) && filteredByDate(m)
+    const inactiveMedications = filteredMedications.filter(m => 
+      !['active', 'on-hold'].includes(m.status)
     );
     
     // Group medications by FHIR R4 intent
@@ -264,12 +279,17 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       proposal: activeMedications.filter(m => m.intent === 'proposal')
     };
     
+    // Filter allergies based on showInactive toggle
+    const filteredAllergies = showInactive 
+      ? allergies.filter(filteredByDate)
+      : allergies.filter(a => a.clinicalStatus?.coding?.[0]?.code === 'active' && filteredByDate(a));
+    
     // Allergies by FHIR R4 criticality
-    const criticalAllergies = allergies.filter(a => 
-      a.criticality === 'high' && filteredByDate(a)
+    const criticalAllergies = filteredAllergies.filter(a => 
+      a.criticality === 'high'
     );
-    const nonCriticalAllergies = allergies.filter(a => 
-      a.criticality !== 'high' && filteredByDate(a)
+    const nonCriticalAllergies = filteredAllergies.filter(a => 
+      a.criticality !== 'high'
     );
     
     // Recent vital signs (last 10)
@@ -307,7 +327,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       carePlans: carePlans.filter(filteredByDate),
       documentReferences: documentReferences.filter(filteredByDate)
     };
-  }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, filteredByDate]);
+  }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, carePlans, documentReferences, filteredByDate, showInactive]);
   
   // Calculate clinical alerts and recommendations
   const clinicalAlerts = useMemo(() => {
@@ -749,40 +769,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.activeConditions.length === 0 ? (
                         <EmptyConditions onAdd={() => handleOpenDialog('condition')} />
                       ) : (
-                        <StaggeredFadeIn staggerDelay={50}>
-                          {processedData.activeConditions.slice(0, 5).map((condition, index) => (
-                            <EnhancedConditionCard
-                              key={condition.id}
-                              condition={condition}
-                              onEdit={() => handleOpenDialog('condition', condition)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.activeConditions.length > 5 && (
-                            <InteractiveButton 
-                              size="small" 
-                              fullWidth
-                              variant="outlined"
-                              hoverEffect="lift"
-                              onClick={() => {
-                                // Close condition dialog if open
-                                if (openDialogs.condition) {
-                                  handleCloseDialog('condition');
-                                }
-                                // Navigate to conditions list view
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed conditions view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Conditions List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.activeConditions.length - 5} more conditions
-                            </InteractiveButton>
-                          )}
-                        </StaggeredFadeIn>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <StaggeredFadeIn staggerDelay={30}>
+                            {processedData.activeConditions.map((condition, index) => (
+                              <EnhancedConditionCard
+                                key={condition.id}
+                                condition={condition}
+                                onEdit={() => handleOpenDialog('condition', condition)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </StaggeredFadeIn>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -828,35 +844,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.activeMedications.length === 0 ? (
                         <EmptyMedications onAdd={() => handleOpenDialog('medication')} />
                       ) : (
-                        <StaggeredFadeIn staggerDelay={50}>
-                          {processedData.activeMedications.slice(0, 5).map((medication, index) => (
-                            <EnhancedMedicationCard
-                              key={medication.id}
-                              medication={medication}
-                              onEdit={() => handleOpenDialog('medication', medication)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.activeMedications.length > 5 && (
-                            <InteractiveButton 
-                              size="small" 
-                              fullWidth
-                              variant="outlined"
-                              hoverEffect="lift"
-                              onClick={() => {
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed medications view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Medications List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.activeMedications.length - 5} more medications
-                            </InteractiveButton>
-                          )}
-                        </StaggeredFadeIn>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <StaggeredFadeIn staggerDelay={30}>
+                            {processedData.activeMedications.map((medication, index) => (
+                              <EnhancedMedicationCard
+                                key={medication.id}
+                                medication={medication}
+                                onEdit={() => handleOpenDialog('medication', medication)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </StaggeredFadeIn>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -906,18 +923,37 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {allergies.length === 0 ? (
                         <EmptyAllergies onAdd={() => handleOpenDialog('allergy')} />
                       ) : (
-                        <StaggeredFadeIn staggerDelay={50}>
-                          {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
-                            .slice(0, 5)
-                            .map((allergy, index) => (
-                              <EnhancedAllergyCard
-                                key={allergy.id}
-                                allergy={allergy}
-                                onEdit={() => handleOpenDialog('allergy', allergy)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                              />
-                            ))}
-                        </StaggeredFadeIn>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <StaggeredFadeIn staggerDelay={50}>
+                            {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
+                              .map((allergy, index) => (
+                                <EnhancedAllergyCard
+                                  key={allergy.id}
+                                  allergy={allergy}
+                                  onEdit={() => handleOpenDialog('allergy', allergy)}
+                                  isAlternate={index % 2 === 1}  // For alternating rows
+                                />
+                              ))}
+                          </StaggeredFadeIn>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -968,33 +1004,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.immunizations.length === 0 ? (
                         <Alert severity="info">No immunization records</Alert>
                       ) : (
-                        <Stack spacing={0.5}>
-                          {processedData.immunizations.slice(0, 5).map((immunization, index) => (
-                            <EnhancedImmunizationCard
-                              key={immunization.id}
-                              immunization={immunization}
-                              onEdit={() => handleOpenDialog('immunization', immunization)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.immunizations.length > 5 && (
-                            <Button 
-                              size="small" 
-                              fullWidth
-                              onClick={() => {
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed immunizations view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Immunizations List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.immunizations.length - 5} more immunizations
-                            </Button>
-                          )}
-                        </Stack>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.immunizations.map((immunization, index) => (
+                              <EnhancedImmunizationCard
+                                key={immunization.id}
+                                immunization={immunization}
+                                onEdit={() => handleOpenDialog('immunization', immunization)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -1045,33 +1084,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.procedures.length === 0 ? (
                         <Alert severity="info">No procedure records</Alert>
                       ) : (
-                        <Stack spacing={0.5}>
-                          {processedData.procedures.slice(0, 5).map((procedure, index) => (
-                            <EnhancedProcedureCard
-                              key={procedure.id}
-                              procedure={procedure}
-                              onEdit={() => handleOpenDialog('procedure', procedure)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.procedures.length > 5 && (
-                            <Button 
-                              size="small" 
-                              fullWidth
-                              onClick={() => {
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed procedures view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Procedures List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.procedures.length - 5} more procedures
-                            </Button>
-                          )}
-                        </Stack>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.procedures.map((procedure, index) => (
+                              <EnhancedProcedureCard
+                                key={procedure.id}
+                                procedure={procedure}
+                                onEdit={() => handleOpenDialog('procedure', procedure)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -1122,33 +1164,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.carePlans.length === 0 ? (
                         <Alert severity="info">No care plans</Alert>
                       ) : (
-                        <Stack spacing={0.5}>
-                          {processedData.carePlans.slice(0, 5).map((carePlan, index) => (
-                            <EnhancedCarePlanCard
-                              key={carePlan.id}
-                              carePlan={carePlan}
-                              onEdit={() => handleOpenDialog('carePlan', carePlan)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.carePlans.length > 5 && (
-                            <Button 
-                              size="small" 
-                              fullWidth
-                              onClick={() => {
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed care plans view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Care Plans List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.carePlans.length - 5} more care plans
-                            </Button>
-                          )}
-                        </Stack>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.carePlans.map((carePlan, index) => (
+                              <EnhancedCarePlanCard
+                                key={carePlan.id}
+                                carePlan={carePlan}
+                                onEdit={() => handleOpenDialog('carePlan', carePlan)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -1199,33 +1244,36 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.documentReferences.length === 0 ? (
                         <Alert severity="info">No clinical documents</Alert>
                       ) : (
-                        <Stack spacing={0.5}>
-                          {processedData.documentReferences.slice(0, 5).map((document, index) => (
-                            <EnhancedDocumentCard
-                              key={document.id}
-                              document={document}
-                              onEdit={() => handleOpenDialog('document', document)}
-                              isAlternate={index % 2 === 1}  // For alternating rows
-                            />
-                          ))}
-                          {processedData.documentReferences.length > 5 && (
-                            <Button 
-                              size="small" 
-                              fullWidth
-                              onClick={() => {
-                                navigate('/404', { 
-                                  state: { 
-                                    message: 'Detailed documents view is not yet implemented',
-                                    returnPath: '/clinical-workspace',
-                                    feature: 'Documents List View'
-                                  }
-                                });
-                              }}
-                            >
-                              View {processedData.documentReferences.length - 5} more documents
-                            </Button>
-                          )}
-                        </Stack>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.documentReferences.map((document, index) => (
+                              <EnhancedDocumentCard
+                                key={document.id}
+                                document={document}
+                                onEdit={() => handleOpenDialog('document', document)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>
@@ -1261,44 +1309,64 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       {processedData.recentEncounters.length === 0 ? (
                         <Alert severity="info">No recent encounters</Alert>
                       ) : (
-                        <Stack spacing={0.5}>
-                          {processedData.recentEncounters.map((encounter, index) => (
-                            <Paper
-                              key={encounter.id}
-                              elevation={0}
-                              sx={{ 
-                                p: 2, 
-                                borderRadius: 0,  // Sharp corners
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                borderLeft: '4px solid',
-                                borderLeftColor: theme.palette.info.main,
-                                backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-                                '&:hover': {
-                                  backgroundColor: alpha(theme.palette.action.hover, 0.08),
-                                  transform: 'translateX(2px)'
-                                },
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {encounter.period?.start && format(new Date(encounter.period.start), 'MMM d, yyyy')}
-                                  </Typography>
-                                </Box>
-                                <Chip 
-                                  label={encounter.status} 
-                                  size="small"
-                                  color={encounter.status === 'in-progress' ? 'primary' : 'default'}
-                                />
-                              </Stack>
-                            </Paper>
-                          ))}
-                        </Stack>
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.recentEncounters.map((encounter, index) => (
+                              <Paper
+                                key={encounter.id}
+                                elevation={0}
+                                sx={{ 
+                                  p: 2, 
+                                  borderRadius: 0,  // Sharp corners
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  borderLeft: '4px solid',
+                                  borderLeftColor: theme.palette.info.main,
+                                  backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+                                  '&:hover': {
+                                    backgroundColor: alpha(theme.palette.action.hover, 0.08),
+                                    transform: 'translateX(2px)'
+                                  },
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                  <Box>
+                                    <Typography variant="body2" fontWeight={500}>
+                                      {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {encounter.period?.start && format(new Date(encounter.period.start), 'MMM d, yyyy')}
+                                    </Typography>
+                                  </Box>
+                                  <Chip 
+                                    label={encounter.status} 
+                                    size="small"
+                                    color={encounter.status === 'in-progress' ? 'primary' : 'default'}
+                                  />
+                                </Stack>
+                              </Paper>
+                            ))}
+                          </Stack>
+                        </Box>
                       )}
                     </CardContent>
                   </Card>

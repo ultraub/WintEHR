@@ -534,13 +534,43 @@ export function FHIRResourceProvider({ children }) {
 
   const getPatientResources = useCallback((patientId, resourceType = null) => {
     const relationships = state.relationships[patientId];
+    
+    if (window.__FHIR_DEBUG__) {
+      console.log(`[FHIR Debug] getPatientResources called for patient: ${patientId}, resourceType: ${resourceType}`);
+      console.log(`[FHIR Debug] Relationships exist: ${!!relationships}`);
+      if (relationships) {
+        console.log(`[FHIR Debug] Available resource types in relationships:`, Object.keys(relationships));
+        if (resourceType) {
+          console.log(`[FHIR Debug] ${resourceType} IDs in relationships:`, relationships[resourceType] || []);
+        }
+      }
+      console.log(`[FHIR Debug] Resources in state:`, Object.keys(state.resources));
+    }
+    
     if (!relationships) {
+      if (window.__FHIR_DEBUG__) {
+        console.log(`[FHIR Debug] No relationships found for patient ${patientId}`);
+      }
       return [];
     }
 
     if (resourceType) {
       const resourceIds = relationships[resourceType] || [];
-      const resources = resourceIds.map(id => state.resources[resourceType]?.[id]).filter(Boolean);
+      const resources = resourceIds.map(id => {
+        const resource = state.resources[resourceType]?.[id];
+        if (window.__FHIR_DEBUG__ && !resource && id) {
+          console.log(`[FHIR Debug] Resource ${resourceType}/${id} is in relationships but not in state.resources`);
+        }
+        return resource;
+      }).filter(Boolean);
+      
+      if (window.__FHIR_DEBUG__) {
+        console.log(`[FHIR Debug] Found ${resources.length} ${resourceType} resources from ${resourceIds.length} IDs`);
+        if (resources.length < resourceIds.length) {
+          console.log(`[FHIR Debug] Some resources are missing from state!`);
+        }
+      }
+      
       return resources;
     }
 
@@ -935,7 +965,7 @@ export function FHIRResourceProvider({ children }) {
                 const clinicalResourceTypes = [
                   'Condition', 'MedicationRequest', 'Observation', 'Procedure',
                   'AllergyIntolerance', 'Immunization', 'DiagnosticReport',
-                  'Encounter', 'CarePlan', 'CareTeam', 'Goal'
+                  'Encounter', 'CarePlan', 'CareTeam', 'Goal', 'DocumentReference'
                 ];
                 
                 // For clinical resources from $everything, assume they belong to the patient
@@ -1106,40 +1136,42 @@ export function FHIRResourceProvider({ children }) {
             }
           });
           
-          // Update state with all resources
+          // Update state with all resources and relationships
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
             
+            if (window.__FHIR_DEBUG__) {
+              console.log(`[FHIR Debug] Processing ${resources.length} ${resourceType} resources for patient ${patientId}`);
+            }
+            
             // Update relationships
             resources.forEach(resource => {
-              // Check various reference patterns that FHIR resources use
-              const patientRef = resource.subject?.reference || 
-                                resource.patient?.reference || 
-                                resource.performer?.reference ||
-                                resource.actor?.reference;
+              // Check for both standard FHIR references and URN format (used by Synthea)
+              const subjectRef = resource.subject?.reference;
+              const patientRef = resource.patient?.reference;
               
-              // Extract patient ID from reference (handles both "Patient/123" and "123" formats)
-              let referencesThisPatient = false;
-              if (patientRef) {
-                const refParts = patientRef.split('/');
-                const refId = refParts.length > 1 ? refParts[refParts.length - 1] : patientRef;
-                referencesThisPatient = refId === patientId;
+              if (window.__FHIR_DEBUG__) {
+                console.log(`[FHIR Debug] Checking ${resourceType}/${resource.id}:`);
+                console.log(`  - subject: ${subjectRef}`);
+                console.log(`  - patient: ${patientRef}`);
+                console.log(`  - Looking for patientId: ${patientId}`);
               }
               
-              // Also check if this is the patient resource itself
-              if (resource.resourceType === 'Patient' && resource.id === patientId) {
-                referencesThisPatient = true;
+              const hasPatientReference = 
+                resource.subject?.reference === `Patient/${patientId}` ||
+                resource.subject?.reference === `urn:uuid:${patientId}` ||
+                resource.patient?.reference === `Patient/${patientId}` ||
+                resource.patient?.reference === `urn:uuid:${patientId}` ||
+                resource.resourceType === 'Patient';
+                
+              if (window.__FHIR_DEBUG__) {
+                console.log(`  - hasPatientReference: ${hasPatientReference}`);
+                if (!hasPatientReference && (subjectRef || patientRef)) {
+                  console.log(`  - Reference mismatch! Resource references don't match patient ID`);
+                }
               }
-              
-              // Check relationship for resource:
-              // - patientRef: reference to patient
-              // - patientId: current patient ID
-              // - referencesThisPatient: whether resource references this patient
-              // - resourcePatient: patient field value
-              // - resourceSubject: subject field value
-              
-              if (referencesThisPatient) {
-                // Adding relationship: patientId -> resourceType/resourceId
+                
+              if (hasPatientReference) {
                 dispatch({
                   type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                   payload: {
@@ -1148,6 +1180,10 @@ export function FHIRResourceProvider({ children }) {
                     resourceId: resource.id
                   }
                 });
+                
+                if (window.__FHIR_DEBUG__) {
+                  console.log(`[FHIR Debug] ✅ Added relationship: ${patientId} -> ${resourceType}/${resource.id}`);
+                }
               }
             });
           });
@@ -1381,10 +1417,32 @@ export function FHIRResourceProvider({ children }) {
             // Update state with resources
             Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
               setResources(resourceType, resources);
+              
+              if (window.__FHIR_DEBUG__) {
+                console.log(`[FHIR Debug] Processing ${resources.length} ${resourceType} resources for patient ${patientId}`);
+              }
+              
               resources.forEach(resource => {
-                if (resource.subject?.reference === `Patient/${patientId}` ||
-                    resource.patient?.reference === `Patient/${patientId}` ||
-                    resource.resourceType === 'Patient') {
+                // Check for both standard FHIR references and URN format (used by Synthea)
+                const subjectRef = resource.subject?.reference;
+                const patientRef = resource.patient?.reference;
+                
+                if (window.__FHIR_DEBUG__ && (subjectRef || patientRef)) {
+                  console.log(`[FHIR Debug] ${resourceType}/${resource.id} - subject: ${subjectRef}, patient: ${patientRef}`);
+                }
+                
+                const hasPatientReference = 
+                  resource.subject?.reference === `Patient/${patientId}` ||
+                  resource.subject?.reference === `urn:uuid:${patientId}` ||
+                  resource.patient?.reference === `Patient/${patientId}` ||
+                  resource.patient?.reference === `urn:uuid:${patientId}` ||
+                  resource.resourceType === 'Patient';
+                  
+                if (window.__FHIR_DEBUG__ && hasPatientReference) {
+                  console.log(`[FHIR Debug] Adding relationship: ${patientId} -> ${resourceType}/${resource.id}`);
+                }
+                  
+                if (hasPatientReference) {
                   dispatch({
                     type: FHIR_ACTIONS.ADD_RELATIONSHIP,
                     payload: {

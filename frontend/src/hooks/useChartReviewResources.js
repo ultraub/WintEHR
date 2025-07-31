@@ -21,6 +21,7 @@ const useChartReviewResources = (patientId, options = {}) => {
     getPatientResources, 
     fetchPatientBundle,
     fetchPatientEverything,
+    searchResources: searchFHIRResources,
     currentPatient,
     isCacheWarm
   } = useFHIRResource();
@@ -41,11 +42,11 @@ const useChartReviewResources = (patientId, options = {}) => {
   const [carePlans, setCarePlans] = useState([]);
   const [documentReferences, setDocumentReferences] = useState([]);
   
-  // Filters
+  // Filters - Default to showing all resources
   const [filters, setFilters] = useState({
     searchText: '',
     dateRange: null,
-    status: includeInactive ? 'all' : 'active',
+    status: 'all', // Always default to 'all' to show everything
     category: 'all'
   });
 
@@ -63,21 +64,25 @@ const useChartReviewResources = (patientId, options = {}) => {
       setError(null);
 
       // First ensure patient data is loaded
-      const isWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'AllergyIntolerance']);
+      const isWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference']);
       
       if (!isWarm) {
         // Cache not warm - fetching patient data
         // Fetch critical data first
         try {
-          await fetchPatientEverything(patientId, {
-            types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'],
-            count: 100,
-            autoSince: true, // Last 3 months
-            forceRefresh: false
-          });
-        } catch (everythingError) {
-          // Patient $everything failed - trying batch bundle fallback
-          await fetchPatientBundle(patientId, false, 'critical');
+          // Use fetchPatientBundle instead of $everything due to backend limitations
+          // The backend $everything doesn't return all resource types properly
+          await fetchPatientBundle(patientId, false); // forceRefresh = false to use cache if available
+        } catch (bundleError) {
+          console.error('Failed to fetch patient bundle:', bundleError);
+          // Try individual resource fetches as fallback
+          const resourceTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'];
+          await Promise.all(resourceTypes.map(type => 
+            searchFHIRResources(type, { patient: patientId }).catch(err => {
+              console.error(`Failed to fetch ${type}:`, err);
+              return [];
+            })
+          ));
         }
       }
 
@@ -131,7 +136,7 @@ const useChartReviewResources = (patientId, options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [patientId, filters, includeInactive, sortOrder, getPatientResources, fetchPatientBundle, fetchPatientEverything, isCacheWarm]);
+  }, [patientId, filters, includeInactive, sortOrder, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
 
   // Process conditions with filtering and grouping
   const processConditions = (data, filters, sortOrder) => {
@@ -237,11 +242,16 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processImmunizations = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Filter by status
-    if (filters.status !== 'all' && filters.status !== 'active') {
-      processed = processed.filter(i => 
-        i.status === filters.status
-      );
+    // Filter by status - immunizations don't have 'active' status
+    if (filters.status !== 'all') {
+      if (filters.status === 'active') {
+        // For immunizations, 'active' means completed
+        processed = processed.filter(i => i.status === 'completed');
+      } else {
+        processed = processed.filter(i => 
+          i.status === filters.status
+        );
+      }
     }
 
     // Filter by search text
@@ -306,11 +316,18 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processProcedures = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Filter by status
+    // Filter by status - procedures use 'completed', 'in-progress', etc.
     if (filters.status !== 'all') {
-      processed = processed.filter(p => 
-        p.status === filters.status
-      );
+      if (filters.status === 'active') {
+        // For procedures, 'active' means in-progress or preparation
+        processed = processed.filter(p => 
+          ['in-progress', 'preparation'].includes(p.status)
+        );
+      } else {
+        processed = processed.filter(p => 
+          p.status === filters.status
+        );
+      }
     }
 
     // Filter by search text
@@ -374,8 +391,9 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processCarePlans = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Filter by status
+    // Filter by status - care plans use 'active', 'completed', 'draft', etc.
     if (filters.status !== 'all') {
+      // CarePlan status values align well with 'active' filter
       processed = processed.filter(cp => 
         cp.status === filters.status
       );
@@ -409,11 +427,16 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processDocumentReferences = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Filter by status
+    // Filter by status - documents use 'current', 'superseded', 'entered-in-error'
     if (filters.status !== 'all') {
-      processed = processed.filter(doc => 
-        doc.status === filters.status
-      );
+      if (filters.status === 'active') {
+        // For documents, 'active' means current
+        processed = processed.filter(doc => doc.status === 'current');
+      } else {
+        processed = processed.filter(doc => 
+          doc.status === filters.status
+        );
+      }
     }
 
     // Filter by search text
@@ -543,10 +566,13 @@ const useChartReviewResources = (patientId, options = {}) => {
     };
   }, [patientId, realTimeUpdates, subscribe, refresh]);
 
-  // Initial load
+  // Initial load - only when patientId changes
   useEffect(() => {
-    loadResources();
-  }, [loadResources]);
+    if (patientId) {
+      loadResources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]); // Only depend on patientId to avoid repeated loads
 
   return {
     // Resources
