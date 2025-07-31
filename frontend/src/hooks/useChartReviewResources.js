@@ -109,25 +109,56 @@ const useChartReviewResources = (patientId, options = {}) => {
         getPatientResources(patientId, 'DocumentReference') || []
       ]);
 
-      // Loaded data summary:
-      // conditions: conditionData.length
-      // medications: medicationData.length
-      // allergies: allergyData.length
-      // immunizations: immunizationData.length
-      // observations: observationData.length
-      // procedures: procedureData.length
-      // encounters: encounterData.length
+      // Debug log the loaded data
+      if (window.__FHIR_DEBUG__) {
+        console.log('[useChartReviewResources] Loaded data:', {
+          conditions: conditionData.length,
+          medications: medicationData.length,
+          allergies: allergyData.length,
+          immunizations: immunizationData.length,
+          observations: observationData.length,
+          procedures: procedureData.length,
+          encounters: encounterData.length,
+          carePlans: carePlanData.length,
+          documentReferences: documentReferenceData.length
+        });
+      }
 
       // Apply filters and sorting
-      setConditions(processConditions(conditionData, filters, sortOrder));
-      setMedications(processMedications(medicationData, filters, sortOrder));
-      setAllergies(processAllergies(allergyData, filters, sortOrder));
-      setImmunizations(processImmunizations(immunizationData, filters, sortOrder));
-      setObservations(processObservations(observationData, filters, sortOrder));
-      setProcedures(processProcedures(procedureData, filters, sortOrder));
-      setEncounters(processEncounters(encounterData, filters, sortOrder));
-      setCarePlans(processCarePlans(carePlanData, filters, sortOrder));
-      setDocumentReferences(processDocumentReferences(documentReferenceData, filters, sortOrder));
+      const processedConditions = processConditions(conditionData, filters, sortOrder);
+      const processedMedications = processMedications(medicationData, filters, sortOrder);
+      const processedAllergies = processAllergies(allergyData, filters, sortOrder);
+      const processedImmunizations = processImmunizations(immunizationData, filters, sortOrder);
+      const processedObservations = processObservations(observationData, filters, sortOrder);
+      const processedProcedures = processProcedures(procedureData, filters, sortOrder);
+      const processedEncounters = processEncounters(encounterData, filters, sortOrder);
+      const processedCarePlans = processCarePlans(carePlanData, filters, sortOrder);
+      const processedDocumentReferences = processDocumentReferences(documentReferenceData, filters, sortOrder);
+      
+      if (window.__FHIR_DEBUG__) {
+        console.log('[useChartReviewResources] After processing:', {
+          filters,
+          processedConditions: processedConditions.length,
+          processedMedications: processedMedications.length,
+          processedAllergies: processedAllergies.length,
+          processedImmunizations: processedImmunizations.length,
+          processedObservations: processedObservations.length,
+          processedProcedures: processedProcedures.length,
+          processedEncounters: processedEncounters.length,
+          processedCarePlans: processedCarePlans.length,
+          processedDocumentReferences: processedDocumentReferences.length
+        });
+      }
+      
+      setConditions(processedConditions);
+      setMedications(processedMedications);
+      setAllergies(processedAllergies);
+      setImmunizations(processedImmunizations);
+      setObservations(processedObservations);
+      setProcedures(processedProcedures);
+      setEncounters(processedEncounters);
+      setCarePlans(processedCarePlans);
+      setDocumentReferences(processedDocumentReferences);
 
       setLastUpdated(new Date());
     } catch (err) {

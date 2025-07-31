@@ -236,6 +236,20 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   
   // Process and categorize data with FHIR R4 structure
   const processedData = useMemo(() => {
+    // Debug logging
+    if (window.__FHIR_DEBUG__) {
+      console.log('[Chart Review Debug] Processing data:', {
+        conditions: conditions.length,
+        medications: medications.length,
+        allergies: allergies.length,
+        immunizations: immunizations.length,
+        procedures: procedures.length,
+        carePlans: carePlans.length,
+        documentReferences: documentReferences.length,
+        showInactive,
+        dateRange
+      });
+    }
     // Filter conditions based on showInactive toggle
     const filteredConditions = showInactive 
       ? conditions.filter(filteredByDate)
@@ -311,7 +325,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       )
       .slice(0, 5);
     
-    return {
+    const result = {
       activeConditions,
       inactiveConditions,
       conditionsByCategory,
@@ -327,6 +341,23 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       carePlans: carePlans.filter(filteredByDate),
       documentReferences: documentReferences.filter(filteredByDate)
     };
+    
+    if (window.__FHIR_DEBUG__) {
+      console.log('[Chart Review Debug] Processed data:', {
+        activeConditions: result.activeConditions.length,
+        inactiveConditions: result.inactiveConditions.length,
+        activeMedications: result.activeMedications.length,
+        inactiveMedications: result.inactiveMedications.length,
+        criticalAllergies: result.criticalAllergies.length,
+        nonCriticalAllergies: result.nonCriticalAllergies.length,
+        procedures: result.procedures.length,
+        immunizations: result.immunizations.length,
+        carePlans: result.carePlans.length,
+        documentReferences: result.documentReferences.length
+      });
+    }
+    
+    return result;
   }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, carePlans, documentReferences, filteredByDate, showInactive]);
   
   // Calculate clinical alerts and recommendations
@@ -766,7 +797,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                         </InteractiveButton>
                       </Stack>
                       
-                      {processedData.activeConditions.length === 0 ? (
+                      {(showInactive ? conditions.length : processedData.activeConditions.length) === 0 ? (
                         <EmptyConditions onAdd={() => handleOpenDialog('condition')} />
                       ) : (
                         <Box sx={{ 
@@ -789,7 +820,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <StaggeredFadeIn staggerDelay={30}>
-                            {processedData.activeConditions.map((condition, index) => (
+                            {(showInactive 
+                              ? [...processedData.activeConditions, ...processedData.inactiveConditions]
+                              : processedData.activeConditions
+                            ).map((condition, index) => (
                               <EnhancedConditionCard
                                 key={condition.id}
                                 condition={condition}
@@ -841,7 +875,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                         </InteractiveButton>
                       </Stack>
                       
-                      {processedData.activeMedications.length === 0 ? (
+                      {(showInactive ? medications.length : processedData.activeMedications.length) === 0 ? (
                         <EmptyMedications onAdd={() => handleOpenDialog('medication')} />
                       ) : (
                         <Box sx={{ 
@@ -864,7 +898,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <StaggeredFadeIn staggerDelay={30}>
-                            {processedData.activeMedications.map((medication, index) => (
+                            {(showInactive 
+                              ? [...processedData.activeMedications, ...processedData.inactiveMedications]
+                              : processedData.activeMedications
+                            ).map((medication, index) => (
                               <EnhancedMedicationCard
                                 key={medication.id}
                                 medication={medication}
@@ -920,7 +957,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                         </InteractiveButton>
                       </Stack>
                       
-                      {allergies.length === 0 ? (
+                      {(processedData.criticalAllergies.length + processedData.nonCriticalAllergies.length) === 0 ? (
                         <EmptyAllergies onAdd={() => handleOpenDialog('allergy')} />
                       ) : (
                         <Box sx={{ 
