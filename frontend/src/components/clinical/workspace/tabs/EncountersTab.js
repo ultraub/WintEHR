@@ -116,6 +116,7 @@ const getEncounterTypeLabel = (encounter) => {
 // Enhanced Encounter Card Component with new UI components
 const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, density = 'comfortable', expanded = false, onToggleExpand }) => {
   const [localExpanded, setLocalExpanded] = useState(expanded);
+  const navigate = useNavigate();
   
   const handleToggleExpand = () => {
     const newExpanded = !localExpanded;

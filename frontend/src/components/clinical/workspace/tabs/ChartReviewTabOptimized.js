@@ -1300,7 +1300,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                 </Grid>
               </Grid>
             </Box>
-          </Fade>
+          </FadeInContainer>
         )}
         
         {viewMode === 'timeline' && (
