@@ -48,8 +48,7 @@ import {
   Badge,
   Fade,
   Avatar,
-  Fab,
-  ListItemSecondaryAction
+  Fab
 } from '@mui/material';
 // TreeView components removed - using custom implementation
 import {
