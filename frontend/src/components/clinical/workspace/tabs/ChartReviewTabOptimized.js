@@ -356,7 +356,11 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       procedures: procedures.filter(filteredByDate),
       immunizations: immunizations.filter(filteredByDate),
       carePlans: carePlans.filter(filteredByDate),
-      documentReferences: documentReferences.filter(filteredByDate)
+      documentReferences: documentReferences.filter(filteredByDate),
+      // Add filtered versions for summary cards
+      filteredConditions,
+      filteredMedications,
+      filteredAllergies
     };
     
     if (window.__FHIR_DEBUG__) {
@@ -617,7 +621,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             {showInactive ? 'All Conditions' : 'Active Conditions'}
                           </Typography>
                           <AnimatedCounter 
-                            value={showInactive ? filteredConditions.length : processedData.activeConditions.length}
+                            value={showInactive ? processedData.filteredConditions.length : processedData.activeConditions.length}
                             variant="h3"
                             duration={800}
                           />
@@ -669,7 +673,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             {showInactive ? 'All Medications' : 'Active Medications'}
                           </Typography>
                           <AnimatedCounter 
-                            value={showInactive ? filteredMedications.length : processedData.activeMedications.length}
+                            value={showInactive ? processedData.filteredMedications.length : processedData.activeMedications.length}
                             variant="h3"
                             duration={800}
                           />
@@ -719,7 +723,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             Allergies
                           </Typography>
                           <Typography variant="h3" fontWeight="bold">
-                            {filteredAllergies.length}
+                            {processedData.filteredAllergies.length}
                           </Typography>
                           {processedData.criticalAllergies.length > 0 && (
                             <Stack direction="row" alignItems="center" mt={1}>
