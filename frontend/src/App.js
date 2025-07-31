@@ -11,7 +11,6 @@ import PageTransitionProvider from './components/transitions/PageTransitionProvi
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppProviders } from './providers/AppProviders';
-import PerformanceDashboard from './components/clinical/performance/PerformanceDashboard';
 
 // Import quick login utility for development
 import './utils/quickLogin';
@@ -97,7 +96,6 @@ function ThemedApp() {
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <AppProviders>
             <RouterProvider router={router} />
-            <PerformanceDashboard />
           </AppProviders>
         </LocalizationProvider>
       </ThemeProvider>
