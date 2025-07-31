@@ -63,7 +63,7 @@ import { CDSSaveLoading, CDSLoadingOverlay } from '../components/cds-studio/shar
 import { cdsHooksService } from '../services/cdsHooksService';
 
 // Create context for CDS Studio state management
-export const CDSStudioContext = createContext();
+export const CDSStudioContext = createContext(null);
 
 // Context provider component
 export const CDSStudioProvider = ({ children, onModeSwitch }) => {

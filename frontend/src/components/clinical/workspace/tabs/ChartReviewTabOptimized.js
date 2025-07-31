@@ -1981,7 +1981,7 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
               <strong>Type:</strong> {allergy.type || 'Unknown'} | 
-              <strong> Category:</strong> {allergy.category?.[0] || 'Unknown'}
+              <strong> Category:</strong> {allergy.category?.[0]?.coding?.[0]?.display || allergy.category?.[0]?.text || allergy.category?.[0] || 'Unknown'}
             </Typography>
             
             {/* Enhanced manifestation display */}

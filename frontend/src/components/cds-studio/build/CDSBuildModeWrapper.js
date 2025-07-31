@@ -16,24 +16,26 @@ import { useCDSStudio } from '../../../pages/CDSHooksStudio';
  * Wrapper for standard build mode
  */
 export const CDSBuildMode = () => {
-  const { state, actions } = useCDSStudio();
+  const context = useCDSStudio();
   const [localHook, setLocalHook] = useState(null);
-
+  
   // Initialize local hook from context state
   useEffect(() => {
-    if (state.currentHook) {
-      setLocalHook(state.currentHook);
+    if (context?.state?.currentHook) {
+      setLocalHook(context.state.currentHook);
     }
-  }, [state.currentHook]);
+  }, [context?.state?.currentHook]);
 
   const handleSave = useCallback((hookData) => {
+    if (!context) return;
+    
     // Update the CDS Studio state
-    actions.updateCurrentHook(hookData);
+    context.actions.updateCurrentHook(hookData);
     
     // Save to the hooks list
     if (hookData.id) {
       // Update existing hook
-      actions.updateHook(hookData.id, hookData);
+      context.actions.updateHook(hookData.id, hookData);
     } else {
       // Create new hook
       const newHook = {
@@ -44,14 +46,26 @@ export const CDSBuildMode = () => {
         version: 1,
         author: 'Current User'
       };
-      actions.addHook(newHook);
+      context.actions.addHook(newHook);
     }
-  }, [actions]);
+  }, [context]);
 
   const handleCancel = useCallback(() => {
+    if (!context) return;
     // Reset the current hook
-    actions.updateCurrentHook(null);
-  }, [actions]);
+    context.actions.updateCurrentHook(null);
+  }, [context]);
+  
+  // Safety check in case context is not available
+  if (!context) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          CDS Studio context not available. Please ensure this component is rendered within CDSStudioProvider.
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -70,18 +84,20 @@ export const CDSBuildMode = () => {
  * but with enhanced features enabled
  */
 export const CDSBuildModeImproved = () => {
-  const { state, actions } = useCDSStudio();
+  const context = useCDSStudio();
   const [localHook, setLocalHook] = useState(null);
   const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
-
+  
   // Initialize local hook from context state
   useEffect(() => {
-    if (state.currentHook) {
-      setLocalHook(state.currentHook);
+    if (context?.state?.currentHook) {
+      setLocalHook(context.state.currentHook);
     }
-  }, [state.currentHook]);
+  }, [context?.state?.currentHook]);
 
   const handleSave = useCallback((hookData) => {
+    if (!context) return;
+    
     // Enhanced save with additional metadata
     const enhancedHookData = {
       ...hookData,
@@ -93,11 +109,11 @@ export const CDSBuildModeImproved = () => {
     };
 
     // Update the CDS Studio state
-    actions.updateCurrentHook(enhancedHookData);
+    context.actions.updateCurrentHook(enhancedHookData);
     
     // Save to the hooks list
     if (hookData.id) {
-      actions.updateHook(hookData.id, enhancedHookData);
+      context.actions.updateHook(hookData.id, enhancedHookData);
     } else {
       const newHook = {
         ...enhancedHookData,
@@ -107,13 +123,25 @@ export const CDSBuildModeImproved = () => {
         version: 1,
         author: 'Current User'
       };
-      actions.addHook(newHook);
+      context.actions.addHook(newHook);
     }
-  }, [actions]);
+  }, [context]);
 
   const handleCancel = useCallback(() => {
-    actions.updateCurrentHook(null);
-  }, [actions]);
+    if (!context) return;
+    context.actions.updateCurrentHook(null);
+  }, [context]);
+  
+  // Safety check in case context is not available
+  if (!context) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          CDS Studio context not available. Please ensure this component is rendered within CDSStudioProvider.
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
