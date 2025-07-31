@@ -892,15 +892,18 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
           timestamp: new Date().toISOString()
         });
         
-        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
-          detail: { patientId } 
-        }));
-        
         setSnackbar({
           open: true,
           message: 'Note signed successfully',
           severity: 'success'
         });
+        
+        // Delay the resource update to prevent UI flicker
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+            detail: { patientId } 
+          }));
+        }, 500);
       }
     } catch (error) {
       setSnackbar({
@@ -1226,7 +1229,11 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             {(viewMode === 'cards' || viewMode === 'tree') && (
               <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
                 <Stack spacing={density === 'compact' ? 0.5 : 0.75}>
-                  {sortedDocuments.length === 0 ? (
+                  {isLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : sortedDocuments.length === 0 ? (
                     <Alert severity="info">
                       No documentation found matching your criteria
                     </Alert>
@@ -1252,7 +1259,11 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             
             {viewMode === 'table' && (
               <Box sx={{ p: 0 }}>
-                {SmartTable ? (
+                {isLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : SmartTable ? (
                   <SmartTable
                     columns={tableColumns}
                     data={sortedDocuments}
