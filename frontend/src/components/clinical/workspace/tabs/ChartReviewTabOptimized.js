@@ -134,6 +134,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const patientId = patient?.id || currentPatient?.id;
   
   // Debug logging
+  console.log('[ChartReviewTabOptimized] Component props:', { patient, patientFromContext: currentPatient });
   if (!patientId) {
     console.warn('[ChartReviewTabOptimized] No patient ID available');
   } else {

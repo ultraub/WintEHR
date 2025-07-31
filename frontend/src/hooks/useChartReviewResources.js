@@ -53,11 +53,11 @@ const useChartReviewResources = (patientId, options = {}) => {
   // Load all resources
   const loadResources = useCallback(async () => {
     if (!patientId) {
-      // No patientId provided - skip loading resources
+      console.warn('[useChartReviewResources] No patientId provided - skip loading resources');
       return;
     }
 
-    // Loading resources for patient
+    console.log('[useChartReviewResources] Loading resources for patient:', patientId);
 
     try {
       setLoading(true);
@@ -109,9 +109,22 @@ const useChartReviewResources = (patientId, options = {}) => {
         getPatientResources(patientId, 'DocumentReference') || []
       ]);
 
+      // Always log the loaded data to debug the issue
+      console.log('[useChartReviewResources] Raw loaded data:', {
+        conditions: conditionData,
+        medications: medicationData,
+        allergies: allergyData,
+        immunizations: immunizationData,
+        observations: observationData,
+        procedures: procedureData,
+        encounters: encounterData,
+        carePlans: carePlanData,
+        documentReferences: documentReferenceData
+      });
+
       // Debug log the loaded data
       if (window.__FHIR_DEBUG__) {
-        console.log('[useChartReviewResources] Loaded data:', {
+        console.log('[useChartReviewResources] Loaded data counts:', {
           conditions: conditionData.length,
           medications: medicationData.length,
           allergies: allergyData.length,
