@@ -137,16 +137,41 @@ const useChartReviewResources = (patientId, options = {}) => {
         });
       }
 
+      // Validate data before processing
+      const validateResourceArray = (data, resourceType) => {
+        if (!Array.isArray(data)) {
+          console.error(`[useChartReviewResources] ${resourceType} is not an array:`, data);
+          return [];
+        }
+        return data.filter(item => {
+          if (!item || typeof item !== 'object') {
+            console.error(`[useChartReviewResources] Invalid ${resourceType} item:`, item);
+            return false;
+          }
+          return true;
+        });
+      };
+
+      const validConditions = validateResourceArray(conditionData, 'Conditions');
+      const validMedications = validateResourceArray(medicationData, 'Medications');
+      const validAllergies = validateResourceArray(allergyData, 'Allergies');
+      const validImmunizations = validateResourceArray(immunizationData, 'Immunizations');
+      const validObservations = validateResourceArray(observationData, 'Observations');
+      const validProcedures = validateResourceArray(procedureData, 'Procedures');
+      const validEncounters = validateResourceArray(encounterData, 'Encounters');
+      const validCarePlans = validateResourceArray(carePlanData, 'CarePlans');
+      const validDocumentReferences = validateResourceArray(documentReferenceData, 'DocumentReferences');
+
       // Apply filters and sorting
-      const processedConditions = processConditions(conditionData, filters, sortOrder);
-      const processedMedications = processMedications(medicationData, filters, sortOrder);
-      const processedAllergies = processAllergies(allergyData, filters, sortOrder);
-      const processedImmunizations = processImmunizations(immunizationData, filters, sortOrder);
-      const processedObservations = processObservations(observationData, filters, sortOrder);
-      const processedProcedures = processProcedures(procedureData, filters, sortOrder);
-      const processedEncounters = processEncounters(encounterData, filters, sortOrder);
-      const processedCarePlans = processCarePlans(carePlanData, filters, sortOrder);
-      const processedDocumentReferences = processDocumentReferences(documentReferenceData, filters, sortOrder);
+      const processedConditions = processConditions(validConditions, filters, sortOrder);
+      const processedMedications = processMedications(validMedications, filters, sortOrder);
+      const processedAllergies = processAllergies(validAllergies, filters, sortOrder);
+      const processedImmunizations = processImmunizations(validImmunizations, filters, sortOrder);
+      const processedObservations = processObservations(validObservations, filters, sortOrder);
+      const processedProcedures = processProcedures(validProcedures, filters, sortOrder);
+      const processedEncounters = processEncounters(validEncounters, filters, sortOrder);
+      const processedCarePlans = processCarePlans(validCarePlans, filters, sortOrder);
+      const processedDocumentReferences = processDocumentReferences(validDocumentReferences, filters, sortOrder);
       
       if (window.__FHIR_DEBUG__) {
         console.log('[useChartReviewResources] After processing:', {

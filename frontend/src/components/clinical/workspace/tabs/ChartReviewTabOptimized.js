@@ -254,6 +254,39 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   
   // Process and categorize data with FHIR R4 structure
   const processedData = useMemo(() => {
+    // Guard against undefined data
+    if (!conditions || !medications || !allergies || !observations || !procedures || !encounters || !immunizations || !carePlans || !documentReferences) {
+      console.warn('[ChartReviewTabOptimized] Some resources are undefined:', {
+        conditions: !!conditions,
+        medications: !!medications,
+        allergies: !!allergies,
+        observations: !!observations,
+        procedures: !!procedures,
+        encounters: !!encounters,
+        immunizations: !!immunizations,
+        carePlans: !!carePlans,
+        documentReferences: !!documentReferences
+      });
+      return {
+        activeConditions: [],
+        inactiveConditions: [],
+        conditionsByCategory: {},
+        activeMedications: [],
+        inactiveMedications: [],
+        medicationsByIntent: {},
+        criticalAllergies: [],
+        nonCriticalAllergies: [],
+        recentVitals: [],
+        recentEncounters: [],
+        procedures: [],
+        immunizations: [],
+        carePlans: [],
+        documentReferences: [],
+        filteredConditions: [],
+        filteredMedications: [],
+        filteredAllergies: []
+      };
+    }
     // Debug logging
     if (window.__FHIR_DEBUG__) {
       console.log('[Chart Review Debug] Processing data:', {
