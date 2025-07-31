@@ -97,11 +97,11 @@ const CollapsibleFilterPanel = ({
     let count = 0;
     if (searchQuery) count++;
     if (dateRange !== 'all') count++;
-    if (selectedCategories.length > 0) count += selectedCategories.length;
+    if (showCategories && selectedCategories.length > 0) count += selectedCategories.length; // Only count if categories are shown
     if (showInactive) count++;
     if (additionalFilters.length > 0) count += additionalFilters.filter(f => f.active).length;
     setActiveFiltersCount(count);
-  }, [searchQuery, dateRange, selectedCategories, showInactive, additionalFilters]);
+  }, [searchQuery, dateRange, selectedCategories, showInactive, additionalFilters, showCategories]);
 
   // Handle scroll-based collapse
   useEffect(() => {
@@ -222,7 +222,7 @@ const CollapsibleFilterPanel = ({
             />
           )}
           
-          {selectedCategories.length > 0 && (
+          {showCategories && selectedCategories.length > 0 && (
             <Chip
               size="small"
               icon={<CategoryIcon sx={{ fontSize: 16 }} />}

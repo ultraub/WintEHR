@@ -79,22 +79,29 @@ class HookPersistenceManager:
             existing = await self.get_hook(hook_config.id)
             
             if existing:
-                # Update existing hook
+                # Update existing hook - using hook_id column
                 update_sql = text("""
                     UPDATE cds_hooks.hook_configurations 
                     SET hook_type = :hook_type,
                         title = :title,
                         description = :description,
                         enabled = :enabled,
-                        conditions = :conditions,
-                        actions = :actions,
-                        usage_requirements = :usage_requirements,
+                        is_active = :enabled,
                         prefetch = :prefetch,
                         display_behavior = :display_behavior,
+                        configuration = :configuration,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = :hook_id
+                    WHERE hook_id = :hook_id
                     RETURNING *
                 """)
+                # Create a complete configuration object
+                configuration = {
+                    'conditions': [c.dict() for c in hook_config.conditions],
+                    'actions': [a.dict() for a in hook_config.actions],
+                    'enabled': hook_config.enabled,
+                    'prefetch': hook_config.prefetch or {},
+                    'usageRequirements': hook_config.usageRequirements
+                }
                 
                 result = await self.db.execute(update_sql, {
                     'hook_id': hook_config.id,
@@ -102,22 +109,29 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'conditions': json.dumps([c.dict() for c in hook_config.conditions]),
-                    'actions': json.dumps([a.dict() for a in hook_config.actions]),
-                    'usage_requirements': hook_config.usageRequirements,
                     'prefetch': json.dumps(hook_config.prefetch or {}),
-                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
+                    'configuration': json.dumps(configuration)
                 })
             else:
-                # Insert new hook
+                # Insert new hook - using hook_id column and configuration field
                 insert_sql = text("""
                     INSERT INTO cds_hooks.hook_configurations 
-                    (id, hook_type, title, description, enabled, conditions, actions, usage_requirements,
-                     prefetch, display_behavior)
-                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :conditions, :actions, :usage_requirements,
-                            :prefetch, :display_behavior)
+                    (hook_id, hook_type, title, description, enabled, is_active,
+                     prefetch, display_behavior, configuration)
+                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :enabled,
+                            :prefetch, :display_behavior, :configuration)
                     RETURNING *
                 """)
+                
+                # Create a complete configuration object
+                configuration = {
+                    'conditions': [c.dict() for c in hook_config.conditions],
+                    'actions': [a.dict() for a in hook_config.actions],
+                    'enabled': hook_config.enabled,
+                    'prefetch': hook_config.prefetch or {},
+                    'usageRequirements': hook_config.usageRequirements
+                }
                 
                 result = await self.db.execute(insert_sql, {
                     'hook_id': hook_config.id,
@@ -125,11 +139,9 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'conditions': json.dumps([c.dict() for c in hook_config.conditions]),
-                    'actions': json.dumps([a.dict() for a in hook_config.actions]),
-                    'usage_requirements': hook_config.usageRequirements,
                     'prefetch': json.dumps(hook_config.prefetch or {}),
-                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
+                    'configuration': json.dumps(configuration)
                 })
             
             await self.db.commit()
@@ -153,7 +165,7 @@ class HookPersistenceManager:
         try:
             query = text("""
                 SELECT * FROM cds_hooks.hook_configurations 
-                WHERE id = :hook_id
+                WHERE hook_id = :hook_id
             """)
             
             result = await self.db.execute(query, {'hook_id': hook_id})
@@ -209,7 +221,7 @@ class HookPersistenceManager:
         try:
             delete_sql = text("""
                 DELETE FROM cds_hooks.hook_configurations 
-                WHERE id = :hook_id
+                WHERE hook_id = :hook_id
             """)
             
             result = await self.db.execute(delete_sql, {'hook_id': hook_id})
@@ -227,8 +239,8 @@ class HookPersistenceManager:
         try:
             update_sql = text("""
                 UPDATE cds_hooks.hook_configurations 
-                SET enabled = :enabled, updated_at = CURRENT_TIMESTAMP
-                WHERE id = :hook_id
+                SET enabled = :enabled, is_active = :enabled, updated_at = CURRENT_TIMESTAMP
+                WHERE hook_id = :hook_id
             """)
             
             result = await self.db.execute(update_sql, {
@@ -284,18 +296,22 @@ class HookPersistenceManager:
         """Convert database row to HookConfiguration object"""
         from .models import HookType, HookCondition, HookAction
         
-        # Parse JSON fields
-        conditions_data = row.conditions if isinstance(row.conditions, (dict, list)) else json.loads(row.conditions or '[]')
-        actions_data = row.actions if isinstance(row.actions, (dict, list)) else json.loads(row.actions or '[]')
-        usage_requirements = row.usage_requirements if hasattr(row, 'usage_requirements') else None
+        # Parse configuration JSON to extract conditions, actions, etc.
+        configuration = row.configuration if isinstance(row.configuration, dict) else json.loads(row.configuration or '{}')
         
+        # Extract conditions and actions from configuration
+        conditions_data = configuration.get('conditions', [])
+        actions_data = configuration.get('actions', [])
+        usage_requirements = configuration.get('usageRequirements')
+        
+        # Parse other JSON fields
         prefetch_data = row.prefetch if isinstance(row.prefetch, dict) else json.loads(row.prefetch or '{}')
         display_behavior_data = None
         if hasattr(row, 'display_behavior') and row.display_behavior:
             display_behavior_data = row.display_behavior if isinstance(row.display_behavior, dict) else json.loads(row.display_behavior)
         
         return HookConfiguration(
-            id=row.id,
+            id=row.hook_id,  # Use hook_id column
             hook=HookType(row.hook_type),
             title=row.title,
             description=row.description or "",

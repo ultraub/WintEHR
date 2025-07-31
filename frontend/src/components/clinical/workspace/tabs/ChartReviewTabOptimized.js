@@ -133,6 +133,13 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const { publish } = useClinicalWorkflow();
   const patientId = patient?.id || currentPatient?.id;
   
+  // Debug logging
+  if (!patientId) {
+    console.warn('[ChartReviewTabOptimized] No patient ID available');
+  } else {
+    console.log('[ChartReviewTabOptimized] Loading data for patient:', patientId);
+  }
+  
   // Use optimized hook for chart review resources with all FHIR resources
   const { 
     conditions, 
@@ -156,12 +163,22 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     realTimeUpdates: true
   });
   
+  // Debug logging for loaded resources
+  console.log('[ChartReviewTabOptimized] Loaded resources:', {
+    conditions: conditions?.length || 0,
+    medications: medications?.length || 0,
+    allergies: allergies?.length || 0,
+    immunizations: immunizations?.length || 0,
+    observations: observations?.length || 0,
+    procedures: procedures?.length || 0
+  });
+  
   // View and filter states
   const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
   const [dateRange, setDateRange] = useState('all'); // all, 30d, 90d, 1y
   const [showInactive, setShowInactive] = useState(true); // Changed to true - show all by default
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState(['all']);
+  const [selectedCategories, setSelectedCategories] = useState([]); // Fixed: Empty array instead of ['all'] to prevent phantom filter
   const [expandedSections, setExpandedSections] = useState({
     conditions: true,
     medications: true,
@@ -597,10 +614,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
                           <Typography color="text.secondary" variant="caption">
-                            Active Conditions
+                            {showInactive ? 'All Conditions' : 'Active Conditions'}
                           </Typography>
                           <AnimatedCounter 
-                            value={processedData.activeConditions.length}
+                            value={showInactive ? filteredConditions.length : processedData.activeConditions.length}
                             variant="h3"
                             duration={800}
                           />
@@ -649,10 +666,10 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Box>
                           <Typography color="text.secondary" variant="caption">
-                            Active Medications
+                            {showInactive ? 'All Medications' : 'Active Medications'}
                           </Typography>
                           <AnimatedCounter 
-                            value={processedData.activeMedications.length}
+                            value={showInactive ? filteredMedications.length : processedData.activeMedications.length}
                             variant="h3"
                             duration={800}
                           />
@@ -702,7 +719,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             Allergies
                           </Typography>
                           <Typography variant="h3" fontWeight="bold">
-                            {allergies.length}
+                            {filteredAllergies.length}
                           </Typography>
                           {processedData.criticalAllergies.length > 0 && (
                             <Stack direction="row" alignItems="center" mt={1}>
@@ -1981,7 +1998,7 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
               <strong>Type:</strong> {allergy.type || 'Unknown'} | 
-              <strong> Category:</strong> {allergy.category?.[0]?.coding?.[0]?.display || allergy.category?.[0]?.text || allergy.category?.[0] || 'Unknown'}
+              <strong> Category:</strong> {allergy.category?.[0]?.coding?.[0]?.display || allergy.category?.[0]?.text || 'Unknown'}
             </Typography>
             
             {/* Enhanced manifestation display */}

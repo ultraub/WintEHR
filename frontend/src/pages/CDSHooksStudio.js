@@ -9,7 +9,7 @@
  * - Advanced testing and validation
  */
 
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -66,7 +66,7 @@ import { cdsHooksService } from '../services/cdsHooksService';
 export const CDSStudioContext = createContext(null);
 
 // Context provider component
-export const CDSStudioProvider = ({ children, onModeSwitch }) => {
+export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange }) => {
   const [currentHook, setCurrentHook] = useState({
     id: '',
     title: '',
@@ -121,15 +121,22 @@ export const CDSStudioProvider = ({ children, onModeSwitch }) => {
         updated.id = generateHookId(updates.title);
       }
       
-      return {
+      const newHook = {
         ...updated,
         _meta: {
           ...prev._meta,
           modified: new Date()
         }
       };
+      
+      // Notify parent of hook changes
+      if (onHookChange) {
+        onHookChange(newHook);
+      }
+      
+      return newHook;
     });
-  }, [generateHookId]);
+  }, [generateHookId, onHookChange]);
 
   const validateHook = useCallback(() => {
     try {
@@ -441,7 +448,12 @@ export const CDSStudioProvider = ({ children, onModeSwitch }) => {
       validateHook,
       testHook,
       saveHook,
-      setCurrentHook,
+      setCurrentHook: (hook) => {
+        setCurrentHook(hook);
+        if (onHookChange) {
+          onHookChange(hook);
+        }
+      },
       setIsLoading,
       setLoadingMessage,
       switchMode: onModeSwitch
@@ -489,8 +501,16 @@ export const useCDSStudio = () => {
 };
 
 // Build Mode component with error handling
-const BuildModeWithErrorHandling = () => {
+const BuildModeWithErrorHandling = ({ pendingEditHook, onPendingHookProcessed }) => {
   const { actions } = useCDSStudio();
+  
+  // Handle pending edit hook when component mounts or pendingEditHook changes
+  useEffect(() => {
+    if (pendingEditHook) {
+      actions.setCurrentHook(pendingEditHook);
+      onPendingHookProcessed();
+    }
+  }, [pendingEditHook, actions, onPendingHookProcessed]);
   
   const handleReset = useCallback(() => {
     actions.setCurrentHook({
@@ -540,11 +560,21 @@ const SaveButton = () => {
 function CDSHooksStudio() {
   const [currentMode, setCurrentMode] = useState('build'); // learn, build, manage
   const [showHelp, setShowHelp] = useState(false);
+  const [pendingEditHook, setPendingEditHook] = useState(null);
+  const contextActionsRef = useRef(null);
 
   // Create a function to handle mode switching that can be passed to children
   const handleModeSwitch = (mode) => {
     setCurrentMode(mode);
   };
+  
+  // Handle hook changes from the provider
+  const handleHookChange = useCallback((hook) => {
+    // Store the context actions when they become available
+    if (contextActionsRef.current) {
+      contextActionsRef.current.setCurrentHook(hook);
+    }
+  }, []);
   
   // Hook reset function for error recovery
   const resetCurrentHook = useCallback(() => {
@@ -574,7 +604,7 @@ function CDSHooksStudio() {
   };
 
   return (
-    <CDSStudioProvider onModeSwitch={handleModeSwitch}>
+    <CDSStudioProvider onModeSwitch={handleModeSwitch} onHookChange={handleHookChange}>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <Paper sx={{ p: 2, mb: 2 }}>
@@ -662,7 +692,10 @@ function CDSHooksStudio() {
                 }
               }}
             >
-              <BuildModeWithErrorHandling />
+              <BuildModeWithErrorHandling 
+                pendingEditHook={pendingEditHook}
+                onPendingHookProcessed={() => setPendingEditHook(null)}
+              />
             </CDSErrorBoundary>
           )}
           {currentMode === 'manage' && (
@@ -671,7 +704,32 @@ function CDSHooksStudio() {
               onRetry={() => window.location.reload()}
               onReset={() => setCurrentMode('build')}
             >
-              <CDSManageMode />
+              <CDSManageMode 
+                onEditService={(serviceOrHook) => {
+                  // Set the current hook in context for editing
+                  if (serviceOrHook) {
+                    // Transform service to hook format if needed
+                    const hook = serviceOrHook.conditions !== undefined 
+                      ? serviceOrHook  // It's already a hook
+                      : {
+                          ...serviceOrHook,
+                          conditions: [],
+                          actions: [],
+                          cards: [],
+                          enabled: true,
+                          _meta: {
+                            isExternalService: true,
+                            created: new Date().toISOString(),
+                            modified: new Date().toISOString()
+                          }
+                        };
+                    // Store the hook to be edited
+                    setPendingEditHook(hook);
+                    // Switch to build mode
+                    setCurrentMode('build');
+                  }
+                }}
+              />
             </CDSErrorBoundary>
           )}
         </Box>

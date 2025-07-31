@@ -85,7 +85,7 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-const CDSManageMode = () => {
+const CDSManageMode = ({ onEditService }) => {
   const { actions } = useCDSStudio();
   const [tabValue, setTabValue] = useState(0);
   const [hooks, setHooks] = useState([]);
@@ -169,24 +169,12 @@ const CDSManageMode = () => {
     localStorage.setItem('cds_execution_history', JSON.stringify(newHistory));
   };
 
+  // Removed duplicate handleEdit - using the one below
+
   const handleEdit = (hook) => {
-    // The hook should already be in frontend format from listCustomHooks
-    // But ensure it has the required _meta structure for editing
-    const editableHook = {
-      ...hook,
-      _meta: {
-        created: hook._meta?.created || (hook.created_at ? new Date(hook.created_at) : new Date()),
-        modified: hook._meta?.modified || (hook.updated_at ? new Date(hook.updated_at) : new Date()),
-        version: hook._meta?.version || 1,
-        author: hook._meta?.author || 'Current User'
-      }
-    };
-    
-    actions.setCurrentHook(editableHook);
-    
-    // Switch to build mode
-    if (actions.switchMode) {
-      actions.switchMode('build');
+    // Call the parent handler to switch to build mode with this hook
+    if (onEditService) {
+      onEditService(hook);
     }
   };
 
@@ -195,8 +183,17 @@ const CDSManageMode = () => {
       try {
         await cdsHooksService.deleteHook(hookId);
         await loadHooks();
+        setSnackbar({
+          open: true,
+          message: 'Hook deleted successfully',
+          severity: 'success'
+        });
       } catch (error) {
-        
+        setSnackbar({
+          open: true,
+          message: `Delete failed: ${error.message}`,
+          severity: 'error'
+        });
       }
     }
   };
@@ -594,7 +591,10 @@ const CDSManageMode = () => {
                   startIcon={<EditIcon />}
                   onClick={() => {
                     setSelectedHook(service);
-                    // Switch to build mode would be handled by parent
+                    // Switch to build mode by calling parent handler
+                    if (onEditService) {
+                      onEditService(service);
+                    }
                   }}
                 >
                   Edit
