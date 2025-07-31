@@ -125,32 +125,32 @@ const StatusChip = ({
   };
 
   if (variant === 'clinical') {
-    // Clean solid color styling matching older design
+    // Clean solid color styling using theme palette
     const solidColorMap = {
-      active: '#4CAF50',      // Green
-      completed: '#2196F3',   // Blue
-      pending: '#FF9800',     // Orange
-      cancelled: '#F44336',   // Red
-      'in-progress': '#2979FF', // Primary blue
-      draft: '#9E9E9E',       // Gray
-      inactive: '#757575'     // Dark gray
+      active: theme.palette.success.main,
+      completed: theme.palette.primary.main,
+      pending: theme.palette.warning.main,
+      cancelled: theme.palette.error.main,
+      'in-progress': theme.palette.primary.dark,
+      draft: theme.palette.grey[500],
+      inactive: theme.palette.grey[600]
     };
     
-    const backgroundColor = solidColorMap[status?.toLowerCase()] || '#9E9E9E';
+    const backgroundColor = solidColorMap[status?.toLowerCase()] || theme.palette.grey[500];
     
     chipProps.sx = {
       backgroundColor: backgroundColor,
-      color: '#FFFFFF',
+      color: theme.palette.common.white,
       border: 'none',
       fontWeight: 500,
       fontSize: size === 'small' ? '0.75rem' : '0.875rem',
       height: size === 'small' ? '24px' : '32px',
       '& .MuiChip-icon': {
-        color: '#FFFFFF',
+        color: theme.palette.common.white,
         fontSize: size === 'small' ? '16px' : '20px'
       },
       '& .MuiChip-deleteIcon': {
-        color: '#FFFFFF'
+        color: theme.palette.common.white
       },
       transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
       '&:hover': {

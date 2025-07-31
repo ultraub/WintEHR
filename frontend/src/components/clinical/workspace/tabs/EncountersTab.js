@@ -3,6 +3,7 @@
  * Display and manage patient encounters
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -235,23 +236,192 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
             </Box>
           )}
 
-          {(encounter.reasonCode || encounter.reason) && (
+          {/* Enhanced reason display with reasonCode and reasonReference */}
+          {(encounter.reasonCode || encounter.reasonReference || encounter.reason) && (
             <Box>
               <Typography variant="caption" color="text.secondary" gutterBottom>
                 Reason for visit
               </Typography>
               <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
+                {/* reasonCode - inline coded reasons */}
+                {(encounter.reasonCode || []).map((reason, idx) => (
                   <Chip 
-                    key={idx}
-                    label={reason.text || 
-                           reason.coding?.[0]?.display || 
-                           'Encounter'} 
+                    key={`code-${idx}`}
+                    label={reason.text || reason.coding?.[0]?.display || 'Coded reason'} 
+                    size="small"
+                    variant="outlined"
+                    color="primary"
+                  />
+                ))}
+                {/* reasonReference - referenced reasons */}
+                {(encounter.reasonReference || []).map((reason, idx) => (
+                  <Chip 
+                    key={`ref-${idx}`}
+                    label={reason.display || 'Referenced condition'} 
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
+                  />
+                ))}
+                {/* Legacy reason field */}
+                {(encounter.reason || []).map((reason, idx) => (
+                  <Chip 
+                    key={`legacy-${idx}`}
+                    label={reason.text || reason.coding?.[0]?.display || 'Encounter'} 
                     size="small"
                     variant="outlined"
                   />
                 ))}
               </Stack>
+            </Box>
+          )}
+
+          {/* Service Provider */}
+          {encounter.serviceProvider && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Service Provider
+              </Typography>
+              <Typography variant="body2">
+                {encounter.serviceProvider.display || encounter.serviceProvider.reference || 'Unknown provider'}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Diagnosis information */}
+          {encounter.diagnosis && encounter.diagnosis.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Diagnoses
+              </Typography>
+              <Stack spacing={0.5}>
+                {encounter.diagnosis.map((diag, idx) => (
+                  <Stack key={idx} direction="row" spacing={1} alignItems="center">
+                    <Chip
+                      label={diag.condition?.display || 'Diagnosis'}
+                      size="small"
+                      color={diag.use?.coding?.[0]?.code === 'AD' ? 'primary' : 'default'}
+                      variant={diag.use?.coding?.[0]?.code === 'AD' ? 'filled' : 'outlined'}
+                    />
+                    {diag.rank && (
+                      <Typography variant="caption" color="text.secondary">
+                        #{diag.rank}
+                      </Typography>
+                    )}
+                    {diag.use?.coding?.[0]?.display && (
+                      <Typography variant="caption" color="text.secondary">
+                        ({diag.use.coding[0].display})
+                      </Typography>
+                    )}
+                  </Stack>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Hospitalization details */}
+          {encounter.hospitalization && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Hospitalization Details
+              </Typography>
+              <Stack spacing={0.5}>
+                {encounter.hospitalization.admitSource && (
+                  <Typography variant="body2">
+                    <strong>Admit source:</strong> {encounter.hospitalization.admitSource.text || 
+                    encounter.hospitalization.admitSource.coding?.[0]?.display}
+                  </Typography>
+                )}
+                {encounter.hospitalization.dischargeDisposition && (
+                  <Typography variant="body2">
+                    <strong>Discharge disposition:</strong> {encounter.hospitalization.dischargeDisposition.text || 
+                    encounter.hospitalization.dischargeDisposition.coding?.[0]?.display}
+                  </Typography>
+                )}
+                {encounter.hospitalization.destination && (
+                  <Typography variant="body2">
+                    <strong>Destination:</strong> {encounter.hospitalization.destination.display}
+                  </Typography>
+                )}
+                {encounter.hospitalization.dietPreference && encounter.hospitalization.dietPreference.length > 0 && (
+                  <Typography variant="body2">
+                    <strong>Diet preferences:</strong> {encounter.hospitalization.dietPreference.map(diet => 
+                      diet.text || diet.coding?.[0]?.display
+                    ).join(', ')}
+                  </Typography>
+                )}
+                {encounter.hospitalization.specialCourtesy && encounter.hospitalization.specialCourtesy.length > 0 && (
+                  <Typography variant="body2">
+                    <strong>Special courtesies:</strong> {encounter.hospitalization.specialCourtesy.map(courtesy => 
+                      courtesy.text || courtesy.coding?.[0]?.display
+                    ).join(', ')}
+                  </Typography>
+                )}
+                {encounter.hospitalization.specialArrangement && encounter.hospitalization.specialArrangement.length > 0 && (
+                  <Typography variant="body2">
+                    <strong>Special arrangements:</strong> {encounter.hospitalization.specialArrangement.map(arrangement => 
+                      arrangement.text || arrangement.coding?.[0]?.display
+                    ).join(', ')}
+                  </Typography>
+                )}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Appointment reference */}
+          {encounter.appointment && encounter.appointment.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Related Appointment
+              </Typography>
+              <Stack spacing={0.5}>
+                {encounter.appointment.map((appt, idx) => (
+                  <Typography key={idx} variant="body2">
+                    {appt.display || appt.reference || 'Linked appointment'}
+                  </Typography>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Class history (if encounter class has changed) */}
+          {encounter.classHistory && encounter.classHistory.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Class History
+              </Typography>
+              <Stack spacing={0.5}>
+                {encounter.classHistory.map((classHist, idx) => (
+                  <Stack key={idx} direction="row" spacing={1} alignItems="center">
+                    <Chip
+                      label={classHist.class?.display || classHist.class?.code}
+                      size="small"
+                      variant="outlined"
+                    />
+                    {classHist.period && (
+                      <Typography variant="caption" color="text.secondary">
+                        {classHist.period.start && format(parseISO(classHist.period.start), 'MMM d, h:mm a')}
+                        {classHist.period.end && ` - ${format(parseISO(classHist.period.end), 'MMM d, h:mm a')}`}
+                      </Typography>
+                    )}
+                  </Stack>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Priority */}
+          {encounter.priority && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" gutterBottom>
+                Priority
+              </Typography>
+              <Chip
+                label={encounter.priority.text || encounter.priority.coding?.[0]?.display || 'Standard'}
+                size="small"
+                color={encounter.priority.coding?.[0]?.code === 'UR' ? 'error' : 
+                       encounter.priority.coding?.[0]?.code === 'EL' ? 'warning' : 'default'}
+              />
             </Box>
           )}
 
@@ -295,7 +465,15 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
                       size="small"
                       fullWidth
                       sx={{ mt: 1 }}
-                      disabled
+                      onClick={() => {
+                        navigate('/404', { 
+                          state: { 
+                            message: 'Orders view from encounter is not yet implemented',
+                            returnPath: '/clinical-workspace',
+                            feature: 'Encounter Orders View'
+                          }
+                        });
+                      }}
                     >
                       View Orders
                     </Button>
@@ -315,7 +493,15 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
                       size="small"
                       fullWidth
                       sx={{ mt: 1 }}
-                      disabled
+                      onClick={() => {
+                        navigate('/404', { 
+                          state: { 
+                            message: 'Results view from encounter is not yet implemented',
+                            returnPath: '/clinical-workspace',
+                            feature: 'Encounter Results View'
+                          }
+                        });
+                      }}
                     >
                       View Results
                     </Button>
@@ -333,6 +519,7 @@ const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote, de
 const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
+  const navigate = useNavigate();
   
   const [viewMode, setViewMode] = useState('cards'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
@@ -741,29 +928,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general'
       provider: encounter.participant || []
     }));
     
-    // Temporary debug log
-    if (transformed.length > 0) {
-      console.log('EncountersTab: transformed encounter sample:', transformed[0]);
-      console.log('EncountersTab: total encounters:', transformed.length);
-      console.log('EncountersTab: encounter keys:', Object.keys(sorted[0]));
-      // Log all properties that might contain date/time info
-      console.log('EncountersTab: checking date properties:', {
-        period: sorted[0].period,
-        date: sorted[0].date,
-        effectiveDateTime: sorted[0].effectiveDateTime,
-        authoredOn: sorted[0].authoredOn,
-        created: sorted[0].created,
-        recordedDate: sorted[0].recordedDate
-      });
-      // Log all properties that might contain reason info
-      console.log('EncountersTab: checking reason properties:', {
-        reasonCode: sorted[0].reasonCode,
-        reason: sorted[0].reason,
-        reasonReference: sorted[0].reasonReference,
-        diagnosis: sorted[0].diagnosis,
-        type: sorted[0].type
-      });
-    }
     
     return transformed;
   }, [filteredEncounters]);

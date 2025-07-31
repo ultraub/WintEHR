@@ -37,7 +37,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  InputAdornment
+  InputAdornment,
+  useTheme
 } from '@mui/material';
 import {
   FilterList as FilterIcon,
@@ -338,6 +339,7 @@ const AdvancedLabValueFilter = ({
   initialFilters = [],
   isVisible = true 
 }) => {
+  const theme = useTheme();
   const [filters, setFilters] = useState(initialFilters);
   const [isEnabled, setIsEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -614,7 +616,7 @@ const AdvancedLabValueFilter = ({
   if (!isVisible) return null;
 
   return (
-    <Paper sx={{ p: 2, mb: 3, border: '1px solid #e0e0e0' }}>
+    <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <FilterIcon />

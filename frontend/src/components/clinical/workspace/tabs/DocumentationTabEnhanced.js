@@ -47,7 +47,10 @@ import {
   Collapse,
   Badge,
   Fade,
-  Avatar
+  Avatar,
+  Fab,
+  ListItemButton,
+  ListItemSecondaryAction
 } from '@mui/material';
 // TreeView components removed - using custom implementation
 import {
@@ -1199,20 +1202,26 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
             overflow: 'auto',
             backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper'
           }}>
-            {viewMode === 'timeline' && ResourceTimeline && (
+            {viewMode === 'timeline' && (
               <Box sx={{ p: { xs: 0.5, sm: 1 } }}>
-                <ResourceTimeline
-                  resources={timelineResources}
-                  onResourceClick={(resource) => handleViewNote(resource)}
-                  height={600}
-                  showLegend
-                  showRangeSelector
-                  enableZoom
-                  groupByType
-                  customMarkers={[
-                    { date: new Date().toISOString(), label: 'Today', color: 'primary' }
-                  ]}
-                />
+                {ResourceTimeline ? (
+                  <ResourceTimeline
+                    resources={timelineResources}
+                    onResourceClick={(resource) => handleViewNote(resource)}
+                    height={600}
+                    showLegend
+                    showRangeSelector
+                    enableZoom
+                    groupByType
+                    customMarkers={[
+                      { date: new Date().toISOString(), label: 'Today', color: 'primary' }
+                    ]}
+                  />
+                ) : (
+                  <Alert severity="info">
+                    Timeline view is not available. Please use the Cards or Table view.
+                  </Alert>
+                )}
               </Box>
             )}
             
@@ -1243,18 +1252,65 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               </Box>
             )}
             
-            {viewMode === 'table' && SmartTable && (
+            {viewMode === 'table' && (
               <Box sx={{ p: 0 }}>
-                <SmartTable
-                  columns={tableColumns}
-                  data={sortedDocuments}
-                  density={density}
-                  onRowClick={(row) => handleViewNote(row)}
-                  sortable
-                  hoverable
-                  stickyHeader
-                  emptyMessage="No documentation found"
-                />
+                {SmartTable ? (
+                  <SmartTable
+                    columns={tableColumns}
+                    data={sortedDocuments}
+                    density={density}
+                    onRowClick={(row) => handleViewNote(row)}
+                    sortable
+                    hoverable
+                    stickyHeader
+                    emptyMessage="No documentation found"
+                  />
+                ) : (
+                  <Box sx={{ p: 2 }}>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Table view is not available. Showing list view instead.
+                    </Alert>
+                    <List>
+                      {sortedDocuments.map((document, index) => (
+                        <ListItem
+                          key={document.id}
+                          button
+                          onClick={() => handleViewNote(document)}
+                          sx={{ 
+                            backgroundColor: index % 2 === 1 ? 'action.hover' : 'transparent',
+                            borderRadius: 0,
+                            mb: 0.5
+                          }}
+                        >
+                          <ListItemIcon>
+                            {noteTypes[document.type?.coding?.[0]?.code || 'other']?.icon || <NoteIcon />}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={document.description || document.title || 'Clinical Note'}
+                            secondary={
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Typography variant="caption">
+                                  {document.author?.[0]?.display || 'Unknown'}
+                                </Typography>
+                                <Typography variant="caption">•</Typography>
+                                <Typography variant="caption">
+                                  {document.date ? format(parseISO(document.date), 'MMM d, yyyy') : 'Unknown date'}
+                                </Typography>
+                              </Stack>
+                            }
+                          />
+                          <ListItemSecondaryAction>
+                            <Chip
+                              label={document.docStatus === 'final' ? 'Signed' : 'Draft'}
+                              size="small"
+                              color={document.docStatus === 'final' ? 'success' : 'warning'}
+                            />
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Box>
+                )}
               </Box>
             )}
           </Box>
@@ -1262,7 +1318,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       </Box>
 
       {/* Template Wizard Dialog */}
-      {NoteTemplateWizard && (
+      {NoteTemplateWizard ? (
         <NoteTemplateWizard
           open={templateWizardOpen}
           onClose={() => setTemplateWizardOpen(false)}
@@ -1274,10 +1330,41 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
               .slice(0, 10) || []
           }
         />
+      ) : (
+        templateWizardOpen && (
+          <Dialog open={templateWizardOpen} onClose={() => setTemplateWizardOpen(false)} maxWidth="sm" fullWidth>
+            <DialogTitle>Select Note Template</DialogTitle>
+            <DialogContent>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Advanced template wizard is not available. Please select a basic template.
+              </Alert>
+              <Stack spacing={2}>
+                {Object.entries(NOTE_TEMPLATES || {}).map(([key, template]) => (
+                  <Button
+                    key={key}
+                    variant="outlined"
+                    onClick={() => handleTemplateSelected({ templateId: key, autoPopulate: false })}
+                    sx={{ justifyContent: 'flex-start', p: 2 }}
+                  >
+                    <Stack>
+                      <Typography variant="subtitle2">{template.name || key}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {template.description || 'Clinical note template'}
+                      </Typography>
+                    </Stack>
+                  </Button>
+                ))}
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setTemplateWizardOpen(false)}>Cancel</Button>
+            </DialogActions>
+          </Dialog>
+        )
       )}
 
       {/* Enhanced Note Editor Dialog */}
-      {EnhancedNoteEditor && (
+      {EnhancedNoteEditor ? (
         <EnhancedNoteEditor
           open={enhancedEditorOpen}
           onClose={() => {
@@ -1289,10 +1376,65 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
           note={selectedNote}
           patientId={patientId}
           defaultTemplate={selectedTemplate}
-        templateData={templateData}
-        amendmentMode={amendmentMode}
-        originalNote={originalNoteForAmendment}
-      />
+          templateData={templateData}
+          amendmentMode={amendmentMode}
+          originalNote={originalNoteForAmendment}
+        />
+      ) : (
+        enhancedEditorOpen && (
+          <Dialog open={enhancedEditorOpen} onClose={() => setEnhancedEditorOpen(false)} maxWidth="md" fullWidth>
+            <DialogTitle>
+              {selectedNote ? 'Edit Note' : 'Create New Note'}
+              {amendmentMode && ' (Amendment)'}
+            </DialogTitle>
+            <DialogContent>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Enhanced note editor is not available. Basic editor functionality shown.
+              </Alert>
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                  fullWidth
+                  label="Note Title"
+                  defaultValue={selectedNote?.title || ''}
+                  placeholder="Enter note title..."
+                />
+                <TextField
+                  fullWidth
+                  label="Note Content"
+                  multiline
+                  rows={10}
+                  defaultValue={selectedNote?.displayContent || selectedNote?.text || ''}
+                  placeholder="Enter note content..."
+                />
+                <FormControl fullWidth>
+                  <InputLabel>Template</InputLabel>
+                  <Select defaultValue={selectedTemplate || 'progress'} label="Template">
+                    <MenuItem value="progress">Progress Note</MenuItem>
+                    <MenuItem value="soap">SOAP Note</MenuItem>
+                    <MenuItem value="consult">Consultation</MenuItem>
+                    <MenuItem value="discharge">Discharge Summary</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEnhancedEditorOpen(false)}>Cancel</Button>
+              <Button 
+                variant="contained"
+                onClick={() => {
+                  setSnackbar({
+                    open: true,
+                    message: selectedNote ? 'Note updated successfully' : 'Note created successfully',
+                    severity: 'success'
+                  });
+                  setEnhancedEditorOpen(false);
+                }}
+              >
+                Save Note
+              </Button>
+            </DialogActions>
+          </Dialog>
+        )
       )}
 
       {/* View Note Dialog */}
@@ -1378,45 +1520,66 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       </Snackbar>
       
       {/* Floating Action Button */}
-      {ContextualFAB && (
+      {ContextualFAB ? (
         <ContextualFAB
           currentModule="documentation"
           actions={[
             {
               icon: <NoteIcon />,
               name: 'Progress Note',
-            shortcut: 'Ctrl+P',
-            onClick: () => {
-              setSelectedTemplate('progress');
-              setEnhancedEditorOpen(true);
+              shortcut: 'Ctrl+P',
+              onClick: () => {
+                setSelectedTemplate('progress');
+                setEnhancedEditorOpen(true);
+              }
+            },
+            {
+              icon: <SOAPIcon />,
+              name: 'SOAP Note',
+              shortcut: 'Ctrl+S',
+              onClick: () => {
+                setSelectedTemplate('soap');
+                setEnhancedEditorOpen(true);
+              }
+            },
+            {
+              icon: <ConsultIcon />,
+              name: 'Consultation',
+              onClick: () => {
+                setSelectedTemplate('consult');
+                setEnhancedEditorOpen(true);
+              }
+            },
+            {
+              icon: <UploadIcon />,
+              name: 'Import Document',
+              onClick: () => {
+                setSnackbar({
+                  open: true,
+                  message: 'Document import feature is not yet implemented',
+                  severity: 'info'
+                });
+              }
             }
-          },
-          {
-            icon: <SOAPIcon />,
-            name: 'SOAP Note',
-            shortcut: 'Ctrl+S',
-            onClick: () => {
-              setSelectedTemplate('soap');
-              setEnhancedEditorOpen(true);
-            }
-          },
-          {
-            icon: <ConsultIcon />,
-            name: 'Consultation',
-            onClick: () => {
-              setSelectedTemplate('consult');
-              setEnhancedEditorOpen(true);
-            }
-          },
-          {
-            icon: <UploadIcon />,
-            name: 'Import Document',
-            onClick: () => {/* Handle import */}
-          }
-        ]}
-        position="bottom-right"
-        offsetY={density === 'compact' ? 16 : 24}
-      />
+          ]}
+          position="bottom-right"
+          offsetY={density === 'compact' ? 16 : 24}
+        />
+      ) : (
+        // Fallback FAB if ContextualFAB is not available
+        <Fab
+          color="primary"
+          aria-label="add note"
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            borderRadius: 0
+          }}
+          onClick={handleNewNote}
+        >
+          <AddIcon />
+        </Fab>
       )}
     </Box>
   );

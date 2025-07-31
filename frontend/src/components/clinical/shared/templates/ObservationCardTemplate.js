@@ -81,8 +81,24 @@ const ObservationCardTemplate = ({
     return interpretationMap[interpretation] || interpretation;
   };
   
-  // Build details array
+  // Build details array with enhanced FHIR fields
   const details = [];
+  
+  // Clinical codes and identifiers
+  const observationCode = observation.code?.coding?.[0]?.code;
+  const codeSystem = observation.code?.coding?.[0]?.system;
+  if (observationCode) {
+    let codeDisplay = observationCode;
+    if (codeSystem?.includes('loinc')) codeDisplay += ' (LOINC)';
+    if (codeSystem?.includes('snomed')) codeDisplay += ' (SNOMED)';
+    details.push({ label: 'Code', value: codeDisplay });
+  }
+  
+  // Identifiers
+  const identifiers = observation.identifier?.map(id => `${id.type?.text || 'ID'}: ${id.value}`).join(', ');
+  if (identifiers) {
+    details.push({ label: 'Identifiers', value: identifiers });
+  }
   
   // Reference range
   if (observation.referenceRange?.[0]) {
@@ -98,6 +114,19 @@ const ObservationCardTemplate = ({
     }
   }
   
+  // Method (how the observation was made)
+  if (observation.method?.text || observation.method?.coding?.[0]?.display) {
+    details.push({ 
+      label: 'Method', 
+      value: observation.method.text || observation.method.coding[0].display 
+    });
+  }
+  
+  // Device used
+  if (observation.device?.display) {
+    details.push({ label: 'Device', value: observation.device.display });
+  }
+  
   // Date/Time
   const effectiveDate = observation.effectiveDateTime || observation.issued;
   if (effectiveDate) {
@@ -107,14 +136,99 @@ const ObservationCardTemplate = ({
     });
   }
   
-  // Performer
-  if (observation.performer?.[0]?.display) {
-    details.push({ label: 'Performed by', value: observation.performer[0].display });
+  // Performer (enhanced with multiple performers)
+  if (observation.performer?.length > 0) {
+    const performers = observation.performer.map(p => p.display).filter(Boolean);
+    if (performers.length > 0) {
+      details.push({ 
+        label: performers.length > 1 ? 'Performed by' : 'Performed by', 
+        value: performers.join(', ') 
+      });
+    }
+  }
+  
+  // Specimen information
+  if (observation.specimen?.display) {
+    details.push({ label: 'Specimen', value: observation.specimen.display });
+  }
+  
+  // Body site
+  if (observation.bodySite?.text || observation.bodySite?.coding?.[0]?.display) {
+    details.push({ 
+      label: 'Body site', 
+      value: observation.bodySite.text || observation.bodySite.coding[0].display 
+    });
+  }
+  
+  // Component values (for complex observations)
+  if (observation.component?.length > 0) {
+    const components = observation.component.map(comp => {
+      const compValue = comp.valueQuantity ? 
+        `${comp.valueQuantity.value} ${comp.valueQuantity.unit || ''}` :
+        comp.valueString || comp.valueCodeableConcept?.text;
+      const compName = comp.code?.text || comp.code?.coding?.[0]?.display;
+      return compName && compValue ? `${compName}: ${compValue}` : null;
+    }).filter(Boolean);
+    
+    if (components.length > 0) {
+      details.push({ 
+        label: 'Components', 
+        value: components.join('; ') 
+      });
+    }
+  }
+  
+  // Enhanced interpretation details
+  if (observation.interpretation?.length > 0) {
+    const interpretations = observation.interpretation.map(interp => 
+      interp.text || interp.coding?.[0]?.display
+    ).filter(Boolean);
+    if (interpretations.length > 0 && interpretations.join(', ') !== getInterpretationDisplay()) {
+      details.push({ 
+        label: 'Interpretation details', 
+        value: interpretations.join(', ') 
+      });
+    }
+  }
+  
+  // Category details
+  if (observation.category?.length > 0) {
+    const categories = observation.category.map(cat => 
+      cat.text || cat.coding?.[0]?.display
+    ).filter(Boolean);
+    if (categories.length > 0) {
+      details.push({ 
+        label: 'Category', 
+        value: categories.join(', ') 
+      });
+    }
+  }
+  
+  // Related observations or derived from
+  if (observation.derivedFrom?.length > 0) {
+    const derivedFrom = observation.derivedFrom.map(ref => ref.display).filter(Boolean);
+    if (derivedFrom.length > 0) {
+      details.push({ 
+        label: 'Derived from', 
+        value: derivedFrom.join(', ') 
+      });
+    }
+  }
+  
+  // Focus (what the observation is about, if not the patient)
+  if (observation.focus?.length > 0) {
+    const focus = observation.focus.map(f => f.display).filter(Boolean);
+    if (focus.length > 0) {
+      details.push({ 
+        label: 'Focus', 
+        value: focus.join(', ') 
+      });
+    }
   }
   
   // Notes
   if (observation.note?.[0]?.text) {
-    details.push({ value: observation.note[0].text });
+    details.push({ label: 'Notes', value: observation.note[0].text });
   }
   
   // Build title with value and interpretation

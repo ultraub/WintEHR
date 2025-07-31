@@ -71,6 +71,7 @@ import {
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
 import { useSnackbar } from 'notistack';
+import { useNavigate } from 'react-router-dom';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
@@ -99,6 +100,7 @@ import { cdsAlertPersistence } from '../../../../services/cdsAlertPersistenceSer
 
 const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
@@ -700,7 +702,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.activeConditions.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed conditions view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Conditions List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.activeConditions.length - 5} more conditions
                             </Button>
                           )}
@@ -764,7 +778,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.activeMedications.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed medications view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Medications List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.activeMedications.length - 5} more medications
                             </Button>
                           )}
@@ -894,7 +920,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.immunizations.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed immunizations view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Immunizations List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.immunizations.length - 5} more immunizations
                             </Button>
                           )}
@@ -959,7 +997,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.procedures.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed procedures view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Procedures List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.procedures.length - 5} more procedures
                             </Button>
                           )}
@@ -1024,7 +1074,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.carePlans.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed care plans view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Care Plans List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.carePlans.length - 5} more care plans
                             </Button>
                           )}
@@ -1089,7 +1151,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             />
                           ))}
                           {processedData.documentReferences.length > 5 && (
-                            <Button size="small" fullWidth>
+                            <Button 
+                              size="small" 
+                              fullWidth
+                              onClick={() => {
+                                navigate('/404', { 
+                                  state: { 
+                                    message: 'Detailed documents view is not yet implemented',
+                                    returnPath: '/clinical-workspace',
+                                    feature: 'Documents List View'
+                                  }
+                                });
+                              }}
+                            >
                               View {processedData.documentReferences.length - 5} more documents
                             </Button>
                           )}
@@ -1267,6 +1341,20 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   const verification = condition.verificationStatus?.coding?.[0]?.code;
   const isActive = condition.clinicalStatus?.coding?.[0]?.code === 'active';
   
+  // Additional FHIR fields for enhanced clinical utility
+  const bodySite = condition.bodySite?.[0]?.text || condition.bodySite?.[0]?.coding?.[0]?.display;
+  const category = condition.category?.[0]?.coding?.[0]?.display || condition.category?.[0]?.text;
+  const asserter = condition.asserter?.display;
+  const recorder = condition.recorder?.display;
+  const recordedDate = condition.recordedDate;
+  const abatementDate = condition.abatementDateTime || condition.abatementAge?.value;
+  const evidence = condition.evidence?.[0]?.detail?.[0]?.display || condition.evidence?.[0]?.code?.[0]?.text;
+  const clinicalCode = condition.code?.coding?.[0]?.code;
+  const codeSystem = condition.code?.coding?.[0]?.system;
+  
+  // Format identifiers if present
+  const identifiers = condition.identifier?.map(id => `${id.type?.text || 'ID'}: ${id.value}`).join(', ');
+  
   // Determine severity level for styling
   const severityLevel = severity?.toLowerCase().includes('severe') ? 'high' : 
                        severity?.toLowerCase().includes('moderate') ? 'moderate' : 
@@ -1301,30 +1389,96 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
             {verification === 'confirmed' && (
               <Chip label="Confirmed" size="small" color="success" />
             )}
+            {category && (
+              <Chip label={category} size="small" variant="outlined" />
+            )}
           </Stack>
           
-          <Stack direction="row" spacing={2} alignItems="center">
+          {/* Clinical codes and identifiers */}
+          {(clinicalCode || identifiers) && (
+            <Stack direction="row" spacing={2} alignItems="center" mb={0.5}>
+              {clinicalCode && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  <strong>Code:</strong> {clinicalCode}
+                  {codeSystem?.includes('snomed') && ' (SNOMED)'}
+                  {codeSystem?.includes('icd') && ' (ICD)'}
+                </Typography>
+              )}
+              {identifiers && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>ID:</strong> {identifiers}
+                </Typography>
+              )}
+            </Stack>
+          )}
+          
+          {/* Clinical details */}
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <Typography variant="caption" color="text.secondary">
               <strong>Onset:</strong> {condition.onsetDateTime ? 
                 format(new Date(condition.onsetDateTime), 'MMM d, yyyy') : 
                 condition.onsetAge?.value ? `Age ${condition.onsetAge.value}` : 
                 'Unknown'}
             </Typography>
+            
+            {abatementDate && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Resolved:</strong> {typeof abatementDate === 'string' ? 
+                  format(new Date(abatementDate), 'MMM d, yyyy') : 
+                  `Age ${abatementDate}`}
+              </Typography>
+            )}
+            
             {severity && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Severity:</strong> {severity}
               </Typography>
             )}
+            
             {stage && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Stage:</strong> {stage}
               </Typography>
             )}
+            
+            {bodySite && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Site:</strong> {bodySite}
+              </Typography>
+            )}
           </Stack>
+          
+          {/* Clinical team and dates */}
+          {(asserter || recorder || recordedDate) && (
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap">
+              {asserter && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Asserted by:</strong> {asserter}
+                </Typography>
+              )}
+              {recorder && recorder !== asserter && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Recorded by:</strong> {recorder}
+                </Typography>
+              )}
+              {recordedDate && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Recorded:</strong> {format(new Date(recordedDate), 'MMM d, yyyy')}
+                </Typography>
+              )}
+            </Stack>
+          )}
+          
+          {/* Evidence and notes */}
+          {evidence && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              <strong>Evidence:</strong> {evidence}
+            </Typography>
+          )}
           
           {condition.note?.[0]?.text && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-              {condition.note[0].text}
+              <strong>Notes:</strong> {condition.note[0].text}
             </Typography>
           )}
         </Box>
@@ -1344,6 +1498,19 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
                           'Unknown medication';
   const dosage = medication.dosageInstruction?.[0];
   const isActive = ['active', 'on-hold'].includes(medication.status);
+  
+  // Additional FHIR fields for enhanced clinical utility
+  const requester = medication.requester?.display;
+  const reasonReference = medication.reasonReference?.[0]?.display;
+  const courseOfTherapy = medication.courseOfTherapyType?.text || medication.courseOfTherapyType?.coding?.[0]?.display;
+  const dispenseRequest = medication.dispenseRequest;
+  const substitution = medication.substitution;
+  const medicationCode = medication.medicationCodeableConcept?.coding?.[0]?.code;
+  const medicationSystem = medication.medicationCodeableConcept?.coding?.[0]?.system;
+  const identifiers = medication.identifier?.map(id => `${id.type?.text || 'ID'}: ${id.value}`).join(', ');
+  const groupIdentifier = medication.groupIdentifier?.value;
+  const priorPrescription = medication.priorPrescription?.display;
+  const detectedIssue = medication.detectedIssue?.[0]?.display;
   
   const cardStyles = getClinicalCardStyles(isActive ? 'normal' : 'low', 1, true);
   
@@ -1382,7 +1549,38 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
                 variant="outlined"
               />
             )}
+            {courseOfTherapy && (
+              <Chip 
+                label={courseOfTherapy} 
+                size="small" 
+                variant="outlined"
+                sx={{ fontSize: '0.7rem' }}
+              />
+            )}
           </Stack>
+          
+          {/* Medication codes and identifiers */}
+          {(medicationCode || identifiers || groupIdentifier) && (
+            <Stack direction="row" spacing={2} alignItems="center" mb={0.5} flexWrap="wrap">
+              {medicationCode && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  <strong>Code:</strong> {medicationCode}
+                  {medicationSystem?.includes('rxnorm') && ' (RxNorm)'}
+                  {medicationSystem?.includes('ndc') && ' (NDC)'}
+                </Typography>
+              )}
+              {identifiers && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>ID:</strong> {identifiers}
+                </Typography>
+              )}
+              {groupIdentifier && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Group:</strong> {groupIdentifier}
+                </Typography>
+              )}
+            </Stack>
+          )}
           
           <Stack spacing={0.5}>
             {dosage && (
@@ -1396,14 +1594,67 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
                 <strong>Route:</strong> {dosage.route.text || dosage.route.coding?.[0]?.display}
               </Typography>
             )}
-            {medication.authoredOn && (
+            
+            {/* Prescriber and timing */}
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              {medication.authoredOn && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Prescribed:</strong> {format(new Date(medication.authoredOn), 'MMM d, yyyy')}
+                </Typography>
+              )}
+              {requester && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Prescriber:</strong> {requester}
+                </Typography>
+              )}
+            </Stack>
+            
+            {/* Clinical context */}
+            {(medication.reasonCode?.[0] || reasonReference) && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Started:</strong> {format(new Date(medication.authoredOn), 'MMM d, yyyy')}
+                <strong>Reason:</strong> {medication.reasonCode?.[0]?.text || medication.reasonCode?.[0]?.coding?.[0]?.display || reasonReference}
               </Typography>
             )}
-            {medication.reasonCode?.[0] && (
+            
+            {/* Dispense information */}
+            {dispenseRequest && (
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                {dispenseRequest.quantity && (
+                  <Typography variant="caption" color="text.secondary">
+                    <strong>Quantity:</strong> {dispenseRequest.quantity.value} {dispenseRequest.quantity.unit}
+                  </Typography>
+                )}
+                {dispenseRequest.numberOfRepeatsAllowed !== undefined && (
+                  <Typography variant="caption" color="text.secondary">
+                    <strong>Refills:</strong> {dispenseRequest.numberOfRepeatsAllowed}
+                  </Typography>
+                )}
+                {dispenseRequest.expectedSupplyDuration && (
+                  <Typography variant="caption" color="text.secondary">
+                    <strong>Supply:</strong> {dispenseRequest.expectedSupplyDuration.value} days
+                  </Typography>
+                )}
+              </Stack>
+            )}
+            
+            {/* Substitution and alerts */}
+            {substitution && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Reason:</strong> {medication.reasonCode[0].text || medication.reasonCode[0].coding?.[0]?.display}
+                <strong>Substitution:</strong> {typeof substitution.allowedBoolean === 'boolean' ? 
+                  (substitution.allowedBoolean ? 'Allowed' : 'Not allowed') : 
+                  (substitution.allowedCodeableConcept?.text || substitution.allowedCodeableConcept?.coding?.[0]?.display)}
+              </Typography>
+            )}
+            
+            {detectedIssue && (
+              <Typography variant="caption" color="warning.main">
+                <strong>⚠ Issue:</strong> {detectedIssue}
+              </Typography>
+            )}
+            
+            {priorPrescription && (
+              <Typography variant="caption" color="text.secondary">
+                <strong>Replaces:</strong> {priorPrescription}
               </Typography>
             )}
           </Stack>
@@ -1428,6 +1679,22 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   
   const manifestations = allergy.reaction?.[0]?.manifestation || [];
   const severity = allergy.reaction?.[0]?.severity;
+  
+  // Additional FHIR fields for enhanced clinical utility
+  const asserter = allergy.asserter?.display;
+  const recorder = allergy.recorder?.display;
+  const lastOccurrence = allergy.lastOccurrence;
+  const clinicalStatus = allergy.clinicalStatus?.coding?.[0]?.code;
+  const verificationStatus = allergy.verificationStatus?.coding?.[0]?.code;
+  const allergenCode = allergy.code?.coding?.[0]?.code;
+  const codeSystem = allergy.code?.coding?.[0]?.system;
+  const identifiers = allergy.identifier?.map(id => `${id.type?.text || 'ID'}: ${id.value}`).join(', ');
+  const onsetDate = allergy.onsetDateTime || allergy.onsetAge?.value;
+  
+  // All manifestations from all reactions
+  const allManifestations = allergy.reaction?.flatMap(reaction => 
+    reaction.manifestation?.map(m => m.text || m.coding?.[0]?.display).filter(Boolean)
+  ) || [];
   
   // Map criticality to severity level
   const severityLevel = criticality === 'high' ? 'critical' : 
@@ -1476,23 +1743,94 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                 color={severity === 'severe' ? 'error' : 'default'}
               />
             )}
+            {clinicalStatus && clinicalStatus !== 'active' && (
+              <Chip 
+                label={clinicalStatus} 
+                size="small" 
+                variant="outlined"
+                color="default"
+              />
+            )}
+            {verificationStatus === 'confirmed' && (
+              <Chip 
+                label="Confirmed" 
+                size="small" 
+                color="success"
+                variant="outlined"
+              />
+            )}
           </Stack>
+          
+          {/* Allergy codes and identifiers */}
+          {(allergenCode || identifiers) && (
+            <Stack direction="row" spacing={2} alignItems="center" mb={0.5} flexWrap="wrap">
+              {allergenCode && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  <strong>Code:</strong> {allergenCode}
+                  {codeSystem?.includes('snomed') && ' (SNOMED)'}
+                  {codeSystem?.includes('rxnorm') && ' (RxNorm)'}
+                </Typography>
+              )}
+              {identifiers && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>ID:</strong> {identifiers}
+                </Typography>
+              )}
+            </Stack>
+          )}
           
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
               <strong>Type:</strong> {allergy.type || 'Unknown'} | 
               <strong> Category:</strong> {allergy.category?.[0] || 'Unknown'}
             </Typography>
-            {manifestations.length > 0 && (
+            
+            {/* Enhanced manifestation display */}
+            {allManifestations.length > 0 && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Reactions:</strong> {manifestations.map(m => 
-                  m.text || m.coding?.[0]?.display
-                ).join(', ')}
+                <strong>Manifestations:</strong> {allManifestations.join(', ')}
               </Typography>
             )}
-            {allergy.recordedDate && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Recorded:</strong> {format(new Date(allergy.recordedDate), 'MMM d, yyyy')}
+            
+            {/* Onset and occurrence information */}
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              {onsetDate && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Onset:</strong> {typeof onsetDate === 'string' ? 
+                    format(new Date(onsetDate), 'MMM d, yyyy') : 
+                    `Age ${onsetDate}`}
+                </Typography>
+              )}
+              {lastOccurrence && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Last reaction:</strong> {format(new Date(lastOccurrence), 'MMM d, yyyy')}
+                </Typography>
+              )}
+            </Stack>
+            
+            {/* Clinical team and recording information */}
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              {allergy.recordedDate && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Recorded:</strong> {format(new Date(allergy.recordedDate), 'MMM d, yyyy')}
+                </Typography>
+              )}
+              {recorder && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Recorded by:</strong> {recorder}
+                </Typography>
+              )}
+              {asserter && asserter !== recorder && (
+                <Typography variant="caption" color="text.secondary">
+                  <strong>Asserted by:</strong> {asserter}
+                </Typography>
+              )}
+            </Stack>
+            
+            {/* Notes */}
+            {allergy.note?.[0]?.text && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                <strong>Notes:</strong> {allergy.note[0].text}
               </Typography>
             )}
           </Stack>

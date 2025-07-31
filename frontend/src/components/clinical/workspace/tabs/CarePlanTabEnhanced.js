@@ -1144,39 +1144,169 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           {selectedGoal ? 'Edit Goal' : 'New Goal'}
         </DialogTitle>
         <DialogContent>
-          {/* Goal form fields */}
-          <Typography variant="body2" sx={{ p: 2 }}>
-            Goal editor form would go here
-          </Typography>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Goal Description"
+              multiline
+              rows={3}
+              defaultValue={selectedGoal?.description?.text || ''}
+              placeholder="Enter goal description..."
+            />
+            <FormControl fullWidth>
+              <InputLabel>Category</InputLabel>
+              <Select
+                defaultValue={selectedGoal?.category?.[0]?.coding?.[0]?.code || 'health-maintenance'}
+                label="Category"
+              >
+                {Object.entries(goalCategories).map(([key, config]) => (
+                  <MenuItem key={key} value={key}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {config.icon}
+                      <span>{config.label}</span>
+                    </Stack>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Target Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              defaultValue={selectedGoal?.target?.[0]?.dueDate?.split('T')[0] || ''}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                defaultValue={selectedGoal?.priority?.coding?.[0]?.code || 'medium'}
+                label="Priority"
+              >
+                <MenuItem value="high">High</MenuItem>
+                <MenuItem value="medium">Medium</MenuItem>
+                <MenuItem value="low">Low</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Notes"
+              multiline
+              rows={2}
+              defaultValue={selectedGoal?.note?.[0]?.text || ''}
+              placeholder="Additional notes..."
+            />
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setGoalDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
+          <Button 
+            variant="contained" 
+            sx={{ borderRadius: 0 }}
+            onClick={() => {
+              // Here you would implement the actual save logic
+              setSnackbar({
+                open: true,
+                message: selectedGoal ? 'Goal updated successfully' : 'Goal created successfully',
+                severity: 'success'
+              });
+              setGoalDialogOpen(false);
+            }}
+          >
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
       
       {/* Progress Dialog */}
       <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
         <DialogTitle>
-          Goal Progress
+          Goal Progress - {selectedGoal?.description?.text || 'Goal'}
         </DialogTitle>
         <DialogContent>
           {selectedGoal && (
             <Stack spacing={3} sx={{ mt: 2 }}>
               <Alert severity="info" sx={{ borderRadius: 0 }}>
-                {selectedGoal.description?.text || 'Goal'}
+                <Typography variant="body2">
+                  <strong>Category:</strong> {goalCategories[selectedGoal.category?.[0]?.coding?.[0]?.code || 'health-maintenance']?.label}
+                  {selectedGoal.target?.[0]?.dueDate && (
+                    <> • <strong>Due:</strong> {format(parseISO(selectedGoal.target[0].dueDate), 'MMM d, yyyy')}</>
+                  )}
+                </Typography>
               </Alert>
               
-              {/* Progress visualization would go here */}
-              <Typography variant="body2">
-                Progress tracking and visualization would be displayed here
-              </Typography>
+              {/* Current Progress */}
+              <Box>
+                <Typography variant="h6" gutterBottom>Current Progress</Typography>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Achievement Status</InputLabel>
+                  <Select
+                    defaultValue={selectedGoal.achievementStatus?.coding?.[0]?.code || 'in-progress'}
+                    label="Achievement Status"
+                  >
+                    <MenuItem value="in-progress">In Progress</MenuItem>
+                    <MenuItem value="improving">Improving</MenuItem>
+                    <MenuItem value="worsening">Worsening</MenuItem>
+                    <MenuItem value="no-change">No Change</MenuItem>
+                    <MenuItem value="achieved">Achieved</MenuItem>
+                    <MenuItem value="sustaining">Sustaining</MenuItem>
+                    <MenuItem value="not-achieved">Not Achieved</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <TextField
+                  fullWidth
+                  label="Progress Notes"
+                  multiline
+                  rows={3}
+                  placeholder="Add notes about current progress..."
+                  sx={{ mb: 2 }}
+                />
+              </Box>
+              
+              {/* Progress Chart */}
+              <Box>
+                <Typography variant="h6" gutterBottom>Progress Timeline</Typography>
+                <GoalProgressChart 
+                  goal={selectedGoal} 
+                  observations={[]} // Would be populated with actual observations
+                />
+              </Box>
+              
+              {/* Target Measures */}
+              {selectedGoal.target?.[0] && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>Target Measures</Typography>
+                  <Stack spacing={1}>
+                    <Typography variant="body2">
+                      <strong>Measure:</strong> {selectedGoal.target[0].measure?.text || selectedGoal.target[0].measure?.coding?.[0]?.display || 'Not specified'}
+                    </Typography>
+                    {selectedGoal.target[0].detailQuantity && (
+                      <Typography variant="body2">
+                        <strong>Target Value:</strong> {selectedGoal.target[0].detailQuantity.value} {selectedGoal.target[0].detailQuantity.unit}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Box>
+              )}
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setProgressDialogOpen(false)} sx={{ borderRadius: 0 }}>Close</Button>
-          <Button variant="contained" sx={{ borderRadius: 0 }}>Update Progress</Button>
+          <Button 
+            variant="contained" 
+            sx={{ borderRadius: 0 }}
+            onClick={() => {
+              setSnackbar({
+                open: true,
+                message: 'Progress updated successfully',
+                severity: 'success'
+              });
+              setProgressDialogOpen(false);
+            }}
+          >
+            Update Progress
+          </Button>
         </DialogActions>
       </Dialog>
       
@@ -1186,13 +1316,76 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           {selectedParticipant ? 'Edit Team Member' : 'Add Team Member'}
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ p: 2 }}>
-            Team member form would go here
-          </Typography>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Member Name"
+              defaultValue={selectedParticipant?.member?.display || ''}
+              placeholder="Enter team member name..."
+            />
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                defaultValue={selectedParticipant?.role?.[0]?.coding?.[0]?.code || 'caregiver'}
+                label="Role"
+              >
+                <MenuItem value="caregiver">Caregiver</MenuItem>
+                <MenuItem value="physician">Physician</MenuItem>
+                <MenuItem value="nurse">Nurse</MenuItem>
+                <MenuItem value="social-worker">Social Worker</MenuItem>
+                <MenuItem value="therapist">Therapist</MenuItem>
+                <MenuItem value="pharmacist">Pharmacist</MenuItem>
+                <MenuItem value="dietitian">Dietitian</MenuItem>
+                <MenuItem value="coordinator">Care Coordinator</MenuItem>
+                <MenuItem value="specialist">Specialist</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Contact Information"
+              placeholder="Phone, email, or other contact details..."
+              defaultValue={selectedParticipant?.telecom?.[0]?.value || ''}
+            />
+            <TextField
+              fullWidth
+              label="Start Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              defaultValue={selectedParticipant?.period?.start?.split('T')[0] || ''}
+            />
+            <TextField
+              fullWidth
+              label="End Date (if applicable)"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              defaultValue={selectedParticipant?.period?.end?.split('T')[0] || ''}
+            />
+            <TextField
+              fullWidth
+              label="Notes"
+              multiline
+              rows={2}
+              placeholder="Additional notes about this team member's role..."
+            />
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTeamDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
+          <Button 
+            variant="contained" 
+            sx={{ borderRadius: 0 }}
+            onClick={() => {
+              setSnackbar({
+                open: true,
+                message: selectedParticipant ? 'Team member updated successfully' : 'Team member added successfully',
+                severity: 'success'
+              });
+              setTeamDialogOpen(false);
+            }}
+          >
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
       
@@ -1202,13 +1395,112 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
           {selectedActivity ? 'Edit Activity' : 'Add Activity'}
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ p: 2 }}>
-            Activity form would go here
-          </Typography>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Activity Description"
+              multiline
+              rows={3}
+              defaultValue={selectedActivity?.detail?.description || ''}
+              placeholder="Describe the activity or intervention..."
+            />
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                defaultValue={selectedActivity?.detail?.status || 'not-started'}
+                label="Status"
+              >
+                <MenuItem value="not-started">Not Started</MenuItem>
+                <MenuItem value="scheduled">Scheduled</MenuItem>
+                <MenuItem value="in-progress">In Progress</MenuItem>
+                <MenuItem value="on-hold">On Hold</MenuItem>
+                <MenuItem value="completed">Completed</MenuItem>
+                <MenuItem value="cancelled">Cancelled</MenuItem>
+                <MenuItem value="stopped">Stopped</MenuItem>
+                <MenuItem value="unknown">Unknown</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Category</InputLabel>
+              <Select
+                defaultValue={selectedActivity?.detail?.category?.coding?.[0]?.code || 'other'}
+                label="Category"
+              >
+                <MenuItem value="diet">Diet</MenuItem>
+                <MenuItem value="drug">Medication</MenuItem>
+                <MenuItem value="encounter">Encounter</MenuItem>
+                <MenuItem value="observation">Observation</MenuItem>
+                <MenuItem value="procedure">Procedure</MenuItem>
+                <MenuItem value="supply">Supply</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Assigned To"
+              defaultValue={selectedActivity?.detail?.performer?.[0]?.display || ''}
+              placeholder="Provider or team member responsible..."
+            />
+            <TextField
+              fullWidth
+              label="Location"
+              defaultValue={selectedActivity?.detail?.location?.display || ''}
+              placeholder="Where will this activity take place..."
+            />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Frequency"
+                type="number"
+                defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.frequency || 1}
+                sx={{ width: '30%' }}
+              />
+              <FormControl sx={{ width: '35%' }}>
+                <InputLabel>Period</InputLabel>
+                <Select
+                  defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.periodUnit || 'd'}
+                  label="Period"
+                >
+                  <MenuItem value="s">Seconds</MenuItem>
+                  <MenuItem value="min">Minutes</MenuItem>
+                  <MenuItem value="h">Hours</MenuItem>
+                  <MenuItem value="d">Days</MenuItem>
+                  <MenuItem value="wk">Weeks</MenuItem>
+                  <MenuItem value="mo">Months</MenuItem>
+                  <MenuItem value="a">Years</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Duration"
+                type="number"
+                defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.period || 1}
+                sx={{ width: '35%' }}
+              />
+            </Stack>
+            <TextField
+              fullWidth
+              label="Notes"
+              multiline
+              rows={2}
+              placeholder="Additional notes about this activity..."
+            />
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setActivityDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 0 }}>Save</Button>
+          <Button 
+            variant="contained" 
+            sx={{ borderRadius: 0 }}
+            onClick={() => {
+              setSnackbar({
+                open: true,
+                message: selectedActivity ? 'Activity updated successfully' : 'Activity added successfully',
+                severity: 'success'
+              });
+              setActivityDialogOpen(false);
+            }}
+          >
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
       

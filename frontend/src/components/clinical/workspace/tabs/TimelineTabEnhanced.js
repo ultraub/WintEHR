@@ -393,7 +393,6 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       
       try {
         setLoadingError(null);
-        console.log('Timeline: Starting data load for patient', patientId);
         
         // Start with a smaller count for faster initial load
         const options = {
@@ -404,7 +403,6 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
         };
         
         const result = await fetchPatientEverything(patientId, options);
-        console.log('Timeline: Data loaded successfully', result);
         
         if (isMountedRef.current) {
           setHasLoadedInitialData(true);
@@ -462,8 +460,6 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
     const seenIds = new Set();
     
     // Debug logging
-    console.log('Timeline: Collecting events for types:', Array.from(selectedTypes));
-    console.log('Timeline: Available resources:', Object.keys(resources || {}));
     
     // Add FHIR resources
     selectedTypes.forEach(resourceType => {
@@ -481,7 +477,6 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
           ? resourceTypeData.filter(r => resourceBelongsToPatient(r, patientId))
           : Object.values(resourceTypeData).filter(r => resourceBelongsToPatient(r, patientId));
         
-        console.log(`Timeline: Found ${patientResources.length} ${resourceType} resources for patient`);
         
         patientResources.forEach(resource => {
           const uniqueKey = `${resource.resourceType}-${resource.id}`;
@@ -493,7 +488,6 @@ const TimelineTabEnhanced = ({ patientId, patient, onNavigateToTab }) => {
       }
     });
     
-    console.log('Timeline: Total events collected:', events.length);
     return events;
   }, [patientId, resources, workflowEvents, selectedTypes]);
   

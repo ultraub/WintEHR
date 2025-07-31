@@ -247,18 +247,6 @@ const ResultsTabOptimized = ({ patientId }) => {
       const vitalObservations = vitalEntries;
       const diagnosticReports = diagnosticEntries;
 
-      // Diagnostic logging to help identify the issue
-      if (labObservations.length > 0) {
-        const dates = labObservations.map(obs => obs.effectiveDateTime || obs.issued).filter(Boolean);
-        console.log('Results Tab - Lab observations loaded:', {
-          count: labObservations.length,
-          dateRange: dates.length > 0 ? {
-            earliest: dates.sort()[0],
-            latest: dates.sort()[dates.length - 1]
-          } : 'No dates found',
-          sampleObservation: labObservations[0]
-        });
-      }
 
       setAllData({
         labObservations,

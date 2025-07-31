@@ -41,12 +41,13 @@ import TrendSparkline from '../display/TrendSparkline';
 
 // Severity indicator component
 const SeverityIndicator = ({ severity, size = 'small' }) => {
+  const theme = useTheme();
   const colors = {
-    critical: '#d32f2f',
-    high: '#f57c00',
-    moderate: '#fbc02d',
-    low: '#388e3c',
-    normal: '#616161'
+    critical: theme.palette.error.main,
+    high: theme.palette.warning.main,
+    moderate: theme.palette.warning.light,
+    low: theme.palette.success.main,
+    normal: theme.palette.text.secondary
   };
 
   return (
