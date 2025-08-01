@@ -291,11 +291,14 @@ const CardBuilder = ({ card, onChange, onRemove }) => {
               <Checkbox
                 checked={card.overrideReasonRequired || false}
                 onChange={(e) => handleChange('overrideReasonRequired', e.target.checked)}
+                disabled
               />
             }
-            label="Override reason required"
-            helperText="When checked, users must provide a reason to override this recommendation"
+            label="Override reason required (Deprecated)"
           />
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 3, display: 'block' }}>
+            Note: Override requirements should now be configured at the hook level in the Display Behavior tab
+          </Typography>
         </Grid>
         <Grid item xs={12}>
           <TextField

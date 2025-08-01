@@ -83,7 +83,7 @@ import GenderConditionBuilder from './conditions/GenderConditionBuilder';
 import MedicationConditionBuilder from './conditions/MedicationConditionBuilder';
 import CardBuilder from './CardBuilder';
 import SuggestionBuilder from './SuggestionBuilder';
-import DisplayBehaviorConfig from './DisplayBehaviorConfig';
+import DisplayBehaviorConfiguration from './DisplayBehaviorConfiguration';
 import PrefetchQueryBuilder from './PrefetchQueryBuilder';
 import CDSCardDisplay from './CDSCardDisplay';
 
@@ -830,7 +830,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
   const renderDisplayBehavior = () => (
     <Box sx={{ mt: 2 }}>
-      <DisplayBehaviorConfig
+      <DisplayBehaviorConfiguration
         config={hookData.displayBehavior}
         onChange={(displayBehavior) => setHookData({ ...hookData, displayBehavior })}
       />
