@@ -507,7 +507,6 @@ const BuildModeWithErrorHandling = ({ pendingEditHook, onPendingHookProcessed })
   // Handle pending edit hook when component mounts or pendingEditHook changes
   useEffect(() => {
     if (pendingEditHook) {
-      console.log('[BuildModeWithErrorHandling] Processing pending edit hook:', pendingEditHook);
       actions.setCurrentHook(pendingEditHook);
       onPendingHookProcessed();
     }
@@ -707,7 +706,6 @@ function CDSHooksStudio() {
             >
               <CDSManageMode 
                 onEditService={(serviceOrHook) => {
-                  console.log('[CDSHooksStudio] Edit service called with:', serviceOrHook);
                   // Set the current hook in context for editing
                   if (serviceOrHook) {
                     // Transform service to hook format if needed
@@ -725,7 +723,6 @@ function CDSHooksStudio() {
                             modified: new Date().toISOString()
                           }
                         };
-                    console.log('[CDSHooksStudio] Setting pending edit hook:', hook);
                     // Store the hook to be edited
                     setPendingEditHook(hook);
                     // Switch to build mode

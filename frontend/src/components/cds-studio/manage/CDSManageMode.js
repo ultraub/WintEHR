@@ -172,7 +172,6 @@ const CDSManageMode = ({ onEditService }) => {
   // Removed duplicate handleEdit - using the one below
 
   const handleEdit = (hook) => {
-    console.log('[CDSManageMode] Editing hook:', hook);
     // Call the parent handler to switch to build mode with this hook
     if (onEditService) {
       onEditService(hook);

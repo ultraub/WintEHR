@@ -22,7 +22,6 @@ export const CDSBuildMode = () => {
   // Initialize local hook from context state
   useEffect(() => {
     if (context?.state?.currentHook) {
-      console.log('[CDSBuildMode] Received hook from context:', context.state.currentHook);
       setLocalHook(context.state.currentHook);
     }
   }, [context?.state?.currentHook]);
@@ -92,7 +91,6 @@ export const CDSBuildModeImproved = () => {
   // Initialize local hook from context state
   useEffect(() => {
     if (context?.state?.currentHook) {
-      console.log('[CDSBuildMode] Received hook from context:', context.state.currentHook);
       setLocalHook(context.state.currentHook);
     }
   }, [context?.state?.currentHook]);
