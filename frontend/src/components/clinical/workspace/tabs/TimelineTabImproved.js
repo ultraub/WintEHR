@@ -400,6 +400,7 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [timelineDensity, setTimelineDensity] = useState('normal'); // 'compact', 'normal', 'comfortable'
   const [filterAnchor, setFilterAnchor] = useState(null);
+  const [reloadTrigger, setReloadTrigger] = useState(0); // Manual reload trigger
   
   // Use ref to track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -522,9 +523,8 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
       }
     };
     
-    // Load data when component mounts, patient changes, or filters change
     loadData();
-  }, [patientId, selectedTypes, dateRange.start, dateRange.end, searchResources, hasLoadedInitialData]);
+  }, [patientId, reloadTrigger]); // Only reload on patient change or manual trigger
   
   // Subscribe to workflow events
   useEffect(() => {
@@ -644,7 +644,23 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
   
   // Prepare resources for timeline component with proper format
   const timelineResources = useMemo(() => {
-    return sortedEvents.filter(event => event.date); // Only include events with dates
+    return sortedEvents
+      .filter(event => event.date) // Only include events with dates
+      .map(event => {
+        // ResourceTimeline expects specific date fields
+        const eventDate = getEventDate(event);
+        return {
+          ...event,
+          date: eventDate, // Primary date field
+          effectiveDateTime: eventDate, // Backup date field
+          authoredOn: eventDate, // Another backup
+          created: eventDate, // Final backup
+          display: getEventTitle(event), // Display text for tooltip
+          code: {
+            text: getEventTitle(event)
+          }
+        };
+      });
   }, [sortedEvents]);
   
   // Calculate summary metrics
@@ -698,12 +714,16 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
     if (!isPreset) {
       setSelectedPreset(null);
     }
+    // Trigger reload after date range change
+    setReloadTrigger(prev => prev + 1);
   }, []);
   
   const handlePresetClick = useCallback((preset) => {
     const range = preset.getValue();
     setDateRange(range);
     setSelectedPreset(preset.label);
+    // Trigger reload after preset selection
+    setReloadTrigger(prev => prev + 1);
   }, []);
   
   function getEventTitle(event) {
@@ -815,6 +835,8 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
       }
       return newTypes;
     });
+    // Trigger reload after type selection change
+    setReloadTrigger(prev => prev + 1);
   };
   
   // Use isResourceLoading from context
@@ -825,7 +847,7 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
         <ClinicalLoadingState.SummaryCard count={4} />
         <Box sx={{ mt: 2 }}>
-          <ClinicalLoadingState.Filter />
+          <ClinicalLoadingState.FilterPanel />
         </Box>
         <Box sx={{ mt: 2 }}>
           <ClinicalLoadingState.ResourceCard count={5} />
@@ -888,73 +910,14 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
           { value: 'list', label: 'List', icon: <ListViewIcon /> },
           { value: 'timeline', label: 'Timeline', icon: <TimelineIcon /> }
         ]}
-        onRefresh={async () => {
-          try {
-            setHasLoadedInitialData(false);
-            setLoadingError(null);
-            
-            // Refresh data by re-running searches for each selected type
-            const promises = Array.from(selectedTypes).map(async (resourceType) => {
-              if (resourceType === 'WorkflowEvent') return;
-              
-              const params = {
-                patient: patientId,
-                _count: 50,
-                _sort: '-date'
-              };
-              
-              // Add date range filters - use resource-specific date parameters
-              const dateParam = (() => {
-                switch (resourceType) {
-                  case 'Condition':
-                    return 'recorded-date';
-                  case 'MedicationRequest':
-                    return 'authored';
-                  case 'Observation':
-                    return 'date';
-                  case 'Procedure':
-                    return 'performed';
-                  case 'Encounter':
-                    return 'date';
-                  case 'Immunization':
-                    return 'date';
-                  case 'DocumentReference':
-                    return 'date';
-                  case 'DiagnosticReport':
-                    return 'date';
-                  case 'AllergyIntolerance':
-                    return 'date';
-                  default:
-                    return 'date';
-                }
-              })();
-              
-              if (dateRange.start && dateRange.end) {
-                params[dateParam] = `ge${dateRange.start.toISOString().split('T')[0]}&${dateParam}=le${dateRange.end.toISOString().split('T')[0]}`;
-              } else if (dateRange.start) {
-                params[dateParam] = `ge${dateRange.start.toISOString().split('T')[0]}`;
-              } else if (dateRange.end) {
-                params[dateParam] = `le${dateRange.end.toISOString().split('T')[0]}`;
-              }
-              
-              try {
-                await searchResources(resourceType, params, true);
-              } catch (error) {
-                console.error(`Timeline: Error refreshing ${resourceType}:`, error);
-              }
-            });
-            
-            await Promise.all(promises);
-            setHasLoadedInitialData(true);
-            setSnackbar({
-              open: true,
-              message: 'Timeline refreshed successfully',
-              severity: 'success'
-            });
-          } catch (error) {
-            console.error('Timeline: Refresh failed', error);
-            setLoadingError(error.message || 'Failed to refresh timeline data');
-          }
+        onRefresh={() => {
+          // Simply trigger a reload
+          setReloadTrigger(prev => prev + 1);
+          setSnackbar({
+            open: true,
+            message: 'Timeline refreshed',
+            severity: 'success'
+          });
         }}
         additionalFilters={
           <Stack direction="row" spacing={0.5}>
@@ -1041,6 +1004,7 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
                 onClick={() => {
                   setSelectedTypes(new Set(Object.keys(eventTypes)));
                   setShowInactiveResources(true);
+                  setReloadTrigger(prev => prev + 1);
                 }}
                 sx={{ borderRadius: 0, py: 0.5, fontSize: '0.75rem' }}
               >
@@ -1051,6 +1015,7 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
                 onClick={() => {
                   setSelectedTypes(new Set(['Condition', 'MedicationRequest', 'AllergyIntolerance']));
                   setShowInactiveResources(false);
+                  setReloadTrigger(prev => prev + 1);
                 }}
                 sx={{ borderRadius: 0, py: 0.5, fontSize: '0.75rem' }}
               >
@@ -1058,7 +1023,10 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
               </Button>
               <Button 
                 size="small" 
-                onClick={() => setSelectedTypes(new Set())}
+                onClick={() => {
+                  setSelectedTypes(new Set());
+                  setReloadTrigger(prev => prev + 1);
+                }}
                 sx={{ borderRadius: 0, py: 0.5, fontSize: '0.75rem' }}
               >
                 None
@@ -1127,6 +1095,7 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
                   setSearchQuery('');
                   setSelectedTypes(new Set(Object.keys(eventTypes)));
                   setShowInactiveResources(true);
+                  setReloadTrigger(prev => prev + 1);
                 }
               },
               !showInactiveResources && {
@@ -1221,31 +1190,35 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
           />
         ) : (
           // Timeline view - using actual ResourceTimeline component
-          <Box sx={{ height: '100%', p: 1 }}>
-            <ResourceTimeline
-              resources={timelineResources}
-              height={timelineDensity === 'compact' ? 300 : timelineDensity === 'comfortable' ? 500 : 400}
-              loading={loading && !hasLoadedInitialData}
-              onResourceClick={handleEventClick}
-              onRangeSelect={(range) => {
-                handleDateRangeChange({ start: new Date(range.start), end: new Date(range.end) });
-              }}
-              showLegend={true}
-              showControls={false} // We're using our own controls
-              groupBy="resourceType"
-              initialTimeRange={dateRange.start && dateRange.end ? 
-                Math.ceil((dateRange.end - dateRange.start) / (1000 * 60 * 60 * 24)) : 
-                365
-              }
-              highlightToday={true}
-              animate={true}
-              sx={{ 
-                borderRadius: 0,
-                '& .MuiPaper-root': {
-                  borderRadius: 0
+          <Box sx={{ height: '100%', p: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <ResourceTimeline
+                resources={timelineResources}
+                height="100%" // Let it fill the container
+                loading={loading && !hasLoadedInitialData}
+                onResourceClick={handleEventClick}
+                onRangeSelect={(range) => {
+                  handleDateRangeChange({ start: new Date(range.start), end: new Date(range.end) });
+                }}
+                showLegend={true}
+                showControls={false} // We're using our own controls
+                groupBy="resourceType"
+                initialTimeRange={dateRange.start && dateRange.end ? 
+                  Math.ceil((dateRange.end - dateRange.start) / (1000 * 60 * 60 * 24)) : 
+                  365
                 }
-              }}
-            />
+                highlightToday={true}
+                animate={true}
+                sx={{ 
+                  borderRadius: 0,
+                  height: '100%',
+                  '& .MuiPaper-root': {
+                    borderRadius: 0,
+                    height: '100%'
+                  }
+                }}
+              />
+            </Box>
           </Box>
         )}
       </Box>

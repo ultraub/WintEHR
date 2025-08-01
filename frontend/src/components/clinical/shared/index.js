@@ -4,22 +4,22 @@
  */
 
 // Card Components
-export * from './cards';
+export * from './cards/index.js';
 
 // Dialog Components
-export * from './dialogs';
+export * from './dialogs/index.js';
 
 // Table Components
-export * from './tables';
+export * from './tables/index.js';
 
 // Input Components
-export * from './inputs';
+export * from './inputs/index.js';
 
 // Display Components
-export * from './display';
+export * from './display/index.js';
 
 // Layout Components
-export * from './layout';
+export * from './layout/index.js';
 
 // Core Components (remain in root for backward compatibility)
 export { default as ClinicalSummaryCard } from './ClinicalSummaryCard';
@@ -29,7 +29,7 @@ export { default as ClinicalEmptyState } from './ClinicalEmptyState';
 export { default as ClinicalLoadingState } from './ClinicalLoadingState';
 
 // Export all templates
-export * from './templates';
+export * from './templates/index.js';
 
 // Re-export component presets for convenience
 export const EmptyStatePresets = {

@@ -1554,19 +1554,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
 // Enhanced card components with professional styling
 const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   const theme = useTheme();
-  const severity = condition.severity?.coding?.[0]?.display || condition.severity?.text;
-  const stage = condition.stage?.[0]?.summary?.coding?.[0]?.display || condition.stage?.[0]?.summary?.text;
+  const severity = condition.severity?.coding?.[0]?.display || condition.severity?.text || null;
+  const stage = condition.stage?.[0]?.summary?.coding?.[0]?.display || condition.stage?.[0]?.summary?.text || null;
   const verification = condition.verificationStatus?.coding?.[0]?.code;
   const isActive = condition.clinicalStatus?.coding?.[0]?.code === 'active';
   
   // Additional FHIR fields for enhanced clinical utility
-  const bodySite = condition.bodySite?.[0]?.text || condition.bodySite?.[0]?.coding?.[0]?.display;
-  const category = condition.category?.[0]?.coding?.[0]?.display || condition.category?.[0]?.text;
+  const bodySite = condition.bodySite?.[0]?.text || condition.bodySite?.[0]?.coding?.[0]?.display || null;
+  const category = condition.category?.[0]?.coding?.[0]?.display || condition.category?.[0]?.text || null;
   const asserter = condition.asserter?.display;
   const recorder = condition.recorder?.display;
   const recordedDate = condition.recordedDate;
   const abatementDate = condition.abatementDateTime || condition.abatementAge?.value;
-  const evidence = condition.evidence?.[0]?.detail?.[0]?.display || condition.evidence?.[0]?.code?.[0]?.text;
+  const evidence = condition.evidence?.[0]?.detail?.[0]?.display || condition.evidence?.[0]?.code?.[0]?.text || null;
   const clinicalCode = condition.code?.coding?.[0]?.code;
   const codeSystem = condition.code?.coding?.[0]?.system;
   
@@ -1756,7 +1756,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
   // Additional FHIR fields for enhanced clinical utility
   const requester = medication.requester?.display;
   const reasonReference = medication.reasonReference?.[0]?.display;
-  const courseOfTherapy = medication.courseOfTherapyType?.text || medication.courseOfTherapyType?.coding?.[0]?.display;
+  const courseOfTherapy = medication.courseOfTherapyType?.text || medication.courseOfTherapyType?.coding?.[0]?.display || null;
   const dispenseRequest = medication.dispenseRequest;
   const substitution = medication.substitution;
   const medicationCode = medication.medicationCodeableConcept?.coding?.[0]?.code;
@@ -1845,7 +1845,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
             )}
             {dosage?.route && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Route:</strong> {dosage.route.text || dosage.route.coding?.[0]?.display}
+                <strong>Route:</strong> {dosage.route.text || dosage.route.coding?.[0]?.display || 'Unknown'}
               </Typography>
             )}
             
@@ -1896,7 +1896,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
               <Typography variant="caption" color="text.secondary">
                 <strong>Substitution:</strong> {typeof substitution.allowedBoolean === 'boolean' ? 
                   (substitution.allowedBoolean ? 'Allowed' : 'Not allowed') : 
-                  (substitution.allowedCodeableConcept?.text || substitution.allowedCodeableConcept?.coding?.[0]?.display)}
+                  (substitution.allowedCodeableConcept?.text || substitution.allowedCodeableConcept?.coding?.[0]?.display || 'Unknown')}
               </Typography>
             )}
             
@@ -1924,6 +1924,16 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
 
 const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   const theme = useTheme();
+  
+  // Debug logging to catch the issue
+  if (allergy.category && typeof allergy.category === 'object' && !Array.isArray(allergy.category)) {
+    console.error('[EnhancedAllergyCard] allergy.category is an object, not an array:', allergy.category);
+  }
+  if (allergy.category?.[0] && typeof allergy.category[0] === 'object' && 
+      !allergy.category[0].coding && !allergy.category[0].text) {
+    console.error('[EnhancedAllergyCard] allergy.category[0] is missing coding and text:', allergy.category[0]);
+  }
+  
   const criticality = allergy.criticality || 'low';
   const criticalityColor = {
     high: 'error',
@@ -2035,8 +2045,27 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
           
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
-              <strong>Type:</strong> {allergy.type || 'Unknown'} | 
-              <strong> Category:</strong> {allergy.category?.[0]?.coding?.[0]?.display || allergy.category?.[0]?.text || 'Unknown'}
+              <strong>Type:</strong> {typeof allergy.type === 'string' ? allergy.type : 'Unknown'} | 
+              <strong> Category:</strong> {(() => {
+                // Handle both array and single object formats
+                const categoryArray = Array.isArray(allergy.category) ? allergy.category : 
+                                     (allergy.category ? [allergy.category] : []);
+                const firstCategory = categoryArray[0];
+                
+                if (!firstCategory) return 'Unknown';
+                
+                // If it's a string, return it
+                if (typeof firstCategory === 'string') return firstCategory;
+                
+                // If it's a CodeableConcept, extract the display
+                if (typeof firstCategory === 'object') {
+                  return firstCategory.coding?.[0]?.display || 
+                         firstCategory.text || 
+                         'Unknown';
+                }
+                
+                return 'Unknown';
+              })()}
             </Typography>
             
             {/* Enhanced manifestation display */}
@@ -2153,7 +2182,7 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
             )}
             {immunization.site && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Site:</strong> {immunization.site.text || immunization.site.coding?.[0]?.display}
+                <strong>Site:</strong> {immunization.site.text || immunization.site.coding?.[0]?.display || 'Unknown'}
               </Typography>
             )}
             {immunization.manufacturer && (
@@ -2233,19 +2262,19 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
             {procedure.bodySite?.[0] && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Body Site:</strong> {procedure.bodySite[0].text || 
-                  procedure.bodySite[0].coding?.[0]?.display}
+                  procedure.bodySite[0].coding?.[0]?.display || null}
               </Typography>
             )}
             {procedure.outcome && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Outcome:</strong> {procedure.outcome.text || 
-                  procedure.outcome.coding?.[0]?.display}
+                  procedure.outcome.coding?.[0]?.display || null}
               </Typography>
             )}
             {procedure.reasonCode?.[0] && (
               <Typography variant="caption" color="text.secondary">
                 <strong>Reason:</strong> {procedure.reasonCode[0].text || 
-                  procedure.reasonCode[0].coding?.[0]?.display}
+                  procedure.reasonCode[0].coding?.[0]?.display || null}
               </Typography>
             )}
           </Stack>

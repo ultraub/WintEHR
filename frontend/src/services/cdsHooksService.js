@@ -120,7 +120,7 @@ class CDSHooksService {
   transformToFrontendFormat(backendConfig) {
     // Transform backend actions to frontend cards
     const cards = backendConfig.actions.map((action, index) => ({
-      id: `card-${Date.now()}-${index}`,
+      id: action.id || `card-${Date.now()}-${index}`,
       summary: action.parameters.summary || '',
       detail: action.parameters.detail || '',
       indicator: action.parameters.indicator || 'info',
@@ -152,11 +152,11 @@ class CDSHooksService {
       }
       
       const frontendCondition = {
-        id: `condition-${Date.now()}-${index}`,
+        id: condition.id || `condition-${Date.now()}-${index}`,
         type: conditionType,
         operator: operator,
         value: condition.parameters.value || '',
-        enabled: true
+        enabled: condition.enabled !== undefined ? condition.enabled : true
       };
       
       // Add type-specific fields

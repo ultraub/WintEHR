@@ -118,7 +118,8 @@ const ResourceTimeline = memo(({
   const [timeRange, setTimeRange] = useState(initialTimeRange);
   const [filterAnchor, setFilterAnchor] = useState(null);
   const [hoveredResource, setHoveredResource] = useState(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height });
+  const [hoveredPosition, setHoveredPosition] = useState({ x: 0, y: 0 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: typeof height === 'string' ? 400 : height });
 
   // Calculate time bounds
   const timeBounds = useMemo(() => {
@@ -172,8 +173,13 @@ const ResourceTimeline = memo(({
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
-        const { width } = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: width - 32, height }); // 32px for padding
+        const { width, height: containerHeight } = containerRef.current.getBoundingClientRect();
+        const actualHeight = typeof height === 'string' && height === '100%' 
+          ? containerHeight - 32 // Subtract padding
+          : typeof height === 'number' 
+          ? height 
+          : 400;
+        setDimensions({ width: width - 32, height: actualHeight });
       }
     };
 
@@ -307,10 +313,24 @@ const ResourceTimeline = memo(({
         })
         .on('mouseenter', (event, d) => {
           setHoveredResource(d);
+          // Get mouse position relative to the container
+          const rect = containerRef.current.getBoundingClientRect();
+          setHoveredPosition({
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top
+          });
           d3.select(event.target)
             .transition()
             .duration(200)
             .attr('r', 8);
+        })
+        .on('mousemove', (event, d) => {
+          // Update position on mouse move
+          const rect = containerRef.current.getBoundingClientRect();
+          setHoveredPosition({
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top
+          });
         })
         .on('mouseleave', (event) => {
           setHoveredResource(null);
@@ -461,10 +481,11 @@ const ResourceTimeline = memo(({
                 exit={{ opacity: 0, scale: 0.8 }}
                 style={{
                   position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  pointerEvents: 'none'
+                  top: hoveredPosition.y - 10,
+                  left: hoveredPosition.x + 10,
+                  transform: 'translateY(-100%)',
+                  pointerEvents: 'none',
+                  zIndex: 1000
                 }}
               >
                 <Paper
