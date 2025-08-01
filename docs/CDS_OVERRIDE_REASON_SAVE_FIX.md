@@ -121,3 +121,48 @@ The fix ensures that:
 2. The configuration is properly saved at the hook level
 3. The saved configuration is correctly applied when hooks fire
 4. Clear migration path from card-level to hook-level configuration
+
+## How to Test the Fix
+
+### Method 1: Browser Console Test
+```javascript
+// Run this in browser console
+await window.testOverrideReasonSave()
+
+// Expected output:
+// ✅ SUCCESS: Override reason requirement was saved correctly!
+// Display behavior: { acknowledgment: { required: true, reasonRequired: true }, ... }
+
+// Clean up test hook
+await window.cleanupOverrideTest()
+```
+
+### Method 2: Manual Test in CDS Studio
+1. Go to CDS Studio
+2. Create a new hook or edit existing one
+3. Navigate to **Display Behavior** tab
+4. In the Acknowledgment section:
+   - Toggle **"Require acknowledgment"** ON
+   - Toggle **"Require reason for override"** ON
+5. Click **Save Hook**
+6. Check browser console for: `[CDSHookBuilder] Saving hook with displayBehavior:`
+7. The displayBehavior object should show:
+   ```javascript
+   {
+     acknowledgment: {
+       required: true,
+       reasonRequired: true
+     }
+   }
+   ```
+
+### Method 3: Test Page (if needed)
+Created a test page at `/frontend/src/test/CDSOverrideReasonTestPage.js` that provides an interactive UI to test the configuration saving.
+
+## Backend Verification
+
+The backend properly handles the displayBehavior field:
+- Model includes `displayBehavior: Optional[Dict[str, Any]]`
+- Database has `display_behavior JSONB` column
+- Both INSERT and UPDATE operations save the field correctly
+- Field is properly serialized/deserialized as JSON

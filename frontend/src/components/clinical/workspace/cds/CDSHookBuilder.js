@@ -489,6 +489,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
       setSaving(true);
       
+      // Log the display behavior being saved
+      console.log('[CDSHookBuilder] Saving hook with displayBehavior:', hookData.displayBehavior);
+      
       // Use the cdsHooksService to save the hook
       // Check if we're editing an existing hook (has _meta.created)
       const isExistingHook = editingHook && editingHook._meta?.created;
