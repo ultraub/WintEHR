@@ -192,9 +192,12 @@ export const CDSProvider = ({ children }) => {
                   // Map display behavior to presentation modes
                   const modeMapping = {
                     'hard-stop': PRESENTATION_MODES.MODAL,
+                    'modal': PRESENTATION_MODES.MODAL,
                     'popup': PRESENTATION_MODES.POPUP,
                     'sidebar': PRESENTATION_MODES.SIDEBAR,
-                    'inline': PRESENTATION_MODES.INLINE
+                    'inline': PRESENTATION_MODES.INLINE,
+                    'banner': PRESENTATION_MODES.BANNER,
+                    'toast': PRESENTATION_MODES.TOAST
                   };
                   
                   // Check for indicator-based overrides
@@ -204,6 +207,7 @@ export const CDSProvider = ({ children }) => {
                   
                   presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
                   acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
+                  const reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
                   snoozeEnabled = displayBehavior.snooze?.enabled || false;
                   
                   cdsLogger.debug(`CDSContext: Using configured display behavior for ${service.id}:`, {
@@ -232,6 +236,7 @@ export const CDSProvider = ({ children }) => {
                 displayBehavior: {
                   presentationMode,
                   acknowledgmentRequired,
+                  reasonRequired,
                   snoozeEnabled
                 }
               };

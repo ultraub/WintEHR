@@ -20,7 +20,10 @@ import {
   Chip,
   Divider,
   Card,
-  CardContent
+  CardContent,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -48,10 +51,12 @@ const DISPLAY_MODES = [
 ];
 
 const CARD_POSITIONS = [
-  { value: 'top', label: 'Top of Screen', icon: '⬆️' },
-  { value: 'right', label: 'Right Sidebar', icon: '➡️' },
-  { value: 'bottom', label: 'Bottom Panel', icon: '⬇️' },
-  { value: 'modal', label: 'Modal Dialog', icon: '🔲' }
+  { value: 'inline', label: 'Inline', icon: '📋', description: 'Within page content' },
+  { value: 'popup', label: 'Popup Dialog', icon: '💬', description: 'Non-blocking dialog' },
+  { value: 'modal', label: 'Modal (Hard-stop)', icon: '🛑', description: 'Requires acknowledgment' },
+  { value: 'banner', label: 'Top Banner', icon: '🔔', description: 'Page-wide banner' },
+  { value: 'sidebar', label: 'Right Sidebar', icon: '➡️', description: 'Side panel' },
+  { value: 'toast', label: 'Toast', icon: '🍞', description: 'Temporary notification' }
 ];
 
 const PRIORITY_LEVELS = [
@@ -67,7 +72,22 @@ const DisplayBehaviorConfig = ({ config = {}, onChange }) => {
 
   const defaultConfig = {
     displayMode: 'immediate',
-    position: 'top',
+    defaultMode: config.defaultMode || 'popup', // CDS Hooks presentation mode
+    position: config.position || config.defaultMode || 'popup', // Legacy support
+    indicatorOverrides: config.indicatorOverrides || {
+      critical: 'modal',
+      warning: 'popup',
+      info: 'inline'
+    },
+    acknowledgment: config.acknowledgment || {
+      required: false,
+      reasonRequired: false
+    },
+    snooze: config.snooze || {
+      enabled: true,
+      defaultDuration: 60,
+      maxDuration: 1440
+    },
     delay: 0,
     autoHide: false,
     autoHideDelay: 30,
@@ -138,29 +158,100 @@ const DisplayBehaviorConfig = ({ config = {}, onChange }) => {
 
         <Divider />
 
-        {/* Position */}
+        {/* Default Presentation Mode */}
         <Box>
-          <Typography variant="subtitle1" gutterBottom>Card Position</Typography>
+          <Typography variant="subtitle1" gutterBottom>Default Presentation Mode</Typography>
           <Grid container spacing={2}>
             {CARD_POSITIONS.map(position => (
-              <Grid item xs={6} md={3} key={position.value}>
+              <Grid item xs={6} md={4} key={position.value}>
                 <Card 
-                  variant={defaultConfig.position === position.value ? 'elevation' : 'outlined'}
+                  variant={defaultConfig.defaultMode === position.value ? 'elevation' : 'outlined'}
                   sx={{ 
                     cursor: 'pointer',
-                    border: defaultConfig.position === position.value ? 2 : 1,
-                    borderColor: defaultConfig.position === position.value ? 'primary.main' : 'divider'
+                    border: defaultConfig.defaultMode === position.value ? 2 : 1,
+                    borderColor: defaultConfig.defaultMode === position.value ? 'primary.main' : 'divider'
                   }}
-                  onClick={() => handleChange('position', position.value)}
+                  onClick={() => handleChange('defaultMode', position.value)}
                 >
-                  <CardContent sx={{ textAlign: 'center' }}>
+                  <CardContent sx={{ textAlign: 'center', p: 1.5 }}>
                     <Typography variant="h4">{position.icon}</Typography>
-                    <Typography variant="body2">{position.label}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{position.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {position.description}
+                    </Typography>
                   </CardContent>
                 </Card>
               </Grid>
             ))}
           </Grid>
+        </Box>
+
+        <Divider />
+
+        {/* Indicator-based Overrides */}
+        <Box>
+          <Typography variant="subtitle1" gutterBottom>Severity-based Presentation</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Override presentation mode based on alert severity
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Critical Alerts</InputLabel>
+                <Select
+                  value={defaultConfig.indicatorOverrides?.critical || 'modal'}
+                  onChange={(e) => handleChange('indicatorOverrides', {
+                    ...defaultConfig.indicatorOverrides,
+                    critical: e.target.value
+                  })}
+                  label="Critical Alerts"
+                >
+                  {CARD_POSITIONS.map(pos => (
+                    <MenuItem key={pos.value} value={pos.value}>{pos.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Warning Alerts</InputLabel>
+                <Select
+                  value={defaultConfig.indicatorOverrides?.warning || 'popup'}
+                  onChange={(e) => handleChange('indicatorOverrides', {
+                    ...defaultConfig.indicatorOverrides,
+                    warning: e.target.value
+                  })}
+                  label="Warning Alerts"
+                >
+                  {CARD_POSITIONS.map(pos => (
+                    <MenuItem key={pos.value} value={pos.value}>{pos.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Info Alerts</InputLabel>
+                <Select
+                  value={defaultConfig.indicatorOverrides?.info || 'inline'}
+                  onChange={(e) => handleChange('indicatorOverrides', {
+                    ...defaultConfig.indicatorOverrides,
+                    info: e.target.value
+                  })}
+                  label="Info Alerts"
+                >
+                  {CARD_POSITIONS.map(pos => (
+                    <MenuItem key={pos.value} value={pos.value}>{pos.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+          {defaultConfig.indicatorOverrides?.critical === 'modal' && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Critical alerts will show as modal dialogs that require acknowledgment before continuing.
+            </Alert>
+          )}
         </Box>
 
         <Divider />
@@ -339,19 +430,26 @@ const DisplayBehaviorConfig = ({ config = {}, onChange }) => {
         <Alert severity="info">
           <Box component="div">
             <Typography variant="body2" component="span">
-              <strong>Configuration Summary:</strong> Cards will be displayed{' '}
+              <strong>Configuration Summary:</strong> Cards will use{' '}
             </Typography>
-            <Chip label={defaultConfig.displayMode} size="small" />
+            <Chip label={defaultConfig.defaultMode} size="small" color="primary" />
             <Typography variant="body2" component="span">
-              {' '}at the{' '}
+              {' '}presentation by default
             </Typography>
-            <Chip label={defaultConfig.position} size="small" />
+            {defaultConfig.indicatorOverrides?.critical === 'modal' && (
+              <>
+                <Typography variant="body2" component="span">
+                  {', with critical alerts shown as '}
+                </Typography>
+                <Chip label="modal" size="small" color="error" />
+              </>
+            )}
             <Typography variant="body2" component="span">
-              {' '}position, showing up to{' '}
+              {', displaying up to '}
             </Typography>
             <Chip label={`${defaultConfig.maxCards} cards`} size="small" />
             <Typography variant="body2" component="span">
-              , sorted by{' '}
+              {' sorted by '}
             </Typography>
             <Chip label={defaultConfig.priority} size="small" />
             <Typography variant="body2" component="span">

@@ -27,7 +27,9 @@ import {
   ListItemSecondaryAction,
   Tooltip,
   Card,
-  CardContent
+  CardContent,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Info as InfoIcon,
@@ -281,6 +283,18 @@ const CardBuilder = ({ card, onChange, onRemove }) => {
             multiline
             rows={2}
             helperText="Comma-separated list of valid override reasons"
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={card.overrideReasonRequired || false}
+                onChange={(e) => handleChange('overrideReasonRequired', e.target.checked)}
+              />
+            }
+            label="Override reason required"
+            helperText="When checked, users must provide a reason to override this recommendation"
           />
         </Grid>
         <Grid item xs={12}>

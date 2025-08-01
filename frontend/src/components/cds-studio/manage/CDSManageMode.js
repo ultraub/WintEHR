@@ -437,8 +437,16 @@ const CDSManageMode = ({ onEditService }) => {
                 hook: 'patient-view',
                 conditions: [],
                 cards: [],
-                prefetch: {}
+                prefetch: {},
+                _meta: {
+                  created: null, // null means this is a new hook
+                  modified: new Date(),
+                  version: 0, // 0 means this is a new hook
+                  author: 'Current User'
+                }
               });
+              // Switch to Build mode
+              actions.switchMode('build');
             }}
           >
             New Hook

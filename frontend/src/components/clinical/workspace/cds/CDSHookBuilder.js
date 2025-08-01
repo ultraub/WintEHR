@@ -1,8 +1,11 @@
 /**
  * CDS Hook Builder Component
  * Visual interface for creating and editing CDS hooks
+ * 
+ * Enhanced with templates, auto-save, validation feedback, and preview
+ * @updated 2025-01-27
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -39,9 +42,15 @@ import {
   AccordionSummary,
   AccordionDetails,
   Alert,
+  AlertTitle,
   Divider,
   Tooltip,
   CircularProgress,
+  Snackbar,
+  Badge,
+  Tabs,
+  Tab,
+  LinearProgress,
   useTheme
 } from '@mui/material';
 import {
@@ -58,7 +67,11 @@ import {
   Info as InfoIcon,
   Error as ErrorIcon,
   CheckCircle as SuccessIcon,
-  PlayArrow as TestIcon
+  PlayArrow as TestIcon,
+  Timer as TimerIcon,
+  Category as TemplateIcon,
+  Visibility,
+  AutoFixHigh as AutoSaveIcon
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
@@ -72,6 +85,67 @@ import CardBuilder from './CardBuilder';
 import SuggestionBuilder from './SuggestionBuilder';
 import DisplayBehaviorConfig from './DisplayBehaviorConfig';
 import PrefetchQueryBuilder from './PrefetchQueryBuilder';
+import CDSCardDisplay from './CDSCardDisplay';
+
+// Hook templates for common scenarios
+const HOOK_TEMPLATES = [
+  {
+    id: 'drug-interaction',
+    name: 'Drug Interaction Alert',
+    description: 'Alert for potential drug interactions',
+    icon: <WarningIcon />,
+    hook: 'medication-prescribe',
+    template: {
+      title: 'Drug Interaction Checker',
+      description: 'Checks for potential drug-drug interactions when prescribing medications',
+      hook: 'medication-prescribe',
+      conditions: [
+        {
+          id: 'med-condition-1',
+          type: 'medication',
+          enabled: true
+        }
+      ],
+      cards: [
+        {
+          summary: 'Potential Drug Interaction Detected',
+          detail: 'The prescribed medication may interact with the patient\'s current medications.',
+          indicator: 'warning',
+          source: { label: 'Drug Interaction Database' },
+          overrideReasonRequired: true
+        }
+      ]
+    }
+  },
+  {
+    id: 'allergy-alert',
+    name: 'Allergy Alert',
+    description: 'Alert for medication allergies',
+    icon: <ErrorIcon />,
+    hook: 'medication-prescribe',
+    template: {
+      title: 'Allergy Alert System',
+      description: 'Alerts when prescribing medications that patient is allergic to',
+      hook: 'medication-prescribe',
+      conditions: [
+        {
+          id: 'allergy-condition-1',
+          type: 'allergy',
+          enabled: true
+        }
+      ],
+      cards: [
+        {
+          summary: 'Allergy Alert',
+          detail: 'Patient has a documented allergy to this medication or medication class.',
+          indicator: 'critical',
+          source: { label: 'Allergy Records' },
+          overrideReasonRequired: true
+        }
+      ]
+    }
+  }
+];
 
 const HOOK_TYPES = [
   { value: 'patient-view', label: 'Patient View', description: 'Fired when user is viewing a patient' },
@@ -116,6 +190,21 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   });
   const [testResults, setTestResults] = useState(null);
   const [testing, setTesting] = useState(false);
+  
+  // Enhanced features
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [validation, setValidation] = useState({
+    basicInfo: { isValid: true, errors: [] },
+    conditions: { isValid: true, errors: [] },
+    cards: { isValid: true, errors: [] },
+    overall: { isValid: true, errors: [] }
+  });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const autoSaveTimer = useRef(null);
 
   // Initialize with editing data
   useEffect(() => {
@@ -139,8 +228,118 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
       };
       console.log('[CDSHookBuilder] Setting hookData to:', newHookData);
       setHookData(newHookData);
+      // Validate initial data
+      validateHook(newHookData);
     }
   }, [editingHook]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (autoSaveEnabled && hookData.title && hookData.id) {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+      
+      autoSaveTimer.current = setTimeout(() => {
+        autoSave();
+      }, 5000); // Auto-save after 5 seconds of inactivity
+    }
+    
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, [hookData, autoSaveEnabled]);
+
+  // Validation function
+  const validateHook = useCallback((data = hookData) => {
+    const newValidation = {
+      basicInfo: { isValid: true, errors: [] },
+      conditions: { isValid: true, errors: [] },
+      cards: { isValid: true, errors: [] },
+      overall: { isValid: true, errors: [] }
+    };
+    
+    // Basic info validation
+    if (!data.title?.trim()) {
+      newValidation.basicInfo.errors.push('Title is required');
+      newValidation.basicInfo.isValid = false;
+    }
+    if (!data.id?.trim()) {
+      newValidation.basicInfo.errors.push('Hook ID is required');
+      newValidation.basicInfo.isValid = false;
+    }
+    
+    // Cards validation
+    if (!data.cards || data.cards.length === 0) {
+      newValidation.cards.errors.push('At least one card is required');
+      newValidation.cards.isValid = false;
+    } else {
+      data.cards.forEach((card, index) => {
+        if (!card.summary?.trim()) {
+          newValidation.cards.errors.push(`Card ${index + 1}: Summary is required`);
+          newValidation.cards.isValid = false;
+        }
+      });
+    }
+    
+    // Overall validation
+    newValidation.overall.isValid = 
+      newValidation.basicInfo.isValid && 
+      newValidation.conditions.isValid && 
+      newValidation.cards.isValid;
+    
+    newValidation.overall.errors = [
+      ...newValidation.basicInfo.errors,
+      ...newValidation.conditions.errors,
+      ...newValidation.cards.errors
+    ];
+    
+    setValidation(newValidation);
+    return newValidation;
+  }, [hookData]);
+
+  // Auto-save function
+  const autoSave = useCallback(async () => {
+    const validation = validateHook();
+    if (!validation.overall.isValid) return;
+    
+    setSaving(true);
+    try {
+      // Save to local storage as draft
+      localStorage.setItem(`cds-hook-draft-${hookData.id}`, JSON.stringify(hookData));
+      setLastSaved(new Date());
+      setSnackbar({
+        open: true,
+        message: 'Draft saved',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+    } finally {
+      setSaving(false);
+    }
+  }, [hookData, validateHook]);
+
+  // Template selection
+  const selectTemplate = (template) => {
+    const newHookData = {
+      ...hookData,
+      ...template.template,
+      id: hookData.id || template.template.title.toLowerCase().replace(/\s+/g, '-')
+    };
+    
+    setHookData(newHookData);
+    setShowTemplates(false);
+    validateHook(newHookData);
+    
+    setSnackbar({
+      open: true,
+      message: `Template "${template.name}" applied`,
+      severity: 'info'
+    });
+  };
 
   const steps = [
     {
@@ -276,20 +475,63 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
   const saveHook = async () => {
     try {
+      // Validate before saving
+      const validation = validateHook();
+      
+      if (!validation.overall.isValid) {
+        setSnackbar({
+          open: true,
+          message: 'Please fix validation errors before saving',
+          severity: 'error'
+        });
+        return;
+      }
+
+      setSaving(true);
+      
       // Use the cdsHooksService to save the hook
-      if (editingHook) {
-        // Update existing hook
-        await cdsHooksService.updateHook(hookData.id, hookData);
-      } else {
-        // Create new hook
-        await cdsHooksService.createHook(hookData);
+      // Check if we're editing an existing hook (has _meta.created)
+      const isExistingHook = editingHook && editingHook._meta?.created;
+      
+      try {
+        if (isExistingHook) {
+          // Update existing hook
+          await cdsHooksService.updateHook(hookData.id, hookData);
+        } else {
+          // Create new hook
+          await cdsHooksService.createHook(hookData);
+        }
+      } catch (saveError) {
+        // If update fails with 404, try creating instead
+        if (saveError.message?.includes('404') || saveError.message?.includes('not found')) {
+          console.log('Hook not found, creating new one instead');
+          await cdsHooksService.createHook(hookData);
+        } else {
+          throw saveError;
+        }
       }
 
       // Call the parent onSave callback to close the builder and refresh
-      await onSave(hookData);
-    } catch (error) {
+      const success = await onSave(hookData);
       
-      alert(`Error saving hook: ${error.message}`);
+      if (success !== false) {
+        setSnackbar({
+          open: true,
+          message: 'Hook saved successfully!',
+          severity: 'success'
+        });
+        
+        // Clear draft
+        localStorage.removeItem(`cds-hook-draft-${hookData.id}`);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Error saving hook: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -297,11 +539,25 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     <Box sx={{ mt: 2 }}>
       <Grid container spacing={3}>
         <Grid item xs={12}>
+          <Button
+            variant="outlined"
+            startIcon={<TemplateIcon />}
+            onClick={() => setShowTemplates(true)}
+            fullWidth
+            sx={{ mb: 2 }}
+          >
+            Use Template
+          </Button>
+        </Grid>
+        <Grid item xs={12}>
           <TextField
             fullWidth
             label="Hook ID"
             value={hookData.id}
-            onChange={(e) => setHookData(prev => ({ ...prev, id: e.target.value }))}
+            onChange={(e) => {
+              setHookData(prev => ({ ...prev, id: e.target.value }));
+              validateHook({ ...hookData, id: e.target.value });
+            }}
             placeholder="my-custom-hook"
             helperText="Unique identifier for this hook"
             required
@@ -312,7 +568,10 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             fullWidth
             label="Title"
             value={hookData.title}
-            onChange={(e) => setHookData(prev => ({ ...prev, title: e.target.value }))}
+            onChange={(e) => {
+              setHookData(prev => ({ ...prev, title: e.target.value }));
+              validateHook({ ...hookData, title: e.target.value });
+            }}
             placeholder="My Custom CDS Hook"
             required
           />
@@ -663,11 +922,11 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           </Button>
           <Button
             variant="contained"
-            startIcon={<SaveIcon />}
+            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
             onClick={saveHook}
-            disabled={!hookData.id || !hookData.title || hookData.cards.length === 0}
+            disabled={saving || !validation.overall.isValid}
           >
-            Save Hook
+            {saving ? 'Saving...' : 'Save Hook'}
           </Button>
         </Stack>
       </Stack>
@@ -676,11 +935,77 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
   return (
     <Paper sx={{ p: 3 }}>
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <BuildIcon color="primary" />
-        <Typography variant="h5" fontWeight="bold">
-          CDS Hook Builder
-        </Typography>
+      <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <BuildIcon color="primary" />
+          <Typography variant="h5" fontWeight="bold">
+            CDS Hook Builder
+          </Typography>
+          {hookData.id && (
+            <Chip 
+              label={editingHook ? 'Editing' : 'New'} 
+              color={editingHook ? 'primary' : 'secondary'} 
+              size="small" 
+            />
+          )}
+        </Stack>
+        
+        <Stack direction="row" spacing={2} alignItems="center">
+          {/* Validation status */}
+          {validation.overall.errors.length > 0 && (
+            <Chip
+              icon={<WarningIcon />}
+              label={`${validation.overall.errors.length} issues`}
+              color="warning"
+              size="small"
+            />
+          )}
+          
+          {/* Auto-save indicator */}
+          {autoSaveEnabled && lastSaved && (
+            <Chip
+              icon={<TimerIcon />}
+              label={`Saved ${new Date(lastSaved).toLocaleTimeString()}`}
+              color="success"
+              variant="outlined"
+              size="small"
+            />
+          )}
+          
+          {/* Save progress */}
+          {saving && <CircularProgress size={20} />}
+          
+          {/* Preview button */}
+          <IconButton onClick={() => setShowPreview(true)} color="primary">
+            <Visibility />
+          </IconButton>
+        </Stack>
+      </Stack>
+      
+      {/* Validation summary */}
+      {validation.overall.errors.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <AlertTitle>Please fix the following issues:</AlertTitle>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {validation.overall.errors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+      
+      {/* Auto-save toggle */}
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={autoSaveEnabled}
+              onChange={(e) => setAutoSaveEnabled(e.target.checked)}
+              size="small"
+            />
+          }
+          label="Auto-save"
+        />
       </Stack>
 
       <Stepper activeStep={activeStep} orientation="vertical">
@@ -731,6 +1056,104 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           </Step>
         ))}
       </Stepper>
+      
+      {/* Template Dialog */}
+      <Dialog
+        open={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Select a Template</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            {HOOK_TEMPLATES.map((template) => (
+              <Grid item xs={12} md={6} key={template.id}>
+                <Card
+                  sx={{
+                    cursor: 'pointer',
+                    '&:hover': {
+                      boxShadow: 4,
+                      transform: 'translateY(-2px)',
+                      transition: 'all 0.2s'
+                    }
+                  }}
+                  onClick={() => selectTemplate(template)}
+                >
+                  <CardContent>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Box sx={{ color: theme.palette.primary.main }}>
+                        {template.icon}
+                      </Box>
+                      <Box>
+                        <Typography variant="h6">{template.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {template.description}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowTemplates(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Preview Dialog */}
+      <Dialog
+        open={showPreview}
+        onClose={() => setShowPreview(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Hook Preview</DialogTitle>
+        <DialogContent>
+          <Typography variant="h6" gutterBottom>
+            {hookData.title || 'Untitled Hook'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            {hookData.description || 'No description provided'}
+          </Typography>
+          
+          <Divider sx={{ my: 2 }} />
+          
+          <Typography variant="subtitle1" gutterBottom>
+            Cards Preview:
+          </Typography>
+          <Stack spacing={2}>
+            {hookData.cards?.map((card, index) => (
+              <CDSCardDisplay
+                key={index}
+                card={card}
+                displayBehavior={{ presentationMode: 'inline' }}
+              />
+            )) || <Typography color="text.secondary">No cards defined</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPreview(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 };

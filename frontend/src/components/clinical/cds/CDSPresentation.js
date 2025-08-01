@@ -267,9 +267,19 @@ const CDSPresentation = ({
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     
     if (action === 'dismiss') {
-      // Check if override reason is required for critical alerts
-      if (alert.indicator === 'critical' && !currentOverride) {
-        setCurrentOverride({ alert, suggestion });
+      // Check displayBehavior configuration for override requirements
+      const requiresAcknowledgment = alert.displayBehavior?.acknowledgmentRequired || false;
+      const requiresReason = alert.displayBehavior?.reasonRequired || false;
+      
+      // Also check card-level configuration for backward compatibility
+      const cardRequiresOverride = alert.overrideReasonRequired || false;
+      
+      if ((requiresAcknowledgment || requiresReason || cardRequiresOverride) && !currentOverride) {
+        setCurrentOverride({ 
+          alert, 
+          suggestion,
+          requiresReason: requiresReason || cardRequiresOverride
+        });
         setShowOverrideDialog(true);
         return;
       }
@@ -747,10 +757,15 @@ const CDSPresentation = ({
       {/* Override Reason Dialog */}
       {showOverrideDialog && currentOverride && (
         <Dialog open={showOverrideDialog} onClose={() => setShowOverrideDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Override Clinical Alert</DialogTitle>
+          <DialogTitle>
+            {currentOverride.requiresReason ? 'Override Clinical Alert' : 'Acknowledge Alert'}
+          </DialogTitle>
           <DialogContent>
             <Typography variant="body1" gutterBottom>
-              You are overriding a {currentOverride.alert.indicator} alert. Please provide a reason:
+              {currentOverride.requiresReason 
+                ? `You are overriding a ${currentOverride.alert.indicator} alert. Please provide a reason:`
+                : `Please acknowledge this ${currentOverride.alert.indicator} alert before continuing.`
+              }
             </Typography>
             
             <Alert severity={getSeverityColor(currentOverride.alert.indicator)} sx={{ my: 2 }}>
@@ -760,32 +775,36 @@ const CDSPresentation = ({
               )}
             </Alert>
 
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel>Override Reason</InputLabel>
-              <Select
-                value={overrideReasonCode}
-                onChange={(e) => setOverrideReasonCode(e.target.value)}
-                label="Override Reason"
-              >
-                {Object.entries(OVERRIDE_REASONS).map(([key, reason]) => (
-                  <MenuItem key={key} value={reason.code}>
-                    {reason.display}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {currentOverride.requiresReason && (
+              <>
+                <FormControl fullWidth sx={{ mt: 2 }}>
+                  <InputLabel>Override Reason</InputLabel>
+                  <Select
+                    value={overrideReasonCode}
+                    onChange={(e) => setOverrideReasonCode(e.target.value)}
+                    label="Override Reason"
+                  >
+                    {Object.entries(OVERRIDE_REASONS).map(([key, reason]) => (
+                      <MenuItem key={key} value={reason.code}>
+                        {reason.display}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              value={overrideUserComment}
-              onChange={(e) => setOverrideUserComment(e.target.value)}
-              placeholder="Additional comments (optional, required for 'Other' reason)..."
-              label="Comments"
-              variant="outlined"
-              sx={{ mt: 2 }}
-            />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={overrideUserComment}
+                  onChange={(e) => setOverrideUserComment(e.target.value)}
+                  placeholder="Additional comments (optional, required for 'Other' reason)..."
+                  label="Comments"
+                  variant="outlined"
+                  sx={{ mt: 2 }}
+                />
+              </>
+            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => {
@@ -800,28 +819,44 @@ const CDSPresentation = ({
               variant="contained" 
               color="primary"
               onClick={async () => {
-                if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
-                  return;
-                }
-                
                 const alert = currentOverride.alert;
                 const alertKey = `${alert.serviceId}-${alert.summary}`;
                 
-                // Send override feedback
-                if (alert.serviceId && alert.uuid) {
-                  await cdsFeedbackService.sendFeedback({
-                    serviceId: alert.serviceId,
-                    cardUuid: alert.uuid,
-                    outcome: 'overridden',
-                    overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key => 
-                      OVERRIDE_REASONS[key].code === overrideReasonCode
-                    )],
-                    userComment: overrideUserComment
-                  });
+                if (currentOverride.requiresReason) {
+                  // Validate reason is provided
+                  if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
+                    return;
+                  }
+                  
+                  // Send override feedback with reason
+                  if (alert.serviceId && alert.uuid) {
+                    await cdsFeedbackService.sendFeedback({
+                      serviceId: alert.serviceId,
+                      cardUuid: alert.uuid,
+                      outcome: 'overridden',
+                      overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key => 
+                        OVERRIDE_REASONS[key].code === overrideReasonCode
+                      )],
+                      userComment: overrideUserComment
+                    });
+                  }
+                  
+                  // Dismiss the alert with reason
+                  handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
+                } else {
+                  // Just acknowledgment required
+                  if (alert.serviceId && alert.uuid) {
+                    await cdsFeedbackService.sendFeedback({
+                      serviceId: alert.serviceId,
+                      cardUuid: alert.uuid,
+                      outcome: 'acknowledged',
+                      userComment: 'Alert acknowledged by user'
+                    });
+                  }
+                  
+                  // Dismiss the alert
+                  handleDismissAlert(alert, 'Acknowledged');
                 }
-                
-                // Dismiss the alert
-                handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
                 
                 // Close dialog
                 setShowOverrideDialog(false);
@@ -829,9 +864,9 @@ const CDSPresentation = ({
                 setOverrideReasonCode('');
                 setOverrideUserComment('');
               }}
-              disabled={!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())}
+              disabled={currentOverride.requiresReason && (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim()))}
             >
-              Override Alert
+              {currentOverride.requiresReason ? 'Override Alert' : 'Acknowledge'}
             </Button>
           </DialogActions>
         </Dialog>

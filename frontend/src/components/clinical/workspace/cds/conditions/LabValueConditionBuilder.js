@@ -89,9 +89,12 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
       setSearching(true);
       try {
         const dynamicLabs = await cdsClinicalDataService.getLabCatalog(null, null, 50);
+        console.log('[LabValueConditionBuilder] Dynamic labs data:', dynamicLabs);
+        
+        // Map from backend LabTestCatalogItem model
         const formatted = dynamicLabs.map(lab => ({
-          code: lab.loinc_code,
-          display: lab.display,
+          code: lab.loinc_code || lab.test_code || lab.id,
+          display: lab.test_name || 'Unknown lab test',
           unit: lab.reference_range?.unit || '',
           category: lab.category || 'laboratory',
           reference_range: lab.reference_range,
@@ -112,9 +115,12 @@ const LabValueConditionBuilder = ({ condition, onChange, onRemove }) => {
     try {
       // Search dynamic catalog - DYNAMIC ONLY
       const dynamicLabs = await cdsClinicalDataService.getLabCatalog(query, null, 20);
+      console.log('[LabValueConditionBuilder] Search results for "' + query + '":', dynamicLabs);
+      
+      // Map from backend LabTestCatalogItem model
       const formatted = dynamicLabs.map(lab => ({
-        code: lab.loinc_code,
-        display: lab.display,
+        code: lab.loinc_code || lab.test_code || lab.id,
+        display: lab.test_name || 'Unknown lab test',
         unit: lab.reference_range?.unit || '',
         category: lab.category || 'laboratory',
         reference_range: lab.reference_range,

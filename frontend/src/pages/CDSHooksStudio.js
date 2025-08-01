@@ -540,7 +540,7 @@ const BuildModeWithErrorHandling = ({ pendingEditHook, onPendingHookProcessed })
     };
   }, [handleReset]);
 
-  return <CDSBuildModeImproved />;
+  return <CDSBuildMode />;
 };
 
 // Save Button component

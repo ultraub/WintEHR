@@ -63,6 +63,11 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
   const [conditionSearchInput, setConditionSearchInput] = useState('');
   const [conditionOptions, setConditionOptions] = useState([]);
   const [searching, setSearching] = useState(false);
+  
+  // Load initial catalog on mount
+  useEffect(() => {
+    searchConditions('');
+  }, []);
 
   // Initialize from existing condition
   useEffect(() => {
@@ -81,11 +86,19 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
       setSearching(true);
       try {
         const dynamicConditions = await cdsClinicalDataService.getDynamicConditionCatalog(null, 20);
+        
+        // Check if we got data and it's an array
+        if (!Array.isArray(dynamicConditions)) {
+          setConditionOptions([]);
+          return;
+        }
+        
         const formatted = dynamicConditions.map(cond => ({
-          code: cond.code,
-          display: cond.display,
-          category: cond.categories?.[0] || 'general',
-          frequency_count: cond.frequency_count,
+          // Map from backend ConditionCatalogItem model
+          code: cond.icd10_code || cond.snomed_code || cond.id || 'unknown',
+          display: cond.display_name || 'No name available',
+          category: cond.category || 'general',
+          frequency_count: cond.usage_count || 0,
           source: 'dynamic'
         }));
         setConditionOptions(formatted);
@@ -101,11 +114,18 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
     try {
       // Search dynamic catalog
       const dynamicConditions = await cdsClinicalDataService.getDynamicConditionCatalog(query, 10);
+      
+      if (!Array.isArray(dynamicConditions)) {
+        setConditionOptions([]);
+        return;
+      }
+      
       const formatted = dynamicConditions.map(cond => ({
-        code: cond.code,
-        display: cond.display,
-        category: cond.categories?.[0] || 'general',
-        frequency_count: cond.frequency_count,
+        // Map from backend ConditionCatalogItem model
+        code: cond.icd10_code || cond.snomed_code || cond.id || 'unknown',
+        display: cond.display_name || 'No name available',
+        category: cond.category || 'general',
+        frequency_count: cond.usage_count || 0,
         source: 'dynamic'
       }));
 
@@ -157,7 +177,10 @@ const MedicalConditionBuilder = ({ condition, onChange, onRemove }) => {
               searchConditions(newInputValue);
             }}
             options={conditionOptions}
-            getOptionLabel={(option) => `${option.display} (${option.code})`}
+            getOptionLabel={(option) => {
+              if (!option) return '';
+              return `${option.display || 'Unknown'} (${option.code || 'N/A'})`;
+            }}
             renderOption={(props, option) => (
               <Box component="li" {...props}>
                 <Box>

@@ -4,12 +4,16 @@
  * This wrapper provides compatibility between the CDS Studio context
  * and the CDSHookBuilder component from the clinical workspace.
  * 
+ * Updated to use enhanced build mode for better UX
+ * 
  * @since 2025-01-26
+ * @updated 2025-01-27
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Alert } from '@mui/material';
 import CDSHookBuilder from '../../clinical/workspace/cds/CDSHookBuilder';
+import CDSBuildModeEnhanced from './CDSBuildModeEnhanced';
 import { useCDSStudio } from '../../../pages/CDSHooksStudio';
 
 /**
@@ -22,39 +26,33 @@ export const CDSBuildMode = () => {
   // Initialize local hook from context
   useEffect(() => {
     if (context?.currentHook) {
-      console.log('[CDSBuildMode] Received hook from context:', context.currentHook);
       setLocalHook(context.currentHook);
     }
   }, [context?.currentHook]);
 
-  const handleSave = useCallback((hookData) => {
+  const handleSave = useCallback(async (hookData) => {
     if (!context) return;
     
-    // Update the CDS Studio state
-    context.actions.updateCurrentHook(hookData);
+    // Update the current hook in context first
+    context.actions.updateHook(hookData);
     
-    // Save to the hooks list
-    if (hookData.id) {
-      // Update existing hook
-      context.actions.updateHook(hookData.id, hookData);
-    } else {
-      // Create new hook
-      const newHook = {
-        ...hookData,
-        id: `hook-${Date.now()}`,
-        created: new Date().toISOString(),
-        modified: new Date().toISOString(),
-        version: 1,
-        author: 'Current User'
-      };
-      context.actions.addHook(newHook);
+    // Then save it using the saveHook action
+    const success = await context.actions.saveHook();
+    
+    if (success) {
+      // Switch back to manage mode on successful save
+      setTimeout(() => {
+        context.actions.switchMode('manage');
+      }, 1000);
     }
+    
+    return success;
   }, [context]);
 
   const handleCancel = useCallback(() => {
     if (!context) return;
-    // Reset the current hook
-    context.actions.updateCurrentHook(null);
+    // Switch back to manage mode
+    context.actions.switchMode('manage');
   }, [context]);
   
   // Safety check in case context is not available
@@ -73,7 +71,7 @@ export const CDSBuildMode = () => {
       <CDSHookBuilder
         onSave={handleSave}
         onCancel={handleCancel}
-        editingHook={localHook}
+        editingHook={localHook?.id && localHook?.title ? localHook : null}
       />
     </Box>
   );
@@ -81,86 +79,11 @@ export const CDSBuildMode = () => {
 
 /**
  * Wrapper for improved build mode
- * Since CDSBuildModeImproved doesn't exist, we'll use the same CDSHookBuilder
- * but with enhanced features enabled
+ * Uses the new enhanced build mode for better UX
  */
 export const CDSBuildModeImproved = () => {
-  const context = useCDSStudio();
-  const [localHook, setLocalHook] = useState(null);
-  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
-  
-  // Initialize local hook from context
-  useEffect(() => {
-    if (context?.currentHook) {
-      console.log('[CDSBuildMode] Received hook from context:', context.currentHook);
-      setLocalHook(context.currentHook);
-    }
-  }, [context?.currentHook]);
-
-  const handleSave = useCallback((hookData) => {
-    if (!context) return;
-    
-    // Enhanced save with additional metadata
-    const enhancedHookData = {
-      ...hookData,
-      metadata: {
-        ...hookData.metadata,
-        isImproved: true,
-        features: ['advanced-conditions', 'visual-builder', 'realtime-preview']
-      }
-    };
-
-    // Update the CDS Studio state
-    context.actions.updateCurrentHook(enhancedHookData);
-    
-    // Save to the hooks list
-    if (hookData.id) {
-      context.actions.updateHook(hookData.id, enhancedHookData);
-    } else {
-      const newHook = {
-        ...enhancedHookData,
-        id: `hook-${Date.now()}`,
-        created: new Date().toISOString(),
-        modified: new Date().toISOString(),
-        version: 1,
-        author: 'Current User'
-      };
-      context.actions.addHook(newHook);
-    }
-  }, [context]);
-
-  const handleCancel = useCallback(() => {
-    if (!context) return;
-    context.actions.updateCurrentHook(null);
-  }, [context]);
-  
-  // Safety check in case context is not available
-  if (!context) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">
-          CDS Studio context not available. Please ensure this component is rendered within CDSStudioProvider.
-        </Alert>
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Using enhanced CDS Hook Builder with advanced features
-      </Alert>
-      <CDSHookBuilder
-        onSave={handleSave}
-        onCancel={handleCancel}
-        editingHook={localHook}
-        // Additional props to enhance the builder
-        showAdvancedFeatures={showAdvancedFeatures}
-        enableRealTimePreview={true}
-        enableVisualConditions={true}
-      />
-    </Box>
-  );
+  // Simply use the enhanced build mode which has all the improvements
+  return <CDSBuildModeEnhanced />;
 };
 
 // Default export for backward compatibility

@@ -317,29 +317,42 @@ const ClinicalWorkspaceEnhanced = ({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* CDS Alerts - Clean professional display */}
+      {/* CDS Alerts - Display based on alert configuration */}
       {cdsAlerts && cdsAlerts.length > 0 && (
-        <Box sx={{ 
-          px: 2, 
-          pt: 2,
-          pb: 0,
-          backgroundColor: theme.palette.background.default
-        }}>
-          <CDSPresentation
-            alerts={cdsAlerts}
-            mode={PRESENTATION_MODES.INLINE}
-            patientId={patientId}
-            maxAlerts={3}
-            allowInteraction={true}
-            onAlertAction={(alertId, action, data) => {
-              console.log('CDS Alert Action:', { alertId, action, data });
-              // Alert has been dismissed/snoozed, persistence is handled by CDSPresentation
-              if (action === 'dismiss' || action === 'snooze') {
-                // Optionally refresh alerts or update local state
-              }
-            }}
-          />
-        </Box>
+        <>
+          {/* Group alerts by presentation mode */}
+          {(() => {
+            const alertsByMode = cdsAlerts.reduce((acc, alert) => {
+              const mode = alert.displayBehavior?.presentationMode || PRESENTATION_MODES.INLINE;
+              if (!acc[mode]) acc[mode] = [];
+              acc[mode].push(alert);
+              return acc;
+            }, {});
+
+            return Object.entries(alertsByMode).map(([mode, alerts]) => (
+              <Box key={mode} sx={{ 
+                px: mode === PRESENTATION_MODES.INLINE ? 2 : 0, 
+                pt: mode === PRESENTATION_MODES.INLINE ? 2 : 0,
+                pb: 0
+              }}>
+                <CDSPresentation
+                  alerts={alerts}
+                  mode={mode}
+                  patientId={patientId}
+                  maxAlerts={mode === PRESENTATION_MODES.INLINE ? 3 : undefined}
+                  allowInteraction={true}
+                  onAlertAction={(alertId, action, data) => {
+                    console.log('CDS Alert Action:', { alertId, action, data });
+                    // Alert has been dismissed/snoozed, persistence is handled by CDSPresentation
+                    if (action === 'dismiss' || action === 'snooze') {
+                      // Optionally refresh alerts or update local state
+                    }
+                  }}
+                />
+              </Box>
+            ));
+          })()}
+        </>
       )}
       
       {/* Tab Content - no extra spacing */}
