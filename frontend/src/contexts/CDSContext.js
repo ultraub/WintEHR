@@ -180,6 +180,7 @@ export const CDSProvider = ({ children }) => {
               // Enhance alert with display behavior metadata
               let presentationMode = null;
               let acknowledgmentRequired = false;
+              let reasonRequired = false;
               let snoozeEnabled = false;
               
               // Check if this alert has a serviceId that matches a hook configuration
@@ -207,7 +208,7 @@ export const CDSProvider = ({ children }) => {
                   
                   presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
                   acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
-                  const reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
+                  reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
                   snoozeEnabled = displayBehavior.snooze?.enabled || false;
                   
                   cdsLogger.debug(`CDSContext: Using configured display behavior for ${service.id}:`, {
