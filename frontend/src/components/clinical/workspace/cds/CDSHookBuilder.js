@@ -119,8 +119,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
   // Initialize with editing data
   useEffect(() => {
+    console.log('[CDSHookBuilder] editingHook prop:', editingHook);
     if (editingHook) {
-      setHookData({
+      const newHookData = {
         id: editingHook.id || '',
         title: editingHook.title || '',
         description: editingHook.description || '',
@@ -135,7 +136,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           maxCards: 10,
           priority: 'critical-first'
         }
-      });
+      };
+      console.log('[CDSHookBuilder] Setting hookData to:', newHookData);
+      setHookData(newHookData);
     }
   }, [editingHook]);
 

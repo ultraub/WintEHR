@@ -19,12 +19,13 @@ export const CDSBuildMode = () => {
   const context = useCDSStudio();
   const [localHook, setLocalHook] = useState(null);
   
-  // Initialize local hook from context state
+  // Initialize local hook from context
   useEffect(() => {
-    if (context?.state?.currentHook) {
-      setLocalHook(context.state.currentHook);
+    if (context?.currentHook) {
+      console.log('[CDSBuildMode] Received hook from context:', context.currentHook);
+      setLocalHook(context.currentHook);
     }
-  }, [context?.state?.currentHook]);
+  }, [context?.currentHook]);
 
   const handleSave = useCallback((hookData) => {
     if (!context) return;
@@ -88,12 +89,13 @@ export const CDSBuildModeImproved = () => {
   const [localHook, setLocalHook] = useState(null);
   const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
   
-  // Initialize local hook from context state
+  // Initialize local hook from context
   useEffect(() => {
-    if (context?.state?.currentHook) {
-      setLocalHook(context.state.currentHook);
+    if (context?.currentHook) {
+      console.log('[CDSBuildMode] Received hook from context:', context.currentHook);
+      setLocalHook(context.currentHook);
     }
-  }, [context?.state?.currentHook]);
+  }, [context?.currentHook]);
 
   const handleSave = useCallback((hookData) => {
     if (!context) return;

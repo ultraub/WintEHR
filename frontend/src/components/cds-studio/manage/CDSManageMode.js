@@ -120,6 +120,7 @@ const CDSManageMode = ({ onEditService }) => {
     try {
       setLoading(true);
       const response = await cdsHooksService.listCustomHooks();
+      console.log('[CDSManageMode] Loaded hooks:', response.data);
       setHooks(response.data || []);
     } catch (error) {
       console.error('Failed to load hooks:', error);
