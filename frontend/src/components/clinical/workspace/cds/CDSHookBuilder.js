@@ -182,10 +182,20 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     cards: [],
     prefetch: {},
     displayBehavior: {
-      displayMode: 'immediate',
-      position: 'top',
-      maxCards: 10,
-      priority: 'critical-first'
+      defaultMode: 'popup',
+      indicatorOverrides: {
+        critical: 'modal',
+        warning: 'popup',
+        info: 'inline'
+      },
+      acknowledgment: {
+        required: false,
+        reasonRequired: false
+      },
+      snooze: {
+        enabled: true,
+        defaultDuration: 60
+      }
     }
   });
   const [testResults, setTestResults] = useState(null);
@@ -220,10 +230,20 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         cards: editingHook.cards || [],
         prefetch: editingHook.prefetch || {},
         displayBehavior: editingHook.displayBehavior || {
-          displayMode: 'immediate',
-          position: 'top',
-          maxCards: 10,
-          priority: 'critical-first'
+          defaultMode: 'popup',
+          indicatorOverrides: {
+            critical: 'modal',
+            warning: 'popup',
+            info: 'inline'
+          },
+          acknowledgment: {
+            required: false,
+            reasonRequired: false
+          },
+          snooze: {
+            enabled: true,
+            defaultDuration: 60
+          }
         }
       };
       console.log('[CDSHookBuilder] Setting hookData to:', newHookData);
