@@ -107,6 +107,11 @@ export async function cleanupOverrideTest() {
 if (typeof window !== 'undefined') {
   window.testOverrideReasonSave = testOverrideReasonSave;
   window.cleanupOverrideTest = cleanupOverrideTest;
+  
+  // Auto-inject when module is loaded
+  console.log('Override reason test functions available:');
+  console.log('- window.testOverrideReasonSave()');
+  console.log('- window.cleanupOverrideTest()');
 }
 
 export default { testOverrideReasonSave, cleanupOverrideTest };
