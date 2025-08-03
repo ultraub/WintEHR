@@ -68,7 +68,11 @@ import {
   ViewList as ListIcon,
   AccountCircle as BodyMapIcon,
   AccessTime as RecentIcon,
-  Collections as CollectionsIcon
+  Collections as CollectionsIcon,
+  Scanner as CTIcon,
+  Biotech as MRIcon,
+  CameraAlt as XRayIcon,
+  GraphicEq as UltrasoundIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -133,18 +137,18 @@ const getBodyRegion = (study) => {
 const getModalityIcon = (modality) => {
   switch (modality?.toUpperCase()) {
     case 'CT':
-      return <CTIcon color="primary" />;
+      return CTIcon;
     case 'MR':
     case 'MRI':
-      return <MRIcon color="secondary" />;
+      return MRIcon;
     case 'CR':
     case 'DX':
     case 'XR':
-      return <XRayIcon color="info" />;
+      return XRayIcon;
     case 'US':
-      return <UltrasoundIcon color="success" />;
+      return UltrasoundIcon;
     default:
-      return <ImagingIcon color="action" />;
+      return ImagingIcon;
   }
 };
 
@@ -381,7 +385,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
           }}
         >
           <Box sx={{ fontSize: 48, opacity: 0.3 }}>
-            {getModalityIcon(getModality())}
+            {React.createElement(getModalityIcon(getModality()))}
           </Box>
           <Chip
             label={getModality()}
@@ -428,7 +432,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
       severity={severity}
       status={study.status || 'available'}
       statusColor={getStudyStatusColor(study.status)}
-      icon={getModalityIcon(getModality())}
+      icon={React.createElement(getModalityIcon(getModality()))}
       details={details}
       onEdit={() => onView(study)}
       actions={actions}
