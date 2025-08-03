@@ -40,6 +40,7 @@ import {
   ArrowForward as MoveIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow } from 'date-fns';
+import { printPrescriptionLabel } from '../../services/prescriptionLabelService';
 
 // Pharmacy queue column configuration
 const QUEUE_COLUMNS = {
@@ -129,6 +130,27 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handlePrintLabel = () => {
+    // Use the prescription label service for enhanced printing
+    const labelOptions = {
+      template: isControlled ? 'large' : 'standard',
+      includeBarcode: true,
+      includeQRCode: isControlled, // QR code for controlled substances
+      pharmacyName: 'WintEHR PHARMACY',
+      pharmacyAddress: '123 Healthcare Blvd, Medical City, HC 12345',
+      pharmacyPhone: '(555) 123-4567',
+      // In production, these would come from the logged-in pharmacist
+      pharmacistName: 'Licensed Pharmacist',
+      deaNumber: isControlled ? 'BW1234567' : ''
+    };
+    
+    // Print the label
+    printPrescriptionLabel(prescription, labelOptions);
+    
+    // Close the menu
+    handleMenuClose();
   };
 
   // Get next workflow action based on current column
@@ -278,7 +300,7 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
           View Details
         </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
+        <MenuItem onClick={handlePrintLabel}>
           <PrintIcon sx={{ mr: 1 }} fontSize="small" />
           Print Label
         </MenuItem>

@@ -44,16 +44,54 @@ import {
   CheckCircle as ReadyIcon,
   Assignment as OrderIcon,
   Timeline as AnalyticsIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
+  FormControlLabel
+} from '@mui/material';
 import { format } from 'date-fns';
 
 // Import pharmacy components
 import PharmacyQueue from '../components/pharmacy/PharmacyQueue';
 import PharmacyAnalytics from '../components/pharmacy/PharmacyAnalytics';
 
+// Queue column configuration (should match PharmacyQueue.js)
+const QUEUE_COLUMNS = {
+  newOrders: {
+    id: 'newOrders',
+    title: 'New Orders',
+    color: 'warning'
+  },
+  verification: {
+    id: 'verification',
+    title: 'Verification',
+    color: 'info'
+  },
+  dispensing: {
+    id: 'dispensing',
+    title: 'Dispensing',
+    color: 'primary'
+  },
+  ready: {
+    id: 'ready',
+    title: 'Ready',
+    color: 'success'
+  }
+};
+
 // Services
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { printBatchLabels } from '../services/prescriptionLabelService';
 
 // Context
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
@@ -79,6 +117,16 @@ const PharmacyPage = () => {
     dispensing: 0,
     ready: 0,
     total: 0
+  });
+  
+  // Batch print dialog state
+  const [batchPrintOpen, setBatchPrintOpen] = useState(false);
+  const [selectedForPrint, setSelectedForPrint] = useState([]);
+  const [selectAllCategories, setSelectAllCategories] = useState({
+    newOrders: false,
+    verification: false,
+    dispensing: false,
+    ready: true // Default to printing ready prescriptions
   });
 
   // Fetch all medication requests on mount
@@ -273,10 +321,73 @@ const PharmacyPage = () => {
     }
   }, [publish, handleRefresh, CLINICAL_EVENTS.WORKFLOW_NOTIFICATION]);
 
+  // Handle batch print dialog
+  const handleOpenBatchPrint = () => {
+    // Pre-select prescriptions based on default categories
+    const preSelected = [];
+    Object.entries(selectAllCategories).forEach(([category, isSelected]) => {
+      if (isSelected && queueCategories[category]) {
+        preSelected.push(...queueCategories[category].map(rx => rx.id));
+      }
+    });
+    setSelectedForPrint(preSelected);
+    setBatchPrintOpen(true);
+  };
+
+  const handleCloseBatchPrint = () => {
+    setBatchPrintOpen(false);
+  };
+
+  const handleTogglePrescription = (prescriptionId) => {
+    setSelectedForPrint(prev => 
+      prev.includes(prescriptionId)
+        ? prev.filter(id => id !== prescriptionId)
+        : [...prev, prescriptionId]
+    );
+  };
+
+  const handleToggleCategory = (category) => {
+    const categoryPrescriptions = queueCategories[category] || [];
+    const categoryIds = categoryPrescriptions.map(rx => rx.id);
+    
+    if (selectAllCategories[category]) {
+      // Unselect all in category
+      setSelectedForPrint(prev => prev.filter(id => !categoryIds.includes(id)));
+    } else {
+      // Select all in category
+      setSelectedForPrint(prev => [...new Set([...prev, ...categoryIds])]);
+    }
+    
+    setSelectAllCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  const handlePrintBatch = () => {
+    const prescriptionsToPrint = pharmacyQueue.filter(rx => 
+      selectedForPrint.includes(rx.id)
+    );
+    
+    if (prescriptionsToPrint.length > 0) {
+      const labelOptions = {
+        template: 'standard',
+        includeBarcode: true,
+        pharmacyName: 'WintEHR PHARMACY',
+        pharmacyAddress: '123 Healthcare Blvd, Medical City, HC 12345',
+        pharmacyPhone: '(555) 123-4567',
+        pharmacistName: 'Licensed Pharmacist'
+      };
+      
+      printBatchLabels(prescriptionsToPrint, labelOptions);
+      handleCloseBatchPrint();
+    }
+  };
+
   // Speed dial actions
   const speedDialActions = [
     { icon: <RefreshIcon />, name: 'Refresh Queue', onClick: handleRefresh },
-    { icon: <PrintIcon />, name: 'Print Labels', onClick: () => {} },
+    { icon: <PrintIcon />, name: 'Print Labels', onClick: handleOpenBatchPrint },
     { icon: <InventoryIcon />, name: 'Check Inventory', onClick: () => {} },
     { icon: <AnalyticsIcon />, name: 'View Analytics', onClick: () => setActiveView('analytics') },
     { icon: <AddIcon />, name: 'Manual Entry', onClick: () => {} }
@@ -521,6 +632,88 @@ const PharmacyPage = () => {
           />
         ))}
       </SpeedDial>
+
+      {/* Batch Print Dialog */}
+      <Dialog
+        open={batchPrintOpen}
+        onClose={handleCloseBatchPrint}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Print Prescription Labels</Typography>
+            <IconButton onClick={handleCloseBatchPrint} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Select prescriptions to print labels. Labels will be printed in a batch with page breaks between each prescription.
+          </Alert>
+          
+          {Object.entries(queueCategories).map(([category, prescriptions]) => (
+            <Box key={category} mb={3}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={selectAllCategories[category]}
+                    onChange={() => handleToggleCategory(category)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    {QUEUE_COLUMNS[category]?.title || category} ({prescriptions.length})
+                  </Typography>
+                }
+              />
+              
+              <List dense sx={{ ml: 3 }}>
+                {prescriptions.map((prescription) => {
+                  const medicationName = prescription.medicationCodeableConcept?.text || 
+                                       prescription.medicationCodeableConcept?.coding?.[0]?.display || 
+                                       'Unknown Medication';
+                  const patientDisplay = prescription.subject?.display || 'Unknown Patient';
+                  
+                  return (
+                    <ListItem key={prescription.id}>
+                      <ListItemIcon>
+                        <Checkbox
+                          edge="start"
+                          checked={selectedForPrint.includes(prescription.id)}
+                          onChange={() => handleTogglePrescription(prescription.id)}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={medicationName}
+                        secondary={`${patientDisplay} - Rx #${prescription.id.substring(0, 8).toUpperCase()}`}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
+          ))}
+        </DialogContent>
+        
+        <DialogActions>
+          <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, ml: 2 }}>
+            {selectedForPrint.length} prescription{selectedForPrint.length !== 1 ? 's' : ''} selected
+          </Typography>
+          <Button onClick={handleCloseBatchPrint}>Cancel</Button>
+          <Button 
+            onClick={handlePrintBatch} 
+            variant="contained" 
+            startIcon={<PrintIcon />}
+            disabled={selectedForPrint.length === 0}
+          >
+            Print Labels ({selectedForPrint.length})
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
