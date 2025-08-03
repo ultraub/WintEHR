@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import json
 import uuid
 import logging
+import aiohttp
 
 from .models import (
     HookConfiguration,
@@ -32,6 +33,8 @@ class MedicationPrescribeHooks:
     def __init__(self):
         self.drug_interactions = self._load_drug_interactions()
         self.allergy_mappings = self._load_allergy_mappings()
+        # URL for enhanced drug safety service
+        self.drug_safety_api_url = "http://localhost:8000/api/emr/clinical/drug-interactions"
     
     def _load_drug_interactions(self) -> Dict[str, List[Dict]]:
         """Load drug interaction database"""
@@ -224,7 +227,77 @@ class MedicationPrescribeHooks:
         ]
     
     async def execute_drug_interaction_check(self, request: CDSHookRequest) -> List[Card]:
-        """Execute drug interaction checking"""
+        """Execute comprehensive drug safety checking using enhanced API"""
+        cards = []
+        
+        try:
+            # Get the medication being prescribed
+            context = request.context
+            if not isinstance(context, MedicationPrescribeContext):
+                return cards
+            
+            # Extract medication information from draft order
+            draft_order = context.draftOrders[0] if context.draftOrders else {}
+            if not draft_order:
+                return cards
+                
+            med_concept = draft_order.get('medicationCodeableConcept', {})
+            med_name = med_concept.get('text') or (med_concept.get('coding', [{}])[0].get('display') if med_concept.get('coding') else None)
+            med_code = med_concept.get('coding', [{}])[0].get('code') if med_concept.get('coding') else None
+            
+            if not med_name:
+                return cards
+            
+            # Extract dosage information
+            dosage_instruction = draft_order.get('dosageInstruction', [{}])[0]
+            dose_and_rate = dosage_instruction.get('doseAndRate', [{}])[0]
+            dose_quantity = dose_and_rate.get('doseQuantity', {})
+            
+            # Build medication check request
+            medication_data = {
+                "name": med_name,
+                "code": med_code or "",
+                "dose": f"{dose_quantity.get('value', '')} {dose_quantity.get('unit', '')}" if dose_quantity else "",
+                "route": dosage_instruction.get('route', {}).get('text', ""),
+                "frequency": self._extract_frequency(dosage_instruction)
+            }
+            
+            # Call comprehensive drug safety API
+            safety_check_request = {
+                "patient_id": request.patient,
+                "medications": [medication_data],
+                "include_current_medications": True,
+                "include_allergies": True,
+                "include_contraindications": True,
+                "include_duplicate_therapy": True,
+                "include_dosage_check": True
+            }
+            
+            # Make API call
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.drug_safety_api_url}/comprehensive-safety-check",
+                    json=safety_check_request
+                ) as response:
+                    if response.status == 200:
+                        safety_result = await response.json()
+                        
+                        # Convert safety results to CDS cards
+                        cards.extend(self._convert_safety_results_to_cards(safety_result, med_name))
+                    else:
+                        # Fallback to basic interaction checking
+                        logger.warning(f"Drug safety API returned {response.status}, falling back to basic checks")
+                        return await self._execute_basic_drug_interaction_check(request)
+            
+        except Exception as e:
+            logger.error(f"Error in comprehensive drug safety check: {e}")
+            # Fallback to basic checking
+            return await self._execute_basic_drug_interaction_check(request)
+        
+        return cards
+    
+    async def _execute_basic_drug_interaction_check(self, request: CDSHookRequest) -> List[Card]:
+        """Fallback to basic drug interaction checking"""
         cards = []
         
         try:
@@ -267,7 +340,7 @@ class MedicationPrescribeHooks:
                 cards.append(card)
         
         except Exception as e:
-            logger.error(f"Error in drug interaction check: {e}")
+            logger.error(f"Error in basic drug interaction check: {e}")
         
         return cards
     
@@ -528,6 +601,161 @@ class MedicationPrescribeHooks:
                     return {'message': f"Geriatric Alert: {alert}"}
         
         return None
+    
+    def _extract_frequency(self, dosage_instruction: Dict) -> str:
+        """Extract frequency from dosage instruction"""
+        timing = dosage_instruction.get('timing', {})
+        repeat = timing.get('repeat', {})
+        
+        if repeat:
+            frequency = repeat.get('frequency', '')
+            period = repeat.get('period', '')
+            period_unit = repeat.get('periodUnit', '')
+            
+            if frequency and period and period_unit:
+                return f"{frequency} times per {period} {period_unit}"
+        
+        return dosage_instruction.get('text', '')
+    
+    def _convert_safety_results_to_cards(self, safety_result: Dict, med_name: str) -> List[Card]:
+        """Convert comprehensive safety check results to CDS cards"""
+        cards = []
+        
+        # Overall risk card if high risk
+        if safety_result.get('overall_risk_score', 0) >= 7:
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary="⚠️ HIGH RISK: Multiple Safety Concerns",
+                detail=f"Risk Score: {safety_result['overall_risk_score']:.1f}/10. {safety_result['critical_alerts']} critical alerts found. {', '.join(safety_result.get('recommendations', []))}",
+                indicator=IndicatorType.CRITICAL,
+                source=Source(label="Comprehensive Drug Safety Analysis", url=""),
+                suggestions=[
+                    Suggestion(
+                        label="Contact Pharmacy",
+                        uuid=str(uuid.uuid4()),
+                        actions=[]
+                    )
+                ]
+            )
+            cards.append(card)
+        
+        # Drug-drug interactions
+        for interaction in safety_result.get('interactions', []):
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary=f"Drug Interaction: {' + '.join(interaction['drugs'])}",
+                detail=f"{interaction['clinical_consequence']} Management: {interaction['management']}",
+                indicator=self._get_indicator_for_severity(interaction['severity']),
+                source=Source(label="Drug Interaction Database", url=""),
+                suggestions=self._get_interaction_suggestions(interaction)
+            )
+            cards.append(card)
+        
+        # Allergy alerts
+        for alert in safety_result.get('allergy_alerts', []):
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary=f"🚨 ALLERGY ALERT: {alert['drug']}",
+                detail=f"Patient has {alert['reaction_type']} to {alert['allergen']}. {alert['management']}",
+                indicator=IndicatorType.CRITICAL,
+                source=Source(label="Patient Allergy List", url=""),
+                suggestions=[
+                    Suggestion(
+                        label="Cancel Order",
+                        uuid=str(uuid.uuid4()),
+                        actions=[
+                            Action(
+                                type="delete",
+                                description="Remove this medication order",
+                                resource={}
+                            )
+                        ]
+                    )
+                ]
+            )
+            cards.append(card)
+        
+        # Contraindications
+        for contra in safety_result.get('contraindications', []):
+            severity = IndicatorType.CRITICAL if contra['contraindication_type'] == 'absolute' else IndicatorType.WARNING
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary=f"Contraindication: {contra['drug']} with {contra['condition']}",
+                detail=f"{contra['rationale']} Alternative: {contra.get('alternative_therapy', 'Contact prescriber')}",
+                indicator=severity,
+                source=Source(label="Clinical Guidelines", url=""),
+                suggestions=[]
+            )
+            cards.append(card)
+        
+        # Duplicate therapy
+        for dup in safety_result.get('duplicate_therapy', []):
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary=f"Duplicate Therapy: {dup['therapeutic_class']}",
+                detail=f"Multiple {dup['therapeutic_class']} medications: {', '.join(dup['drugs'])}. {dup['recommendation']}",
+                indicator=IndicatorType.WARNING,
+                source=Source(label="Therapeutic Classification", url=""),
+                suggestions=[]
+            )
+            cards.append(card)
+        
+        # Dosage alerts
+        for dose_alert in safety_result.get('dosage_alerts', []):
+            severity = IndicatorType.WARNING if dose_alert['issue_type'] == 'underdose' else IndicatorType.CRITICAL
+            card = Card(
+                uuid=str(uuid.uuid4()),
+                summary=f"Dosage Alert: {dose_alert['drug']} - {dose_alert['issue_type']}",
+                detail=f"Current: {dose_alert['current_dose']}. Recommended: {dose_alert['recommended_range']}. {dose_alert.get('adjustment', '')}",
+                indicator=severity,
+                source=Source(label="Dosing Guidelines", url=""),
+                suggestions=self._get_dosage_suggestions(dose_alert)
+            )
+            cards.append(card)
+        
+        return cards
+    
+    def _get_interaction_suggestions(self, interaction: Dict) -> List[Suggestion]:
+        """Get suggestions for drug interactions based on severity"""
+        suggestions = []
+        
+        if interaction['severity'] in ['contraindicated', 'major']:
+            suggestions.append(
+                Suggestion(
+                    label="Review Alternative",
+                    uuid=str(uuid.uuid4()),
+                    actions=[
+                        Action(
+                            type="update",
+                            description=interaction['management'],
+                            resource={}
+                        )
+                    ]
+                )
+            )
+        
+        return suggestions
+    
+    def _get_dosage_suggestions(self, dose_alert: Dict) -> List[Suggestion]:
+        """Get suggestions for dosage alerts"""
+        suggestions = []
+        
+        if dose_alert.get('adjustment'):
+            suggestions.append(
+                Suggestion(
+                    label="Adjust Dose",
+                    uuid=str(uuid.uuid4()),
+                    actions=[
+                        Action(
+                            type="update",
+                            description=dose_alert['adjustment'],
+                            resource={}
+                        )
+                    ]
+                )
+            )
+        
+        return suggestions
 
 # Create singleton instance
 medication_prescribe_hooks = MedicationPrescribeHooks()

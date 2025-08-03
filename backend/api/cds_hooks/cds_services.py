@@ -50,16 +50,16 @@ class DiabetesManagementService(BaseCDSService):
             conditions = prefetch.get("conditions", [])
             if not conditions:
                 return {"cards": []}
-        
-        # Check latest A1C
-        a1c = prefetch.get("a1c")
-        if a1c and isinstance(a1c, dict):
-            # FHIR Observation structure: check valueQuantity
-            value_quantity = a1c.get('valueQuantity', {})
-            a1c_value = value_quantity.get('value') if value_quantity else None
             
-            if a1c_value and a1c_value >= 9.0:
-                cards.append(self.create_card(
+            # Check latest A1C
+            a1c = prefetch.get("a1c")
+            if a1c and isinstance(a1c, dict):
+                # FHIR Observation structure: check valueQuantity
+                value_quantity = a1c.get('valueQuantity', {})
+                a1c_value = value_quantity.get('value') if value_quantity else None
+                
+                if a1c_value and a1c_value >= 9.0:
+                    cards.append(self.create_card(
                     summary="High A1C Alert",
                     detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider intensifying therapy.",
                     indicator="critical",
@@ -93,29 +93,29 @@ class DiabetesManagementService(BaseCDSService):
                     detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider treatment adjustment.",
                     indicator="warning"
                 ))
-        
-        # Check if on metformin (first-line therapy)
-        medications = prefetch.get("medications", [])
-        on_metformin = False
-        for med in medications:
-            if isinstance(med, dict):
-                # Check FHIR MedicationRequest structure
-                med_concept = med.get('medicationCodeableConcept', {})
-                if med_concept:
-                    # Check text or coding display
-                    med_text = med_concept.get('text', '')
-                    if med_text and 'metformin' in med_text.lower():
-                        on_metformin = True
-                        break
-                    # Also check codings
-                    for coding in med_concept.get('coding', []):
-                        display = coding.get('display', '')
-                        if display and 'metformin' in display.lower():
+            
+            # Check if on metformin (first-line therapy)
+            medications = prefetch.get("medications", [])
+            on_metformin = False
+            for med in medications:
+                if isinstance(med, dict):
+                    # Check FHIR MedicationRequest structure
+                    med_concept = med.get('medicationCodeableConcept', {})
+                    if med_concept:
+                        # Check text or coding display
+                        med_text = med_concept.get('text', '')
+                        if med_text and 'metformin' in med_text.lower():
                             on_metformin = True
                             break
-        
-        if not on_metformin:
-            cards.append(self.create_card(
+                        # Also check codings
+                        for coding in med_concept.get('coding', []):
+                            display = coding.get('display', '')
+                            if display and 'metformin' in display.lower():
+                                on_metformin = True
+                                break
+            
+            if not on_metformin:
+                cards.append(self.create_card(
                 summary="Consider Metformin",
                 detail="Patient with diabetes not on metformin. Consider starting metformin as first-line therapy.",
                 indicator="info",
@@ -135,10 +135,10 @@ class DiabetesManagementService(BaseCDSService):
                         }]
                     }
                 ]
-            ))
-        
-        # Check for annual screening reminders
-        cards.append(self.create_card(
+                ))
+            
+            # Check for annual screening reminders
+            cards.append(self.create_card(
             summary="Annual Diabetes Screenings Due",
             detail="Remember annual screenings: eye exam, foot exam, urine microalbumin",
             indicator="info",
@@ -149,8 +149,8 @@ class DiabetesManagementService(BaseCDSService):
                     "type": "absolute"
                 }
             ]
-        ))
-        
+            ))
+            
             return {"cards": cards}
             
         except Exception as e:
@@ -176,11 +176,11 @@ class HypertensionManagementService(BaseCDSService):
             bp_observations = prefetch.get("bp", [])
             if not bp_observations:
                 return {"cards": []}
-        
-        # Get latest systolic and diastolic readings
-        systolic_readings = []
-        diastolic_readings = []
-        
+            
+            # Get latest systolic and diastolic readings
+            systolic_readings = []
+            diastolic_readings = []
+            
             for obs in bp_observations:
                 if isinstance(obs, dict):
                     # Check if this is a blood pressure observation
@@ -198,13 +198,13 @@ class HypertensionManagementService(BaseCDSService):
                                         systolic_readings.append(float(value))
                                     elif code == "8462-4":  # Diastolic
                                         diastolic_readings.append(float(value))
-        
-        if systolic_readings and diastolic_readings:
-            avg_systolic = sum(systolic_readings[:3]) / min(3, len(systolic_readings))
-            avg_diastolic = sum(diastolic_readings[:3]) / min(3, len(diastolic_readings))
             
-            if avg_systolic >= 180 or avg_diastolic >= 120:
-                cards.append(self.create_card(
+            if systolic_readings and diastolic_readings:
+                avg_systolic = sum(systolic_readings[:3]) / min(3, len(systolic_readings))
+                avg_diastolic = sum(diastolic_readings[:3]) / min(3, len(diastolic_readings))
+                
+                if avg_systolic >= 180 or avg_diastolic >= 120:
+                    cards.append(self.create_card(
                     summary="Hypertensive Crisis",
                     detail=f"Average BP: {avg_systolic:.0f}/{avg_diastolic:.0f}. Immediate evaluation needed.",
                     indicator="critical",
