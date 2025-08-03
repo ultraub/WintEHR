@@ -18,6 +18,11 @@
 - **Fix**: Changed to `const { user: currentUser } = useAuth()`
 - **File Changed**: `frontend/src/contexts/ClinicalWorkflowContext.js`
 
+### 3. WebSocket Connecting to Wrong Port (Fixed)
+- **Issue**: WebSocket was trying to connect to `localhost:3000` (React dev server) instead of `localhost:8000` (backend)
+- **Fix**: Added development environment detection to use correct backend port
+- **File Changed**: `frontend/src/services/websocket.js`
+
 ## Backend Investigation Results
 
 ### WebSocket Backend Configuration
