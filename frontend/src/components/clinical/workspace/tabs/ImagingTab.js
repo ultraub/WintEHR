@@ -337,15 +337,18 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
   
   const actions = [
     {
+      type: 'button',
       label: 'View Study',
       onClick: () => onView(study),
       primary: true
     },
     {
+      type: 'button',
       label: 'Report',
       onClick: () => onAction(study, 'report')
     },
     {
+      type: 'button',
       label: 'Download',
       onClick: () => onAction(study, 'download')
     }
@@ -497,18 +500,67 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
       // Try to get imaging studies from FHIR resources first
       const fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
       
-      // If no FHIR studies, try the API endpoint
-      if (fhirStudies.length === 0) {
+      // If we have FHIR studies, try to enrich them with DICOM directory info
+      if (fhirStudies.length > 0) {
+        // Get available DICOM studies from the backend
+        try {
+          const dicomResponse = await axios.get('/api/dicom/studies');
+          const availableDicomStudies = dicomResponse.data || [];
+          
+          // Map FHIR studies to DICOM directories
+          const enrichedStudies = fhirStudies.map(fhirStudy => {
+            // Try to find matching DICOM study by patient ID or study description
+            const matchingDicom = availableDicomStudies.find(dicomStudy => {
+              // Match by patient ID if available
+              if (dicomStudy.patientID && currentPatient?.id) {
+                return dicomStudy.patientID === currentPatient.id;
+              }
+              // Match by modality and approximate date
+              if (fhirStudy.modality?.[0]?.code && dicomStudy.modality) {
+                return fhirStudy.modality[0].code.toUpperCase() === dicomStudy.modality.toUpperCase();
+              }
+              return false;
+            });
+            
+            // If we found a matching DICOM study, add the directory info
+            if (matchingDicom) {
+              return {
+                ...fhirStudy,
+                studyDirectory: matchingDicom.studyDirectory,
+                dicomMetadata: matchingDicom
+              };
+            }
+            
+            // Otherwise, generate a default directory based on study type
+            const modality = fhirStudy.modality?.[0]?.code || 'CT';
+            const bodyPart = fhirStudy.description?.includes('chest') || fhirStudy.description?.includes('Chest') 
+              ? 'CHEST' 
+              : fhirStudy.description?.includes('head') || fhirStudy.description?.includes('Head')
+              ? 'HEAD'
+              : 'CHEST'; // Default
+            
+            return {
+              ...fhirStudy,
+              studyDirectory: `${modality.toUpperCase()}_${bodyPart}_${fhirStudy.id?.substring(0, 8) || 'SAMPLE'}`
+            };
+          });
+          
+          setStudies(enrichedStudies);
+        } catch (error) {
+          console.warn('Failed to enrich studies with DICOM data:', error);
+          // Fall back to FHIR studies without DICOM enrichment
+          setStudies(fhirStudies);
+        }
+      } else {
+        // No FHIR studies, try the API endpoint
         try {
           const response = await axios.get(`/api/imaging/studies/${patientId}`);
           const apiStudies = response.data?.data || [];
           setStudies(apiStudies);
         } catch (error) {
-          // Failed to load from API - fall back to FHIR data (empty in this case)
+          // Failed to load from API - no studies available
           setStudies([]);
         }
-      } else {
-        setStudies(fhirStudies);
       }
     } catch (error) {
       // Handle error - imaging studies failed to load
@@ -521,7 +573,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     } finally {
       setLoading(false);
     }
-  }, [patientId, getPatientResources]);
+  }, [patientId, getPatientResources, currentPatient]);
 
   // Load imaging studies when patient changes (removed separate useEffect to avoid circular dependency)
   useEffect(() => {
