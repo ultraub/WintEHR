@@ -116,6 +116,7 @@ const CDSAlertPresenter = ({
   const [acknowledgments, setAcknowledgments] = useState(new Map());
   const [snoozedAlerts, setSnoozedAlerts] = useState(new Set());
   const [snoozeDialogOpen, setSnoozeDialogOpen] = useState(false);
+  const [acknowledgmentDialogOpen, setAcknowledgmentDialogOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [snoozeMinutes, setSnoozeMinutes] = useState(60);
   const [acknowledgmentNotes, setAcknowledgmentNotes] = useState('');
@@ -182,8 +183,8 @@ const CDSAlertPresenter = ({
   const handleAcknowledge = (alert) => {
     if (requireAcknowledgment) {
       setSelectedAlert(alert);
-      setSnoozeDialogOpen(false);
-      // Show acknowledgment dialog
+      setAcknowledgmentNotes(''); // Clear previous notes
+      setAcknowledgmentDialogOpen(true); // Show the dialog
     } else {
       const acknowledgment = {
         timestamp: new Date(),
@@ -225,6 +226,38 @@ const CDSAlertPresenter = ({
     setSnoozeDialogOpen(false);
     setSelectedAlert(null);
     setSnoozeMinutes(60);
+  };
+
+  // Confirm acknowledgment
+  const confirmAcknowledgment = () => {
+    if (selectedAlert) {
+      const acknowledgment = {
+        timestamp: new Date(),
+        notes: acknowledgmentNotes,
+        userId: context.userId
+      };
+      
+      setAcknowledgments(prev => new Map(prev).set(selectedAlert.id, acknowledgment));
+      clinicalCDSService.acknowledgeAlert(selectedAlert.id, acknowledgment);
+      
+      if (onAcknowledge) {
+        onAcknowledge(selectedAlert, acknowledgment);
+      }
+
+      // Close modal if this was the last unacknowledged alert
+      if (mode === ALERT_MODES.MODAL) {
+        const remainingUnacknowledged = alerts.filter(a => 
+          a.id !== selectedAlert.id && !acknowledgments.has(a.id)
+        );
+        if (remainingUnacknowledged.length === 0) {
+          setModalOpen(false);
+        }
+      }
+    }
+    
+    setAcknowledgmentDialogOpen(false);
+    setSelectedAlert(null);
+    setAcknowledgmentNotes('');
   };
 
   // Handle dismiss
@@ -386,7 +419,8 @@ const CDSAlertPresenter = ({
   };
 
   // Render based on mode
-  switch (mode) {
+  const renderAlerts = () => {
+    switch (mode) {
     case ALERT_MODES.INLINE:
       return (
         <Stack spacing={dense ? 1 : 2}>
@@ -545,19 +579,26 @@ const CDSAlertPresenter = ({
             
             <DialogActions>
               <Button onClick={() => setModalOpen(false)}>Close</Button>
-              {requireAcknowledgment && alerts.some(a => !acknowledgments.has(a.id)) && (
+              {alerts.some(a => !acknowledgments.has(a.id)) && (
                 <Button 
                   variant="contained" 
                   onClick={() => {
-                    // Acknowledge all
-                    alerts.forEach(alert => {
-                      if (!acknowledgments.has(alert.id)) {
-                        handleAcknowledge(alert);
-                      }
-                    });
+                    if (requireAcknowledgment) {
+                      // For required acknowledgment, they need to acknowledge individually
+                      // with reasons, so we'll just close the modal
+                      alert('Please acknowledge each alert individually with a reason.');
+                    } else {
+                      // Acknowledge all without reason
+                      alerts.forEach(alert => {
+                        if (!acknowledgments.has(alert.id)) {
+                          handleAcknowledge(alert);
+                        }
+                      });
+                      setModalOpen(false);
+                    }
                   }}
                 >
-                  Acknowledge All
+                  {requireAcknowledgment ? 'Close' : 'Acknowledge All'}
                 </Button>
               )}
             </DialogActions>
@@ -691,7 +732,91 @@ const CDSAlertPresenter = ({
 
     default:
       return null;
-  }
+    }
+  };
+
+  return (
+    <>
+      {renderAlerts()}
+      
+      {/* Acknowledgment Dialog */}
+      <Dialog
+        open={acknowledgmentDialogOpen}
+        onClose={() => setAcknowledgmentDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Acknowledge Alert
+        </DialogTitle>
+        <DialogContent>
+          {selectedAlert && (
+            <Box>
+              <Alert severity={SEVERITY_CONFIG[selectedAlert.indicator]?.color || 'info'} sx={{ mb: 2 }}>
+                <AlertTitle>{selectedAlert.displaySummary}</AlertTitle>
+                <Typography variant="body2" dangerouslySetInnerHTML={{ __html: selectedAlert.displayDetail }} />
+              </Alert>
+              
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Reason for Override (Required)"
+                value={acknowledgmentNotes}
+                onChange={(e) => setAcknowledgmentNotes(e.target.value)}
+                placeholder="Please explain why you are overriding this alert..."
+                sx={{ mt: 2 }}
+                required
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAcknowledgmentDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={confirmAcknowledgment}
+            disabled={!acknowledgmentNotes.trim()}
+          >
+            Acknowledge
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Snooze Dialog */}
+      <Dialog
+        open={snoozeDialogOpen}
+        onClose={() => setSnoozeDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          Snooze Alert
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            type="number"
+            label="Snooze duration (minutes)"
+            value={snoozeMinutes}
+            onChange={(e) => setSnoozeMinutes(parseInt(e.target.value) || 60)}
+            InputProps={{ inputProps: { min: 1, max: 1440 } }}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSnoozeDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={confirmSnooze}>
+            Snooze
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
 };
 
 export default CDSAlertPresenter;
