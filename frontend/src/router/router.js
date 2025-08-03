@@ -24,6 +24,7 @@ import QualityMeasuresPage from '../pages/QualityMeasuresPage';
 import CareGapsPage from '../pages/CareGapsPage';
 import AuditTrailPage from '../pages/AuditTrailPage';
 import PharmacyPage from '../pages/PharmacyPage';
+import InventoryManagementPage from '../pages/InventoryManagementPage';
 import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
 import PerformanceTestPage from '../pages/PerformanceTestPage';
@@ -157,6 +158,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <PharmacyPage />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/inventory',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <InventoryManagementPage />
         </LayoutV3>
       </ProtectedRoute>
     )

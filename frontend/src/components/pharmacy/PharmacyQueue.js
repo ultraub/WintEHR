@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { format, formatDistanceToNow } from 'date-fns';
 import { printPrescriptionLabel } from '../../services/prescriptionLabelService';
+import { checkAvailability } from '../../services/inventoryManagementService';
 
 // Pharmacy queue column configuration
 const QUEUE_COLUMNS = {
@@ -86,6 +87,8 @@ const PRIORITY_LEVELS = {
 const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewDetails }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [inventoryStatus, setInventoryStatus] = useState(null);
+  const [checkingInventory, setCheckingInventory] = useState(false);
   
   // Extract prescription details
   const medicationName = prescription.medicationCodeableConcept?.text ||
@@ -130,6 +133,34 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleCheckInventory = async () => {
+    setCheckingInventory(true);
+    try {
+      // Get medication code from the prescription
+      const rxNormCode = prescription.medicationCodeableConcept?.coding?.find(
+        c => c.system === 'http://www.nlm.nih.gov/research/umls/rxnorm'
+      )?.code;
+      
+      if (rxNormCode && quantity) {
+        const availability = await checkAvailability(rxNormCode, parseInt(quantity));
+        setInventoryStatus(availability);
+      } else {
+        // Fallback to medication name search
+        const availability = await checkAvailability(medicationName, parseInt(quantity) || 30);
+        setInventoryStatus(availability);
+      }
+    } catch (error) {
+      console.error('Error checking inventory:', error);
+      setInventoryStatus({
+        available: false,
+        reason: 'Error checking inventory'
+      });
+    } finally {
+      setCheckingInventory(false);
+    }
+    handleMenuClose();
   };
 
   const handlePrintLabel = () => {
@@ -267,6 +298,26 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
         </Typography>
       </Box>
 
+      {/* Inventory Status Alert */}
+      {inventoryStatus && (
+        <Alert 
+          severity={inventoryStatus.available ? 'success' : 'warning'} 
+          sx={{ mb: 1, py: 0.5 }}
+        >
+          {inventoryStatus.available ? (
+            <>
+              In Stock: {inventoryStatus.totalInStock} {unit}
+              {inventoryStatus.willTriggerReorder && ' (Will trigger reorder)'}
+            </>
+          ) : (
+            <>
+              {inventoryStatus.reason}
+              {inventoryStatus.suggestion && ` - ${inventoryStatus.suggestion}`}
+            </>
+          )}
+        </Alert>
+      )}
+
       {/* Action Buttons */}
       <Stack direction="row" spacing={1} justifyContent="space-between">
         <Button
@@ -304,9 +355,9 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
           <PrintIcon sx={{ mr: 1 }} fontSize="small" />
           Print Label
         </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
+        <MenuItem onClick={handleCheckInventory} disabled={checkingInventory}>
           <InventoryIcon sx={{ mr: 1 }} fontSize="small" />
-          Check Stock
+          {checkingInventory ? 'Checking...' : 'Check Stock'}
         </MenuItem>
       </Menu>
     </Paper>

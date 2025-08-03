@@ -384,11 +384,16 @@ const PharmacyPage = () => {
     }
   };
 
+  // Navigate to inventory management
+  const handleInventoryManagement = () => {
+    window.location.href = '/inventory';
+  };
+
   // Speed dial actions
   const speedDialActions = [
     { icon: <RefreshIcon />, name: 'Refresh Queue', onClick: handleRefresh },
     { icon: <PrintIcon />, name: 'Print Labels', onClick: handleOpenBatchPrint },
-    { icon: <InventoryIcon />, name: 'Check Inventory', onClick: () => {} },
+    { icon: <InventoryIcon />, name: 'Manage Inventory', onClick: handleInventoryManagement },
     { icon: <AnalyticsIcon />, name: 'View Analytics', onClick: () => setActiveView('analytics') },
     { icon: <AddIcon />, name: 'Manual Entry', onClick: () => {} }
   ];
