@@ -373,7 +373,12 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
         <CardMedia
           sx={{
             height: 140,
-            backgroundColor: alpha(getModalityColor(getModality()) === 'primary' ? theme.palette.primary.main : theme.palette[getModalityColor(getModality())].main, 0.1),
+            backgroundColor: alpha(
+              getModalityColor(getModality()) === 'default' 
+                ? theme.palette.action.selected 
+                : theme.palette[getModalityColor(getModality())].main, 
+              0.1
+            ),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -381,7 +386,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
           }}
         >
           <Box sx={{ fontSize: 48, opacity: 0.3 }}>
-            {React.createElement(getModalityIcon(getModality()))}
+            {React.createElement(getModalityIcon(getModality()), { sx: { fontSize: 'inherit' } })}
           </Box>
           <Chip
             label={getModality()}
@@ -428,7 +433,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
       severity={severity}
       status={study.status || 'available'}
       statusColor={getStudyStatusColor(study.status)}
-      icon={React.createElement(getModalityIcon(getModality()))}
+      icon={React.createElement(getModalityIcon(getModality()), { sx: { fontSize: 24 } })}
       details={details}
       onEdit={() => onView(study)}
       actions={actions}
@@ -988,7 +993,7 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
   ];
 
   if (loading) {
-    return <ClinicalLoadingState.Card count={6} />;
+    return <ClinicalLoadingState.ResourceCard count={6} />;
   }
 
   return (
