@@ -1054,6 +1054,220 @@ class MedicationWorkflowService {
     // Implementation for processing individual reconciliation actions
     return { success: true };
   }
+
+  /**
+   * Determine medication source from resource metadata
+   */
+  determineMedicationSource(medicationRequest) {
+    // Check extensions for source information
+    const sourceExtension = medicationRequest.extension?.find(
+      ext => ext.url === 'http://wintehr.com/fhir/medication-source'
+    );
+    if (sourceExtension) {
+      return sourceExtension.valueString;
+    }
+
+    // Check category
+    const category = medicationRequest.category?.[0]?.coding?.[0]?.code;
+    if (category === 'discharge') return 'discharge';
+    if (category === 'inpatient') return 'hospital';
+    if (category === 'outpatient') return 'home';
+    if (category === 'community') return 'pharmacy';
+
+    // Check encounter type
+    if (medicationRequest.encounter) {
+      // Would need to fetch encounter to determine type
+      // For now, assume hospital if has encounter
+      return 'hospital';
+    }
+
+    // Default to home
+    return 'home';
+  }
+
+  /**
+   * Create a map of medications by their identifying characteristics
+   */
+  createMedicationMap(medications) {
+    const map = new Map();
+    
+    medications.forEach(med => {
+      // Use RxNorm code if available, otherwise use name
+      const code = med.resource?.medicationCodeableConcept?.coding?.[0]?.code;
+      const key = code || med.name.toLowerCase();
+      
+      map.set(key, med);
+    });
+
+    return map;
+  }
+
+  /**
+   * Find equivalent medication in a map
+   */
+  findEquivalentMedication(medication, medicationMap) {
+    const code = medication.resource?.medicationCodeableConcept?.coding?.[0]?.code;
+    const key = code || medication.name.toLowerCase();
+    
+    return medicationMap.get(key) || null;
+  }
+
+  /**
+   * Check if dosage has changed between two medications
+   */
+  isDosageChanged(med1, med2) {
+    const dosage1 = med1.dosage;
+    const dosage2 = med2.dosage;
+
+    if (!dosage1 || !dosage2) return false;
+
+    // Compare dose amounts
+    const dose1 = dosage1.doseAndRate?.[0]?.doseQuantity;
+    const dose2 = dosage2.doseAndRate?.[0]?.doseQuantity;
+
+    if (dose1?.value !== dose2?.value || dose1?.unit !== dose2?.unit) {
+      return true;
+    }
+
+    // Compare timing
+    const timing1 = dosage1.timing?.repeat;
+    const timing2 = dosage2.timing?.repeat;
+
+    if (timing1?.frequency !== timing2?.frequency || 
+        timing1?.period !== timing2?.period ||
+        timing1?.periodUnit !== timing2?.periodUnit) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Identify medication conflicts
+   */
+  identifyMedicationConflicts(categorizedMedications) {
+    const conflicts = [];
+    const allActiveMeds = [
+      ...categorizedMedications.home.filter(m => m.status === 'active'),
+      ...categorizedMedications.hospital.filter(m => m.status === 'active'),
+      ...categorizedMedications.discharge.filter(m => m.status === 'active')
+    ];
+
+    // Check for duplicates
+    const medsByName = new Map();
+    allActiveMeds.forEach(med => {
+      const name = med.name.toLowerCase();
+      if (medsByName.has(name)) {
+        const existing = medsByName.get(name);
+        if (existing.source !== med.source) {
+          conflicts.push({
+            type: 'duplicate',
+            medications: [existing, med],
+            severity: 'high',
+            message: `${med.name} appears in multiple sources with potentially different instructions`
+          });
+        }
+      } else {
+        medsByName.set(name, med);
+      }
+    });
+
+    // Check for therapeutic duplications
+    const therapeuticClasses = new Map();
+    allActiveMeds.forEach(med => {
+      const therapeuticClass = this.getTherapeuticClass(med);
+      if (therapeuticClass) {
+        if (therapeuticClasses.has(therapeuticClass)) {
+          const existing = therapeuticClasses.get(therapeuticClass);
+          conflicts.push({
+            type: 'therapeutic_duplication',
+            medications: [existing, med],
+            severity: 'medium',
+            message: `Multiple medications from same therapeutic class: ${therapeuticClass}`
+          });
+        } else {
+          therapeuticClasses.set(therapeuticClass, med);
+        }
+      }
+    });
+
+    return conflicts;
+  }
+
+  /**
+   * Get therapeutic class for a medication
+   */
+  getTherapeuticClass(medication) {
+    // This would typically look up the medication's therapeutic class
+    // For now, return a simplified mapping
+    const name = medication.name.toLowerCase();
+    
+    if (name.includes('pril') || name.includes('sartan')) return 'antihypertensive';
+    if (name.includes('statin')) return 'lipid-lowering';
+    if (name.includes('metformin') || name.includes('glipizide')) return 'antidiabetic';
+    if (name.includes('aspirin') || name.includes('plavix')) return 'antiplatelet';
+    
+    return null;
+  }
+
+  /**
+   * Generate reconciliation recommendations
+   */
+  generateReconciliationRecommendations(summary) {
+    const recommendations = [];
+
+    // High priority: new medications
+    if (summary.newMedications.length > 0) {
+      recommendations.push({
+        type: 'action_required',
+        priority: 'high',
+        message: `Start ${summary.newMedications.length} new medication(s)`,
+        medications: summary.newMedications
+      });
+    }
+
+    // High priority: discontinued medications
+    if (summary.discontinuedMedications.length > 0) {
+      recommendations.push({
+        type: 'action_required',
+        priority: 'high',
+        message: `Discontinue ${summary.discontinuedMedications.length} medication(s)`,
+        medications: summary.discontinuedMedications
+      });
+    }
+
+    // High priority: modified medications
+    if (summary.modifiedMedications.length > 0) {
+      recommendations.push({
+        type: 'action_required',
+        priority: 'high',
+        message: `Update dosage for ${summary.modifiedMedications.length} medication(s)`,
+        medications: summary.modifiedMedications
+      });
+    }
+
+    // Medium priority: conflicts
+    if (summary.conflicts.length > 0) {
+      recommendations.push({
+        type: 'review_required',
+        priority: 'medium',
+        message: `Review ${summary.conflicts.length} potential conflict(s)`,
+        conflicts: summary.conflicts
+      });
+    }
+
+    // Information: continued medications
+    if (summary.continuedMedications.length > 0) {
+      recommendations.push({
+        type: 'information',
+        priority: 'low',
+        message: `Continue ${summary.continuedMedications.length} medication(s) unchanged`,
+        medications: summary.continuedMedications
+      });
+    }
+
+    return recommendations;
+  }
 }
 
 // Export singleton instance
