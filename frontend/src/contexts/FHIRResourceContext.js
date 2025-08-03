@@ -547,31 +547,14 @@ export function FHIRResourceProvider({ children }) {
       // Use simple comparison for validity check
       if (cached.relationships === currentRelationships && 
           cached.resources === currentResources) {
-        if (window.__FHIR_DEBUG__) {
-          console.log(`[FHIR Debug] getPatientResources CACHE HIT for patient: ${patientId}, resourceType: ${resourceType}`);
-        }
         return cached.result;
       }
     }
     
     const relationships = state.relationships[patientId];
     
-    if (window.__FHIR_DEBUG__) {
-      console.log(`[FHIR Debug] getPatientResources CACHE MISS - computing for patient: ${patientId}, resourceType: ${resourceType}`);
-      console.log(`[FHIR Debug] Relationships exist: ${!!relationships}`);
-      if (relationships) {
-        console.log(`[FHIR Debug] Available resource types in relationships:`, Object.keys(relationships));
-        if (resourceType) {
-          console.log(`[FHIR Debug] ${resourceType} IDs in relationships:`, relationships[resourceType] || []);
-        }
-      }
-      console.log(`[FHIR Debug] Resources in state:`, Object.keys(state.resources));
-    }
     
     if (!relationships) {
-      if (window.__FHIR_DEBUG__) {
-        console.log(`[FHIR Debug] No relationships found for patient ${patientId}`);
-      }
       // Cache empty result
       getPatientResourcesMemo.current.set(memoKey, {
         result: [],
@@ -585,18 +568,9 @@ export function FHIRResourceProvider({ children }) {
       const resourceIds = relationships[resourceType] || [];
       const resources = resourceIds.map(id => {
         const resource = state.resources[resourceType]?.[id];
-        if (window.__FHIR_DEBUG__ && !resource && id) {
-          console.log(`[FHIR Debug] Resource ${resourceType}/${id} is in relationships but not in state.resources`);
-        }
         return resource;
       }).filter(Boolean);
       
-      if (window.__FHIR_DEBUG__) {
-        console.log(`[FHIR Debug] Found ${resources.length} ${resourceType} resources from ${resourceIds.length} IDs`);
-        if (resources.length < resourceIds.length) {
-          console.log(`[FHIR Debug] Some resources are missing from state!`);
-        }
-      }
       
       // Cache the result
       getPatientResourcesMemo.current.set(memoKey, {
@@ -1111,28 +1085,49 @@ export function FHIRResourceProvider({ children }) {
             // Build search URL with parameters
             const params = new URLSearchParams();
             params.append('patient', patientId);
-            params.append('_count', priority === 'critical' ? '20' : '50');
+            // Set base count - will be overridden by resource-specific logic if needed
+            const baseCount = priority === 'critical' ? '20' : (priority === 'all' ? '100' : '50');
+            params.append('_count', baseCount);
             
-            // Add resource-specific parameters
+            // Add resource-specific parameters with enhanced limits for comprehensive data
             if (resourceType === 'Observation') {
-              params.append('_sort', '-date');
-              params.append('_count', '30');
-              // Limit to recent observations for better performance
-              const sixMonthsAgo = new Date();
-              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-              params.append('date', `ge${sixMonthsAgo.toISOString().split('T')[0]}`);
+              params.set('_sort', '-date');
+              // Increased count and removed date restriction for Chart Review
+              params.set('_count', priority === 'all' ? '200' : '30');
+              // Only apply date restriction for non-comprehensive fetches
+              if (priority !== 'all') {
+                const sixMonthsAgo = new Date();
+                sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                params.append('date', `ge${sixMonthsAgo.toISOString().split('T')[0]}`);
+              }
             } else if (resourceType === 'Encounter') {
-              params.append('_sort', '-date');
-              params.append('_count', '10');
+              params.set('_sort', '-date');
+              params.set('_count', priority === 'all' ? '100' : '10');
             } else if (resourceType === 'MedicationRequest') {
-              params.append('_sort', '-authored');
+              params.set('_sort', '-authored');
+              // Increased count for comprehensive medication history
+              if (priority === 'all') {
+                params.set('_count', '100');
+              }
             } else if (resourceType === 'Condition') {
-              params.append('_sort', '-recorded-date');
+              params.set('_sort', '-recorded-date');
+              // Increased count for comprehensive condition history
+              if (priority === 'all') {
+                params.set('_count', '100');
+              }
             } else if (resourceType === 'DiagnosticReport') {
-              params.append('_sort', '-date');
-              const oneYearAgo = new Date();
-              oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-              params.append('date', `ge${oneYearAgo.toISOString().split('T')[0]}`);
+              params.set('_sort', '-date');
+              // Only apply date restriction for non-comprehensive fetches
+              if (priority !== 'all') {
+                const oneYearAgo = new Date();
+                oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+                params.append('date', `ge${oneYearAgo.toISOString().split('T')[0]}`);
+              } else {
+                params.set('_count', '100');
+              }
+            } else if (priority === 'all') {
+              // For comprehensive mode, increase count for all other resource types
+              params.set('_count', '100');
             }
             
             return {
@@ -1181,9 +1176,6 @@ export function FHIRResourceProvider({ children }) {
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
             
-            if (window.__FHIR_DEBUG__) {
-              console.log(`[FHIR Debug] Processing ${resources.length} ${resourceType} resources for patient ${patientId}`);
-            }
             
             // Update relationships
             resources.forEach(resource => {
@@ -1191,27 +1183,12 @@ export function FHIRResourceProvider({ children }) {
               const subjectRef = resource.subject?.reference;
               const patientRef = resource.patient?.reference;
               
-              if (window.__FHIR_DEBUG__) {
-                console.log(`[FHIR Debug] Checking ${resourceType}/${resource.id}:`);
-                console.log(`  - subject: ${subjectRef}`);
-                console.log(`  - patient: ${patientRef}`);
-                console.log(`  - Looking for patientId: ${patientId}`);
-              }
               
               // Since we searched with patient=${patientId}, all returned resources belong to this patient
               // This handles URN references and any other reference format
               const hasPatientReference = true;
               
-              if (window.__FHIR_DEBUG__) {
-                console.log(`  - Assuming resource belongs to patient (searched with patient=${patientId})`);
-              }
                 
-              if (window.__FHIR_DEBUG__) {
-                console.log(`  - hasPatientReference: ${hasPatientReference}`);
-                if (!hasPatientReference && (subjectRef || patientRef)) {
-                  console.log(`  - Reference mismatch! Resource references don't match patient ID`);
-                }
-              }
                 
               if (hasPatientReference) {
                 dispatch({
@@ -1223,9 +1200,6 @@ export function FHIRResourceProvider({ children }) {
                   }
                 });
                 
-                if (window.__FHIR_DEBUG__) {
-                  console.log(`[FHIR Debug] ✅ Added relationship: ${patientId} -> ${resourceType}/${resource.id}`);
-                }
               }
             });
           });
@@ -1460,18 +1434,12 @@ export function FHIRResourceProvider({ children }) {
             Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
               setResources(resourceType, resources);
               
-              if (window.__FHIR_DEBUG__) {
-                console.log(`[FHIR Debug] Processing ${resources.length} ${resourceType} resources for patient ${patientId}`);
-              }
               
               resources.forEach(resource => {
                 // Check for both standard FHIR references and URN format (used by Synthea)
                 const subjectRef = resource.subject?.reference;
                 const patientRef = resource.patient?.reference;
                 
-                if (window.__FHIR_DEBUG__ && (subjectRef || patientRef)) {
-                  console.log(`[FHIR Debug] ${resourceType}/${resource.id} - subject: ${subjectRef}, patient: ${patientRef}`);
-                }
                 
                 const hasPatientReference = 
                   resource.subject?.reference === `Patient/${patientId}` ||
@@ -1480,9 +1448,6 @@ export function FHIRResourceProvider({ children }) {
                   resource.patient?.reference === `urn:uuid:${patientId}` ||
                   resource.resourceType === 'Patient';
                   
-                if (window.__FHIR_DEBUG__ && hasPatientReference) {
-                  console.log(`[FHIR Debug] Adding relationship: ${patientId} -> ${resourceType}/${resource.id}`);
-                }
                   
                 if (hasPatientReference) {
                   dispatch({
@@ -1695,9 +1660,6 @@ export function FHIRResourceProvider({ children }) {
     // Clear the memoization cache to ensure fresh data
     getPatientResourcesMemo.current.clear();
     
-    if (window.__FHIR_DEBUG__) {
-      console.log('[FHIR Debug] Cleared getPatientResources memoization cache due to state change');
-    }
   }, [state.relationships, state.resources]);
 
   // Cleanup on unmount
