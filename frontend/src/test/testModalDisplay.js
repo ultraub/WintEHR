@@ -72,7 +72,8 @@ export async function testModalDisplay() {
     console.log('Hook saved, retrieving...');
     
     // Retrieve and verify
-    const savedHook = await cdsHooksService.getHook(TEST_HOOK_ID);
+    const hookResponse = await cdsHooksService.getHook(TEST_HOOK_ID);
+    const savedHook = hookResponse.data; // Extract the hook from the response
     console.log('Retrieved hook:', savedHook);
     console.log('Display behavior saved:', savedHook.displayBehavior);
     
@@ -107,7 +108,8 @@ export async function checkHookDisplay(hookId) {
   const { cdsHooksService } = await import('../services/cdsHooksService');
   
   try {
-    const hook = await cdsHooksService.getHook(hookId);
+    const hookResponse = await cdsHooksService.getHook(hookId);
+    const hook = hookResponse.data; // Extract the hook from the response
     console.log(`Hook "${hookId}" display configuration:`, {
       defaultMode: hook.displayBehavior?.defaultMode,
       indicatorOverrides: hook.displayBehavior?.indicatorOverrides,

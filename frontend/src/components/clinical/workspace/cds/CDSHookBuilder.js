@@ -247,6 +247,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         }
       };
       console.log('[CDSHookBuilder] Setting hookData to:', newHookData);
+      console.log('[CDSHookBuilder] DisplayBehavior being set:', newHookData.displayBehavior);
       setHookData(newHookData);
       // Validate initial data
       validateHook(newHookData);
@@ -509,8 +510,27 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
       setSaving(true);
       
+      // Clean displayBehavior to ensure only valid fields are saved
+      const cleanDisplayBehavior = {};
+      const validDisplayFields = ['defaultMode', 'acknowledgment', 'snooze', 'indicatorOverrides'];
+      
+      if (hookData.displayBehavior) {
+        for (const key of validDisplayFields) {
+          if (hookData.displayBehavior[key] !== undefined) {
+            cleanDisplayBehavior[key] = hookData.displayBehavior[key];
+          }
+        }
+      }
+      
+      // Create clean hook data
+      const cleanHookData = {
+        ...hookData,
+        displayBehavior: cleanDisplayBehavior
+      };
+      
       // Log the display behavior being saved
-      console.log('[CDSHookBuilder] Saving hook with displayBehavior:', hookData.displayBehavior);
+      console.log('[CDSHookBuilder] Saving hook with displayBehavior:', cleanDisplayBehavior);
+      console.log('[CDSHookBuilder] Full hookData being saved:', JSON.stringify(cleanHookData, null, 2));
       
       // Use the cdsHooksService to save the hook
       // Check if we're editing an existing hook (has _meta.created)

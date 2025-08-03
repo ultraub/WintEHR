@@ -25,6 +25,16 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const DisplayBehaviorConfiguration = ({ config = {}, onChange }) => {
+  // Filter out old format fields to prevent contamination
+  const cleanConfig = {};
+  const validFields = ['defaultMode', 'acknowledgment', 'snooze', 'indicatorOverrides'];
+  
+  for (const key of validFields) {
+    if (config[key] !== undefined) {
+      cleanConfig[key] = config[key];
+    }
+  }
+  
   // Default configuration
   const displayBehavior = {
     defaultMode: 'popup',
@@ -42,7 +52,7 @@ const DisplayBehaviorConfiguration = ({ config = {}, onChange }) => {
       warning: 'popup',
       info: 'inline'
     },
-    ...config
+    ...cleanConfig
   };
 
   const handleChange = (path, value) => {
