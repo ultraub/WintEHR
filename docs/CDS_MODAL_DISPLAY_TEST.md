@@ -2,6 +2,7 @@
 
 **Date**: 2025-08-01  
 **Issue**: Modal display mode not being saved/displayed correctly
+**Status**: Fixed - Added field filtering and format updates
 
 ## Problem Summary
 
@@ -59,7 +60,26 @@ await window.checkHookDisplay('test')
    }
    ```
 
-### Method 3: Verify in Clinical Workspace
+### Method 3: Comprehensive Debug Test
+
+Run the comprehensive debug test to check the entire save/load cycle:
+
+```javascript
+// Run the full debug flow
+await window.debugDisplayBehaviorFlow()
+
+// This will:
+// 1. Create/update a test hook with modal settings
+// 2. Retrieve it back from the server
+// 3. Compare sent vs received data
+// 4. Check raw API response
+// 5. Show detailed results with ✅/❌ indicators
+
+// Clean up after testing
+await window.cleanupDisplayBehaviorTest()
+```
+
+### Method 4: Verify in Clinical Workspace
 
 1. Navigate to a patient that matches your hook conditions
 2. The CDS alert should appear as a modal dialog that:
@@ -69,7 +89,10 @@ await window.checkHookDisplay('test')
 
 ## What Was Fixed
 
-### Before (Old Format):
+### Issue 1: Wrong DisplayBehavior Format
+The CDSHookBuilder was using the old displayBehavior format instead of the new CDS Hooks v2.0 format.
+
+**Before (Old Format):**
 ```javascript
 displayBehavior: {
   displayMode: 'immediate',
@@ -79,7 +102,7 @@ displayBehavior: {
 }
 ```
 
-### After (New Format):
+**After (New Format):**
 ```javascript
 displayBehavior: {
   defaultMode: 'modal',  // or 'popup', 'inline', etc.
@@ -98,6 +121,17 @@ displayBehavior: {
   }
 }
 ```
+
+### Issue 2: Field Contamination
+The DisplayBehaviorConfiguration component was spreading the config object, which could mix old and new format fields.
+
+**Fix Applied:**
+- Added field filtering in DisplayBehaviorConfiguration to only pass valid fields
+- Added cleaning logic in CDSHookBuilder.saveHook() to ensure only valid displayBehavior fields are sent
+- Updated initial state and edit state initialization to use new format
+
+### Issue 3: Override Reason Configuration
+The override reason checkbox at the card level was deprecated. Configuration moved to hook level under `displayBehavior.acknowledgment.reasonRequired`.
 
 ## Troubleshooting
 

@@ -28,6 +28,12 @@ import('./debugDisplayBehaviorFlow').then(() => {
   console.error('[CDS Tests] Failed to load display behavior flow debug:', err);
 });
 
+import('./testCDSModalAcknowledgment').then(() => {
+  console.log('[CDS Tests] Modal acknowledgment test loaded');
+}).catch(err => {
+  console.error('[CDS Tests] Failed to load modal acknowledgment test:', err);
+});
+
 // Log available functions
 console.log('[CDS Tests] Available test functions:');
 console.log('- window.testOverrideReasonSave()');
@@ -37,5 +43,7 @@ console.log('- window.checkHookDisplay(hookId)');
 console.log('- window.cleanupModalTest()');
 console.log('- window.debugDisplayBehaviorFlow()');
 console.log('- window.cleanupDisplayBehaviorTest()');
+console.log('- window.testCDSModalAcknowledgment()');
+console.log('- window.triggerTestCDSAlert()');
 
 export default {};

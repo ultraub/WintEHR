@@ -541,11 +541,23 @@ const CDSPresentation = ({
   // Modal mode - Hard-stop blocking modal with acknowledgment
   if (mode === PRESENTATION_MODES.MODAL) {
     const handleAcknowledge = (alert) => {
-      if (alert.displayBehavior?.acknowledgmentRequired) {
+      if (alert.displayBehavior?.reasonRequired) {
         setCurrentAlertForAck(alert);
         setShowReasonDialog(true);
       } else {
         handleDismissAlert(alert);
+        
+        // Check if all alerts have been dismissed (for non-reason required case)
+        const remainingAlerts = alerts.filter(a => {
+          const alertId = a.uuid || a.id || `${a.serviceId}-${a.summary}`;
+          const currentAlertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+          return alertId !== currentAlertId && !dismissedAlerts.has(alertId) && !isAlertSnoozed(a);
+        });
+        
+        // Close the modal if no alerts remain
+        if (remainingAlerts.length === 0) {
+          setOpen(false);
+        }
       }
     };
 
@@ -555,6 +567,19 @@ const CDSPresentation = ({
         setCurrentAlertForAck(null);
         setAcknowledgmentReason('');
         setShowReasonDialog(false);
+        
+        // Check if all alerts have been dismissed
+        const remainingAlerts = alerts.filter(alert => {
+          const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+          const currentAlertId = currentAlertForAck.uuid || currentAlertForAck.id || 
+                                 `${currentAlertForAck.serviceId}-${currentAlertForAck.summary}`;
+          return alertId !== currentAlertId && !dismissedAlerts.has(alertId) && !isAlertSnoozed(alert);
+        });
+        
+        // Close the modal if no alerts remain
+        if (remainingAlerts.length === 0) {
+          setOpen(false);
+        }
       }
     };
 
