@@ -68,11 +68,7 @@ import {
   ViewList as ListIcon,
   AccountCircle as BodyMapIcon,
   AccessTime as RecentIcon,
-  Collections as CollectionsIcon,
-  Scanner as CTIcon,
-  Biotech as MRIcon,
-  CameraAlt as XRayIcon,
-  GraphicEq as UltrasoundIcon
+  Collections as CollectionsIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
