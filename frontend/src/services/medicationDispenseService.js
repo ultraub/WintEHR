@@ -2,21 +2,46 @@
  * MedicationDispense Service
  * Enhanced service for MedicationDispense FHIR resource operations
  * Part of Phase 1 Implementation: MedicationDispense Integration
+ * Updated Phase 2: Integration with backend pharmacy API
  */
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { pharmacyService } from './pharmacyService';
 
 class MedicationDispenseService {
   /**
    * Create a new MedicationDispense resource
+   * Now uses pharmacy API for better integration
    */
   async createMedicationDispense(dispenseData) {
     // Validate required fields
     this.validateDispenseData(dispenseData);
     
-    // Prepare the FHIR resource
-    const medicationDispense = this.prepareFHIRResource(dispenseData);
+    // If we have a prescription ID, use the pharmacy API
+    if (dispenseData.prescriptionId || dispenseData.medication_request_id) {
+      try {
+        const pharmacyDispenseData = {
+          medication_request_id: dispenseData.prescriptionId || dispenseData.medication_request_id,
+          quantity: dispenseData.quantity?.value || dispenseData.quantity,
+          lot_number: dispenseData.lotNumber || '',
+          expiration_date: dispenseData.expirationDate || '',
+          pharmacist_notes: dispenseData.note?.[0]?.text || dispenseData.pharmacistNotes || '',
+          pharmacist_id: dispenseData.performer?.[0]?.actor?.reference?.replace('Practitioner/', '') || dispenseData.pharmacistId
+        };
+        
+        const result = await pharmacyService.dispenseMedication(pharmacyDispenseData);
+        
+        // Get the created dispense resource
+        if (result.dispense_id) {
+          return await fhirClient.read('MedicationDispense', result.dispense_id);
+        }
+      } catch (error) {
+        console.error('Pharmacy API error, falling back to FHIR API:', error);
+        // Fall through to FHIR API
+      }
+    }
     
-    // Create the resource
+    // Fallback to direct FHIR API
+    const medicationDispense = this.prepareFHIRResource(dispenseData);
     const response = await fhirClient.create('MedicationDispense', medicationDispense);
     
     return response;
@@ -346,6 +371,20 @@ class MedicationDispenseService {
         }
       }
       
+      // Check medication inventory if code available
+      if (prescription.medicationCodeableConcept?.coding?.[0]?.code) {
+        try {
+          const inventory = await pharmacyService.checkMedicationInventory(
+            prescription.medicationCodeableConcept.coding[0].code
+          );
+          if (inventory.status !== 'in_stock') {
+            validation.warnings.push(`Medication inventory status: ${inventory.status}`);
+          }
+        } catch (error) {
+          validation.warnings.push('Unable to check medication inventory');
+        }
+      }
+      
       // Check patient allergies (would integrate with allergy checking service)
       validation.warnings.push('Allergy checking not yet implemented');
       
@@ -358,6 +397,65 @@ class MedicationDispenseService {
     }
     
     return validation;
+  }
+  
+  /**
+   * Get pharmacy queue for patient
+   */
+  async getPatientPharmacyQueue(patientId) {
+    try {
+      return await pharmacyService.getPharmacyQueue({ patientId });
+    } catch (error) {
+      console.error('Error fetching patient pharmacy queue:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Update pharmacy workflow status
+   */
+  async updatePharmacyStatus(medicationRequestId, status, notes, updatedBy) {
+    try {
+      return await pharmacyService.updatePharmacyStatus(medicationRequestId, {
+        status,
+        notes,
+        updated_by: updatedBy
+      });
+    } catch (error) {
+      console.error('Error updating pharmacy status:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Complete pharmacy dispensing workflow
+   */
+  async completePharmacyDispensing(prescriptionId, dispenseData) {
+    try {
+      // Validate prerequisites first
+      const validation = await this.validateDispensingPrerequisites(
+        prescriptionId,
+        dispenseData.patientId
+      );
+      
+      if (!validation.valid) {
+        throw new Error(`Validation failed: ${validation.issues.join(', ')}`);
+      }
+      
+      // Use pharmacy service for complete workflow
+      const result = await pharmacyService.completeDispensing(prescriptionId, {
+        quantity: dispenseData.quantity,
+        lotNumber: dispenseData.lotNumber,
+        expirationDate: dispenseData.expirationDate,
+        notes: dispenseData.notes,
+        pharmacistId: dispenseData.pharmacistId
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error completing pharmacy dispensing:', error);
+      throw error;
+    }
   }
 }
 
