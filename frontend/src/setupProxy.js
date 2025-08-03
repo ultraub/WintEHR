@@ -62,6 +62,22 @@ module.exports = function(app) {
     })
   );
   
+  // WebSocket proxy - special handling for real-time connections
+  app.use(
+    '/api/ws',
+    createProxyMiddleware({
+      target: backendTarget,
+      ws: true, // Enable WebSocket proxy
+      changeOrigin: true,
+      logLevel: 'debug',
+      onError: (err, req, res) => {
+        console.error('[WebSocket Proxy Error]', err.message);
+      },
+      onProxyReqWs: (proxyReq, req, socket, options, head) => {
+        console.log('[WebSocket] Proxying WebSocket request to:', backendTarget);
+      }
+    })
+  );
   
   // Health check endpoint for debugging proxy configuration
   app.get('/proxy-health', (req, res) => {

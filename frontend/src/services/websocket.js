@@ -27,7 +27,7 @@ class WebSocketService {
     // Get WebSocket URL from environment or use default
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = process.env.REACT_APP_WS_URL || window.location.host;
-    this.baseUrl = `${protocol}//${host}/ws`;
+    this.baseUrl = `${protocol}//${host}/api/ws`;
   }
 
   /**
