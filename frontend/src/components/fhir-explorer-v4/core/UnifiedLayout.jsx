@@ -159,7 +159,8 @@ const MINI_DRAWER_WIDTH = 64;
 const AppHeader = ({ 
   onMenuToggle, 
   isMobile,
-  dataLoading 
+  dataLoading,
+  showDrawerToggle = false
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState(null);
@@ -260,6 +261,15 @@ const AppHeader = ({
 
         {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Desktop drawer toggle button */}
+          {!isMobile && showDrawerToggle && (
+            <Tooltip title="Toggle Navigation">
+              <IconButton onClick={onMenuToggle} color="inherit">
+                <MenuIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* Theme toggle */}
           <QuickThemeToggle 
             showLabel={false}
@@ -653,7 +663,8 @@ function UnifiedLayout({
   onModeChange,
   isMobile,
   fhirData,
-  dataLoading 
+  dataLoading,
+  autoCollapse = false
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true);
@@ -666,6 +677,16 @@ function UnifiedLayout({
     setDesktopDrawerOpen(prev => !prev);
   }, []);
 
+  // Enhanced mode change handler with auto-collapse support
+  const handleModeChange = useCallback((mode, view) => {
+    onModeChange(mode, view);
+    
+    // Auto-collapse desktop drawer when a view is selected (if autoCollapse is enabled and not mobile)
+    if (autoCollapse && !isMobile && view) {
+      setDesktopDrawerOpen(false);
+    }
+  }, [onModeChange, autoCollapse, isMobile]);
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       {/* Header */}
@@ -673,6 +694,7 @@ function UnifiedLayout({
         onMenuToggle={isMobile ? handleMobileDrawerToggle : handleDesktopDrawerToggle}
         isMobile={isMobile}
         dataLoading={dataLoading}
+        showDrawerToggle={true}
       />
 
       {/* Navigation drawer */}
@@ -680,7 +702,7 @@ function UnifiedLayout({
         open={isMobile ? mobileDrawerOpen : desktopDrawerOpen}
         currentMode={currentMode}
         currentView={currentView}
-        onModeChange={onModeChange}
+        onModeChange={handleModeChange}
         onClose={() => setMobileDrawerOpen(false)}
         isMobile={isMobile}
       />
