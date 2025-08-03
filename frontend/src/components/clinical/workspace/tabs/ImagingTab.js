@@ -499,6 +499,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     try {
       // Try to get imaging studies from FHIR resources first
       const fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
+      console.log('Loading imaging studies for patient:', patientId);
+      console.log('FHIR ImagingStudy resources found:', fhirStudies.length);
       
       // If we have FHIR studies, try to enrich them with DICOM directory info
       if (fhirStudies.length > 0) {
