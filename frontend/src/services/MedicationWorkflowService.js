@@ -747,26 +747,192 @@ class MedicationWorkflowService {
    * Categorize medications by source
    */
   categorizeMedicationsBySource(medicationData) {
-    // Implementation for categorizing medications by source
-    return {
+    const categorized = {
       home: [],
       hospital: [],
       discharge: [],
       pharmacy: [],
       external: []
     };
+
+    // Process medication requests
+    (medicationData.medicationRequests || []).forEach(request => {
+      const resource = request.resource || request;
+      
+      // Determine source based on extensions, encounter context, or other metadata
+      const source = this.determineMedicationSource(resource);
+      
+      const medicationInfo = {
+        id: resource.id,
+        name: this.extractMedicationName(resource),
+        status: resource.status,
+        dosage: resource.dosageInstruction?.[0],
+        source: source,
+        authoredOn: resource.authoredOn,
+        prescriber: resource.requester?.display || 'Unknown',
+        resource: resource
+      };
+
+      // Categorize by source
+      switch (source) {
+        case 'home':
+          categorized.home.push(medicationInfo);
+          break;
+        case 'hospital':
+          categorized.hospital.push(medicationInfo);
+          break;
+        case 'discharge':
+          categorized.discharge.push(medicationInfo);
+          break;
+        case 'pharmacy':
+          categorized.pharmacy.push(medicationInfo);
+          break;
+        default:
+          categorized.external.push(medicationInfo);
+      }
+    });
+
+    // Process medication statements
+    (medicationData.medicationStatements || []).forEach(statement => {
+      const resource = statement.resource || statement;
+      
+      const medicationInfo = {
+        id: resource.id,
+        name: this.extractMedicationName(resource),
+        status: resource.status,
+        dosage: resource.dosage?.[0],
+        source: 'statement',
+        effectivePeriod: resource.effectivePeriod,
+        informationSource: resource.informationSource?.display || 'Patient reported',
+        resource: resource
+      };
+
+      // Medication statements usually represent home medications
+      categorized.home.push(medicationInfo);
+    });
+
+    // Process medication dispenses
+    (medicationData.medicationDispenses || []).forEach(dispense => {
+      const resource = dispense.resource || dispense;
+      
+      // Find corresponding request in categorized lists
+      const prescription = resource.authorizingPrescription?.[0]?.reference;
+      if (prescription) {
+        const prescriptionId = prescription.split('/').pop();
+        
+        // Update the corresponding medication with dispense info
+        Object.keys(categorized).forEach(category => {
+          const med = categorized[category].find(m => m.id === prescriptionId);
+          if (med) {
+            med.lastDispensed = resource.whenHandedOver;
+            med.quantityDispensed = resource.quantity;
+            med.daysSupply = resource.daysSupply;
+          }
+        });
+      }
+    });
+
+    return categorized;
   }
 
   /**
    * Analyze reconciliation needs
    */
   analyzeReconciliationNeeds(categorizedMedications) {
-    // Implementation for analyzing reconciliation needs
-    return {
+    const analysis = {
       discrepancies: [],
       recommendations: [],
-      riskLevel: 'low'
+      riskLevel: 'low',
+      summary: {
+        newMedications: [],
+        continuedMedications: [],
+        discontinuedMedications: [],
+        modifiedMedications: [],
+        conflicts: []
+      }
     };
+
+    const { home, hospital, discharge, pharmacy } = categorizedMedications;
+
+    // Create medication maps for comparison
+    const homeMedMap = this.createMedicationMap(home);
+    const hospitalMedMap = this.createMedicationMap(hospital);
+    const dischargeMedMap = discharge.length > 0 ? this.createMedicationMap(discharge) : null;
+
+    // If we have discharge medications, use those as the primary source
+    const primarySource = dischargeMedMap || hospitalMedMap;
+    const primaryMeds = discharge.length > 0 ? discharge : hospital;
+
+    // Analyze each medication from primary source
+    primaryMeds.forEach(med => {
+      const homeEquivalent = this.findEquivalentMedication(med, homeMedMap);
+      
+      if (!homeEquivalent) {
+        // New medication started in hospital/at discharge
+        analysis.summary.newMedications.push(med);
+        analysis.discrepancies.push({
+          type: 'new_medication',
+          medication: med,
+          severity: 'high',
+          message: `New medication: ${med.name}`
+        });
+      } else if (this.isDosageChanged(med, homeEquivalent)) {
+        // Medication continued but dosage changed
+        analysis.summary.modifiedMedications.push(med);
+        analysis.discrepancies.push({
+          type: 'dosage_change',
+          medication: med,
+          previousDosage: homeEquivalent.dosage,
+          newDosage: med.dosage,
+          severity: 'medium',
+          message: `Dosage changed for ${med.name}`
+        });
+      } else {
+        // Medication continued unchanged
+        analysis.summary.continuedMedications.push(med);
+      }
+    });
+
+    // Check for discontinued medications
+    home.forEach(homeMed => {
+      const stillActive = this.findEquivalentMedication(homeMed, primarySource);
+      
+      if (!stillActive && homeMed.status === 'active') {
+        analysis.summary.discontinuedMedications.push(homeMed);
+        analysis.discrepancies.push({
+          type: 'discontinued',
+          medication: homeMed,
+          severity: 'high',
+          message: `Discontinued: ${homeMed.name}`
+        });
+      }
+    });
+
+    // Check for conflicts
+    analysis.summary.conflicts = this.identifyMedicationConflicts(categorizedMedications);
+    analysis.summary.conflicts.forEach(conflict => {
+      analysis.discrepancies.push({
+        type: 'conflict',
+        medications: conflict.medications,
+        severity: conflict.severity,
+        message: conflict.message
+      });
+    });
+
+    // Generate recommendations
+    analysis.recommendations = this.generateReconciliationRecommendations(analysis.summary);
+
+    // Calculate risk level
+    const highSeverityCount = analysis.discrepancies.filter(d => d.severity === 'high').length;
+    const mediumSeverityCount = analysis.discrepancies.filter(d => d.severity === 'medium').length;
+    
+    if (highSeverityCount > 2 || (highSeverityCount > 0 && mediumSeverityCount > 3)) {
+      analysis.riskLevel = 'high';
+    } else if (highSeverityCount > 0 || mediumSeverityCount > 2) {
+      analysis.riskLevel = 'medium';
+    }
+
+    return analysis;
   }
 
   /**

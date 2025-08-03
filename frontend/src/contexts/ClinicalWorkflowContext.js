@@ -2,9 +2,10 @@
  * Clinical Workflow Context
  * Manages cross-tab communication, workflow orchestration, and clinical context sharing
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useFHIRResource } from './FHIRResourceContext';
 import { useAuth } from './AuthContext';
+import websocketService from '../services/websocket';
 
 const ClinicalWorkflowContext = createContext();
 
@@ -59,6 +60,11 @@ export const ClinicalWorkflowProvider = ({ children }) => {
   const [eventListeners, setEventListeners] = useState(new Map());
   const [notifications, setNotifications] = useState([]);
   const [workflowStates, setWorkflowStates] = useState(new Map());
+  
+  // WebSocket connection state
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
+  const wsUnsubscribers = useRef([]);
 
   // Subscribe to clinical events
   const subscribe = useCallback((eventType, callback) => {
@@ -84,6 +90,16 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Publish clinical events
   const publish = useCallback(async (eventType, data) => {
+    // Send event via WebSocket if connected
+    if (wsConnected) {
+      websocketService.send(eventType, {
+        ...data,
+        patientId: currentPatient?.id,
+        userId: currentUser?.id,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     // Get current listeners from state ref to avoid dependency
     setEventListeners(currentEventListeners => {
       const listeners = currentEventListeners.get(eventType) || [];
@@ -94,7 +110,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
           try {
             await listener(data);
           } catch (error) {
-            // Error in event listener
+            console.error(`Error in event listener for ${eventType}:`, error);
           }
         }
         
@@ -104,7 +120,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       
       return currentEventListeners; // Return unchanged state
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wsConnected, currentPatient?.id, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Missing dep: handleAutomatedWorkflows. Not added as it's defined below and would cause circular dependency
 
   // Handle automated workflows
@@ -395,6 +411,54 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     }
   }, []);
 
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (currentUser) {
+      // Connect WebSocket with auth token
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        websocketService.connect(token);
+        
+        // Monitor connection state
+        const unsubscribeConnection = websocketService.onConnectionChange((state) => {
+          setWsConnected(state === 'connected');
+          setWsReconnecting(state === 'reconnecting');
+        });
+        
+        // Subscribe to all clinical events via WebSocket
+        const eventTypes = Object.values(CLINICAL_EVENTS);
+        const unsubscribers = [];
+        
+        eventTypes.forEach(eventType => {
+          const unsubscribe = websocketService.subscribe(eventType, (data) => {
+            // Forward WebSocket events to local event listeners
+            const listeners = eventListeners.get(eventType) || [];
+            listeners.forEach(listener => {
+              try {
+                listener(data);
+              } catch (error) {
+                console.error(`Error in event listener for ${eventType}:`, error);
+              }
+            });
+            
+            // Handle automated workflows
+            handleAutomatedWorkflows(eventType, data);
+          });
+          unsubscribers.push(unsubscribe);
+        });
+        
+        wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
+      }
+    }
+    
+    return () => {
+      // Cleanup WebSocket subscriptions
+      wsUnsubscribers.current.forEach(unsubscribe => unsubscribe());
+      wsUnsubscribers.current = [];
+      websocketService.disconnect();
+    };
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  
   // Load clinical context when patient changes
   useEffect(() => {
     if (currentPatient?.id) {
@@ -537,7 +601,11 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     
     // Workflow states
     workflowStates,
-    setWorkflowStates
+    setWorkflowStates,
+    
+    // WebSocket status
+    wsConnected,
+    wsReconnecting
   };
 
   return (

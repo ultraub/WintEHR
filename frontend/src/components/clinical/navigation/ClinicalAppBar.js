@@ -41,6 +41,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, differenceInYears } from 'date-fns';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import QuickThemeToggle from '../../theme/QuickThemeToggle';
+import WebSocketStatus from '../../common/WebSocketStatus';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 
 const ClinicalAppBar = ({
@@ -170,6 +171,14 @@ const ClinicalAppBar = ({
 
           {/* Right Section - Actions */}
           <Stack direction="row" spacing={1} alignItems="center">
+            {/* WebSocket Status */}
+            <WebSocketStatus 
+              size="small" 
+              showLabel={!isMobile}
+            />
+            
+            <Divider orientation="vertical" flexItem sx={{ height: 24, mx: 1 }} />
+            
             {/* Theme Toggle */}
             <QuickThemeToggle 
               showLabel={false}

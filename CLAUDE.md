@@ -558,6 +558,28 @@ WintEHR now includes a comprehensive Clinical Design System:
 
 ## 🆕 Recent Improvements (2025)
 
+### Critical Security & Bug Fixes (2025-08-03)
+- **Authentication Security**: Added audit logging, rate limiting, and security warnings
+  - Created comprehensive audit service for security event tracking
+  - Implemented basic rate limiting (5 attempts per 15 minutes)
+  - Added prominent security warnings for production mode vulnerability
+- **WebSocket Integration**: Implemented complete WebSocket service with auto-reconnection
+  - Created websocket.js with exponential backoff reconnection
+  - Integrated with ClinicalWorkflowContext for real-time events
+  - Added WebSocket status indicator to clinical app bar
+- **CDS Hooks**: Fixed data structure errors and added error handling
+  - Fixed incorrect FHIR resource access patterns
+  - Added try-catch blocks to prevent service crashes
+  - Return user-friendly error cards on failures
+- **Pharmacy Module**: Verified MedicationDispense FHIR resource creation
+  - Complete FHIR-compliant MedicationDispense resources
+  - Proper linking to MedicationRequest
+  - Lot number and expiration tracking
+- **Bug Fixes**: 
+  - Fixed PharmacyQueue duplicate parameter error
+  - Fixed WebSocket authentication import errors
+  - Created missing frontend WebSocket service
+
 ### Major Architecture Changes
 - **FHIR Service Migration**: Completed migration from fhirService to fhirClient (2025-01-21)
   - All components now use fhirClient for direct FHIR API calls

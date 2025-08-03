@@ -716,23 +716,315 @@ class MedicationCRUDService {
   }
 
   /**
-   * Additional helper methods for medication list management
+   * Initialize patient medication lists
+   * Creates standard FHIR List resources for medication management
    */
   async initializePatientMedicationLists(patientId) {
-    // Implementation for initializing patient medication lists
-    // This would create the various List resources if they don't exist
+    try {
+      // Check if lists already exist
+      const existingLists = await this.getPatientMedicationLists(patientId);
+      
+      if (existingLists && existingLists.length > 0) {
+        // Lists already exist, update cache
+        existingLists.forEach(list => {
+          const listType = this.getListTypeFromCode(list.code?.coding?.[0]?.code);
+          if (listType) {
+            this.medicationLists.set(`${patientId}-${listType}`, list);
+          }
+        });
+        return existingLists;
+      }
+
+      // Initialize lists via backend API
+      const response = await fetch(`/api/clinical/medication-lists/initialize/${patientId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to initialize medication lists: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Fetch the created lists to update cache
+      const createdLists = await this.getPatientMedicationLists(patientId);
+      
+      return createdLists;
+    } catch (error) {
+      console.error('Error initializing patient medication lists:', error);
+      throw error;
+    }
   }
 
+  /**
+   * Get patient medication lists
+   */
+  async getPatientMedicationLists(patientId, listType = null) {
+    try {
+      const params = new URLSearchParams({ status: 'current' });
+      if (listType) {
+        params.append('list_type', listType);
+      }
+
+      const response = await fetch(`/api/clinical/medication-lists/${patientId}?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch medication lists: ${response.statusText}`);
+      }
+
+      const lists = await response.json();
+      
+      // Update cache
+      lists.forEach(list => {
+        const type = this.getListTypeFromCode(list.code?.coding?.[0]?.code);
+        if (type) {
+          this.medicationLists.set(`${patientId}-${type}`, list);
+        }
+      });
+
+      return lists;
+    } catch (error) {
+      console.error('Error fetching patient medication lists:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Add medication to a specific list
+   */
   async addMedicationToList(patientId, listType, medicationRequest, reason) {
-    // Implementation for adding medication to a specific list
+    try {
+      // Get or create the appropriate list
+      let list = await this.getOrCreateList(patientId, listType);
+      
+      if (!list || !list.id) {
+        throw new Error(`Failed to get or create ${listType} list`);
+      }
+
+      // Prepare entry data
+      const entryData = {
+        medication_request_id: medicationRequest.id,
+        flag: medicationRequest.status === 'active' ? 'active' : 'completed',
+        note: reason || `Added from ${medicationRequest.intent || 'order'}`
+      };
+
+      // Add medication to list via API
+      const response = await fetch(`/api/clinical/medication-lists/${list.id}/entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(entryData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add medication to list: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Refresh the list in cache
+      const updatedLists = await this.getPatientMedicationLists(patientId);
+      
+      // Notify subscribers
+      this.notifyListUpdated(patientId, listType, 'add', medicationRequest);
+
+      return result;
+    } catch (error) {
+      console.error('Error adding medication to list:', error);
+      throw error;
+    }
   }
 
+  /**
+   * Add medication to current medications list
+   */
   async addMedicationToCurrentList(patientId, medicationRequest) {
-    // Implementation for adding to current medications list
+    return this.addMedicationToList(patientId, 'current', medicationRequest, 'Active medication');
   }
 
+  /**
+   * Remove medication from list
+   */
+  async removeMedicationFromList(patientId, listType, medicationRequestId) {
+    try {
+      const list = this.medicationLists.get(`${patientId}-${listType}`);
+      
+      if (!list || !list.id) {
+        throw new Error(`${listType} list not found for patient`);
+      }
+
+      const response = await fetch(
+        `/api/clinical/medication-lists/${list.id}/entries/${medicationRequestId}`,
+        {
+          method: 'DELETE'
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to remove medication from list: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Refresh the list in cache
+      await this.getPatientMedicationLists(patientId);
+      
+      // Notify subscribers
+      this.notifyListUpdated(patientId, listType, 'remove', { id: medicationRequestId });
+
+      return result;
+    } catch (error) {
+      console.error('Error removing medication from list:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get or create a medication list
+   */
+  async getOrCreateList(patientId, listType) {
+    try {
+      // Check cache first
+      const cachedList = this.medicationLists.get(`${patientId}-${listType}`);
+      if (cachedList) {
+        return cachedList;
+      }
+
+      // Get existing lists
+      const lists = await this.getPatientMedicationLists(patientId, listType);
+      
+      if (lists && lists.length > 0) {
+        return lists[0];
+      }
+
+      // Create new list
+      const response = await fetch('/api/clinical/medication-lists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          patient_id: patientId,
+          list_type: listType,
+          title: `${listType.charAt(0).toUpperCase() + listType.slice(1)} Medications`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create medication list: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Update cache
+      this.medicationLists.set(`${patientId}-${listType}`, result.resource);
+      
+      return result.resource;
+    } catch (error) {
+      console.error('Error getting or creating list:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Perform medication reconciliation
+   */
+  async reconcileMedicationLists(patientId, sourceListIds) {
+    try {
+      const response = await fetch('/api/clinical/medication-lists/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          patient_id: patientId,
+          source_lists: sourceListIds
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reconcile medication lists: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Notify subscribers of reconciliation
+      this.notifyListUpdated(patientId, 'reconciliation', 'create', result);
+
+      return result;
+    } catch (error) {
+      console.error('Error reconciling medication lists:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get list type from LOINC code
+   */
+  getListTypeFromCode(loincCode) {
+    const codeMap = {
+      '52471-0': 'current',
+      '56445-0': 'home',
+      '75311-1': 'discharge',
+      '80738-8': 'reconciliation'
+    };
+    return codeMap[loincCode] || null;
+  }
+
+  /**
+   * Subscribe to medication list updates
+   */
+  subscribeToListUpdates(patientId, listType, callback) {
+    const key = `${patientId}-${listType}`;
+    if (!this.updateCallbacks.has(key)) {
+      this.updateCallbacks.set(key, new Set());
+    }
+    this.updateCallbacks.get(key).add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      const callbacks = this.updateCallbacks.get(key);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.updateCallbacks.delete(key);
+        }
+      }
+    };
+  }
+
+  /**
+   * Notify subscribers of list updates
+   */
   notifyListUpdated(patientId, listType, action, medicationRequest) {
-    // Implementation for notifying subscribers of list updates
+    // Notify specific list subscribers
+    const key = `${patientId}-${listType}`;
+    const callbacks = this.updateCallbacks.get(key);
+    if (callbacks) {
+      callbacks.forEach(callback => {
+        try {
+          callback({ action, listType, medicationRequest });
+        } catch (error) {
+          console.error('Error in list update callback:', error);
+        }
+      });
+    }
+
+    // Notify global subscribers
+    const globalCallbacks = this.updateCallbacks.get('global');
+    if (globalCallbacks) {
+      globalCallbacks.forEach(callback => {
+        try {
+          callback({ patientId, action, listType, medicationRequest });
+        } catch (error) {
+          console.error('Error in global update callback:', error);
+        }
+      });
+    }
   }
 
   // Additional helper methods as needed...
