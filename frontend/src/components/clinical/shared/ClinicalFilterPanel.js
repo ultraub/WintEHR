@@ -237,7 +237,7 @@ const ClinicalFilterPanel = ({
               <FormControl size="small" sx={{ minWidth: 120 }}>
                 <Select
                   value={dateRange}
-                  onChange={(e) => onDateRangeChange(e.target.value)}
+                  onChange={(e) => onDateRangeChange && onDateRangeChange(e.target.value)}
                   startAdornment={<CalendarIcon fontSize="small" sx={{ mr: 1 }} />}
                   sx={{ borderRadius: 0 }}
                 >
@@ -326,7 +326,7 @@ const ClinicalFilterPanel = ({
                   size="small"
                   onClick={() => {
                     onSearchChange('');
-                    onDateRangeChange('all');
+                    onDateRangeChange && onDateRangeChange('all');
                     onCategoriesChange(['all']);
                   }}
                   startIcon={<ClearIcon />}

@@ -1129,6 +1129,8 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
           <ClinicalFilterPanel
             searchQuery={searchTerm}
             onSearchChange={setSearchTerm}
+            dateRange={filterPeriod}
+            onDateRangeChange={setFilterPeriod}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onRefresh={loadImagingStudies}
