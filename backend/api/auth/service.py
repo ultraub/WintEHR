@@ -10,7 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
-from .config import JWT_ENABLED, TRAINING_USERS, TRAINING_PASSWORD, JWT_ACCESS_TOKEN_EXPIRE_DELTA
+from .config import JWT_ENABLED, TRAINING_USERS, TRAINING_PASSWORD, JWT_ACCESS_TOKEN_EXPIRE_DELTA, USE_SECURE_AUTH
 from .jwt_handler import create_access_token, verify_token, verify_password
 from .models import User, TokenResponse, SimpleAuthResponse
 from api.services.audit_service import AuditService, AuditEventType
@@ -194,7 +194,12 @@ class AuthService:
 # Dependency to get auth service
 async def get_auth_service(db: AsyncSession = Depends(get_db_session)) -> AuthService:
     """Get auth service instance"""
-    return AuthService(db)
+    if USE_SECURE_AUTH:
+        # Import here to avoid circular imports
+        from .secure_auth_service import SecureAuthService
+        return SecureAuthService(db)
+    else:
+        return AuthService(db)
 
 
 # Dependency to get current user
