@@ -318,6 +318,3 @@ const websocketService = new WebSocketService();
 export default websocketService;
 
 export const getWebSocketConnection = () => websocketService;
-
-// Re-export for backward compatibility
-export const WebSocketService = websocketService;

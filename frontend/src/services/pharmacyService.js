@@ -4,7 +4,7 @@
  * Integrates with medication dispensing, queue management, and pharmacy workflows
  */
 
-import { api } from './api';
+import { apiClient } from './api';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class PharmacyService {
@@ -36,7 +36,7 @@ class PharmacyService {
     }
     
     try {
-      const response = await api.get(`${this.baseUrl}/queue?${params.toString()}`);
+      const response = await apiClient.get(`${this.baseUrl}/queue?${params.toString()}`);
       
       // Cache the result
       this.cache.set(cacheKey, {
@@ -64,7 +64,7 @@ class PharmacyService {
         throw new Error('quantity is required');
       }
       
-      const response = await api.post(`${this.baseUrl}/dispense`, dispenseData);
+      const response = await apiClient.post(`${this.baseUrl}/dispense`, dispenseData);
       
       // Clear cache after dispensing
       this.clearQueueCache();
@@ -81,7 +81,7 @@ class PharmacyService {
    */
   async updatePharmacyStatus(medicationRequestId, statusUpdate) {
     try {
-      const response = await api.put(
+      const response = await apiClient.put(
         `${this.baseUrl}/status/${medicationRequestId}`,
         statusUpdate
       );
@@ -101,7 +101,7 @@ class PharmacyService {
    */
   async getPharmacyMetrics(dateRange = 7) {
     try {
-      const response = await api.get(`${this.baseUrl}/metrics?date_range=${dateRange}`);
+      const response = await apiClient.get(`${this.baseUrl}/metrics?date_range=${dateRange}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching pharmacy metrics:', error);
@@ -114,7 +114,7 @@ class PharmacyService {
    */
   async checkMedicationInventory(medicationCode) {
     try {
-      const response = await api.get(`${this.baseUrl}/inventory/check/${medicationCode}`);
+      const response = await apiClient.get(`${this.baseUrl}/inventory/check/${medicationCode}`);
       return response.data;
     } catch (error) {
       console.error('Error checking medication inventory:', error);

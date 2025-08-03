@@ -65,6 +65,14 @@ import { format } from 'date-fns';
 import PharmacyQueue from '../components/pharmacy/PharmacyQueue';
 import PharmacyAnalytics from '../components/pharmacy/PharmacyAnalytics';
 
+// Services
+import { fhirClient } from '../core/fhir/services/fhirClient';
+import { printBatchLabels } from '../services/prescriptionLabelService';
+
+// Context
+import { useFHIRResource } from '../contexts/FHIRResourceContext';
+import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
+
 // Queue column configuration (should match PharmacyQueue.js)
 const QUEUE_COLUMNS = {
   newOrders: {
@@ -88,14 +96,6 @@ const QUEUE_COLUMNS = {
     color: 'success'
   }
 };
-
-// Services
-import { fhirClient } from '../core/fhir/services/fhirClient';
-import { printBatchLabels } from '../services/prescriptionLabelService';
-
-// Context
-import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 
 const PharmacyPage = () => {
   const theme = useTheme();
