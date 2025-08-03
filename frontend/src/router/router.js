@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
-import Layout from '../components/Layout';
+import LayoutV3 from '../components/LayoutV3';
 import Login from '../pages/Login';
 import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
@@ -44,9 +44,9 @@ export const router = createBrowserRouter([
     path: '/patients',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <PatientList />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -54,9 +54,9 @@ export const router = createBrowserRouter([
     path: '/patients/:id',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <PatientDashboardV2Page />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -72,9 +72,9 @@ export const router = createBrowserRouter([
     path: '/patients/:id/timeline',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <PatientTimelinePage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -82,9 +82,9 @@ export const router = createBrowserRouter([
     path: '/patients/:id/medication-reconciliation',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <MedicationReconciliationPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -92,9 +92,9 @@ export const router = createBrowserRouter([
     path: '/patients/:id/encounters/:encounterId/medication-reconciliation',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <MedicationReconciliationPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -102,9 +102,9 @@ export const router = createBrowserRouter([
     path: '/patients/:id/vital-signs',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <VitalSignsPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -112,9 +112,9 @@ export const router = createBrowserRouter([
     path: '/dashboard',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <Dashboard />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -126,9 +126,9 @@ export const router = createBrowserRouter([
     path: '/encounters',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <EncountersPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -136,9 +136,9 @@ export const router = createBrowserRouter([
     path: '/lab-results',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <LabResultsPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -146,9 +146,9 @@ export const router = createBrowserRouter([
     path: '/medications',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <MedicationsPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -156,9 +156,9 @@ export const router = createBrowserRouter([
     path: '/pharmacy',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <PharmacyPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -166,9 +166,9 @@ export const router = createBrowserRouter([
     path: '/inventory',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <InventoryManagementPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -176,9 +176,9 @@ export const router = createBrowserRouter([
     path: '/analytics',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <Analytics />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -186,9 +186,9 @@ export const router = createBrowserRouter([
     path: '/quality',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <QualityMeasuresPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -196,9 +196,9 @@ export const router = createBrowserRouter([
     path: '/care-gaps',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <CareGapsPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -229,9 +229,9 @@ export const router = createBrowserRouter([
     path: '/cds-studio',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <CDSHooksStudio />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -239,9 +239,9 @@ export const router = createBrowserRouter([
     path: '/schedule',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <Schedule />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -249,9 +249,9 @@ export const router = createBrowserRouter([
     path: '/audit-trail',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <AuditTrailPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -259,9 +259,9 @@ export const router = createBrowserRouter([
     path: '/settings',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <Settings />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -269,9 +269,9 @@ export const router = createBrowserRouter([
     path: '/training',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <TrainingCenterPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -279,9 +279,9 @@ export const router = createBrowserRouter([
     path: '/performance-test',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <PerformanceTestPage />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -289,9 +289,9 @@ export const router = createBrowserRouter([
     path: '*',
     element: (
       <ProtectedRoute>
-        <Layout>
+        <LayoutV3>
           <NotFound />
-        </Layout>
+        </LayoutV3>
       </ProtectedRoute>
     )
   }

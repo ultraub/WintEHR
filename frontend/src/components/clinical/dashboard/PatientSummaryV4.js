@@ -1,5 +1,5 @@
 /**
- * PatientSummary Component
+ * PatientSummaryV4 Component
  * Beautiful, modern patient summary with clinical workspace integration
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -57,7 +57,7 @@ import { useInitializationGuard } from '../../../hooks/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 
-const PatientSummary = ({ patientId, department = 'general' }) => {
+const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
   const theme = useTheme();
   const navigate = useNavigate();
@@ -1199,4 +1199,4 @@ const PatientSummary = ({ patientId, department = 'general' }) => {
   );
 };
 
-export default PatientSummary;
+export default PatientSummaryV4;

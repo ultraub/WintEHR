@@ -48,7 +48,7 @@ class EnhancedOrderSearchService {
 
       return combinedResults;
     } catch (error) {
-      // Enhanced order search error handled
+      console.error('Enhanced order search error:', error);
       throw new Error(`Order search failed: ${error.message}`);
     }
   }
@@ -385,7 +385,7 @@ class EnhancedOrderSearchService {
           return a.text.localeCompare(b.text);
         });
     } catch (error) {
-      // Error getting search suggestions handled
+      console.error('Error getting search suggestions:', error);
       return [];
     }
   }
@@ -445,7 +445,7 @@ class EnhancedOrderSearchService {
 
       return recommendations.slice(0, 10); // Limit to top 10 recommendations
     } catch (error) {
-      // Error getting order recommendations handled
+      console.error('Error getting order recommendations:', error);
       return [];
     }
   }
