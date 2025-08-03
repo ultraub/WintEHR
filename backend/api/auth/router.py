@@ -4,7 +4,7 @@ Unified Authentication Router
 Combines all authentication endpoints into a single router.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List
 
 from database import get_db_session
@@ -32,7 +32,8 @@ async def get_auth_config():
 
 @router.post("/login")
 async def login(
-    request: LoginRequest,
+    login_request: LoginRequest,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """
@@ -46,7 +47,7 @@ async def login(
     - Use registered credentials
     - Returns JWT token
     """
-    return await auth_service.login(request.username, request.password)
+    return await auth_service.login(login_request.username, login_request.password, request)
 
 
 @router.get("/me", response_model=User)

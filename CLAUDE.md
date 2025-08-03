@@ -4,8 +4,8 @@
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
-**Last Updated**: 2025-07-26  
-**Version**: 3.0
+**Last Updated**: 2025-08-03  
+**Version**: 3.1
 
 > **NEW**: Simplified deployment! See [DEPLOYMENT_SIMPLIFIED.md](./DEPLOYMENT_SIMPLIFIED.md) for the new streamlined approach.
 
@@ -546,6 +546,16 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **Shared Components**: 6 core clinical UI components with FHIR templates
 - **Consistent Styling**: Sharp corners, clinical severity colors, professional appearance
 
+## ⚠️ CRITICAL SECURITY WARNING
+
+**This system has critical security vulnerabilities that MUST be fixed before production use:**
+1. **Authentication accepts hardcoded passwords in production mode**
+2. **No proper user database or password hashing**
+3. **No role-based access control for controlled substances**
+4. **JWT tokens have no server-side session management**
+
+**See [CRITICAL_FIXES_2025-08-03.md](docs/CRITICAL_FIXES_2025-08-03.md) for recent security fixes and remaining issues.**
+
 ## 🆕 Recent Improvements (2025)
 
 ### Major Architecture Changes
@@ -589,6 +599,16 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **Virtual Scrolling**: Efficient rendering for long lists
 - **Performance Monitoring**: Built-in performance tracking utilities
 
+### Critical Security & Bug Fixes (2025-08-03)
+- **Security**: Added audit logging for authentication events
+- **Security**: Implemented basic rate limiting for login attempts
+- **Bug Fix**: Fixed PharmacyQueue duplicate parameter bug
+- **Bug Fix**: Fixed WebSocket authentication import errors
+- **Bug Fix**: Fixed CDS Hooks data structure access patterns
+- **Feature**: Created missing websocket.js service with auto-reconnection
+- **Enhancement**: Added comprehensive error handling to CDS services
+- **Documentation**: Created [CRITICAL_FIXES_2025-08-03.md](docs/CRITICAL_FIXES_2025-08-03.md)
+
 ### FHIR Explorer Enhancements (2025-01-26)
 - **Query Studio**: Unified query building experience combining Visual Builder and Playground
 - **Full Dark Mode Support**: Comprehensive theme integration across all FHIR Explorer components
@@ -602,11 +622,13 @@ WintEHR now includes a comprehensive Clinical Design System:
 - **FHIR Operations**: `frontend/src/core/fhir/services/fhirClient.js`
 - **Clinical Catalogs**: `frontend/src/services/cdsClinicalDataService.js`
 - **Event System**: `frontend/src/contexts/ClinicalWorkflowContext.js`
-- **WebSocket**: `frontend/src/contexts/WebSocketContext.js`
+- **WebSocket Service**: `frontend/src/services/websocket.js` (NEW - auto-reconnection, event system)
+- **WebSocket Context**: `frontend/src/contexts/WebSocketContext.js` (if exists)
 - **Performance Utils**: `frontend/src/components/clinical/performance/optimizations.js`
 
 ### Backend Services
-- **Auth System**: `backend/api/auth_enhanced.py`
+- **Auth System**: `backend/api/auth/` (router.py, service.py, jwt_handler.py)
+- **Audit Service**: `backend/api/services/audit_service.py` (NEW - security event logging)
 - **FHIR Storage**: `backend/fhir/core/storage.py`
 - **Database Init**: `backend/scripts/setup/init_database_definitive.py`
 

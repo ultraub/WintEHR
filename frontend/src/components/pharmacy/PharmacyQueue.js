@@ -261,7 +261,7 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
             variant="contained"
             color={nextAction.color}
             startIcon={<MoveIcon />}
-            onClick={() => onStatusChange(prescription.id, nextAction.nextStatus, nextAction.nextStatus)}
+            onClick={() => onStatusChange(prescription.id, nextAction.nextStatus)}
           >
             {nextAction.label}
           </Button>

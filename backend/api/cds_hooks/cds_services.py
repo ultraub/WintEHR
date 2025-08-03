@@ -3,6 +3,9 @@
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BaseCDSService:
     """Base class for CDS services"""
@@ -42,17 +45,20 @@ class DiabetesManagementService(BaseCDSService):
     def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
         cards = []
         
-        # Check if patient has diabetes
-        conditions = prefetch.get("conditions", [])
-        if not conditions:
-            return {"cards": []}
+        try:
+            # Check if patient has diabetes
+            conditions = prefetch.get("conditions", [])
+            if not conditions:
+                return {"cards": []}
         
         # Check latest A1C
         a1c = prefetch.get("a1c")
-        if a1c and hasattr(a1c, 'value'):
-            a1c_value = a1c.value
+        if a1c and isinstance(a1c, dict):
+            # FHIR Observation structure: check valueQuantity
+            value_quantity = a1c.get('valueQuantity', {})
+            a1c_value = value_quantity.get('value') if value_quantity else None
             
-            if a1c_value >= 9.0:
+            if a1c_value and a1c_value >= 9.0:
                 cards.append(self.create_card(
                     summary="High A1C Alert",
                     detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider intensifying therapy.",
@@ -81,7 +87,7 @@ class DiabetesManagementService(BaseCDSService):
                         }
                     ]
                 ))
-            elif a1c_value >= 7.0:
+            elif a1c_value and a1c_value >= 7.0:
                 cards.append(self.create_card(
                     summary="A1C Above Goal",
                     detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider treatment adjustment.",
@@ -90,10 +96,23 @@ class DiabetesManagementService(BaseCDSService):
         
         # Check if on metformin (first-line therapy)
         medications = prefetch.get("medications", [])
-        on_metformin = any(
-            med for med in medications 
-            if hasattr(med, 'medication_name') and 'metformin' in med.medication_name.lower()
-        )
+        on_metformin = False
+        for med in medications:
+            if isinstance(med, dict):
+                # Check FHIR MedicationRequest structure
+                med_concept = med.get('medicationCodeableConcept', {})
+                if med_concept:
+                    # Check text or coding display
+                    med_text = med_concept.get('text', '')
+                    if med_text and 'metformin' in med_text.lower():
+                        on_metformin = True
+                        break
+                    # Also check codings
+                    for coding in med_concept.get('coding', []):
+                        display = coding.get('display', '')
+                        if display and 'metformin' in display.lower():
+                            on_metformin = True
+                            break
         
         if not on_metformin:
             cards.append(self.create_card(
@@ -132,7 +151,19 @@ class DiabetesManagementService(BaseCDSService):
             ]
         ))
         
-        return {"cards": cards}
+            return {"cards": cards}
+            
+        except Exception as e:
+            # Log error but don't crash - return empty cards array
+            logger.error(f"Error in DiabetesManagementService: {str(e)}", exc_info=True)
+            
+            # Return error card to inform user
+            error_card = self.create_card(
+                summary="CDS Service Error",
+                detail=f"An error occurred while evaluating diabetes management recommendations. Please contact support if this persists.",
+                indicator="warning"
+            )
+            return {"cards": [error_card]}
 
 class HypertensionManagementService(BaseCDSService):
     """Hypertension management CDS service"""
@@ -140,21 +171,33 @@ class HypertensionManagementService(BaseCDSService):
     def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
         cards = []
         
-        # Check blood pressure readings
-        bp_observations = prefetch.get("bp", [])
-        if not bp_observations:
-            return {"cards": []}
+        try:
+            # Check blood pressure readings
+            bp_observations = prefetch.get("bp", [])
+            if not bp_observations:
+                return {"cards": []}
         
         # Get latest systolic and diastolic readings
         systolic_readings = []
         diastolic_readings = []
         
-        for obs in bp_observations:
-            if hasattr(obs, 'code') and hasattr(obs, 'value'):
-                if obs.code == "8480-6":  # Systolic
-                    systolic_readings.append(obs.value)
-                elif obs.code == "8462-4":  # Diastolic
-                    diastolic_readings.append(obs.value)
+            for obs in bp_observations:
+                if isinstance(obs, dict):
+                    # Check if this is a blood pressure observation
+                    code_concept = obs.get('code', {})
+                    if code_concept:
+                        # Look for LOINC codes in codings
+                        for coding in code_concept.get('coding', []):
+                            code = coding.get('code')
+                            if code:
+                                # Extract value from valueQuantity
+                                value_quantity = obs.get('valueQuantity', {})
+                                value = value_quantity.get('value')
+                                if value is not None:
+                                    if code == "8480-6":  # Systolic
+                                        systolic_readings.append(float(value))
+                                    elif code == "8462-4":  # Diastolic
+                                        diastolic_readings.append(float(value))
         
         if systolic_readings and diastolic_readings:
             avg_systolic = sum(systolic_readings[:3]) / min(3, len(systolic_readings))
@@ -186,22 +229,44 @@ class HypertensionManagementService(BaseCDSService):
                     ]
                 ))
         
-        # Check medication adherence
-        medications = prefetch.get("medications", [])
-        on_ace_arb = any(
-            med for med in medications 
-            if hasattr(med, 'medication_name') and 
-            any(drug in med.medication_name.lower() for drug in ['lisinopril', 'losartan', 'enalapril'])
-        )
+            # Check medication adherence
+            medications = prefetch.get("medications", [])
+            on_ace_arb = False
+            for med in medications:
+                if isinstance(med, dict):
+                    med_concept = med.get('medicationCodeableConcept', {})
+                    if med_concept:
+                        med_text = med_concept.get('text', '')
+                        if med_text and any(drug in med_text.lower() for drug in ['lisinopril', 'losartan', 'enalapril']):
+                            on_ace_arb = True
+                            break
+                        # Also check codings
+                        for coding in med_concept.get('coding', []):
+                            display = coding.get('display', '')
+                            if display and any(drug in display.lower() for drug in ['lisinopril', 'losartan', 'enalapril']):
+                                on_ace_arb = True
+                                break
         
-        if not on_ace_arb:
-            cards.append(self.create_card(
-                summary="Consider ACE Inhibitor or ARB",
-                detail="Patient with hypertension not on ACE inhibitor or ARB. Consider as first-line therapy.",
-                indicator="info"
-            ))
+            if not on_ace_arb:
+                cards.append(self.create_card(
+                    summary="Consider ACE Inhibitor or ARB",
+                    detail="Patient with hypertension not on ACE inhibitor or ARB. Consider as first-line therapy.",
+                    indicator="info"
+                ))
         
-        return {"cards": cards}
+            return {"cards": cards}
+            
+        except Exception as e:
+            # Log error but don't crash
+            logger.error(f"Error in HypertensionManagementService: {str(e)}", exc_info=True)
+            
+            # Return error card to inform user
+            error_card = self.create_card(
+                summary="CDS Service Error",
+                detail="An error occurred while evaluating blood pressure recommendations. Please contact support if this persists.",
+                indicator="warning"
+            )
+            return {"cards": [error_card]}
 
 class DrugInteractionService(BaseCDSService):
     """Drug interaction checking service"""

@@ -1,269 +1,339 @@
 """
-FHIR Audit Service
-Handles creation and management of FHIR AuditEvent resources
+Audit Service for WintEHR
+Logs security and clinical events to the audit_logs table
 """
 
-from typing import Dict, Any, Optional, List
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 import json
 import uuid
-from fastapi import Request
+from datetime import datetime
+from typing import Dict, Any, Optional
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
-from fhir.core.converters.resource_specific.audit_event import audit_log_to_fhir, create_audit_event
+logger = logging.getLogger(__name__)
+
+class AuditEventType:
+    """Standard audit event types"""
+    # Authentication events
+    AUTH_LOGIN_SUCCESS = "auth.login.success"
+    AUTH_LOGIN_FAILURE = "auth.login.failure"
+    AUTH_LOGOUT = "auth.logout"
+    AUTH_SESSION_EXPIRED = "auth.session.expired"
+    AUTH_UNAUTHORIZED_ACCESS = "auth.unauthorized"
+    
+    # Resource access events
+    FHIR_RESOURCE_CREATE = "fhir.resource.create"
+    FHIR_RESOURCE_READ = "fhir.resource.read"
+    FHIR_RESOURCE_UPDATE = "fhir.resource.update"
+    FHIR_RESOURCE_DELETE = "fhir.resource.delete"
+    
+    # Clinical events
+    MEDICATION_PRESCRIBED = "medication.prescribed"
+    MEDICATION_DISPENSED = "medication.dispensed"
+    MEDICATION_ADMINISTERED = "medication.administered"
+    ORDER_PLACED = "order.placed"
+    RESULT_VIEWED = "result.viewed"
+    RESULT_ACKNOWLEDGED = "result.acknowledged"
+    
+    # Security events
+    SECURITY_PERMISSION_DENIED = "security.permission.denied"
+    SECURITY_INVALID_TOKEN = "security.invalid.token"
+    SECURITY_SUSPICIOUS_ACTIVITY = "security.suspicious"
 
 
 class AuditService:
-    """Service for handling FHIR AuditEvent creation and management"""
+    """Service for logging audit events"""
     
-    @staticmethod
-    async def create_audit_log(
-        db: AsyncSession,
-        action: str,
+    def __init__(self, db_session: AsyncSession):
+        self.db = db_session
+    
+    async def log_event(
+        self,
+        event_type: str,
         user_id: Optional[str] = None,
+        patient_id: Optional[str] = None,
         resource_type: Optional[str] = None,
         resource_id: Optional[str] = None,
+        action: Optional[str] = None,
+        outcome: str = "success",
         details: Optional[Dict[str, Any]] = None,
-        request: Optional[Request] = None
-    ) -> Dict[str, Any]:
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> str:
         """
-        Create an audit log entry and return it as a FHIR AuditEvent.
+        Log an audit event to the database
         
         Args:
-            db: Database session
-            action: The action performed (login, logout, create, read, update, delete)
-            user_id: ID of the user who performed the action
-            resource_type: FHIR resource type that was accessed
-            resource_id: ID of the resource that was accessed
-            details: Additional details about the action
-            request: FastAPI request object for extracting IP and user agent
-        
+            event_type: Type of event (use AuditEventType constants)
+            user_id: ID of the user performing the action
+            patient_id: ID of the patient (if applicable)
+            resource_type: FHIR resource type (if applicable)
+            resource_id: FHIR resource ID (if applicable)
+            action: Action performed (create, read, update, delete, etc.)
+            outcome: Outcome of the action (success, failure, error)
+            details: Additional details as JSON
+            ip_address: Client IP address
+            user_agent: Client user agent string
+            
         Returns:
-            FHIR AuditEvent resource
+            ID of the created audit log entry
         """
-        # Extract request details if available
-        ip_address = None
-        user_agent = None
-        if request:
-            if request.client:
-                ip_address = request.client.host
-            user_agent = request.headers.get("User-Agent")
-        
-        # Create the audit log entry in the database
-        audit_id = uuid.uuid4()
-        
-        insert_query = text("""
-            INSERT INTO emr.audit_logs (
-                id, user_id, action, resource_type, resource_id,
-                details, ip_address, user_agent, created_at
-            ) VALUES (
-                :id, :user_id, :action, :resource_type, :resource_id,
-                :details, :ip_address, :user_agent, :created_at
+        try:
+            audit_id = str(uuid.uuid4())
+            
+            # Prepare the audit log entry
+            query = text("""
+                INSERT INTO fhir.audit_logs (
+                    id,
+                    event_type,
+                    event_time,
+                    user_id,
+                    patient_id,
+                    resource_type,
+                    resource_id,
+                    action,
+                    outcome,
+                    details,
+                    ip_address,
+                    user_agent
+                ) VALUES (
+                    :id,
+                    :event_type,
+                    :event_time,
+                    :user_id,
+                    :patient_id,
+                    :resource_type,
+                    :resource_id,
+                    :action,
+                    :outcome,
+                    :details,
+                    :ip_address,
+                    :user_agent
+                )
+            """)
+            
+            await self.db.execute(
+                query,
+                {
+                    "id": audit_id,
+                    "event_type": event_type,
+                    "event_time": datetime.utcnow(),
+                    "user_id": user_id,
+                    "patient_id": patient_id,
+                    "resource_type": resource_type,
+                    "resource_id": resource_id,
+                    "action": action,
+                    "outcome": outcome,
+                    "details": json.dumps(details) if details else None,
+                    "ip_address": ip_address,
+                    "user_agent": user_agent
+                }
             )
-            RETURNING *
-        """)
-        
-        result = await db.execute(insert_query, {
-            "id": audit_id,
-            "user_id": uuid.UUID(user_id) if user_id else None,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "details": json.dumps(details) if details else None,
-            "ip_address": ip_address,
-            "user_agent": user_agent,
-            "created_at": datetime.utcnow()
-        })
-        
-        await db.commit()
-        
-        # Get the created audit log
-        audit_log = result.first()
-        
-        # Convert to dictionary for the converter
-        audit_dict = {
-            "id": audit_log.id,
-            "user_id": str(audit_log.user_id) if audit_log.user_id else None,
-            "action": audit_log.action,
-            "resource_type": audit_log.resource_type,
-            "resource_id": audit_log.resource_id,
-            "details": json.loads(audit_log.details) if audit_log.details else None,
-            "ip_address": audit_log.ip_address,
-            "user_agent": audit_log.user_agent,
-            "created_at": audit_log.created_at
-        }
-        
-        # Convert to FHIR AuditEvent
-        return audit_log_to_fhir(audit_dict)
+            
+            await self.db.commit()
+            
+            # Log to application logs as well
+            logger.info(
+                f"Audit event logged: {event_type} | "
+                f"User: {user_id} | "
+                f"Outcome: {outcome} | "
+                f"Resource: {resource_type}/{resource_id if resource_id else 'N/A'}"
+            )
+            
+            return audit_id
+            
+        except Exception as e:
+            logger.error(f"Failed to log audit event: {e}")
+            # Don't fail the main operation if audit logging fails
+            return None
     
-    @staticmethod
-    async def audit_fhir_operation(
-        db: AsyncSession,
-        operation: str,
+    async def log_login_attempt(
+        self,
+        username: str,
+        success: bool,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        failure_reason: Optional[str] = None
+    ):
+        """Log a login attempt"""
+        event_type = (
+            AuditEventType.AUTH_LOGIN_SUCCESS 
+            if success 
+            else AuditEventType.AUTH_LOGIN_FAILURE
+        )
+        
+        details = {"username": username}
+        if failure_reason:
+            details["failure_reason"] = failure_reason
+        
+        await self.log_event(
+            event_type=event_type,
+            user_id=username if success else None,
+            action="login",
+            outcome="success" if success else "failure",
+            details=details,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    
+    async def log_logout(
+        self,
+        user_id: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ):
+        """Log a logout event"""
+        await self.log_event(
+            event_type=AuditEventType.AUTH_LOGOUT,
+            user_id=user_id,
+            action="logout",
+            outcome="success",
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    
+    async def log_resource_access(
+        self,
+        user_id: str,
         resource_type: str,
-        resource_id: Optional[str] = None,
-        user_id: Optional[str] = None,
+        resource_id: str,
+        action: str,
+        patient_id: Optional[str] = None,
         success: bool = True,
-        details: Optional[Dict[str, Any]] = None,
-        request: Optional[Request] = None
-    ) -> Dict[str, Any]:
-        """
-        Create an audit log for a FHIR operation.
-        
-        Args:
-            db: Database session
-            operation: FHIR operation (create, read, update, delete, search)
-            resource_type: FHIR resource type
-            resource_id: Resource ID (if applicable)
-            user_id: User who performed the operation
-            success: Whether the operation succeeded
-            details: Additional operation details
-            request: FastAPI request object
-        
-        Returns:
-            FHIR AuditEvent resource
-        """
-        # Add operation-specific details
-        if details is None:
-            details = {}
-        
-        details["fhir_operation"] = operation
-        details["success"] = success
-        
-        # Add search parameters if this is a search operation
-        if operation == "search" and request:
-            details["search_params"] = dict(request.query_params)
-        
-        # Map FHIR operations to audit actions
-        action_map = {
-            "create": "create",
-            "read": "read",
-            "update": "update",
-            "delete": "delete",
-            "search": "read",
-            "vread": "read",
-            "history": "read",
-            "batch": "execute",
-            "transaction": "execute"
+        ip_address: Optional[str] = None
+    ):
+        """Log FHIR resource access"""
+        event_type_map = {
+            "create": AuditEventType.FHIR_RESOURCE_CREATE,
+            "read": AuditEventType.FHIR_RESOURCE_READ,
+            "update": AuditEventType.FHIR_RESOURCE_UPDATE,
+            "delete": AuditEventType.FHIR_RESOURCE_DELETE
         }
         
-        action = action_map.get(operation, "read")
+        event_type = event_type_map.get(
+            action.lower(), 
+            f"fhir.resource.{action.lower()}"
+        )
         
-        return await AuditService.create_audit_log(
-            db=db,
-            action=action,
+        await self.log_event(
+            event_type=event_type,
             user_id=user_id,
+            patient_id=patient_id,
             resource_type=resource_type,
             resource_id=resource_id,
-            details=details,
-            request=request
+            action=action,
+            outcome="success" if success else "failure",
+            ip_address=ip_address
         )
     
-    @staticmethod
-    async def get_audit_events(
-        db: AsyncSession,
-        filters: Optional[Dict[str, Any]] = None,
-        limit: int = 100,
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve audit events as FHIR AuditEvent resources.
-        
-        Args:
-            db: Database session
-            filters: Optional filters (user_id, action, resource_type, date_from, date_to)
-            limit: Maximum number of results
-            offset: Number of results to skip
-        
-        Returns:
-            List of FHIR AuditEvent resources
-        """
-        # Build query with filters
-        query_parts = ["SELECT * FROM emr.audit_logs WHERE 1=1"]
-        params = {"limit": limit, "offset": offset}
-        
-        if filters:
-            if filters.get("user_id"):
-                query_parts.append("AND user_id = :user_id")
-                params["user_id"] = uuid.UUID(filters["user_id"])
-            
-            if filters.get("action"):
-                query_parts.append("AND action = :action")
-                params["action"] = filters["action"]
-            
-            if filters.get("resource_type"):
-                query_parts.append("AND resource_type = :resource_type")
-                params["resource_type"] = filters["resource_type"]
-            
-            if filters.get("resource_id"):
-                query_parts.append("AND resource_id = :resource_id")
-                params["resource_id"] = filters["resource_id"]
-            
-            if filters.get("date_from"):
-                query_parts.append("AND created_at >= :date_from")
-                params["date_from"] = filters["date_from"]
-            
-            if filters.get("date_to"):
-                query_parts.append("AND created_at <= :date_to")
-                params["date_to"] = filters["date_to"]
-        
-        query_parts.append("ORDER BY created_at DESC")
-        query_parts.append("LIMIT :limit OFFSET :offset")
-        
-        query = text(" ".join(query_parts))
-        result = await db.execute(query, params)
-        
-        # Convert to FHIR AuditEvents
-        audit_events = []
-        for row in result:
-            audit_dict = {
-                "id": row.id,
-                "user_id": str(row.user_id) if row.user_id else None,
-                "action": row.action,
-                "resource_type": row.resource_type,
-                "resource_id": row.resource_id,
-                "details": json.loads(row.details) if row.details else None,
-                "ip_address": row.ip_address,
-                "user_agent": row.user_agent,
-                "created_at": row.created_at
-            }
-            audit_events.append(audit_log_to_fhir(audit_dict))
-        
-        return audit_events
-    
-    @staticmethod
-    async def create_login_audit(
-        db: AsyncSession,
+    async def log_medication_event(
+        self,
+        event_type: str,
         user_id: str,
-        success: bool = True,
+        patient_id: str,
+        medication_id: str,
         details: Optional[Dict[str, Any]] = None,
-        request: Optional[Request] = None
-    ) -> Dict[str, Any]:
-        """Create an audit log for login attempts."""
-        if details is None:
-            details = {}
-        
-        details["success"] = success
-        
-        return await AuditService.create_audit_log(
-            db=db,
-            action="login",
-            user_id=user_id if success else None,
+        ip_address: Optional[str] = None
+    ):
+        """Log medication-related events"""
+        await self.log_event(
+            event_type=event_type,
+            user_id=user_id,
+            patient_id=patient_id,
+            resource_type="MedicationRequest",
+            resource_id=medication_id,
+            action=event_type.split('.')[-1],  # Extract action from event type
+            outcome="success",
             details=details,
-            request=request
+            ip_address=ip_address
         )
     
-    @staticmethod
-    async def create_logout_audit(
-        db: AsyncSession,
+    async def get_user_activity(
+        self,
         user_id: str,
-        request: Optional[Request] = None
-    ) -> Dict[str, Any]:
-        """Create an audit log for logout."""
-        return await AuditService.create_audit_log(
-            db=db,
-            action="logout",
-            user_id=user_id,
-            request=request
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        limit: int = 100
+    ) -> list:
+        """Get audit logs for a specific user"""
+        query = text("""
+            SELECT * FROM fhir.audit_logs
+            WHERE user_id = :user_id
+            AND (:start_date IS NULL OR event_time >= :start_date)
+            AND (:end_date IS NULL OR event_time <= :end_date)
+            ORDER BY event_time DESC
+            LIMIT :limit
+        """)
+        
+        result = await self.db.execute(
+            query,
+            {
+                "user_id": user_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "limit": limit
+            }
         )
+        
+        return [dict(row) for row in result]
+    
+    async def get_patient_access_logs(
+        self,
+        patient_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> list:
+        """Get all access logs for a specific patient"""
+        query = text("""
+            SELECT * FROM fhir.audit_logs
+            WHERE patient_id = :patient_id
+            AND (:start_date IS NULL OR event_time >= :start_date)
+            AND (:end_date IS NULL OR event_time <= :end_date)
+            ORDER BY event_time DESC
+        """)
+        
+        result = await self.db.execute(
+            query,
+            {
+                "patient_id": patient_id,
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        )
+        
+        return [dict(row) for row in result]
+    
+    async def get_failed_login_attempts(
+        self,
+        username: Optional[str] = None,
+        since: Optional[datetime] = None,
+        ip_address: Optional[str] = None
+    ) -> list:
+        """Get failed login attempts for security monitoring"""
+        query = text("""
+            SELECT * FROM fhir.audit_logs
+            WHERE event_type = :event_type
+            AND (:username IS NULL OR details->>'username' = :username)
+            AND (:since IS NULL OR event_time >= :since)
+            AND (:ip_address IS NULL OR ip_address = :ip_address)
+            ORDER BY event_time DESC
+        """)
+        
+        result = await self.db.execute(
+            query,
+            {
+                "event_type": AuditEventType.AUTH_LOGIN_FAILURE,
+                "username": username,
+                "since": since,
+                "ip_address": ip_address
+            }
+        )
+        
+        return [dict(row) for row in result]
+
+
+# Dependency injection helper
+async def get_audit_service(db: AsyncSession) -> AuditService:
+    """Get audit service instance"""
+    return AuditService(db)

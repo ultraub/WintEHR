@@ -8,7 +8,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from .connection_manager import manager
-from api.auth import AuthService
+from api.auth.service import AuthService, get_auth_service
+from api.auth.jwt_handler import verify_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,7 +30,7 @@ async def get_current_user_ws(
         return None
         
     try:
-        payload = AuthService.decode_token(token)
+        payload = verify_token(token)
         return payload
     except Exception:
         return None
@@ -64,7 +65,7 @@ async def websocket_endpoint(
         try:
             auth_msg = await websocket.receive_json()
             if auth_msg.get('type') == 'authenticate' and auth_msg.get('token'):
-                payload = AuthService.decode_token(auth_msg['token'])
+                payload = verify_token(auth_msg['token'])
                 user = payload
                 # Send auth success message
                 await websocket.send_json({
