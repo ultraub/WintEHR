@@ -53,40 +53,86 @@ const useChartReviewResources = (patientId, options = {}) => {
   // Load all resources
   const loadResources = useCallback(async () => {
     if (!patientId) {
-      console.warn('[useChartReviewResources] No patientId provided - skip loading resources');
       return;
     }
-
-    console.log('[useChartReviewResources] Loading resources for patient:', patientId);
 
     try {
       setLoading(true);
       setError(null);
 
-      // First ensure patient data is loaded
-      const isWarm = isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference']);
+      // Enhanced data loading strategy to fix hard refresh and resource limit issues
       
+      // Check cache warmth for all resource types we need
+      const allResourceTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'];
+      const isWarm = isCacheWarm(patientId, allResourceTypes);
+      
+      // Force comprehensive data loading on hard refresh or when cache is cold
       if (!isWarm) {
-        // Cache not warm - fetching patient data
-        // Fetch critical data first
         try {
-          // Use fetchPatientBundle instead of $everything due to backend limitations
-          // The backend $everything doesn't return all resource types properly
-          await fetchPatientBundle(patientId, false); // forceRefresh = false to use cache if available
+          await fetchPatientBundle(patientId, false, 'all');
         } catch (bundleError) {
-          console.error('Failed to fetch patient bundle:', bundleError);
-          // Try individual resource fetches as fallback
-          const resourceTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'];
-          await Promise.all(resourceTypes.map(type => 
-            searchFHIRResources(type, { patient: patientId }).catch(err => {
-              console.error(`Failed to fetch ${type}:`, err);
-              return [];
-            })
-          ));
+          // Silently fallback to individual resource fetches
         }
+        
+        // Direct search fallback for comprehensive coverage
+        const directSearchPromises = allResourceTypes.map(async (type) => {
+          try {
+            const searchParams = { patient: patientId };
+            
+            if (type === 'Observation') {
+              searchParams._count = '200';
+              searchParams._sort = '-date';
+            } else if (type === 'Encounter') {
+              searchParams._count = '100';
+              searchParams._sort = '-date';
+            } else if (type === 'Condition') {
+              searchParams._count = '100';
+              searchParams._sort = '-recorded-date';
+            } else if (type === 'MedicationRequest') {
+              searchParams._count = '100';
+              searchParams._sort = '-authored';
+            } else {
+              searchParams._count = '100';
+            }
+            
+            return await searchFHIRResources(type, searchParams);
+          } catch (err) {
+            return [];
+          }
+        });
+        
+        await Promise.allSettled(directSearchPromises);
       }
 
-      // Load resources from context or fetch if needed
+      // Enhanced resource retrieval with fallback mechanism
+      const getResourcesWithFallback = async (resourceType) => {
+        let resources = getPatientResources(patientId, resourceType) || [];
+        
+        if (resources.length === 0) {
+          try {
+            const searchParams = { patient: patientId };
+            
+            if (resourceType === 'Observation') {
+              searchParams._count = '200';
+              searchParams._sort = '-date';
+            } else if (resourceType === 'Encounter') {
+              searchParams._count = '100';
+              searchParams._sort = '-date';
+            } else {
+              searchParams._count = '100';
+            }
+            
+            const searchResults = await searchFHIRResources(resourceType, searchParams);
+            resources = searchResults || [];
+          } catch (searchError) {
+            // Silent fallback
+          }
+        }
+        
+        return resources;
+      };
+
+      // Load resources with enhanced fallback mechanism
       const [
         conditionData,
         medicationData,
@@ -98,31 +144,18 @@ const useChartReviewResources = (patientId, options = {}) => {
         carePlanData,
         documentReferenceData
       ] = await Promise.all([
-        getPatientResources(patientId, 'Condition') || [],
-        getPatientResources(patientId, 'MedicationRequest') || [],
-        getPatientResources(patientId, 'AllergyIntolerance') || [],
-        getPatientResources(patientId, 'Immunization') || [],
-        getPatientResources(patientId, 'Observation') || [],
-        getPatientResources(patientId, 'Procedure') || [],
-        getPatientResources(patientId, 'Encounter') || [],
-        getPatientResources(patientId, 'CarePlan') || [],
-        getPatientResources(patientId, 'DocumentReference') || []
+        getResourcesWithFallback('Condition'),
+        getResourcesWithFallback('MedicationRequest'),
+        getResourcesWithFallback('AllergyIntolerance'),
+        getResourcesWithFallback('Immunization'),
+        getResourcesWithFallback('Observation'),
+        getResourcesWithFallback('Procedure'),
+        getResourcesWithFallback('Encounter'),
+        getResourcesWithFallback('CarePlan'),
+        getResourcesWithFallback('DocumentReference')
       ]);
 
-      // Always log the loaded data to debug the issue
-      console.log('[useChartReviewResources] Raw loaded data:', {
-        conditions: conditionData,
-        medications: medicationData,
-        allergies: allergyData,
-        immunizations: immunizationData,
-        observations: observationData,
-        procedures: procedureData,
-        encounters: encounterData,
-        carePlans: carePlanData,
-        documentReferences: documentReferenceData
-      });
-
-      // Debug log the loaded data
+      // Debug logging only when explicitly enabled
       if (window.__FHIR_DEBUG__) {
         console.log('[useChartReviewResources] Loaded data counts:', {
           conditions: conditionData.length,
@@ -140,16 +173,9 @@ const useChartReviewResources = (patientId, options = {}) => {
       // Validate data before processing
       const validateResourceArray = (data, resourceType) => {
         if (!Array.isArray(data)) {
-          console.error(`[useChartReviewResources] ${resourceType} is not an array:`, data);
           return [];
         }
-        return data.filter(item => {
-          if (!item || typeof item !== 'object') {
-            console.error(`[useChartReviewResources] Invalid ${resourceType} item:`, item);
-            return false;
-          }
-          return true;
-        });
+        return data.filter(item => item && typeof item === 'object');
       };
 
       const validConditions = validateResourceArray(conditionData, 'Conditions');
@@ -173,20 +199,6 @@ const useChartReviewResources = (patientId, options = {}) => {
       const processedCarePlans = processCarePlans(validCarePlans, filters, sortOrder);
       const processedDocumentReferences = processDocumentReferences(validDocumentReferences, filters, sortOrder);
       
-      if (window.__FHIR_DEBUG__) {
-        console.log('[useChartReviewResources] After processing:', {
-          filters,
-          processedConditions: processedConditions.length,
-          processedMedications: processedMedications.length,
-          processedAllergies: processedAllergies.length,
-          processedImmunizations: processedImmunizations.length,
-          processedObservations: processedObservations.length,
-          processedProcedures: processedProcedures.length,
-          processedEncounters: processedEncounters.length,
-          processedCarePlans: processedCarePlans.length,
-          processedDocumentReferences: processedDocumentReferences.length
-        });
-      }
       
       setConditions(processedConditions);
       setMedications(processedMedications);
@@ -205,7 +217,7 @@ const useChartReviewResources = (patientId, options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [patientId, filters, includeInactive, sortOrder, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
+  }, [patientId, includeInactive, sortOrder, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
 
   // Process conditions with filtering and grouping
   const processConditions = (data, filters, sortOrder) => {
@@ -635,13 +647,19 @@ const useChartReviewResources = (patientId, options = {}) => {
     };
   }, [patientId, realTimeUpdates, subscribe, refresh]);
 
-  // Initial load - only when patientId changes
+  // Optimized single effect for data loading
   useEffect(() => {
-    if (patientId) {
-      loadResources();
+    if (!patientId || !getPatientResources || !fetchPatientBundle || !searchFHIRResources) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]); // Only depend on patientId to avoid repeated loads
+
+    // Load resources with small delay to ensure context is ready
+    const timer = setTimeout(() => {
+      loadResources();
+    }, 50);
+    
+    return () => clearTimeout(timer);
+  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources]);
 
   return {
     // Resources
