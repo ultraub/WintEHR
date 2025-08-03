@@ -43,7 +43,9 @@ class WebSocketService {
     // Construct URL with token if provided
     this.url = token ? `${this.baseUrl}?token=${encodeURIComponent(token)}` : this.baseUrl;
     
-    console.log('[WebSocket] Connecting to:', this.baseUrl);
+    console.log('[WebSocket] Base URL:', this.baseUrl);
+    console.log('[WebSocket] Full URL:', this.url);
+    console.log('[WebSocket] Connecting...');
     
     try {
       this.ws = new WebSocket(this.url);

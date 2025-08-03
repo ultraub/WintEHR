@@ -38,7 +38,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import axios from 'axios';
+import { apiClient } from '../../../services/api';
 
 const DICOMViewer = ({ study, onClose }) => {
   const theme = useTheme();
@@ -119,7 +119,7 @@ const DICOMViewer = ({ study, onClose }) => {
       }
 
       // Load study metadata
-      const metadataResponse = await axios.get(`/api/dicom/studies/${studyDir}/metadata`);
+      const metadataResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/metadata`);
       const instancesData = metadataResponse.data.instances;
       
       if (!instancesData || instancesData.length === 0) {
@@ -129,7 +129,7 @@ const DICOMViewer = ({ study, onClose }) => {
       setInstances(instancesData);
       
       // Load viewer config
-      const configResponse = await axios.get(`/api/dicom/studies/${studyDir}/viewer-config`);
+      const configResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/viewer-config`);
       setViewerConfig(configResponse.data);
       
       // Set initial window/level from first instance
@@ -198,7 +198,7 @@ const DICOMViewer = ({ study, onClose }) => {
       const studyDir = extractStudyDirectory(study);
       const url = `/api/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
       
-      const response = await axios.get(url, { responseType: 'blob' });
+      const response = await apiClient.get(url, { responseType: 'blob' });
       const imageBlob = response.data;
       const imageUrl = URL.createObjectURL(imageBlob);
       

@@ -58,6 +58,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CDS Hooks"])
 
+# Include action execution router
+from .action_router import router as action_router
+router.include_router(action_router, prefix="", tags=["CDS Actions"])
+
 # Sample hook configurations - in production, these would be stored in database
 SAMPLE_HOOKS = {
     "patient-greeter": HookConfiguration(

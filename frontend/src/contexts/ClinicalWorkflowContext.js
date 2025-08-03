@@ -42,7 +42,7 @@ export const WORKFLOW_TYPES = {
 
 export const ClinicalWorkflowProvider = ({ children }) => {
   const { currentPatient, getPatientResources } = useFHIRResource();
-  const { currentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   
   // Clinical context state
   const [clinicalContext, setClinicalContext] = useState({
@@ -413,10 +413,14 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Initialize WebSocket connection
   useEffect(() => {
+    console.log('[ClinicalWorkflow] WebSocket init - currentUser:', currentUser);
+    const token = localStorage.getItem('auth_token');
+    console.log('[ClinicalWorkflow] WebSocket init - auth_token exists:', !!token);
+    
     if (currentUser) {
       // Connect WebSocket with auth token
-      const token = localStorage.getItem('auth_token');
       if (token) {
+        console.log('[ClinicalWorkflow] Connecting WebSocket with token');
         websocketService.connect(token);
         
         // Monitor connection state

@@ -19,7 +19,7 @@ import numpy as np
 
 from database import get_db_session
 
-router = APIRouter(prefix="/api/dicom", tags=["dicom"])
+router = APIRouter(prefix="/dicom", tags=["dicom"])
 
 # DICOM data directory
 DICOM_BASE_DIR = Path(__file__).parent.parent.parent / "data" / "generated_dicoms"

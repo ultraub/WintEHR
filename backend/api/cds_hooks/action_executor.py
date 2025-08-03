@@ -1,0 +1,396 @@
+"""
+CDS Hooks Action Executor
+Processes and executes CDS Hook suggested actions
+"""
+
+from typing import Dict, List, Any, Optional, Union
+from datetime import datetime, timedelta
+import uuid
+import logging
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, Field
+
+from fhir.core.storage import FHIRStorageEngine
+from .models import Action, ActionType, Suggestion
+
+logger = logging.getLogger(__name__)
+
+# Request/Response Models
+class ActionExecutionRequest(BaseModel):
+    """Request to execute a CDS action"""
+    hook_instance: str = Field(..., description="Original hook instance ID")
+    service_id: str = Field(..., description="CDS service that provided the action")
+    card_uuid: str = Field(..., description="UUID of the card containing the action")
+    suggestion_uuid: str = Field(..., description="UUID of the suggestion")
+    action_uuid: str = Field(..., description="UUID of the specific action to execute")
+    patient_id: str = Field(..., description="Patient ID for context")
+    user_id: str = Field(..., description="User executing the action")
+    encounter_id: Optional[str] = Field(None, description="Current encounter ID")
+    context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
+
+class ActionExecutionResult(BaseModel):
+    """Result of action execution"""
+    execution_id: str = Field(..., description="Unique execution ID")
+    success: bool = Field(..., description="Whether execution was successful")
+    resource_id: Optional[str] = Field(None, description="ID of created/modified resource")
+    resource_type: Optional[str] = Field(None, description="Type of resource affected")
+    message: str = Field(..., description="Human-readable result message")
+    errors: List[str] = Field(default_factory=list, description="Any errors encountered")
+    warnings: List[str] = Field(default_factory=list, description="Any warnings")
+    created_resources: List[Dict[str, str]] = Field(default_factory=list, description="Resources created")
+    updated_resources: List[Dict[str, str]] = Field(default_factory=list, description="Resources updated")
+    execution_time_ms: int = Field(..., description="Execution time in milliseconds")
+
+class ActionExecutor:
+    """Executes CDS Hook actions"""
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.storage = FHIRStorageEngine(db)
+    
+    async def execute_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute a CDS action and return the result"""
+        execution_id = str(uuid.uuid4())
+        start_time = datetime.now()
+        
+        logger.info(f"Executing CDS action {request.action_uuid} for patient {request.patient_id}")
+        
+        try:
+            # Validate the action
+            await self._validate_action(request, action_data)
+            
+            # Execute based on action type
+            action_type = action_data.get("type", "")
+            
+            if action_type == "create":
+                result = await self._execute_create_action(request, action_data)
+            elif action_type == "update":
+                result = await self._execute_update_action(request, action_data)
+            elif action_type == "delete":
+                result = await self._execute_delete_action(request, action_data)
+            elif action_type == "order":
+                result = await self._execute_order_action(request, action_data)
+            elif action_type == "prescribe":
+                result = await self._execute_prescribe_action(request, action_data)
+            elif action_type == "schedule":
+                result = await self._execute_schedule_action(request, action_data)
+            else:
+                raise ValueError(f"Unsupported action type: {action_type}")
+            
+            # Log successful execution
+            await self._log_execution(request, result, action_data)
+            
+            execution_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            result.execution_time_ms = execution_time
+            result.execution_id = execution_id
+            
+            logger.info(f"Successfully executed action {request.action_uuid} in {execution_time}ms")
+            return result
+            
+        except Exception as e:
+            execution_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            error_msg = str(e)
+            
+            logger.error(f"Failed to execute action {request.action_uuid}: {error_msg}")
+            
+            # Log failed execution
+            await self._log_execution(request, None, action_data, error=error_msg)
+            
+            return ActionExecutionResult(
+                execution_id=execution_id,
+                success=False,
+                message=f"Action execution failed: {error_msg}",
+                errors=[error_msg],
+                execution_time_ms=execution_time
+            )
+    
+    async def _validate_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> None:
+        """Validate that the action can be executed"""
+        # Check if patient exists
+        try:
+            patient = await self.storage.read_resource("Patient", request.patient_id)
+            if not patient:
+                raise ValueError(f"Patient {request.patient_id} not found")
+        except Exception as e:
+            raise ValueError(f"Could not validate patient: {str(e)}")
+        
+        # Check if encounter exists (if provided)
+        if request.encounter_id:
+            try:
+                encounter = await self.storage.read_resource("Encounter", request.encounter_id)
+                if not encounter:
+                    raise ValueError(f"Encounter {request.encounter_id} not found")
+            except Exception as e:
+                raise ValueError(f"Could not validate encounter: {str(e)}")
+        
+        # Validate required fields in action
+        if not action_data.get("type"):
+            raise ValueError("Action type is required")
+        
+        if not action_data.get("description"):
+            raise ValueError("Action description is required")
+    
+    async def _execute_create_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute a create action"""
+        resource_data = action_data.get("resource", {})
+        if not resource_data:
+            raise ValueError("Resource data is required for create action")
+        
+        resource_type = resource_data.get("resourceType")
+        if not resource_type:
+            raise ValueError("Resource type is required")
+        
+        # Add common fields
+        resource_data["id"] = str(uuid.uuid4())
+        resource_data["meta"] = {
+            "versionId": "1",
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        }
+        
+        # Add patient reference if not present
+        if "subject" not in resource_data and resource_type in [
+            "MedicationRequest", "ServiceRequest", "Observation", "Condition", 
+            "AllergyIntolerance", "CarePlan", "Goal", "Task"
+        ]:
+            resource_data["subject"] = {"reference": f"Patient/{request.patient_id}"}
+        
+        # Add encounter reference if available
+        if request.encounter_id and "encounter" not in resource_data:
+            resource_data["encounter"] = {"reference": f"Encounter/{request.encounter_id}"}
+        
+        # Set author/requester if not present
+        if request.user_id and "requester" not in resource_data and resource_type in [
+            "MedicationRequest", "ServiceRequest", "Task"
+        ]:
+            resource_data["requester"] = {"reference": f"Practitioner/{request.user_id}"}
+        
+        # Create the resource
+        resource_id, version_id, last_updated = await self.storage.create_resource(resource_type, resource_data)
+        
+        return ActionExecutionResult(
+            execution_id="",  # Will be set by caller
+            success=True,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            message=f"Successfully created {resource_type} {resource_id}",
+            created_resources=[{
+                "id": resource_id,
+                "resourceType": resource_type,
+                "reference": f"{resource_type}/{resource_id}"
+            }],
+            execution_time_ms=0  # Will be set by caller
+        )
+    
+    async def _execute_update_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute an update action"""
+        resource_data = action_data.get("resource", {})
+        if not resource_data:
+            raise ValueError("Resource data is required for update action")
+        
+        resource_type = resource_data.get("resourceType")
+        resource_id = resource_data.get("id")
+        
+        if not resource_type or not resource_id:
+            raise ValueError("Resource type and ID are required for update action")
+        
+        # Get existing resource
+        existing_resource = await self.storage.read_resource(resource_type, resource_id)
+        if not existing_resource:
+            raise ValueError(f"{resource_type} {resource_id} not found")
+        
+        # Merge updates
+        updated_resource = {**existing_resource, **resource_data}
+        updated_resource["meta"] = {
+            **existing_resource.get("meta", {}),
+            "versionId": str(int(existing_resource.get("meta", {}).get("versionId", "1")) + 1),
+            "lastUpdated": datetime.utcnow().isoformat() + "Z"
+        }
+        
+        # Update the resource
+        version_id, last_updated = await self.storage.update_resource(resource_type, resource_id, updated_resource)
+        
+        return ActionExecutionResult(
+            execution_id="",  # Will be set by caller
+            success=True,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            message=f"Successfully updated {resource_type} {resource_id}",
+            updated_resources=[{
+                "id": resource_id,
+                "resourceType": resource_type,
+                "reference": f"{resource_type}/{resource_id}"
+            }],
+            execution_time_ms=0  # Will be set by caller
+        )
+    
+    async def _execute_delete_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute a delete action"""
+        resource_ref = action_data.get("resourceReference", "")
+        if not resource_ref:
+            raise ValueError("Resource reference is required for delete action")
+        
+        # Parse reference
+        if "/" not in resource_ref:
+            raise ValueError("Invalid resource reference format")
+        
+        resource_type, resource_id = resource_ref.split("/", 1)
+        
+        # Soft delete the resource
+        await self.storage.delete_resource(resource_type, resource_id)
+        
+        return ActionExecutionResult(
+            execution_id="",  # Will be set by caller
+            success=True,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            message=f"Successfully deleted {resource_type} {resource_id}",
+            execution_time_ms=0  # Will be set by caller
+        )
+    
+    async def _execute_order_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute an order action (creates ServiceRequest)"""
+        # Convert order action to create action for ServiceRequest
+        resource_data = action_data.get("resource", {})
+        
+        # Ensure it's a ServiceRequest
+        resource_data["resourceType"] = "ServiceRequest"
+        resource_data["status"] = resource_data.get("status", "active")
+        resource_data["intent"] = resource_data.get("intent", "order")
+        resource_data["authoredOn"] = datetime.utcnow().isoformat() + "Z"
+        resource_data["priority"] = resource_data.get("priority", "routine")
+        
+        # Use create action logic
+        create_action = {**action_data, "resource": resource_data, "type": "create"}
+        return await self._execute_create_action(request, create_action)
+    
+    async def _execute_prescribe_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute a prescribe action (creates MedicationRequest)"""
+        # Convert prescribe action to create action for MedicationRequest
+        resource_data = action_data.get("resource", {})
+        
+        # Ensure it's a MedicationRequest
+        resource_data["resourceType"] = "MedicationRequest"
+        resource_data["status"] = resource_data.get("status", "active")
+        resource_data["intent"] = resource_data.get("intent", "order")
+        resource_data["authoredOn"] = datetime.utcnow().isoformat() + "Z"
+        resource_data["priority"] = resource_data.get("priority", "routine")
+        
+        # Add default dosage instruction if not present
+        if "dosageInstruction" not in resource_data:
+            resource_data["dosageInstruction"] = [{
+                "text": "As directed",
+                "timing": {
+                    "repeat": {
+                        "frequency": 1,
+                        "period": 1,
+                        "periodUnit": "d"
+                    }
+                }
+            }]
+        
+        # Use create action logic
+        create_action = {**action_data, "resource": resource_data, "type": "create"}
+        return await self._execute_create_action(request, create_action)
+    
+    async def _execute_schedule_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
+        """Execute a schedule action (creates Appointment)"""
+        # Convert schedule action to create action for Appointment
+        resource_data = action_data.get("resource", {})
+        
+        # Ensure it's an Appointment
+        resource_data["resourceType"] = "Appointment"
+        resource_data["status"] = resource_data.get("status", "proposed")
+        
+        # Add default start time if not present (next available slot)
+        if "start" not in resource_data:
+            # Default to next business day at 9 AM
+            tomorrow = datetime.now() + timedelta(days=1)
+            next_weekday = tomorrow
+            while next_weekday.weekday() >= 5:  # Skip weekends
+                next_weekday += timedelta(days=1)
+            next_weekday = next_weekday.replace(hour=9, minute=0, second=0, microsecond=0)
+            resource_data["start"] = next_weekday.isoformat() + "Z"
+            resource_data["end"] = (next_weekday + timedelta(minutes=30)).isoformat() + "Z"
+        
+        # Add participant for patient
+        if "participant" not in resource_data:
+            resource_data["participant"] = [
+                {
+                    "actor": {"reference": f"Patient/{request.patient_id}"},
+                    "status": "needs-action"
+                }
+            ]
+        
+        # Use create action logic
+        create_action = {**action_data, "resource": resource_data, "type": "create"}
+        return await self._execute_create_action(request, create_action)
+    
+    async def _log_execution(self, request: ActionExecutionRequest, result: Optional[ActionExecutionResult], 
+                           action_data: Dict[str, Any], error: Optional[str] = None) -> None:
+        """Log action execution for audit trail"""
+        try:
+            log_entry = {
+                "resourceType": "AuditEvent",
+                "id": str(uuid.uuid4()),
+                "type": {
+                    "system": "http://dicom.nema.org/resources/ontology/DCM",
+                    "code": "110100",
+                    "display": "Application Activity"
+                },
+                "subtype": [{
+                    "system": "http://hl7.org/fhir/restful-interaction",
+                    "code": "create",
+                    "display": "CDS Action Execution"
+                }],
+                "action": "C",
+                "recorded": datetime.utcnow().isoformat() + "Z",
+                "outcome": "0" if result and result.success else "4",
+                "agent": [{
+                    "who": {"reference": f"Practitioner/{request.user_id}"},
+                    "requestor": True
+                }],
+                "source": {
+                    "observer": {"display": "CDS Hooks Action Executor"},
+                    "type": [{
+                        "system": "http://terminology.hl7.org/CodeSystem/security-source-type",
+                        "code": "4",
+                        "display": "Application Server"
+                    }]
+                },
+                "entity": [{
+                    "what": {"reference": f"Patient/{request.patient_id}"},
+                    "type": {
+                        "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
+                        "code": "1",
+                        "display": "Person"
+                    }
+                }],
+                "meta": {
+                    "lastUpdated": datetime.utcnow().isoformat() + "Z"
+                }
+            }
+            
+            # Add execution details
+            if result:
+                log_entry["entity"].append({
+                    "detail": [{
+                        "type": "execution_result",
+                        "valueString": f"Success: {result.success}, Message: {result.message}"
+                    }]
+                })
+            
+            if error:
+                log_entry["entity"].append({
+                    "detail": [{
+                        "type": "error",
+                        "valueString": error
+                    }]
+                })
+            
+            # Store audit log
+            await self.storage.create_resource("AuditEvent", log_entry)
+            
+        except Exception as e:
+            logger.warning(f"Failed to log action execution: {str(e)}")
+            # Don't fail the main operation if logging fails
