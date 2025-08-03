@@ -699,7 +699,7 @@ def generate_recommendations(safety_result: SafetyCheckResult) -> List[str]:
     if safety_result.allergy_alerts:
         recommendations.append("Verify allergy documentation and consider alternatives")
     
-    if any(i["severity"] == "contraindicated" for i in safety_result.interactions):
+    if any(i.severity == "contraindicated" for i in safety_result.interactions):
         recommendations.append("CONTRAINDICATED combinations present - contact prescriber immediately")
     
     if any(c.contraindication_type == "absolute" for c in safety_result.contraindications):
@@ -812,10 +812,10 @@ async def comprehensive_safety_check(
                 len(dosage_alerts)
             ),
             critical_alerts=(
-                len([i for i in interactions if i.severity in ['major', 'contraindicated']]) +
-                len([a for a in allergy_alerts if a.reaction_type == 'direct']) +
-                len([c for c in contraindications if c.contraindication_type == 'absolute']) +
-                len([d for d in dosage_alerts if d.issue_type == 'overdose'])
+                len([i for i in interaction_results if i.get('severity') in ['major', 'contraindicated']]) +
+                len([a for a in allergy_alerts if getattr(a, 'reaction_type', None) == 'direct']) +
+                len([c for c in contraindications if getattr(c, 'contraindication_type', None) == 'absolute']) +
+                len([d for d in dosage_alerts if getattr(d, 'issue_type', None) == 'overdose'])
             ),
             interactions=interactions,
             allergy_alerts=allergy_alerts,
