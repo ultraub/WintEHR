@@ -10,7 +10,7 @@
  * - Export to PNG/PDF/SVG
  */
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -28,43 +28,28 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
-  Button,
-  ButtonGroup,
   Slider,
   Alert,
   LinearProgress,
   useTheme,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Zoom,
-  Collapse,
   Menu
 } from '@mui/material';
 import {
   Timeline as TimelineIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
-  FilterList as FilterIcon,
   Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Fullscreen as FullscreenIcon,
-  Person as PersonIcon,
   LocalHospital as HospitalIcon,
   Medication as MedicationIcon,
   Science as ScienceIcon,
   Assessment as AssessmentIcon,
-  Event as EventIcon,
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
   Image as ImageIcon,
   PictureAsPdf as PdfIcon,
   Code as SvgIcon,
   NotificationsActive as LiveIcon
 } from '@mui/icons-material';
-import { alpha, darken, lighten } from '@mui/material/styles';
+import { alpha, darken } from '@mui/material/styles';
 import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
 import { getChartColors } from '../../../themes/chartColors';
 
@@ -136,7 +121,6 @@ const createResourceTracks = (chartColors) => ({
  * Timeline event component
  */
 const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS }) => {
-  const theme = useTheme();
   const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation;
   
   const eventStyle = {
@@ -522,76 +506,8 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
 
-  // Process FHIR data into timeline events
-  const timelineData = useMemo(() => {
-    if (!fhirData || !fhirData.resources) {
-      return { tracks: [], dateRange: { start: new Date(), end: new Date() }, events: [] };
-    }
-
-    const allEvents = [];
-    const now = new Date();
-    
-    // Calculate date range based on selection
-    let startDate;
-    switch (timeRange) {
-      case '1month':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case '3months':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case '6months':
-        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-        break;
-      case '1year':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date('2020-01-01'); // All time
-    }
-
-    // Process each resource type
-    Object.entries(fhirData.resources).forEach(([resourceType, resources]) => {
-      if (!filters.includes(resourceType) || !RESOURCE_TRACKS[resourceType]) return;
-
-      resources.forEach(resource => {
-        const event = processResourceToEvent(resource, resourceType);
-        if (event && event.date >= startDate) {
-          allEvents.push(event);
-        }
-      });
-    });
-
-    // Sort events by date
-    allEvents.sort((a, b) => a.date - b.date);
-
-    // Calculate positions
-    const dateRange = {
-      start: allEvents.length > 0 ? allEvents[0].date : startDate,
-      end: allEvents.length > 0 ? allEvents[allEvents.length - 1].date : now
-    };
-
-    const totalDays = Math.max(1, (dateRange.end - dateRange.start) / (24 * 60 * 60 * 1000));
-    
-    allEvents.forEach(event => {
-      const daysSinceStart = (event.date - dateRange.start) / (24 * 60 * 60 * 1000);
-      event.position = (daysSinceStart / totalDays) * (window.innerWidth - 240) * (scale / TIMELINE_CONFIG.timeScale.default);
-    });
-
-    // Group events by track
-    const tracks = {};
-    filters.forEach(resourceType => {
-      tracks[resourceType] = {
-        resourceType,
-        events: allEvents.filter(e => e.resourceType === resourceType)
-      };
-    });
-
-    return { tracks: Object.values(tracks), dateRange, events: allEvents };
-  }, [fhirData, timeRange, scale, filters]);
-
   // Process a FHIR resource into a timeline event
-  const processResourceToEvent = (resource, resourceType) => {
+  const processResourceToEvent = useCallback((resource, resourceType) => {
     try {
       let date, endDate, title, description, status, severity;
 
@@ -660,7 +576,75 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
       console.warn(`Failed to process ${resourceType} resource:`, err);
       return null;
     }
-  };
+  }, []);
+
+  // Process FHIR data into timeline events
+  const timelineData = useMemo(() => {
+    if (!fhirData || !fhirData.resources) {
+      return { tracks: [], dateRange: { start: new Date(), end: new Date() }, events: [] };
+    }
+
+    const allEvents = [];
+    const now = new Date();
+    
+    // Calculate date range based on selection
+    let startDate;
+    switch (timeRange) {
+      case '1month':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '3months':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '6months':
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        break;
+      case '1year':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date('2020-01-01'); // All time
+    }
+
+    // Process each resource type
+    Object.entries(fhirData.resources).forEach(([resourceType, resources]) => {
+      if (!filters.includes(resourceType) || !RESOURCE_TRACKS[resourceType]) return;
+
+      resources.forEach(resource => {
+        const event = processResourceToEvent(resource, resourceType);
+        if (event && event.date >= startDate) {
+          allEvents.push(event);
+        }
+      });
+    });
+
+    // Sort events by date
+    allEvents.sort((a, b) => a.date - b.date);
+
+    // Calculate positions
+    const dateRange = {
+      start: allEvents.length > 0 ? allEvents[0].date : startDate,
+      end: allEvents.length > 0 ? allEvents[allEvents.length - 1].date : now
+    };
+
+    const totalDays = Math.max(1, (dateRange.end - dateRange.start) / (24 * 60 * 60 * 1000));
+    
+    allEvents.forEach(event => {
+      const daysSinceStart = (event.date - dateRange.start) / (24 * 60 * 60 * 1000);
+      event.position = (daysSinceStart / totalDays) * (window.innerWidth - 240) * (scale / TIMELINE_CONFIG.timeScale.default);
+    });
+
+    // Group events by track
+    const tracks = {};
+    filters.forEach(resourceType => {
+      tracks[resourceType] = {
+        resourceType,
+        events: allEvents.filter(e => e.resourceType === resourceType)
+      };
+    });
+
+    return { tracks: Object.values(tracks), dateRange, events: allEvents };
+  }, [fhirData, timeRange, scale, filters, processResourceToEvent, RESOURCE_TRACKS]);
 
   const handleEventClick = useCallback((event) => {
     setSelectedEvent(event);

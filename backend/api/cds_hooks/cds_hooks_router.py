@@ -62,6 +62,10 @@ router = APIRouter(tags=["CDS Hooks"])
 from .action_router import router as action_router
 router.include_router(action_router, prefix="", tags=["CDS Actions"])
 
+# Include audit trail router
+from .audit_router import router as audit_router
+router.include_router(audit_router, prefix="", tags=["CDS Audit"])
+
 # Sample hook configurations - in production, these would be stored in database
 SAMPLE_HOOKS = {
     "patient-greeter": HookConfiguration(

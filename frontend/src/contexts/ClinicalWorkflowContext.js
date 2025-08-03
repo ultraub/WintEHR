@@ -417,25 +417,32 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     const token = localStorage.getItem('auth_token');
     console.log('[ClinicalWorkflow] WebSocket init - auth_token exists:', !!token);
     
-    if (currentUser) {
-      // Connect WebSocket with auth token
-      if (token) {
-        console.log('[ClinicalWorkflow] Connecting WebSocket with token');
-        websocketService.connect(token);
-        
-        // Monitor connection state
-        const unsubscribeConnection = websocketService.onConnectionChange((state) => {
-          setWsConnected(state === 'connected');
-          setWsReconnecting(state === 'reconnecting');
-        });
-        
-        // Subscribe to all clinical events via WebSocket
-        const eventTypes = Object.values(CLINICAL_EVENTS);
-        const unsubscribers = [];
-        
-        eventTypes.forEach(eventType => {
-          const unsubscribe = websocketService.subscribe(eventType, (data) => {
-            // Forward WebSocket events to local event listeners
+    // Only connect if we have a user and token, and not already connected
+    if (currentUser && token && !wsConnected) {
+      // Check if WebSocket is already connected to prevent reconnection
+      const currentState = websocketService.getConnectionState();
+      if (currentState.isConnected) {
+        console.log('[ClinicalWorkflow] WebSocket already connected, skipping reconnection');
+        setWsConnected(true);
+        return;
+      }
+      
+      console.log('[ClinicalWorkflow] Connecting WebSocket with token');
+      websocketService.connect(token);
+      
+      // Monitor connection state
+      const unsubscribeConnection = websocketService.onConnectionChange((state) => {
+        setWsConnected(state === 'connected');
+        setWsReconnecting(state === 'reconnecting');
+      });
+      
+      // Subscribe to all clinical events via WebSocket
+      const eventTypes = Object.values(CLINICAL_EVENTS);
+      const unsubscribers = [];
+      
+      eventTypes.forEach(eventType => {
+        const unsubscribe = websocketService.subscribe(eventType, (data) => {
+          // Forward WebSocket events to local event listeners
             const listeners = eventListeners.get(eventType) || [];
             listeners.forEach(listener => {
               try {
@@ -452,16 +459,28 @@ export const ClinicalWorkflowProvider = ({ children }) => {
         });
         
         wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
-      }
+      
+      // Store cleanup function
+      return () => {
+        // Only cleanup if component is unmounting or user is logging out
+        console.log('[ClinicalWorkflow] WebSocket cleanup triggered');
+        wsUnsubscribers.current.forEach(unsubscribe => unsubscribe());
+        wsUnsubscribers.current = [];
+        // Don't disconnect here - let the WebSocket manage its own lifecycle
+      };
     }
     
+    // Return empty cleanup if conditions not met
+    return () => {};
+  }, [currentUser, wsConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Cleanup WebSocket on component unmount
+  useEffect(() => {
     return () => {
-      // Cleanup WebSocket subscriptions
-      wsUnsubscribers.current.forEach(unsubscribe => unsubscribe());
-      wsUnsubscribers.current = [];
+      console.log('[ClinicalWorkflow] Component unmounting, disconnecting WebSocket');
       websocketService.disconnect();
     };
-  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // Only run on unmount
   
   // Load clinical context when patient changes
   useEffect(() => {

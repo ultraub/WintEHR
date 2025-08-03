@@ -88,26 +88,41 @@ const CollapsiblePatientHeaderOptimized = ({
   const lastScrollTopRef = useRef(0);
   const lastStateChangeRef = useRef(0);
 
-  // Get patient resources
+  // Get patient resources - already memoized in FHIRResourceContext
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
   const conditions = getPatientResources(patientId, 'Condition') || [];
   const medications = getPatientResources(patientId, 'MedicationRequest') || [];
   const observations = getPatientResources(patientId, 'Observation') || [];
   
-  // Calculate active counts
-  const activeAllergies = allergies.filter(a => 
-    a.clinicalStatus?.coding?.[0]?.code === 'active'
-  );
-  const activeConditions = conditions.filter(c => 
-    c.clinicalStatus?.coding?.[0]?.code === 'active'
-  );
-  const activeMedications = medications.filter(m => 
-    m.status === 'active'
+  // Calculate active counts - memoized to prevent re-filtering on every render
+  const activeAllergies = useMemo(() => 
+    allergies.filter(a => 
+      a.clinicalStatus?.coding?.[0]?.code === 'active'
+    ), [allergies]
   );
   
-  // Critical alerts
-  const criticalAlerts = alerts.filter(a => a.indicator === 'critical');
-  const warningAlerts = alerts.filter(a => a.indicator === 'warning');
+  const activeConditions = useMemo(() => 
+    conditions.filter(c => 
+      c.clinicalStatus?.coding?.[0]?.code === 'active'
+    ), [conditions]
+  );
+  
+  const activeMedications = useMemo(() => 
+    medications.filter(m => 
+      m.status === 'active'
+    ), [medications]
+  );
+  
+  // Critical alerts - memoized
+  const criticalAlerts = useMemo(() => 
+    alerts.filter(a => a.indicator === 'critical'), 
+    [alerts]
+  );
+  
+  const warningAlerts = useMemo(() => 
+    alerts.filter(a => a.indicator === 'warning'), 
+    [alerts]
+  );
 
   // Progressive scroll handling with debouncing and hysteresis
   useEffect(() => {
@@ -224,28 +239,36 @@ const CollapsiblePatientHeaderOptimized = ({
     return phone?.value || 'No phone';
   };
 
-  // Get most recent vitals
-  const getLatestVital = (type) => {
-    const vitals = observations.filter(obs => {
-      const coding = obs.code?.coding?.[0];
-      switch(type) {
-        case 'bp':
-          return coding?.code === '85354-9' || coding?.display?.toLowerCase().includes('blood pressure');
-        case 'pulse':
-          return coding?.code === '8867-4' || coding?.display?.toLowerCase().includes('heart rate');
-        case 'temp':
-          return coding?.code === '8310-5' || coding?.display?.toLowerCase().includes('temperature');
-        default:
-          return false;
-      }
-    });
+  // Get most recent vitals - memoized
+  const latestVitals = useMemo(() => {
+    const getLatestVital = (type) => {
+      const vitals = observations.filter(obs => {
+        const coding = obs.code?.coding?.[0];
+        switch(type) {
+          case 'bp':
+            return coding?.code === '85354-9' || coding?.display?.toLowerCase().includes('blood pressure');
+          case 'pulse':
+            return coding?.code === '8867-4' || coding?.display?.toLowerCase().includes('heart rate');
+          case 'temp':
+            return coding?.code === '8310-5' || coding?.display?.toLowerCase().includes('temperature');
+          default:
+            return false;
+        }
+      });
+      
+      const sorted = vitals.sort((a, b) => 
+        new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0)
+      );
+      
+      return sorted[0];
+    };
     
-    const sorted = vitals.sort((a, b) => 
-      new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0)
-    );
-    
-    return sorted[0];
-  };
+    return {
+      bp: getLatestVital('bp'),
+      pulse: getLatestVital('pulse'),
+      temp: getLatestVital('temp')
+    };
+  }, [observations]);
 
   // Format vital values
   const formatVital = (obs) => {
@@ -298,10 +321,10 @@ const CollapsiblePatientHeaderOptimized = ({
   
   if (!currentPatient) return null;
 
-  // Recent vitals
-  const latestBP = getLatestVital('bp');
-  const latestPulse = getLatestVital('pulse');
-  const latestTemp = getLatestVital('temp');
+  // Recent vitals - using memoized values
+  const latestBP = latestVitals.bp;
+  const latestPulse = latestVitals.pulse;
+  const latestTemp = latestVitals.temp;
 
   // Render minimal header (single line)
   const renderMinimalHeader = () => (
@@ -765,4 +788,14 @@ const CollapsiblePatientHeaderOptimized = ({
   );
 };
 
-export default CollapsiblePatientHeaderOptimized;
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(CollapsiblePatientHeaderOptimized, (prevProps, nextProps) => {
+  // Custom comparison function - only re-render if these props change
+  return (
+    prevProps.patientId === nextProps.patientId &&
+    prevProps.dataLoading === nextProps.dataLoading &&
+    prevProps.onPrint === nextProps.onPrint &&
+    prevProps.onNavigateToTab === nextProps.onNavigateToTab &&
+    prevProps.scrollContainerRef === nextProps.scrollContainerRef
+  );
+});

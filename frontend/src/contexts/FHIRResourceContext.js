@@ -393,6 +393,8 @@ export function FHIRResourceProvider({ children }) {
   const inFlightRequests = useRef(new Map());
   // Track timeouts for cleanup
   const timeoutRefs = useRef(new Set());
+  // Memoization for getPatientResources to prevent duplicate calculations
+  const getPatientResourcesMemo = useRef(new Map());
   // Request coalescing for identical concurrent requests
   const coalescedRequests = useRef(new Map());
 
@@ -533,10 +535,29 @@ export function FHIRResourceProvider({ children }) {
   }, [state.resources]);
 
   const getPatientResources = useCallback((patientId, resourceType = null) => {
+    // Check memoization cache first
+    const memoKey = `${patientId}-${resourceType || 'all'}`;
+    const cached = getPatientResourcesMemo.current.get(memoKey);
+    
+    // Check if cached result is still valid
+    if (cached) {
+      const currentRelationships = state.relationships[patientId];
+      const currentResources = resourceType ? state.resources[resourceType] : state.resources;
+      
+      // Use simple comparison for validity check
+      if (cached.relationships === currentRelationships && 
+          cached.resources === currentResources) {
+        if (window.__FHIR_DEBUG__) {
+          console.log(`[FHIR Debug] getPatientResources CACHE HIT for patient: ${patientId}, resourceType: ${resourceType}`);
+        }
+        return cached.result;
+      }
+    }
+    
     const relationships = state.relationships[patientId];
     
     if (window.__FHIR_DEBUG__) {
-      console.log(`[FHIR Debug] getPatientResources called for patient: ${patientId}, resourceType: ${resourceType}`);
+      console.log(`[FHIR Debug] getPatientResources CACHE MISS - computing for patient: ${patientId}, resourceType: ${resourceType}`);
       console.log(`[FHIR Debug] Relationships exist: ${!!relationships}`);
       if (relationships) {
         console.log(`[FHIR Debug] Available resource types in relationships:`, Object.keys(relationships));
@@ -551,6 +572,12 @@ export function FHIRResourceProvider({ children }) {
       if (window.__FHIR_DEBUG__) {
         console.log(`[FHIR Debug] No relationships found for patient ${patientId}`);
       }
+      // Cache empty result
+      getPatientResourcesMemo.current.set(memoKey, {
+        result: [],
+        relationships: relationships,
+        resources: resourceType ? state.resources[resourceType] : state.resources
+      });
       return [];
     }
 
@@ -571,6 +598,13 @@ export function FHIRResourceProvider({ children }) {
         }
       }
       
+      // Cache the result
+      getPatientResourcesMemo.current.set(memoKey, {
+        result: resources,
+        relationships: state.relationships[patientId],
+        resources: state.resources[resourceType]
+      });
+      
       return resources;
     }
 
@@ -583,6 +617,13 @@ export function FHIRResourceProvider({ children }) {
           allResources.push(resource);
         }
       });
+    });
+
+    // Cache the result for all resources
+    getPatientResourcesMemo.current.set(memoKey, {
+      result: allResources,
+      relationships: state.relationships[patientId],
+      resources: state.resources
     });
 
     return allResources;
@@ -1648,6 +1689,16 @@ export function FHIRResourceProvider({ children }) {
   }, [state.currentPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Missing deps: refreshPatientResources, state.currentPatient. Adding refreshPatientResources would cause
   // infinite loops. state.currentPatient?.id is sufficient to track patient changes
+
+  // Clear memoization cache when relationships or resources change
+  useEffect(() => {
+    // Clear the memoization cache to ensure fresh data
+    getPatientResourcesMemo.current.clear();
+    
+    if (window.__FHIR_DEBUG__) {
+      console.log('[FHIR Debug] Cleared getPatientResources memoization cache due to state change');
+    }
+  }, [state.relationships, state.resources]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -14,7 +14,7 @@ from datetime import datetime
 from database import get_db_session as get_session
 from fhir.core.storage import FHIRStorageEngine
 from api.services.clinical.provider_directory_service import ProviderDirectoryService
-from api.auth.service import get_optional_current_user
+from api.auth.service import get_optional_current_user, get_current_user_or_demo
 from api.auth.models import User
 
 router = APIRouter(prefix="/provider-directory", tags=["provider-directory"])
@@ -141,6 +141,50 @@ async def get_provider_profile(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting provider profile: {str(e)}")
+
+
+@router.get("/providers/current-user/profile")
+async def get_current_user_provider_profile(
+    session: AsyncSession = Depends(get_session),
+    current_user: Dict[str, Any] = Depends(get_current_user_or_demo)
+):
+    """
+    Get provider profile for the current user.
+    Returns a mock profile for demo purposes.
+    """
+    try:
+        # In a real implementation, this would map the current user to their practitioner resource
+        # For now, return a simple mock profile to prevent 404 errors
+        
+        profile = {
+            "resourceType": "Practitioner",
+            "id": f"practitioner-{current_user.get('username', 'demo')}",
+            "active": True,
+            "name": [{
+                "use": "official",
+                "text": current_user.get('display_name', 'Current User'),
+                "family": "User",
+                "given": ["Current"]
+            }],
+            "identifier": [{
+                "system": "internal",
+                "value": current_user.get('username', 'demo')
+            }],
+            "qualification": [{
+                "code": {
+                    "coding": [{
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-EducationLevel",
+                        "code": "MD",
+                        "display": "Doctor of Medicine"
+                    }]
+                }
+            }]
+        }
+        
+        return profile
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting current user profile: {str(e)}")
 
 
 @router.get("/providers/{practitioner_id}/roles")
