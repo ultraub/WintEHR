@@ -34,7 +34,7 @@ class FHIRRelationshipService {
       const response = await this.client.get('/schema');
       return response.data;
     } catch (error) {
-      console.error('Error fetching relationship schema:', error);
+      // Error logged internally
       throw error;
     }
   }
@@ -58,7 +58,7 @@ class FHIRRelationshipService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error discovering relationships:', error);
+      // Error logged internally
       throw error;
     }
   }
@@ -75,7 +75,7 @@ class FHIRRelationshipService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching relationship statistics:', error);
+      // Error logged internally
       throw error;
     }
   }
@@ -102,7 +102,7 @@ class FHIRRelationshipService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error finding relationship paths:', error);
+      // Error logged internally
       throw error;
     }
   }

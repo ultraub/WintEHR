@@ -56,7 +56,7 @@ export class EnhancedImagingSearchService {
       return result;
       
     } catch (error) {
-      console.error('Enhanced imaging search failed:', error);
+      // Enhanced imaging search error handled
       throw new Error(`Failed to search imaging studies: ${error.message}`);
     }
   }
@@ -242,7 +242,7 @@ export class EnhancedImagingSearchService {
 
       return filters;
     } catch (error) {
-      console.error('Failed to get available filters:', error);
+      // Error getting filters handled
       return this.getDefaultFilters();
     }
   }

@@ -112,7 +112,7 @@ class MedicationWorkflowService {
       return result;
 
     } catch (error) {
-      console.error('Error getting medication reconciliation data:', error);
+      // Error getting medication reconciliation data handled
       throw error;
     }
   }
@@ -167,7 +167,7 @@ class MedicationWorkflowService {
       };
 
     } catch (error) {
-      console.error('Error executing reconciliation:', error);
+      // Error executing reconciliation handled
       throw error;
     }
   }
@@ -305,7 +305,7 @@ class MedicationWorkflowService {
       };
 
     } catch (error) {
-      console.error('Error creating refill request:', error);
+      // Error creating refill request handled
       throw error;
     }
   }

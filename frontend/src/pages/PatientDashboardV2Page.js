@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import PatientSummaryV4 from '../components/clinical/dashboard/PatientSummaryV4';
+import PatientSummary from '../components/clinical/dashboard/PatientSummary';
 import { decodeFhirId } from '../core/navigation/navigationUtils';
 
 const PatientDashboardV2Page = () => {
@@ -11,8 +11,8 @@ const PatientDashboardV2Page = () => {
     return <div>No patient ID provided</div>;
   }
   
-  // Using V4 component which provides a beautiful patient summary with clinical workspace integration
-  return <PatientSummaryV4 patientId={patientId} />;
+  // Using component which provides a beautiful patient summary with clinical workspace integration
+  return <PatientSummary patientId={patientId} />;
 };
 
 export default PatientDashboardV2Page;

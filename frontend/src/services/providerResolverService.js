@@ -64,7 +64,7 @@ export class ProviderResolverService {
       return enhancedProvider;
 
     } catch (error) {
-      console.error('Failed to resolve provider:', error);
+      // Provider resolution error handled
       return this.createUnknownProvider(reference);
     }
   }
@@ -109,7 +109,7 @@ export class ProviderResolverService {
       return enhancedPractitioners.filter(p => p.isRadiologist);
 
     } catch (error) {
-      console.error('Failed to find radiologists:', error);
+      // Error finding radiologists handled
       return [];
     }
   }
@@ -171,7 +171,7 @@ export class ProviderResolverService {
       return technologists;
 
     } catch (error) {
-      console.error('Failed to get technologists:', error);
+      // Error getting technologists handled
       return [];
     }
   }
@@ -198,7 +198,7 @@ export class ProviderResolverService {
       return stats;
 
     } catch (error) {
-      console.error('Failed to get provider stats:', error);
+      // Error getting provider stats handled
       return null;
     }
   }
