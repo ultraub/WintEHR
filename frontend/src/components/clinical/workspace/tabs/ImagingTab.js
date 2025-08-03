@@ -441,6 +441,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
       onEdit={() => onView(study)}
       actions={actions}
       isAlternate={isAlternate}
+      useCard={true}
     />
   );
 });
@@ -541,15 +542,19 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
               ? 'HEAD'
               : 'CHEST'; // Default
             
+            const generatedDirectory = `${modality.toUpperCase()}_${bodyPart}_${fhirStudy.id?.substring(0, 8) || 'SAMPLE'}`;
+            console.log(`Generated DICOM directory for study ${fhirStudy.id}: ${generatedDirectory}`);
+            
             return {
               ...fhirStudy,
-              studyDirectory: `${modality.toUpperCase()}_${bodyPart}_${fhirStudy.id?.substring(0, 8) || 'SAMPLE'}`
+              studyDirectory: generatedDirectory
             };
           });
           
           setStudies(enrichedStudies);
         } catch (error) {
           console.warn('Failed to enrich studies with DICOM data:', error);
+          console.log('Available DICOM studies:', error.response?.status, error.message);
           // Fall back to FHIR studies without DICOM enrichment
           setStudies(fhirStudies);
         }
