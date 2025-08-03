@@ -26,7 +26,18 @@ class WebSocketService {
     
     // Get WebSocket URL from environment or use default
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.REACT_APP_WS_URL || window.location.host;
+    
+    // In development, we need to connect directly to backend port
+    // In production, we use the same host as the frontend
+    let host;
+    if (process.env.NODE_ENV === 'development' && !process.env.REACT_APP_WS_URL) {
+      // Development: Connect directly to backend
+      host = 'localhost:8000';
+    } else {
+      // Production or custom URL
+      host = process.env.REACT_APP_WS_URL || window.location.host;
+    }
+    
     this.baseUrl = `${protocol}//${host}/api/ws`;
   }
 
