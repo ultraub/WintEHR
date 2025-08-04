@@ -470,9 +470,8 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
       }
       
-      // Refresh data after save
-      console.log('[ChartReviewTabOptimized] Calling refresh after save');
-      refresh();
+      // Don't refresh - real-time updates will handle the change
+      console.log('[ChartReviewTabOptimized] Save complete, real-time updates will handle refresh');
       
       // Return the saved resource
       return result;

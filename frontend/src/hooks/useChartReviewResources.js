@@ -78,6 +78,12 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Load all resources
   const loadResources = useCallback(async () => {
+    console.log('[useChartReviewResources] loadResources called with:', { 
+      patientId, 
+      loading: loadingRef.current,
+      loadedPatient: loadedPatientRef.current
+    });
+    
     if (!patientId || loadingRef.current) {
       console.log('[useChartReviewResources] Skipping load:', { patientId, loading: loadingRef.current });
       return;
@@ -658,6 +664,9 @@ const useChartReviewResources = (patientId, options = {}) => {
     refreshTimerRef.current = setTimeout(async () => {
       console.log('[useChartReviewResources] Executing refresh after debounce');
       
+      // Reset loading state in case it's stuck
+      loadingRef.current = false;
+      
       // Clear the FHIRResourceContext cache for this patient
       if (patientId && contextRefs.current.refreshPatientResources) {
         try {
@@ -734,6 +743,160 @@ const useChartReviewResources = (patientId, options = {}) => {
     };
   }, [conditions, medications, allergies, immunizations, observations, procedures, encounters, carePlans, documentReferences]);
 
+  // Handle incremental updates for specific resources
+  const handleResourceUpdate = useCallback((eventType, eventData) => {
+    console.log('[useChartReviewResources] Handling resource update:', eventType, eventData);
+    
+    // Extract the resource from the event data
+    const resource = eventData.condition || eventData.medication || eventData.allergy || 
+                    eventData.immunization || eventData.observation || eventData.procedure ||
+                    eventData.encounter || eventData.carePlan || eventData.document || eventData.resource;
+    
+    if (!resource || !resource.resourceType) {
+      console.warn('[useChartReviewResources] No valid resource in event data');
+      return;
+    }
+    
+    // Update the appropriate state based on resource type and event
+    switch (resource.resourceType) {
+      case 'Condition':
+        if (eventType === CLINICAL_EVENTS.CONDITION_DELETED) {
+          setConditions(prev => prev.filter(c => c.id !== resource.id));
+        } else {
+          setConditions(prev => {
+            const index = prev.findIndex(c => c.id === resource.id);
+            if (index >= 0) {
+              // Update existing condition
+              const updated = [...prev];
+              updated[index] = resource;
+              return updated;
+            } else {
+              // Add new condition
+              return [resource, ...prev];
+            }
+          });
+        }
+        break;
+        
+      case 'MedicationRequest':
+        if (eventType === CLINICAL_EVENTS.MEDICATION_DISCONTINUED) {
+          setMedications(prev => prev.map(m => 
+            m.id === resource.id ? { ...m, status: 'stopped' } : m
+          ));
+        } else {
+          setMedications(prev => {
+            const index = prev.findIndex(m => m.id === resource.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = resource;
+              return updated;
+            } else {
+              return [resource, ...prev];
+            }
+          });
+        }
+        break;
+        
+      case 'AllergyIntolerance':
+        if (eventType === CLINICAL_EVENTS.ALLERGY_DELETED) {
+          setAllergies(prev => prev.filter(a => a.id !== resource.id));
+        } else {
+          setAllergies(prev => {
+            const index = prev.findIndex(a => a.id === resource.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = resource;
+              return updated;
+            } else {
+              return [resource, ...prev];
+            }
+          });
+        }
+        break;
+        
+      case 'Immunization':
+        setImmunizations(prev => {
+          const index = prev.findIndex(i => i.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+        
+      case 'Observation':
+        setObservations(prev => {
+          const index = prev.findIndex(o => o.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+        
+      case 'Procedure':
+        setProcedures(prev => {
+          const index = prev.findIndex(p => p.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+        
+      case 'Encounter':
+        setEncounters(prev => {
+          const index = prev.findIndex(e => e.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+        
+      case 'CarePlan':
+        setCarePlans(prev => {
+          const index = prev.findIndex(cp => cp.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+        
+      case 'DocumentReference':
+        setDocumentReferences(prev => {
+          const index = prev.findIndex(d => d.id === resource.id);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = resource;
+            return updated;
+          } else {
+            return [resource, ...prev];
+          }
+        });
+        break;
+    }
+    
+    // Update last updated timestamp
+    setLastUpdated(new Date());
+  }, []);
+
   // Real-time updates subscription
   useEffect(() => {
     if (!realTimeUpdates || !patientId) return;
@@ -776,12 +939,12 @@ const useChartReviewResources = (patientId, options = {}) => {
               eventType,
               eventPatientId: event.patientId,
               currentPatientId: patientId,
-              willRefresh: event.patientId === patientId
+              event
             });
-            // Refresh if the event is for the current patient
+            // Handle update if the event is for the current patient
             if (event.patientId === patientId) {
-              console.log('[useChartReviewResources] Refreshing data due to event:', eventType);
-              refresh();
+              console.log('[useChartReviewResources] Updating resource for event:', eventType);
+              handleResourceUpdate(eventType, event);
             }
           }
         );
@@ -793,7 +956,7 @@ const useChartReviewResources = (patientId, options = {}) => {
       console.log('[useChartReviewResources] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
-  }, [patientId, realTimeUpdates, subscribe, refresh]);
+  }, [patientId, realTimeUpdates, subscribe, handleResourceUpdate]);
 
   // Add debug logging for hook creation and cleanup refresh timer
   useEffect(() => {

@@ -60,9 +60,13 @@ Real-time updates are powered by the Clinical Workflow Context event system, whi
 
 2. **Event Subscription**: The `useChartReviewResources` hook subscribes to all relevant clinical events for the current patient.
 
-3. **Data Refresh**: When an event is received for the current patient, the hook automatically refreshes the resource data.
+3. **Incremental Updates**: When an event is received for the current patient, the hook updates only the specific resource in the state:
+   - For new resources: Adds them to the beginning of the list
+   - For updated resources: Replaces the existing resource in-place
+   - For deleted resources: Removes them from the list
+   - No full refresh needed - instant UI updates
 
-4. **Debouncing**: To prevent rapid consecutive refreshes, a 500ms debounce is applied to batch multiple updates together.
+4. **No Debouncing Needed**: Since updates are incremental and efficient, there's no need for debouncing.
 
 ### Configuration
 
@@ -83,10 +87,11 @@ Real-time updates require an active WebSocket connection. The connection is auto
 
 ### Performance Considerations
 
-- Updates are patient-specific - only events for the currently viewed patient trigger refreshes
-- Debouncing prevents excessive API calls when multiple resources are updated quickly
-- The hook uses refs to prevent unnecessary re-renders
-- Resource loading is optimized to fetch only what's needed
+- Updates are patient-specific - only events for the currently viewed patient trigger updates
+- Incremental updates mean no API calls are needed - the updated resource is already in the event
+- The hook uses functional state updates to prevent unnecessary re-renders
+- No full data refresh means instant UI updates with no loading states
+- Maintains list ordering with new resources appearing at the top
 
 ## Troubleshooting
 
@@ -102,12 +107,37 @@ Real-time updates require an active WebSocket connection. The connection is auto
 3. Monitor WebSocket message frequency
 4. Review debounce timing configuration
 
+## Implementation Details
+
+### Incremental Update Logic
+
+The `handleResourceUpdate` function in `useChartReviewResources` implements smart resource updates:
+
+```javascript
+// For updates: Find and replace the existing resource
+const index = prev.findIndex(c => c.id === resource.id);
+if (index >= 0) {
+  const updated = [...prev];
+  updated[index] = resource;
+  return updated;
+} else {
+  // For new resources: Add to the beginning of the list
+  return [resource, ...prev];
+}
+```
+
+This approach ensures:
+- No flickering or loading states
+- Instant visual feedback
+- Maintains scroll position
+- Preserves user context
+
 ## Future Enhancements
 
-1. **Optimistic Updates**: Show changes immediately before server confirmation
-2. **Granular Updates**: Update only the changed resource instead of full refresh
-3. **Conflict Resolution**: Handle simultaneous edits by multiple users
-4. **Offline Support**: Queue updates when offline and sync when reconnected
+1. **Conflict Resolution**: Handle simultaneous edits by multiple users with version checking
+2. **Offline Support**: Queue updates when offline and sync when reconnected
+3. **Batch Updates**: Handle multiple simultaneous updates more efficiently
+4. **Animation**: Add subtle animations when resources are added/updated/removed
 
 ---
 
