@@ -9,6 +9,7 @@ import {
   Grid,
   ToggleButton,
   ToggleButtonGroup,
+  useTheme
 } from '@mui/material';
 import {
   LineChart,
@@ -24,45 +25,46 @@ import {
 import { format, subDays, parseISO } from 'date-fns';
 
 const VitalSignsTrends = ({ vitals, patientId }) => {
+  const theme = useTheme();
   const [selectedVital, setSelectedVital] = useState('blood_pressure');
   const [timeRange, setTimeRange] = useState(1095); // days - default to 3 years
   const [chartData, setChartData] = useState([]);
 
-  // Vital sign configurations with normal ranges
+  // Vital sign configurations with normal ranges using theme colors
   const vitalConfigs = {
     blood_pressure: {
       name: 'Blood Pressure',
       lines: [
-        { key: 'systolic', name: 'Systolic', color: '#ff4444', normalMin: 90, normalMax: 140 },
-        { key: 'diastolic', name: 'Diastolic', color: '#4444ff', normalMin: 60, normalMax: 90 }
+        { key: 'systolic', name: 'Systolic', color: theme.palette.error.main, normalMin: 90, normalMax: 140 },
+        { key: 'diastolic', name: 'Diastolic', color: theme.palette.primary.main, normalMin: 60, normalMax: 90 }
       ],
       unit: 'mmHg'
     },
     heart_rate: {
       name: 'Heart Rate',
       lines: [
-        { key: 'value', name: 'Heart Rate', color: '#ff9800', normalMin: 60, normalMax: 100 }
+        { key: 'value', name: 'Heart Rate', color: theme.palette.warning.main, normalMin: 60, normalMax: 100 }
       ],
       unit: 'bpm'
     },
     temperature: {
       name: 'Temperature',
       lines: [
-        { key: 'value', name: 'Temperature', color: '#4caf50', normalMin: 97.0, normalMax: 99.0 }
+        { key: 'value', name: 'Temperature', color: theme.palette.success.main, normalMin: 97.0, normalMax: 99.0 }
       ],
       unit: '°F'
     },
     oxygen_saturation: {
       name: 'Oxygen Saturation',
       lines: [
-        { key: 'value', name: 'SpO2', color: '#2196f3', normalMin: 95, normalMax: 100 }
+        { key: 'value', name: 'SpO2', color: theme.palette.info.main, normalMin: 95, normalMax: 100 }
       ],
       unit: '%'
     },
     respiratory_rate: {
       name: 'Respiratory Rate',
       lines: [
-        { key: 'value', name: 'Resp Rate', color: '#9c27b0', normalMin: 12, normalMax: 20 }
+        { key: 'value', name: 'Resp Rate', color: theme.palette.secondary.main, normalMin: 12, normalMax: 20 }
       ],
       unit: 'breaths/min'
     }
@@ -182,7 +184,7 @@ const VitalSignsTrends = ({ vitals, patientId }) => {
                 {line.normalMin && (
                   <ReferenceLine 
                     y={line.normalMin} 
-                    stroke="#ccc" 
+                    stroke={theme.palette.divider} 
                     strokeDasharray="3 3"
                     label={`Min Normal (${line.normalMin})`}
                   />
@@ -190,7 +192,7 @@ const VitalSignsTrends = ({ vitals, patientId }) => {
                 {line.normalMax && (
                   <ReferenceLine 
                     y={line.normalMax} 
-                    stroke="#ccc" 
+                    stroke={theme.palette.divider} 
                     strokeDasharray="3 3"
                     label={`Max Normal (${line.normalMax})`}
                   />

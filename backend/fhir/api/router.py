@@ -37,6 +37,9 @@ from fhir.core.resources_r4b import construct_fhir_element, Bundle, Parameters
 import logging
 import os
 
+# Import notification service for real-time updates
+from api.websocket.fhir_notifications import notification_service
+
 logger = logging.getLogger(__name__)
 
 # Global cache instance - will try Redis first, fallback to memory
@@ -84,6 +87,233 @@ class FHIRJSONResponse(Response):
 
 # Create main FHIR router
 fhir_router = APIRouter(prefix="/fhir/R4", tags=["FHIR"])
+
+# Map resource types to clinical event types for WebSocket notifications
+RESOURCE_EVENT_MAP = {
+    "Condition": {
+        "created": "CONDITION_DIAGNOSED",
+        "updated": "CONDITION_UPDATED",
+        "deleted": "CONDITION_RESOLVED"
+    },
+    "MedicationRequest": {
+        "created": "MEDICATION_PRESCRIBED",
+        "updated": "MEDICATION_UPDATED", 
+        "deleted": "MEDICATION_DISCONTINUED"
+    },
+    "AllergyIntolerance": {
+        "created": "ALLERGY_ADDED",
+        "updated": "ALLERGY_UPDATED",
+        "deleted": "ALLERGY_REMOVED"
+    },
+    "Observation": {
+        "created": "OBSERVATION_RECORDED",
+        "updated": "OBSERVATION_UPDATED",
+        "deleted": "OBSERVATION_DELETED"
+    },
+    "Procedure": {
+        "created": "PROCEDURE_COMPLETED",
+        "updated": "PROCEDURE_UPDATED",
+        "deleted": "PROCEDURE_CANCELLED"
+    },
+    "ImagingStudy": {
+        "created": "IMAGING_STUDY_AVAILABLE",
+        "updated": "IMAGING_STUDY_UPDATED",
+        "deleted": "IMAGING_STUDY_CANCELLED"
+    },
+    "DiagnosticReport": {
+        "created": "DIAGNOSTIC_REPORT_CREATED",
+        "updated": "DIAGNOSTIC_REPORT_UPDATED",
+        "deleted": "DIAGNOSTIC_REPORT_DELETED"
+    },
+    "DocumentReference": {
+        "created": "NOTE_CREATED",
+        "updated": "NOTE_UPDATED",
+        "deleted": "NOTE_DELETED"
+    },
+    "ServiceRequest": {
+        "created": "ORDER_PLACED",
+        "updated": "ORDER_UPDATED",
+        "deleted": "ORDER_CANCELLED"
+    },
+    "Immunization": {
+        "created": "IMMUNIZATION_ADMINISTERED",
+        "updated": "IMMUNIZATION_UPDATED",
+        "deleted": "IMMUNIZATION_DELETED"
+    },
+    "Encounter": {
+        "created": "ENCOUNTER_STARTED",
+        "updated": "ENCOUNTER_UPDATED",
+        "deleted": "ENCOUNTER_FINISHED"
+    }
+}
+
+def get_event_type(resource_type: str, action: str) -> str:
+    """Get the clinical event type for a resource action."""
+    resource_events = RESOURCE_EVENT_MAP.get(resource_type, {})
+    return resource_events.get(action, f"{resource_type.upper()}_{action.upper()}")
+
+def extract_patient_id(resource: Dict[str, Any]) -> Optional[str]:
+    """Extract patient ID from a FHIR resource."""
+    # Direct patient ID for Patient resources
+    if resource.get("resourceType") == "Patient":
+        return resource.get("id")
+    
+    # Check subject reference
+    subject = resource.get("subject")
+    if subject and isinstance(subject, dict):
+        reference = subject.get("reference", "")
+        if reference.startswith("Patient/"):
+            return reference.replace("Patient/", "")
+    
+    # Check patient reference
+    patient = resource.get("patient")
+    if patient and isinstance(patient, dict):
+        reference = patient.get("reference", "")
+        if reference.startswith("Patient/"):
+            return reference.replace("Patient/", "")
+    
+    # For Encounter, check the subject reference
+    if resource.get("resourceType") == "Encounter":
+        subject = resource.get("subject")
+        if subject and isinstance(subject, dict):
+            reference = subject.get("reference", "")
+            if reference.startswith("Patient/"):
+                return reference.replace("Patient/", "")
+    
+    return None
+
+async def broadcast_clinical_event(
+    resource_type: str,
+    resource_id: str,
+    action: str,
+    resource_data: Optional[Dict[str, Any]] = None,
+    patient_id: Optional[str] = None
+):
+    """Broadcast a clinical event via WebSocket."""
+    try:
+        # Extract patient ID if not provided
+        if not patient_id and resource_data:
+            patient_id = extract_patient_id(resource_data)
+        
+        # Get the clinical event type
+        event_type = get_event_type(resource_type, action)
+        
+        # Prepare event data
+        event_data = {
+            "event_type": event_type,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "patient_id": patient_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "action": action
+        }
+        
+        # Add resource data for created/updated events
+        if resource_data and action in ["created", "updated"]:
+            # Prepare resource for frontend (use appropriate field name)
+            field_name_map = {
+                "MedicationRequest": "medication",
+                "Observation": "observation",
+                "Condition": "condition",
+                "AllergyIntolerance": "allergy",
+                "Procedure": "procedure",
+                "ImagingStudy": "study",
+                "DiagnosticReport": "report",
+                "DocumentReference": "document",
+                "ServiceRequest": "order",
+                "Immunization": "immunization",
+                "Encounter": "encounter"
+            }
+            
+            field_name = field_name_map.get(resource_type, "resource")
+            event_data[field_name] = resource_data
+            event_data["resource"] = resource_data  # Also include as generic resource
+        
+        # Broadcast via notification service
+        if action == "created":
+            await notification_service.notify_resource_created(
+                resource_type, resource_id, resource_data, patient_id
+            )
+        elif action == "updated":
+            await notification_service.notify_resource_updated(
+                resource_type, resource_id, resource_data, patient_id
+            )
+        elif action == "deleted":
+            await notification_service.notify_resource_deleted(
+                resource_type, resource_id, patient_id
+            )
+        
+        # Also send clinical event for specific types
+        if event_type in RESOURCE_EVENT_MAP.get(resource_type, {}).values():
+            await notification_service.notify_clinical_event(
+                event_type, resource_type, resource_id, patient_id, event_data
+            )
+        
+        # Special handling for critical observations
+        if resource_type == "Observation" and resource_data:
+            await check_critical_value(resource_data, patient_id)
+        
+        # Special handling for pharmacy events
+        if resource_type == "MedicationRequest":
+            await broadcast_pharmacy_event(event_type, resource_data, patient_id)
+        
+        logger.info(f"Broadcasted {event_type} for {resource_type}/{resource_id}")
+        
+    except Exception as e:
+        logger.error(f"Error broadcasting clinical event: {e}")
+        # Don't fail the main operation if broadcasting fails
+
+async def check_critical_value(observation: Dict[str, Any], patient_id: Optional[str]):
+    """Check if an observation contains critical values and broadcast alert."""
+    try:
+        # Check for critical value interpretation
+        interpretation = observation.get("interpretation", [])
+        if not isinstance(interpretation, list):
+            interpretation = [interpretation] if interpretation else []
+        
+        for interp in interpretation:
+            if isinstance(interp, dict):
+                coding = interp.get("coding", [])
+                for code in coding:
+                    if isinstance(code, dict) and code.get("code") in ["HH", "LL", "H>", "L<"]:
+                        # This is a critical value
+                        await notification_service.notify_clinical_event(
+                            "CRITICAL_VALUE_ALERT",
+                            "Observation",
+                            observation.get("id"),
+                            patient_id,
+                            {
+                                "observation": observation,
+                                "criticality": code.get("code"),
+                                "display": code.get("display", "Critical value")
+                            }
+                        )
+                        logger.warning(f"Critical value alert for Observation/{observation.get('id')}")
+                        break
+    except Exception as e:
+        logger.error(f"Error checking critical value: {e}")
+
+async def broadcast_pharmacy_event(event_type: str, medication_request: Dict[str, Any], patient_id: Optional[str]):
+    """Broadcast medication events to pharmacy room."""
+    try:
+        from api.websocket.connection_manager import manager
+        
+        # Broadcast to pharmacy room for all medication events
+        await manager.broadcast_to_room(
+            "pharmacy:queue",
+            {
+                "type": "update",
+                "data": {
+                    "event_type": event_type,
+                    "medication": medication_request,
+                    "patient_id": patient_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            }
+        )
+        logger.info(f"Broadcasted {event_type} to pharmacy room")
+    except Exception as e:
+        logger.error(f"Error broadcasting to pharmacy room: {e}")
 
 # Supported resource types - comprehensive list
 SUPPORTED_RESOURCES = [
@@ -507,6 +737,14 @@ async def create_resource(
         else:
             cache.invalidate_resource_type(resource_type)
         
+        # Broadcast the creation event
+        await broadcast_clinical_event(
+            resource_type,
+            fhir_id,
+            "created",
+            created_resource
+        )
+        
         # Build response for newly created resource
         response = FHIRJSONResponse(
             content=created_resource,
@@ -672,6 +910,14 @@ async def update_resource(
         else:
             cache.invalidate_resource_type(resource_type)
         
+        # Broadcast the update event
+        await broadcast_clinical_event(
+            resource_type,
+            id,
+            "updated",
+            updated_resource
+        )
+        
         # Build response
         response = FHIRJSONResponse(
             content=updated_resource,
@@ -712,6 +958,16 @@ async def delete_resource(
     
     storage = FHIRStorageEngine(db)
     
+    # Get the resource before deletion to extract patient ID
+    resource_data = None
+    patient_id = None
+    try:
+        resource_data = await storage.read_resource(resource_type, id)
+        if resource_data:
+            patient_id = extract_patient_id(resource_data)
+    except:
+        pass
+    
     # Delete resource
     deleted = await storage.delete_resource(resource_type, id)
     
@@ -737,6 +993,15 @@ async def delete_resource(
         await cache.invalidate_resource_type(resource_type)
     else:
         cache.invalidate_resource_type(resource_type)
+    
+    # Broadcast the deletion event
+    await broadcast_clinical_event(
+        resource_type,
+        id,
+        "deleted",
+        None,
+        patient_id
+    )
     
     return Response(status_code=204)
 

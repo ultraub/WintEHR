@@ -78,7 +78,7 @@ const CarePlanTab = React.lazy(() => import(
 ));
 const TimelineTab = React.lazy(() => import(
   /* webpackChunkName: "clinical-timeline" */
-  './workspace/tabs/TimelineTabImproved'
+  './workspace/tabs/TimelineTabModern'
 ));
 const ImagingTab = React.lazy(() => import(
   /* webpackChunkName: "clinical-imaging" */
@@ -104,7 +104,7 @@ const TAB_CONFIG = [
   { id: 'imaging', label: 'Imaging', icon: ImagingIcon, component: ImagingTab },
   { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, component: DocumentationTab }, // Uses DocumentationTabEnhanced
   { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, component: CarePlanTab }, // Uses CarePlanTabEnhanced
-  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, component: TimelineTab } // Uses TimelineTabEnhanced
+  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, component: TimelineTab } // Uses TimelineTabModern
 ];
 
 const ClinicalWorkspaceEnhanced = ({ 

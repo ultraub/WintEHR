@@ -29,7 +29,13 @@ import {
   LocalHospital as MedicalIcon,
   Accessibility as AccessibilityIcon,
   Favorite as WarmIcon,
-  AutoAwesome as AutoIcon
+  AutoAwesome as AutoIcon,
+  Water as OceanIcon,
+  Park as ForestIcon,
+  WbSunny as SunriseIcon,
+  NightsStay as MidnightIcon,
+  FilterBAndW as MonochromeIcon,
+  ChildFriendly as PediatricIcon
 } from '@mui/icons-material';
 import { MedicalThemeContext } from '../../App';
 
@@ -93,6 +99,42 @@ const QuickThemeToggle = ({
       name: 'Warm Clinical', 
       icon: <WarmIcon />,
       description: 'Comfortable colors'
+    },
+    { 
+      id: 'ocean', 
+      name: 'Ocean Health', 
+      icon: <OceanIcon />,
+      description: 'Calming blues and teals'
+    },
+    { 
+      id: 'forest', 
+      name: 'Forest Wellness', 
+      icon: <ForestIcon />,
+      description: 'Natural greens'
+    },
+    { 
+      id: 'sunrise', 
+      name: 'Sunrise Care', 
+      icon: <SunriseIcon />,
+      description: 'Warm oranges and yellows'
+    },
+    { 
+      id: 'midnight', 
+      name: 'Midnight Shift', 
+      icon: <MidnightIcon />,
+      description: 'Ultra-dark theme'
+    },
+    { 
+      id: 'monochrome', 
+      name: 'Monochrome', 
+      icon: <MonochromeIcon />,
+      description: 'Grayscale minimal'
+    },
+    { 
+      id: 'pediatric', 
+      name: 'Pediatric', 
+      icon: <PediatricIcon />,
+      description: 'Bright and cheerful'
     }
   ];
 

@@ -79,10 +79,10 @@ const QUEUE_COLUMNS = {
 
 // Priority levels with colors and labels
 const PRIORITY_LEVELS = {
-  1: { label: 'STAT', color: 'error', bgColor: '#ffebee' },
-  2: { label: 'Urgent', color: 'warning', bgColor: '#fff3e0' },
-  3: { label: 'Normal', color: 'info', bgColor: '#f3f4f6' },
-  4: { label: 'Low', color: 'default', bgColor: '#fafafa' }
+  1: { label: 'STAT', color: 'error' },
+  2: { label: 'Urgent', color: 'warning' },
+  3: { label: 'Normal', color: 'info' },
+  4: { label: 'Low', color: 'default' }
 };
 
 // Prescription Card Component
@@ -210,7 +210,7 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
       sx={{
         p: 2,
         mb: 2,
-        bgcolor: priorityInfo.bgColor,
+        bgcolor: alpha(theme.palette[priorityInfo.color]?.main || theme.palette.grey[500], 0.08),
         border: `1px solid ${theme.palette[priorityInfo.color]?.main || theme.palette.grey[300]}`,
         borderLeft: `4px solid ${theme.palette[priorityInfo.color]?.main || theme.palette.grey[500]}`,
         '&:hover': {

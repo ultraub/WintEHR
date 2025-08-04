@@ -117,6 +117,7 @@ function Dashboard() {
   const [careGaps, setCareGaps] = useState(null);
   const [medicationSafety, setMedicationSafety] = useState(null);
   const [trendingData, setTrendingData] = useState(null);
+  const [qualityMetrics, setQualityMetrics] = useState(null);
 
   // Fetch all dashboard data
   const fetchDashboardData = useCallback(async () => {
@@ -129,13 +130,15 @@ function Dashboard() {
         chronicData,
         gapsData,
         medicationData,
-        trendsData
+        trendsData,
+        metricsData
       ] = await Promise.all([
         dashboardDataService.getPopulationStats(),
         dashboardDataService.getChronicDiseaseStats(),
         dashboardDataService.getCareGaps(),
         dashboardDataService.getMedicationSafetyStats(),
-        dashboardDataService.getTrendingData(30)
+        dashboardDataService.getTrendingData(30),
+        dashboardDataService.getQualityMetrics()
       ]);
 
       setPopulationStats(populationData);
@@ -143,6 +146,7 @@ function Dashboard() {
       setCareGaps(gapsData);
       setMedicationSafety(medicationData);
       setTrendingData(trendsData);
+      setQualityMetrics(metricsData);
 
     } catch (err) {
       console.error('Dashboard data fetch error:', err);
@@ -745,43 +749,57 @@ function Dashboard() {
             <Grid item xs={12} md={6}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Patient Safety Quality Metrics
+                  Patient Safety Quality Metrics ({qualityMetrics?.period || '30 days'})
                 </Typography>
                 <Stack spacing={2}>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Healthcare Associated Infections (HAI)</Typography>
-                      <Typography variant="body2" fontWeight="bold">2.1%</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={97.9} color="success" sx={{ height: 8, borderRadius: 4 }} />
-                  </Box>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Fall Rate (per 1000 patient days)</Typography>
-                      <Typography variant="body2" fontWeight="bold">3.2</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={68} color="warning" sx={{ height: 8, borderRadius: 4 }} />
-                  </Box>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Medication Error Rate</Typography>
-                      <Typography variant="body2" fontWeight="bold">0.8%</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={99.2} color="success" sx={{ height: 8, borderRadius: 4 }} />
-                  </Box>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Pressure Injury Rate</Typography>
-                      <Typography variant="body2" fontWeight="bold">1.5%</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={98.5} color="success" sx={{ height: 8, borderRadius: 4 }} />
-                  </Box>
+                  {qualityMetrics && [
+                    qualityMetrics.hai,
+                    qualityMetrics.falls,
+                    qualityMetrics.medicationErrors,
+                    qualityMetrics.pressureInjuries
+                  ].map((metric, index) => {
+                    const value = parseFloat(metric.rate);
+                    const percentage = metric.label.includes('per 1000') ? 
+                      Math.max(0, 100 - (value / 10 * 100)) : // For fall rate
+                      Math.max(0, 100 - (value * 10)); // For percentage rates
+                    const color = value <= metric.benchmark ? 'success' : 
+                                 value <= metric.benchmark * 1.5 ? 'warning' : 'error';
+                    
+                    return (
+                      <Box key={index}>
+                        <Box display="flex" justifyContent="space-between" mb={0.5}>
+                          <Typography variant="body2">{metric.label}</Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            {metric.rate}{metric.label.includes('%') ? '%' : ''}
+                          </Typography>
+                        </Box>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={percentage} 
+                          color={color} 
+                          sx={{ height: 8, borderRadius: 4 }} 
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {metric.count} events • Benchmark: {metric.benchmark}{metric.label.includes('%') ? '%' : ''}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
                 </Stack>
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  <Typography variant="caption">
-                    Overall safety performance is above national average
-                  </Typography>
-                </Alert>
+                {qualityMetrics && (
+                  <Alert 
+                    severity={
+                      [qualityMetrics.hai, qualityMetrics.falls, qualityMetrics.medicationErrors, qualityMetrics.pressureInjuries]
+                        .every(m => parseFloat(m.rate) <= m.benchmark) ? 'success' : 'warning'
+                    } 
+                    sx={{ mt: 2 }}
+                  >
+                    <Typography variant="caption">
+                      {[qualityMetrics.hai, qualityMetrics.falls, qualityMetrics.medicationErrors, qualityMetrics.pressureInjuries]
+                        .filter(m => parseFloat(m.rate) <= m.benchmark).length} of 4 metrics meet or exceed benchmarks
+                    </Typography>
+                  </Alert>
+                )}
               </Paper>
             </Grid>
           </Grid>

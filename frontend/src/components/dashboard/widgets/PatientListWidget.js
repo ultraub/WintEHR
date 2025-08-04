@@ -86,48 +86,192 @@ function PatientListWidget() {
     try {
       let searchParams = { _count: 100, _sort: 'family' };
       let allPatients = [];
+      const patientMap = new Map();
 
       // Fetch based on active list
       switch (activeList) {
         case 'diabetes':
-          // First get all patients, then check for diabetes conditions
-          const patients = await fhirClient.search('Patient', { ...searchParams, _count: 50 });
-          allPatients = patients.resources || [];
-          
-          // For demo purposes, mark random subset as diabetic
-          // In production, would cross-reference with Condition resources
-          allPatients = allPatients.slice(0, Math.min(10, allPatients.length));
+          // Get all diabetes conditions
+          const diabetesConditions = await fhirClient.search('Condition', {
+            code: '44054006,E11,E10', // Diabetes SNOMED codes
+            'clinical-status': 'active',
+            _count: 200,
+            _include: 'Condition:patient'
+          });
+
+          // Extract unique patients from conditions
+          (diabetesConditions.resources || []).forEach(condition => {
+            if (condition.resourceType === 'Condition' && condition.subject?.reference) {
+              const patientRef = condition.subject.reference;
+              // Handle both Patient/id and urn:uuid formats
+              const patientId = patientRef.includes('urn:uuid:') ? 
+                patientRef.replace('urn:uuid:', '') : 
+                patientRef.split('/').pop();
+              patientMap.set(patientId, patientRef);
+            }
+          });
+
+          // Include Patient resources from the bundle
+          (diabetesConditions.resources || []).forEach(resource => {
+            if (resource.resourceType === 'Patient') {
+              allPatients.push(resource);
+            }
+          });
+
+          // If we didn't get included patients, fetch them individually
+          if (allPatients.length === 0 && patientMap.size > 0) {
+            // For URN references, we need to fetch patients differently
+            // Try to get all patients and filter client-side
+            try {
+              const allPatientsResult = await fhirClient.search('Patient', { 
+                _count: 200,
+                _sort: 'family'
+              });
+              
+              // Filter patients that match our condition patient IDs
+              const patientIdSet = new Set(patientMap.keys());
+              allPatients = (allPatientsResult.resources || []).filter(patient => 
+                patientIdSet.has(patient.id)
+              ).slice(0, 50);
+            } catch (error) {
+              console.error('Error fetching diabetes patients:', error);
+            }
+          }
           break;
 
         case 'hypertension':
-          // Get patients for hypertension registry
-          const htnPatients = await fhirClient.search('Patient', { ...searchParams, _count: 50 });
-          allPatients = htnPatients.resources || [];
-          
-          // For demo, take a different subset
-          allPatients = allPatients.slice(5, Math.min(15, allPatients.length));
+          // Get all hypertension conditions
+          const htnConditions = await fhirClient.search('Condition', {
+            code: '38341003,I10', // Hypertension SNOMED/ICD codes
+            'clinical-status': 'active',
+            _count: 200,
+            _include: 'Condition:patient'
+          });
+
+          // Extract patients
+          (htnConditions.resources || []).forEach(condition => {
+            if (condition.resourceType === 'Condition' && condition.subject?.reference) {
+              const patientRef = condition.subject.reference;
+              const patientId = patientRef.includes('urn:uuid:') ? 
+                patientRef.replace('urn:uuid:', '') : 
+                patientRef.split('/').pop();
+              patientMap.set(patientId, patientRef);
+            }
+          });
+
+          // Include Patient resources
+          (htnConditions.resources || []).forEach(resource => {
+            if (resource.resourceType === 'Patient') {
+              allPatients.push(resource);
+            }
+          });
+
+          // Fetch if needed
+          if (allPatients.length === 0 && patientMap.size > 0) {
+            try {
+              const allPatientsResult = await fhirClient.search('Patient', { 
+                _count: 200,
+                _sort: 'family'
+              });
+              
+              const patientIdSet = new Set(patientMap.keys());
+              allPatients = (allPatientsResult.resources || []).filter(patient => 
+                patientIdSet.has(patient.id)
+              ).slice(0, 50);
+            } catch (error) {
+              console.error('Error fetching hypertension patients:', error);
+            }
+          }
           break;
 
         case 'polypharmacy':
-          // Get patients for polypharmacy monitoring
-          const polyPatients = await fhirClient.search('Patient', { ...searchParams, _count: 50 });
-          allPatients = polyPatients.resources || [];
-          
-          // For demo, take another subset
-          allPatients = allPatients.slice(10, Math.min(20, allPatients.length));
+          // Get all active medications
+          const medications = await fhirClient.search('MedicationRequest', {
+            status: 'active',
+            _count: 1000
+          });
+
+          // Count medications per patient
+          const medCountByPatient = {};
+          (medications.resources || []).forEach(med => {
+            if (med.subject?.reference) {
+              const patientId = med.subject.reference.split('/').pop();
+              medCountByPatient[patientId] = (medCountByPatient[patientId] || 0) + 1;
+            }
+          });
+
+          // Find patients with 5+ medications
+          const polyPatientIds = Object.entries(medCountByPatient)
+            .filter(([_, count]) => count >= 5)
+            .map(([patientId]) => patientId)
+            .slice(0, 50);
+
+          if (polyPatientIds.length > 0) {
+            // Some patient IDs might be UUIDs from URN references
+            // Fetch all patients and filter client-side
+            try {
+              const allPatientsResult = await fhirClient.search('Patient', { 
+                _count: 200,
+                _sort: 'family'
+              });
+              
+              const polyPatientIdSet = new Set(polyPatientIds);
+              allPatients = (allPatientsResult.resources || []).filter(patient => 
+                polyPatientIdSet.has(patient.id)
+              ).slice(0, 50);
+            } catch (error) {
+              console.error('Error fetching polypharmacy patients:', error);
+            }
+          }
           break;
 
         case 'overdue':
-          // For demo, just get random patients
-          // In production, would check immunization records, screening dates, etc.
-          const result = await fhirClient.search('Patient', { ...searchParams, _count: 25 });
-          allPatients = result.resources || [];
+          // Get all patients first
+          const allPatientsResult = await fhirClient.search('Patient', searchParams);
+          const allPatientsList = allPatientsResult.resources || [];
+          
+          // Check for missing preventive care (simplified - check flu vaccines)
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+          
+          const immunizations = await fhirClient.search('Immunization', {
+            'vaccine-code': '88', // Flu vaccine
+            date: `ge${oneYearAgo.toISOString()}`,
+            _count: 1000
+          });
+
+          // Create set of patients who have had flu vaccine
+          const vaccinatedPatients = new Set();
+          (immunizations.resources || []).forEach(imm => {
+            if (imm.patient?.reference) {
+              const patientId = imm.patient.reference.split('/').pop();
+              vaccinatedPatients.add(patientId);
+            }
+          });
+
+          // Find patients without flu vaccine
+          allPatients = allPatientsList.filter(patient => 
+            !vaccinatedPatients.has(patient.id)
+          ).slice(0, 25);
           break;
 
         default:
           // All patients
           const allResult = await fhirClient.search('Patient', searchParams);
           allPatients = allResult.resources || [];
+      }
+
+      // If we still have no patients for special lists, fall back to showing some patients
+      if (allPatients.length === 0 && activeList !== 'all') {
+        try {
+          const fallbackResult = await fhirClient.search('Patient', { 
+            _count: 10,
+            _sort: 'family'
+          });
+          allPatients = fallbackResult.resources || [];
+        } catch (error) {
+          console.error('Error fetching fallback patients:', error);
+        }
       }
 
       // Process patients for display
@@ -144,10 +288,12 @@ function PatientListWidget() {
           age: patient.birthDate ? differenceInYears(new Date(), new Date(patient.birthDate)) : null,
           gender: patient.gender,
           phone: patient.telecom?.find(t => t.system === 'phone')?.value,
-          conditions: [], // Would fetch in production
-          medications: [], // Would fetch in production
-          lastVisit: null, // Would fetch in production
-          riskScore: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
+          conditions: activeList === 'diabetes' ? ['Diabetes'] : 
+                      activeList === 'hypertension' ? ['Hypertension'] : [],
+          medications: activeList === 'polypharmacy' ? ['5+ active medications'] : [],
+          lastVisit: null,
+          riskScore: activeList === 'polypharmacy' || activeList === 'overdue' ? 'high' : 
+                     activeList === 'diabetes' || activeList === 'hypertension' ? 'medium' : 'low',
           raw: patient
         };
       });
@@ -193,7 +339,7 @@ function PatientListWidget() {
   };
 
   const handlePatientClick = (patient) => {
-    navigate(`/clinical-workspace/${patient.id}`);
+    navigate(`/patients/${patient.id}/clinical`);
   };
 
   const handleMenuOpen = (event, patient) => {
@@ -405,13 +551,13 @@ function PatientListWidget() {
           Open Chart
         </MenuItem>
         <MenuItem onClick={() => {
-          navigate(`/clinical-workspace/${selectedPatient?.id}?tab=medications`);
+          navigate(`/patients/${selectedPatient?.id}/clinical?tab=medications`);
           handleMenuClose();
         }}>
           View Medications
         </MenuItem>
         <MenuItem onClick={() => {
-          navigate(`/clinical-workspace/${selectedPatient?.id}?tab=results`);
+          navigate(`/patients/${selectedPatient?.id}/clinical?tab=results`);
           handleMenuClose();
         }}>
           View Lab Results

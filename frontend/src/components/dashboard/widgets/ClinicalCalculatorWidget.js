@@ -32,7 +32,13 @@ import {
   IconButton,
   InputAdornment,
   useTheme,
-  alpha
+  alpha,
+  Card,
+  CardContent,
+  CardActionArea,
+  Tabs,
+  Tab,
+  InputLabel
 } from '@mui/material';
 import {
   Calculate as CalculateIcon,
@@ -43,7 +49,8 @@ import {
   ExpandMore,
   ExpandLess,
   Info as InfoIcon,
-  MenuBook as ReferenceIcon
+  MenuBook as ReferenceIcon,
+  ArrowBack as BackIcon
 } from '@mui/icons-material';
 
 import { ClinicalCalculators, getCalculatorsByCategory } from '../../../services/dashboard/clinicalCalculators';
@@ -58,20 +65,24 @@ const categoryIcons = {
 
 function ClinicalCalculatorWidget() {
   const theme = useTheme();
-  const [selectedCalculator, setSelectedCalculator] = useState('bmi');
+  const [selectedCalculator, setSelectedCalculator] = useState(null);
   const [inputs, setInputs] = useState({});
   const [result, setResult] = useState(null);
   const [showReference, setShowReference] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState({
-    Cardiovascular: true,
-    Renal: true,
-    General: true
-  });
+  const [showCalculatorList, setShowCalculatorList] = useState(true);
 
   const calculatorsByCategory = getCalculatorsByCategory();
 
   const handleCalculatorSelect = (calculatorId) => {
     setSelectedCalculator(calculatorId);
+    setInputs({});
+    setResult(null);
+    setShowCalculatorList(false);
+  };
+
+  const handleBackToList = () => {
+    setShowCalculatorList(true);
+    setSelectedCalculator(null);
     setInputs({});
     setResult(null);
   };
@@ -91,109 +102,105 @@ function ClinicalCalculatorWidget() {
     }
   };
 
-  const toggleCategory = (category) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
 
-  const calculator = ClinicalCalculators[selectedCalculator];
+  const calculator = selectedCalculator ? ClinicalCalculators[selectedCalculator] : null;
 
   return (
-    <Paper sx={{ height: 600, display: 'flex' }}>
-      {/* Calculator List Sidebar */}
-      <Box
-        sx={{
-          width: 240,
-          borderRight: 1,
-          borderColor: 'divider',
-          overflow: 'auto',
-          bgcolor: alpha(theme.palette.background.default, 0.5)
-        }}
-      >
-        <Box sx={{ p: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-          <Typography variant="subtitle1" fontWeight="bold">
-            Clinical Calculators
+    <Box sx={{ height: '100%', overflow: 'auto' }}>
+      {/* Calculator Selection View */}
+      {showCalculatorList && (
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h5" fontWeight="bold" gutterBottom>
+            Select a Clinical Calculator
           </Typography>
-        </Box>
-        <List dense>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Choose from our evidence-based clinical calculators to support your decision-making
+          </Typography>
+          
           {Object.entries(calculatorsByCategory).map(([category, calculators]) => (
-            <React.Fragment key={category}>
-              <ListItem disablePadding>
-                <ListItemButton onClick={() => toggleCategory(category)} sx={{ py: 0.5 }}>
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    {categoryIcons[category] || <CalculateIcon />}
-                  </ListItemIcon>
-                  <ListItemText primary={category} primaryTypographyProps={{ fontSize: '0.875rem' }} />
-                  {expandedCategories[category] ? <ExpandLess /> : <ExpandMore />}
-                </ListItemButton>
-              </ListItem>
-              <Collapse in={expandedCategories[category]} timeout="auto" unmountOnExit>
-                <List component="div" disablePadding>
-                  {calculators.map((calc) => (
-                    <ListItem key={calc.id} sx={{ pl: 3 }} disablePadding>
-                      <ListItemButton
-                        selected={selectedCalculator === calc.id}
-                        onClick={() => handleCalculatorSelect(calc.id)}
-                        sx={{
-                          py: 0.5,
-                          borderRadius: 1,
-                          '&.Mui-selected': {
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            '&:hover': {
-                              bgcolor: 'primary.dark'
-                            }
-                          }
-                        }}
-                      >
-                        <ListItemText
-                          primary={calc.name}
-                          primaryTypographyProps={{ fontSize: '0.813rem' }}
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                  ))}
-                </List>
-              </Collapse>
-            </React.Fragment>
-          ))}
-        </List>
-      </Box>
-
-      {/* Calculator Interface */}
-      <Box sx={{ flexGrow: 1, p: 2, overflow: 'auto' }}>
-        {calculator && (
-          <>
-            <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="h6" fontWeight="bold">
-                  {calculator.name}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {calculator.description}
+            <Box key={category} sx={{ mb: 4 }}>
+              <Box display="flex" alignItems="center" gap={1} mb={2}>
+                {categoryIcons[category]}
+                <Typography variant="h6" fontWeight="medium">
+                  {category}
                 </Typography>
               </Box>
+              <Grid container spacing={2}>
+                {calculators.map((calc) => (
+                  <Grid item xs={12} sm={6} md={4} key={calc.id}>
+                    <Card 
+                      sx={{ 
+                        height: '100%',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: 4
+                        }
+                      }}
+                    >
+                      <CardActionArea onClick={() => handleCalculatorSelect(calc.id)} sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                            {calc.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {calc.description}
+                          </Typography>
+                        </CardContent>
+                      </CardActionArea>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* Calculator Interface View */}
+      {!showCalculatorList && calculator && (
+        <Box sx={{ p: 3 }}>
+          <>
+            <Box mb={3}>
               <Button
-                startIcon={<ReferenceIcon />}
+                startIcon={<BackIcon />}
+                onClick={handleBackToList}
                 size="small"
-                onClick={() => setShowReference(!showReference)}
+                sx={{ mb: 2 }}
               >
-                Quick Reference
+                Back to Calculators
               </Button>
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {calculator.name}
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    {calculator.description}
+                  </Typography>
+                </Box>
+                <Button
+                  startIcon={<ReferenceIcon />}
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowReference(!showReference)}
+                >
+                  Quick Reference
+                </Button>
+              </Box>
             </Box>
 
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
               {/* Input Fields */}
-              <Grid item xs={12} md={6}>
-                <Box>
-                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
                     Input Parameters
                   </Typography>
-                  <Box sx={{ mt: 2 }}>
+                  <Divider sx={{ mb: 3 }} />
+                  <Box>
                     {calculator.inputs.map((input) => (
-                      <Box key={input.id} sx={{ mb: 2 }}>
+                      <Box key={input.id} sx={{ mb: 3 }}>
                         {input.type === 'boolean' ? (
                           <FormControlLabel
                             control={
@@ -223,11 +230,12 @@ function ClinicalCalculatorWidget() {
                             }
                           />
                         ) : input.type === 'select' ? (
-                          <FormControl fullWidth>
-                            <FormLabel>{input.label}</FormLabel>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>{input.label}</InputLabel>
                             <Select
-                              value={inputs[input.id] || input.options[0]}
+                              value={inputs[input.id] || ''}
                               onChange={(e) => handleInputChange(input.id, e.target.value)}
+                              label={input.label}
                             >
                               {input.options.map((option) => (
                                 <MenuItem key={option} value={option}>
@@ -245,28 +253,23 @@ function ClinicalCalculatorWidget() {
                     fullWidth
                     onClick={handleCalculate}
                     startIcon={<CalculateIcon />}
-                    sx={{ mt: 2 }}
+                    sx={{ mt: 3 }}
+                    size="large"
                   >
                     Calculate
                   </Button>
-                </Box>
+                </Paper>
               </Grid>
 
               {/* Results */}
-              <Grid item xs={12} md={6}>
-                {result && (
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                      Results
-                    </Typography>
-                    <Paper
-                      sx={{
-                        p: 3,
-                        mt: 2,
-                        bgcolor: alpha(theme.palette.primary.main, 0.05),
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                      }}
-                    >
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%' }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    Results
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                  {result ? (
+                    <>
                       {result.error ? (
                         <Alert severity="error">{result.error}</Alert>
                       ) : (
@@ -363,27 +366,35 @@ function ClinicalCalculatorWidget() {
                           )}
                         </>
                       )}
-                    </Paper>
-                  </Box>
-                )}
-                
-                {/* Clinical Note */}
-                <Alert severity="info" icon={<InfoIcon />} sx={{ mt: 3 }}>
-                  <Typography variant="body2">
-                    These calculators are for educational purposes and clinical decision support only. 
-                    Always use clinical judgment and consider the full clinical context when making patient care decisions.
-                  </Typography>
-                </Alert>
+                    </>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <CalculateIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                      <Typography color="text.secondary">
+                        Enter values and click Calculate to see results
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
               </Grid>
+
+            {/* Clinical Note */}
+            <Grid item xs={12}>
+              <Alert severity="info" icon={<InfoIcon />}>
+                <Typography variant="body2">
+                  These calculators are for educational purposes and clinical decision support only. 
+                  Always use clinical judgment and consider the full clinical context when making patient care decisions.
+                </Typography>
+              </Alert>
             </Grid>
 
             {/* Quick Reference Section */}
-            <Collapse in={showReference}>
-              <Box mt={3}>
-                <Divider sx={{ mb: 2 }} />
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                  Quick Reference Guides
-                </Typography>
+            <Grid item xs={12}>
+              <Collapse in={showReference}>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>
+                    Quick Reference Guides
+                  </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
                     <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05) }}>
@@ -425,12 +436,14 @@ function ClinicalCalculatorWidget() {
                     </Paper>
                   </Grid>
                 </Grid>
-              </Box>
-            </Collapse>
+                </Box>
+              </Collapse>
+            </Grid>
+          </Grid>
           </>
-        )}
-      </Box>
-    </Paper>
+        </Box>
+      )}
+    </Box>
   );
 }
 

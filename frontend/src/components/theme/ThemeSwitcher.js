@@ -90,6 +90,30 @@ const ThemePreviewCard = ({
     dark: {
       light: { primary: '#1976D2', secondary: '#4CAF50', background: '#FAFAFA' },
       dark: { primary: '#42A5F5', secondary: '#66BB6A', background: '#0A0E13' }
+    },
+    ocean: {
+      light: { primary: '#0097A7', secondary: '#00ACC1', background: '#F0F7F8' },
+      dark: { primary: '#4DD0E1', secondary: '#5DDEF4', background: '#0A0E13' }
+    },
+    forest: {
+      light: { primary: '#2E7D32', secondary: '#558B2F', background: '#F1F8E9' },
+      dark: { primary: '#81C784', secondary: '#A5D6A7', background: '#0A0E13' }
+    },
+    sunrise: {
+      light: { primary: '#F57C00', secondary: '#FFD54F', background: '#FFF8E1' },
+      dark: { primary: '#FFB74D', secondary: '#FFFF81', background: '#0A0E13' }
+    },
+    midnight: {
+      light: { primary: '#5C6BC0', secondary: '#7E57C2', background: '#0A0E13' },
+      dark: { primary: '#5C6BC0', secondary: '#7E57C2', background: '#0A0E13' }
+    },
+    monochrome: {
+      light: { primary: '#616161', secondary: '#424242', background: '#FAFAFA' },
+      dark: { primary: '#BDBDBD', secondary: '#9E9E9E', background: '#0A0E13' }
+    },
+    pediatric: {
+      light: { primary: '#E91E63', secondary: '#00BCD4', background: '#FFF3E0' },
+      dark: { primary: '#F8BBD0', secondary: '#B2EBF2', background: '#0A0E13' }
     }
   };
 

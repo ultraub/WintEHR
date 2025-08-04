@@ -35,9 +35,11 @@ import { debounce } from 'lodash';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { searchService } from '../services/searchService';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
+import { useTheme } from '@mui/material/styles';
 
 const SearchBar = ({ compact = false }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({
     patients: [],
@@ -283,11 +285,11 @@ const SearchBar = ({ compact = false }) => {
             p: '2px 4px',
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: alpha('#000', 0.02),
+            backgroundColor: alpha(theme.palette.action.hover, 0.5),
             border: 1,
             borderColor: 'divider',
             '&:hover': {
-              backgroundColor: alpha('#000', 0.04),
+              backgroundColor: theme.palette.action.hover,
             },
             '&:focus-within': {
               backgroundColor: 'background.paper',
