@@ -22,7 +22,7 @@ import {
 import {
   LocalHospital as HospitalIcon,
   MedicalServices as ClinicIcon,
-  Emergency as EmergencyIcon,
+  LocalHospital as EmergencyIcon,
   Home as HomeIcon,
   Person as PersonIcon,
   LocationOn as LocationIcon,
