@@ -153,7 +153,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     filters
   } = useChartReviewResources(patientId, {
     includeInactive: true,
-    realTimeUpdates: true
+    realTimeUpdates: false  // Temporarily disabled to investigate flickering
   });
   
   // View and filter states
@@ -1241,7 +1241,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                                 key={procedure.id}
                                 procedure={procedure}
                                 onEdit={() => handleOpenDialog('procedure', procedure)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
+                                isAlternate={procedure.id.charCodeAt(procedure.id.length - 1) % 2 === 1}  // Stable alternating based on ID
                               />
                             ))}
                           </Stack>
@@ -1331,7 +1331,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                                 key={carePlan.id}
                                 carePlan={carePlan}
                                 onEdit={() => handleOpenDialog('carePlan', carePlan)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
+                                isAlternate={carePlan.id.charCodeAt(carePlan.id.length - 1) % 2 === 1}  // Stable alternating based on ID
                               />
                             ))}
                           </Stack>

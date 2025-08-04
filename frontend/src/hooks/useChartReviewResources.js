@@ -54,11 +54,32 @@ const useChartReviewResources = (patientId, options = {}) => {
     category: 'all'
   });
 
+  // Store context functions in refs to prevent dependency changes
+  const contextRefs = useRef({
+    getPatientResources,
+    fetchPatientBundle,
+    searchFHIRResources,
+    isCacheWarm
+  });
+  
+  // Update refs when functions change
+  useEffect(() => {
+    contextRefs.current = {
+      getPatientResources,
+      fetchPatientBundle,
+      searchFHIRResources,
+      isCacheWarm
+    };
+  }, [getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
+
   // Load all resources
   const loadResources = useCallback(async () => {
     if (!patientId || loadingRef.current) {
+      console.log('[useChartReviewResources] Skipping load:', { patientId, loading: loadingRef.current });
       return;
     }
+
+    console.log('[useChartReviewResources] Starting resource load for patient:', patientId);
 
     try {
       loadingRef.current = true;
@@ -69,12 +90,12 @@ const useChartReviewResources = (patientId, options = {}) => {
       
       // Check cache warmth for all resource types we need
       const allResourceTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'];
-      const isWarm = isCacheWarm(patientId, allResourceTypes);
+      const isWarm = contextRefs.current.isCacheWarm(patientId, allResourceTypes);
       
       // Force comprehensive data loading on hard refresh or when cache is cold
       if (!isWarm) {
         try {
-          await fetchPatientBundle(patientId, false, 'all');
+          await contextRefs.current.fetchPatientBundle(patientId, false, 'all');
         } catch (bundleError) {
           // Silently fallback to individual resource fetches
         }
@@ -100,7 +121,7 @@ const useChartReviewResources = (patientId, options = {}) => {
               searchParams._count = '100';
             }
             
-            return await searchFHIRResources(type, searchParams);
+            return await contextRefs.current.searchFHIRResources(type, searchParams);
           } catch (err) {
             return [];
           }
@@ -111,7 +132,7 @@ const useChartReviewResources = (patientId, options = {}) => {
 
       // Enhanced resource retrieval with fallback mechanism
       const getResourcesWithFallback = async (resourceType) => {
-        let resources = getPatientResources(patientId, resourceType) || [];
+        let resources = contextRefs.current.getPatientResources(patientId, resourceType) || [];
         
         if (resources.length === 0) {
           try {
@@ -127,7 +148,7 @@ const useChartReviewResources = (patientId, options = {}) => {
               searchParams._count = '100';
             }
             
-            const searchResults = await searchFHIRResources(resourceType, searchParams);
+            const searchResults = await contextRefs.current.searchFHIRResources(resourceType, searchParams);
             resources = searchResults || [];
           } catch (searchError) {
             // Silent fallback
@@ -191,7 +212,6 @@ const useChartReviewResources = (patientId, options = {}) => {
       setDocumentReferences(validDocumentReferences);
 
       setLastUpdated(new Date());
-      hasLoadedRef.current = true;
     } catch (err) {
       // Error loading chart review resources
       setError('Failed to load chart review data');
@@ -199,7 +219,7 @@ const useChartReviewResources = (patientId, options = {}) => {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
+  }, [patientId]); // Only depend on patientId since we use refs for context functions
 
   // Process conditions with filtering and grouping
   const processConditions = (data, filters, sortOrder) => {
@@ -380,6 +400,13 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processProcedures = (data, filters, sortOrder) => {
     let processed = data;
 
+    // Debug logging (disabled)
+    // console.log('[useChartReviewResources] Processing procedures:', {
+    //   inputCount: data.length,
+    //   filters,
+    //   sortOrder
+    // });
+
     // Filter by status - procedures use 'completed', 'in-progress', etc.
     if (filters.status !== 'all') {
       if (filters.status === 'active') {
@@ -407,11 +434,23 @@ const useChartReviewResources = (patientId, options = {}) => {
     processed.sort((a, b) => {
       const dateA = a.performedDateTime || a.performedPeriod?.start;
       const dateB = b.performedDateTime || b.performedPeriod?.start;
-      if (!dateA || !dateB) return 0;
-      return sortOrder === 'desc' 
+      if (!dateA || !dateB) {
+        // For stable sorting when dates are missing
+        if (!dateA && !dateB) return a.id.localeCompare(b.id);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+      }
+      const dateComparison = sortOrder === 'desc' 
         ? dateB.localeCompare(dateA)
         : dateA.localeCompare(dateB);
+      // Add stable secondary sort by ID
+      return dateComparison !== 0 ? dateComparison : a.id.localeCompare(b.id);
     });
+
+    // console.log('[useChartReviewResources] Processed procedures:', {
+    //   outputCount: processed.length,
+    //   firstFewIds: processed.slice(0, 5).map(p => p.id)
+    // });
 
     return processed;
   };
@@ -455,6 +494,13 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processCarePlans = (data, filters, sortOrder) => {
     let processed = data;
 
+    // Debug logging (disabled)
+    // console.log('[useChartReviewResources] Processing care plans:', {
+    //   inputCount: data.length,
+    //   filters,
+    //   sortOrder
+    // });
+
     // Filter by status - care plans use 'active', 'completed', 'draft', etc.
     if (filters.status !== 'all') {
       // CarePlan status values align well with 'active' filter
@@ -478,11 +524,23 @@ const useChartReviewResources = (patientId, options = {}) => {
     processed.sort((a, b) => {
       const dateA = a.created || a.period?.start;
       const dateB = b.created || b.period?.start;
-      if (!dateA || !dateB) return 0;
-      return sortOrder === 'desc' 
+      if (!dateA || !dateB) {
+        // For stable sorting when dates are missing
+        if (!dateA && !dateB) return a.id.localeCompare(b.id);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+      }
+      const dateComparison = sortOrder === 'desc' 
         ? dateB.localeCompare(dateA)
         : dateA.localeCompare(dateB);
+      // Add stable secondary sort by ID
+      return dateComparison !== 0 ? dateComparison : a.id.localeCompare(b.id);
     });
+
+    // console.log('[useChartReviewResources] Processed care plans:', {
+    //   outputCount: processed.length,
+    //   firstFewIds: processed.slice(0, 5).map(cp => cp.id)
+    // });
 
     return processed;
   };
@@ -582,11 +640,11 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Refresh data - reset and reload
   const refresh = useCallback(() => {
-    hasLoadedRef.current = false;
-    if (!loadingRef.current && patientId && getPatientResources && fetchPatientBundle && searchFHIRResources) {
-      loadResources();
-    }
-  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, loadResources]);
+    console.log('[useChartReviewResources] Refresh called');
+    loadedPatientRef.current = null; // Clear the loaded patient to force reload
+    loadResources();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // No dependencies, loadResources is stable
 
   // Get summary statistics
   const getSummaryStats = useMemo(() => {
@@ -652,6 +710,8 @@ const useChartReviewResources = (patientId, options = {}) => {
   useEffect(() => {
     if (!realTimeUpdates || !patientId) return;
 
+    // console.log('[useChartReviewResources] Setting up real-time subscriptions for patient:', patientId);
+
     const subscriptions = [];
 
     // Subscribe to resource update events
@@ -665,6 +725,12 @@ const useChartReviewResources = (patientId, options = {}) => {
       const unsubscribe = subscribe(
         `RESOURCE_${resourceType.toUpperCase()}_UPDATED`,
         (event) => {
+          // console.log('[useChartReviewResources] Resource update event:', {
+          //   resourceType,
+          //   eventPatientId: event.patientId,
+          //   currentPatientId: patientId,
+          //   willRefresh: event.patientId === patientId
+          // });
           if (event.patientId === patientId) {
             refresh();
           }
@@ -674,31 +740,52 @@ const useChartReviewResources = (patientId, options = {}) => {
     });
 
     return () => {
+      // console.log('[useChartReviewResources] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, realTimeUpdates, subscribe, refresh]);
 
+  // Add debug logging for hook creation
+  useEffect(() => {
+    console.log('[useChartReviewResources] Hook initialized/re-created at:', new Date().toISOString());
+    return () => {
+      console.log('[useChartReviewResources] Hook cleanup at:', new Date().toISOString());
+    };
+  }, []);
+
+  // Track if we've loaded for this specific patient
+  const loadedPatientRef = useRef(null);
+
   // Load data when patient changes
   useEffect(() => {
+    console.log('[useChartReviewResources] Load effect triggered:', {
+      patientId,
+      loadedPatient: loadedPatientRef.current,
+      hasLoaded: hasLoadedRef.current,
+      loading: loadingRef.current,
+      timestamp: new Date().toISOString()
+    });
+
     if (!patientId) {
       hasLoadedRef.current = false;
+      loadedPatientRef.current = null;
       return;
     }
 
-    // Reset when patient changes
-    if (hasLoadedRef.current) {
-      hasLoadedRef.current = false;
+    // Skip if already loaded for this specific patient
+    if (loadingRef.current || loadedPatientRef.current === patientId) {
+      console.log('[useChartReviewResources] Skipping - already loaded for patient:', patientId);
+      return;
     }
 
-    // Wait a bit for context to be ready, then load
-    const timer = setTimeout(() => {
-      if (getPatientResources && fetchPatientBundle && searchFHIRResources && isCacheWarm && !hasLoadedRef.current && !loadingRef.current) {
-        loadResources();
-      }
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm, loadResources]);
+    // Mark this patient as loaded
+    loadedPatientRef.current = patientId;
+
+    // Load resources directly without timeout
+    console.log('[useChartReviewResources] Calling loadResources for patient:', patientId);
+    loadResources();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]); // Only depend on patientId, loadResources is stable due to refs
 
   return {
     // Resources - return processed versions
