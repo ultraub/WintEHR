@@ -52,11 +52,17 @@ from .models import (
 from .medication_prescribe_hooks import medication_prescribe_hooks
 from .rules_engine.integration import cds_integration
 from .rules_engine.safety import safety_manager, FeatureFlag
+from .service_registry import service_registry, register_builtin_services
+from .service_implementations import register_example_services
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CDS Hooks"])
+
+# Initialize service registry with built-in services
+register_builtin_services()
+register_example_services(service_registry)
 
 # Include action execution router
 from .action_router import router as action_router
@@ -918,8 +924,32 @@ class CDSHookEngine:
 
 # CDS Hooks Discovery Endpoint
 @router.get("/cds-services", response_model=CDSServicesResponse)
-async def discover_services(db: AsyncSession = Depends(get_db_session)):
+async def discover_services(db: AsyncSession = Depends(get_db_session), use_registry: bool = False):
     """CDS Hooks discovery endpoint - returns available services"""
+    
+    # Option to use new service registry
+    if use_registry:
+        registry_services = service_registry.list_services()
+        # Also include legacy services from database
+        try:
+            db_hooks = await load_hooks_from_database(db)
+            for hook_id, hook_config in db_hooks.items():
+                if hook_config.enabled and hook_id not in [s.id for s in registry_services]:
+                    service = CDSService(
+                        hook=hook_config.hook,
+                        title=hook_config.title,
+                        description=hook_config.description,
+                        id=hook_id,
+                        prefetch=hook_config.prefetch,
+                        usageRequirements=hook_config.usageRequirements
+                    )
+                    registry_services.append(service)
+        except Exception as e:
+            logger.error(f"Error loading legacy services: {e}")
+        
+        return CDSServicesResponse(services=registry_services)
+    
+    # Legacy discovery logic
     services = []
     
     try:
@@ -973,9 +1003,21 @@ async def execute_service(
     service_id: str,
     request: CDSHookRequest,
     db: AsyncSession = Depends(get_db_session),
-    use_rules_engine: bool = False  # Query parameter to optionally use rules engine
+    use_rules_engine: bool = False,  # Query parameter to optionally use rules engine
+    use_registry: bool = False  # Query parameter to use service registry
 ):
     """Execute a specific CDS service"""
+    
+    # Option to use service registry
+    if use_registry:
+        try:
+            # Try to execute through service registry first
+            if service_registry.get_service_definition(service_id):
+                response = await service_registry.invoke_service(service_id, request, db)
+                return response
+        except Exception as e:
+            logger.error(f"Error executing service {service_id} through registry: {e}")
+            # Fall through to legacy execution
     # Check if we should use the rules engine for certain services
     rules_engine_services = {
         "medication-prescribe-v2", "patient-view-v2", "order-select-v2",
@@ -1674,6 +1716,34 @@ async def get_ab_test_results():
         raise HTTPException(status_code=500, detail="Failed to get A/B test results")
 
 
+# Service Registry Management Endpoints
+@router.get("/registry/services")
+async def list_registry_services():
+    """List all services registered in the service registry"""
+    services = service_registry.list_services()
+    return {
+        "status": "success",
+        "count": len(services),
+        "services": [s.dict() for s in services]
+    }
+
+
+@router.get("/registry/services/{service_id}")
+async def get_registry_service(service_id: str):
+    """Get details of a specific service from the registry"""
+    definition = service_registry.get_service_definition(service_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found in registry")
+    
+    has_implementation = service_registry.get_service_implementation(service_id) is not None
+    
+    return {
+        "status": "success",
+        "service": definition.dict(),
+        "has_implementation": has_implementation
+    }
+
+
 # Health check endpoint
 @router.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db_session)):
@@ -1695,6 +1765,10 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         rules_stats = {}
         rules_engine_status = f"error: {str(e)}"
     
+    # Get service registry information
+    registry_services = service_registry.list_services()
+    registry_count = len(registry_services)
+    
     return {
         "status": "healthy",
         "service": "CDS Hooks",
@@ -1702,8 +1776,13 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "sample_hooks_count": len(SAMPLE_HOOKS),
         "database_status": db_status,
         "database_hooks_count": db_hooks_count,
-        "total_hooks": db_hooks_count + len(SAMPLE_HOOKS),
+        "registry_services_count": registry_count,
+        "total_services": db_hooks_count + len(SAMPLE_HOOKS) + registry_count,
         "rules_engine_status": rules_engine_status,
         "rules_engine_statistics": rules_stats,
+        "service_registry": {
+            "status": "active",
+            "services": [s.id for s in registry_services]
+        },
         "timestamp": datetime.now().isoformat()
     }

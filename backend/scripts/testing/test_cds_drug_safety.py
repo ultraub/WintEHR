@@ -11,7 +11,7 @@ from datetime import datetime
 
 # API configuration
 BASE_URL = "http://localhost:8000"
-CDS_HOOKS_BASE = f"{BASE_URL}/cds-hooks"
+CDS_HOOKS_BASE = f"{BASE_URL}/cds-services"
 
 async def test_cds_services_discovery():
     """Test CDS services discovery endpoint"""

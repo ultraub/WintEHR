@@ -9,7 +9,7 @@ class CDSHooksClient {
   constructor() {
     // Use backend URL directly in development, relative URL in production
     this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || 
-                   (process.env.NODE_ENV === 'development' ? 'http://localhost:8000/cds-hooks' : '/cds-hooks');
+                   (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       timeout: 10000, // 10 second timeout

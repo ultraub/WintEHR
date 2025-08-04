@@ -307,7 +307,7 @@ run_deployment() {
     info "  Backend:   http://localhost:8000"
     info "  API Docs:  http://localhost:8000/docs"
     info "  FHIR API:  http://localhost:8000/fhir/R4"
-    info "  CDS Hooks: http://localhost:8000/cds-hooks/services"
+    info "  CDS Hooks: http://localhost:8000/cds-services"
     
     echo ""
     info "📊 Quick Health Check:"

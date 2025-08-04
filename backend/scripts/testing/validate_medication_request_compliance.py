@@ -265,7 +265,7 @@ async def validate_cds_integration():
     try:
         async with aiohttp.ClientSession() as session:
             # Check CDS hooks discovery endpoint
-            async with session.get('http://localhost:8000/cds-hooks') as response:
+            async with session.get('http://localhost:8000/cds-services') as response:
                 if response.status == 200:
                     hooks_data = await response.json()
                     services = hooks_data.get('services', [])

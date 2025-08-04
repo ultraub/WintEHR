@@ -442,7 +442,7 @@ http {
             proxy_cache_bypass $http_upgrade;
         }
 
-        location ~ ^/(api|fhir|cds-hooks|ws) {
+        location ~ ^/(api|fhir|cds-services|ws) {
             proxy_pass http://backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -606,7 +606,7 @@ display_summary() {
     info "  Backend API: http://localhost:8000"
     info "  API Docs: http://localhost:8000/docs"
     info "  FHIR API: http://localhost:8000/fhir/R4/"
-    info "  CDS Hooks: http://localhost:8000/cds-hooks/cds-services"
+    info "  CDS Hooks: http://localhost:8000/cds-services"
     
     echo ""
     info "Credentials:"

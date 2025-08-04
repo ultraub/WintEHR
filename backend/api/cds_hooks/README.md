@@ -3,12 +3,19 @@
 ## Overview
 The CDS Hooks module implements the HL7 CDS Hooks 1.0 specification, providing clinical decision support integration points throughout the EMR. It enables real-time, context-aware clinical guidance through standardized service discovery and card-based recommendations.
 
+**⚠️ Important Update (2025-08-04)**: The module has been updated to be fully CDS Hooks 1.0 compliant:
+- API endpoints changed from `/cds-hooks` to `/cds-services`
+- Terminology updated: "services" instead of "hooks"
+- Service registry pattern implemented
+- Non-standard fields removed (conditions, displayBehavior)
+
 ## Current Implementation Details
 
 ### Core Components
 - **cds_hooks_router.py**: Main FastAPI router for CDS Hooks endpoints
-- **cds_services.py**: Pre-configured clinical decision support rules
-- **hook_persistence.py**: Database storage for custom hooks
+- **service_registry.py**: Service registry pattern for clean separation
+- **service_implementations.py**: Example service implementations
+- **hook_persistence.py**: Database storage for legacy hooks
 - **models.py**: Pydantic models for CDS Hooks data structures
 
 ### Implemented Hooks
@@ -38,14 +45,15 @@ The CDS Hooks module implements the HL7 CDS Hooks 1.0 specification, providing c
 ### Specification Compliance
 | Feature | Status | Notes |
 |---------|--------|-------|
-| **Discovery Endpoint** | ✅ Complete | GET /cds-hooks/services |
-| **Service Endpoints** | ✅ Complete | POST /cds-hooks/services/{id} |
+| **Discovery Endpoint** | ✅ Complete | GET /cds-services |
+| **Service Endpoints** | ✅ Complete | POST /cds-services/{id} |
 | **Prefetch Templates** | ✅ Complete | FHIR query support |
 | **Cards Response** | ✅ Complete | All card types supported |
 | **Suggestions** | ✅ Complete | Action suggestions |
 | **App Links** | ✅ Complete | SMART app launch |
-| **Feedback Endpoint** | ✅ Complete | POST /cds-hooks/feedback |
+| **Feedback Endpoint** | ✅ Complete | POST /cds-services/{id}/feedback |
 | **Analytics** | ⚠️ Basic | Usage tracking implemented |
+| **Service Registry** | ✅ Complete | Clean separation of config/logic |
 
 ### Request/Response Format
 ```python
@@ -163,24 +171,57 @@ The CDS Hooks module implements the HL7 CDS Hooks 1.0 specification, providing c
 
 **Exercise**: Optimize a slow-running CDS service
 
+## Service Registry Pattern
+
+### Overview
+The service registry pattern provides a clean separation between service configuration and implementation logic:
+
+```python
+# Define service metadata
+definition = ServiceDefinition(
+    id="diabetes-screening",
+    hook="patient-view",
+    title="Diabetes Screening",
+    description="Screens for diabetes",
+    prefetch={
+        "patient": "Patient/{{context.patientId}}"
+    }
+)
+
+# Implement service logic
+class DiabetesScreeningService(ServiceImplementation):
+    async def should_execute(self, context, prefetch):
+        # Logic replaces "conditions" configuration
+        patient = prefetch.get("patient")
+        age = calculate_age(patient.get("birthDate"))
+        return age >= 45
+    
+    async def execute(self, context, prefetch):
+        # Generate cards based on logic
+        return [self.create_card(...)]
+
+# Register the service
+service_registry.register_service(definition, implementation)
+```
+
+### Usage
+```bash
+# Enable service registry
+GET /cds-services?use_registry=true
+POST /cds-services/{id}?use_registry=true
+
+# View registry services
+GET /cds-services/registry/services
+```
+
 ## Best Practices Demonstrated
 
-### 1. **Service Registration**
+### 1. **Service Discovery**
 ```python
-@router.get("/cds-hooks/services")
+@router.get("/cds-services")
 async def discover_services():
     """CDS Hooks discovery endpoint."""
-    services = []
-    
-    for service_id, service in CDS_SERVICES.items():
-        services.append({
-            "hook": service["hook"],
-            "id": service_id,
-            "title": service["title"],
-            "description": service["description"],
-            "prefetch": service.get("prefetch", {})
-        })
-    
+    services = service_registry.list_services()
     return {"services": services}
 ```
 

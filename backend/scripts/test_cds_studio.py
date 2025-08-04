@@ -9,8 +9,8 @@ BASE_URL = "http://localhost:8000"
 
 def test_hooks_endpoint():
     """Test the hooks listing endpoint"""
-    print("Testing /cds-hooks/hooks endpoint...")
-    response = requests.get(f"{BASE_URL}/cds-hooks/hooks")
+    print("Testing /cds-services/hooks endpoint...")
+    response = requests.get(f"{BASE_URL}/cds-services/hooks")
     
     if response.status_code == 200:
         hooks = response.json()
@@ -24,8 +24,8 @@ def test_hooks_endpoint():
 
 def test_services_discovery():
     """Test the CDS services discovery endpoint"""
-    print("\nTesting /cds-hooks/cds-services endpoint...")
-    response = requests.get(f"{BASE_URL}/cds-hooks/cds-services")
+    print("\nTesting /cds-services endpoint...")
+    response = requests.get(f"{BASE_URL}/cds-services")
     
     if response.status_code == 200:
         data = response.json()

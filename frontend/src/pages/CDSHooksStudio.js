@@ -35,6 +35,7 @@ import {
   School as LearnIcon,
   Build as BuildIcon,
   Dashboard as ManageIcon,
+  Transform as TransformIcon,
   PlayArrow as PlayIcon,
   Save as SaveIcon,
   Add as AddIcon,
@@ -54,6 +55,7 @@ import {
 import CDSLearnMode from '../components/cds-studio/learn/CDSLearnMode';
 import { CDSBuildMode, CDSBuildModeImproved } from '../components/cds-studio/build/CDSBuildModeWrapper';
 import CDSManageMode from '../components/cds-studio/manage/CDSManageMode';
+import CDSMigrationTool from '../components/cds-studio/migration/CDSMigrationTool';
 
 // Import error boundary and loading states
 import CDSErrorBoundary from '../components/cds-studio/shared/CDSErrorBoundary';
@@ -228,7 +230,7 @@ export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange, onRefr
   }, [validateHook]);
 
   // Hook management functions
-  const updateHook = useCallback((updates) => {
+  const updateService = useCallback((updates) => {
     setCurrentHook(prev => {
       const updated = { ...prev, ...updates };
       
@@ -261,14 +263,14 @@ export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange, onRefr
     });
   }, [generateHookId, onHookChange]);
 
-  const testHook = useCallback(async (patientId) => {
+  const testService = useCallback(async (patientId) => {
     const validationResult = validateHook();
     if (!validationResult.isValid) {
       return { success: false, error: 'Validation failed' };
     }
 
     try {
-      const result = await cdsHooksService.testHook(currentHook, { patientId });
+      const result = await cdsHooksService.testService(currentHook, { patientId });
       setTestResults(result);
       return { success: true, result };
     } catch (error) {
@@ -277,7 +279,7 @@ export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange, onRefr
     }
   }, [currentHook, validateHook]);
 
-  const saveHook = useCallback(async () => {
+  const saveService = useCallback(async () => {
     // console.log('Save hook called, current hook:', currentHook);
     
     // Small delay to ensure state is fully propagated
@@ -385,11 +387,11 @@ export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange, onRefr
       if (isExistingHook) {
         // This is an existing hook being updated
         // console.log('Updating existing hook:', currentHook.id);
-        result = await cdsHooksService.updateHook(currentHook.id, hookDataToSave);
+        result = await cdsHooksService.updateService(currentHook.id, hookDataToSave);
       } else {
         // This is a new hook being created (even if it has an auto-generated ID)
         // console.log('Creating new hook:', hookDataToSave.id);
-        result = await cdsHooksService.createHook(hookDataToSave);
+        result = await cdsHooksService.createService(hookDataToSave);
       }
 
       // Step 3: Process response (80%)
@@ -486,10 +488,10 @@ export const CDSStudioProvider = ({ children, onModeSwitch, onHookChange, onRefr
     isLoading,
     loadingMessage,
     actions: {
-      updateHook,
+      updateHook: updateService,
       validateHook,
-      testHook,
-      saveHook,
+      testHook: testService,
+      saveHook: saveService,
       setCurrentHook: (hook) => {
         setCurrentHook(hook);
         if (onHookChange) {
@@ -618,7 +620,7 @@ const SaveButton = () => {
 
 // Main CDS Hooks Studio component
 function CDSHooksStudio() {
-  const [currentMode, setCurrentMode] = useState('build'); // learn, build, manage
+  const [currentMode, setCurrentMode] = useState('build'); // learn, build, manage, migrate
   const [showHelp, setShowHelp] = useState(false);
   const [pendingEditHook, setPendingEditHook] = useState(null);
   const [manageRefreshTrigger, setManageRefreshTrigger] = useState(0);
@@ -677,7 +679,8 @@ function CDSHooksStudio() {
   const modeDescriptions = {
     learn: 'Interactive tutorials and examples to master CDS Hooks',
     build: 'Visual tools to create and test clinical decision support rules',
-    manage: 'Organize, analyze, and collaborate on your CDS hooks'
+    manage: 'Organize, analyze, and collaborate on your CDS services',
+    migrate: 'Migrate existing hooks to CDS Hooks 1.0 specification compliance'
   };
 
   return (
@@ -722,6 +725,13 @@ function CDSHooksStudio() {
                   iconPosition="start"
                   sx={{ minHeight: 36, py: 0 }}
                 />
+                <Tab 
+                  label="Migrate" 
+                  value="migrate" 
+                  icon={<TransformIcon sx={{ fontSize: 18 }} />}
+                  iconPosition="start"
+                  sx={{ minHeight: 36, py: 0 }}
+                />
               </Tabs>
             </Grid>
             <Grid item>
@@ -742,8 +752,9 @@ function CDSHooksStudio() {
           <Alert severity="info" sx={{ mb: 1, py: 1 }} onClose={() => setShowHelp(false)}>
             <Stack spacing={0.5}>
               <Typography variant="caption"><strong>Learn</strong>: Interactive tutorials and examples</Typography>
-              <Typography variant="caption"><strong>Build</strong>: Create hooks with visual tools and templates</Typography>
-              <Typography variant="caption"><strong>Manage</strong>: View, test, and organize your hooks</Typography>
+              <Typography variant="caption"><strong>Build</strong>: Create services with visual tools and templates</Typography>
+              <Typography variant="caption"><strong>Manage</strong>: View, test, and organize your services</Typography>
+              <Typography variant="caption"><strong>Migrate</strong>: Convert existing hooks to spec-compliant services</Typography>
             </Stack>
           </Alert>
         )}
@@ -808,6 +819,21 @@ function CDSHooksStudio() {
                     // Switch to build mode
                     setCurrentMode('build');
                   }
+                }}
+              />
+            </CDSErrorBoundary>
+          )}
+          {currentMode === 'migrate' && (
+            <CDSErrorBoundary 
+              componentName="Migration Tool"
+              onRetry={() => window.location.reload()}
+              onReset={() => setCurrentMode('manage')}
+            >
+              <CDSMigrationTool 
+                onComplete={() => {
+                  // Refresh the manage tab after migration
+                  setManageRefreshTrigger(prev => prev + 1);
+                  setCurrentMode('manage');
                 }}
               />
             </CDSErrorBoundary>

@@ -88,7 +88,7 @@ def register_all_routers(app: FastAPI) -> None:
         from api.fhir_schema_router import router as fhir_schema_router
         from api.fhir_capability_schema_router import router as fhir_capability_schema_router
         
-        app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+        app.include_router(cds_hooks_router, prefix="/cds-services", tags=["CDS Hooks"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
         app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])

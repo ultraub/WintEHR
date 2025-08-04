@@ -491,7 +491,7 @@ FHIR_PATIENTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/fh
 validate_test "FHIR Patient Search" $([ "$FHIR_PATIENTS" = "200" ] && echo "PASS" || echo "FAIL") "Status: $FHIR_PATIENTS"
 
 # CDS Hooks discovery
-CDS_DISCOVERY=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/cds-hooks/services || echo "000")
+CDS_DISCOVERY=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/cds-services || echo "000")
 validate_test "CDS Hooks Discovery" $([ "$CDS_DISCOVERY" = "200" ] && echo "PASS" || echo "FAIL") "Status: $CDS_DISCOVERY"
 
 # Authentication endpoint

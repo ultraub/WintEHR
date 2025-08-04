@@ -70,6 +70,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
+  ContentCopy,
   Visibility as PreviewIcon,
   Code as CodeIcon,
   PlayArrow as TestIcon,
@@ -82,7 +83,10 @@ import {
   Category as TemplateIcon,
   Help as HelpIcon,
   ArrowBack as BackIcon,
-  ArrowForward as NextIcon
+  ArrowForward as NextIcon,
+  CallMade,
+  CallReceived,
+  Download
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCDSStudio } from '../../../pages/CDSHooksStudio';
@@ -90,10 +94,10 @@ import { cdsHooksService } from '../../../services/cdsHooksService';
 import CDSHookBuilder from '../../clinical/workspace/cds/CDSHookBuilder';
 import CardBuilder from '../../clinical/workspace/cds/CardBuilder';
 import CDSCardDisplay from '../../clinical/workspace/cds/CDSCardDisplay';
-import DisplayBehaviorConfiguration from '../../clinical/workspace/cds/DisplayBehaviorConfiguration';
 import PrefetchQueryBuilder from '../../clinical/workspace/cds/PrefetchQueryBuilder';
 import SuggestionBuilder from '../../clinical/workspace/cds/SuggestionBuilder';
 import { cdsClinicalDataService } from '../../../services/cdsClinicalDataService';
+import CDSHooksValidator from '../validation/CDSHooksValidator';
 
 // Hook templates for common scenarios
 const HOOK_TEMPLATES = [
@@ -107,13 +111,6 @@ const HOOK_TEMPLATES = [
       title: 'Drug Interaction Checker',
       description: 'Checks for potential drug-drug interactions when prescribing medications',
       hook: 'medication-prescribe',
-      conditions: [
-        {
-          type: 'medication',
-          operator: 'taking',
-          medication: null
-        }
-      ],
       cards: [
         {
           summary: 'Potential Drug Interaction Detected',
@@ -137,13 +134,6 @@ const HOOK_TEMPLATES = [
       title: 'Allergy Alert System',
       description: 'Alerts when prescribing medications that patient is allergic to',
       hook: 'medication-prescribe',
-      conditions: [
-        {
-          type: 'allergy',
-          operator: 'exists',
-          allergyType: 'medication'
-        }
-      ],
       cards: [
         {
           summary: 'Allergy Alert',
@@ -167,13 +157,6 @@ const HOOK_TEMPLATES = [
       title: 'Critical Lab Value Monitor',
       description: 'Monitors for critical lab values requiring immediate attention',
       hook: 'patient-view',
-      conditions: [
-        {
-          type: 'lab-value',
-          operator: 'critical',
-          labTest: null
-        }
-      ],
       cards: [
         {
           summary: 'Critical Lab Value',
@@ -196,13 +179,6 @@ const HOOK_TEMPLATES = [
       title: 'Preventive Care Reminders',
       description: 'Reminds about due preventive care measures',
       hook: 'patient-view',
-      conditions: [
-        {
-          type: 'age',
-          operator: 'gte',
-          value: 50
-        }
-      ],
       cards: [
         {
           summary: 'Preventive Care Due',
@@ -225,9 +201,8 @@ const HOOK_TEMPLATES = [
 
 const STEPS = [
   'Basic Information',
-  'Conditions',
-  'Cards & Actions',
-  'Advanced Settings',
+  'Cards & Actions', 
+  'Prefetch Configuration',
   'Review & Test'
 ];
 
@@ -734,26 +709,11 @@ const CDSBuildModeEnhanced = () => {
     title: '',
     description: '',
     hook: 'patient-view',
-    conditions: [],
     cards: [],
     prefetch: {},
     enabled: true,
-    displayBehavior: {
-      defaultMode: 'popup',
-      acknowledgment: {
-        required: false,
-        reasonRequired: false
-      },
-      snooze: {
-        enabled: true,
-        defaultDuration: 60
-      },
-      indicatorOverrides: {
-        critical: 'modal',
-        warning: 'popup',
-        info: 'inline'
-      }
-    },
+    // Legacy field for compatibility
+    displayBehavior: null,
     _meta: {
       created: null,
       modified: new Date(),
@@ -763,10 +723,9 @@ const CDSBuildModeEnhanced = () => {
   });
   
   const [validation, setValidation] = useState({
-    basicInfo: { isValid: true, errors: [] }, // Start as valid to avoid initial errors
-    conditions: { isValid: true, errors: [] }, // Conditions are optional
-    cards: { isValid: true, errors: [] }, // Start as valid
-    advanced: { isValid: true, errors: [] }, // Advanced settings are optional
+    basicInfo: { isValid: true, errors: [] },
+    cards: { isValid: true, errors: [] },
+    prefetch: { isValid: true, errors: [] },
     overall: { isValid: true, errors: [], warnings: [] }
   });
   
@@ -777,6 +736,8 @@ const CDSBuildModeEnhanced = () => {
   const [saving, setSaving] = useState(false);
   const [testResults, setTestResults] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [testPatientId, setTestPatientId] = useState('test-patient-123');
+  const [reviewTab, setReviewTab] = useState(0);
   
   // Initialize from context
   useEffect(() => {
@@ -811,86 +772,69 @@ const CDSBuildModeEnhanced = () => {
   
   // Validation functions
   const validateStep = useCallback((step, hookData = hook) => {
-    const newValidation = { ...validation };
-    
-    switch (step) {
-      case 0: // Basic Information
-        const basicErrors = [];
-        if (!hookData.title?.trim()) {
-          basicErrors.push('Title is required');
-        }
-        if (!hookData.hook) {
-          basicErrors.push('Hook type is required');
-        }
-        newValidation.basicInfo = {
-          isValid: basicErrors.length === 0,
-          errors: basicErrors
-        };
-        break;
-        
-      case 1: // Conditions (optional)
-        const conditionErrors = [];
-        hookData.conditions?.forEach((condition, index) => {
-          if (condition.type && !condition.operator) {
-            conditionErrors.push(`Condition ${index + 1}: Operator is required`);
+    setValidation(prevValidation => {
+      const newValidation = { ...prevValidation };
+      
+      switch (step) {
+        case 0: // Basic Information
+          const basicErrors = [];
+          if (!hookData.title?.trim()) {
+            basicErrors.push('Title is required');
           }
-          if (condition.operator && condition.value === undefined) {
-            conditionErrors.push(`Condition ${index + 1}: Value is required`);
+          if (!hookData.hook) {
+            basicErrors.push('Hook type is required');
           }
-        });
-        newValidation.conditions = {
-          isValid: conditionErrors.length === 0,
-          errors: conditionErrors
-        };
-        break;
-        
-      case 2: // Cards
-        const cardErrors = [];
-        if (!hookData.cards || hookData.cards.length === 0) {
-          cardErrors.push('At least one card is required');
-        } else {
-          hookData.cards.forEach((card, index) => {
-            if (!card.summary?.trim()) {
-              cardErrors.push(`Card ${index + 1}: Summary is required`);
-            }
-            if (!card.indicator) {
-              cardErrors.push(`Card ${index + 1}: Severity indicator is required`);
-            }
-          });
-        }
-        newValidation.cards = {
-          isValid: cardErrors.length === 0,
-          errors: cardErrors
-        };
-        break;
-        
-      case 3: // Advanced Settings
-        // Advanced settings are optional, so always valid
-        newValidation.advanced = {
-          isValid: true,
-          errors: []
-        };
-        break;
-    }
-    
-    // Update overall validation
-    newValidation.overall = {
-      isValid: newValidation.basicInfo.isValid && 
-               newValidation.conditions.isValid && 
-               newValidation.cards.isValid &&
-               (newValidation.advanced?.isValid ?? true),
-      errors: [
-        ...newValidation.basicInfo.errors,
-        ...newValidation.conditions.errors,
-        ...newValidation.cards.errors,
-        ...(newValidation.advanced?.errors || [])
-      ],
-      warnings: []
-    };
-    
-    setValidation(newValidation);
-    return newValidation;
-  }, [hook, validation]);
+          newValidation.basicInfo = {
+            isValid: basicErrors.length === 0,
+            errors: basicErrors
+          };
+          break;
+          
+        case 1: // Cards
+          const cardErrors = [];
+          if (!hookData.cards || hookData.cards.length === 0) {
+            cardErrors.push('At least one card is required');
+          } else {
+            hookData.cards.forEach((card, index) => {
+              if (!card.summary?.trim()) {
+                cardErrors.push(`Card ${index + 1}: Summary is required`);
+              }
+              if (!card.indicator) {
+                cardErrors.push(`Card ${index + 1}: Severity indicator is required`);
+              }
+            });
+          }
+          newValidation.cards = {
+            isValid: cardErrors.length === 0,
+            errors: cardErrors
+          };
+          break;
+          
+        case 2: // Prefetch Configuration
+          // Prefetch configuration is optional, so always valid
+          newValidation.prefetch = {
+            isValid: true,
+            errors: []
+          };
+          break;
+      }
+      
+      // Update overall validation
+      newValidation.overall = {
+        isValid: (newValidation.basicInfo?.isValid ?? true) && 
+                 (newValidation.cards?.isValid ?? true) &&
+                 (newValidation.prefetch?.isValid ?? true),
+        errors: [
+          ...(newValidation.basicInfo?.errors || []),
+          ...(newValidation.cards?.errors || []),
+          ...(newValidation.prefetch?.errors || [])
+        ],
+        warnings: []
+      };
+      
+      return newValidation;
+    });
+  }, [hook]);
   
   // Update hook data
   const updateHook = useCallback((updates) => {
@@ -1126,6 +1070,18 @@ const CDSBuildModeEnhanced = () => {
                 />
               </Grid>
               
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Usage Requirements"
+                  value={hook.usageRequirements || ''}
+                  onChange={(e) => updateHook({ usageRequirements: e.target.value })}
+                  multiline
+                  rows={2}
+                  helperText="Optional: Any specific requirements or limitations for using this service"
+                />
+              </Grid>
+              
               {/* Template Selection */}
               <Grid item xs={12}>
                 <Button
@@ -1141,56 +1097,7 @@ const CDSBuildModeEnhanced = () => {
           </Box>
         );
         
-      case 1: // Conditions
-        return (
-          <Box sx={{ mt: 2 }}>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <AlertTitle>Conditions (Optional)</AlertTitle>
-              Define when this hook should trigger. Leave empty to always trigger.
-            </Alert>
-            
-            {/* Enhanced condition builder */}
-            <Stack spacing={2}>
-              {hook.conditions?.map((condition, index) => (
-                <ConditionCard
-                  key={condition.id || index}
-                  condition={condition}
-                  index={index}
-                  onUpdate={(updatedCondition) => {
-                    const newConditions = [...hook.conditions];
-                    newConditions[index] = updatedCondition;
-                    updateHook({ conditions: newConditions });
-                  }}
-                  onRemove={() => {
-                    const newConditions = hook.conditions.filter((_, i) => i !== index);
-                    updateHook({ conditions: newConditions });
-                  }}
-                  validation={validation}
-                />
-              ))}
-              
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => {
-                  updateHook({
-                    conditions: [...(hook.conditions || []), {
-                      id: `condition-${Date.now()}`,
-                      type: '',
-                      operator: '',
-                      value: '',
-                      enabled: true
-                    }]
-                  });
-                }}
-              >
-                Add Condition
-              </Button>
-            </Stack>
-          </Box>
-        );
-        
-      case 2: // Cards & Actions
+      case 1: // Cards & Actions
         return (
           <Box sx={{ mt: 2 }}>
             <Alert severity="warning" sx={{ mb: 2 }}>
@@ -1246,44 +1153,92 @@ const CDSBuildModeEnhanced = () => {
           </Box>
         );
         
-      case 3: // Advanced Settings
+      case 2: // Prefetch Configuration
         return (
           <Box sx={{ mt: 2 }}>
             <Alert severity="info" sx={{ mb: 2 }}>
-              <AlertTitle>Advanced Settings (Optional)</AlertTitle>
-              Configure display behavior, prefetch queries, and other advanced options.
+              <AlertTitle>Prefetch Configuration (Optional)</AlertTitle>
+              Define FHIR queries to pre-fetch data when your service is invoked. This improves performance by reducing the number of API calls.
             </Alert>
             
-            <Stack spacing={3}>
-              {/* Display Behavior Configuration */}
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Display Behavior
-                </Typography>
-                <DisplayBehaviorConfiguration
-                  config={hook.displayBehavior || {}}
-                  onChange={(behavior) => updateHook({ displayBehavior: behavior })}
-                />
-              </Paper>
-              
-              {/* Prefetch Query Builder */}
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Prefetch Queries
-                </Typography>
-                <PrefetchQueryBuilder
-                  queries={hook.prefetch || {}}
-                  onChange={(prefetch) => updateHook({ prefetch })}
-                />
-              </Paper>
-            </Stack>
+            {/* Prefetch Query Builder */}
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Prefetch Queries
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Define queries using FHIR search syntax. Use {`{{context.patientId}}`} for patient context.
+              </Typography>
+              <PrefetchQueryBuilder
+                queries={hook.prefetch || {}}
+                onChange={(prefetch) => updateHook({ prefetch })}
+              />
+            </Paper>
           </Box>
         );
         
-      case 4: // Review & Test
+      case 3: // Review & Test
+        // Generate the hook JSON for display
+        const hookJson = {
+          id: hook.id || 'generated-from-title',
+          hook: hook.hook,
+          title: hook.title,
+          description: hook.description,
+          // Prefetch queries define what FHIR data to retrieve
+          prefetch: hook.prefetch || {},
+          // Custom configuration (not part of standard CDS Hooks spec)
+          _config: {
+            // Cards are the alerts/recommendations shown to users
+            cards: hook.cards,
+            // Whether this hook is active
+            enabled: hook.enabled
+          }
+        };
+        
+        // Generate a sample request
+        const sampleRequest = {
+          hook: hook.hook,
+          hookInstance: `${Date.now()}`,
+          context: {
+            userId: 'Practitioner/example',
+            patientId: 'Patient/example',
+            encounterId: 'Encounter/example'
+          },
+          prefetch: Object.keys(hook.prefetch || {}).reduce((acc, key) => {
+            acc[key] = { resourceType: 'Bundle', entry: [] };
+            return acc;
+          }, {})
+        };
+        
+        // Generate a sample response
+        const sampleResponse = {
+          cards: hook.cards?.map((card, idx) => ({
+            uuid: `card-${Date.now()}-${idx}`,
+            summary: card.summary,
+            indicator: card.indicator,
+            detail: card.detail,
+            source: card.source,
+            suggestions: card.suggestions || [],
+            overrideReasonRequired: card.overrideReasonRequired || false,
+            links: card.links || []
+          })) || []
+        };
+        
         return (
           <Box sx={{ mt: 2 }}>
-            <Grid container spacing={3}>
+            <Paper sx={{ p: 1, mb: 2 }}>
+              <Tabs value={reviewTab} onChange={(e, v) => setReviewTab(v)} variant="fullWidth" scrollButtons="auto">
+                <Tab label="Summary" icon={<InfoIcon />} iconPosition="start" />
+                <Tab label="Validation" icon={<SuccessIcon />} iconPosition="start" />
+                <Tab label="Hook JSON" icon={<CodeIcon />} iconPosition="start" />
+                <Tab label="Sample Request" icon={<CallMade />} iconPosition="start" />
+                <Tab label="Sample Response" icon={<CallReceived />} iconPosition="start" />
+                <Tab label="Test Hook" icon={<TestIcon />} iconPosition="start" />
+              </Tabs>
+            </Paper>
+            
+            {reviewTab === 0 && (
+              <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
@@ -1299,9 +1254,6 @@ const CDSBuildModeEnhanced = () => {
                       </Typography>
                       <Typography variant="body2">
                         <strong>Status:</strong> {hook.enabled ? 'Enabled' : 'Disabled'}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Conditions:</strong> {hook.conditions?.length || 0}
                       </Typography>
                       <Typography variant="body2">
                         <strong>Cards:</strong> {hook.cards?.length || 0}
@@ -1333,28 +1285,28 @@ const CDSBuildModeEnhanced = () => {
                     </Typography>
                     <Stack spacing={1}>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {validation.basicInfo.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
+                        {validation?.basicInfo?.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
                         <Typography variant="body2">Basic Information</Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {validation.conditions.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
-                        <Typography variant="body2">Conditions</Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        {validation.cards.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
+                        {validation?.cards?.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
                         <Typography variant="body2">Cards & Actions</Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
-                        {(validation.advanced?.isValid ?? true) ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
-                        <Typography variant="body2">Advanced Settings</Typography>
+                        {validation?.prefetch?.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
+                        <Typography variant="body2">Prefetch Configuration</Typography>
+                      </Box>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {validation?.overall?.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
+                        <Typography variant="body2">Overall Status</Typography>
                       </Box>
                     </Stack>
                     
-                    {validation.overall.errors.length > 0 && (
+                    {validation?.overall?.errors?.length > 0 && (
                       <Alert severity="error" sx={{ mt: 2 }}>
                         <AlertTitle>Please fix these issues:</AlertTitle>
                         <ul style={{ margin: 0, paddingLeft: 20 }}>
-                          {validation.overall.errors.map((error, index) => (
+                          {validation?.overall?.errors?.map((error, index) => (
                             <li key={index}>{error}</li>
                           ))}
                         </ul>
@@ -1379,6 +1331,259 @@ const CDSBuildModeEnhanced = () => {
                 </Grid>
               )}
             </Grid>
+            )}
+            
+            {reviewTab === 1 && (
+              <Box>
+                <CDSHooksValidator 
+                  service={hookJson}
+                  onValidationComplete={(result) => {
+                    // Store validation result if needed
+                    console.log('Validation result:', result);
+                  }}
+                />
+              </Box>
+            )}
+            
+            {reviewTab === 2 && (
+              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Stack spacing={2}>
+                  <Typography variant="h6">Hook Configuration JSON</Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    This is how your CDS Hook is stored and configured in the system.
+                  </Typography>
+                  <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                    <Chip label="CDS Hooks 1.0 Spec" size="small" color="primary" />
+                    <Chip label={`Hook Type: ${hook.hook}`} size="small" />
+                    <Chip label={`${hook.cards?.length || 0} Cards`} size="small" />
+                  </Stack>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.900',
+                      color: 'grey.50',
+                      borderRadius: 1,
+                      overflow: 'auto',
+                      fontSize: '0.875rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {JSON.stringify(hookJson, null, 2)}
+                  </Box>
+                  <Stack direction="row" spacing={2}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<ContentCopy />}
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(hookJson, null, 2));
+                        setSnackbar({
+                          open: true,
+                          message: 'Hook JSON copied to clipboard',
+                          severity: 'success'
+                        });
+                      }}
+                    >
+                      Copy JSON
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Download />}
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(hookJson, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${hook.id || 'cds-hook'}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        setSnackbar({
+                          open: true,
+                          message: 'Hook JSON downloaded',
+                          severity: 'success'
+                        });
+                      }}
+                    >
+                      Download JSON
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            )}
+            
+            {reviewTab === 3 && (
+              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Stack spacing={2}>
+                  <Typography variant="h6">Sample CDS Request</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    This is an example of what the EHR sends to your CDS service when the hook is triggered.
+                  </Typography>
+                  <Stack spacing={2} sx={{ mb: 2 }}>
+                    <Alert severity="info">
+                      The actual request will include real patient data and prefetched FHIR resources based on your configuration.
+                    </Alert>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>Key Request Fields:</Typography>
+                      <Typography variant="body2" component="div">
+                        • <strong>hook</strong>: The hook type that triggered this request<br/>
+                        • <strong>hookInstance</strong>: Unique identifier for this specific invocation<br/>
+                        • <strong>context</strong>: FHIR resources relevant to the hook (patient, user, etc.)<br/>
+                        • <strong>prefetch</strong>: Pre-fetched FHIR data based on your queries
+                      </Typography>
+                    </Paper>
+                  </Stack>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.900',
+                      color: 'grey.50',
+                      borderRadius: 1,
+                      overflow: 'auto',
+                      fontSize: '0.875rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {JSON.stringify(sampleRequest, null, 2)}
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ContentCopy />}
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(sampleRequest, null, 2));
+                      setSnackbar({
+                        open: true,
+                        message: 'Sample request copied to clipboard',
+                        severity: 'success'
+                      });
+                    }}
+                  >
+                    Copy Request
+                  </Button>
+                </Stack>
+              </Paper>
+            )}
+            
+            {reviewTab === 4 && (
+              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Stack spacing={2}>
+                  <Typography variant="h6">Sample CDS Response</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    This is what your CDS service returns to the EHR, containing cards to display to the user.
+                  </Typography>
+                  <Stack spacing={2} sx={{ mb: 2 }}>
+                    <Alert severity="info">
+                      Each card includes a unique UUID, summary, severity indicator, and optional suggestions or links.
+                    </Alert>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>Card Indicators:</Typography>
+                      <Stack spacing={1}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip label="critical" size="small" color="error" />
+                          <Typography variant="body2">Urgent, requires immediate attention</Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip label="warning" size="small" color="warning" />
+                          <Typography variant="body2">Important, should be addressed</Typography>
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip label="info" size="small" color="info" />
+                          <Typography variant="body2">Informational, good to know</Typography>
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  </Stack>
+                  <Box
+                    component="pre"
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.900',
+                      color: 'grey.50',
+                      borderRadius: 1,
+                      overflow: 'auto',
+                      fontSize: '0.875rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {JSON.stringify(sampleResponse, null, 2)}
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ContentCopy />}
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(sampleResponse, null, 2));
+                      setSnackbar({
+                        open: true,
+                        message: 'Sample response copied to clipboard',
+                        severity: 'success'
+                      });
+                    }}
+                  >
+                    Copy Response
+                  </Button>
+                </Stack>
+              </Paper>
+            )}
+            
+            {reviewTab === 5 && (
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Test Your Hook
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Test your hook with a sample patient to see how it works in practice.
+                      </Typography>
+                      <TextField
+                        label="Test Patient ID"
+                        value={testPatientId}
+                        onChange={(e) => setTestPatientId(e.target.value)}
+                        fullWidth
+                        sx={{ mb: 2 }}
+                        helperText="Enter a patient ID to test with"
+                      />
+                      <Button
+                        variant="contained"
+                        startIcon={<TestIcon />}
+                        onClick={testHook}
+                        disabled={!validation.overall.isValid}
+                        fullWidth
+                      >
+                        Run Test
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                {testResults && (
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                          Test Results
+                        </Typography>
+                        <Box
+                          component="pre"
+                          sx={{
+                            p: 2,
+                            bgcolor: 'grey.100',
+                            borderRadius: 1,
+                            overflow: 'auto',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          {JSON.stringify(testResults, null, 2)}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+              </Grid>
+            )}
           </Box>
         );
         
@@ -1389,11 +1594,16 @@ const CDSBuildModeEnhanced = () => {
   
   // Get step icon based on validation
   const getStepIcon = (step) => {
-    const isValid = step === 0 ? validation.basicInfo.isValid :
-                   step === 1 ? validation.conditions.isValid :
-                   step === 2 ? validation.cards.isValid :
-                   step === 3 ? (validation.advanced?.isValid ?? true) :
-                   validation.overall.isValid;
+    // Ensure validation object exists with proper structure
+    if (!validation) {
+      return <RadioButtonUnchecked />;
+    }
+    
+    const isValid = step === 0 ? validation?.basicInfo?.isValid ?? true :
+                   step === 1 ? validation?.cards?.isValid ?? true :
+                   step === 2 ? validation?.prefetch?.isValid ?? true :
+                   step === 3 ? validation?.overall?.isValid ?? true :
+                   true;
     
     if (step < activeStep) {
       return isValid ? <CheckIcon /> : <ErrorIcon />;
@@ -1610,7 +1820,7 @@ const CDSBuildModeEnhanced = () => {
               <CDSCardDisplay
                 key={index}
                 card={card}
-                displayBehavior={{ presentationMode: 'inline' }}
+                // Display behavior removed - client-specific
               />
             ))}
           </Stack>
