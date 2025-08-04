@@ -92,7 +92,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
   const publish = useCallback(async (eventType, data) => {
     // Send event via WebSocket if connected
     if (wsConnected) {
-      websocketService.send(eventType, {
+      websocketService.publish(eventType, {
         ...data,
         patientId: currentPatient?.id,
         userId: currentUser?.id,

@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
+import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
 
 const useChartReviewResources = (patientId, options = {}) => {
   const {
@@ -638,11 +639,24 @@ const useChartReviewResources = (patientId, options = {}) => {
     updateFilters({ searchText });
   }, [updateFilters]);
 
-  // Refresh data - reset and reload
+  // Debounce timer ref for refresh
+  const refreshTimerRef = useRef(null);
+
+  // Refresh data - reset and reload with debounce
   const refresh = useCallback(() => {
     console.log('[useChartReviewResources] Refresh called');
-    loadedPatientRef.current = null; // Clear the loaded patient to force reload
-    loadResources();
+    
+    // Clear any pending refresh
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    
+    // Debounce refresh to prevent rapid reloads
+    refreshTimerRef.current = setTimeout(() => {
+      console.log('[useChartReviewResources] Executing refresh after debounce');
+      loadedPatientRef.current = null; // Clear the loaded patient to force reload
+      loadResources();
+    }, 500); // 500ms debounce
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // No dependencies, loadResources is stable
 
@@ -710,46 +724,72 @@ const useChartReviewResources = (patientId, options = {}) => {
   useEffect(() => {
     if (!realTimeUpdates || !patientId) return;
 
-    // console.log('[useChartReviewResources] Setting up real-time subscriptions for patient:', patientId);
+    console.log('[useChartReviewResources] Setting up real-time subscriptions for patient:', patientId);
 
     const subscriptions = [];
 
-    // Subscribe to resource update events
-    const resourceTypes = [
-      'Condition', 'MedicationRequest', 'AllergyIntolerance', 
-      'Immunization', 'Observation', 'Procedure', 'Encounter',
-      'CarePlan', 'DocumentReference'
+    // Map of resource events to listen for
+    const eventMappings = [
+      // Conditions
+      { events: [CLINICAL_EVENTS.CONDITION_ADDED, CLINICAL_EVENTS.CONDITION_UPDATED, CLINICAL_EVENTS.CONDITION_RESOLVED, CLINICAL_EVENTS.CONDITION_DELETED] },
+      // Medications
+      { events: [CLINICAL_EVENTS.MEDICATION_PRESCRIBED, CLINICAL_EVENTS.MEDICATION_UPDATED, CLINICAL_EVENTS.MEDICATION_DISCONTINUED] },
+      // Allergies
+      { events: [CLINICAL_EVENTS.ALLERGY_ADDED, CLINICAL_EVENTS.ALLERGY_UPDATED, CLINICAL_EVENTS.ALLERGY_RESOLVED, CLINICAL_EVENTS.ALLERGY_DELETED] },
+      // Immunizations
+      { events: [CLINICAL_EVENTS.IMMUNIZATION_ADMINISTERED, CLINICAL_EVENTS.IMMUNIZATION_UPDATED] },
+      // Observations
+      { events: [CLINICAL_EVENTS.OBSERVATION_RECORDED, CLINICAL_EVENTS.OBSERVATION_UPDATED, CLINICAL_EVENTS.VITAL_SIGNS_RECORDED] },
+      // Procedures
+      { events: [CLINICAL_EVENTS.PROCEDURE_SCHEDULED, CLINICAL_EVENTS.PROCEDURE_COMPLETED, CLINICAL_EVENTS.PROCEDURE_UPDATED] },
+      // Encounters
+      { events: [CLINICAL_EVENTS.ENCOUNTER_STARTED, CLINICAL_EVENTS.ENCOUNTER_UPDATED, CLINICAL_EVENTS.ENCOUNTER_FINISHED] },
+      // Care Plans
+      { events: [CLINICAL_EVENTS.CARE_PLAN_CREATED, CLINICAL_EVENTS.CARE_PLAN_UPDATED] },
+      // Documents
+      { events: [CLINICAL_EVENTS.DOCUMENT_CREATED, CLINICAL_EVENTS.DOCUMENT_UPDATED] },
+      // Generic resource events
+      { events: [CLINICAL_EVENTS.RESOURCE_CREATED, CLINICAL_EVENTS.RESOURCE_UPDATED, CLINICAL_EVENTS.RESOURCE_DELETED] }
     ];
 
-    resourceTypes.forEach(resourceType => {
-      const unsubscribe = subscribe(
-        `RESOURCE_${resourceType.toUpperCase()}_UPDATED`,
-        (event) => {
-          // console.log('[useChartReviewResources] Resource update event:', {
-          //   resourceType,
-          //   eventPatientId: event.patientId,
-          //   currentPatientId: patientId,
-          //   willRefresh: event.patientId === patientId
-          // });
-          if (event.patientId === patientId) {
-            refresh();
+    // Subscribe to all relevant events
+    eventMappings.forEach(({ events }) => {
+      events.forEach(eventType => {
+        const unsubscribe = subscribe(
+          eventType,
+          (event) => {
+            console.log('[useChartReviewResources] Clinical event received:', {
+              eventType,
+              eventPatientId: event.patientId,
+              currentPatientId: patientId,
+              willRefresh: event.patientId === patientId
+            });
+            // Refresh if the event is for the current patient
+            if (event.patientId === patientId) {
+              console.log('[useChartReviewResources] Refreshing data due to event:', eventType);
+              refresh();
+            }
           }
-        }
-      );
-      subscriptions.push(unsubscribe);
+        );
+        subscriptions.push(unsubscribe);
+      });
     });
 
     return () => {
-      // console.log('[useChartReviewResources] Cleaning up subscriptions');
+      console.log('[useChartReviewResources] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, realTimeUpdates, subscribe, refresh]);
 
-  // Add debug logging for hook creation
+  // Add debug logging for hook creation and cleanup refresh timer
   useEffect(() => {
     console.log('[useChartReviewResources] Hook initialized/re-created at:', new Date().toISOString());
     return () => {
       console.log('[useChartReviewResources] Hook cleanup at:', new Date().toISOString());
+      // Clear refresh timer on unmount
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
     };
   }, []);
 

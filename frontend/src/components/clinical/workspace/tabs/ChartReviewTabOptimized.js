@@ -153,7 +153,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     filters
   } = useChartReviewResources(patientId, {
     includeInactive: true,
-    realTimeUpdates: false  // Temporarily disabled to investigate flickering
+    realTimeUpdates: true  // Enable real-time updates
   });
   
   // View and filter states
