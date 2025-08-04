@@ -129,6 +129,9 @@ MedGenEMR/
 ### Technical Documentation
 | Topic | Description | Location |
 |-------|-------------|----------|
+| Real-Time Updates | Multi-user synchronization | [docs/REAL_TIME_UPDATES_*.md](./docs/) |
+| WebSocket Architecture | Real-time communication | [docs/REAL_TIME_UPDATES_ARCHITECTURE.md](./docs/REAL_TIME_UPDATES_ARCHITECTURE.md) |
+| Implementation Guide | Adding real-time features | [docs/REAL_TIME_UPDATES_IMPLEMENTATION_GUIDE.md](./docs/REAL_TIME_UPDATES_IMPLEMENTATION_GUIDE.md) |
 | Frontend State | State management patterns | [docs/state/](./docs/state/) |
 | Build Process | Deployment pipeline | [docs/BUILD_PROCESS_ANALYSIS.md](./docs/BUILD_PROCESS_ANALYSIS.md) |
 | Search Parameters | FHIR search indexing | [docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md](./docs/SEARCH_PARAM_BUILD_INTEGRATION_SUMMARY.md) |

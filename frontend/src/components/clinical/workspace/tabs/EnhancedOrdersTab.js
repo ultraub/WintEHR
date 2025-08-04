@@ -2,7 +2,7 @@
  * Enhanced Orders Tab Component
  * Comprehensive CPOE system with advanced FHIR R4 search capabilities
  */
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -431,7 +431,7 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
 const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
-  const { publish } = useClinicalWorkflow();
+  const { publish, subscribe } = useClinicalWorkflow();
   const { getAlerts } = useCDS();
 
   // Enhanced search hook
@@ -607,6 +607,135 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
     }
   }, [getAlerts, onNotificationUpdate]);
 
+  // Real-time updates subscription
+  useEffect(() => {
+    if (!patientId) return;
+
+    console.log('[EnhancedOrdersTab] Setting up real-time subscriptions for patient:', patientId);
+
+    const subscriptions = [];
+
+    // Subscribe to order-related events
+    const orderEvents = [
+      CLINICAL_EVENTS.ORDER_PLACED,
+      CLINICAL_EVENTS.ORDER_UPDATED,
+      CLINICAL_EVENTS.ORDER_CANCELLED,
+      CLINICAL_EVENTS.ORDER_COMPLETED,
+      CLINICAL_EVENTS.ORDER_SIGNED,
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED
+    ];
+
+    orderEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[EnhancedOrdersTab] Order event received:', {
+          eventType,
+          eventPatientId: event.patientId,
+          currentPatientId: patientId,
+          event
+        });
+        
+        // Handle update if the event is for the current patient
+        if (event.patientId === patientId) {
+          console.log('[EnhancedOrdersTab] Updating orders for event:', eventType);
+          handleOrderUpdate(eventType, event);
+        }
+      });
+      subscriptions.push(unsubscribe);
+    });
+
+    return () => {
+      console.log('[EnhancedOrdersTab] Cleaning up subscriptions');
+      subscriptions.forEach(unsub => unsub());
+    };
+  }, [patientId, subscribe]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[EnhancedOrdersTab] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to patient room for order-related resources
+        const resourceTypes = [
+          'ServiceRequest',
+          'MedicationRequest',
+          'DiagnosticReport'
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[EnhancedOrdersTab] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[EnhancedOrdersTab] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[EnhancedOrdersTab] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
+
+  // Handle incremental order updates
+  const handleOrderUpdate = useCallback((eventType, eventData) => {
+    console.log('[EnhancedOrdersTab] Handling order update:', eventType, eventData);
+    
+    // Extract the order from the event data
+    const order = eventData.order || eventData.medication || eventData.resource;
+    
+    if (!order) {
+      console.warn('[EnhancedOrdersTab] No order in event data');
+      return;
+    }
+
+    // For now, refresh the search to get updated data
+    // In a full implementation, we would update the state incrementally
+    refreshSearch();
+
+    // Show notification for important events
+    switch (eventType) {
+      case CLINICAL_EVENTS.ORDER_PLACED:
+      case CLINICAL_EVENTS.MEDICATION_PRESCRIBED:
+        setSnackbar({
+          open: true,
+          message: `New order placed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_CANCELLED:
+        setSnackbar({
+          open: true,
+          message: `Order cancelled: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
+          severity: 'warning'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_COMPLETED:
+        setSnackbar({
+          open: true,
+          message: `Order completed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_SIGNED:
+        setSnackbar({
+          open: true,
+          message: `Order signed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
+          severity: 'success'
+        });
+        break;
+    }
+  }, [refreshSearch]);
+
   // Filter preset management
   const handleSaveFilterPreset = (name, filterData) => {
     try {
@@ -667,7 +796,16 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
             try {
               const { fhirClient } = await import('../../../../core/fhir/services/fhirClient');
               const updatedOrder = { ...order, status: 'cancelled' };
-              await fhirClient.update(order.resourceType, order.id, updatedOrder);
+              const cancelledOrder = await fhirClient.update(order.resourceType, order.id, updatedOrder);
+              
+              // Publish event for real-time updates
+              await publish(CLINICAL_EVENTS.ORDER_CANCELLED, {
+                orderId: cancelledOrder.id,
+                order: cancelledOrder,
+                patientId: patientId,
+                orderType: cancelledOrder.resourceType
+              });
+              
               refreshSearch();
               setSnackbar({
                 open: true,
@@ -727,6 +865,14 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
           patientId,
           timestamp: new Date().toISOString()
         }
+      });
+
+      // Also publish medication prescribed event for real-time updates
+      await publish(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
+        medicationId: order.id,
+        medication: order,
+        patientId: patientId,
+        prescriberId: order.requester?.reference
       });
 
       setSnackbar({
@@ -1150,7 +1296,21 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         open={cpoeDialogOpen}
         onClose={() => setCpoeDialogOpen(false)}
         patientId={patientId}
-        onSave={(orders) => {
+        onSave={async (orders) => {
+          // Publish events for each created order
+          for (const order of orders) {
+            const eventType = order.resourceType === 'MedicationRequest' 
+              ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED 
+              : CLINICAL_EVENTS.ORDER_PLACED;
+            
+            await publish(eventType, {
+              orderId: order.id,
+              order: order,
+              patientId: patientId,
+              orderType: order.resourceType
+            });
+          }
+          
           refreshSearch();
           setSnackbar({
             open: true,

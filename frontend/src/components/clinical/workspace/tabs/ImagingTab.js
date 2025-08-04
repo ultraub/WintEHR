@@ -79,6 +79,7 @@ import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../../../services/websocket';
 import { 
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -589,47 +590,142 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
     }
   }, [patientId, loadImagingStudies]); // Added loadImagingStudies to dependencies
 
-  // Subscribe to imaging-related events
-  useEffect(() => {
-    const unsubscribers = [];
+  // Handle imaging study updates
+  const handleImagingUpdate = useCallback((eventType, eventData) => {
+    console.log('[ImagingTab] Handling imaging update:', eventType, eventData);
+    
+    const study = eventData.study || eventData.imagingStudy || eventData.resource;
+    
+    if (!study) {
+      console.warn('[ImagingTab] No study in event data');
+      return;
+    }
 
-    // Subscribe to order placed events for imaging orders
-    unsubscribers.push(
-      subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
-        if (data.type === 'imaging' && data.patientId === patientId) {
-          // Refresh imaging studies when a new imaging order is placed
-          loadImagingStudies();
-          
+    // Refresh imaging studies to get the update
+    loadImagingStudies();
+
+    // Show notification based on event type
+    switch (eventType) {
+      case CLINICAL_EVENTS.IMAGING_STUDY_AVAILABLE:
+        setSnackbar({
+          open: true,
+          message: `New imaging study available: ${study.description || 'Imaging Study'}`,
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.IMAGING_REPORT_READY:
+        setSnackbar({
+          open: true,
+          message: `Report ready for: ${study.description || 'Imaging Study'}`,
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.IMAGING_STUDY_UPDATED:
+        setSnackbar({
+          open: true,
+          message: `Imaging study updated: ${study.description || 'Imaging Study'}`,
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_PLACED:
+        if (eventData.type === 'imaging') {
           setSnackbar({
             open: true,
             message: 'New imaging order placed',
             severity: 'info'
           });
         }
-      })
-    );
-
-    // Subscribe to result received events for imaging results
-    unsubscribers.push(
-      subscribe(CLINICAL_EVENTS.RESULT_RECEIVED, (data) => {
-        if (data.type === 'imaging' && data.patientId === patientId) {
-          // Refresh imaging studies when results are available
-          loadImagingStudies();
-          
+        break;
+        
+      case CLINICAL_EVENTS.RESULT_RECEIVED:
+        if (eventData.type === 'imaging') {
           setSnackbar({
             open: true,
             message: 'New imaging results available',
             severity: 'success'
           });
         }
-      })
-    );
+        break;
+    }
+  }, [loadImagingStudies]);
 
-    // Cleanup subscriptions
+  // Subscribe to imaging-related events
+  useEffect(() => {
+    if (!patientId) return;
+
+    console.log('[ImagingTab] Setting up real-time subscriptions for patient:', patientId);
+
+    const subscriptions = [];
+
+    // Subscribe to imaging-specific events
+    const imagingEvents = [
+      CLINICAL_EVENTS.IMAGING_STUDY_AVAILABLE,
+      CLINICAL_EVENTS.IMAGING_STUDY_UPDATED,
+      CLINICAL_EVENTS.IMAGING_REPORT_READY,
+      CLINICAL_EVENTS.ORDER_PLACED,
+      CLINICAL_EVENTS.RESULT_RECEIVED
+    ];
+
+    imagingEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[ImagingTab] Event received:', {
+          eventType,
+          eventPatientId: event.patientId,
+          currentPatientId: patientId,
+          event
+        });
+        
+        // Handle update if the event is for the current patient
+        if (event.patientId === patientId) {
+          console.log('[ImagingTab] Updating imaging tab for event:', eventType);
+          handleImagingUpdate(eventType, event);
+        }
+      });
+      subscriptions.push(unsubscribe);
+    });
+
     return () => {
-      unsubscribers.forEach(unsubscribe => unsubscribe());
+      console.log('[ImagingTab] Cleaning up subscriptions');
+      subscriptions.forEach(unsub => unsub());
     };
-  }, [patientId, subscribe, loadImagingStudies]); // Added loadImagingStudies to dependencies
+  }, [patientId, subscribe, handleImagingUpdate]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[ImagingTab] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to patient room for imaging resources
+        const resourceTypes = [
+          'ImagingStudy',
+          'DiagnosticReport', // For imaging reports
+          'ServiceRequest'    // For imaging orders
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[ImagingTab] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[ImagingTab] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[ImagingTab] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
 
   // Filter studies - memoized for performance
   const filteredStudies = useMemo(() => {

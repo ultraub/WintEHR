@@ -57,7 +57,8 @@ import {
   ListItemIcon,
   ListItemText,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Snackbar
 } from '@mui/material';
 import { format } from 'date-fns';
 
@@ -71,7 +72,8 @@ import { printBatchLabels } from '../services/prescriptionLabelService';
 
 // Context
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
+import websocketService from '../services/websocket';
 
 // Queue column configuration (should match PharmacyQueue.js)
 const QUEUE_COLUMNS = {
@@ -100,7 +102,8 @@ const QUEUE_COLUMNS = {
 const PharmacyPage = () => {
   const theme = useTheme();
   const { isLoading } = useFHIRResource();
-  const { subscribe, publish, CLINICAL_EVENTS } = useClinicalWorkflow();
+  const { subscribe, publish } = useClinicalWorkflow();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   
   // State
   const [activeView, setActiveView] = useState('queue'); // 'queue' | 'analytics'
@@ -273,19 +276,135 @@ const PharmacyPage = () => {
     }
   }, []);
 
+  // Handle pharmacy event updates
+  const handlePharmacyUpdate = useCallback((eventType, eventData) => {
+    console.log('[PharmacyPage] Handling pharmacy update:', eventType, eventData);
+    
+    // Extract medication request from event data
+    const medicationRequest = eventData.medication || eventData.prescription || eventData.resource;
+    
+    if (!medicationRequest) {
+      console.warn('[PharmacyPage] No medication request in event data');
+      return;
+    }
+
+    // Update local state incrementally
+    switch (eventType) {
+      case CLINICAL_EVENTS.MEDICATION_PRESCRIBED:
+        // Add new prescription to the queue
+        setMedicationRequests(prev => {
+          // Check if already exists
+          const exists = prev.some(req => req.id === medicationRequest.id);
+          if (!exists) {
+            // Show notification
+            setSnackbar({
+              open: true,
+              message: `New prescription: ${medicationRequest.medicationCodeableConcept?.text || 'Medication'}`,
+              severity: 'info'
+            });
+            return [medicationRequest, ...prev];
+          }
+          return prev;
+        });
+        break;
+        
+      case CLINICAL_EVENTS.PRESCRIPTION_VERIFIED:
+        // Update prescription status
+        setMedicationRequests(prev => 
+          prev.map(req => req.id === medicationRequest.id ? medicationRequest : req)
+        );
+        setSnackbar({
+          open: true,
+          message: 'Prescription verified',
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+        // Update prescription status
+        setMedicationRequests(prev => 
+          prev.map(req => req.id === medicationRequest.id ? medicationRequest : req)
+        );
+        setSnackbar({
+          open: true,
+          message: 'Medication dispensed',
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_PLACED:
+        // Only handle medication orders
+        if (eventData.category === 'medication') {
+          handleRefresh(); // Refresh to get the new order
+        }
+        break;
+    }
+  }, [handleRefresh]);
+
   // Subscribe to clinical workflow events
   useEffect(() => {
-    const unsubscribeNewPrescription = subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
-      if (data.category === 'medication') {
-        // Refresh the queue when new prescriptions arrive
-        handleRefresh();
-      }
+    console.log('[PharmacyPage] Setting up pharmacy event subscriptions');
+    
+    const subscriptions = [];
+
+    // Subscribe to medication-related events
+    const pharmacyEvents = [
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.PRESCRIPTION_VERIFIED,
+      CLINICAL_EVENTS.MEDICATION_DISPENSED,
+      CLINICAL_EVENTS.ORDER_PLACED
+    ];
+
+    pharmacyEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[PharmacyPage] Pharmacy event received:', {
+          eventType,
+          event
+        });
+        
+        // Handle medication events regardless of patient
+        if (eventType === CLINICAL_EVENTS.ORDER_PLACED && event.category !== 'medication') {
+          return; // Skip non-medication orders
+        }
+        
+        handlePharmacyUpdate(eventType, event);
+      });
+      subscriptions.push(unsubscribe);
     });
 
     return () => {
-      unsubscribeNewPrescription();
+      console.log('[PharmacyPage] Cleaning up pharmacy subscriptions');
+      subscriptions.forEach(unsub => unsub());
     };
-  }, [subscribe, handleRefresh, CLINICAL_EVENTS.ORDER_PLACED]);
+  }, [subscribe, handleRefresh, handlePharmacyUpdate]);
+
+  // WebSocket pharmacy room subscription
+  useEffect(() => {
+    if (!websocketService.isConnected) return;
+
+    console.log('[PharmacyPage] Setting up WebSocket pharmacy room subscription');
+
+    let subscriptionId = null;
+
+    const setupPharmacySubscription = async () => {
+      try {
+        // Subscribe to pharmacy room - all pharmacy staff see all prescriptions
+        subscriptionId = await websocketService.subscribeToRoom('pharmacy:queue');
+        console.log('[PharmacyPage] Successfully subscribed to pharmacy room:', subscriptionId);
+      } catch (error) {
+        console.error('[PharmacyPage] Failed to subscribe to pharmacy room:', error);
+      }
+    };
+
+    setupPharmacySubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[PharmacyPage] Unsubscribing from pharmacy room:', subscriptionId);
+        websocketService.unsubscribeFromRoom(subscriptionId);
+      }
+    };
+  }, []);
 
   // Handle status change for medication request
   const handleStatusChange = useCallback(async (medicationRequestId, newStatus, category) => {
@@ -719,6 +838,22 @@ const PharmacyPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

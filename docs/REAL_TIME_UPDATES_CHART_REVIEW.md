@@ -132,12 +132,38 @@ This approach ensures:
 - Maintains scroll position
 - Preserves user context
 
+## Multi-User Synchronization
+
+Real-time updates now support multi-user synchronization. When multiple users are viewing the same patient simultaneously:
+
+1. **Patient Room Subscription**: Each Chart Review tab subscribes to a WebSocket "room" specific to the patient
+2. **Automatic Broadcasting**: Updates made by one user are automatically broadcast to all other users viewing that patient
+3. **Instant Updates**: Changes appear instantly across all connected clients without requiring manual refresh
+4. **Resource Type Filtering**: Only relevant resource types are synchronized to minimize network traffic
+
+### How Multi-User Sync Works
+
+1. **Room-Based Architecture**: Backend creates rooms using pattern `patient:{patientId}`
+2. **WebSocket Subscription**: Frontend subscribes to patient room when Chart Review loads
+3. **Event Broadcasting**: When a user saves a resource, the backend broadcasts to all room subscribers
+4. **Client-Side Updates**: Each client receives the update and applies it incrementally to their UI
+
+### Testing Multi-User Updates
+
+To test multi-user synchronization:
+1. Open two browser windows (or use different browsers)
+2. Log in as different users in each window
+3. Navigate to the same patient's Chart Review tab in both windows
+4. Make changes in one window - they should appear instantly in the other
+
 ## Future Enhancements
 
 1. **Conflict Resolution**: Handle simultaneous edits by multiple users with version checking
 2. **Offline Support**: Queue updates when offline and sync when reconnected
 3. **Batch Updates**: Handle multiple simultaneous updates more efficiently
 4. **Animation**: Add subtle animations when resources are added/updated/removed
+5. **User Presence**: Show which users are currently viewing the same patient
+6. **Optimistic Locking**: Prevent conflicting edits with resource versioning
 
 ---
 

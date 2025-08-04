@@ -105,6 +105,7 @@ import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { resourceBelongsToPatient } from '../../../../utils/fhirReferenceUtils';
+import websocketService from '../../../../services/websocket';
 // Import shared clinical components
 import { 
   ClinicalResourceCard,
@@ -543,6 +544,25 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
           };
           
           setWorkflowEvents(prev => [...prev, workflowEvent]);
+          
+          // Show notification for significant events
+          const significantEvents = [
+            CLINICAL_EVENTS.CONDITION_DIAGNOSED,
+            CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+            CLINICAL_EVENTS.ALLERGY_ADDED,
+            CLINICAL_EVENTS.PROCEDURE_COMPLETED,
+            CLINICAL_EVENTS.RESULT_AVAILABLE,
+            CLINICAL_EVENTS.IMAGING_STUDY_AVAILABLE,
+            CLINICAL_EVENTS.NOTE_CREATED
+          ];
+          
+          if (significantEvents.includes(eventType)) {
+            setSnackbar({
+              open: true,
+              message: `New timeline event: ${eventType.replace(/\./g, ' ').replace(/_/g, ' ')}`,
+              severity: 'info'
+            });
+          }
         }
       });
       
@@ -553,6 +573,55 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
   }, [subscribe, patientId]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[TimelineTab] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to all resource types that can appear in timeline
+        const resourceTypes = [
+          'Encounter',
+          'MedicationRequest',
+          'MedicationStatement',
+          'Observation',
+          'Condition',
+          'AllergyIntolerance',
+          'Immunization',
+          'Procedure',
+          'DiagnosticReport',
+          'ImagingStudy',
+          'DocumentReference',
+          'CarePlan',
+          'CareTeam',
+          'Coverage',
+          'Goal'
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[TimelineTab] Successfully subscribed to patient room:', subscriptionId);
+        
+        // Also trigger a reload to ensure we have the latest data
+        setReloadTrigger(prev => prev + 1);
+      } catch (error) {
+        console.error('[TimelineTab] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[TimelineTab] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
   
   // Collect all events
   const allEvents = useMemo(() => {

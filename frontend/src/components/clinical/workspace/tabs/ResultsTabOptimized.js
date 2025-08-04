@@ -93,6 +93,7 @@ import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../../../services/websocket';
 import { 
   getObservationCategory, 
   getObservationInterpretation, 
@@ -183,7 +184,7 @@ const ResultsTabOptimized = ({ patientId }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { currentPatient } = useFHIRResource();
-  const { publish } = useClinicalWorkflow();
+  const { publish, subscribe } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
   const [viewMode, setViewMode] = useState('table'); // 'table', 'cards', or 'trends'
@@ -271,6 +272,151 @@ const ResultsTabOptimized = ({ patientId }) => {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Real-time updates subscription
+  useEffect(() => {
+    if (!patientId) return;
+
+    console.log('[ResultsTabOptimized] Setting up real-time subscriptions for patient:', patientId);
+
+    const subscriptions = [];
+
+    // Subscribe to result-related events
+    const resultEvents = [
+      CLINICAL_EVENTS.RESULT_AVAILABLE,
+      CLINICAL_EVENTS.CRITICAL_VALUE_ALERT,
+      CLINICAL_EVENTS.RESULT_ACKNOWLEDGED,
+      CLINICAL_EVENTS.OBSERVATION_RECORDED,
+      CLINICAL_EVENTS.VITAL_SIGNS_RECORDED
+    ];
+
+    resultEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[ResultsTabOptimized] Result event received:', {
+          eventType,
+          eventPatientId: event.patientId,
+          currentPatientId: patientId,
+          event
+        });
+        
+        // Handle update if the event is for the current patient
+        if (event.patientId === patientId) {
+          console.log('[ResultsTabOptimized] Updating results for event:', eventType);
+          handleResultUpdate(eventType, event);
+        }
+      });
+      subscriptions.push(unsubscribe);
+    });
+
+    return () => {
+      console.log('[ResultsTabOptimized] Cleaning up subscriptions');
+      subscriptions.forEach(unsub => unsub());
+    };
+  }, [patientId, subscribe]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[ResultsTabOptimized] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to patient room for result-related resources
+        const resourceTypes = [
+          'Observation',
+          'DiagnosticReport'
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[ResultsTabOptimized] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[ResultsTabOptimized] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[ResultsTabOptimized] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
+
+  // Handle incremental result updates
+  const handleResultUpdate = useCallback((eventType, eventData) => {
+    console.log('[ResultsTabOptimized] Handling result update:', eventType, eventData);
+    
+    // Extract the result from the event data
+    const result = eventData.result || eventData.observation || eventData.resource;
+    
+    if (!result) {
+      console.warn('[ResultsTabOptimized] No result in event data');
+      return;
+    }
+
+    // Determine resource type and update appropriate state
+    if (result.resourceType === 'Observation') {
+      const category = getObservationCategory(result);
+      
+      if (category === 'laboratory') {
+        // Update lab observations
+        setAllData(prev => ({
+          ...prev,
+          labObservations: updateResultsList(prev.labObservations, result, eventType)
+        }));
+      } else if (category === 'vital-signs') {
+        // Update vital observations
+        setAllData(prev => ({
+          ...prev,
+          vitalObservations: updateResultsList(prev.vitalObservations, result, eventType)
+        }));
+      }
+      
+      // Show notification for critical values
+      if (eventType === CLINICAL_EVENTS.CRITICAL_VALUE_ALERT) {
+        showCriticalValueAlert(result);
+      }
+    } else if (result.resourceType === 'DiagnosticReport') {
+      // Update diagnostic reports
+      setAllData(prev => ({
+        ...prev,
+        diagnosticReports: updateResultsList(prev.diagnosticReports, result, eventType)
+      }));
+    }
+  }, [getObservationCategory]);
+
+  // Helper function to update results list
+  const updateResultsList = (list, newResult, eventType) => {
+    // For new results, add to beginning
+    if (eventType === CLINICAL_EVENTS.RESULT_AVAILABLE || 
+        eventType === CLINICAL_EVENTS.OBSERVATION_RECORDED ||
+        eventType === CLINICAL_EVENTS.VITAL_SIGNS_RECORDED) {
+      // Check if already exists
+      const exists = list.some(item => item.id === newResult.id);
+      if (!exists) {
+        return [enhanceObservationWithReferenceRange(newResult), ...list];
+      }
+    }
+    
+    // For updates, replace existing
+    return list.map(item => 
+      item.id === newResult.id ? enhanceObservationWithReferenceRange(newResult) : item
+    );
+  };
+
+  // Show critical value alert
+  const showCriticalValueAlert = (observation) => {
+    const value = observation.valueQuantity?.value || observation.valueString || 'Unknown';
+    const code = observation.code?.text || observation.code?.coding?.[0]?.display || 'Result';
+    
+    // You might want to show a more prominent alert dialog here
+    alert(`CRITICAL VALUE ALERT!\n\n${code}: ${value}\n\nImmediate action required!`);
+  };
 
   // Apply filters to data
   const filteredData = useMemo(() => {

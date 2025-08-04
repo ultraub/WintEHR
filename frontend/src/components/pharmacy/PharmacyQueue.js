@@ -42,6 +42,8 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { printPrescriptionLabel } from '../../services/prescriptionLabelService';
 import { checkAvailability } from '../../services/inventoryManagementService';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../services/websocket';
 
 // Pharmacy queue column configuration
 const QUEUE_COLUMNS = {

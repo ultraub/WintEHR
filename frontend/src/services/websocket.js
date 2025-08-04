@@ -214,6 +214,61 @@ class WebSocketService {
   }
 
   /**
+   * Subscribe to a custom room (e.g., pharmacy:queue)
+   * @param {string} roomName - Room name to subscribe to
+   * @returns {string} Subscription ID
+   */
+  async subscribeToRoom(roomName) {
+    if (!this.isConnected) {
+      console.warn('[WebSocket] Cannot subscribe to room - not connected');
+      return;
+    }
+    
+    const subscriptionId = `room-${roomName}-${Date.now()}`;
+    const message = {
+      type: 'subscription',
+      data: {
+        subscription_id: subscriptionId,
+        room: roomName
+      }
+    };
+    
+    console.log('[WebSocket] Subscribing to room:', roomName);
+    this.send(message);
+    
+    // Store subscription info for reconnection
+    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    this.activeSubscriptions.set(subscriptionId, { room: roomName });
+    
+    return subscriptionId;
+  }
+  
+  /**
+   * Unsubscribe from a room
+   * @param {string} subscriptionId - Subscription ID to cancel
+   */
+  async unsubscribeFromRoom(subscriptionId) {
+    if (!this.isConnected) {
+      return;
+    }
+    
+    const message = {
+      type: 'unsubscribe',
+      data: {
+        subscription_id: subscriptionId
+      }
+    };
+    
+    console.log('[WebSocket] Unsubscribing from room:', subscriptionId);
+    this.send(message);
+    
+    // Remove from active subscriptions
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
+    }
+  }
+
+  /**
    * Subscribe to events
    * @param {string} eventType - Event type to listen for
    * @param {function} callback - Callback function

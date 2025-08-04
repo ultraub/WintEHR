@@ -103,6 +103,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../../../services/websocket';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
 import { NOTE_TEMPLATES } from '../../../../services/noteTemplatesService';
@@ -433,7 +434,7 @@ CollapsibleCategory.displayName = 'CollapsibleCategory';
 const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
-  const { publish } = useClinicalWorkflow();
+  const { publish, subscribe } = useClinicalWorkflow();
   
   // Debug: Check if components are properly imported
   if (typeof SmartTable === 'undefined') {
@@ -480,27 +481,172 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
     setLoading(false);
   }, []);
 
-  // Load DocumentReference resources on-demand
-  useEffect(() => {
-    const loadDocuments = async () => {
-      if (patientId) {
-        const existingDocs = getPatientResources(patientId, 'DocumentReference');
-        if (!existingDocs || existingDocs.length === 0) {
-          try {
-            await searchResources('DocumentReference', {
-              patient: patientId,
-              _count: 50,
-              _sort: '-date'
-            });
-          } catch (error) {
-            // Handle error
-          }
+  // Load documents function
+  const loadDocuments = useCallback(async () => {
+    if (patientId) {
+      const existingDocs = getPatientResources(patientId, 'DocumentReference');
+      if (!existingDocs || existingDocs.length === 0) {
+        try {
+          await searchResources('DocumentReference', {
+            patient: patientId,
+            _count: 50,
+            _sort: '-date'
+          });
+        } catch (error) {
+          console.error('[DocumentationTab] Error loading documents:', error);
         }
+      }
+    }
+  }, [patientId, searchResources, getPatientResources]);
+
+  // Handle document updates
+  const handleDocumentUpdate = useCallback((eventType, eventData) => {
+    console.log('[DocumentationTab] Handling document update:', eventType, eventData);
+    
+    // Extract the document from the event data
+    const document = eventData.document || eventData.note || eventData.resource;
+    
+    if (!document) {
+      console.warn('[DocumentationTab] No document in event data');
+      return;
+    }
+
+    // Refresh documents to get the update
+    // In a real implementation, we would update state incrementally
+    loadDocuments();
+
+    // Show notification based on event type
+    switch (eventType) {
+      case CLINICAL_EVENTS.NOTE_CREATED:
+        setSnackbar({
+          open: true,
+          message: `New note created: ${document.type?.text || 'Clinical Note'}`,
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.NOTE_SIGNED:
+        setSnackbar({
+          open: true,
+          message: 'Note has been signed',
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.NOTE_UPDATED:
+        setSnackbar({
+          open: true,
+          message: 'Note has been updated',
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.NOTE_AMENDED:
+        setSnackbar({
+          open: true,
+          message: 'Note has been amended',
+          severity: 'warning'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.NOTE_ADDENDUM:
+        setSnackbar({
+          open: true,
+          message: 'Addendum added to note',
+          severity: 'info'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.DOCUMENT_UPLOADED:
+        setSnackbar({
+          open: true,
+          message: 'New document uploaded',
+          severity: 'info'
+        });
+        break;
+    }
+  }, [patientId, loadDocuments]);
+
+  // Real-time updates subscription
+  useEffect(() => {
+    if (!patientId) return;
+
+    console.log('[DocumentationTab] Setting up real-time subscriptions for patient:', patientId);
+
+    const subscriptions = [];
+
+    // Subscribe to documentation events
+    const documentEvents = [
+      CLINICAL_EVENTS.NOTE_CREATED,
+      CLINICAL_EVENTS.NOTE_UPDATED,
+      CLINICAL_EVENTS.NOTE_SIGNED,
+      CLINICAL_EVENTS.NOTE_AMENDED,
+      CLINICAL_EVENTS.NOTE_ADDENDUM,
+      CLINICAL_EVENTS.DOCUMENT_UPLOADED
+    ];
+
+    documentEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[DocumentationTab] Document event received:', {
+          eventType,
+          eventPatientId: event.patientId,
+          currentPatientId: patientId,
+          event
+        });
+        
+        // Handle update if the event is for the current patient
+        if (event.patientId === patientId) {
+          console.log('[DocumentationTab] Updating documentation for event:', eventType);
+          handleDocumentUpdate(eventType, event);
+        }
+      });
+      subscriptions.push(unsubscribe);
+    });
+
+    return () => {
+      console.log('[DocumentationTab] Cleaning up subscriptions');
+      subscriptions.forEach(unsub => unsub());
+    };
+  }, [patientId, subscribe, handleDocumentUpdate]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[DocumentationTab] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to patient room for documentation resources
+        const resourceTypes = [
+          'DocumentReference',
+          'Composition',
+          'ClinicalImpression'
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[DocumentationTab] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[DocumentationTab] Failed to subscribe to patient room:', error);
       }
     };
 
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[DocumentationTab] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
+
+  // Load DocumentReference resources on-demand
+  useEffect(() => {
     loadDocuments();
-  }, [patientId, searchResources, getPatientResources]);
+  }, [loadDocuments]);
 
   // Get documentation resources
   const documentReferences = getPatientResources(patientId, 'DocumentReference') || [];

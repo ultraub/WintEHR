@@ -15,6 +15,7 @@ export const CLINICAL_EVENTS = {
 
   // Condition/Problem events
   CONDITION_ADDED: 'condition.added',
+  CONDITION_DIAGNOSED: 'condition.diagnosed', // Alias for CONDITION_ADDED
   CONDITION_UPDATED: 'condition.updated',
   CONDITION_RESOLVED: 'condition.resolved',
   CONDITION_DELETED: 'condition.deleted',
@@ -55,6 +56,12 @@ export const CLINICAL_EVENTS = {
   DIAGNOSTIC_REPORT_CREATED: 'diagnostic.report.created',
   DIAGNOSTIC_REPORT_UPDATED: 'diagnostic.report.updated',
   DIAGNOSTIC_REPORT_FINALIZED: 'diagnostic.report.finalized',
+
+  // Imaging events
+  IMAGING_STUDY_AVAILABLE: 'imaging.study.available',
+  IMAGING_STUDY_UPDATED: 'imaging.study.updated',
+  IMAGING_REPORT_READY: 'imaging.report.ready',
+  IMAGING_STUDY_VIEWED: 'imaging.study.viewed',
 
   // Service Request events
   SERVICE_REQUEST_PLACED: 'service.request.placed',

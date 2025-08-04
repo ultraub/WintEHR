@@ -3,7 +3,7 @@
  * Enhanced version with better space utilization and progressive collapse states
  * Consolidates action buttons and provides smooth scroll-based transitions
  */
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -56,6 +56,8 @@ import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
 import { useNavigate } from 'react-router-dom';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../../services/websocket';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -76,8 +78,9 @@ const CollapsiblePatientHeaderOptimized = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
   
-  const { currentPatient, getPatientResources } = useFHIRResource();
+  const { currentPatient, getPatientResources, refreshPatientData } = useFHIRResource();
   const { alerts } = usePatientCDSAlerts(patientId);
+  const { subscribe } = useClinicalWorkflow();
   
   const [collapseState, setCollapseState] = useState(COLLAPSE_STATES.EXPANDED);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
@@ -123,6 +126,123 @@ const CollapsiblePatientHeaderOptimized = ({
     alerts.filter(a => a.indicator === 'warning'), 
     [alerts]
   );
+
+  // Handle header updates
+  const handleHeaderUpdate = useCallback((eventType, eventData) => {
+    console.log('[PatientHeader] Handling header update:', eventType, eventData);
+    
+    // Refresh relevant data based on event type
+    switch (eventType) {
+      case CLINICAL_EVENTS.ALLERGY_ADDED:
+      case CLINICAL_EVENTS.ALLERGY_UPDATED:
+      case CLINICAL_EVENTS.ALLERGY_REMOVED:
+        // Refresh patient data to get updated allergies
+        if (refreshPatientData) {
+          refreshPatientData(patientId);
+        }
+        break;
+        
+      case CLINICAL_EVENTS.ALERT_ADDED:
+      case CLINICAL_EVENTS.ALERT_UPDATED:
+      case CLINICAL_EVENTS.ALERT_REMOVED:
+        // Refresh patient data to trigger CDS alerts refresh
+        if (refreshPatientData) {
+          refreshPatientData(patientId);
+        }
+        break;
+        
+      case CLINICAL_EVENTS.CONDITION_DIAGNOSED:
+      case CLINICAL_EVENTS.CONDITION_UPDATED:
+      case CLINICAL_EVENTS.MEDICATION_PRESCRIBED:
+      case CLINICAL_EVENTS.MEDICATION_DISCONTINUED:
+        // Refresh patient data for conditions and medications
+        if (refreshPatientData) {
+          refreshPatientData(patientId);
+        }
+        break;
+    }
+  }, [patientId, refreshPatientData]);
+
+  // Real-time updates subscription
+  useEffect(() => {
+    if (!patientId) return;
+
+    console.log('[PatientHeader] Setting up real-time subscriptions for patient:', patientId);
+
+    const subscriptions = [];
+
+    // Subscribe to allergy and alert events
+    const headerEvents = [
+      CLINICAL_EVENTS.ALLERGY_ADDED,
+      CLINICAL_EVENTS.ALLERGY_UPDATED,
+      CLINICAL_EVENTS.ALLERGY_REMOVED,
+      CLINICAL_EVENTS.ALERT_ADDED,
+      CLINICAL_EVENTS.ALERT_UPDATED,
+      CLINICAL_EVENTS.ALERT_REMOVED,
+      CLINICAL_EVENTS.CONDITION_DIAGNOSED,
+      CLINICAL_EVENTS.CONDITION_UPDATED,
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.MEDICATION_DISCONTINUED
+    ];
+
+    headerEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[PatientHeader] Event received:', {
+          eventType,
+          eventPatientId: event.patientId,
+          currentPatientId: patientId,
+          event
+        });
+        
+        // Handle update if the event is for the current patient
+        if (event.patientId === patientId) {
+          console.log('[PatientHeader] Updating header for event:', eventType);
+          handleHeaderUpdate(eventType, event);
+        }
+      });
+      subscriptions.push(unsubscribe);
+    });
+
+    return () => {
+      console.log('[PatientHeader] Cleaning up subscriptions');
+      subscriptions.forEach(unsub => unsub());
+    };
+  }, [patientId, subscribe, handleHeaderUpdate]);
+
+  // WebSocket patient room subscription for multi-user sync
+  useEffect(() => {
+    if (!patientId || !websocketService.isConnected) return;
+
+    console.log('[PatientHeader] Setting up WebSocket patient room subscription for:', patientId);
+
+    let subscriptionId = null;
+
+    const setupPatientSubscription = async () => {
+      try {
+        // Subscribe to patient room for allergy and condition resources
+        const resourceTypes = [
+          'AllergyIntolerance',
+          'Condition',
+          'MedicationRequest',
+          'Flag' // For clinical alerts
+        ];
+
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[PatientHeader] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[PatientHeader] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    setupPatientSubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[PatientHeader] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId]);
 
   // Progressive scroll handling with debouncing and hysteresis
   useEffect(() => {
