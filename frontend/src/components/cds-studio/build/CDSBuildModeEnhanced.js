@@ -256,6 +256,7 @@ const CDSBuildModeEnhanced = () => {
     basicInfo: { isValid: true, errors: [] }, // Start as valid to avoid initial errors
     conditions: { isValid: true, errors: [] }, // Conditions are optional
     cards: { isValid: true, errors: [] }, // Start as valid
+    advanced: { isValid: true, errors: [] }, // Advanced settings are optional
     overall: { isValid: true, errors: [], warnings: [] }
   });
   
@@ -275,6 +276,7 @@ const CDSBuildModeEnhanced = () => {
       validateStep(0, context.currentHook);
       validateStep(1, context.currentHook);
       validateStep(2, context.currentHook);
+      validateStep(3, context.currentHook);
     }
   }, [context?.currentHook]);
   
@@ -365,11 +367,13 @@ const CDSBuildModeEnhanced = () => {
     newValidation.overall = {
       isValid: newValidation.basicInfo.isValid && 
                newValidation.conditions.isValid && 
-               newValidation.cards.isValid,
+               newValidation.cards.isValid &&
+               (newValidation.advanced?.isValid ?? true),
       errors: [
         ...newValidation.basicInfo.errors,
         ...newValidation.conditions.errors,
-        ...newValidation.cards.errors
+        ...newValidation.cards.errors,
+        ...(newValidation.advanced?.errors || [])
       ],
       warnings: []
     };
@@ -429,6 +433,7 @@ const CDSBuildModeEnhanced = () => {
     const step0 = validateStep(0);
     const step1 = validateStep(1);
     const step2 = validateStep(2);
+    const step3 = validateStep(3);
     
     if (!step0.overall.isValid) {
       setSnackbar({
@@ -803,7 +808,41 @@ const CDSBuildModeEnhanced = () => {
           </Box>
         );
         
-      case 3: // Review & Test
+      case 3: // Advanced Settings
+        return (
+          <Box sx={{ mt: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <AlertTitle>Advanced Settings (Optional)</AlertTitle>
+              Configure display behavior, prefetch queries, and other advanced options.
+            </Alert>
+            
+            <Stack spacing={3}>
+              {/* Display Behavior Configuration */}
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Display Behavior
+                </Typography>
+                <DisplayBehaviorConfiguration
+                  displayBehavior={hook.displayBehavior || {}}
+                  onChange={(behavior) => updateHook({ displayBehavior: behavior })}
+                />
+              </Paper>
+              
+              {/* Prefetch Query Builder */}
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Prefetch Queries
+                </Typography>
+                <PrefetchQueryBuilder
+                  prefetch={hook.prefetch || {}}
+                  onChange={(prefetch) => updateHook({ prefetch })}
+                />
+              </Paper>
+            </Stack>
+          </Box>
+        );
+        
+      case 4: // Review & Test
         return (
           <Box sx={{ mt: 2 }}>
             <Grid container spacing={3}>
@@ -867,6 +906,10 @@ const CDSBuildModeEnhanced = () => {
                         {validation.cards.isValid ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
                         <Typography variant="body2">Cards & Actions</Typography>
                       </Box>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {(validation.advanced?.isValid ?? true) ? <CheckIcon color="success" /> : <ErrorIcon color="error" />}
+                        <Typography variant="body2">Advanced Settings</Typography>
+                      </Box>
                     </Stack>
                     
                     {validation.overall.errors.length > 0 && (
@@ -911,6 +954,7 @@ const CDSBuildModeEnhanced = () => {
     const isValid = step === 0 ? validation.basicInfo.isValid :
                    step === 1 ? validation.conditions.isValid :
                    step === 2 ? validation.cards.isValid :
+                   step === 3 ? (validation.advanced?.isValid ?? true) :
                    validation.overall.isValid;
     
     if (step < activeStep) {
