@@ -29,8 +29,8 @@ export const useDialogSave = (onSave, onClose) => {
     setError(null);
 
     try {
-      // Call the parent's save handler
-      await onSave(resource);
+      // Call the parent's save handler and get the saved resource
+      const savedResource = await onSave(resource);
       
       // Show success message
       enqueueSnackbar(successMessage, { variant: 'success' });
@@ -40,7 +40,8 @@ export const useDialogSave = (onSave, onClose) => {
         onClose();
       }
       
-      return true;
+      // Return the saved resource (with ID if it was created)
+      return savedResource || resource;
     } catch (error) {
       console.error('Error saving resource:', error);
       

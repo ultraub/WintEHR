@@ -448,6 +448,8 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     setSelectedResource(null);
   }, []);
   
+  const { updateResource, addResource } = useFHIRResource();
+  
   const handleResourceSaved = useCallback(async (resource) => {
     try {
       // Determine if this is an update or create based on whether the resource has an ID
@@ -457,14 +459,19 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       if (isUpdate) {
         // Update existing resource
         result = await fhirClient.update(resource.resourceType, resource.id, resource);
+        // Update the FHIRResourceContext
+        updateResource(resource.resourceType, resource.id, result);
         enqueueSnackbar(`${resource.resourceType} updated successfully`, { variant: 'success' });
       } else {
         // Create new resource
         result = await fhirClient.create(resource.resourceType, resource);
+        // Add to the FHIRResourceContext
+        addResource(result);
         enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
       }
       
       // Refresh data after save
+      console.log('[ChartReviewTabOptimized] Calling refresh after save');
       refresh();
       
       // Return the saved resource

@@ -90,14 +90,19 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Publish clinical events
   const publish = useCallback(async (eventType, data) => {
+    // Prepare event data with additional context
+    const eventData = {
+      ...data,
+      patientId: data.patientId || currentPatient?.id,  // Use provided patientId or current patient
+      userId: currentUser?.id,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('[ClinicalWorkflow] Publishing event:', eventType, eventData);
+    
     // Send event via WebSocket if connected
     if (wsConnected) {
-      websocketService.publish(eventType, {
-        ...data,
-        patientId: currentPatient?.id,
-        userId: currentUser?.id,
-        timestamp: new Date().toISOString()
-      });
+      websocketService.publish(eventType, eventData);
     }
     
     // Get current listeners from state ref to avoid dependency
@@ -108,14 +113,14 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       (async () => {
         for (const listener of listeners) {
           try {
-            await listener(data);
+            await listener(eventData);  // Pass the complete eventData with patientId
           } catch (error) {
             console.error(`Error in event listener for ${eventType}:`, error);
           }
         }
         
         // Handle special event types with automated workflows
-        await handleAutomatedWorkflows(eventType, data);
+        await handleAutomatedWorkflows(eventType, eventData);
       })();
       
       return currentEventListeners; // Return unchanged state

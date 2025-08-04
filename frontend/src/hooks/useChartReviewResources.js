@@ -24,7 +24,8 @@ const useChartReviewResources = (patientId, options = {}) => {
     fetchPatientEverything,
     searchResources: searchFHIRResources,
     currentPatient,
-    isCacheWarm
+    isCacheWarm,
+    refreshPatientResources
   } = useFHIRResource();
   const { subscribe } = useClinicalWorkflow();
 
@@ -60,7 +61,8 @@ const useChartReviewResources = (patientId, options = {}) => {
     getPatientResources,
     fetchPatientBundle,
     searchFHIRResources,
-    isCacheWarm
+    isCacheWarm,
+    refreshPatientResources
   });
   
   // Update refs when functions change
@@ -69,9 +71,10 @@ const useChartReviewResources = (patientId, options = {}) => {
       getPatientResources,
       fetchPatientBundle,
       searchFHIRResources,
-      isCacheWarm
+      isCacheWarm,
+      refreshPatientResources
     };
-  }, [getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
+  }, [getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm, refreshPatientResources]);
 
   // Load all resources
   const loadResources = useCallback(async () => {
@@ -652,13 +655,24 @@ const useChartReviewResources = (patientId, options = {}) => {
     }
     
     // Debounce refresh to prevent rapid reloads
-    refreshTimerRef.current = setTimeout(() => {
+    refreshTimerRef.current = setTimeout(async () => {
       console.log('[useChartReviewResources] Executing refresh after debounce');
+      
+      // Clear the FHIRResourceContext cache for this patient
+      if (patientId && contextRefs.current.refreshPatientResources) {
+        try {
+          console.log('[useChartReviewResources] Clearing FHIR context cache for patient:', patientId);
+          await contextRefs.current.refreshPatientResources(patientId);
+        } catch (error) {
+          console.error('[useChartReviewResources] Error clearing cache:', error);
+        }
+      }
+      
       loadedPatientRef.current = null; // Clear the loaded patient to force reload
       loadResources();
     }, 500); // 500ms debounce
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // No dependencies, loadResources is stable
+  }, [patientId]); // Include patientId since we need it for cache clearing
 
   // Get summary statistics
   const getSummaryStats = useMemo(() => {

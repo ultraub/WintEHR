@@ -623,14 +623,15 @@ const MedicationDialogEnhanced = ({
       };
 
       // Use the consistent save handler
-      const success = await performSave(fhirMedication, `Medication ${mode === 'edit' ? 'updated' : 'prescribed'} successfully`);
+      const savedMedication = await performSave(fhirMedication, `Medication ${mode === 'edit' ? 'updated' : 'prescribed'} successfully`);
       
-      if (success) {
-        // Publish event
-        publish(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
+      if (savedMedication) {
+        // Publish event with the saved resource that has the ID
+        const eventType = mode === 'edit' ? CLINICAL_EVENTS.MEDICATION_UPDATED : CLINICAL_EVENTS.MEDICATION_PRESCRIBED;
+        publish(eventType, {
           patientId,
-          medicationRequestId: fhirMedication.id,
-          medication: fhirMedication
+          medicationRequestId: savedMedication.id,
+          medication: savedMedication
         });
         
         // Close dialog on success

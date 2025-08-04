@@ -429,14 +429,15 @@ const ConditionDialogEnhanced = ({
       };
 
       // Use the consistent save handler
-      const success = await performSave(fhirCondition, `Condition ${condition ? 'updated' : 'added'} successfully`);
+      const savedCondition = await performSave(fhirCondition, `Condition ${condition ? 'updated' : 'added'} successfully`);
       
-      if (success) {
-        // Publish event
-        publish(CLINICAL_EVENTS.CONDITION_ADDED, {
+      if (savedCondition) {
+        // Publish event with the saved resource that has the ID
+        const eventType = condition ? CLINICAL_EVENTS.CONDITION_UPDATED : CLINICAL_EVENTS.CONDITION_ADDED;
+        publish(eventType, {
           patientId,
-          conditionId: fhirCondition.id,
-          condition: fhirCondition
+          conditionId: savedCondition.id,
+          condition: savedCondition
         });
         
         // Close dialog on success
