@@ -85,7 +85,7 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-const CDSManageMode = ({ onEditService }) => {
+const CDSManageMode = ({ onEditService, refreshTrigger }) => {
   const { actions } = useCDSStudio();
   const [tabValue, setTabValue] = useState(0);
   const [hooks, setHooks] = useState([]);
@@ -115,6 +115,13 @@ const CDSManageMode = ({ onEditService }) => {
     loadCDSServices();
     loadExecutionHistory();
   }, []);
+
+  // Reload hooks when refreshTrigger changes (e.g., after saving in build mode)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      loadHooks();
+    }
+  }, [refreshTrigger]);
 
   const loadHooks = async () => {
     try {

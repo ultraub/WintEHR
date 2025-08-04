@@ -36,7 +36,7 @@ import {
   Group as TeamIcon,
   Star as PrimaryIcon
 } from '@mui/icons-material';
-import { useProviderDirectory } from '../../../../hooks/useProviderDirectory';
+import useProviderDirectory from '../../../../hooks/useProviderDirectory';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 
 const CareTeamSummary = ({ patientId, onViewFullTeam }) => {

@@ -183,7 +183,17 @@ import {
 // Import animation libraries
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useAnimation, useInView } from 'framer-motion';
 import { Chrono } from 'react-chrono';
-import { ResponsiveCalendar } from '@nivo/calendar';
+// import { ResponsiveCalendar } from '@nivo/calendar'; // Temporarily disabled due to rendering issues
+import { 
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  ZAxis,
+  Cell
+} from 'recharts';
 // Import our custom vis-timeline wrapper
 import VisTimelineWrapper from './VisTimelineWrapper';
 // Import vis-timeline CSS
@@ -216,6 +226,7 @@ import {
   getYear,
   getMonth,
   getDay,
+  getWeek,
   getHours,
   getMinutes,
   formatDistance,
@@ -645,6 +656,179 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const isLargeScreen = useMediaQuery(theme.breakpoints.up('lg'));
+
+  // Create theme-aware event types
+  const themedEventTypes = useMemo(() => ({
+    'Encounter': { 
+      icon: <EncounterIcon />, 
+      color: theme.palette.primary.main,
+      label: 'Visit',
+      category: 'clinical',
+      importance: 8
+    },
+    'MedicationRequest': { 
+      icon: <MedicationIcon />, 
+      color: theme.palette.secondary.main,
+      label: 'Medication',
+      category: 'treatment',
+      importance: 9
+    },
+    'MedicationStatement': { 
+      icon: <MedicationIcon />, 
+      color: theme.palette.secondary.main,
+      label: 'Medication',
+      category: 'treatment',
+      importance: 9
+    },
+    'Observation': { 
+      icon: <LabIcon />, 
+      color: theme.palette.info.main,
+      label: 'Lab Result',
+      category: 'diagnostic',
+      importance: 7
+    },
+    'Condition': { 
+      icon: <ConditionIcon />, 
+      color: theme.palette.warning.main,
+      label: 'Diagnosis',
+      category: 'clinical',
+      importance: 10
+    },
+    'AllergyIntolerance': { 
+      icon: <AllergyIcon />, 
+      color: theme.palette.error.main,
+      label: 'Allergy',
+      category: 'clinical',
+      importance: 10
+    },
+    'Immunization': { 
+      icon: <ImmunizationIcon />, 
+      color: theme.palette.success.main,
+      label: 'Immunization',
+      category: 'prevention',
+      importance: 6
+    },
+    'Procedure': { 
+      icon: <ProcedureIcon />, 
+      color: theme.palette.primary.dark,
+      label: 'Procedure',
+      category: 'treatment',
+      importance: 8
+    },
+    'DiagnosticReport': { 
+      icon: <LabIcon />, 
+      color: theme.palette.info.main,
+      label: 'Report',
+      category: 'diagnostic',
+      importance: 7
+    },
+    'ImagingStudy': { 
+      icon: <ImagingIcon />, 
+      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
+      label: 'Imaging',
+      category: 'diagnostic',
+      importance: 7
+    },
+    'DocumentReference': { 
+      icon: <NoteIcon />, 
+      color: theme.palette.mode === 'dark' ? theme.palette.grey[500] : theme.palette.grey[600],
+      label: 'Note',
+      category: 'documentation',
+      importance: 5
+    },
+    'CarePlan': { 
+      icon: <PlanIcon />, 
+      color: theme.palette.info.dark,
+      label: 'Care Plan',
+      category: 'planning',
+      importance: 8
+    },
+    'CareTeam': { 
+      icon: <TeamIcon />, 
+      color: theme.palette.info.light,
+      label: 'Care Team',
+      category: 'planning',
+      importance: 6
+    },
+    'Coverage': { 
+      icon: <InsuranceIcon />, 
+      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
+      label: 'Insurance',
+      category: 'administrative',
+      importance: 4
+    },
+    'Goal': { 
+      icon: <GoalIcon />, 
+      color: theme.palette.warning.dark,
+      label: 'Goal',
+      category: 'planning',
+      importance: 7
+    },
+  }), [theme]);
+
+  // Create theme-aware journey milestones
+  const themedJourneyMilestones = useMemo(() => ({
+    'diagnosis': {
+      icon: <ConditionIcon />,
+      color: theme.palette.warning.main,
+      label: 'Diagnosis',
+      description: 'Initial diagnosis or condition identified'
+    },
+    'treatment_start': {
+      icon: <MedicationIcon />,
+      color: theme.palette.secondary.main,
+      label: 'Treatment Started',
+      description: 'Beginning of treatment plan'
+    },
+    'procedure': {
+      icon: <ProcedureIcon />,
+      color: theme.palette.primary.dark,
+      label: 'Procedure',
+      description: 'Medical procedure performed'
+    },
+    'lab_result': {
+      icon: <LabIcon />,
+      color: theme.palette.info.main,
+      label: 'Lab Result',
+      description: 'Important lab result received'
+    },
+    'imaging': {
+      icon: <ImagingIcon />,
+      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
+      label: 'Imaging',
+      description: 'Imaging study completed'
+    },
+    'hospitalization': {
+      icon: <EncounterIcon />,
+      color: theme.palette.error.main,
+      label: 'Hospitalization',
+      description: 'Hospital admission'
+    },
+    'discharge': {
+      icon: <EncounterIcon />,
+      color: theme.palette.success.main,
+      label: 'Discharge',
+      description: 'Hospital discharge'
+    },
+    'followup': {
+      icon: <EventIcon />,
+      color: theme.palette.primary.main,
+      label: 'Follow-up',
+      description: 'Follow-up appointment'
+    },
+    'recovery': {
+      icon: <HeartIcon />,
+      color: theme.palette.success.main,
+      label: 'Recovery',
+      description: 'Recovery milestone achieved'
+    },
+    'goal_achieved': {
+      icon: <GoalIcon />,
+      color: theme.palette.warning.dark,
+      label: 'Goal Achieved',
+      description: 'Treatment goal reached'
+    },
+  }), [theme]);
   
   const { 
     resources, 
@@ -668,6 +852,8 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   const [showInactiveResources, setShowInactiveResources] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [dayDetailsDialogOpen, setDayDetailsDialogOpen] = useState(false);
+  const [selectedDayEvents, setSelectedDayEvents] = useState({ date: null, events: [] });
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentPlaybackIndex, setCurrentPlaybackIndex] = useState(0);
@@ -833,7 +1019,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         }
         
         // Category filter
-        const eventType = eventTypes[event.resourceType];
+        const eventType = themedEventTypes[event.resourceType];
         if (eventType && !selectedCategories.has(eventType.category)) {
           return false;
         }
@@ -856,7 +1042,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         _title: getEventTitle(event),
         _description: getEventDescription(event),
         _severity: getEventSeverity(event),
-        _type: eventTypes[event.resourceType] || { label: event.resourceType, color: '#757575', category: 'other' }
+        _type: themedEventTypes[event.resourceType] || { label: event.resourceType, color: theme.palette.grey[500], category: 'other' }
       }))
       .sort((a, b) => {
         const dateA = a._date;
@@ -941,6 +1127,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     const dailyCounts = {};
     const dailySeverity = {};
     const dailyCategories = {};
+    const eventsByDay = {};
     
     processedEvents.forEach(event => {
       if (!event._date) return;
@@ -963,39 +1150,62 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           dailyCategories[dateStr] = new Set();
         }
         dailyCategories[dateStr].add(event._type.category);
+        
+        // Store events for tooltip
+        if (!eventsByDay[dateStr]) {
+          eventsByDay[dateStr] = [];
+        }
+        eventsByDay[dateStr].push(event);
       } catch (error) {
         console.error('Error processing date for calendar:', event._date, error);
       }
     });
     
-    // Convert to array format for nivo
+    // Convert to array format for recharts calendar
     const fromDate = dateRange.start || subYears(new Date(), 1);
     const toDate = dateRange.end || new Date();
     
-    const data = Object.entries(dailyCounts)
-      .filter(([day]) => {
-        // Only include dates within the visible range
-        const date = parseISO(day);
-        return date >= fromDate && date <= toDate;
-      })
-      .map(([day, value]) => ({
-        day,
-        value: heatmapView === 'activity' ? value :
-               heatmapView === 'severity' ? 
-                 ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[day]) :
-                 dailyCategories[day].size
-      }));
+    // Create grid data for calendar
+    const calendarGridData = [];
+    const currentDate = new Date(fromDate);
+    
+    while (currentDate <= toDate) {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const weekOfYear = getWeek(currentDate);
+      const dayOfWeek = getDay(currentDate);
+      const monthNum = getMonth(currentDate);
+      
+      const value = heatmapView === 'activity' ? (dailyCounts[dateStr] || 0) :
+                    heatmapView === 'severity' ? 
+                      (dailySeverity[dateStr] ? ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[dateStr]) : -1) :
+                      (dailyCategories[dateStr] ? dailyCategories[dateStr].size : 0);
+      
+      calendarGridData.push({
+        date: dateStr,
+        week: weekOfYear,
+        day: dayOfWeek,
+        month: monthNum,
+        year: getYear(currentDate),
+        value: value,
+        count: dailyCounts[dateStr] || 0,
+        severity: dailySeverity[dateStr] || 'none',
+        events: eventsByDay[dateStr] || [],
+        displayDate: format(currentDate, 'MMM d')
+      });
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
     
     console.log('[TimelineTabModern] Calendar data:', {
-      count: data.length,
-      sample: data.slice(0, 5),
+      count: calendarGridData.length,
+      sample: calendarGridData.slice(0, 5),
       dateRange: {
-        from: format(dateRange.start || subYears(new Date(), 1), 'yyyy-MM-dd'),
-        to: format(dateRange.end || new Date(), 'yyyy-MM-dd')
+        from: format(fromDate, 'yyyy-MM-dd'),
+        to: format(toDate, 'yyyy-MM-dd')
       }
     });
     
-    return data;
+    return calendarGridData;
   }, [processedEvents, heatmapView, dateRange]);
   
   // Calculate patient journey milestones
@@ -1874,101 +2084,22 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       {calendarData.length} days with events
                     </Typography>
-                    <Box sx={{ flex: 1, minHeight: 500 }}>
-                      {ResponsiveCalendar ? (
-                        <ResponsiveCalendar
-                          data={calendarData}
-                          from={format(dateRange.start || subYears(new Date(), 1), 'yyyy-MM-dd')}
-                          to={format(dateRange.end || new Date(), 'yyyy-MM-dd')}
-                          emptyColor={isDarkMode ? '#1e1e1e' : '#eeeeee'}
-                    colors={
-                      heatmapView === 'activity' ? 
-                        ['#61cdbb', '#33a0a0', '#227480', '#0e4e60'] :
-                      heatmapView === 'severity' ?
-                        ['#4caf50', '#2196f3', '#ff9800', '#f44336'] :
-                        ['#e8f5e9', '#a5d6a7', '#66bb6a', '#388e3c']
-                    }
-                    margin={{ top: 40, right: 40, bottom: 40, left: 40 }}
-                    yearSpacing={40}
-                    monthBorderColor={isDarkMode ? '#444' : '#ddd'}
-                    dayBorderWidth={2}
-                    dayBorderColor={isDarkMode ? '#1e1e1e' : '#fff'}
-                    legends={[
-                      {
-                        anchor: 'bottom-right',
-                        direction: 'row',
-                        translateY: 36,
-                        itemCount: 4,
-                        itemWidth: 42,
-                        itemHeight: 36,
-                        itemsSpacing: 14,
-                        itemDirection: 'right-to-left'
-                      }
-                    ]}
-                    tooltip={({ day, value, color }) => {
-                      const dayEvents = processedEvents.filter(event => 
-                        event._date && format(parseISO(event._date), 'yyyy-MM-dd') === day
-                      );
-                      
-                      return (
-                        <Paper elevation={4} sx={{ p: 1.5, maxWidth: 300 }}>
-                          <Typography variant="subtitle2">
-                            {format(parseISO(day), 'MMMM d, yyyy')}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {value} event{value !== 1 ? 's' : ''}
-                          </Typography>
-                          {dayEvents.length > 0 && (
-                            <Box sx={{ mt: 1 }}>
-                              {dayEvents.slice(0, 3).map((event, idx) => (
-                                <Typography key={idx} variant="caption" display="block">
-                                  • {event._title}
-                                </Typography>
-                              ))}
-                              {dayEvents.length > 3 && (
-                                <Typography variant="caption" color="text.secondary">
-                                  ...and {dayEvents.length - 3} more
-                                </Typography>
-                              )}
-                            </Box>
-                          )}
-                        </Paper>
-                      );
-                    }}
-                    onClick={(data) => {
-                      const dayEvents = processedEvents.filter(event => 
-                        event._date && format(parseISO(event._date), 'yyyy-MM-dd') === data.day
-                      );
-                      if (dayEvents.length === 1) {
-                        handleEventClick(dayEvents[0]);
-                      } else if (dayEvents.length > 1) {
-                        // TODO: Show day details dialog
-                        setSnackbar({
-                          open: true,
-                          message: `${dayEvents.length} events on ${format(parseISO(data.day), 'MMM d, yyyy')}`,
-                          severity: 'info'
-                        });
-                      }
-                    }}
-                    theme={{
-                      ...theme.palette,
-                      fontSize: 11,
-                      tooltip: {
-                        container: {
-                          background: theme.palette.background.paper,
-                          color: theme.palette.text.primary,
-                          fontSize: '12px',
-                          borderRadius: '4px',
-                          boxShadow: theme.shadows[4]
-                        }
-                      }
-                    }}
-                        />
-                      ) : (
-                        <Alert severity="error">
-                          Calendar component not available. Please check that @nivo/calendar is installed.
-                        </Alert>
-                      )}
+                    <Box sx={{ flex: 1, minHeight: 500, overflow: 'auto' }}>
+                      {/* Custom calendar heatmap component */}
+                      <CalendarHeatmapComponent 
+                        data={calendarData}
+                        processedEvents={processedEvents}
+                        heatmapView={heatmapView}
+                        setHeatmapView={setHeatmapView}
+                        isDarkMode={isDarkMode}
+                        theme={theme}
+                        onDayClick={(date, events) => {
+                          if (events.length > 0) {
+                            setSelectedDayEvents({ date, events });
+                            setDayDetailsDialogOpen(true);
+                          }
+                        }}
+                      />
                     </Box>
                   </Box>
                 )}
@@ -2289,6 +2420,133 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           </DialogActions>
         </Dialog>
         
+        {/* Day Details Dialog */}
+        <Dialog
+          open={dayDetailsDialogOpen}
+          onClose={() => setDayDetailsDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography variant="h6">
+                {selectedDayEvents.date && format(parseISO(selectedDayEvents.date), 'MMMM d, yyyy')}
+              </Typography>
+              <IconButton onClick={() => setDayDetailsDialogOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Stack>
+          </DialogTitle>
+          <DialogContent dividers>
+            <List>
+              {selectedDayEvents.events.map((event, index) => {
+                const eventType = themedEventTypes[event.resourceType];
+                const navigateToResource = () => {
+                  // Determine which tab to navigate to based on resource type
+                  let targetTab = 'chart-review'; // default
+                  switch (event.resourceType) {
+                    case 'Encounter':
+                      targetTab = 'encounters';
+                      break;
+                    case 'Observation':
+                    case 'DiagnosticReport':
+                      targetTab = 'results';
+                      break;
+                    case 'MedicationRequest':
+                      targetTab = 'orders';
+                      break;
+                    case 'ImagingStudy':
+                      targetTab = 'imaging';
+                      break;
+                    case 'DocumentReference':
+                      targetTab = 'documentation';
+                      break;
+                    case 'CarePlan':
+                    case 'Goal':
+                      targetTab = 'care-plan';
+                      break;
+                    default:
+                      targetTab = 'chart-review';
+                  }
+                  
+                  // Close dialog and navigate
+                  setDayDetailsDialogOpen(false);
+                  onNavigateToTab(targetTab, { 
+                    resourceId: event.id, 
+                    resourceType: event.resourceType,
+                    highlight: true 
+                  });
+                };
+
+                return (
+                  <React.Fragment key={event.id || index}>
+                    <ListItem
+                      button
+                      onClick={navigateToResource}
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: alpha(eventType?.color || theme.palette.primary.main, 0.08)
+                        }
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Avatar
+                          sx={{
+                            bgcolor: alpha(eventType?.color || theme.palette.grey[500], 0.1),
+                            color: eventType?.color || theme.palette.grey[700],
+                            width: 40,
+                            height: 40
+                          }}
+                        >
+                          {eventType?.icon || <EventIcon />}
+                        </Avatar>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography variant="subtitle1">
+                              {event._title}
+                            </Typography>
+                            <Chip
+                              label={eventType?.label || event.resourceType}
+                              size="small"
+                              sx={{ 
+                                bgcolor: alpha(eventType?.color || theme.palette.grey[500], 0.1),
+                                color: eventType?.color || theme.palette.text.primary
+                              }}
+                            />
+                          </Stack>
+                        }
+                        secondary={
+                          <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              {event._description}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {format(parseISO(event._date), 'h:mm a')}
+                            </Typography>
+                          </Stack>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <IconButton edge="end" size="small">
+                          <NextIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                    {index < selectedDayEvents.events.length - 1 && <Divider />}
+                  </React.Fragment>
+                );
+              })}
+            </List>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDayDetailsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Snackbar */}
         <Snackbar
           open={snackbar.open}
@@ -2305,6 +2563,285 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           </Alert>
         </Snackbar>
       </motion.div>
+    </Box>
+  );
+};
+
+// Calendar Heatmap Component using Material-UI
+const CalendarHeatmapComponent = ({ data, processedEvents, heatmapView, setHeatmapView, isDarkMode, theme, onDayClick }) => {
+  // Calculate optimal box size based on container width
+  const [boxSize, setBoxSize] = useState(15);
+  const containerRef = useRef(null);
+  
+  useEffect(() => {
+    const calculateBoxSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.offsetWidth;
+        // 53 weeks * 7 days + gaps, with some margin
+        const optimalSize = Math.floor((containerWidth - 150) / 60);
+        setBoxSize(Math.max(12, Math.min(20, optimalSize)));
+      }
+    };
+    
+    calculateBoxSize();
+    window.addEventListener('resize', calculateBoxSize);
+    return () => window.removeEventListener('resize', calculateBoxSize);
+  }, []);
+  
+  // Group data by year and week for more compact display
+  const yearGroups = useMemo(() => {
+    const groups = {};
+    
+    data.forEach(item => {
+      const year = item.year;
+      if (!groups[year]) {
+        groups[year] = {
+          year,
+          weeks: {}
+        };
+      }
+      
+      const weekKey = item.week;
+      if (!groups[year].weeks[weekKey]) {
+        groups[year].weeks[weekKey] = [];
+      }
+      
+      groups[year].weeks[weekKey].push(item);
+    });
+    
+    return Object.values(groups).sort((a, b) => a.year - b.year);
+  }, [data]);
+  
+  // Get color for a day based on value and heatmap view
+  const getDayColor = (value, severity) => {
+    if (value === 0 || value === -1) {
+      return isDarkMode ? '#1e1e1e' : '#f5f5f5';
+    }
+    
+    if (heatmapView === 'severity') {
+      const severityColors = {
+        'critical': '#f44336',
+        'high': '#ff9800',
+        'moderate': '#2196f3',
+        'low': '#4caf50',
+        'none': isDarkMode ? '#1e1e1e' : '#f5f5f5'
+      };
+      return severityColors[severity] || severityColors.none;
+    } else if (heatmapView === 'activity') {
+      // Activity gradient
+      if (value === 1) return '#c6e48b';
+      if (value === 2) return '#7bc96f';
+      if (value === 3) return '#239a3b';
+      if (value >= 4) return '#196127';
+    } else {
+      // Category count gradient
+      if (value === 1) return '#e8f5e9';
+      if (value === 2) return '#a5d6a7';
+      if (value === 3) return '#66bb6a';
+      if (value >= 4) return '#388e3c';
+    }
+    
+    return isDarkMode ? '#333' : '#ddd';
+  };
+  
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  return (
+    <Box ref={containerRef} sx={{ width: '100%', overflow: 'auto' }}>
+      {/* Year-based calendar layout */}
+      {yearGroups.map((yearGroup) => (
+        <Box key={yearGroup.year} sx={{ mb: 4 }}>
+          <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+            {yearGroup.year}
+          </Typography>
+          
+          {/* Month labels */}
+          <Box sx={{ display: 'flex', mb: 1 }}>
+            <Box sx={{ width: 30 }} />
+            {monthLabels.map((month, idx) => {
+              // Check if we have data for this month
+              const hasData = Object.values(yearGroup.weeks).some(week => 
+                week.some(day => day.month === idx)
+              );
+              return (
+                <Box
+                  key={idx}
+                  sx={{
+                    width: boxSize * 4.5,
+                    textAlign: 'center',
+                    fontSize: '11px',
+                    color: hasData ? 'text.secondary' : 'text.disabled',
+                    mx: 0.25
+                  }}
+                >
+                  {month}
+                </Box>
+              );
+            })}
+          </Box>
+          
+          {/* Days grid */}
+          <Box sx={{ display: 'flex' }}>
+            {/* Day labels */}
+            <Box sx={{ mr: 1 }}>
+              {dayLabels.map((label, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    height: boxSize,
+                    width: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '10px',
+                    color: 'text.secondary',
+                    my: 0.25
+                  }}
+                >
+                  {idx % 2 === 0 ? label : ''}
+                </Box>
+              ))}
+            </Box>
+            
+            {/* Weeks */}
+            <Box sx={{ display: 'flex', gap: 0.25 }}>
+              {/* Generate all 53 weeks */}
+              {[...Array(53)].map((_, weekIdx) => {
+                const weekData = yearGroup.weeks[weekIdx + 1] || [];
+                
+                return (
+                  <Box key={weekIdx} sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                    {[...Array(7)].map((_, dayIdx) => {
+                      const dayData = weekData.find(d => d.day === dayIdx);
+                      
+                      if (!dayData) {
+                        return (
+                          <Box
+                            key={dayIdx}
+                            sx={{
+                              width: boxSize,
+                              height: boxSize,
+                              bgcolor: 'transparent'
+                            }}
+                          />
+                        );
+                      }
+                      
+                      return (
+                        <Tooltip
+                          key={dayIdx}
+                          title={
+                            <Box>
+                              <Typography variant="subtitle2">
+                                {format(parseISO(dayData.date), 'MMMM d, yyyy')}
+                              </Typography>
+                              <Typography variant="caption">
+                                {dayData.count} event{dayData.count !== 1 ? 's' : ''}
+                              </Typography>
+                              {dayData.events.length > 0 && (
+                                <Box sx={{ mt: 0.5 }}>
+                                  {dayData.events.slice(0, 3).map((event, idx) => (
+                                    <Typography key={idx} variant="caption" display="block">
+                                      • {event._title}
+                                    </Typography>
+                                  ))}
+                                  {dayData.events.length > 3 && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      ...and {dayData.events.length - 3} more
+                                    </Typography>
+                                  )}
+                                </Box>
+                              )}
+                            </Box>
+                          }
+                        >
+                          <Box
+                            onClick={() => onDayClick(dayData.date, dayData.events)}
+                            sx={{
+                              width: boxSize,
+                              height: boxSize,
+                              bgcolor: getDayColor(dayData.value, dayData.severity),
+                              borderRadius: '2px',
+                              cursor: dayData.count > 0 ? 'pointer' : 'default',
+                              border: 1,
+                              borderColor: isDarkMode ? 'grey.900' : 'grey.100',
+                              transition: 'all 0.2s',
+                              '&:hover': dayData.count > 0 ? {
+                                transform: 'scale(1.3)',
+                                boxShadow: 2,
+                                zIndex: 1,
+                                borderColor: theme.palette.primary.main
+                              } : {}
+                            }}
+                          />
+                        </Tooltip>
+                      );
+                    })}
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
+        </Box>
+      ))}
+      
+      
+      {/* Legend */}
+      <Box sx={{ 
+        mt: 2, 
+        pt: 2,
+        borderTop: 1,
+        borderColor: 'divider',
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 2
+      }}>
+        {/* Activity Legend */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="caption" color="text.secondary">Activity:</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary">Less</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: theme.palette.background.default, borderRadius: '2px', border: 1, borderColor: 'divider' }} />
+              <Box sx={{ width: 12, height: 12, bgcolor: alpha(theme.palette.success.light, 0.5), borderRadius: '2px' }} />
+              <Box sx={{ width: 12, height: 12, bgcolor: alpha(theme.palette.success.light, 0.7), borderRadius: '2px' }} />
+              <Box sx={{ width: 12, height: 12, bgcolor: theme.palette.success.main, borderRadius: '2px' }} />
+              <Box sx={{ width: 12, height: 12, bgcolor: theme.palette.success.dark, borderRadius: '2px' }} />
+            </Box>
+            <Typography variant="caption" color="text.secondary">More</Typography>
+          </Box>
+        </Box>
+        
+        {/* View Toggle */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            size="small"
+            variant={heatmapView === 'activity' ? 'contained' : 'outlined'}
+            onClick={() => setHeatmapView('activity')}
+            sx={{ minWidth: 'auto', px: 2, py: 0.5, fontSize: '0.75rem' }}
+          >
+            Activity
+          </Button>
+          <Button
+            size="small"
+            variant={heatmapView === 'severity' ? 'contained' : 'outlined'}
+            onClick={() => setHeatmapView('severity')}
+            sx={{ minWidth: 'auto', px: 2, py: 0.5, fontSize: '0.75rem' }}
+          >
+            Severity
+          </Button>
+          <Button
+            size="small"
+            variant={heatmapView === 'type' ? 'contained' : 'outlined'}
+            onClick={() => setHeatmapView('type')}
+            sx={{ minWidth: 'auto', px: 2, py: 0.5, fontSize: '0.75rem' }}
+          >
+            Type
+          </Button>
+        </Box>
+      </Box>
     </Box>
   );
 };

@@ -43,6 +43,8 @@ import {
   RadioGroup,
   Rating,
   Badge,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -203,15 +205,15 @@ const PRIORITY_OPTIONS = [
   { value: 'stat', label: 'STAT', color: 'error', icon: <StatIcon />, description: 'Immediate' },
 ];
 
-// Common service categories
-const SERVICE_CATEGORIES = [
-  { id: 'lab', name: 'Laboratory', icon: <LabIcon />, color: '#2196F3' },
-  { id: 'imaging', name: 'Imaging', icon: <ImagingIcon />, color: '#9C27B0' },
-  { id: 'diagnostic', name: 'Diagnostic', icon: <DiagnosticIcon />, color: '#4CAF50' },
-  { id: 'consult', name: 'Consultation', icon: <ConsultIcon />, color: '#FF9800' },
-  { id: 'therapy', name: 'Therapy', icon: <TherapyIcon />, color: '#F44336' },
-  { id: 'pharmacy', name: 'Pharmacy', icon: <PharmacyIcon />, color: '#00BCD4' },
-  { id: 'procedure', name: 'Procedure', icon: <HospitalIcon />, color: '#795548' },
+// Common service categories - will be made theme-aware in component
+const SERVICE_CATEGORIES_BASE = [
+  { id: 'lab', name: 'Laboratory', icon: <LabIcon /> },
+  { id: 'imaging', name: 'Imaging', icon: <ImagingIcon /> },
+  { id: 'diagnostic', name: 'Diagnostic', icon: <DiagnosticIcon /> },
+  { id: 'consult', name: 'Consultation', icon: <ConsultIcon /> },
+  { id: 'therapy', name: 'Therapy', icon: <TherapyIcon /> },
+  { id: 'pharmacy', name: 'Pharmacy', icon: <PharmacyIcon /> },
+  { id: 'procedure', name: 'Procedure', icon: <HospitalIcon /> },
 ];
 
 // Common service requests
@@ -251,9 +253,21 @@ const ServiceRequestDialogEnhanced = ({
   encounterId,
   mode = 'order', // 'order', 'edit', 'view'
 }) => {
+  const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const fhirClient = useFHIRClient();
+
+  // Create theme-aware service categories
+  const SERVICE_CATEGORIES = useMemo(() => [
+    { id: 'lab', name: 'Laboratory', icon: <LabIcon />, color: theme.palette.primary.main },
+    { id: 'imaging', name: 'Imaging', icon: <ImagingIcon />, color: theme.palette.secondary.main },
+    { id: 'diagnostic', name: 'Diagnostic', icon: <DiagnosticIcon />, color: theme.palette.success.main },
+    { id: 'consult', name: 'Consultation', icon: <ConsultIcon />, color: theme.palette.warning.main },
+    { id: 'therapy', name: 'Therapy', icon: <TherapyIcon />, color: theme.palette.error.main },
+    { id: 'pharmacy', name: 'Pharmacy', icon: <PharmacyIcon />, color: theme.palette.info.main },
+    { id: 'procedure', name: 'Procedure', icon: <HospitalIcon />, color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700] },
+  ], [theme]);
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);

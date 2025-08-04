@@ -88,6 +88,9 @@ import { cdsHooksService } from '../../../services/cdsHooksService';
 import CDSHookBuilder from '../../clinical/workspace/cds/CDSHookBuilder';
 import CardBuilder from '../../clinical/workspace/cds/CardBuilder';
 import CDSCardDisplay from '../../clinical/workspace/cds/CDSCardDisplay';
+import DisplayBehaviorConfiguration from '../../clinical/workspace/cds/DisplayBehaviorConfiguration';
+import PrefetchQueryBuilder from '../../clinical/workspace/cds/PrefetchQueryBuilder';
+import SuggestionBuilder from '../../clinical/workspace/cds/SuggestionBuilder';
 
 // Hook templates for common scenarios
 const HOOK_TEMPLATES = [
@@ -221,6 +224,7 @@ const STEPS = [
   'Basic Information',
   'Conditions',
   'Cards & Actions',
+  'Advanced Settings',
   'Review & Test'
 ];
 
@@ -347,6 +351,14 @@ const CDSBuildModeEnhanced = () => {
           errors: cardErrors
         };
         break;
+        
+      case 3: // Advanced Settings
+        // Advanced settings are optional, so always valid
+        newValidation.advanced = {
+          isValid: true,
+          errors: []
+        };
+        break;
     }
     
     // Update overall validation
@@ -429,6 +441,12 @@ const CDSBuildModeEnhanced = () => {
     
     setSaving(true);
     try {
+      // First ensure the context has the latest hook data
+      context.actions.updateHook(hook);
+      
+      // Small delay to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Use context save which handles all the complexity
       const success = await context.actions.saveHook();
       

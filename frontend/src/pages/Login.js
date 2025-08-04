@@ -119,14 +119,15 @@ const Login = () => {
           p: 5,
           backgroundColor: 'white',
           borderRadius: 2,
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+          boxShadow: theme => `0 8px 32px ${theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.08)'}`,
         }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Box sx={{ 
             width: 72, 
             height: 72, 
             borderRadius: 2,
-            backgroundColor: theme => theme.palette.primary.light + '20',
+            backgroundColor: theme => theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.light,
+            opacity: 0.15,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

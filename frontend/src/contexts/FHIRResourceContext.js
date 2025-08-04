@@ -105,9 +105,11 @@ function fhirResourceReducer(state, action) {
       
       if (Array.isArray(resources)) {
         resources.forEach(resource => {
-          resourceMap[resource.id] = resource;
+          if (resource && resource.id) {
+            resourceMap[resource.id] = resource;
+          }
         });
-      } else {
+      } else if (resources && resources.id) {
         resourceMap[resources.id] = resources;
       }
       
@@ -125,6 +127,13 @@ function fhirResourceReducer(state, action) {
     
     case FHIR_ACTIONS.ADD_RESOURCE: {
       const { resourceType, resource } = action.payload;
+      
+      // Validate resource exists and has an id
+      if (!resource || !resource.id) {
+        console.error('ADD_RESOURCE: Resource is missing or has no id', { resourceType, resource });
+        return state;
+      }
+      
       return {
         ...state,
         resources: {

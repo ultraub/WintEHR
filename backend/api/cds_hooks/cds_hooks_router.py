@@ -92,7 +92,23 @@ SAMPLE_HOOKS = {
                     ]
                 }
             )
-        ]
+        ],
+        displayBehavior={
+            "defaultMode": "popup",
+            "indicatorOverrides": {
+                "critical": "modal",
+                "warning": "popup",
+                "info": "inline"
+            },
+            "acknowledgment": {
+                "required": False,
+                "reasonRequired": False
+            },
+            "snooze": {
+                "enabled": True,
+                "defaultDuration": 60
+            }
+        }
     ),
     "senior-care-reminder": HookConfiguration(
         id="senior-care-reminder",

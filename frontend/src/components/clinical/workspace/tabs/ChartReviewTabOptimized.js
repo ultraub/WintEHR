@@ -465,8 +465,8 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       } else {
         // Create new resource
         result = await fhirClient.create(resource.resourceType, resource);
-        // Add to the FHIRResourceContext
-        addResource(result);
+        // Add to the FHIRResourceContext - addResource expects resourceType and resource parameters
+        addResource(resource.resourceType, result);
         enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
       }
       

@@ -42,6 +42,8 @@ import {
   Radio,
   RadioGroup,
   Rating,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -148,14 +150,14 @@ const PROCEDURE_STATUS_OPTIONS = [
   { value: 'unknown', label: 'Unknown', color: 'default' },
 ];
 
-// Common procedure categories
-const PROCEDURE_CATEGORIES = [
-  { id: 'diagnostic', name: 'Diagnostic', icon: <ScienceIcon />, color: '#2196F3' },
-  { id: 'surgical', name: 'Surgical', icon: <HealingIcon />, color: '#F44336' },
-  { id: 'therapeutic', name: 'Therapeutic', icon: <MedicalIcon />, color: '#4CAF50' },
-  { id: 'counseling', name: 'Counseling', icon: <PsychologyIcon />, color: '#9C27B0' },
-  { id: 'imaging', name: 'Imaging', icon: <MonitorIcon />, color: '#FF9800' },
-  { id: 'laboratory', name: 'Laboratory', icon: <BiotechIcon />, color: '#00BCD4' },
+// Common procedure categories - will be made theme-aware in component
+const PROCEDURE_CATEGORIES_BASE = [
+  { id: 'diagnostic', name: 'Diagnostic', icon: <ScienceIcon /> },
+  { id: 'surgical', name: 'Surgical', icon: <HealingIcon /> },
+  { id: 'therapeutic', name: 'Therapeutic', icon: <MedicalIcon /> },
+  { id: 'counseling', name: 'Counseling', icon: <PsychologyIcon /> },
+  { id: 'imaging', name: 'Imaging', icon: <MonitorIcon /> },
+  { id: 'laboratory', name: 'Laboratory', icon: <BiotechIcon /> },
 ];
 
 // Common outcome options
@@ -182,8 +184,19 @@ const ProcedureDialogEnhanced = ({
   encounterId,
   mode = 'schedule', // 'schedule', 'edit', 'document'
 }) => {
+  const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
+
+  // Create theme-aware procedure categories
+  const PROCEDURE_CATEGORIES = useMemo(() => [
+    { id: 'diagnostic', name: 'Diagnostic', icon: <ScienceIcon />, color: theme.palette.primary.main },
+    { id: 'surgical', name: 'Surgical', icon: <HealingIcon />, color: theme.palette.error.main },
+    { id: 'therapeutic', name: 'Therapeutic', icon: <MedicalIcon />, color: theme.palette.success.main },
+    { id: 'counseling', name: 'Counseling', icon: <PsychologyIcon />, color: theme.palette.secondary.main },
+    { id: 'imaging', name: 'Imaging', icon: <MonitorIcon />, color: theme.palette.warning.main },
+    { id: 'laboratory', name: 'Laboratory', icon: <BiotechIcon />, color: theme.palette.info.main },
+  ], [theme]);
   // FHIRClient is imported directly, not from hook
   
   // Use consistent dialog helpers
@@ -863,10 +876,10 @@ const ProcedureDialogEnhanced = ({
                           debouncedSearch(category.name);
                         }}
                         sx={{
-                          bgcolor: category.color + '20',
+                          bgcolor: alpha(category.color, 0.12),
                           color: category.color,
                           '&:hover': {
-                            bgcolor: category.color + '30',
+                            bgcolor: alpha(category.color, 0.2),
                           },
                         }}
                       />

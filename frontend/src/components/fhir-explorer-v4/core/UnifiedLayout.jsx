@@ -426,12 +426,14 @@ const NavigationDrawer = ({
           }}
         >
           <ListItemIcon sx={{ minWidth: 40 }}>
-            {React.cloneElement(config.icon, {
-              sx: { 
-                color: isActive ? (config.color || 'primary.main') : 'text.secondary',
-                fontSize: 24
-              }
-            })}
+            {config.icon && React.isValidElement(config.icon) ? 
+              React.cloneElement(config.icon, {
+                sx: { 
+                  color: isActive ? (config.color || 'primary.main') : 'text.secondary',
+                  fontSize: 24
+                }
+              }) : config.icon
+            }
           </ListItemIcon>
           <ListItemText
             primary={config.label}
@@ -487,12 +489,14 @@ const NavigationDrawer = ({
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      {React.cloneElement(viewConfig.icon, {
-                        sx: { 
-                          color: isViewActive ? (config.color || 'primary.main') : 'text.secondary',
-                          fontSize: 20
-                        }
-                      })}
+                      {viewConfig.icon && React.isValidElement(viewConfig.icon) ?
+                        React.cloneElement(viewConfig.icon, {
+                          sx: { 
+                            color: isViewActive ? (config.color || 'primary.main') : 'text.secondary',
+                            fontSize: 20
+                          }
+                        }) : viewConfig.icon
+                      }
                     </ListItemIcon>
                     <ListItemText
                       primary={viewConfig.label}
