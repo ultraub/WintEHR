@@ -51,6 +51,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -200,13 +202,13 @@ const REPORT_STATUS_OPTIONS = [
 
 // Common report categories
 const REPORT_CATEGORIES = [
-  { id: 'LAB', name: 'Laboratory', icon: <LabIcon />, color: '#2196F3' },
-  { id: 'RAD', name: 'Radiology', icon: <ImagingIcon />, color: '#9C27B0' },
-  { id: 'PATH', name: 'Pathology', icon: <PathologyIcon />, color: '#F44336' },
-  { id: 'MB', name: 'Microbiology', icon: <ScienceIcon />, color: '#4CAF50' },
-  { id: 'SP', name: 'Surgical Pathology', icon: <MedicalIcon />, color: '#FF9800' },
-  { id: 'CP', name: 'Clinical Pathology', icon: <HospitalIcon />, color: '#00BCD4' },
-  { id: 'OTH', name: 'Other', icon: <AssignmentIcon />, color: '#607D8B' },
+  { id: 'LAB', name: 'Laboratory', icon: <LabIcon />, color: 'primary' },
+  { id: 'RAD', name: 'Radiology', icon: <ImagingIcon />, color: 'secondary' },
+  { id: 'PATH', name: 'Pathology', icon: <PathologyIcon />, color: 'error' },
+  { id: 'MB', name: 'Microbiology', icon: <ScienceIcon />, color: 'success' },
+  { id: 'SP', name: 'Surgical Pathology', icon: <MedicalIcon />, color: 'warning' },
+  { id: 'CP', name: 'Clinical Pathology', icon: <HospitalIcon />, color: 'info' },
+  { id: 'OTH', name: 'Other', icon: <AssignmentIcon />, color: 'grey' },
 ];
 
 // Common lab panels
@@ -252,6 +254,7 @@ const DiagnosticReportDialogEnhanced = ({
   encounterId,
   mode = 'create', // 'create', 'edit', 'view'
 }) => {
+  const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const fhirClient = useFHIRClient();
@@ -771,10 +774,10 @@ const DiagnosticReportDialogEnhanced = ({
                           debouncedSearch(category.name);
                         }}
                         sx={{
-                          bgcolor: category.color + '20',
-                          color: category.color,
+                          bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.12),
+                          color: theme.palette[category.color]?.main || theme.palette.grey[700],
                           '&:hover': {
-                            bgcolor: category.color + '30',
+                            bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.2),
                           },
                         }}
                       />

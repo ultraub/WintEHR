@@ -3,7 +3,7 @@
  * Comprehensive encounter information with improved FHIR data utilization
  * @since 2025-01-27
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -37,7 +37,8 @@ import {
   alpha,
   Fade,
   Slide,
-  useMediaQuery
+  useMediaQuery,
+  Alert
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -80,6 +81,7 @@ import {
   getResourceReference 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
 
 // Tab panel component
 function TabPanel({ children, value, index, ...other }) {
@@ -1340,41 +1342,97 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
           <Box sx={{ p: 3 }}>
             {relatedResources.documents?.length > 0 ? (
               <Stack spacing={2}>
-                {relatedResources.documents.map((doc) => (
-                  <Card key={doc.id}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                        <Box flex={1}>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            {doc.type?.text || doc.type?.coding?.[0]?.display || 'Clinical Note'}
-                          </Typography>
-                          <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                            <Chip
-                              label={doc.docStatus || doc.status || 'draft'}
-                              size="small"
-                              color={doc.docStatus === 'final' ? 'success' : 'default'}
-                            />
-                            {doc.authenticator && (
-                              <Typography variant="body2" color="text.secondary">
-                                Signed by: {doc.authenticator.display}
+                {relatedResources.documents.map((doc) => {
+                  // Extract document content
+                  const extractedContent = documentReferenceConverter.extractDocumentContent(doc);
+                  const hasContent = extractedContent.content && !extractedContent.error;
+                  
+                  return (
+                    <Card key={doc.id}>
+                      <CardContent>
+                        <Stack spacing={2}>
+                          {/* Header */}
+                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                            <Box flex={1}>
+                              <Typography variant="subtitle1" fontWeight="medium">
+                                {doc.type?.text || doc.type?.coding?.[0]?.display || 'Clinical Note'}
                               </Typography>
-                            )}
+                              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                                <Chip
+                                  label={doc.docStatus || doc.status || 'draft'}
+                                  size="small"
+                                  color={doc.docStatus === 'final' ? 'success' : 'default'}
+                                />
+                                {doc.authenticator && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Signed by: {doc.authenticator.display}
+                                  </Typography>
+                                )}
+                                {doc.author?.[0]?.display && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    By: {doc.author[0].display}
+                                  </Typography>
+                                )}
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary">
+                                {doc.date && format(parseISO(doc.date), 'MMM d, yyyy h:mm a')}
+                              </Typography>
+                            </Box>
+                            <Button 
+                              size="small" 
+                              startIcon={<ArrowForwardIcon />}
+                              onClick={() => handleNavigateToTab('notes')}
+                            >
+                              Open Full
+                            </Button>
                           </Stack>
-                          <Typography variant="caption" color="text.secondary">
-                            {doc.date && format(parseISO(doc.date), 'MMM d, yyyy h:mm a')}
-                          </Typography>
-                        </Box>
-                        <Button 
-                          size="small" 
-                          startIcon={<ArrowForwardIcon />}
-                          onClick={() => handleNavigateToTab('notes')}
-                        >
-                          View
-                        </Button>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                ))}
+                          
+                          {/* Content Preview */}
+                          {hasContent && (
+                            <Paper 
+                              variant="outlined" 
+                              sx={{ 
+                                p: 2, 
+                                bgcolor: theme.palette.background.default,
+                                maxHeight: 300,
+                                overflow: 'auto'
+                              }}
+                            >
+                              {extractedContent.type === 'soap' && extractedContent.sections ? (
+                                // SOAP format
+                                <Stack spacing={2}>
+                                  {Object.entries(extractedContent.sections).map(([key, value]) => (
+                                    value && (
+                                      <Box key={key}>
+                                        <Typography variant="subtitle2" color="primary" fontWeight="medium" gutterBottom>
+                                          {key.charAt(0).toUpperCase() + key.slice(1)}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                          {value}
+                                        </Typography>
+                                      </Box>
+                                    )
+                                  ))}
+                                </Stack>
+                              ) : (
+                                // Plain text
+                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                  {extractedContent.content}
+                                </Typography>
+                              )}
+                            </Paper>
+                          )}
+                          
+                          {extractedContent.error && (
+                            <Alert severity="warning" sx={{ mt: 1 }}>
+                              Unable to display note content: {extractedContent.error}
+                            </Alert>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </Stack>
             ) : (
               <Box sx={{ textAlign: 'center', py: 4 }}>

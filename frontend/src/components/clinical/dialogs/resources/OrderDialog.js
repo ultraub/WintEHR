@@ -54,9 +54,9 @@ import type { ServiceRequest } from '../../../../core/fhir/types';
 
 // Order category options
 const CATEGORY_OPTIONS = [
-  { value: 'laboratory', label: 'Laboratory', color: '#2196f3' },
-  { value: 'imaging', label: 'Imaging', color: '#9c27b0' },
-  { value: 'procedure', label: 'Procedure', color: '#ff9800' }
+  { value: 'laboratory', label: 'Laboratory', color: 'primary' },
+  { value: 'imaging', label: 'Imaging', color: 'secondary' },
+  { value: 'procedure', label: 'Procedure', color: 'warning' }
 ];
 
 // Priority options
@@ -397,7 +397,8 @@ const OrderDialog = ({
 
   // Get category color
   const getCategoryColor = (category) => {
-    return CATEGORY_OPTIONS.find(c => c.value === category)?.color || theme.palette.grey[500];
+    const colorName = CATEGORY_OPTIONS.find(c => c.value === category)?.color || 'grey';
+    return theme.palette[colorName]?.main || theme.palette.grey[500];
   };
   
   // Get priority color
@@ -457,13 +458,17 @@ const OrderDialog = ({
               variant={selectedCategory === category.value ? 'contained' : 'outlined'}
               onClick={() => setSelectedCategory(category.value)}
               sx={{
-                backgroundColor: selectedCategory === category.value ? category.color : 'transparent',
-                borderColor: category.color,
-                color: selectedCategory === category.value ? 'white' : category.color,
+                backgroundColor: selectedCategory === category.value ? 
+                  theme.palette[category.color].main : 
+                  'transparent',
+                borderColor: theme.palette[category.color].main,
+                color: selectedCategory === category.value ? 
+                  theme.palette[category.color].contrastText : 
+                  theme.palette[category.color].main,
                 '&:hover': {
                   backgroundColor: selectedCategory === category.value ? 
-                    category.color : 
-                    alpha(category.color, 0.08)
+                    theme.palette[category.color].dark : 
+                    alpha(theme.palette[category.color].main, 0.08)
                 }
               }}
             >

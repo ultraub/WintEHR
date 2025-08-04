@@ -42,6 +42,8 @@ import {
   InputAdornment,
   Radio,
   RadioGroup,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -172,12 +174,12 @@ const VACCINE_STATUS_OPTIONS = [
 
 // Common vaccine categories
 const VACCINE_CATEGORIES = [
-  { id: 'routine', name: 'Routine', icon: <ChildCareIcon />, color: '#4CAF50' },
-  { id: 'flu', name: 'Influenza', icon: <VaccinesIcon />, color: '#2196F3' },
-  { id: 'covid', name: 'COVID-19', icon: <ShieldIcon />, color: '#9C27B0' },
-  { id: 'travel', name: 'Travel', icon: <LocationIcon />, color: '#FF9800' },
-  { id: 'occupational', name: 'Occupational', icon: <PersonIcon />, color: '#795548' },
-  { id: 'pregnancy', name: 'Pregnancy', icon: <PregnantWomanIcon />, color: '#E91E63' },
+  { id: 'routine', name: 'Routine', icon: <ChildCareIcon />, color: 'success' },
+  { id: 'flu', name: 'Influenza', icon: <VaccinesIcon />, color: 'primary' },
+  { id: 'covid', name: 'COVID-19', icon: <ShieldIcon />, color: 'secondary' },
+  { id: 'travel', name: 'Travel', icon: <LocationIcon />, color: 'warning' },
+  { id: 'occupational', name: 'Occupational', icon: <PersonIcon />, color: 'info' },
+  { id: 'pregnancy', name: 'Pregnancy', icon: <PregnantWomanIcon />, color: 'error' },
 ];
 
 // Common reaction types
@@ -203,6 +205,7 @@ const ImmunizationDialogEnhanced = ({
   encounterId,
   mode = 'administer', // 'administer', 'edit', 'history'
 }) => {
+  const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const { resources } = useFHIRResource();
@@ -786,10 +789,10 @@ const ImmunizationDialogEnhanced = ({
                           debouncedSearch(category.name);
                         }}
                         sx={{
-                          bgcolor: category.color + '20',
-                          color: category.color,
+                          bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.12),
+                          color: theme.palette[category.color]?.main || theme.palette.grey[700],
                           '&:hover': {
-                            bgcolor: category.color + '30',
+                            bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.2),
                           },
                         }}
                       />

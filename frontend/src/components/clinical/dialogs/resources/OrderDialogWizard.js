@@ -85,8 +85,8 @@ const CATEGORY_CONFIG = {
   laboratory: {
     label: 'Laboratory',
     icon: <LabIcon />,
-    color: '#2196f3',
-    gradient: 'linear-gradient(135deg, #2196f3 0%, #21cbf3 100%)',
+    color: 'primary',
+    gradient: 'primary',
     popularTests: [
       { code: '51990-0', name: 'Basic Metabolic Panel', shortName: 'BMP', frequency: 'common' },
       { code: '24323-8', name: 'Comprehensive Metabolic Panel', shortName: 'CMP', frequency: 'common' },
@@ -99,8 +99,8 @@ const CATEGORY_CONFIG = {
   imaging: {
     label: 'Imaging',
     icon: <ImagingIcon />,
-    color: '#9c27b0',
-    gradient: 'linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)',
+    color: 'secondary',
+    gradient: 'secondary',
     popularTests: [
       { code: 'chest-xray', name: 'Chest X-ray', modality: 'XR', frequency: 'common' },
       { code: 'ct-head', name: 'CT Head w/o contrast', modality: 'CT', frequency: 'common' },
@@ -113,8 +113,8 @@ const CATEGORY_CONFIG = {
   procedure: {
     label: 'Procedure',
     icon: <ProcedureIcon />,
-    color: '#ff9800',
-    gradient: 'linear-gradient(135deg, #ff9800 0%, #ffc947 100%)',
+    color: 'warning',
+    gradient: 'warning',
     popularTests: [
       { code: 'ekg', name: 'Electrocardiogram', shortName: 'EKG', frequency: 'common' },
       { code: 'echo', name: 'Echocardiogram', shortName: 'Echo', frequency: 'moderate' },
@@ -167,6 +167,14 @@ const OrderDialogWizard = ({
   defaultCategory = null
 }) => {
   const theme = useTheme();
+  
+  // Helper function to generate gradient from theme color
+  const getGradient = (colorName) => {
+    const color = theme.palette[colorName]?.main || theme.palette.grey[500];
+    const lightColor = theme.palette[colorName]?.light || theme.palette.grey[300];
+    return `linear-gradient(135deg, ${color} 0%, ${lightColor} 100%)`;
+  };
+  
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -486,10 +494,10 @@ const OrderDialogWizard = ({
                     gap: 0.5,
                     borderRadius: getBorderRadius('md'),
                     '&.Mui-selected': {
-                      background: config.gradient,
+                      background: getGradient(config.gradient),
                       color: 'white',
                       '&:hover': {
-                        background: config.gradient,
+                        background: getGradient(config.gradient),
                         filter: 'brightness(1.1)'
                       }
                     }

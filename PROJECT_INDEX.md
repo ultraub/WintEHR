@@ -1,7 +1,8 @@
 # MedGenEMR (WintEHR) Project Index
 
 **Generated**: 2025-07-19  
-**Version**: 1.0  
+**Updated**: 2025-01-27  
+**Version**: 1.1  
 **Purpose**: Comprehensive navigation guide for the MedGenEMR project
 
 ## 📚 Table of Contents
@@ -116,6 +117,8 @@ MedGenEMR/
 | AI Agent Guide | AI development instructions | [CLAUDE.md](./CLAUDE.md) |
 | Architecture | System design & patterns | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) |
 | API Reference | Endpoint documentation | [docs/API_ENDPOINTS.md](./docs/API_ENDPOINTS.md) |
+| Fixes Log 2025 | Consolidated fixes applied | [docs/FIXES_LOG_2025.md](./docs/FIXES_LOG_2025.md) |
+| Archive | Historical documentation | [docs/archive/README.md](./docs/archive/README.md) |
 
 ### Module Documentation
 | Module | Guide | Location |

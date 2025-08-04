@@ -44,6 +44,8 @@ import {
   Rating,
   ToggleButton,
   ToggleButtonGroup,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -116,14 +118,14 @@ const OBSERVATION_STATUS_OPTIONS = [
 
 // Common observation categories
 const OBSERVATION_CATEGORIES = [
-  { id: 'vital-signs', name: 'Vital Signs', icon: <VitalIcon />, color: '#F44336' },
-  { id: 'laboratory', name: 'Laboratory', icon: <LabIcon />, color: '#2196F3' },
-  { id: 'imaging', name: 'Imaging', icon: <ImagingIcon />, color: '#9C27B0' },
-  { id: 'procedure', name: 'Procedure', icon: <ExamIcon />, color: '#4CAF50' },
-  { id: 'survey', name: 'Survey', icon: <AssignmentIcon />, color: '#FF9800' },
-  { id: 'exam', name: 'Exam', icon: <ExamIcon />, color: '#00BCD4' },
-  { id: 'therapy', name: 'Therapy', icon: <PharmacyIcon />, color: '#795548' },
-  { id: 'social-history', name: 'Social History', icon: <SocialIcon />, color: '#607D8B' },
+  { id: 'vital-signs', name: 'Vital Signs', icon: <VitalIcon />, color: 'error' },
+  { id: 'laboratory', name: 'Laboratory', icon: <LabIcon />, color: 'primary' },
+  { id: 'imaging', name: 'Imaging', icon: <ImagingIcon />, color: 'secondary' },
+  { id: 'procedure', name: 'Procedure', icon: <ExamIcon />, color: 'success' },
+  { id: 'survey', name: 'Survey', icon: <AssignmentIcon />, color: 'warning' },
+  { id: 'exam', name: 'Exam', icon: <ExamIcon />, color: 'info' },
+  { id: 'therapy', name: 'Therapy', icon: <PharmacyIcon />, color: 'primary' },
+  { id: 'social-history', name: 'Social History', icon: <SocialIcon />, color: 'grey' },
 ];
 
 // Common vital signs with normal ranges
@@ -197,6 +199,7 @@ const ObservationDialogEnhanced = ({
   encounterId,
   mode = 'record', // 'record', 'edit', 'quick-vitals'
 }) => {
+  const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const fhirClient = useFHIRClient();
@@ -975,10 +978,10 @@ const ObservationDialogEnhanced = ({
                               debouncedSearch(category.name);
                             }}
                             sx={{
-                              bgcolor: category.color + '20',
-                              color: category.color,
+                              bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.12),
+                              color: theme.palette[category.color]?.main || theme.palette.grey[700],
                               '&:hover': {
-                                bgcolor: category.color + '30',
+                                bgcolor: alpha(theme.palette[category.color]?.main || theme.palette.grey[500], 0.2),
                               },
                             }}
                           />

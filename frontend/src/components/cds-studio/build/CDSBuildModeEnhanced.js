@@ -312,6 +312,7 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const searchTimeoutRef = useRef(null);
   
   const conditionConfig = CONDITION_TYPES[condition.type] || {};
   const hasError = validation?.conditions?.errors?.some(error => error.includes(`Condition ${index + 1}`)) || false;
@@ -319,6 +320,7 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
   // Load catalog data when condition type changes
   useEffect(() => {
     if ((conditionConfig.catalogType || conditionConfig.valueType === 'lab') && !initialLoadDone) {
+      // Load initial catalog with empty search to show common items
       loadCatalogData('');
       setInitialLoadDone(true);
     }
@@ -331,6 +333,15 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
     setCatalogOptions([]);
   }, [condition.type]);
   
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+  
   const loadCatalogData = async (search = '') => {
     if (!conditionConfig.catalogType && conditionConfig.valueType !== 'lab') return;
     
@@ -340,18 +351,18 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
       
       // Special handling for lab tests
       if (conditionConfig.valueType === 'lab') {
-        data = await cdsClinicalDataService.getLabCatalog(search, null, 20);
+        data = await cdsClinicalDataService.getLabCatalog(search, null, 30);
       } else {
         switch (conditionConfig.catalogType) {
           case 'conditions':
-            data = await cdsClinicalDataService.getDynamicConditionCatalog(search, 20);
+            data = await cdsClinicalDataService.getDynamicConditionCatalog(search, 30);
             break;
           case 'medications':
-            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 20);
+            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 30);
             break;
           case 'allergies':
             // For now, use medications as allergens
-            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 20);
+            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 30);
             break;
           default:
             data = [];
@@ -360,8 +371,13 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
       
       // Ensure we have proper data format
       const formattedData = Array.isArray(data) ? data : [];
-      console.log(`Loaded ${formattedData.length} items for ${conditionConfig.catalogType || 'lab'} catalog`);
+      console.log(`Loaded ${formattedData.length} items for ${conditionConfig.catalogType || 'lab'} catalog with search: '${search}'`);
       setCatalogOptions(formattedData);
+      
+      // If search returned no results, show a message
+      if (search && formattedData.length === 0) {
+        console.log('No results found for search:', search);
+      }
     } catch (error) {
       console.error('Failed to load catalog data:', error);
       setCatalogOptions([]);
@@ -441,14 +457,26 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
               handleFieldChange('value', newValue ? (newValue.code || newValue.rxnorm_code || newValue.loinc_code || newValue.id) : '');
               handleFieldChange('valueDisplay', newValue ? (newValue.display || newValue.display_name || newValue.medication_name || newValue.name) : '');
             }}
-            onInputChange={(event, newInputValue) => {
+            onInputChange={(event, newInputValue, reason) => {
               setSearchInput(newInputValue);
-              if (newInputValue.length > 1) {
-                loadCatalogData(newInputValue);
-              } else if (newInputValue.length === 0) {
-                loadCatalogData('');
+              // Only search when user is typing, not when selecting
+              if (reason === 'input') {
+                // Clear existing timeout
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                
+                // Set new timeout for debounced search
+                searchTimeoutRef.current = setTimeout(() => {
+                  // Always search, even with 1 character
+                  loadCatalogData(newInputValue);
+                }, 300); // 300ms debounce
               }
             }}
+            filterOptions={(x) => x} // Disable client-side filtering
+            freeSolo={false}
+            disableClearable={false}
+            autoHighlight
             renderOption={(props, option) => (
               <Box component="li" {...props}>
                 <Box>
@@ -464,6 +492,7 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
                 </Box>
               </Box>
             )}
+            noOptionsText={loading ? "Loading..." : searchInput ? `No results found for "${searchInput}"` : "Start typing to search"}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -502,14 +531,26 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
                     handleFieldChange('labTest', newValue ? (newValue.loinc_code || newValue.code || newValue.id) : '');
                     handleFieldChange('labTestDisplay', newValue ? (newValue.display || newValue.display_name || newValue.name) : '');
                   }}
-                  onInputChange={(event, newInputValue) => {
+                  onInputChange={(event, newInputValue, reason) => {
                     setSearchInput(newInputValue);
-                    if (newInputValue.length > 1) {
-                      loadCatalogData(newInputValue);
-                    } else if (newInputValue.length === 0) {
-                      loadCatalogData('');
+                    // Only search when user is typing, not when selecting
+                    if (reason === 'input') {
+                      // Clear existing timeout
+                      if (searchTimeoutRef.current) {
+                        clearTimeout(searchTimeoutRef.current);
+                      }
+                      
+                      // Set new timeout for debounced search
+                      searchTimeoutRef.current = setTimeout(() => {
+                        // Always search, even with 1 character
+                        loadCatalogData(newInputValue);
+                      }, 300); // 300ms debounce
                     }
                   }}
+                  filterOptions={(x) => x} // Disable client-side filtering
+            freeSolo={false}
+            disableClearable={false}
+            autoHighlight
                   renderOption={(props, option) => (
                     <Box component="li" {...props}>
                       <Box>
@@ -526,6 +567,7 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
                       </Box>
                     </Box>
                   )}
+                  noOptionsText={loading ? "Loading..." : searchInput ? `No lab tests found for "${searchInput}"` : "Start typing to search lab tests"}
                   renderInput={(params) => (
                     <TextField
                       {...params}
