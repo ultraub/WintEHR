@@ -50,8 +50,6 @@ const QualityMeasuresPage = () => {
         severity="warning" 
         sx={{ 
           mb: 3, 
-          backgroundColor: '#fff3cd', 
-          border: '2px solid #ffcc02',
           '& .MuiAlert-message': { fontWeight: 'bold' }
         }}
       >

@@ -57,7 +57,9 @@ import {
   Tabs,
   CircularProgress,
   useTheme,
-  alpha
+  alpha,
+  Autocomplete,
+  InputAdornment
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -91,6 +93,7 @@ import CDSCardDisplay from '../../clinical/workspace/cds/CDSCardDisplay';
 import DisplayBehaviorConfiguration from '../../clinical/workspace/cds/DisplayBehaviorConfiguration';
 import PrefetchQueryBuilder from '../../clinical/workspace/cds/PrefetchQueryBuilder';
 import SuggestionBuilder from '../../clinical/workspace/cds/SuggestionBuilder';
+import { cdsClinicalDataService } from '../../../services/cdsClinicalDataService';
 
 // Hook templates for common scenarios
 const HOOK_TEMPLATES = [
@@ -227,6 +230,412 @@ const STEPS = [
   'Advanced Settings',
   'Review & Test'
 ];
+
+// Condition type configurations
+const CONDITION_TYPES = {
+  age: {
+    label: 'Age',
+    operators: ['equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal', 'between'],
+    valueType: 'number',
+    unit: 'years',
+    placeholder: 'Enter age in years'
+  },
+  gender: {
+    label: 'Gender',
+    operators: ['equals', 'not_equals'],
+    valueType: 'select',
+    options: [
+      { value: 'male', label: 'Male' },
+      { value: 'female', label: 'Female' },
+      { value: 'other', label: 'Other' },
+      { value: 'unknown', label: 'Unknown' }
+    ]
+  },
+  condition: {
+    label: 'Medical Condition',
+    operators: ['exists', 'not_exists', 'equals'],
+    valueType: 'catalog',
+    catalogType: 'conditions',
+    placeholder: 'Search for condition...'
+  },
+  medication: {
+    label: 'Medication',
+    operators: ['exists', 'not_exists', 'equals'],
+    valueType: 'catalog',
+    catalogType: 'medications',
+    placeholder: 'Search for medication...'
+  },
+  'lab-value': {
+    label: 'Lab Value',
+    operators: ['equals', 'not_equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal', 'between'],
+    valueType: 'lab',
+    placeholder: 'Select lab test...'
+  },
+  'vital-sign': {
+    label: 'Vital Sign',
+    operators: ['equals', 'not_equals', 'greater_than', 'greater_than_or_equal', 'less_than', 'less_than_or_equal', 'between'],
+    valueType: 'vital',
+    options: [
+      { value: 'systolic_bp', label: 'Systolic Blood Pressure', unit: 'mmHg' },
+      { value: 'diastolic_bp', label: 'Diastolic Blood Pressure', unit: 'mmHg' },
+      { value: 'heart_rate', label: 'Heart Rate', unit: 'bpm' },
+      { value: 'temperature', label: 'Temperature', unit: '°F' },
+      { value: 'respiratory_rate', label: 'Respiratory Rate', unit: '/min' },
+      { value: 'oxygen_saturation', label: 'Oxygen Saturation', unit: '%' }
+    ]
+  },
+  allergy: {
+    label: 'Allergy',
+    operators: ['exists', 'not_exists', 'equals'],
+    valueType: 'catalog',
+    catalogType: 'allergies',
+    placeholder: 'Search for allergen...'
+  }
+};
+
+const OPERATOR_LABELS = {
+  equals: 'Equals',
+  not_equals: 'Not Equals',
+  greater_than: 'Greater Than',
+  greater_than_or_equal: 'Greater Than or Equal',
+  less_than: 'Less Than',
+  less_than_or_equal: 'Less Than or Equal',
+  between: 'Between',
+  exists: 'Exists',
+  not_exists: 'Does Not Exist'
+};
+
+// Enhanced Condition Card Component
+const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => {
+  const [catalogOptions, setCatalogOptions] = useState([]);
+  const [searchInput, setSearchInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  
+  const conditionConfig = CONDITION_TYPES[condition.type] || {};
+  const hasError = validation?.conditions?.errors?.some(error => error.includes(`Condition ${index + 1}`)) || false;
+  
+  // Load catalog data when condition type changes
+  useEffect(() => {
+    if (conditionConfig.catalogType || conditionConfig.valueType === 'lab') {
+      loadCatalogData();
+    }
+  }, [condition.type, conditionConfig.catalogType, conditionConfig.valueType]);
+  
+  const loadCatalogData = async (search = '') => {
+    if (!conditionConfig.catalogType && conditionConfig.valueType !== 'lab') return;
+    
+    setLoading(true);
+    try {
+      let data = [];
+      
+      // Special handling for lab tests
+      if (conditionConfig.valueType === 'lab') {
+        data = await cdsClinicalDataService.getLabCatalog(search, null, 20);
+      } else {
+        switch (conditionConfig.catalogType) {
+          case 'conditions':
+            data = await cdsClinicalDataService.getDynamicConditionCatalog(search, 20);
+            break;
+          case 'medications':
+            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 20);
+            break;
+          case 'allergies':
+            // For now, use medications as allergens
+            data = await cdsClinicalDataService.getDynamicMedicationCatalog(search, 20);
+            break;
+          default:
+            data = [];
+        }
+      }
+      
+      setCatalogOptions(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load catalog data:', error);
+      setCatalogOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleFieldChange = (field, value) => {
+    const updated = { ...condition, [field]: value };
+    
+    // Clear value when operator changes to exists/not_exists
+    if (field === 'operator' && (value === 'exists' || value === 'not_exists')) {
+      updated.value = '';
+      updated.value2 = '';
+    }
+    
+    // Clear operator and value when type changes
+    if (field === 'type') {
+      updated.operator = '';
+      updated.value = '';
+      updated.value2 = '';
+      setSelectedItem(null);
+    }
+    
+    onUpdate(updated);
+  };
+  
+  const renderValueField = () => {
+    const isDisabled = condition.operator === 'exists' || condition.operator === 'not_exists';
+    
+    if (isDisabled) {
+      return null;
+    }
+    
+    const fieldError = hasError && !condition.value;
+    
+    switch (conditionConfig.valueType) {
+      case 'select':
+        return (
+          <FormControl 
+            fullWidth 
+            error={fieldError}
+          >
+            <InputLabel>Value</InputLabel>
+            <Select
+              value={condition.value || ''}
+              onChange={(e) => handleFieldChange('value', e.target.value)}
+              label="Value"
+            >
+              {conditionConfig.options?.map(opt => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+        
+      case 'catalog':
+        return (
+          <Autocomplete
+            fullWidth
+            options={catalogOptions}
+            getOptionLabel={(option) => {
+              // Handle different catalog response formats
+              if (option.display_name) return option.display_name;
+              if (option.display) return option.display;
+              if (option.name) return option.name;
+              if (option.medication_name) return option.medication_name;
+              return '';
+            }}
+            loading={loading}
+            value={selectedItem}
+            onChange={(event, newValue) => {
+              setSelectedItem(newValue);
+              handleFieldChange('value', newValue ? (newValue.code || newValue.rxnorm_code || newValue.loinc_code || newValue.id) : '');
+              handleFieldChange('valueDisplay', newValue ? (newValue.display || newValue.display_name || newValue.medication_name || newValue.name) : '');
+            }}
+            onInputChange={(event, newInputValue) => {
+              setSearchInput(newInputValue);
+              if (newInputValue.length > 2) {
+                loadCatalogData(newInputValue);
+              } else if (newInputValue.length === 0) {
+                loadCatalogData('');
+              }
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Value"
+                placeholder={conditionConfig.placeholder}
+                error={fieldError}
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                      {params.InputProps.endAdornment}
+                    </>
+                  ),
+                }}
+              />
+            )}
+          />
+        );
+        
+      case 'lab':
+      case 'vital':
+        // For lab values and vitals, we need a two-part input
+        return (
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              {conditionConfig.valueType === 'lab' ? (
+                <Autocomplete
+                  fullWidth
+                  options={catalogOptions}
+                  getOptionLabel={(option) => option.display || option.display_name || option.name || ''}
+                  loading={loading}
+                  value={selectedItem}
+                  onChange={(event, newValue) => {
+                    setSelectedItem(newValue);
+                    handleFieldChange('labTest', newValue ? (newValue.loinc_code || newValue.code || newValue.id) : '');
+                    handleFieldChange('labTestDisplay', newValue ? (newValue.display || newValue.display_name || newValue.name) : '');
+                  }}
+                  onInputChange={(event, newInputValue) => {
+                    setSearchInput(newInputValue);
+                    if (newInputValue.length > 1) {
+                      loadCatalogData(newInputValue);
+                    } else if (newInputValue.length === 0) {
+                      loadCatalogData('');
+                    }
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Lab Test"
+                      placeholder="Search lab tests..."
+                      error={fieldError && !condition.labTest}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              ) : (
+                <FormControl fullWidth error={fieldError && !condition.vitalType}>
+                  <InputLabel>Vital Sign</InputLabel>
+                  <Select
+                    value={condition.vitalType || ''}
+                    onChange={(e) => handleFieldChange('vitalType', e.target.value)}
+                    label="Vital Sign"
+                  >
+                    {conditionConfig.options?.map(opt => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Value"
+                type="number"
+                value={condition.value || ''}
+                onChange={(e) => handleFieldChange('value', e.target.value)}
+                error={fieldError}
+                InputProps={{
+                  endAdornment: conditionConfig.valueType === 'vital' && condition.vitalType ? 
+                    <InputAdornment position="end">
+                      {conditionConfig.options?.find(o => o.value === condition.vitalType)?.unit}
+                    </InputAdornment> : undefined
+                }}
+              />
+            </Grid>
+            {condition.operator === 'between' && (
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="To Value"
+                  type="number"
+                  value={condition.value2 || ''}
+                  onChange={(e) => handleFieldChange('value2', e.target.value)}
+                  error={fieldError && condition.operator === 'between' && !condition.value2}
+                />
+              </Grid>
+            )}
+          </Grid>
+        );
+        
+      default:
+        return (
+          <TextField
+            fullWidth
+            label="Value"
+            type={conditionConfig.valueType === 'number' ? 'number' : 'text'}
+            value={condition.value || ''}
+            onChange={(e) => handleFieldChange('value', e.target.value)}
+            placeholder={conditionConfig.placeholder}
+            error={fieldError}
+            InputProps={{
+              endAdornment: conditionConfig.unit ? 
+                <InputAdornment position="end">{conditionConfig.unit}</InputAdornment> : undefined
+            }}
+          />
+        );
+    }
+  };
+  
+  return (
+    <Card variant="outlined" sx={{ 
+      borderColor: hasError ? 'error.main' : undefined,
+      borderWidth: hasError ? 2 : 1
+    }}>
+      <CardContent>
+        <Stack spacing={2}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={3}>
+              <FormControl 
+                fullWidth 
+                error={hasError && !condition.type}
+              >
+                <InputLabel>Condition Type</InputLabel>
+                <Select
+                  value={condition.type || ''}
+                  onChange={(e) => handleFieldChange('type', e.target.value)}
+                  label="Condition Type"
+                >
+                  {Object.entries(CONDITION_TYPES).map(([value, config]) => (
+                    <MenuItem key={value} value={value}>
+                      {config.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <FormControl 
+                fullWidth 
+                disabled={!condition.type}
+                error={hasError && condition.type && !condition.operator}
+              >
+                <InputLabel>Operator</InputLabel>
+                <Select
+                  value={condition.operator || ''}
+                  onChange={(e) => handleFieldChange('operator', e.target.value)}
+                  label="Operator"
+                >
+                  {conditionConfig.operators?.map(op => (
+                    <MenuItem key={op} value={op}>
+                      {OPERATOR_LABELS[op]}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={5}>
+              {condition.type && condition.operator && renderValueField()}
+            </Grid>
+            
+            <Grid item xs={12} md={1}>
+              <IconButton
+                color="error"
+                onClick={onRemove}
+                sx={{ mt: 1 }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Grid>
+          </Grid>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+};
 
 const CDSBuildModeEnhanced = () => {
   const theme = useTheme();
@@ -655,86 +1064,24 @@ const CDSBuildModeEnhanced = () => {
               Define when this hook should trigger. Leave empty to always trigger.
             </Alert>
             
-            {/* Simple condition builder */}
+            {/* Enhanced condition builder */}
             <Stack spacing={2}>
               {hook.conditions?.map((condition, index) => (
-                <Card key={condition.id || index} variant="outlined">
-                  <CardContent>
-                    <Stack spacing={2}>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} md={4}>
-                          <FormControl fullWidth>
-                            <InputLabel>Condition Type</InputLabel>
-                            <Select
-                              value={condition.type || ''}
-                              onChange={(e) => {
-                                const newConditions = [...hook.conditions];
-                                newConditions[index] = { ...condition, type: e.target.value };
-                                updateHook({ conditions: newConditions });
-                              }}
-                              label="Condition Type"
-                            >
-                              <MenuItem value="age">Age</MenuItem>
-                              <MenuItem value="gender">Gender</MenuItem>
-                              <MenuItem value="condition">Medical Condition</MenuItem>
-                              <MenuItem value="medication">Medication</MenuItem>
-                              <MenuItem value="lab-value">Lab Value</MenuItem>
-                              <MenuItem value="vital-sign">Vital Sign</MenuItem>
-                              <MenuItem value="allergy">Allergy</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                          <FormControl fullWidth>
-                            <InputLabel>Operator</InputLabel>
-                            <Select
-                              value={condition.operator || ''}
-                              onChange={(e) => {
-                                const newConditions = [...hook.conditions];
-                                newConditions[index] = { ...condition, operator: e.target.value };
-                                updateHook({ conditions: newConditions });
-                              }}
-                              label="Operator"
-                            >
-                              <MenuItem value="equals">Equals</MenuItem>
-                              <MenuItem value="not_equals">Not Equals</MenuItem>
-                              <MenuItem value="gt">Greater Than</MenuItem>
-                              <MenuItem value="gte">Greater Than or Equal</MenuItem>
-                              <MenuItem value="lt">Less Than</MenuItem>
-                              <MenuItem value="lte">Less Than or Equal</MenuItem>
-                              <MenuItem value="exists">Exists</MenuItem>
-                              <MenuItem value="not_exists">Does Not Exist</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid item xs={12} md={3}>
-                          <TextField
-                            fullWidth
-                            label="Value"
-                            value={condition.value || ''}
-                            onChange={(e) => {
-                              const newConditions = [...hook.conditions];
-                              newConditions[index] = { ...condition, value: e.target.value };
-                              updateHook({ conditions: newConditions });
-                            }}
-                            disabled={condition.operator === 'exists' || condition.operator === 'not_exists'}
-                          />
-                        </Grid>
-                        <Grid item xs={12} md={1}>
-                          <IconButton
-                            color="error"
-                            onClick={() => {
-                              const newConditions = hook.conditions.filter((_, i) => i !== index);
-                              updateHook({ conditions: newConditions });
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Grid>
-                      </Grid>
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <ConditionCard
+                  key={condition.id || index}
+                  condition={condition}
+                  index={index}
+                  onUpdate={(updatedCondition) => {
+                    const newConditions = [...hook.conditions];
+                    newConditions[index] = updatedCondition;
+                    updateHook({ conditions: newConditions });
+                  }}
+                  onRemove={() => {
+                    const newConditions = hook.conditions.filter((_, i) => i !== index);
+                    updateHook({ conditions: newConditions });
+                  }}
+                  validation={validation}
+                />
               ))}
               
               <Button
@@ -755,17 +1102,6 @@ const CDSBuildModeEnhanced = () => {
                 Add Condition
               </Button>
             </Stack>
-            
-            {validation.conditions.errors.length > 0 && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                <AlertTitle>Validation Errors</AlertTitle>
-                <ul style={{ margin: 0, paddingLeft: 20 }}>
-                  {validation.conditions.errors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </Alert>
-            )}
           </Box>
         );
         

@@ -192,12 +192,36 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
         return false;
       }),
       documents: documentReferences.filter(doc => {
+        // First check for explicit encounter reference
         if (Array.isArray(doc.context?.encounter)) {
-          return doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
+          const hasEncounterRef = doc.context.encounter.some(enc => isEncounterMatch(enc.reference));
+          if (hasEncounterRef) return true;
         }
         if (doc.context?.encounter?.reference) {
-          return isEncounterMatch(doc.context.encounter.reference);
+          if (isEncounterMatch(doc.context.encounter.reference)) return true;
         }
+        
+        // Fallback: Check if document was created during encounter period
+        const period = encounter.actualPeriod || encounter.period;
+        if (period && doc.date) {
+          const docDate = parseISO(doc.date);
+          const encounterStart = period.start ? parseISO(period.start) : null;
+          const encounterEnd = period.end ? parseISO(period.end) : null;
+          
+          if (encounterStart) {
+            // If encounter has ended, check if doc is within the period
+            if (encounterEnd) {
+              return docDate >= encounterStart && docDate <= encounterEnd;
+            }
+            // If encounter is ongoing, check if doc is after start and within 24 hours
+            else {
+              const twentyFourHoursAfterStart = new Date(encounterStart);
+              twentyFourHoursAfterStart.setHours(twentyFourHoursAfterStart.getHours() + 24);
+              return docDate >= encounterStart && docDate <= twentyFourHoursAfterStart;
+            }
+          }
+        }
+        
         return false;
       }),
       diagnosticReports: diagnosticReports.filter(report =>

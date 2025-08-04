@@ -235,9 +235,34 @@ const EncounterCard = memo(({
           labs: labs.length,
           medications: medications.filter(med => isEncounterMatch(med.encounter?.reference)).length,
           procedures: procedures.filter(proc => isEncounterMatch(proc.encounter?.reference)).length,
-          notes: notes.filter(doc => 
-            doc.context?.encounter?.some(enc => enc.reference?.includes(encounter.id))
-          ).length,
+          notes: notes.filter(doc => {
+            // Check for explicit encounter reference
+            if (doc.context?.encounter?.some(enc => enc.reference?.includes(encounter.id))) {
+              return true;
+            }
+            
+            // Fallback: Check if document was created during encounter period
+            if (period.start && doc.date) {
+              const docDate = parseISO(doc.date);
+              const encounterStart = startDate;
+              const encounterEnd = endDate;
+              
+              if (encounterStart) {
+                // If encounter has ended, check if doc is within the period
+                if (encounterEnd) {
+                  return docDate >= encounterStart && docDate <= encounterEnd;
+                }
+                // If encounter is ongoing, check if doc is after start and within 24 hours
+                else {
+                  const twentyFourHoursAfterStart = new Date(encounterStart);
+                  twentyFourHoursAfterStart.setHours(twentyFourHoursAfterStart.getHours() + 24);
+                  return docDate >= encounterStart && docDate <= twentyFourHoursAfterStart;
+                }
+              }
+            }
+            
+            return false;
+          }).length,
           orders: orders.filter(req => isEncounterMatch(req.encounter?.reference)).length,
           totalResources: 0,
           hasCriticalLabs

@@ -578,7 +578,7 @@ function PatientList() {
             sx={{
               '& .MuiDataGrid-row:hover': {
                 cursor: 'pointer',
-                backgroundColor: 'rgba(233, 30, 99, 0.04)',
+                backgroundColor: (theme) => theme.palette.action.hover,
               },
             }}
           />
