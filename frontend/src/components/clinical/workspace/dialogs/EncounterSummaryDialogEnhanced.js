@@ -148,9 +148,29 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
   const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { getPatientResources, currentPatient } = useFHIRResource();
+  const { getPatientResources, currentPatient, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   const [activeTab, setActiveTab] = useState(0);
+  const [documentReferencesLoaded, setDocumentReferencesLoaded] = useState(false);
+  
+  // Load DocumentReferences if not already loaded
+  useEffect(() => {
+    const loadDocumentReferences = async () => {
+      if (open && patientId && !documentReferencesLoaded) {
+        try {
+          await searchResources('DocumentReference', { 
+            patient: patientId,
+            _count: 100 
+          });
+          setDocumentReferencesLoaded(true);
+        } catch (error) {
+          console.error('Failed to load DocumentReferences:', error);
+        }
+      }
+    };
+    
+    loadDocumentReferences();
+  }, [open, patientId, searchResources, documentReferencesLoaded]);
 
   // Get all related resources for this encounter
   const relatedResources = useMemo(() => {

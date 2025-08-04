@@ -311,16 +311,25 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   
   const conditionConfig = CONDITION_TYPES[condition.type] || {};
   const hasError = validation?.conditions?.errors?.some(error => error.includes(`Condition ${index + 1}`)) || false;
   
   // Load catalog data when condition type changes
   useEffect(() => {
-    if (conditionConfig.catalogType || conditionConfig.valueType === 'lab') {
-      loadCatalogData();
+    if ((conditionConfig.catalogType || conditionConfig.valueType === 'lab') && !initialLoadDone) {
+      loadCatalogData('');
+      setInitialLoadDone(true);
     }
-  }, [condition.type, conditionConfig.catalogType, conditionConfig.valueType]);
+  }, [condition.type, conditionConfig.catalogType, conditionConfig.valueType, initialLoadDone]);
+  
+  // Reset initial load when type changes
+  useEffect(() => {
+    setInitialLoadDone(false);
+    setSelectedItem(null);
+    setCatalogOptions([]);
+  }, [condition.type]);
   
   const loadCatalogData = async (search = '') => {
     if (!conditionConfig.catalogType && conditionConfig.valueType !== 'lab') return;
@@ -349,7 +358,10 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
         }
       }
       
-      setCatalogOptions(Array.isArray(data) ? data : []);
+      // Ensure we have proper data format
+      const formattedData = Array.isArray(data) ? data : [];
+      console.log(`Loaded ${formattedData.length} items for ${conditionConfig.catalogType || 'lab'} catalog`);
+      setCatalogOptions(formattedData);
     } catch (error) {
       console.error('Failed to load catalog data:', error);
       setCatalogOptions([]);
@@ -431,12 +443,27 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
             }}
             onInputChange={(event, newInputValue) => {
               setSearchInput(newInputValue);
-              if (newInputValue.length > 2) {
+              if (newInputValue.length > 1) {
                 loadCatalogData(newInputValue);
               } else if (newInputValue.length === 0) {
                 loadCatalogData('');
               }
             }}
+            renderOption={(props, option) => (
+              <Box component="li" {...props}>
+                <Box>
+                  <Typography variant="body2">
+                    {option.generic_name || option.test_name || option.display_name || option.display}
+                    {option.usage_count > 0 && (
+                      <Chip size="small" label={`Used ${option.usage_count}x`} color="primary" sx={{ ml: 1, height: 16 }} />
+                    )}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Code: {option.rxnorm_code || option.loinc_code || option.code} | Type: {option.drug_class || option.category || 'general'}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -483,6 +510,22 @@ const ConditionCard = ({ condition, index, onUpdate, onRemove, validation }) => 
                       loadCatalogData('');
                     }
                   }}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2">
+                          {option.test_name}
+                          {option.usage_count > 0 && (
+                            <Chip size="small" label={`${option.usage_count} tests`} color="primary" sx={{ ml: 1, height: 16 }} />
+                          )}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          LOINC: {option.loinc_code} | Type: {option.specimen_type}
+                          {option.reference_range && ` | Range: ${option.reference_range.min}-${option.reference_range.max} ${option.reference_range.unit}`}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
