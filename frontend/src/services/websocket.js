@@ -118,7 +118,7 @@ class WebSocketService {
    * Handle incoming messages
    */
   handleMessage(data) {
-    const { type, payload } = data;
+    const { type, payload, data: messageData } = data;
     
     // Handle system messages
     switch (type) {
@@ -131,9 +131,85 @@ class WebSocketService {
       case 'error':
         console.error('[WebSocket] Server error:', payload);
         break;
+      case 'subscription':
+        console.log('[WebSocket] Subscription confirmed:', messageData);
+        break;
+      case 'update':
+        // Handle FHIR resource updates from other users
+        if (messageData) {
+          console.log('[WebSocket] Resource update received:', messageData);
+          const { event_type, patient_id, resource_type, resource } = messageData;
+          
+          // Dispatch as a clinical event
+          if (event_type && resource) {
+            this.dispatch(event_type, {
+              patientId: patient_id,
+              resource: resource,
+              resourceType: resource_type,
+              fromWebSocket: true // Mark as coming from WebSocket
+            });
+          }
+        }
+        break;
       default:
         // Dispatch to listeners
-        this.dispatch(type, payload);
+        this.dispatch(type, payload || data);
+    }
+  }
+
+  /**
+   * Subscribe to a patient room for multi-user updates
+   * @param {string} patientId - Patient ID to subscribe to
+   * @param {Array<string>} resourceTypes - Optional resource types to filter
+   */
+  async subscribeToPatient(patientId, resourceTypes = []) {
+    if (!this.isConnected) {
+      console.warn('[WebSocket] Cannot subscribe - not connected');
+      return;
+    }
+    
+    const subscriptionId = `patient-${patientId}-${Date.now()}`;
+    const message = {
+      type: 'subscription',
+      data: {
+        subscription_id: subscriptionId,
+        patient_ids: [patientId],
+        resource_types: resourceTypes
+      }
+    };
+    
+    console.log('[WebSocket] Subscribing to patient:', patientId, resourceTypes);
+    this.send(message);
+    
+    // Store subscription info for reconnection
+    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    this.activeSubscriptions.set(subscriptionId, { patientId, resourceTypes });
+    
+    return subscriptionId;
+  }
+  
+  /**
+   * Unsubscribe from a patient room
+   * @param {string} subscriptionId - Subscription ID to cancel
+   */
+  async unsubscribeFromPatient(subscriptionId) {
+    if (!this.isConnected) {
+      return;
+    }
+    
+    const message = {
+      type: 'unsubscribe',
+      data: {
+        subscription_id: subscriptionId
+      }
+    };
+    
+    console.log('[WebSocket] Unsubscribing:', subscriptionId);
+    this.send(message);
+    
+    // Remove from active subscriptions
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
     }
   }
 

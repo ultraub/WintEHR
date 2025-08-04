@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
+import websocketService from '../services/websocket';
 
 const useChartReviewResources = (patientId, options = {}) => {
   const {
@@ -957,6 +958,51 @@ const useChartReviewResources = (patientId, options = {}) => {
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, realTimeUpdates, subscribe, handleResourceUpdate]);
+
+  // WebSocket patient room subscription for multi-user synchronization
+  useEffect(() => {
+    if (!realTimeUpdates || !patientId || !websocketService.isConnected) return;
+
+    console.log('[useChartReviewResources] Setting up WebSocket patient room subscription for:', patientId);
+
+    // Track subscription ID to clean up later
+    let subscriptionId = null;
+
+    // Subscribe to patient room for real-time updates from other users
+    const setupPatientSubscription = async () => {
+      try {
+        // Define the resource types we want to receive updates for
+        const resourceTypes = [
+          'Condition',
+          'MedicationRequest',
+          'AllergyIntolerance',
+          'Immunization',
+          'Observation',
+          'Procedure',
+          'Encounter',
+          'CarePlan',
+          'DocumentReference'
+        ];
+
+        // Subscribe to patient room with specific resource types
+        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        console.log('[useChartReviewResources] Successfully subscribed to patient room:', subscriptionId);
+      } catch (error) {
+        console.error('[useChartReviewResources] Failed to subscribe to patient room:', error);
+      }
+    };
+
+    // Set up subscription
+    setupPatientSubscription();
+
+    // Clean up subscription on unmount or when patient changes
+    return () => {
+      if (subscriptionId) {
+        console.log('[useChartReviewResources] Unsubscribing from patient room:', subscriptionId);
+        websocketService.unsubscribeFromPatient(subscriptionId);
+      }
+    };
+  }, [patientId, realTimeUpdates]);
 
   // Add debug logging for hook creation and cleanup refresh timer
   useEffect(() => {

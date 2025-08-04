@@ -63,6 +63,7 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/expo
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
+import websocketService from '../../../../services/websocket';
 
 // Enhanced UX components
 import { 

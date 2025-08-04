@@ -92,9 +92,6 @@ const navigationConfig = {
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Encounters', icon: <EventNoteIcon />, path: '/encounters', description: 'Visit management' },
-      { text: 'Orders & Results', icon: <ScienceIcon />, path: '/lab-results', description: 'Lab & imaging' },
-      { text: 'Medications', icon: <PharmacyIcon />, path: '/medications', description: 'Medication management' },
       { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', badge: 'New' }
     ]
   },
@@ -112,10 +109,7 @@ const navigationConfig = {
     icon: <ApiIcon />,
     items: [
       { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Next-gen FHIR exploration with AI', badge: 'Enhanced' },
-      { text: 'UI Composer', icon: <DashboardCustomizeIcon />, path: '/ui-composer', description: 'Dynamic UI generation', badge: 'Experimental' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' },
-      { text: 'Design System', icon: <DashboardCustomizeIcon />, path: '/design-system', description: 'Component showcase & patterns', badge: 'New' },
-      { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' }
     ]
   },
   admin: {
