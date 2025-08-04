@@ -244,6 +244,22 @@ const CDSBuildModeEnhanced = () => {
     cards: [],
     prefetch: {},
     enabled: true,
+    displayBehavior: {
+      defaultMode: 'popup',
+      acknowledgment: {
+        required: false,
+        reasonRequired: false
+      },
+      snooze: {
+        enabled: true,
+        defaultDuration: 60
+      },
+      indicatorOverrides: {
+        critical: 'modal',
+        warning: 'popup',
+        info: 'inline'
+      }
+    },
     _meta: {
       created: null,
       modified: new Date(),
@@ -384,6 +400,7 @@ const CDSBuildModeEnhanced = () => {
   
   // Update hook data
   const updateHook = useCallback((updates) => {
+    console.log('[CDSBuildModeEnhanced] updateHook called with:', updates);
     const newHook = { ...hook, ...updates };
     
     // Auto-generate ID from title if needed
@@ -823,7 +840,7 @@ const CDSBuildModeEnhanced = () => {
                   Display Behavior
                 </Typography>
                 <DisplayBehaviorConfiguration
-                  displayBehavior={hook.displayBehavior || {}}
+                  config={hook.displayBehavior || {}}
                   onChange={(behavior) => updateHook({ displayBehavior: behavior })}
                 />
               </Paper>
@@ -834,7 +851,7 @@ const CDSBuildModeEnhanced = () => {
                   Prefetch Queries
                 </Typography>
                 <PrefetchQueryBuilder
-                  prefetch={hook.prefetch || {}}
+                  queries={hook.prefetch || {}}
                   onChange={(prefetch) => updateHook({ prefetch })}
                 />
               </Paper>

@@ -445,6 +445,22 @@ const CDSManageMode = ({ onEditService, refreshTrigger }) => {
                 conditions: [],
                 cards: [],
                 prefetch: {},
+                displayBehavior: {
+                  defaultMode: 'popup',
+                  acknowledgment: {
+                    required: false,
+                    reasonRequired: false
+                  },
+                  snooze: {
+                    enabled: true,
+                    defaultDuration: 60
+                  },
+                  indicatorOverrides: {
+                    critical: 'modal',
+                    warning: 'popup',
+                    info: 'inline'
+                  }
+                },
                 _meta: {
                   created: null, // null means this is a new hook
                   modified: new Date(),
