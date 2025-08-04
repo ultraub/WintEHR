@@ -945,36 +945,58 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     processedEvents.forEach(event => {
       if (!event._date) return;
       
-      const dateStr = format(parseISO(event._date), 'yyyy-MM-dd');
-      
-      // Count events
-      dailyCounts[dateStr] = (dailyCounts[dateStr] || 0) + 1;
-      
-      // Track severity
-      if (!dailySeverity[dateStr] || 
-          ['critical', 'high', 'moderate', 'low'].indexOf(event._severity) < 
-          ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[dateStr])) {
-        dailySeverity[dateStr] = event._severity;
+      try {
+        const dateStr = format(parseISO(event._date), 'yyyy-MM-dd');
+        
+        // Count events
+        dailyCounts[dateStr] = (dailyCounts[dateStr] || 0) + 1;
+        
+        // Track severity
+        if (!dailySeverity[dateStr] || 
+            ['critical', 'high', 'moderate', 'low'].indexOf(event._severity) < 
+            ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[dateStr])) {
+          dailySeverity[dateStr] = event._severity;
+        }
+        
+        // Track categories
+        if (!dailyCategories[dateStr]) {
+          dailyCategories[dateStr] = new Set();
+        }
+        dailyCategories[dateStr].add(event._type.category);
+      } catch (error) {
+        console.error('Error processing date for calendar:', event._date, error);
       }
-      
-      // Track categories
-      if (!dailyCategories[dateStr]) {
-        dailyCategories[dateStr] = new Set();
-      }
-      dailyCategories[dateStr].add(event._type.category);
     });
     
     // Convert to array format for nivo
-    const data = Object.entries(dailyCounts).map(([day, value]) => ({
-      day,
-      value: heatmapView === 'activity' ? value :
-             heatmapView === 'severity' ? 
-               ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[day]) :
-               dailyCategories[day].size
-    }));
+    const fromDate = dateRange.start || subYears(new Date(), 1);
+    const toDate = dateRange.end || new Date();
+    
+    const data = Object.entries(dailyCounts)
+      .filter(([day]) => {
+        // Only include dates within the visible range
+        const date = parseISO(day);
+        return date >= fromDate && date <= toDate;
+      })
+      .map(([day, value]) => ({
+        day,
+        value: heatmapView === 'activity' ? value :
+               heatmapView === 'severity' ? 
+                 ['critical', 'high', 'moderate', 'low'].indexOf(dailySeverity[day]) :
+                 dailyCategories[day].size
+      }));
+    
+    console.log('[TimelineTabModern] Calendar data:', {
+      count: data.length,
+      sample: data.slice(0, 5),
+      dateRange: {
+        from: format(dateRange.start || subYears(new Date(), 1), 'yyyy-MM-dd'),
+        to: format(dateRange.end || new Date(), 'yyyy-MM-dd')
+      }
+    });
     
     return data;
-  }, [processedEvents, heatmapView]);
+  }, [processedEvents, heatmapView, dateRange]);
   
   // Calculate patient journey milestones
   const patientJourneyData = useMemo(() => {
@@ -1823,20 +1845,42 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                 transition={{ duration: 0.3 }}
                 style={{ height: '100%', padding: theme.spacing(2) }}
               >
-                <Paper 
-                  elevation={0} 
-                  sx={{ 
-                    height: '100%', 
-                    borderRadius: 0,
-                    p: 2,
-                    bgcolor: isDarkMode ? 'grey.800' : 'background.paper'
-                  }}
-                >
-                  <ResponsiveCalendar
-                    data={calendarData}
-                    from={format(dateRange.start || subYears(new Date(), 1), 'yyyy-MM-dd')}
-                    to={format(dateRange.end || new Date(), 'yyyy-MM-dd')}
-                    emptyColor={isDarkMode ? '#1e1e1e' : '#eeeeee'}
+                {calendarData.length === 0 ? (
+                  <ClinicalEmptyState
+                    title="No events to display"
+                    message="No events found in the selected date range"
+                    actions={[
+                      { 
+                        label: 'Adjust Date Range', 
+                        onClick: () => {
+                          setDateRangeValue('all');
+                          setDateRange({ start: subYears(new Date(), 5), end: new Date() });
+                        }
+                      }
+                    ]}
+                  />
+                ) : (
+                  <Box 
+                    sx={{ 
+                      height: '100%', 
+                      minHeight: 600,
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <Typography variant="h6" gutterBottom>
+                      Activity Calendar
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      {calendarData.length} days with events
+                    </Typography>
+                    <Box sx={{ flex: 1, minHeight: 500 }}>
+                      {ResponsiveCalendar ? (
+                        <ResponsiveCalendar
+                          data={calendarData}
+                          from={format(dateRange.start || subYears(new Date(), 1), 'yyyy-MM-dd')}
+                          to={format(dateRange.end || new Date(), 'yyyy-MM-dd')}
+                          emptyColor={isDarkMode ? '#1e1e1e' : '#eeeeee'}
                     colors={
                       heatmapView === 'activity' ? 
                         ['#61cdbb', '#33a0a0', '#227480', '#0e4e60'] :
@@ -1919,8 +1963,15 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                         }
                       }
                     }}
-                  />
-                </Paper>
+                        />
+                      ) : (
+                        <Alert severity="error">
+                          Calendar component not available. Please check that @nivo/calendar is installed.
+                        </Alert>
+                      )}
+                    </Box>
+                  </Box>
+                )}
               </motion.div>
             )}
             
