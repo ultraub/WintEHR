@@ -207,8 +207,8 @@ const AppHeader = ({
       )}
       
       <Toolbar sx={{ px: { xs: 1, sm: 3 } }}>
-        {/* Menu toggle for mobile */}
-        {isMobile && (
+        {/* Menu toggle for mobile and desktop (when showDrawerToggle is true) */}
+        {(isMobile || (!isMobile && showDrawerToggle)) && (
           <IconButton
             edge="start"
             onClick={onMenuToggle}
@@ -667,7 +667,7 @@ function UnifiedLayout({
   autoCollapse = false
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true);
+  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(!autoCollapse);
 
   const handleMobileDrawerToggle = useCallback(() => {
     setMobileDrawerOpen(prev => !prev);

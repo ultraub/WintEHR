@@ -5,7 +5,7 @@
  * with support for filtering, searching, and real-time updates
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 
@@ -31,6 +31,10 @@ const useChartReviewResources = (patientId, options = {}) => {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   
+  // Ref to prevent multiple simultaneous loads
+  const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  
   // Resource states
   const [conditions, setConditions] = useState([]);
   const [medications, setMedications] = useState([]);
@@ -52,11 +56,12 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Load all resources
   const loadResources = useCallback(async () => {
-    if (!patientId) {
+    if (!patientId || loadingRef.current) {
       return;
     }
 
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -155,20 +160,6 @@ const useChartReviewResources = (patientId, options = {}) => {
         getResourcesWithFallback('DocumentReference')
       ]);
 
-      // Debug logging only when explicitly enabled
-      if (window.__FHIR_DEBUG__) {
-        console.log('[useChartReviewResources] Loaded data counts:', {
-          conditions: conditionData.length,
-          medications: medicationData.length,
-          allergies: allergyData.length,
-          immunizations: immunizationData.length,
-          observations: observationData.length,
-          procedures: procedureData.length,
-          encounters: encounterData.length,
-          carePlans: carePlanData.length,
-          documentReferences: documentReferenceData.length
-        });
-      }
 
       // Validate data before processing
       const validateResourceArray = (data, resourceType) => {
@@ -188,36 +179,27 @@ const useChartReviewResources = (patientId, options = {}) => {
       const validCarePlans = validateResourceArray(carePlanData, 'CarePlans');
       const validDocumentReferences = validateResourceArray(documentReferenceData, 'DocumentReferences');
 
-      // Apply filters and sorting
-      const processedConditions = processConditions(validConditions, filters, sortOrder);
-      const processedMedications = processMedications(validMedications, filters, sortOrder);
-      const processedAllergies = processAllergies(validAllergies, filters, sortOrder);
-      const processedImmunizations = processImmunizations(validImmunizations, filters, sortOrder);
-      const processedObservations = processObservations(validObservations, filters, sortOrder);
-      const processedProcedures = processProcedures(validProcedures, filters, sortOrder);
-      const processedEncounters = processEncounters(validEncounters, filters, sortOrder);
-      const processedCarePlans = processCarePlans(validCarePlans, filters, sortOrder);
-      const processedDocumentReferences = processDocumentReferences(validDocumentReferences, filters, sortOrder);
-      
-      
-      setConditions(processedConditions);
-      setMedications(processedMedications);
-      setAllergies(processedAllergies);
-      setImmunizations(processedImmunizations);
-      setObservations(processedObservations);
-      setProcedures(processedProcedures);
-      setEncounters(processedEncounters);
-      setCarePlans(processedCarePlans);
-      setDocumentReferences(processedDocumentReferences);
+      // Store raw data - defer processing for performance
+      setConditions(validConditions);
+      setMedications(validMedications);
+      setAllergies(validAllergies);
+      setImmunizations(validImmunizations);
+      setObservations(validObservations);
+      setProcedures(validProcedures);
+      setEncounters(validEncounters);
+      setCarePlans(validCarePlans);
+      setDocumentReferences(validDocumentReferences);
 
       setLastUpdated(new Date());
+      hasLoadedRef.current = true;
     } catch (err) {
       // Error loading chart review resources
       setError('Failed to load chart review data');
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  }, [patientId, includeInactive, sortOrder, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
+  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm]);
 
   // Process conditions with filtering and grouping
   const processConditions = (data, filters, sortOrder) => {
@@ -239,14 +221,15 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by onset date
+    // Sort by onset date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.onsetDateTime || a.recordedDate;
       const dateB = b.onsetDateTime || b.recordedDate;
       if (!dateA || !dateB) return 0;
+      // ISO date strings can be compared directly
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -273,14 +256,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by authored date
+    // Sort by authored date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.authoredOn;
       const dateB = b.authoredOn;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -306,14 +289,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by recorded date
+    // Sort by recorded date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.recordedDate || a.onsetDateTime;
       const dateB = b.recordedDate || b.onsetDateTime;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -345,14 +328,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by occurrence date
+    // Sort by occurrence date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.occurrenceDateTime || a.recorded;
       const dateB = b.occurrenceDateTime || b.recorded;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -380,14 +363,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by effective date
+    // Sort by effective date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.effectiveDateTime || a.issued;
       const dateB = b.effectiveDateTime || b.issued;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -420,14 +403,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by performed date
+    // Sort by performed date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.performedDateTime || a.performedPeriod?.start;
       const dateB = b.performedDateTime || b.performedPeriod?.start;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -455,14 +438,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by period start
+    // Sort by period start - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.period?.start;
       const dateB = b.period?.start;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -491,14 +474,14 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by created date
+    // Sort by created date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.created || a.period?.start;
       const dateB = b.created || b.period?.start;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
@@ -531,18 +514,58 @@ const useChartReviewResources = (patientId, options = {}) => {
       });
     }
 
-    // Sort by created date
+    // Sort by created date - compare strings directly for performance
     processed.sort((a, b) => {
       const dateA = a.date || a.content?.[0]?.attachment?.creation;
       const dateB = b.date || b.content?.[0]?.attachment?.creation;
       if (!dateA || !dateB) return 0;
       return sortOrder === 'desc' 
-        ? new Date(dateB) - new Date(dateA)
-        : new Date(dateA) - new Date(dateB);
+        ? dateB.localeCompare(dateA)
+        : dateA.localeCompare(dateB);
     });
 
     return processed;
   };
+
+  // Lazy process conditions - only when accessed
+  const processedConditions = useMemo(() => {
+    return processConditions(conditions, filters, sortOrder);
+  }, [conditions, filters.status, filters.searchText, sortOrder]);
+
+  // Lazy process medications
+  const processedMedications = useMemo(() => {
+    return processMedications(medications, filters, sortOrder);
+  }, [medications, filters.status, filters.searchText, sortOrder]);
+
+  // Lazy process allergies
+  const processedAllergies = useMemo(() => {
+    return processAllergies(allergies, filters, sortOrder);
+  }, [allergies, filters.status, filters.searchText, sortOrder]);
+
+  // Lazy process other resources
+  const processedImmunizations = useMemo(() => {
+    return processImmunizations(immunizations, filters, sortOrder);
+  }, [immunizations, filters.status, filters.searchText, sortOrder]);
+
+  const processedObservations = useMemo(() => {
+    return processObservations(observations, filters, sortOrder);
+  }, [observations, filters.searchText, sortOrder]);
+
+  const processedProcedures = useMemo(() => {
+    return processProcedures(procedures, filters, sortOrder);
+  }, [procedures, filters.status, filters.searchText, sortOrder]);
+
+  const processedEncounters = useMemo(() => {
+    return processEncounters(encounters, filters, sortOrder);
+  }, [encounters, filters.status, filters.searchText, sortOrder]);
+
+  const processedCarePlans = useMemo(() => {
+    return processCarePlans(carePlans, filters, sortOrder);
+  }, [carePlans, filters.status, filters.searchText, sortOrder]);
+
+  const processedDocumentReferences = useMemo(() => {
+    return processDocumentReferences(documentReferences, filters, sortOrder);
+  }, [documentReferences, filters.status, filters.searchText, sortOrder]);
 
   // Update filters
   const updateFilters = useCallback((newFilters) => {
@@ -557,10 +580,13 @@ const useChartReviewResources = (patientId, options = {}) => {
     updateFilters({ searchText });
   }, [updateFilters]);
 
-  // Refresh data
+  // Refresh data - reset and reload
   const refresh = useCallback(() => {
-    loadResources();
-  }, [loadResources]);
+    hasLoadedRef.current = false;
+    if (!loadingRef.current && patientId && getPatientResources && fetchPatientBundle && searchFHIRResources) {
+      loadResources();
+    }
+  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, loadResources]);
 
   // Get summary statistics
   const getSummaryStats = useMemo(() => {
@@ -568,7 +594,10 @@ const useChartReviewResources = (patientId, options = {}) => {
       conditions: {
         total: conditions.length,
         active: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'active').length,
-        resolved: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'resolved').length
+        resolved: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'resolved').length,
+        inactive: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'inactive').length,
+        remission: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'remission').length,
+        recurrence: conditions.filter(c => c.clinicalStatus?.coding?.[0]?.code === 'recurrence').length
       },
       medications: {
         total: medications.length,
@@ -590,8 +619,10 @@ const useChartReviewResources = (patientId, options = {}) => {
         recent: observations.filter(o => {
           const date = o.effectiveDateTime || o.issued;
           if (!date) return false;
-          const daysDiff = (new Date() - new Date(date)) / (1000 * 60 * 60 * 24);
-          return daysDiff <= 7;
+          // Use ISO string comparison for dates within last 7 days
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return date >= sevenDaysAgo.toISOString();
         }).length
       },
       procedures: {
@@ -647,31 +678,39 @@ const useChartReviewResources = (patientId, options = {}) => {
     };
   }, [patientId, realTimeUpdates, subscribe, refresh]);
 
-  // Optimized single effect for data loading
+  // Load data when patient changes
   useEffect(() => {
-    if (!patientId || !getPatientResources || !fetchPatientBundle || !searchFHIRResources) {
+    if (!patientId) {
+      hasLoadedRef.current = false;
       return;
     }
 
-    // Load resources with small delay to ensure context is ready
+    // Reset when patient changes
+    if (hasLoadedRef.current) {
+      hasLoadedRef.current = false;
+    }
+
+    // Wait a bit for context to be ready, then load
     const timer = setTimeout(() => {
-      loadResources();
-    }, 50);
+      if (getPatientResources && fetchPatientBundle && searchFHIRResources && isCacheWarm && !hasLoadedRef.current && !loadingRef.current) {
+        loadResources();
+      }
+    }, 100);
     
     return () => clearTimeout(timer);
-  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources]);
+  }, [patientId, getPatientResources, fetchPatientBundle, searchFHIRResources, isCacheWarm, loadResources]);
 
   return {
-    // Resources
-    conditions,
-    medications,
-    allergies,
-    immunizations,
-    observations,
-    procedures,
-    encounters,
-    carePlans,
-    documentReferences,
+    // Resources - return processed versions
+    conditions: processedConditions,
+    medications: processedMedications,
+    allergies: processedAllergies,
+    immunizations: processedImmunizations,
+    observations: processedObservations,
+    procedures: processedProcedures,
+    encounters: processedEncounters,
+    carePlans: processedCarePlans,
+    documentReferences: processedDocumentReferences,
     
     // State
     loading,

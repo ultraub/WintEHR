@@ -85,35 +85,74 @@ import Editor from '@monaco-editor/react';
 // FHIR Search Modifiers and Comparators
 const SEARCH_MODIFIERS = {
   string: {
-    exact: { symbol: ':exact', label: 'Exact match', description: 'Match the entire string exactly' },
-    contains: { symbol: ':contains', label: 'Contains', description: 'Match anywhere in the string' },
-    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing values' }
+    exact: { symbol: ':exact', label: 'Exact match', description: 'Case and accent-sensitive exact match' },
+    contains: { symbol: ':contains', label: 'Contains', description: 'Match anywhere in the string (case-insensitive)' },
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) values' }
   },
   token: {
-    text: { symbol: ':text', label: 'Text search', description: 'Search on text associated with the code' },
-    not: { symbol: ':not', label: 'Not', description: 'Reverse the code matching' },
-    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing values' }
+    text: { symbol: ':text', label: 'Text search', description: 'Search on text/display associated with the code (for complex codes only)', restricted: ['gender', 'status', 'active', 'family-status', 'marital-status'] },
+    not: { symbol: ':not', label: 'Not equals', description: 'Exclude matching codes' },
+    above: { symbol: ':above', label: 'Above', description: 'Include parent codes in hierarchy (for hierarchical codes)' },
+    below: { symbol: ':below', label: 'Below', description: 'Include child codes in hierarchy (for hierarchical codes)' },
+    in: { symbol: ':in', label: 'In ValueSet', description: 'Match codes in the specified ValueSet' },
+    'not-in': { symbol: ':not-in', label: 'Not in ValueSet', description: 'Exclude codes in the specified ValueSet' },
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) values' }
   },
   reference: {
-    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing references' }
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) references' },
+    type: { symbol: ':[type]', label: 'Type modifier', description: 'Specify resource type for polymorphic references', example: ':Patient' },
+    identifier: { symbol: ':identifier', label: 'By identifier', description: 'Match by business identifier instead of reference' }
   },
   date: {
-    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing dates' }
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) dates' }
   },
   quantity: {
-    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing quantities' }
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) quantities' }
+  },
+  number: {
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) numbers' }
+  },
+  uri: {
+    below: { symbol: ':below', label: 'Below', description: 'Match URIs hierarchically below the value' },
+    above: { symbol: ':above', label: 'Above', description: 'Match URIs hierarchically above the value' },
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) URIs' }
+  },
+  composite: {
+    missing: { symbol: ':missing', label: 'Missing', description: 'Search for missing (true) or present (false) composite values' }
   }
 };
 
 const COMPARATORS = {
-  eq: { symbol: '', label: '=', description: 'Equal to' },
-  ne: { symbol: 'ne', label: '≠', description: 'Not equal to' },
-  gt: { symbol: 'gt', label: '>', description: 'Greater than' },
-  lt: { symbol: 'lt', label: '<', description: 'Less than' },
-  ge: { symbol: 'ge', label: '≥', description: 'Greater than or equal' },
-  le: { symbol: 'le', label: '≤', description: 'Less than or equal' },
-  sa: { symbol: 'sa', label: 'Starts after', description: 'Starts after (dates)' },
-  eb: { symbol: 'eb', label: 'Ends before', description: 'Ends before (dates)' }
+  eq: { symbol: '', label: 'Equals (=)', description: 'Equal to the value' },
+  ne: { symbol: 'ne', label: 'Not equals (≠)', description: 'Not equal to the value' },
+  gt: { symbol: 'gt', label: 'Greater than (>)', description: 'Greater than the value' },
+  lt: { symbol: 'lt', label: 'Less than (<)', description: 'Less than the value' },
+  ge: { symbol: 'ge', label: 'Greater or equal (≥)', description: 'Greater than or equal to the value' },
+  le: { symbol: 'le', label: 'Less or equal (≤)', description: 'Less than or equal to the value' },
+  sa: { symbol: 'sa', label: 'Starts after', description: 'Starts after the value (dates)' },
+  eb: { symbol: 'eb', label: 'Ends before', description: 'Ends before the value (dates)' }
+};
+
+// Special FHIR parameters that are common across all resources
+const SPECIAL_FHIR_PARAMS = {
+  '_id': { type: 'string', description: 'Logical id of the resource' },
+  '_lastUpdated': { type: 'date', description: 'When the resource version last changed' },
+  '_tag': { type: 'token', description: 'Tags applied to this resource' },
+  '_profile': { type: 'reference', description: 'Profiles this resource claims to conform to' },
+  '_security': { type: 'token', description: 'Security labels applied to this resource' },
+  '_text': { type: 'string', description: 'Search on the narrative of the resource' },
+  '_content': { type: 'string', description: 'Search on the entire content of the resource' },
+  '_list': { type: 'string', description: 'Inclusion in a particular list' },
+  '_has': { type: 'string', description: 'Reverse chaining - search for resources that are referenced by other resources' },
+  '_type': { type: 'token', description: 'Resource type(s) - for multi-type searches' },
+  '_sort': { type: 'string', description: 'Sort results by field (prefix with - for descending)' },
+  '_count': { type: 'number', description: 'Number of results per page' },
+  '_include': { type: 'string', description: 'Include referenced resources in results' },
+  '_revinclude': { type: 'string', description: 'Include resources that reference this resource' },
+  '_summary': { type: 'string', description: 'Return subset of resource (true, text, data, count, false)' },
+  '_elements': { type: 'string', description: 'Return only specific elements (comma-separated list)' },
+  '_contained': { type: 'string', description: 'Whether to return contained resources (true, false, both)' },
+  '_containedType': { type: 'string', description: 'If contained, whether container or contained (container, contained)' }
 };
 
 /**
@@ -213,7 +252,7 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
   const searchParams = resourceConfig.searchParams || {};
   
   const handleAddParameter = () => {
-    onParametersChange([...parameters, { key: '', comparator: '', modifier: '', value: '' }]);
+    onParametersChange([...parameters, { key: '', comparator: '', modifier: '', value: '', isMultiple: false, values: [] }]);
   };
   
   const handleUpdateParameter = async (index, field, value) => {
@@ -228,6 +267,12 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
       
       // Load catalog suggestions for certain parameters
       await loadCatalogSuggestions(value, index);
+    }
+    
+    // Handle modifier change - reload suggestions if needed
+    if (field === 'modifier') {
+      const param = updated[index];
+      await loadCatalogSuggestions(param.key, index);
     }
     
     onParametersChange(updated);
@@ -245,42 +290,93 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
     
     try {
       let suggestions = [];
+      const param = parameters[index];
       
-      // Load appropriate catalog based on parameter and resource type
-      if (resource === 'Patient' && paramKey === 'gender') {
+      // First try to get distinct values for token parameters (disabled temporarily)
+      // const paramConfig = searchParams[paramKey] || SPECIAL_FHIR_PARAMS[paramKey];
+      // if (paramConfig?.type === 'token' && !searchTerm) {
+      //   try {
+      //     const response = await fetch(`/api/fhir/search-values/${resource}/${paramKey}?limit=50`);
+      //     if (response.ok) {
+      //       const data = await response.json();
+      //       suggestions = data.values.map(item => ({
+      //         value: item.value,
+      //         label: item.display || item.value,
+      //         description: `Used in ${item.count} resources`
+      //       }));
+      //     }
+      //   } catch (error) {
+      //     console.log('Distinct values not available, using fallbacks');
+      //   }
+      // }
+      
+      // Fallback to catalog search or hardcoded values if distinct values failed
+      if (suggestions.length === 0) {
+        if (resource === 'Observation' && paramKey === 'code') {
+          // Load lab catalog with search parameter
+          const labs = await cdsClinicalDataService.getLabCatalog(searchTerm, null, 100);
+          suggestions = labs.map(lab => ({
+            value: lab.loinc_code || lab.test_code,
+            label: lab.test_name,
+            description: lab.test_description || lab.specimen_type
+          }));
+        } else if (resource === 'Condition' && paramKey === 'code') {
+          // Load condition catalog with search parameter
+          const conditions = await cdsClinicalDataService.getDynamicConditionCatalog(searchTerm, 100);
+          suggestions = conditions.map(cond => ({
+            value: cond.snomed_code || cond.icd10_code || cond.id,
+            label: cond.display_name,
+            description: cond.usage_count ? `Used ${cond.usage_count} times` : cond.category
+          }));
+        } else if (resource === 'MedicationRequest' && paramKey === 'medication') {
+          // Load medication catalog with search parameter
+          const meds = await cdsClinicalDataService.getDynamicMedicationCatalog(searchTerm, 100);
+          suggestions = meds.map(med => ({
+            value: med.rxnorm_code || med.id,
+            label: med.brand_name ? `${med.generic_name} (${med.brand_name})` : med.generic_name,
+            description: med.strength && med.dosage_form ? `${med.strength} ${med.dosage_form}` : med.dosage_form || med.drug_class
+          }));
+        } else if (paramKey === 'status' || paramKey === 'clinical-status') {
+          // Use common status values
+          suggestions = getStatusValues(resource);
+        } else if (paramKey === '_summary') {
+          suggestions = [
+            { value: 'true', label: 'Summary', description: 'Return only summary elements' },
+            { value: 'text', label: 'Text', description: 'Return only text, id, meta elements' },
+            { value: 'data', label: 'Data', description: 'Remove text elements' },
+            { value: 'count', label: 'Count', description: 'Return only count' },
+            { value: 'false', label: 'Full', description: 'Return all elements (default)' }
+          ];
+        } else if (paramKey === '_sort') {
+          // Common sort fields based on resource type
+          const resourceConfig = FHIR_RESOURCES[resource] || {};
+          const searchParams = resourceConfig.searchParams || {};
+          const sortFields = Object.keys(searchParams).filter(p => ['date', 'string', 'token'].includes(searchParams[p]?.type));
+          suggestions = sortFields.flatMap(field => [
+            { value: field, label: field, description: 'Sort ascending' },
+            { value: `-${field}`, label: `-${field}`, description: 'Sort descending' }
+          ]);
+        } else if (paramKey === '_include' || paramKey === '_revinclude') {
+          // Include parameters based on references in the resource
+          const resourceConfig = FHIR_RESOURCES[resource] || {};
+          const searchParams = resourceConfig.searchParams || {};
+          const referenceParams = Object.entries(searchParams)
+            .filter(([_, config]) => config?.type === 'reference')
+            .map(([param, _]) => ({
+              value: `${resource}:${param}`,
+              label: `${resource}:${param}`,
+              description: `Include ${param} references`
+            }));
+          suggestions = referenceParams;
+        }
+      }
+      
+      // Check if the parameter has a :missing modifier - it needs true/false values
+      if (param.modifier === 'missing') {
         suggestions = [
-          { value: 'male', label: 'Male' },
-          { value: 'female', label: 'Female' },
-          { value: 'other', label: 'Other' },
-          { value: 'unknown', label: 'Unknown' }
+          { value: 'true', label: 'True', description: 'Resources where this parameter is missing' },
+          { value: 'false', label: 'False', description: 'Resources where this parameter is present' }
         ];
-      } else if (resource === 'Observation' && paramKey === 'code') {
-        // Load lab catalog with search parameter
-        const labs = await cdsClinicalDataService.getLabCatalog(searchTerm, null, 100);
-        suggestions = labs.map(lab => ({
-          value: lab.code,
-          label: lab.display,
-          description: lab.category
-        }));
-      } else if (resource === 'Condition' && paramKey === 'code') {
-        // Load condition catalog with search parameter
-        const conditions = await cdsClinicalDataService.getDynamicConditionCatalog(searchTerm, 100);
-        suggestions = conditions.map(cond => ({
-          value: cond.code,
-          label: cond.display,
-          description: `Count: ${cond.count}`
-        }));
-      } else if (resource === 'MedicationRequest' && paramKey === 'medication') {
-        // Load medication catalog with search parameter
-        const meds = await cdsClinicalDataService.getDynamicMedicationCatalog(searchTerm, 100);
-        suggestions = meds.map(med => ({
-          value: med.code,
-          label: med.display,
-          description: med.dosageForm
-        }));
-      } else if (paramKey === 'status') {
-        // Common status values
-        suggestions = getStatusValues(resource);
       }
       
       setCatalogSuggestions({ ...catalogSuggestions, [index]: suggestions });
@@ -316,17 +412,29 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
   };
   
   // Get available modifiers for parameter type
-  const getModifiers = (paramType) => {
-    return SEARCH_MODIFIERS[paramType] || {};
+  const getModifiers = (paramType, paramKey) => {
+    const modifiers = SEARCH_MODIFIERS[paramType] || {};
+    
+    // Filter out restricted modifiers for specific parameters
+    const filteredModifiers = {};
+    Object.entries(modifiers).forEach(([key, modifier]) => {
+      if (modifier.restricted && modifier.restricted.includes(paramKey)) {
+        // Skip this modifier for this parameter
+        return;
+      }
+      filteredModifiers[key] = modifier;
+    });
+    
+    return filteredModifiers;
   };
   
   return (
     <Stack spacing={2}>
       {parameters.map((param, index) => {
-        const paramConfig = searchParams[param.key];
+        const paramConfig = searchParams[param.key] || SPECIAL_FHIR_PARAMS[param.key];
         const paramType = paramConfig?.type || 'string';
         const operators = getOperators(paramType);
-        const modifiers = getModifiers(paramType);
+        const modifiers = getModifiers(paramType, param.key);
         const suggestions = catalogSuggestions[index] || [];
         
         return (
@@ -346,14 +454,15 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
                   <Autocomplete
                     value={param.key}
                     onChange={(e, value) => handleUpdateParameter(index, 'key', value || '')}
-                    options={Object.keys(searchParams)}
+                    options={[...Object.keys(searchParams), ...Object.keys(SPECIAL_FHIR_PARAMS)]}
+                    groupBy={(option) => option.startsWith('_') ? 'Special Parameters' : 'Resource Parameters'}
                     getOptionLabel={(option) => option}
                     renderOption={(props, option) => (
                       <Box component="li" {...props}>
                         <Box>
                           <Typography variant="body2">{option}</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {searchParams[option]?.description}
+                            {searchParams[option]?.description || SPECIAL_FHIR_PARAMS[option]?.description}
                           </Typography>
                         </Box>
                       </Box>
@@ -394,23 +503,42 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
                 {/* Modifier Selection */}
                 {Object.keys(modifiers).length > 0 && (
                   <Grid item xs={12} sm={2}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Modifier</InputLabel>
+                    <FormControl fullWidth size="small" variant="outlined">
+                      <InputLabel shrink={true}>Modifier</InputLabel>
                       <Select
                         value={param.modifier || ''}
                         onChange={(e) => handleUpdateParameter(index, 'modifier', e.target.value)}
                         label="Modifier"
                         displayEmpty
+                        notched
+                        renderValue={(value) => {
+                          if (!value) return <span style={{ opacity: 0.8 }}>Equals</span>;
+                          const mod = modifiers[value];
+                          return mod ? mod.label : value;
+                        }}
                       >
-                        <MenuItem value="">None</MenuItem>
+                        <MenuItem value="">
+                          <Box>
+                            <Typography variant="body2">Equals</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Standard equality match (no modifier)
+                            </Typography>
+                          </Box>
+                        </MenuItem>
                         {Object.entries(modifiers).map(([key, mod]) => (
                           <MenuItem key={key} value={key}>
-                            <Tooltip title={mod.description}>
-                              <span>{mod.label}</span>
-                            </Tooltip>
+                            <Box>
+                              <Typography variant="body2">{mod.label}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {mod.description}
+                              </Typography>
+                            </Box>
                           </MenuItem>
                         ))}
                       </Select>
+                      <FormHelperText sx={{ mx: 0 }}>
+                        {param.modifier && modifiers[param.modifier]?.symbol}
+                      </FormHelperText>
                     </FormControl>
                   </Grid>
                 )}
@@ -470,7 +598,12 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
                       onChange={(e) => handleUpdateParameter(index, 'value', e.target.value)}
                       size="small"
                       fullWidth
-                      placeholder={paramConfig?.example || 'Enter value...'}
+                      placeholder={
+                        param.key === 'gender' ? 'male, female, other, unknown' :
+                        param.key === 'status' ? 'active, inactive' :
+                        paramConfig?.type === 'token' ? 'Enter exact value... (comma-separate for OR)' :
+                        paramConfig?.example || 'Enter value... (comma-separate for OR)'
+                      }
                       type={paramType === 'number' ? 'number' : paramType === 'date' ? 'date' : 'text'}
                     />
                   )}
@@ -494,20 +627,52 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
                   {paramConfig.description}
                 </Typography>
               )}
+              
+              {/* Special help for gender parameter */}
+              {param.key === 'gender' && param.modifier === 'text' && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  <Typography variant="caption">
+                    <strong>Note:</strong> Gender is a simple token parameter. Use direct values like "male" or "female" without the :text modifier. 
+                    The :text modifier is for complex coded values with display text.
+                  </Typography>
+                </Alert>
+              )}
+              
+              {/* General token parameter guidance */}
+              {paramConfig?.type === 'token' && !param.modifier && param.key && ['gender', 'status', 'active'].includes(param.key) && (
+                <Typography variant="caption" color="success.main" sx={{ ml: 1, display: 'block', mt: 0.5 }}>
+                  ✓ Use exact values for this token parameter (no modifier needed)
+                </Typography>
+              )}
             </Stack>
           </Paper>
         );
       })}
       
-      <Button
-        startIcon={<AddIcon />}
-        onClick={handleAddParameter}
-        variant="outlined"
-        size="small"
-        sx={{ alignSelf: 'flex-start' }}
-      >
-        Add Parameter
-      </Button>
+      {/* Add Parameter Button and AND/OR Logic Help */}
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <Button
+          startIcon={<AddIcon />}
+          onClick={handleAddParameter}
+          variant="outlined"
+          size="small"
+        >
+          Add Parameter
+        </Button>
+        
+        {/* AND/OR Logic Explanation */}
+        <Paper sx={{ px: 2, py: 1, backgroundColor: alpha(theme.palette.info.main, 0.1), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`, maxWidth: 600 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TipIcon sx={{ fontSize: 16, color: 'info.main' }} />
+            <Typography variant="caption" color="info.main">
+              <strong>Query Logic:</strong> Multiple parameters = AND logic | Comma-separated values = OR logic
+            </Typography>
+            <Tooltip title="AND Logic: Multiple different parameters are combined with AND&#10;Example: name=Smith&gender=male finds patients named Smith AND male&#10;&#10;OR Logic: Multiple values for the same parameter are combined with OR&#10;Example: status=active,completed finds resources with status active OR completed&#10;&#10;This follows FHIR R4 search specification standard behavior.">
+              <HelpIcon sx={{ fontSize: 14, color: 'info.main', cursor: 'help' }} />
+            </Tooltip>
+          </Stack>
+        </Paper>
+      </Stack>
     </Stack>
   );
 };
@@ -632,7 +797,7 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
   
   // Helper functions for parameter management
   const handleAddParameter = useCallback(() => {
-    setParameters([...parameters, { key: '', value: '', modifier: '' }]);
+    setParameters([...parameters, { key: '', value: '', modifier: '', comparator: '' }]);
   }, [parameters]);
   
   const handleUpdateParameter = useCallback((index, field, value) => {
@@ -649,6 +814,7 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
   const buildQuery = useCallback(() => {
     if (mode === 'code') return codeQuery;
     
+    
     let query = `/${resource}`;
     const paramStrings = parameters
       .filter(p => p.key && p.value)
@@ -656,7 +822,8 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
         let paramStr = p.key;
         const resourceConfig = FHIR_RESOURCES[resource] || {};
         const searchParams = resourceConfig.searchParams || {};
-        const paramType = searchParams[p.key]?.type || 'string';
+        const paramConfig = searchParams[p.key] || SPECIAL_FHIR_PARAMS[p.key];
+        const paramType = paramConfig?.type || 'string';
         
         // Add modifier if present
         if (p.modifier) {
@@ -713,6 +880,7 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
           }
         });
       }
+      
       
       const result = await fhirClient.search(resourceType, searchParams);
       setResults(result);
@@ -864,34 +1032,48 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
               borderBottom: `1px solid ${theme.palette.divider}`
             }}>
               {mode === 'visual' ? (
-                <Grid container spacing={1} alignItems="center">
-                  <Grid item xs={12} sm={4}>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={resource}
-                        onChange={(e) => setResource(e.target.value)}
-                        displayEmpty
+                <Stack spacing={1}>
+                  <Grid container spacing={1} alignItems="center">
+                    <Grid item xs={12} sm={4}>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={resource}
+                          onChange={(e) => setResource(e.target.value)}
+                          displayEmpty
+                        >
+                          <MenuItem value="" disabled>Select Resource</MenuItem>
+                          {Object.keys(FHIR_RESOURCES).map(r => (
+                            <MenuItem key={r} value={r}>{r}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={decodeURIComponent(buildQuery())}
+                        InputProps={{
+                          readOnly: true,
+                          sx: { fontFamily: 'monospace', fontSize: '0.875rem' }
+                        }}
+                        placeholder="Query will appear here..."
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={2}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        size="small"
+                        onClick={executeQuery}
+                        disabled={loading || !buildQuery() || buildQuery() === '/'}
+                        startIcon={loading ? <CircularProgress size={16} /> : <RunIcon />}
                       >
-                        <MenuItem value="" disabled>Select Resource</MenuItem>
-                        {Object.keys(FHIR_RESOURCES).map(r => (
-                          <MenuItem key={r} value={r}>{r}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                        {loading ? 'Running...' : 'Execute'}
+                      </Button>
+                    </Grid>
                   </Grid>
-                  <Grid item xs={12} sm={8}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={buildQuery()}
-                      InputProps={{
-                        readOnly: true,
-                        sx: { fontFamily: 'monospace', fontSize: '0.875rem' }
-                      }}
-                      placeholder="Query will appear here..."
-                    />
-                  </Grid>
-                </Grid>
+                </Stack>
               ) : (
                 <TextField
                   fullWidth
@@ -963,20 +1145,6 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
               <QueryExplainer query={buildQuery()} />
             </Box>
           </Collapse>
-          
-          {/* Execute Button */}
-          <Box sx={{ p: 1.5, borderTop: `1px solid ${theme.palette.divider}` }}>
-            <Button
-              fullWidth
-              variant="contained"
-              size="small"
-              onClick={executeQuery}
-              disabled={loading || !buildQuery() || buildQuery() === '/'}
-              startIcon={loading ? <CircularProgress size={16} /> : <RunIcon />}
-            >
-              {loading ? 'Executing...' : 'Execute Query'}
-            </Button>
-          </Box>
         </Box>
         
         {/* Resizable Divider */}

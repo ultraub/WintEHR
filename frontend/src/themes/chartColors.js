@@ -47,12 +47,8 @@ export const getChartColors = (theme) => {
   
   // Adjust for dark mode
   if (mode === 'dark') {
-    // Slightly brighten colors for dark mode
-    Object.keys(colors).forEach(key => {
-      colors[key] = colors[key].map(color => 
-        alpha(color, 0.9)
-      );
-    });
+    // Note: Colors are already optimized for dark mode visibility
+    // No additional alpha adjustment needed for hex color strings
   }
 
   return {

@@ -75,42 +75,42 @@ const TIMELINE_CONFIG = {
 const createResourceTracks = (chartColors) => ({
   Encounter: {
     label: 'Encounters',
-    color: chartColors.timeline.encounter,
+    color: chartColors.timeline.Encounter,
     icon: <HospitalIcon />,
     track: 0,
     priority: 1
   },
   Condition: {
     label: 'Conditions',
-    color: chartColors.timeline.condition,
+    color: chartColors.timeline.Condition,
     icon: <AssessmentIcon />,
     track: 1,
     priority: 2
   },
   MedicationRequest: {
     label: 'Medications',
-    color: chartColors.timeline.medication,
+    color: chartColors.timeline.MedicationRequest,
     icon: <MedicationIcon />,
     track: 2,
     priority: 3
   },
   Procedure: {
     label: 'Procedures',
-    color: chartColors.timeline.procedure,
+    color: chartColors.timeline.Procedure,
     icon: <HospitalIcon />,
     track: 3,
     priority: 4
   },
   Observation: {
     label: 'Observations',
-    color: chartColors.timeline.observation,
+    color: chartColors.timeline.Observation,
     icon: <ScienceIcon />,
     track: 4,
     priority: 5
   },
   DiagnosticReport: {
     label: 'Reports',
-    color: chartColors.timeline.diagnosticReport,
+    color: chartColors.timeline.DiagnosticReport,
     icon: <AssessmentIcon />,
     track: 5,
     priority: 6
@@ -121,20 +121,26 @@ const createResourceTracks = (chartColors) => ({
  * Timeline event component
  */
 const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS }) => {
-  const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation;
+  const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
   
   const eventStyle = {
     position: 'absolute',
     left: `${event.position}px`,
     width: `${Math.max(4, event.duration * scale)}px`,
     height: `${TIMELINE_CONFIG.eventHeight - 4}px`,
-    backgroundColor: isSelected ? darken(config.color, 0.2) : config.color,
+    backgroundColor: isSelected ? darken(safeColor, 0.2) : safeColor,
     borderRadius: 4,
     cursor: 'pointer',
     transition: 'all 0.2s ease-in-out',
     boxShadow: isSelected 
-      ? `0 4px 12px ${alpha(config.color, 0.4)}`
-      : `0 2px 4px ${alpha(config.color, 0.2)}`,
+      ? `0 4px 12px ${alpha(safeColor, 0.4)}`
+      : `0 2px 4px ${alpha(safeColor, 0.2)}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -142,10 +148,10 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS
     fontSize: '0.75rem',
     fontWeight: 500,
     overflow: 'hidden',
-    border: isSelected ? `2px solid ${darken(config.color, 0.3)}` : 'none',
+    border: isSelected ? `2px solid ${darken(safeColor, 0.3)}` : 'none',
     '&:hover': {
       transform: 'translateY(-2px)',
-      boxShadow: `0 6px 16px ${alpha(config.color, 0.3)}`
+      boxShadow: `0 6px 16px ${alpha(safeColor, 0.3)}`
     }
   };
 
@@ -178,7 +184,13 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS
  * Timeline track component
  */
 const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE_TRACKS }) => {
-  const config = RESOURCE_TRACKS[trackData.resourceType];
+  const config = RESOURCE_TRACKS[trackData.resourceType] || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
   
   return (
     <Box
@@ -187,9 +199,9 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE
         borderBottom: 1,
         borderColor: 'divider',
         position: 'relative',
-        backgroundColor: alpha(config.color, 0.02),
+        backgroundColor: alpha(safeColor, 0.02),
         '&:hover': {
-          backgroundColor: alpha(config.color, 0.05)
+          backgroundColor: alpha(safeColor, 0.05)
         }
       }}
     >
@@ -212,8 +224,8 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE
       >
         <Avatar
           sx={{
-            bgcolor: alpha(config.color, 0.1),
-            color: config.color,
+            bgcolor: alpha(safeColor, 0.1),
+            color: safeColor,
             width: 32,
             height: 32,
             mr: 2
@@ -310,36 +322,44 @@ const TimelineControls = ({
 
         <Grid item xs={12} md={4}>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {Object.entries(RESOURCE_TRACKS).map(([type, config]) => (
-              <FormControlLabel
-                key={type}
-                control={
-                  <Switch
-                    checked={filters.includes(type)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        onFiltersChange([...filters, type]);
-                      } else {
-                        onFiltersChange(filters.filter(f => f !== type));
-                      }
-                    }}
-                    size="small"
-                  />
-                }
-                label={
-                  <Chip
-                    size="small"
-                    icon={React.cloneElement(config.icon, { fontSize: 'small' })}
-                    label={config.label}
-                    sx={{
-                      bgcolor: alpha(config.color, 0.1),
-                      color: config.color,
-                      '& .MuiChip-icon': { color: config.color }
-                    }}
-                  />
-                }
-              />
-            ))}
+            {Object.entries(RESOURCE_TRACKS).map(([type, config]) => {
+              // Safety check for undefined colors
+              const safeConfig = {
+                ...config,
+                color: config.color || '#1976D2'
+              };
+              
+              return (
+                <FormControlLabel
+                  key={type}
+                  control={
+                    <Switch
+                      checked={filters.includes(type)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          onFiltersChange([...filters, type]);
+                        } else {
+                          onFiltersChange(filters.filter(f => f !== type));
+                        }
+                      }}
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Chip
+                      size="small"
+                      icon={React.cloneElement(safeConfig.icon, { fontSize: 'small' })}
+                      label={safeConfig.label}
+                      sx={{
+                        bgcolor: alpha(safeConfig.color, 0.1),
+                        color: safeConfig.color,
+                        '& .MuiChip-icon': { color: safeConfig.color }
+                      }}
+                    />
+                  }
+                />
+              );
+            })}
           </Box>
         </Grid>
 
@@ -399,7 +419,13 @@ const TimelineControls = ({
 const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
   if (!event) return null;
 
-  const config = RESOURCE_TRACKS[event.resourceType];
+  const config = RESOURCE_TRACKS[event.resourceType] || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
 
   return (
     <Card sx={{ mt: 2 }}>
@@ -407,8 +433,8 @@ const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Avatar
             sx={{
-              bgcolor: alpha(config.color, 0.1),
-              color: config.color,
+              bgcolor: alpha(safeColor, 0.1),
+              color: safeColor,
               mr: 2
             }}
           >
