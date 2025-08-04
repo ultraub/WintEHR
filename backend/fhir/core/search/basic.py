@@ -16,6 +16,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fhir.core.reference_utils import ReferenceUtils
 from fhir.core.search.composite import CompositeSearchHandler
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,8 @@ class SearchParameterHandler:
             # Parse search parameter
             parsed = self._parse_parameter(resource_type, param_name, param_value)
             if parsed:
-                search_params[param_name] = parsed
+                # Use the parsed base parameter name as the key, not the original with modifier
+                search_params[parsed['name']] = parsed
         
         return search_params, result_params
     
@@ -194,6 +196,9 @@ class SearchParameterHandler:
                 where_clause = self._build_token_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
+                # Debug logging for token clause with modifier
+                if modifier:
+                    logger.info(f"Built token where clause with modifier '{modifier}': {where_clause}")
             elif param_type == 'date':
                 # Debug
                 if param_data['name'] == 'death-date':
@@ -378,7 +383,22 @@ class SearchParameterHandler:
             # Keep it as the modifier for special handling in _build_reference_clause
             pass
         elif modifier and not self._is_valid_modifier(param_type, modifier):
-            return None
+            # Log error about unsupported modifier
+            logger.error(f"Unsupported modifier ':{modifier}' for parameter '{base_param}' of type '{param_type}'")
+            
+            # Get valid modifiers for this type
+            valid_modifiers = self._get_valid_modifiers_for_type(param_type)
+            if valid_modifiers:
+                valid_list = ', '.join(sorted(valid_modifiers))
+                error_msg = f"Invalid modifier ':{modifier}' for parameter '{base_param}'. Valid modifiers for {param_type} parameters are: {valid_list}"
+            else:
+                error_msg = f"Invalid modifier ':{modifier}' for parameter '{base_param}'. No modifiers are supported for {param_type} parameters."
+            
+            # Raise an exception that will be caught by the API layer
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
+            )
         
         # Parse values based on type
         parsed_values = []
@@ -396,6 +416,10 @@ class SearchParameterHandler:
             'modifier': modifier,
             'values': parsed_values
         }
+        
+        # Debug logging for modifiers
+        if modifier:
+            logger.debug(f"Parsed parameter with modifier: {base_param}:{modifier} -> type={param_type}")
         
         # Debug logging
         if base_param == 'death-date':
@@ -435,6 +459,23 @@ class SearchParameterHandler:
             return modifier_with_colon in self.REFERENCE_MODIFIERS or '.' in modifier
         
         return False
+    
+    def _get_valid_modifiers_for_type(self, param_type: str) -> Set[str]:
+        """Get the set of valid modifiers for a parameter type."""
+        if param_type == 'string':
+            return self.STRING_MODIFIERS
+        elif param_type == 'token':
+            return self.TOKEN_MODIFIERS
+        elif param_type == 'date':
+            return self.DATE_MODIFIERS
+        elif param_type == 'number':
+            return self.NUMBER_MODIFIERS
+        elif param_type == 'quantity':
+            return self.QUANTITY_MODIFIERS
+        elif param_type == 'reference':
+            return self.REFERENCE_MODIFIERS
+        
+        return set()
     
     def _parse_value(
         self,
@@ -651,7 +692,9 @@ class SearchParameterHandler:
         
         if conditions:
             if modifier == 'not':
-                return f"({alias}.param_name = :{param_name_key} AND NOT ({' OR '.join(conditions)}))"
+                result = f"({alias}.param_name = :{param_name_key} AND NOT ({' OR '.join(conditions)}))"
+                logger.debug(f"Built token clause with NOT modifier: {result}")
+                return result
             else:
                 return f"({alias}.param_name = :{param_name_key} AND ({' OR '.join(conditions)}))"
         return "1=1"

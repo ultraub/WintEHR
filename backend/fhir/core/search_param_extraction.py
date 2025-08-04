@@ -374,7 +374,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'organization',
                 'param_type': 'reference',
-                'value_reference': resource_data['managingOrganization']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['managingOrganization']['reference'])
             })
         
         # active - Whether the patient record is active
@@ -539,7 +539,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'partof',
                 'param_type': 'reference',
-                'value_reference': resource_data['partOf']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['partOf']['reference'])
             })
         
         return params
@@ -583,7 +583,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -602,7 +602,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # performer
@@ -753,7 +753,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -771,7 +771,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # onset-date
@@ -872,12 +872,12 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'medication',
                 'param_type': 'reference',
-                'value_reference': resource_data['medicationReference']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['medicationReference']['reference'])
             })
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -895,7 +895,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # requester
@@ -903,7 +903,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'requester',
                 'param_type': 'reference',
-                'value_reference': resource_data['requester']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['requester']['reference'])
             })
         
         # authoredon
@@ -925,7 +925,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'intended-performer',
                 'param_type': 'reference',
-                'value_reference': resource_data['performer']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['performer']['reference'])
             })
         
         # intended-dispenser
@@ -934,7 +934,7 @@ class SearchParameterExtractor:
                 params.append({
                     'param_name': 'intended-dispenser',
                     'param_type': 'reference',
-                    'value_reference': resource_data['dispenseRequest']['performer']['reference']
+                    'value_reference': SearchParameterExtractor.resolve_reference(resource_data['dispenseRequest']['performer']['reference'])
                 })
         
         return params
@@ -1002,7 +1002,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1067,7 +1067,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'service-provider',
                 'param_type': 'reference',
-                'value_reference': resource_data['serviceProvider']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['serviceProvider']['reference'])
             })
         
         # reason-code
@@ -1132,7 +1132,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1150,7 +1150,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # performer
@@ -1335,7 +1335,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             })
         
         # encounter
@@ -1343,7 +1343,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # performer
@@ -1429,7 +1429,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1447,7 +1447,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # performer
@@ -1560,7 +1560,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1578,7 +1578,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # started
@@ -1696,7 +1696,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1714,7 +1714,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # date (period)
@@ -1736,7 +1736,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'author',
                 'param_type': 'reference',
-                'value_reference': resource_data['author']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['author']['reference'])
             })
         
         # care-team
@@ -1824,7 +1824,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1918,7 +1918,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'for' in resource_data and 'reference' in resource_data['for']:
-            ref = resource_data['for']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['for']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -1936,7 +1936,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'focus',
                 'param_type': 'reference',
-                'value_reference': resource_data['focus']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['focus']['reference'])
             })
         
         # encounter
@@ -1944,7 +1944,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # owner
@@ -1952,7 +1952,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'owner',
                 'param_type': 'reference',
-                'value_reference': resource_data['owner']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['owner']['reference'])
             })
         
         # requester
@@ -1960,7 +1960,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'requester',
                 'param_type': 'reference',
-                'value_reference': resource_data['requester']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['requester']['reference'])
             })
         
         # authored-on
@@ -2059,7 +2059,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -2077,7 +2077,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # requester
@@ -2085,7 +2085,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'requester',
                 'param_type': 'reference',
-                'value_reference': resource_data['requester']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['requester']['reference'])
             })
         
         # performer
@@ -2182,7 +2182,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'encounter',
                 'param_type': 'reference',
-                'value_reference': resource_data['encounter']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['encounter']['reference'])
             })
         
         # participant
@@ -2218,7 +2218,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             })
         
         # status
@@ -2256,7 +2256,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'provider',
                 'param_type': 'reference',
-                'value_reference': resource_data['provider']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['provider']['reference'])
             })
         
         # insurer
@@ -2264,7 +2264,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'insurer',
                 'param_type': 'reference',
-                'value_reference': resource_data['insurer']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['insurer']['reference'])
             })
         
         return params
@@ -2309,7 +2309,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             })
         
         # manufacturer
@@ -2348,7 +2348,7 @@ class SearchParameterExtractor:
         
         # subject/patient
         if 'subject' in resource_data and 'reference' in resource_data['subject']:
-            ref = resource_data['subject']['reference']
+            ref = SearchParameterExtractor.resolve_reference(resource_data['subject']['reference'])
             params.append({
                 'param_name': 'subject',
                 'param_type': 'reference',
@@ -2449,7 +2449,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             })
         
         # status
@@ -2479,7 +2479,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'claim',
                 'param_type': 'reference',
-                'value_reference': resource_data['claim']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['claim']['reference'])
             })
         
         # provider
@@ -2487,7 +2487,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'provider',
                 'param_type': 'reference',
-                'value_reference': resource_data['provider']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['provider']['reference'])
             })
         
         return params
@@ -2569,7 +2569,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'organization',
                 'param_type': 'reference',
-                'value_reference': resource_data['managingOrganization']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['managingOrganization']['reference'])
             })
         
         return params
@@ -2603,7 +2603,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'manufacturer',
                 'param_type': 'reference',
-                'value_reference': resource_data['manufacturer']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['manufacturer']['reference'])
             })
         
         # form
@@ -2651,7 +2651,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'medication',
                 'param_type': 'reference',
-                'value_reference': resource_data['medicationReference']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['medicationReference']['reference'])
             })
         elif 'medicationCodeableConcept' in resource_data and 'coding' in resource_data['medicationCodeableConcept']:
             for coding in resource_data['medicationCodeableConcept']['coding']:
@@ -2694,7 +2694,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'context',
                 'param_type': 'reference',
-                'value_reference': resource_data['context']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['context']['reference'])
             })
         
         # request
@@ -2702,7 +2702,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'request',
                 'param_type': 'reference',
-                'value_reference': resource_data['request']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['request']['reference'])
             })
         
         return params
@@ -2728,7 +2728,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'practitioner',
                 'param_type': 'reference',
-                'value_reference': resource_data['practitioner']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['practitioner']['reference'])
             })
         
         # organization
@@ -2736,7 +2736,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'organization',
                 'param_type': 'reference',
-                'value_reference': resource_data['organization']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['organization']['reference'])
             })
         
         # active
@@ -2929,7 +2929,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'patient',
                 'param_type': 'reference',
-                'value_reference': resource_data['patient']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['patient']['reference'])
             })
         
         # status
@@ -2955,7 +2955,7 @@ class SearchParameterExtractor:
             params.append({
                 'param_name': 'supplier',
                 'param_type': 'reference',
-                'value_reference': resource_data['supplier']['reference']
+                'value_reference': SearchParameterExtractor.resolve_reference(resource_data['supplier']['reference'])
             })
         
         return params

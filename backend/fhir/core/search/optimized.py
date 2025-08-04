@@ -144,13 +144,21 @@ class OptimizedSearchBuilder:
         # Combine with OR if multiple values
         value_clause = f"({' OR '.join(value_conditions)})" if len(value_conditions) > 1 else value_conditions[0]
         
-        # Build EXISTS subquery
-        return f"""EXISTS (
-            SELECT 1 FROM fhir.search_params sp{counter}
-            WHERE sp{counter}.resource_id = r.id
-            AND sp{counter}.param_name = :param_name_{counter}
-            AND {value_clause}
-        )"""
+        # Build EXISTS subquery - handle :not modifier
+        if modifier == 'not':
+            return f"""NOT EXISTS (
+                SELECT 1 FROM fhir.search_params sp{counter}
+                WHERE sp{counter}.resource_id = r.id
+                AND sp{counter}.param_name = :param_name_{counter}
+                AND {value_clause}
+            )"""
+        else:
+            return f"""EXISTS (
+                SELECT 1 FROM fhir.search_params sp{counter}
+                WHERE sp{counter}.resource_id = r.id
+                AND sp{counter}.param_name = :param_name_{counter}
+                AND {value_clause}
+            )"""
     
     def _build_string_conditions(
         self,
@@ -322,15 +330,20 @@ class OptimizedSearchBuilder:
             if isinstance(value_dict, dict):
                 prefix = value_dict.get('prefix', 'eq')
                 date_value = value_dict.get('value')
+                precision = value_dict.get('precision', 'day')
             else:
                 # If it's a direct value, assume eq prefix
                 prefix = 'eq'
                 date_value = value_dict
+                precision = 'day'
             
             if not date_value:
                 continue
             
             date_key = f"date_{counter}_{i}"
+            
+            # Import datetime handling
+            from datetime import datetime, timedelta
             
             if prefix == 'eq':
                 # For equality, we need to handle date precision
@@ -339,9 +352,35 @@ class OptimizedSearchBuilder:
                 conditions.append(
                     f"(sp{counter}.value_date >= :{start_key} AND sp{counter}.value_date < :{end_key})"
                 )
-                # Add one day for the range
-                sql_params[start_key] = date_value
-                sql_params[end_key] = date_value + ' 23:59:59' if len(date_value) == 10 else date_value
+                
+                # Handle datetime objects properly
+                if isinstance(date_value, datetime):
+                    # Calculate date range based on precision
+                    if precision == 'year':
+                        start = date_value.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                        end = start.replace(year=start.year + 1)
+                    elif precision == 'month':
+                        start = date_value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        if start.month == 12:
+                            end = start.replace(year=start.year + 1, month=1)
+                        else:
+                            end = start.replace(month=start.month + 1)
+                    elif precision == 'day':
+                        start = date_value.replace(hour=0, minute=0, second=0, microsecond=0)
+                        end = start + timedelta(days=1)
+                    else:  # time precision
+                        start = date_value
+                        end = date_value + timedelta(microseconds=1)
+                    
+                    sql_params[start_key] = start
+                    sql_params[end_key] = end
+                else:
+                    # String date handling (legacy)
+                    sql_params[start_key] = date_value
+                    if isinstance(date_value, str) and len(date_value) == 10:
+                        sql_params[end_key] = date_value + ' 23:59:59'
+                    else:
+                        sql_params[end_key] = date_value
             elif prefix == 'lt':
                 conditions.append(f"sp{counter}.value_date < :{date_key}")
                 sql_params[date_key] = date_value

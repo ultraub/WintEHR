@@ -17,7 +17,7 @@ from api.services.clinical.provider_directory_service import ProviderDirectorySe
 from api.auth.service import get_optional_current_user, get_current_user_or_demo
 from api.auth.models import User
 
-router = APIRouter(prefix="/provider-directory", tags=["provider-directory"])
+router = APIRouter(prefix="/api/provider-directory", tags=["provider-directory"])
 
 
 # ============================================================================

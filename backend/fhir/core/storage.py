@@ -146,6 +146,8 @@ class FHIRStorageEngine:
                 'address': {'type': 'string'},
                 'phone': {'type': 'token'},
                 'email': {'type': 'token'},
+                'language': {'type': 'token'},
+                'telecom': {'type': 'token'},
                 'general-practitioner': {'type': 'reference'},
                 'organization': {'type': 'reference'},
                 'managing-organization': {'type': 'reference'}
@@ -1194,13 +1196,20 @@ class FHIRStorageEngine:
         
         # Log the query for debugging
         logger.info(f"Search query for {resource_type}: {query}")
-        logger.info(f"Search params: {sql_params}")
+        # Convert datetime objects to strings for logging
+        safe_params = {}
+        for k, v in sql_params.items():
+            if isinstance(v, datetime):
+                safe_params[k] = v.isoformat()
+            else:
+                safe_params[k] = v
+        logger.info(f"Search params: {safe_params}")
         
         # Also print for immediate debugging
         print(f"\n=== SEARCH QUERY DEBUG ===")
         print(f"Resource type: {resource_type}")
         print(f"Query: {query}")
-        print(f"SQL params: {sql_params}")
+        print(f"SQL params: {safe_params}")
         print(f"========================\n")
         
         # Handle the optimized path differently
@@ -1212,7 +1221,7 @@ class FHIRStorageEngine:
             # For basic search, continue with existing logic
             logger.info(f"Where clauses: {where_clauses}")
             print(f"FULL SEARCH QUERY: {query}")
-            print(f"SQL PARAMS: {sql_params}")
+            print(f"SQL PARAMS: {safe_params}")
             
             # Add ordering based on _sort parameter
             sort_clauses = []

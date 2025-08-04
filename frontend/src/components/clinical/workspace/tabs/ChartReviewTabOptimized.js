@@ -133,14 +133,6 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
   const { publish } = useClinicalWorkflow();
   const patientId = patient?.id || currentPatient?.id;
   
-  // Debug logging
-  console.log('[ChartReviewTabOptimized] Component props:', { patient, patientFromContext: currentPatient });
-  if (!patientId) {
-    console.warn('[ChartReviewTabOptimized] No patient ID available');
-  } else {
-    console.log('[ChartReviewTabOptimized] Loading data for patient:', patientId);
-  }
-  
   // Use optimized hook for chart review resources with all FHIR resources
   const { 
     conditions, 
@@ -164,16 +156,6 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     realTimeUpdates: true
   });
   
-  // Debug logging for loaded resources
-  console.log('[ChartReviewTabOptimized] Loaded resources:', {
-    conditions: conditions?.length || 0,
-    medications: medications?.length || 0,
-    allergies: allergies?.length || 0,
-    immunizations: immunizations?.length || 0,
-    observations: observations?.length || 0,
-    procedures: procedures?.length || 0
-  });
-  
   // View and filter states
   const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
   const [dateRange, setDateRange] = useState('all'); // all, 30d, 90d, 1y
@@ -189,6 +171,18 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     procedures: true,
     carePlans: true,
     documents: true
+  });
+  
+  // Performance optimization - limit visible items
+  const [visibleItems, setVisibleItems] = useState({
+    conditions: 10,
+    medications: 10,
+    allergies: 10,
+    immunizations: 10,
+    procedures: 10,
+    observations: 10,
+    carePlans: 10,
+    documents: 10
   });
   
   // Dialog states
@@ -222,9 +216,9 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     }
   }, [patientId]);
   
-  // Filter data by date range
-  const filteredByDate = useMemo(() => {
-    if (dateRange === 'all') return () => true;
+  // Filter data by date range - stabilized with useCallback
+  const filteredByDate = useCallback((resource) => {
+    if (dateRange === 'all') return true;
     
     const days = {
       '30d': 30,
@@ -234,39 +228,26 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     
     const cutoffDate = subDays(new Date(), days);
     
-    return (resource) => {
-      const resourceDate = resource.recordedDate || 
-                          resource.onsetDateTime || 
-                          resource.authoredOn || 
-                          resource.occurrenceDateTime ||
-                          resource.effectiveDateTime ||
-                          resource.performedDateTime ||  // For Procedures
-                          resource.performedPeriod?.start ||  // For Procedures with period
-                          resource.date ||  // For DocumentReference
-                          resource.created ||  // For CarePlan
-                          resource.period?.start ||  // For Encounters and others
-                          resource.issued;  // For some Observations
-      
-      if (!resourceDate) return true;
-      return new Date(resourceDate) >= cutoffDate;
-    };
+    const resourceDate = resource.recordedDate || 
+                        resource.onsetDateTime || 
+                        resource.authoredOn || 
+                        resource.occurrenceDateTime ||
+                        resource.effectiveDateTime ||
+                        resource.performedDateTime ||  // For Procedures
+                        resource.performedPeriod?.start ||  // For Procedures with period
+                        resource.date ||  // For DocumentReference
+                        resource.created ||  // For CarePlan
+                        resource.period?.start ||  // For Encounters and others
+                        resource.issued;  // For some Observations
+    
+    if (!resourceDate) return true;
+    return new Date(resourceDate) >= cutoffDate;
   }, [dateRange]);
   
   // Process and categorize data with FHIR R4 structure
   const processedData = useMemo(() => {
     // Guard against undefined data
     if (!conditions || !medications || !allergies || !observations || !procedures || !encounters || !immunizations || !carePlans || !documentReferences) {
-      console.warn('[ChartReviewTabOptimized] Some resources are undefined:', {
-        conditions: !!conditions,
-        medications: !!medications,
-        allergies: !!allergies,
-        observations: !!observations,
-        procedures: !!procedures,
-        encounters: !!encounters,
-        immunizations: !!immunizations,
-        carePlans: !!carePlans,
-        documentReferences: !!documentReferences
-      });
       return {
         activeConditions: [],
         inactiveConditions: [],
@@ -286,20 +267,6 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         filteredMedications: [],
         filteredAllergies: []
       };
-    }
-    // Debug logging
-    if (window.__FHIR_DEBUG__) {
-      console.log('[Chart Review Debug] Processing data:', {
-        conditions: conditions.length,
-        medications: medications.length,
-        allergies: allergies.length,
-        immunizations: immunizations.length,
-        procedures: procedures.length,
-        carePlans: carePlans.length,
-        documentReferences: documentReferences.length,
-        showInactive,
-        dateRange
-      });
     }
     // Filter conditions based on showInactive toggle
     const filteredConditions = showInactive 
@@ -397,23 +364,9 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       filteredAllergies
     };
     
-    if (window.__FHIR_DEBUG__) {
-      console.log('[Chart Review Debug] Processed data:', {
-        activeConditions: result.activeConditions.length,
-        inactiveConditions: result.inactiveConditions.length,
-        activeMedications: result.activeMedications.length,
-        inactiveMedications: result.inactiveMedications.length,
-        criticalAllergies: result.criticalAllergies.length,
-        nonCriticalAllergies: result.nonCriticalAllergies.length,
-        procedures: result.procedures.length,
-        immunizations: result.immunizations.length,
-        carePlans: result.carePlans.length,
-        documentReferences: result.documentReferences.length
-      });
-    }
     
     return result;
-  }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, carePlans, documentReferences, filteredByDate, showInactive]);
+  }, [conditions, medications, allergies, observations, procedures, encounters, immunizations, carePlans, documentReferences, showInactive, dateRange]);
   
   // Calculate clinical alerts and recommendations
   const clinicalAlerts = useMemo(() => {
@@ -484,18 +437,18 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
     return alerts;
   }, [processedData, dismissedAlerts]);
   
-  // Handler functions
-  const handleOpenDialog = (type, resource = null) => {
+  // Handler functions - memoized to prevent re-renders
+  const handleOpenDialog = useCallback((type, resource = null) => {
     setSelectedResource(resource);
     setOpenDialogs(prev => ({ ...prev, [type]: true }));
-  };
+  }, []);
   
-  const handleCloseDialog = (type) => {
+  const handleCloseDialog = useCallback((type) => {
     setOpenDialogs(prev => ({ ...prev, [type]: false }));
     setSelectedResource(null);
-  };
+  }, []);
   
-  const handleResourceSaved = async (resource) => {
+  const handleResourceSaved = useCallback(async (resource) => {
     try {
       // Determine if this is an update or create based on whether the resource has an ID
       const isUpdate = resource.id && selectedResource?.id === resource.id;
@@ -521,26 +474,26 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       enqueueSnackbar(`Failed to save ${resource.resourceType}. Please try again.`, { variant: 'error' });
       throw error; // Re-throw to let dialog handle error state
     }
-  };
+  }, [selectedResource, enqueueSnackbar, refresh]);
   
   // Search and filter handlers
-  const handleSearch = (query) => {
+  const handleSearch = useCallback((query) => {
     setSearchQuery(query);
     searchResources(query);
-  };
+  }, [searchResources]);
 
-  const handleDateRangeChange = (event, newRange) => {
+  const handleDateRangeChange = useCallback((event, newRange) => {
     if (newRange) {
       setDateRange(newRange);
     }
-  };
+  }, []);
 
-  const toggleSection = (section) => {
+  const toggleSection = useCallback((section) => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
     }));
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -659,16 +612,35 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             variant="h3"
                             duration={800}
                           />
-                          <Stack direction="row" spacing={0.5} mt={1}>
-                            {processedData.conditionsByCategory['problem-list-item']?.length > 0 && (
-                              <InteractiveChip 
-                                label={`${processedData.conditionsByCategory['problem-list-item'].length} Chronic`}
-                                size="small"
-                                color="error"
-                                hoverEffect="scale"
-                                tooltip="Long-term conditions requiring ongoing management"
-                              />
-                            )}
+                          <Stack spacing={0.5} mt={1}>
+                            <Stack direction="row" spacing={0.5}>
+                              {stats.conditions.active > 0 && (
+                                <Chip 
+                                  label={`${stats.conditions.active} Active`} 
+                                  size="small" 
+                                  sx={{ 
+                                    fontSize: '0.6875rem',
+                                    borderRadius: 0,
+                                    backgroundColor: alpha(theme.palette.error.main, 0.1),
+                                    color: theme.palette.error.main,
+                                    fontWeight: 600
+                                  }} 
+                                />
+                              )}
+                              {stats.conditions.resolved > 0 && (
+                                <Chip 
+                                  label={`${stats.conditions.resolved} Resolved`} 
+                                  size="small" 
+                                  sx={{ 
+                                    fontSize: '0.6875rem',
+                                    borderRadius: 0,
+                                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                                    color: theme.palette.success.main,
+                                    fontWeight: 600
+                                  }} 
+                                />
+                              )}
+                            </Stack>
                           </Stack>
                         </Box>
                         <Avatar sx={{ 
@@ -831,15 +803,28 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
-                          <Chip 
-                            label={`${processedData.activeConditions.length} Active`} 
-                            size="small" 
-                            color="error"
-                            sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600
-                            }}
-                          />
+                          {stats.conditions.active > 0 && (
+                            <Chip 
+                              label={`${stats.conditions.active} Active`} 
+                              size="small" 
+                              color="error"
+                              sx={{
+                                borderRadius: 0,
+                                fontWeight: 600
+                              }}
+                            />
+                          )}
+                          {stats.conditions.resolved > 0 && (
+                            <Chip 
+                              label={`${stats.conditions.resolved} Resolved`} 
+                              size="small" 
+                              color="success"
+                              sx={{
+                                borderRadius: 0,
+                                fontWeight: 600
+                              }}
+                            />
+                          )}
                         </Stack>
                         <InteractiveButton
                           startIcon={<AddIcon />}
@@ -878,7 +863,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             {(showInactive 
                               ? [...processedData.activeConditions, ...processedData.inactiveConditions]
                               : processedData.activeConditions
-                            ).map((condition, index) => (
+                            ).slice(0, visibleItems.conditions).map((condition, index) => (
                               <EnhancedConditionCard
                                 key={condition.id}
                                 condition={condition}
@@ -887,6 +872,23 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </StaggeredFadeIn>
+                          {(showInactive 
+                            ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                            : processedData.activeConditions.length
+                          ) > visibleItems.conditions && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                size="small"
+                                onClick={() => setVisibleItems(prev => ({ ...prev, conditions: prev.conditions + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({(showInactive 
+                                  ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                                  : processedData.activeConditions.length
+                                ) - visibleItems.conditions} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -956,7 +958,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                             {(showInactive 
                               ? [...processedData.activeMedications, ...processedData.inactiveMedications]
                               : processedData.activeMedications
-                            ).map((medication, index) => (
+                            ).slice(0, visibleItems.medications).map((medication, index) => (
                               <EnhancedMedicationCard
                                 key={medication.id}
                                 medication={medication}
@@ -965,6 +967,23 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </StaggeredFadeIn>
+                          {(showInactive 
+                            ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                            : processedData.activeMedications.length
+                          ) > visibleItems.medications && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                size="small"
+                                onClick={() => setVisibleItems(prev => ({ ...prev, medications: prev.medications + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({(showInactive 
+                                  ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                                  : processedData.activeMedications.length
+                                ) - visibleItems.medications} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1036,6 +1055,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                         }}>
                           <StaggeredFadeIn staggerDelay={50}>
                             {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
+                              .slice(0, visibleItems.allergies)
                               .map((allergy, index) => (
                                 <EnhancedAllergyCard
                                   key={allergy.id}
@@ -1045,6 +1065,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                                 />
                               ))}
                           </StaggeredFadeIn>
+                          {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length > visibleItems.allergies && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, allergies: prev.allergies + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length - visibleItems.allergies} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1116,7 +1146,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <Stack spacing={0.5}>
-                            {processedData.immunizations.map((immunization, index) => (
+                            {processedData.immunizations.slice(0, visibleItems.immunizations).map((immunization, index) => (
                               <EnhancedImmunizationCard
                                 key={immunization.id}
                                 immunization={immunization}
@@ -1125,6 +1155,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </Stack>
+                          {processedData.immunizations.length > visibleItems.immunizations && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, immunizations: prev.immunizations + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.immunizations.length - visibleItems.immunizations} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1196,7 +1236,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <Stack spacing={0.5}>
-                            {processedData.procedures.map((procedure, index) => (
+                            {processedData.procedures.slice(0, visibleItems.procedures).map((procedure, index) => (
                               <EnhancedProcedureCard
                                 key={procedure.id}
                                 procedure={procedure}
@@ -1205,6 +1245,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </Stack>
+                          {processedData.procedures.length > visibleItems.procedures && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, procedures: prev.procedures + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.procedures.length - visibleItems.procedures} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1276,7 +1326,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <Stack spacing={0.5}>
-                            {processedData.carePlans.map((carePlan, index) => (
+                            {processedData.carePlans.slice(0, visibleItems.carePlans).map((carePlan, index) => (
                               <EnhancedCarePlanCard
                                 key={carePlan.id}
                                 carePlan={carePlan}
@@ -1285,6 +1335,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </Stack>
+                          {processedData.carePlans.length > visibleItems.carePlans && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, carePlans: prev.carePlans + 5 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.carePlans.length - visibleItems.carePlans} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1356,7 +1416,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                           },
                         }}>
                           <Stack spacing={0.5}>
-                            {processedData.documentReferences.map((document, index) => (
+                            {processedData.documentReferences.slice(0, visibleItems.documents).map((document, index) => (
                               <EnhancedDocumentCard
                                 key={document.id}
                                 document={document}
@@ -1365,6 +1425,16 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                               />
                             ))}
                           </Stack>
+                          {processedData.documentReferences.length > visibleItems.documents && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, documents: prev.documents + 5 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.documentReferences.length - visibleItems.documents} more)
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </CardContent>
@@ -1557,7 +1627,8 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   const severity = condition.severity?.coding?.[0]?.display || condition.severity?.text || null;
   const stage = condition.stage?.[0]?.summary?.coding?.[0]?.display || condition.stage?.[0]?.summary?.text || null;
   const verification = condition.verificationStatus?.coding?.[0]?.code;
-  const isActive = condition.clinicalStatus?.coding?.[0]?.code === 'active';
+  const clinicalStatus = condition.clinicalStatus?.coding?.[0]?.code;
+  const isActive = clinicalStatus === 'active';
   
   // Additional FHIR fields for enhanced clinical utility
   const bodySite = condition.bodySite?.[0]?.text || condition.bodySite?.[0]?.coding?.[0]?.display || null;
@@ -1589,7 +1660,11 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
-        borderLeftColor: clinicalTokens.severity[severityLevel]?.color || theme.palette.grey[300],
+        borderLeftColor: clinicalStatus === 'active' ? theme.palette.error.main :
+                        clinicalStatus === 'resolved' ? theme.palette.success.main :
+                        clinicalStatus === 'remission' ? theme.palette.info.main :
+                        clinicalStatus === 'recurrence' ? theme.palette.warning.main :
+                        clinicalTokens.severity[severityLevel]?.color || theme.palette.grey[300],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -1635,11 +1710,38 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
                 {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
               </Typography>
             </RichTooltip>
+            {/* Clinical Status */}
+            {clinicalStatus && (
+              <Chip 
+                label={clinicalStatus === 'active' ? 'Active' : 
+                       clinicalStatus === 'resolved' ? 'Resolved' : 
+                       clinicalStatus === 'inactive' ? 'Inactive' : 
+                       clinicalStatus === 'remission' ? 'Remission' : 
+                       clinicalStatus === 'recurrence' ? 'Recurrence' : clinicalStatus}
+                size="small" 
+                color={clinicalStatus === 'active' ? 'error' : 
+                       clinicalStatus === 'resolved' ? 'success' : 
+                       clinicalStatus === 'remission' ? 'info' : 
+                       clinicalStatus === 'recurrence' ? 'warning' : 'default'}
+                sx={{ 
+                  fontWeight: 600,
+                  borderRadius: 0,
+                  ...(clinicalStatus === 'active' && {
+                    backgroundColor: alpha(theme.palette.error.main, 0.9),
+                    color: 'white'
+                  }),
+                  ...(clinicalStatus === 'resolved' && {
+                    backgroundColor: alpha(theme.palette.success.main, 0.9),
+                    color: 'white'
+                  })
+                }}
+              />
+            )}
             {verification === 'confirmed' && (
-              <Chip label="Confirmed" size="small" color="success" />
+              <Chip label="Confirmed" size="small" variant="outlined" color="success" sx={{ borderRadius: 0 }} />
             )}
             {category && (
-              <Chip label={category} size="small" variant="outlined" />
+              <Chip label={category} size="small" variant="outlined" sx={{ borderRadius: 0 }} />
             )}
           </Stack>
           
@@ -1776,7 +1878,12 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${isActive ? theme.palette.primary.main : theme.palette.grey[300]}`,
+        borderLeft: '4px solid',
+        borderLeftColor: medication.status === 'active' ? theme.palette.primary.main :
+                        medication.status === 'stopped' ? theme.palette.error.main :
+                        medication.status === 'completed' ? theme.palette.success.main :
+                        medication.status === 'on-hold' ? theme.palette.warning.main :
+                        theme.palette.grey[300],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -1791,16 +1898,43 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
             <Typography variant="body1" fontWeight={600}>
               {medicationDisplay}
             </Typography>
+            {/* Medication Status */}
             <Chip 
-              label={medication.status} 
+              label={medication.status === 'active' ? 'Active' : 
+                     medication.status === 'completed' ? 'Completed' : 
+                     medication.status === 'stopped' ? 'Stopped' : 
+                     medication.status === 'on-hold' ? 'On Hold' : 
+                     medication.status === 'cancelled' ? 'Cancelled' : 
+                     medication.status === 'entered-in-error' ? 'Error' : medication.status}
               size="small" 
-              color={isActive ? 'primary' : 'default'}
+              color={medication.status === 'active' ? 'primary' : 
+                     medication.status === 'completed' ? 'success' : 
+                     medication.status === 'stopped' ? 'error' : 
+                     medication.status === 'on-hold' ? 'warning' : 
+                     medication.status === 'cancelled' ? 'default' : 'default'}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(medication.status === 'active' && {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
+                  color: 'white'
+                }),
+                ...(medication.status === 'stopped' && {
+                  backgroundColor: alpha(theme.palette.error.main, 0.9),
+                  color: 'white'
+                }),
+                ...(medication.status === 'completed' && {
+                  backgroundColor: alpha(theme.palette.success.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
             {medication.intent && (
               <Chip 
                 label={medication.intent} 
                 size="small" 
                 variant="outlined"
+                sx={{ borderRadius: 0 }}
               />
             )}
             {courseOfTherapy && (
@@ -1808,7 +1942,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
                 label={courseOfTherapy} 
                 size="small" 
                 variant="outlined"
-                sx={{ fontSize: '0.7rem' }}
+                sx={{ fontSize: '0.7rem', borderRadius: 0 }}
               />
             )}
           </Stack>
@@ -1927,11 +2061,11 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   
   // Debug logging to catch the issue
   if (allergy.category && typeof allergy.category === 'object' && !Array.isArray(allergy.category)) {
-    console.error('[EnhancedAllergyCard] allergy.category is an object, not an array:', allergy.category);
+    // allergy.category is an object, not an array
   }
   if (allergy.category?.[0] && typeof allergy.category[0] === 'object' && 
       !allergy.category[0].coding && !allergy.category[0].text) {
-    console.error('[EnhancedAllergyCard] allergy.category[0] is missing coding and text:', allergy.category[0]);
+    // allergy.category[0] is missing coding and text
   }
   
   const criticality = allergy.criticality || 'low';
@@ -1974,7 +2108,10 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${theme.palette[criticalityColor].main}`,
+        borderLeft: '4px solid',
+        borderLeftColor: criticality === 'high' ? theme.palette.error.main :
+                        criticality === 'low' ? theme.palette.success.main :
+                        theme.palette.warning.main,
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : 
                          (criticality === 'high' ? clinicalTokens.severity.critical.bg : theme.palette.background.paper),
         transition: 'all 0.2s ease',
@@ -1994,10 +2131,25 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
             <Typography variant="body1" fontWeight={600}>
               {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown allergen'}
             </Typography>
+            {/* Criticality */}
             <Chip 
-              label={criticality} 
+              label={criticality === 'high' ? 'High Risk' : 
+                     criticality === 'low' ? 'Low Risk' : 
+                     criticality === 'unable-to-assess' ? 'Unknown Risk' : criticality} 
               size="small" 
               color={criticalityColor}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(criticality === 'high' && {
+                  backgroundColor: alpha(theme.palette.error.main, 0.9),
+                  color: 'white'
+                }),
+                ...(criticality === 'low' && {
+                  backgroundColor: alpha(theme.palette.success.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
             {severity && (
               <Chip 
@@ -2005,14 +2157,29 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                 size="small" 
                 variant="outlined"
                 color={severity === 'severe' ? 'error' : 'default'}
+                sx={{ borderRadius: 0 }}
               />
             )}
-            {clinicalStatus && clinicalStatus !== 'active' && (
+            {clinicalStatus && (
               <Chip 
-                label={clinicalStatus} 
+                label={clinicalStatus === 'active' ? 'Active' : 
+                       clinicalStatus === 'resolved' ? 'Resolved' : 
+                       clinicalStatus === 'inactive' ? 'Inactive' : clinicalStatus} 
                 size="small" 
-                variant="outlined"
-                color="default"
+                color={clinicalStatus === 'active' ? 'error' : 
+                       clinicalStatus === 'resolved' ? 'success' : 'default'}
+                sx={{ 
+                  fontWeight: 600,
+                  borderRadius: 0,
+                  ...(clinicalStatus === 'active' && {
+                    backgroundColor: alpha(theme.palette.error.main, 0.1),
+                    color: theme.palette.error.main
+                  }),
+                  ...(clinicalStatus === 'resolved' && {
+                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                    color: theme.palette.success.main
+                  })
+                }}
               />
             )}
             {verificationStatus === 'confirmed' && (
@@ -2021,6 +2188,7 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                 size="small" 
                 color="success"
                 variant="outlined"
+                sx={{ borderRadius: 0 }}
               />
             )}
           </Stack>
@@ -2143,7 +2311,10 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${isCompleted ? theme.palette.success.main : theme.palette.warning.main}`,
+        borderLeft: '4px solid',
+        borderLeftColor: status === 'completed' ? theme.palette.success.main :
+                        status === 'not-done' ? theme.palette.warning.main :
+                        theme.palette.grey[300],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -2159,10 +2330,26 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
             <Typography variant="body1" fontWeight={600}>
               {vaccineDisplay}
             </Typography>
+            {/* Immunization Status */}
             <Chip 
-              label={status} 
+              label={status === 'completed' ? 'Completed' : 
+                     status === 'not-done' ? 'Not Done' : 
+                     status === 'entered-in-error' ? 'Error' : status} 
               size="small" 
-              color={isCompleted ? 'success' : 'warning'}
+              color={status === 'completed' ? 'success' : 
+                     status === 'not-done' ? 'warning' : 'default'}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(status === 'completed' && {
+                  backgroundColor: alpha(theme.palette.success.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'not-done' && {
+                  backgroundColor: alpha(theme.palette.warning.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
           </Stack>
           
@@ -2222,7 +2409,12 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${isCompleted ? theme.palette.secondary.main : theme.palette.info.main}`,
+        borderLeft: '4px solid',
+        borderLeftColor: status === 'completed' ? theme.palette.success.main :
+                        status === 'in-progress' ? theme.palette.info.main :
+                        status === 'stopped' ? theme.palette.error.main :
+                        status === 'not-done' ? theme.palette.warning.main :
+                        theme.palette.grey[300],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -2238,10 +2430,37 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
             <Typography variant="body1" fontWeight={600}>
               {procedureDisplay}
             </Typography>
+            {/* Procedure Status */}
             <Chip 
-              label={status} 
+              label={status === 'completed' ? 'Completed' : 
+                     status === 'in-progress' ? 'In Progress' : 
+                     status === 'preparation' ? 'Preparation' : 
+                     status === 'not-done' ? 'Not Done' : 
+                     status === 'stopped' ? 'Stopped' : 
+                     status === 'on-hold' ? 'On Hold' : 
+                     status === 'entered-in-error' ? 'Error' : status} 
               size="small" 
-              color={isCompleted ? 'secondary' : 'info'}
+              color={status === 'completed' ? 'success' : 
+                     status === 'in-progress' ? 'info' : 
+                     status === 'preparation' ? 'info' : 
+                     status === 'not-done' ? 'warning' : 
+                     status === 'stopped' ? 'error' : 'default'}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(status === 'completed' && {
+                  backgroundColor: alpha(theme.palette.success.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'in-progress' && {
+                  backgroundColor: alpha(theme.palette.info.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'stopped' && {
+                  backgroundColor: alpha(theme.palette.error.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
           </Stack>
           
@@ -2303,7 +2522,12 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${isActive ? theme.palette.primary.main : theme.palette.grey[400]}`,
+        borderLeft: '4px solid',
+        borderLeftColor: status === 'active' ? theme.palette.primary.main :
+                        status === 'completed' ? theme.palette.success.main :
+                        status === 'draft' ? theme.palette.info.main :
+                        status === 'revoked' ? theme.palette.error.main :
+                        theme.palette.grey[400],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -2319,16 +2543,43 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
             <Typography variant="body1" fontWeight={600}>
               {title}
             </Typography>
+            {/* Care Plan Status */}
             <Chip 
-              label={status} 
+              label={status === 'active' ? 'Active' : 
+                     status === 'completed' ? 'Completed' : 
+                     status === 'draft' ? 'Draft' : 
+                     status === 'revoked' ? 'Revoked' : 
+                     status === 'on-hold' ? 'On Hold' : 
+                     status === 'unknown' ? 'Unknown' : 
+                     status === 'entered-in-error' ? 'Error' : status} 
               size="small" 
-              color={isActive ? 'primary' : 'default'}
+              color={status === 'active' ? 'primary' : 
+                     status === 'completed' ? 'success' : 
+                     status === 'draft' ? 'info' : 
+                     status === 'revoked' ? 'error' : 'default'}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(status === 'active' && {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'completed' && {
+                  backgroundColor: alpha(theme.palette.success.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'revoked' && {
+                  backgroundColor: alpha(theme.palette.error.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
             {carePlan.intent && (
               <Chip 
                 label={carePlan.intent} 
                 size="small" 
                 variant="outlined"
+                sx={{ borderRadius: 0 }}
               />
             )}
           </Stack>
@@ -2394,7 +2645,11 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
         borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: `4px solid ${isCurrent ? theme.palette.grey[600] : theme.palette.grey[400]}`,
+        borderLeft: '4px solid',
+        borderLeftColor: status === 'current' ? theme.palette.primary.main :
+                        status === 'superseded' ? theme.palette.warning.main :
+                        status === 'entered-in-error' ? theme.palette.error.main :
+                        theme.palette.grey[600],
         backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -2410,16 +2665,34 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
             <Typography variant="body1" fontWeight={600}>
               {title}
             </Typography>
+            {/* Document Status */}
             <Chip 
-              label={status} 
+              label={status === 'current' ? 'Current' : 
+                     status === 'superseded' ? 'Superseded' : 
+                     status === 'entered-in-error' ? 'Error' : status} 
               size="small" 
-              color={isCurrent ? 'default' : 'warning'}
+              color={status === 'current' ? 'primary' : 
+                     status === 'superseded' ? 'warning' : 
+                     status === 'entered-in-error' ? 'error' : 'default'}
+              sx={{ 
+                fontWeight: 600,
+                borderRadius: 0,
+                ...(status === 'current' && {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
+                  color: 'white'
+                }),
+                ...(status === 'superseded' && {
+                  backgroundColor: alpha(theme.palette.warning.main, 0.9),
+                  color: 'white'
+                })
+              }}
             />
             {document.docStatus && (
               <Chip 
                 label={document.docStatus} 
                 size="small" 
                 variant="outlined"
+                sx={{ borderRadius: 0 }}
               />
             )}
           </Stack>
@@ -2459,4 +2732,24 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
   );
 };
 
-export default React.memo(ChartReviewTabOptimized);
+// Custom comparison function to prevent unnecessary re-renders
+const arePropsEqual = (prevProps, nextProps) => {
+  // Only re-render if patient or patientId changes
+  const prevPatientId = prevProps.patient?.id || prevProps.patientId;
+  const nextPatientId = nextProps.patient?.id || nextProps.patientId;
+  
+  // Check if patientId has changed
+  if (prevPatientId !== nextPatientId) {
+    return false; // Props are not equal, re-render needed
+  }
+  
+  // Check if scrollContainerRef has changed (this is important for scroll functionality)
+  if (prevProps.scrollContainerRef !== nextProps.scrollContainerRef) {
+    return false;
+  }
+  
+  // For all other prop changes, prevent re-render
+  return true; // Props are equal, no re-render needed
+};
+
+export default React.memo(ChartReviewTabOptimized, arePropsEqual);

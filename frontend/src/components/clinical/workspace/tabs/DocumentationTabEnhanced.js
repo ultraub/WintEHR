@@ -226,8 +226,8 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
   return (
     <ClinicalResourceCard
       severity="normal"
-      title={typeConfig.label}
-      subtitle={note.description || 'Clinical Note'}
+      title={note.description || 'Clinical Note'}
+      subtitle={`${typeConfig.label} • ${format(parseISO(date), 'MMM d, yyyy h:mm a')}`}
       status={isSigned ? 'Signed' : note.docStatus === 'preliminary' ? 'Ready for Review' : 'Draft'}
       actions={actions}
       density={density}
@@ -239,12 +239,13 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
     >
       <Stack spacing={1}>
         {/* Author and metadata */}
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <Chip
             icon={<AuthorIcon />}
             label={author}
             size="small"
             variant="outlined"
+            sx={{ borderRadius: 0 }}
           />
           {note.relatesTo?.length > 0 && (
             <Chip
@@ -252,6 +253,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
               size="small"
               color="info"
               variant="outlined"
+              sx={{ borderRadius: 0 }}
             />
           )}
         </Stack>
@@ -795,15 +797,16 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
     {
       id: 'status',
       label: 'Status',
-      width: '120px',
+      width: '150px',
       render: (value, row) => {
         const isSigned = row.docStatus === 'final';
         return (
           <Chip
             icon={isSigned ? <SignedIcon /> : <UnsignedIcon />}
-            label={isSigned ? 'Signed' : row.docStatus === 'preliminary' ? 'Review' : 'Draft'}
+            label={isSigned ? 'Signed' : row.docStatus === 'preliminary' ? 'Ready for Review' : 'Draft'}
             size="small"
             color={isSigned ? 'success' : row.docStatus === 'preliminary' ? 'info' : 'warning'}
+            sx={{ borderRadius: 0 }}
           />
         );
       }
@@ -840,8 +843,19 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
       setOriginalNoteForAmendment(note);
       setEnhancedEditorOpen(true);
     } else {
-      setSelectedNote(note);
+      // For existing notes, prepare the note data properly for editing
+      const editableNote = {
+        ...note,
+        // Ensure content is properly formatted for editor
+        content: note.displayContent || note.text?.div || note.text || 
+                 (note.content?.[0]?.attachment?.data ? atob(note.content[0].attachment.data) : ''),
+        // Don't force a template for existing notes with content
+        skipTemplate: !!(note.displayContent || note.text?.div || note.text || note.content?.[0]?.attachment?.data)
+      };
+      
+      setSelectedNote(editableNote);
       setSelectedTemplate(null);
+      setTemplateData(null);
       setEnhancedEditorOpen(true);
     }
   };
@@ -854,6 +868,8 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
   const handleSignNote = async (note) => {
     try {
       let currentResource;
+      let resourceId = note.id;
+      
       try {
         currentResource = await fhirClient.read('DocumentReference', note.id);
       } catch (error) {
@@ -867,6 +883,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         if (alternativeId) {
           try {
             currentResource = await fhirClient.read('DocumentReference', alternativeId);
+            resourceId = alternativeId;
           } catch (altError) {
             throw new Error(`Could not find DocumentReference with ID: ${note.id}`);
           }
@@ -880,7 +897,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         docStatus: 'final'
       };
       
-      const result = await fhirClient.update('DocumentReference', note.id, updatedResource);
+      const result = await fhirClient.update('DocumentReference', resourceId, updatedResource);
       
       if (result) {
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
@@ -898,12 +915,22 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
           severity: 'success'
         });
         
-        // Delay the resource update to prevent UI flicker
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
-            detail: { patientId } 
-          }));
-        }, 500);
+        // Force a refresh of DocumentReference resources to show updated status
+        try {
+          await searchResources('DocumentReference', {
+            patient: patientId,
+            _count: 50,
+            _sort: '-date'
+          });
+        } catch (refreshError) {
+          console.warn('Failed to refresh documents after signing:', refreshError);
+          // Fallback to event dispatch if direct refresh fails
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
+              detail: { patientId } 
+            }));
+          }, 500);
+        }
       }
     } catch (error) {
       setSnackbar({
@@ -1155,7 +1182,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         {/* Tree View Sidebar with Custom Implementation */}
         {viewMode === 'tree' && (
           <Box sx={{ 
-            width: 200, 
+            width: 280, 
             flexShrink: 0, 
             borderRight: 1, 
             borderColor: 'divider',
@@ -1238,20 +1265,165 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                       No documentation found matching your criteria
                     </Alert>
                   ) : (
-                    sortedDocuments.map((document) => (
-                      <EnhancedNoteCard
-                        key={document.id}
-                        note={document}
-                        onEdit={handleEditNote}
-                        onView={handleViewNote}
-                        onSign={handleSignNote}
-                        onPrint={handlePrintNote}
-                        onExport={handleExportNote}
-                        onFavorite={handleFavoriteNote}
-                        onPin={handlePinNote}
-                        density={density}
-                      />
-                    ))
+                    sortedDocuments.map((note, index) => {
+                      const noteType = note.type?.coding?.[0]?.code || 'other';
+                      const typeConfig = noteTypes[noteType] || noteTypes.other;
+                      const date = note.date || note.meta?.lastUpdated;
+                      const statusConfig = {
+                        'draft': { label: 'Draft', color: 'warning' },
+                        'preliminary': { label: 'Ready for Review', color: 'info' },
+                        'final': { label: 'Signed', color: 'success' }
+                      }[note.docStatus || note.status] || { label: 'Unknown', color: 'default' };
+                      
+                      return (
+                        <Paper
+                          key={note.id}
+                          elevation={0}
+                          sx={{
+                            p: 2,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderLeft: '4px solid',
+                            borderLeftColor: 
+                              note.docStatus === 'preliminary' ? theme.palette.warning.main :
+                              note.docStatus === 'final' ? theme.palette.success.main : 
+                              theme.palette.grey[400],
+                            borderRadius: 0,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.02) : 'transparent',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.action.hover, 0.04),
+                              transform: 'translateX(2px)',
+                              boxShadow: 1
+                            }
+                          }}
+                          onClick={() => handleViewNote(note)}
+                        >
+                          {/* Compact header with all metadata on one line */}
+                          <Box sx={{ mb: 1.5 }}>
+                            <Stack 
+                              direction="row" 
+                              alignItems="center" 
+                              spacing={1}
+                              sx={{ mb: 0.5 }}
+                            >
+                              <Box sx={{ 
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: typeConfig.color === 'default' ? 'text.secondary' : theme.palette[typeConfig.color].main
+                              }}>
+                                {React.cloneElement(typeConfig.icon, { sx: { fontSize: 18 } })}
+                              </Box>
+                              <Typography variant="subtitle1" fontWeight={600} sx={{ flexGrow: 1 }}>
+                                {note.description || note.title || 'Clinical Note'}
+                              </Typography>
+                              <Chip
+                                size="small"
+                                label={statusConfig.label}
+                                color={statusConfig.color}
+                                sx={{
+                                  borderRadius: 0,
+                                  fontWeight: 600,
+                                  height: 22,
+                                  fontSize: '0.75rem'
+                                }}
+                              />
+                            </Stack>
+                            
+                            {/* Condensed metadata line */}
+                            <Stack 
+                              direction="row" 
+                              alignItems="center" 
+                              spacing={0.5}
+                              sx={{ ml: 3.25 }}
+                            >
+                              <Typography variant="caption" color="text.secondary">
+                                {typeConfig.label}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">•</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'Unknown date'}
+                              </Typography>
+                              {note.author?.length > 0 && (
+                                <>
+                                  <Typography variant="caption" color="text.secondary">•</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {note.author[0].display || 'Unknown'}
+                                  </Typography>
+                                </>
+                              )}
+                            </Stack>
+                          </Box>
+
+                          {/* Note content with more lines visible */}
+                          {(note.displayContent || note.text?.div || note.text || note.content?.[0]?.attachment?.data) && (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 8,
+                                WebkitBoxOrient: 'vertical',
+                                lineHeight: 1.5,
+                                whiteSpace: 'pre-wrap',
+                                mb: 1.5
+                              }}
+                            >
+                              {note.displayContent || 
+                               note.text?.div || 
+                               note.text || 
+                               (note.content?.[0]?.attachment?.data ? atob(note.content[0].attachment.data) : 'No content available')}
+                            </Typography>
+                          )}
+                          
+                          {/* Action buttons row */}
+                          <Stack 
+                            direction="row" 
+                            spacing={1} 
+                            justifyContent="flex-end"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {note.docStatus !== 'final' && (
+                              <Button 
+                                size="small" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditNote(note);
+                                }}
+                                startIcon={<EditIcon sx={{ fontSize: 16 }} />}
+                              >
+                                Edit
+                              </Button>
+                            )}
+                            {note.docStatus !== 'final' && (
+                              <Button 
+                                size="small" 
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSignNote(note);
+                                }}
+                              >
+                                Sign
+                              </Button>
+                            )}
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePrintNote(note);
+                              }}
+                              title="Print"
+                            >
+                              <PrintIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Stack>
+                        </Paper>
+                      );
+                    })
                   )}
                 </Stack>
               </Box>
@@ -1412,7 +1584,7 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                   label="Note Content"
                   multiline
                   rows={10}
-                  defaultValue={selectedNote?.displayContent || selectedNote?.text || ''}
+                  defaultValue={selectedNote?.content || selectedNote?.displayContent || selectedNote?.text?.div || selectedNote?.text || ''}
                   placeholder="Enter note content..."
                 />
                 <FormControl fullWidth>

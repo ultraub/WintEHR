@@ -84,18 +84,25 @@ class RedisSearchCache:
         
         return self._redis_client
     
+    def _serialize_value(self, value: Any) -> Any:
+        """Recursively serialize values to JSON-compatible format."""
+        if hasattr(value, 'isoformat'):  # datetime objects
+            return value.isoformat()
+        elif isinstance(value, dict):
+            return {k: self._serialize_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [self._serialize_value(v) for v in value]
+        elif isinstance(value, (str, int, float, bool, type(None))):
+            return value
+        else:
+            return str(value)
+    
     def _make_key(self, resource_type: str, params: Dict[str, Any]) -> str:
         """Generate a cache key from resource type and search parameters."""
         # Convert params to a serializable format
         serializable_params = {}
         for k, v in params.items():
-            if hasattr(v, 'isoformat'):  # datetime objects
-                serializable_params[k] = v.isoformat()
-            elif isinstance(v, (dict, list)):
-                # Convert nested structures
-                serializable_params[k] = json.dumps(v, sort_keys=True)
-            else:
-                serializable_params[k] = str(v)
+            serializable_params[k] = self._serialize_value(v)
         
         # Sort params for consistent keys
         sorted_params = sorted(serializable_params.items())

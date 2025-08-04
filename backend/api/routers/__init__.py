@@ -26,9 +26,11 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         from fhir.api.router import fhir_router
         from api.fhir_relationships_router import relationships_router
+        from api.fhir.search_values import router as search_values_router
         
         app.include_router(fhir_router, tags=["FHIR R4"])
         app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
+        app.include_router(search_values_router, prefix="/api", tags=["FHIR Search Values"])
         logger.info("✓ FHIR routers registered")
     except Exception as e:
         logger.error(f"Failed to register FHIR routers: {e}")

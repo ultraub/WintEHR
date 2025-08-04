@@ -159,7 +159,7 @@ const ClinicalResourceCard = ({
     <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
       <Box flex={1}>
         {/* Header */}
-        <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+        <Stack direction="row" alignItems="center" spacing={1} mb={0.5} flexWrap="wrap">
           {icon && (
             <Box sx={{ 
               color: urgent ? getPriorityColor() : borderColor, 
@@ -193,9 +193,10 @@ const ClinicalResourceCard = ({
               size="small" 
               color={statusColor}
               sx={{
-                borderRadius: '4px',
+                borderRadius: 0,
                 fontWeight: 600,
-                height: 24
+                height: 24,
+                ml: 'auto'
               }}
             />
           )}
