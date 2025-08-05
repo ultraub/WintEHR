@@ -187,11 +187,11 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
     const immunizations = getPatientResources(patientId, 'Immunization') || [];
 
     // Filter resources related to this encounter
-    const encounterRef = `Encounter/${encounter.id}`;
-    const encounterUrnRef = `urn:uuid:${encounter.id}`;
-    
+    // Use includes check to match partial references (same as EncounterCard does)
     const isEncounterMatch = (ref) => {
-      return ref === encounterRef || ref === encounterUrnRef;
+      if (!ref) return false;
+      // Check if the reference contains the encounter ID
+      return ref.includes(encounter.id);
     };
     
     return {
