@@ -429,18 +429,20 @@ class CDSHookEngine:
         """Evaluate a CDS hook against the given request"""
         cards = []
         
-        logger.debug(f"Evaluating hook: {hook_config.id} for patient: {request.context.get('patientId')}")
+        logger.info(f"Evaluating hook: {hook_config.id} for patient: {request.context.get('patientId')}")
+        logger.info(f"Hook has {len(hook_config.conditions)} conditions to evaluate")
+        logger.info(f"Hook conditions: {[{'type': c.type, 'params': c.parameters} for c in hook_config.conditions]}")
         
         # Check if conditions are met
         if await self._evaluate_conditions(hook_config.conditions, request):
-            logger.debug(f"Conditions met for hook: {hook_config.id}")
+            logger.info(f"Conditions met for hook: {hook_config.id}")
             # Execute actions
             for action in hook_config.actions:
                 card = await self._execute_action(action, request)
                 if card:
                     cards.append(card)
         else:
-            logger.debug(f"Conditions NOT met for hook: {hook_config.id}")
+            logger.info(f"Conditions NOT met for hook: {hook_config.id}")
         
         return cards
     
@@ -487,7 +489,7 @@ class CDSHookEngine:
                 # Some hooks might not require patient context
                 return condition_type in ['system-status', 'user-preference', 'time-based']
             
-            logger.debug(f"Checking condition type: {condition_type} with parameters: {parameters}")
+            logger.info(f"Evaluating condition type: {condition_type} with parameters: {parameters} for patient: {patient_id}")
             
             # Make condition evaluation more forgiving by handling missing data gracefully
             if condition_type == 'patient-age':
@@ -703,6 +705,9 @@ class CDSHookEngine:
             value = float(parameters.get('value', 0))
             timeframe = int(parameters.get('timeframe', 90))  # days
             
+            logger.info(f"Lab value check - Initial parameters: {parameters}")
+            logger.info(f"Lab value check - Extracted values: code={code}, operator={operator}, value={value}, patient_id={patient_id}")
+            
             if not code:
                 logger.debug(f"No lab code provided in parameters: {parameters}")
                 return False
@@ -713,7 +718,7 @@ class CDSHookEngine:
             
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
             
-            logger.debug(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days")
+            logger.info(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days, cutoff_date={cutoff_date}")
             
             # Try both reference formats: urn:uuid: and Patient/
             query = text("""
@@ -738,16 +743,20 @@ class CDSHookEngine:
                 LIMIT 1
             """)
             
-            result = await self.db.execute(query, {
+            params = {
                 'patient_ref_fhir': f'Patient/{patient_id}',
                 'patient_ref_uuid': f'urn:uuid:{patient_id}',
                 'code': code,
                 'cutoff_date': cutoff_date
-            })
+            }
+            logger.info(f"Lab value check - Query parameters: {params}")
+            
+            result = await self.db.execute(query, params)
             
             row = result.first()
             if not row:
-                logger.debug(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
+                logger.info(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
+                logger.info(f"Checked references: Patient/{patient_id} and urn:uuid:{patient_id}")
                 return operator == 'missing'
             
             obs_dict = row.resource
@@ -897,6 +906,16 @@ class CDSHookEngine:
                             appContext=l.get('appContext', '')
                         )
                         for l in parameters['links']
+                    ]
+                
+                if 'overrideReasons' in parameters:
+                    card.overrideReasons = [
+                        OverrideReason(
+                            code=reason.get('code', reason.get('key', '')),
+                            display=reason.get('display', reason.get('label', '')),
+                            system=reason.get('system', '')
+                        )
+                        for reason in parameters['overrideReasons']
                     ]
                 
                 return card

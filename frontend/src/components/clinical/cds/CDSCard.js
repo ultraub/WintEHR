@@ -110,7 +110,11 @@ const CDSCard = ({
 
   // Handle dismissing the card
   const handleDismiss = useCallback(async () => {
-    if (card.overrideReasons && card.overrideReasons.length > 0) {
+    // Check if override is required based on display behavior or explicit override reasons
+    const requiresOverride = (card.displayBehavior?.acknowledgmentRequired) || 
+                           (card.overrideReasons && card.overrideReasons.length > 0);
+    
+    if (requiresOverride) {
       // Show override reason dialog
       setShowOverrideDialog(true);
     } else {
