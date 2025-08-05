@@ -309,11 +309,17 @@ start_core_services() {
 initialize_database() {
     section "Initializing Database"
     
+    # Determine container name based on mode
+    local CONTAINER_NAME="emr-backend"
+    if [[ "$MODE" == "dev" ]]; then
+        CONTAINER_NAME="emr-backend-dev"
+    fi
+    
     # Run init script
     log "Creating database schema..."
-    docker exec emr-backend python scripts/setup/init_database_definitive.py || {
+    docker exec $CONTAINER_NAME python scripts/setup/init_database_definitive.py || {
         # Try alternative location
-        docker exec emr-backend python scripts/init_database_definitive.py || \
+        docker exec $CONTAINER_NAME python scripts/init_database_definitive.py || \
         error "Database initialization failed"
     }
     
@@ -359,34 +365,72 @@ import_patient_data() {
     
     section "Importing Patient Data"
     
+    # Determine container name based on mode
+    local CONTAINER_NAME="emr-backend"
+    if [[ "$MODE" == "dev" ]]; then
+        CONTAINER_NAME="emr-backend-dev"
+    fi
+    
+    # Use full enhancement for production mode
+    local ENHANCEMENT_FLAG=""
+    if [[ "$MODE" == "prod" ]]; then
+        ENHANCEMENT_FLAG="--full-enhancement"
+        log "Production mode: Enabling full data enhancement"
+    fi
+    
     log "Generating $PATIENT_COUNT patients..."
-    docker exec emr-backend python scripts/active/synthea_master.py full \
-        --count "$PATIENT_COUNT" \
-        --validation-mode light || \
+    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python active/synthea_master.py full \
+        --count $PATIENT_COUNT \
+        --validation-mode light \
+        $ENHANCEMENT_FLAG" || \
     error "Patient data generation failed"
     
-    # Index search parameters
-    log "Indexing search parameters..."
-    if docker exec emr-backend test -f /app/scripts/consolidated_search_indexing.py; then
-        docker exec emr-backend python scripts/consolidated_search_indexing.py --mode index || \
-        warning "Search indexing had issues"
+    # Note: Search indexing and compartments are now handled inline by synthea_master.py
+    # The following are kept for backwards compatibility but may not be needed
+    
+    # Index search parameters (if script exists and not already done inline)
+    if docker exec $CONTAINER_NAME test -f /app/scripts/active/consolidated_search_indexing.py; then
+        log "Verifying search parameters..."
+        docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python active/consolidated_search_indexing.py --mode verify" || \
+        warning "Search parameter verification had issues"
     fi
     
-    # Populate compartments
-    log "Populating compartments..."
-    if docker exec emr-backend test -f /app/scripts/populate_compartments.py; then
-        docker exec emr-backend python scripts/populate_compartments.py || \
-        warning "Compartment population had issues"
+    # Fix CDS hooks if needed
+    if docker exec $CONTAINER_NAME test -f /app/scripts/migrations/fix_cds_hooks_enabled_column.py; then
+        log "Configuring CDS hooks..."
+        docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python migrations/fix_cds_hooks_enabled_column.py 2>/dev/null" || \
+        warning "CDS hooks may already be configured"
     fi
     
-    # Fix CDS hooks
-    log "Configuring CDS hooks..."
-    if docker exec emr-backend test -f /app/scripts/fix_cds_hooks_enabled_column.py; then
-        docker exec emr-backend python scripts/fix_cds_hooks_enabled_column.py || \
-        warning "CDS hooks configuration had issues"
-    fi
+    # Verify and fix FHIR relationships if needed
+    log "Verifying FHIR relationships and search parameters..."
+    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python testing/verify_search_params_after_import.py --fix" || {
+        warning "Some search parameters may need manual review"
+    }
     
-    success "Patient data imported"
+    # Verify patient compartments
+    log "Verifying patient compartments..."
+    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python -c \"
+import asyncio
+import asyncpg
+
+async def check_compartments():
+    conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
+    
+    patient_count = await conn.fetchval(\\\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'Patient' AND deleted = false\\\")
+    compartment_count = await conn.fetchval(\\\"SELECT COUNT(DISTINCT compartment_id) FROM fhir.compartments WHERE compartment_type = 'Patient'\\\")
+    
+    print(f'Found {compartment_count} patient compartments for {patient_count} patients')
+    
+    if compartment_count < patient_count:
+        print('Warning: Some patients missing compartments')
+    
+    await conn.close()
+
+asyncio.run(check_compartments())
+\"" || warning "Could not verify compartments"
+    
+    success "Patient data imported with enhancements"
 }
 
 # ============================================================================

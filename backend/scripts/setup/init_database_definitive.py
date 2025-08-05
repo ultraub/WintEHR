@@ -331,15 +331,15 @@ class DefinitiveDatabaseInitializer:
                 patient_id VARCHAR(255),
                 encounter_id VARCHAR(255),
                 context JSONB,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Indexes for performance
-                INDEX idx_feedback_service (service_id),
-                INDEX idx_feedback_patient (patient_id),
-                INDEX idx_feedback_user (user_id),
-                INDEX idx_feedback_created (created_at),
-                INDEX idx_feedback_outcome (outcome)
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            
+            -- Create indexes for feedback table
+            CREATE INDEX idx_feedback_service ON cds_hooks.feedback (service_id);
+            CREATE INDEX idx_feedback_patient ON cds_hooks.feedback (patient_id);
+            CREATE INDEX idx_feedback_user ON cds_hooks.feedback (user_id);
+            CREATE INDEX idx_feedback_created ON cds_hooks.feedback (created_at);
+            CREATE INDEX idx_feedback_outcome ON cds_hooks.feedback (outcome);
             
             -- Create CDS Hooks feedback analytics table
             CREATE TABLE cds_hooks.feedback_analytics (
@@ -359,13 +359,13 @@ class DefinitiveDatabaseInitializer:
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 
                 -- Ensure unique periods per service
-                CONSTRAINT unique_analytics_period UNIQUE (service_id, period_start, period_end),
-                
-                -- Indexes
-                INDEX idx_analytics_service (service_id),
-                INDEX idx_analytics_period (period_start, period_end),
-                INDEX idx_analytics_created (created_at)
+                CONSTRAINT unique_analytics_period UNIQUE (service_id, period_start, period_end)
             );
+            
+            -- Create indexes for feedback_analytics table
+            CREATE INDEX idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
+            CREATE INDEX idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
+            CREATE INDEX idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
             
             -- Create CDS Hooks execution log table
             CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
@@ -381,14 +381,14 @@ class DefinitiveDatabaseInitializer:
                 execution_time_ms INT,
                 success BOOLEAN DEFAULT true,
                 error_message TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Indexes
-                INDEX idx_execution_service (service_id),
-                INDEX idx_execution_patient (patient_id),
-                INDEX idx_execution_created (created_at),
-                INDEX idx_execution_success (success)
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            
+            -- Create indexes for execution_log table
+            CREATE INDEX idx_execution_service ON cds_hooks.execution_log (service_id);
+            CREATE INDEX idx_execution_patient ON cds_hooks.execution_log (patient_id);
+            CREATE INDEX idx_execution_created ON cds_hooks.execution_log (created_at);
+            CREATE INDEX idx_execution_success ON cds_hooks.execution_log (success);
         """)
         
             logger.info("✅ Tables created successfully")

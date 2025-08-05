@@ -41,7 +41,11 @@ import logging
 import os
 
 # Add the backend directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# In Docker, add /app first
+if os.path.exists('/app/fhir'):
+    sys.path.insert(0, '/app')
+else:
+    sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import the shared extraction module
 from fhir.core.search_param_extraction import SearchParameterExtractor

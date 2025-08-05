@@ -5,7 +5,7 @@
  * Includes resource data, metadata, relationships, and actions.
  */
 
-import React, { useState, useEffect, memo, useContext } from 'react';
+import React, { useState, useEffect, memo, useContext, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -110,17 +110,48 @@ function ResourceDetailsPanel({
   const [anchorEl, setAnchorEl] = useState(null);
   const [relatedResources, setRelatedResources] = useState({});
   const [loadingRelated, setLoadingRelated] = useState({});
+  
+  // Refs for cleanup and deduplication
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef(null);
+  const loadingResourceRef = useRef(null);
+  const loadingRelatedRef = useRef(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Load full resource data when selected node changes
   useEffect(() => {
-    if (selectedNode) {
+    // Only load if we have a node and it's different from what we're currently loading
+    const nodeKey = selectedNode ? selectedNode.id : null;
+    
+    if (nodeKey && nodeKey !== loadingResourceRef.current) {
       loadResourceData();
       loadRelatedResources();
     }
-  }, [selectedNode]);
+    
+    return () => {
+      // Cancel any pending requests when selectedNode changes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [selectedNode?.id]);
 
   const loadResourceData = async () => {
-    if (!selectedNode) return;
+    if (!selectedNode || !isMountedRef.current) return;
+    
+    // Track that we're loading this resource
+    loadingResourceRef.current = selectedNode.id;
     
     setLoading(true);
     setError(null);
@@ -139,29 +170,56 @@ function ResourceDetailsPanel({
         throw new Error('FHIRResourceContext not available');
       }
       
-      if (resource) {
+      if (resource && isMountedRef.current) {
         setResourceData(resource);
-      } else {
+      } else if (!resource) {
         throw new Error('Resource not found');
       }
     } catch (err) {
-      setError(`Failed to load resource: ${err.message}`);
-      // Error loading resource details
+      if (isMountedRef.current && !err.message?.includes('abort')) {
+        setError(`Failed to load resource: ${err.message}`);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const loadRelatedResources = async () => {
-    if (!selectedNode) return;
+    if (!selectedNode || !isMountedRef.current) return;
+    
+    // Prevent duplicate calls for the same resource
+    const resourceKey = selectedNode.id;
+    if (loadingRelatedRef.current === resourceKey) {
+      return;
+    }
+    
+    loadingRelatedRef.current = resourceKey;
+    
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
     
     try {
       const [resourceType, resourceId] = selectedNode.id.split('/');
+      
+      // Don't make the call if already aborted
+      if (signal.aborted) return;
+      
       const relationships = await fhirRelationshipService.discoverRelationships(
         resourceType, 
         resourceId,
         { depth: 1, includeCounts: true }
       );
+      
+      // Check if request was aborted
+      if (signal.aborted || !isMountedRef.current) return;
       
       // Group related resources by type
       const grouped = {};
@@ -180,9 +238,19 @@ function ResourceDetailsPanel({
         }
       });
       
-      setRelatedResources(grouped);
+      if (isMountedRef.current && !signal.aborted) {
+        setRelatedResources(grouped);
+      }
     } catch (err) {
-      // Error loading related resources
+      // Don't log errors for aborted requests
+      if (!err.message?.includes('abort') && isMountedRef.current) {
+        console.error('Error loading related resources:', err);
+      }
+    } finally {
+      // Clear the loading flag
+      if (loadingRelatedRef.current === resourceKey) {
+        loadingRelatedRef.current = null;
+      }
     }
   };
 

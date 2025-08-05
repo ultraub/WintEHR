@@ -270,15 +270,25 @@ class ConsolidatedWorkflowSetup:
                 "item": order_set["items"]
             }
             
-            # Insert into database
-            await self.conn.execute("""
-                INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
-                VALUES ($1, 'Questionnaire', $2, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (fhir_id) DO UPDATE SET
-                    resource = EXCLUDED.resource,
-                    version_id = fhir.resources.version_id + 1,
-                    last_updated = CURRENT_TIMESTAMP
-            """, order_set["id"], json.dumps(questionnaire))
+            # Insert into database - check if exists first
+            existing = await self.conn.fetchval("""
+                SELECT id FROM fhir.resources 
+                WHERE fhir_id = $1 AND resource_type = 'Questionnaire'
+            """, order_set["id"])
+            
+            if existing:
+                await self.conn.execute("""
+                    UPDATE fhir.resources 
+                    SET resource = $1,
+                        version_id = version_id + 1,
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE fhir_id = $2 AND resource_type = 'Questionnaire'
+                """, json.dumps(questionnaire), order_set["id"])
+            else:
+                await self.conn.execute("""
+                    INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
+                    VALUES ($1, 'Questionnaire', $2, 1, CURRENT_TIMESTAMP)
+                """, order_set["id"], json.dumps(questionnaire))
             
             created_count += 1
         
@@ -347,15 +357,26 @@ class ConsolidatedWorkflowSetup:
                 }]
             }
             
-            # Insert into database
-            await self.conn.execute("""
-                INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
-                VALUES ($1, 'DocumentReference', $2, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (fhir_id) DO UPDATE SET
-                    resource = EXCLUDED.resource,
-                    version_id = fhir.resources.version_id + 1,
-                    last_updated = CURRENT_TIMESTAMP
-            """, f"drug-interaction-{interaction['id']}", json.dumps(doc_ref))
+            # Insert into database - check if exists first
+            doc_id = f"drug-interaction-{interaction['id']}"
+            existing = await self.conn.fetchval("""
+                SELECT id FROM fhir.resources 
+                WHERE fhir_id = $1 AND resource_type = 'DocumentReference'
+            """, doc_id)
+            
+            if existing:
+                await self.conn.execute("""
+                    UPDATE fhir.resources 
+                    SET resource = $1,
+                        version_id = version_id + 1,
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE fhir_id = $2 AND resource_type = 'DocumentReference'
+                """, json.dumps(doc_ref), doc_id)
+            else:
+                await self.conn.execute("""
+                    INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
+                    VALUES ($1, 'DocumentReference', $2, 1, CURRENT_TIMESTAMP)
+                """, doc_id, json.dumps(doc_ref))
             
             created_count += 1
         

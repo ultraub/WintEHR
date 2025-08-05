@@ -197,6 +197,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const zoomRef = useRef(null);
   const isMountedRef = useRef(true);
   const isVisualizationInitializedRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  const requestsInFlightRef = useRef(new Set());
+  const lastLoadedResourceRef = useRef(null);
 
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
@@ -205,12 +208,25 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Placeholder for handleSearch - will be defined later after updateNodeSelection
   const handleSearchRef = useRef(null);
   
-  // Track component mount state
+  // Track component mount state and cleanup
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       isVisualizationInitializedRef.current = false;
+      
+      // Cancel any in-flight requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Clear all in-flight request tracking
+      requestsInFlightRef.current.clear();
+      
+      // Clear the simulation if it exists
+      if (simulationRef.current) {
+        simulationRef.current.stop();
+      }
     };
   }, []);
 
@@ -240,66 +256,105 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     }
   }, [debouncedSearchQuery, relationshipData]);
 
-  // Fetch relationship schema on mount and load initial data
+  // Fetch relationship schema on mount
   useEffect(() => {
     let isSubscribed = true;
-    let timer;
+    const requestId = `init-${Date.now()}`;
     
     const init = async () => {
-      if (isSubscribed) {
-        fetchRelationshipSchema();
-        fetchStatistics();
+      // Prevent duplicate initialization in React StrictMode
+      if (!isSubscribed || requestsInFlightRef.current.has('init')) {
+        return;
+      }
+      
+      requestsInFlightRef.current.add('init');
+      
+      try {
+        // Only fetch once on mount
+        await Promise.all([
+          fetchRelationshipSchema(),
+          fetchStatistics()
+        ]);
         
         // Auto-load first available patient if we have data
-        const loadInitialData = () => {
-          if (isSubscribed && resources.Patient && resources.Patient.length > 0 && !currentResource && !relationshipData) {
-            const firstPatient = resources.Patient[0];
-            const patientId = firstPatient.id.includes('/') ? 
-              firstPatient.id.split('/').pop() : 
-              firstPatient.id;
+        if (isSubscribed && resources.Patient && resources.Patient.length > 0 && !currentResource && !relationshipData) {
+          const firstPatient = resources.Patient[0];
+          const patientId = firstPatient.id.includes('/') ? 
+            firstPatient.id.split('/').pop() : 
+            firstPatient.id;
+          
+          // Check if we haven't already loaded this resource
+          const resourceKey = `Patient/${patientId}`;
+          if (lastLoadedResourceRef.current !== resourceKey) {
             loadRelationships('Patient', patientId);
           }
-        };
-        
-        // Wait a bit for resources to load
-        timer = setTimeout(loadInitialData, 1000);
+        }
+      } finally {
+        requestsInFlightRef.current.delete('init');
       }
     };
     
-    init();
+    // Small delay to let component settle
+    const timer = setTimeout(init, 100);
     
     return () => {
       isSubscribed = false;
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
+      requestsInFlightRef.current.delete('init');
     };
   }, []); // Empty dependency array - only run once on mount
 
   // Fetch relationship schema
   const fetchRelationshipSchema = async () => {
+    // Check if already fetching
+    if (requestsInFlightRef.current.has('schema')) {
+      return;
+    }
+    
+    requestsInFlightRef.current.add('schema');
+    
     try {
       const schema = await fhirRelationshipService.getRelationshipSchema();
       // Initialize visible node types with common ones
-      setVisibleNodeTypes(new Set([
-        'Patient', 'Observation', 'Condition', 'MedicationRequest', 
-        'Encounter', 'Practitioner', 'Organization'
-      ]));
+      if (isMountedRef.current) {
+        setVisibleNodeTypes(new Set([
+          'Patient', 'Observation', 'Condition', 'MedicationRequest', 
+          'Encounter', 'Practitioner', 'Organization'
+        ]));
+      }
     } catch (err) {
-      // Error fetching relationship schema
+      // Error fetching relationship schema - silently handled
+    } finally {
+      requestsInFlightRef.current.delete('schema');
     }
   };
 
   // Fetch statistics
   const fetchStatistics = async () => {
+    // Check if already fetching
+    if (requestsInFlightRef.current.has('statistics')) {
+      return;
+    }
+    
+    requestsInFlightRef.current.add('statistics');
+    
     try {
-      setLoadingStates(prev => ({ ...prev, statistics: true }));
+      if (isMountedRef.current) {
+        setLoadingStates(prev => ({ ...prev, statistics: true }));
+      }
       const stats = await retryWithBackoff(async () => {
         return await fhirRelationshipService.getRelationshipStatistics();
       });
-      setStatistics(stats);
+      if (isMountedRef.current) {
+        setStatistics(stats);
+      }
     } catch (err) {
       // Error fetching statistics - non-critical, don't show error
     } finally {
-      setLoadingStates(prev => ({ ...prev, statistics: false }));
+      requestsInFlightRef.current.delete('statistics');
+      if (isMountedRef.current) {
+        setLoadingStates(prev => ({ ...prev, statistics: false }));
+      }
     }
   };
 
@@ -352,6 +407,39 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     };
   }, [relationshipData, activeFilters]);
 
+  // Pre-calculate node connection counts for performance
+  const nodeConnectionCounts = useMemo(() => {
+    if (!relationshipData) return new Map();
+    
+    const counts = new Map();
+    relationshipData.nodes.forEach(node => {
+      counts.set(node.id, 0);
+    });
+    
+    relationshipData.links.forEach(link => {
+      const sourceId = link.source.id || link.source;
+      const targetId = link.target.id || link.target;
+      counts.set(sourceId, (counts.get(sourceId) || 0) + 1);
+      counts.set(targetId, (counts.get(targetId) || 0) + 1);
+    });
+    
+    return counts;
+  }, [relationshipData]);
+
+  // Get node radius based on connections - optimized with pre-calculated counts
+  const getNodeRadius = useCallback((node) => {
+    if (!relationshipData) return layoutSettings.nodeSize;
+    
+    const connections = nodeConnectionCounts.get(node.id) || 0;
+    
+    const scale = d3.scaleLinear()
+      .domain([0, 10])
+      .range([layoutSettings.nodeSize * 0.8, layoutSettings.nodeSize * 1.5])
+      .clamp(true);
+    
+    return scale(connections);
+  }, [nodeConnectionCounts, layoutSettings.nodeSize, relationshipData]);
+
   // Use ref to store the latest initialization function
   const initializeVisualizationRef = useRef(null);
   
@@ -373,18 +461,51 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       return;
     }
 
+    // Check if we're already loading this exact resource
+    const resourceKey = `${resourceType}/${resourceId}`;
+    
+    // Skip if we're already loading this resource or it's the same as last loaded
+    if (requestsInFlightRef.current.has(resourceKey)) {
+      return;
+    }
+    
+    // If it's the same resource we just loaded, don't reload
+    if (lastLoadedResourceRef.current === resourceKey && relationshipData) {
+      return;
+    }
+
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
+    requestsInFlightRef.current.add(resourceKey);
     setLoadingStates(prev => ({ ...prev, relationships: true }));
     setError(null);
 
     try {
       // Fetch relationships from API with retry
       const data = await retryWithBackoff(async () => {
+        // Check if request was aborted
+        if (signal.aborted) {
+          throw new Error('Request aborted');
+        }
+        
         return await fhirRelationshipService.discoverRelationships(
           resourceType, 
           resourceId, 
           { depth, includeCounts: true }
         );
       });
+
+      // Check if request was aborted before processing
+      if (signal.aborted) {
+        return;
+      }
 
       if (!data || !data.nodes) {
         throw new Error('Invalid response format from API');
@@ -395,36 +516,53 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       
       // Validate D3 data
       if (!d3Data.nodes || d3Data.nodes.length === 0) {
-        if (isMountedRef.current) {
+        if (isMountedRef.current && !signal.aborted) {
           setError('No relationships found for this resource');
         }
         return;
       }
       
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
+      // Only update state if component is still mounted and request wasn't aborted
+      if (isMountedRef.current && !signal.aborted) {
         setRelationshipData(d3Data);
         setCurrentResource({ resourceType, resourceId, display: data.source.display });
-        setSelectedResourceType(resourceType); // Update selected resource type
+        setSelectedResourceType(resourceType);
+        lastLoadedResourceRef.current = resourceKey;
         
         // Update visible node types
         const nodeTypes = new Set(d3Data.nodes.map(n => n.resourceType));
         setVisibleNodeTypes(nodeTypes);
-      }
-
-      // Initialize visualization after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        if (svgRef.current && initializeVisualizationRef.current) {
-          const dataToVisualize = filteredData || d3Data;
-          initializeVisualizationRef.current(dataToVisualize);
+        
+        // Only initialize visualization if it hasn't been initialized yet
+        // or if the data structure significantly changed
+        if (!isVisualizationInitializedRef.current || !svgRef.current.querySelector('.main-group')) {
+          setTimeout(() => {
+            if (svgRef.current && initializeVisualizationRef.current && !signal.aborted) {
+              const dataToVisualize = filteredData || d3Data;
+              initializeVisualizationRef.current(dataToVisualize);
+            }
+          }, 100);
+        } else {
+          // Just update the existing visualization data without re-initializing
+          if (simulationRef.current && !signal.aborted) {
+            const dataToVisualize = filteredData || d3Data;
+            // Update simulation data
+            simulationRef.current.nodes(dataToVisualize.nodes);
+            simulationRef.current.force('link').links(dataToVisualize.links);
+            simulationRef.current.alpha(0.3).restart();
+          }
         }
-      }, 100);
+      }
     } catch (err) {
+      // Don't show error if request was aborted
+      if (err.message === 'Request aborted' || signal.aborted) {
+        return;
+      }
+      
       if (isMountedRef.current) {
         const errorMessage = err.response?.data?.detail || err.message || 'Failed to load relationships';
         setError(errorMessage);
         
-        // Log error for debugging
         if (err.response?.status === 404) {
           setError('Resource not found. Please check the resource ID.');
         } else if (err.response?.status === 403) {
@@ -434,7 +572,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         }
       }
     } finally {
-      if (isMountedRef.current) {
+      requestsInFlightRef.current.delete(resourceKey);
+      if (isMountedRef.current && !signal.aborted) {
         setLoadingStates(prev => ({ ...prev, relationships: false }));
       }
     }
@@ -802,28 +941,98 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     initializeVisualizationRef.current = initializeVisualization;
   }, [initializeVisualization]);
 
-  // Re-render visualization when filters change
+  // Update visualization when filters change without full re-initialization
   useEffect(() => {
-    if (relationshipData && svgRef.current && initializeVisualizationRef.current && filteredData) {
-      initializeVisualizationRef.current(filteredData);
+    if (relationshipData && svgRef.current && simulationRef.current && filteredData) {
+      // Update the existing simulation with new data instead of re-initializing
+      const svg = d3.select(svgRef.current);
+      const g = svg.select('.main-group');
+      
+      if (g.empty()) {
+        // Only initialize if visualization doesn't exist
+        if (initializeVisualizationRef.current) {
+          initializeVisualizationRef.current(filteredData);
+        }
+      } else {
+        // Update existing visualization
+        simulationRef.current.nodes(filteredData.nodes);
+        simulationRef.current.force('link').links(filteredData.links);
+        simulationRef.current.alpha(0.3).restart();
+        
+        // Update visual elements
+        const nodesGroup = g.select('.nodes');
+        const linksGroup = g.select('.links');
+        const labelsGroup = g.select('.labels');
+        
+        // Update nodes
+        const nodes = nodesGroup.selectAll('circle')
+          .data(filteredData.nodes, d => d.id);
+        
+        nodes.exit().remove();
+        
+        const nodesEnter = nodes.enter().append('circle')
+          .attr('class', 'node')
+          .attr('data-node-id', d => d.id)
+          .attr('r', d => getNodeRadius(d))
+          .attr('fill', d => fhirRelationshipService.getResourceColor(d.resourceType))
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 2)
+          .style('cursor', 'pointer');
+        
+        // Update links
+        const links = linksGroup.selectAll('path')
+          .data(filteredData.links, d => `${d.source.id || d.source}-${d.target.id || d.target}`);
+        
+        links.exit().remove();
+        
+        links.enter().append('path')
+          .attr('class', 'link')
+          .attr('stroke', '#999')
+          .attr('stroke-opacity', 0.6)
+          .attr('stroke-width', 2)
+          .attr('fill', 'none');
+      }
     }
-  }, [filteredData]);
+  }, [filteredData, getNodeRadius]);
 
   // Add resize observer to handle container size changes
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let previousWidth = 0;
+    let previousHeight = 0;
+    
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        // Container resized - width and height updated
         
-        // Re-initialize visualization if we have data and dimensions changed significantly
-        if (relationshipData && initializeVisualizationRef.current && width > 100 && height > 100) {
+        // Only re-initialize if dimensions changed significantly (more than 50px)
+        const widthChange = Math.abs(width - previousWidth);
+        const heightChange = Math.abs(height - previousHeight);
+        
+        if ((widthChange > 50 || heightChange > 50) && 
+            relationshipData && 
+            initializeVisualizationRef.current && 
+            width > 100 && 
+            height > 100) {
+          
+          previousWidth = width;
+          previousHeight = height;
+          
           // Debounce the re-initialization
           clearTimeout(window.resizeTimeout);
           window.resizeTimeout = setTimeout(() => {
-            initializeVisualizationRef.current(relationshipData);
+            // Only re-initialize if visualization exists
+            if (svgRef.current && svgRef.current.querySelector('.main-group')) {
+              const svg = d3.select(svgRef.current);
+              svg.attr('viewBox', `0 0 ${width} ${height}`);
+              
+              // Just update the center force instead of full re-initialization
+              if (simulationRef.current) {
+                simulationRef.current.force('center', d3.forceCenter(width / 2, height / 2));
+                simulationRef.current.alpha(0.3).restart();
+              }
+            }
           }, 300);
         }
       }
@@ -838,39 +1047,6 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       }
     };
   }, [relationshipData]);
-
-  // Pre-calculate node connection counts for performance
-  const nodeConnectionCounts = useMemo(() => {
-    if (!relationshipData) return new Map();
-    
-    const counts = new Map();
-    relationshipData.nodes.forEach(node => {
-      counts.set(node.id, 0);
-    });
-    
-    relationshipData.links.forEach(link => {
-      const sourceId = link.source.id || link.source;
-      const targetId = link.target.id || link.target;
-      counts.set(sourceId, (counts.get(sourceId) || 0) + 1);
-      counts.set(targetId, (counts.get(targetId) || 0) + 1);
-    });
-    
-    return counts;
-  }, [relationshipData]);
-
-  // Get node radius based on connections - optimized with pre-calculated counts
-  const getNodeRadius = useCallback((node) => {
-    if (!relationshipData) return layoutSettings.nodeSize;
-    
-    const connections = nodeConnectionCounts.get(node.id) || 0;
-    
-    const scale = d3.scaleLinear()
-      .domain([0, 10])
-      .range([layoutSettings.nodeSize * 0.8, layoutSettings.nodeSize * 1.5])
-      .clamp(true);
-    
-    return scale(connections);
-  }, [nodeConnectionCounts, layoutSettings.nodeSize]);
 
   // Drag behavior
   const drag = (simulation) => {
@@ -1452,12 +1628,16 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                     if (resourceType && resources[resourceType]?.length > 0) {
                       setSelectedResourceType(resourceType);
                       const resource = resources[resourceType][0];
-                      // Selected resource type and resource
                       // Extract just the ID part if it's prefixed
                       const resourceId = resource.id.includes('/') ? 
                         resource.id.split('/').pop() : 
                         resource.id;
-                      loadRelationships(resourceType, resourceId);
+                      
+                      // Only load if it's different from current
+                      const newResourceKey = `${resourceType}/${resourceId}`;
+                      if (lastLoadedResourceRef.current !== newResourceKey) {
+                        loadRelationships(resourceType, resourceId);
+                      }
                     }
                   }}
                   sx={{ mb: 2 }}
@@ -1487,10 +1667,14 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                       action={
                         <IconButton 
                           size="small"
-                          onClick={() => loadRelationships(
-                            selectedNode.resourceType, 
-                            selectedNode.id.split('/')[1]
-                          )}
+                          onClick={() => {
+                            const nodeId = selectedNode.id.split('/')[1] || selectedNode.id;
+                            // Only reload if it's different from current resource
+                            const newResourceKey = `${selectedNode.resourceType}/${nodeId}`;
+                            if (lastLoadedResourceRef.current !== newResourceKey) {
+                              loadRelationships(selectedNode.resourceType, nodeId);
+                            }
+                          }}
                         >
                           <RefreshIcon />
                         </IconButton>
@@ -1662,6 +1846,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             justifyContent: 'center'
           }}
           keepMounted={false} // Unmount when closed to prevent memory leaks
+          disableEnforceFocus // Prevent focus trap issues
+          disableAutoFocus // Prevent auto focus issues
         >
           <Box sx={{ 
             width: '90%',
@@ -1676,11 +1862,15 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           }}>
             {selectedNode && (
               <ResourceDetailsPanel
-                key={selectedNode.id} // Force new instance when node changes
+                key={`${selectedNode.id}-${Date.now()}`} // Force new instance when node changes with timestamp
                 selectedNode={selectedNode}
                 onClose={() => setShowDetailsModal(false)}
                 onResourceSelect={(resourceType, resourceId) => {
-                  loadRelationships(resourceType, resourceId);
+                  // Only load if it's different from current
+                  const newResourceKey = `${resourceType}/${resourceId}`;
+                  if (lastLoadedResourceRef.current !== newResourceKey) {
+                    loadRelationships(resourceType, resourceId);
+                  }
                   setShowDetailsModal(false);
                 }}
                 onAddToComparison={(node) => {

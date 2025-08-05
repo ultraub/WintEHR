@@ -65,16 +65,96 @@ sys.exit(0 if success else 1)
 }
 
 # Generate DICOM files for imaging studies (if needed)
-echo "Checking DICOM files for imaging studies..."
+echo "🔍 Checking for DICOM files..."
 if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 2>/dev/null | wc -l)" -gt 0 ]; then
     echo "✅ DICOM files already exist"
 else
-    echo "Generating DICOM files for imaging studies..."
-    python scripts/active/generate_dicom_for_studies.py || {
-        echo "❌ DICOM generation failed"
-        exit 1
+    # Check if there are any ImagingStudy resources first
+    python -c "
+import asyncio
+import asyncpg
+
+async def check_imaging_studies():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        count = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'ImagingStudy' AND deleted = false\")
+        await conn.close()
+        return count > 0
+    except:
+        return False
+
+has_studies = asyncio.run(check_imaging_studies())
+exit(0 if has_studies else 1)
+" && {
+        echo "📸 Generating DICOM files for imaging studies..."
+        python scripts/active/generate_dicom_for_studies.py || {
+            echo "⚠️ DICOM generation had issues but continuing..."
+        }
+    } || {
+        echo "ℹ️ No imaging studies found, skipping DICOM generation"
     }
 fi
+
+# Fix FHIR relationships if needed (only if data exists)
+echo "🔍 Checking FHIR relationships..."
+python -c "
+import asyncio
+import asyncpg
+
+async def check_and_fix_relationships():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        
+        # Check if we have data
+        resource_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
+        if resource_count == 0:
+            print('ℹ️ No resources found, skipping relationship check')
+            await conn.close()
+            return
+        
+        # Check for problematic Resource/ references
+        bad_refs = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) 
+            FROM fhir.resources 
+            WHERE resource::text LIKE '%\"Resource/%'
+        \"\"\")
+        
+        # Check for missing patient/subject search params
+        missing_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) 
+            FROM fhir.resources r
+            WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest')
+            AND r.deleted = false
+            AND NOT EXISTS (
+                SELECT 1 FROM fhir.search_params sp
+                WHERE sp.resource_id = r.id
+                AND sp.param_name IN ('patient', 'subject')
+            )
+        \"\"\")
+        
+        await conn.close()
+        
+        if bad_refs > 0 or missing_params > 0:
+            print(f'⚠️ Found {bad_refs} bad references and {missing_params} missing search params')
+            print('🔧 Running relationship fixes...')
+            return True
+        else:
+            print('✅ FHIR relationships look good')
+            return False
+    except Exception as e:
+        print(f'⚠️ Could not check relationships: {e}')
+        return False
+
+needs_fix = asyncio.run(check_and_fix_relationships())
+exit(0 if needs_fix else 1)
+" && {
+    echo "🔧 Fixing FHIR relationships..."
+    python /app/scripts/active/fix_fhir_relationships.py || {
+        echo "⚠️ Relationship fix had issues but continuing..."
+    }
+} || {
+    echo "✅ FHIR relationships are correct"
+}
 
 # Create necessary directories
 echo "Creating directories..."

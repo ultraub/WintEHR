@@ -705,14 +705,29 @@ generate.demographics.default_state = Massachusetts
     
     def _transform_urn_references(self, resource_data: dict) -> dict:
         """Transform all urn:uuid references to standard FHIR format."""
+        # Build a map of patient UUIDs for proper reference resolution
+        if not hasattr(self, '_patient_uuid_map'):
+            self._patient_uuid_map = set()
+        
+        # If this is a Patient resource, add its ID to our map
+        if resource_data.get('resourceType') == 'Patient' and 'id' in resource_data:
+            self._patient_uuid_map.add(resource_data['id'])
+        
         def transform_reference(ref_obj):
             if isinstance(ref_obj, dict) and 'reference' in ref_obj:
                 ref = ref_obj['reference']
-                if ref.startswith('urn:uuid:'):
-                    # Extract UUID and determine resource type from context
+                # Handle case where reference might be a dict instead of string
+                if isinstance(ref, str) and ref.startswith('urn:uuid:'):
+                    # Extract UUID
                     uuid_val = ref.replace('urn:uuid:', '')
-                    # Default to generic Resource type - will be resolved later
-                    ref_obj['reference'] = f"Resource/{uuid_val}"
+                    
+                    # Check if this UUID is a known patient
+                    if uuid_val in self._patient_uuid_map:
+                        ref_obj['reference'] = f"Patient/{uuid_val}"
+                    else:
+                        # For non-patient references, try to determine type from context
+                        # This will be properly resolved during search parameter extraction
+                        ref_obj['reference'] = f"Resource/{uuid_val}"
                 return ref_obj
             return ref_obj
         
@@ -815,66 +830,87 @@ generate.demographics.default_state = Massachusetts
         await self._extract_references(session, resource_db_id, resource_type, resource_data)
     
     async def _extract_search_params(self, session, resource_id, resource_type, resource_data):
-        """Extract and store comprehensive search parameters for all resource types."""
-        # Always index the resource ID
-        await self._add_search_param(
-            session, resource_id, resource_type, '_id', 'token', 
-            value_string=resource_data.get('id')
-        )
-        
-        # Get search parameter definitions for this resource type
-        param_defs = self.search_param_definitions.get(resource_type, {})
-        
-        for param_name, (field_path, param_type, extractor) in param_defs.items():
-            try:
-                # Extract values using the defined extractor function
-                values = extractor(resource_data)
+        """Extract and store comprehensive search parameters using the FHIR core extractor."""
+        try:
+            # Import the comprehensive search parameter extractor
+            from fhir.core.search_param_extraction import SearchParameterExtractor
+            
+            # Create extractor instance if not already created
+            if not hasattr(self, '_search_extractor'):
+                self._search_extractor = SearchParameterExtractor()
                 
-                # Store each extracted value
-                for value in values:
-                    if value is not None:
-                        if param_type == 'string':
+                # Set URN mapping for proper reference resolution
+                if hasattr(self, '_patient_uuid_map'):
+                    urn_map = {uuid: f"Patient/{uuid}" for uuid in self._patient_uuid_map}
+                    self._search_extractor.set_urn_mapping(urn_map)
+            
+            # Extract all search parameters using the comprehensive extractor
+            params = self._search_extractor.extract_parameters(resource_type, resource_data)
+            
+            # Store each extracted parameter
+            for param in params:
+                param_name = param['param_name']
+                param_type = param['param_type']
+                
+                # Map the extracted values to our storage format
+                kwargs = {}
+                if 'value_string' in param:
+                    kwargs['value_string'] = param['value_string']
+                if 'value_number' in param:
+                    kwargs['value_number'] = param['value_number']
+                if 'value_date' in param:
+                    kwargs['value_date'] = param['value_date']
+                if 'value_token' in param:
+                    kwargs['value_token'] = param['value_token']
+                if 'value_token_system' in param:
+                    kwargs['value_token_system'] = param['value_token_system']
+                if 'value_token_code' in param:
+                    kwargs['value_token_code'] = param['value_token_code']
+                if 'value_reference' in param:
+                    kwargs['value_reference'] = param['value_reference']
+                if 'value_quantity' in param:
+                    kwargs['value_quantity'] = param['value_quantity']
+                if 'value_quantity_system' in param:
+                    kwargs['value_quantity_system'] = param['value_quantity_system']
+                if 'value_quantity_code' in param:
+                    kwargs['value_quantity_code'] = param['value_quantity_code']
+                if 'value_quantity_unit' in param:
+                    kwargs['value_quantity_unit'] = param['value_quantity_unit']
+                
+                await self._add_search_param(
+                    session, resource_id, resource_type, param_name, param_type,
+                    **kwargs
+                )
+                
+        except ImportError:
+            # Fallback to simplified extraction if comprehensive extractor not available
+            self.log("Warning: Comprehensive search extractor not available, using simplified extraction", "WARN")
+            
+            # At minimum, index the resource ID and any patient references
+            await self._add_search_param(
+                session, resource_id, resource_type, '_id', 'token', 
+                value_string=resource_data.get('id')
+            )
+            
+            # Extract patient/subject references
+            for field in ['subject', 'patient']:
+                if field in resource_data and isinstance(resource_data[field], dict):
+                    if 'reference' in resource_data[field]:
+                        ref = resource_data[field]['reference']
+                        await self._add_search_param(
+                            session, resource_id, resource_type, field, 'reference',
+                            value_reference=ref
+                        )
+                        # Also index as 'patient' for consistency
+                        if field == 'subject' and 'Patient/' in ref:
                             await self._add_search_param(
-                                session, resource_id, resource_type, param_name, param_type,
-                                value_string=str(value)
+                                session, resource_id, resource_type, 'patient', 'reference',
+                                value_reference=ref
                             )
-                        elif param_type == 'token':
-                            # Handle system|code format
-                            if '|' in str(value):
-                                system, code = str(value).split('|', 1)
-                                await self._add_search_param(
-                                    session, resource_id, resource_type, param_name, param_type,
-                                    value_token_system=system, value_token_code=code
-                                )
-                            else:
-                                await self._add_search_param(
-                                    session, resource_id, resource_type, param_name, param_type,
-                                    value_string=str(value)
-                                )
-                        elif param_type == 'reference':
-                            await self._add_search_param(
-                                session, resource_id, resource_type, param_name, param_type,
-                                value_reference=str(value)
-                            )
-                        elif param_type == 'date':
-                            # Convert to datetime if needed
-                            if isinstance(value, str):
-                                try:
-                                    # Parse ISO date/datetime
-                                    if 'T' in value:
-                                        dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                                    else:
-                                        dt = datetime.strptime(value, '%Y-%m-%d')
-                                    await self._add_search_param(
-                                        session, resource_id, resource_type, param_name, param_type,
-                                        value_date=dt
-                                    )
-                                except:
-                                    pass
                             
-            except Exception as e:
-                if self.verbose:
-                    self.log(f"Error extracting {param_name} for {resource_type}: {e}", "WARN")
+        except Exception as e:
+            if self.verbose:
+                self.log(f"Error extracting search params for {resource_type}: {e}", "WARN")
     
     # Note: All individual parameter extraction methods have been consolidated 
     # into the comprehensive search_param_definitions and unified extraction logic above
@@ -1282,24 +1318,21 @@ generate.demographics.default_state = Massachusetts
         self.log("🧪 Enhancing lab results with reference ranges...")
         
         try:
-            # Directly call the lab enhancement function
-            from scripts.setup import enhance_lab_results
-            await enhance_lab_results.main()
+            # Use the consolidated enhancer
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from consolidated_enhancement import ConsolidatedEnhancer
             
-            if result.returncode != 0:
-                self.log(f"Lab enhancement failed: {result.stderr}", "ERROR")
-                return False
+            enhancer = ConsolidatedEnhancer()
+            await enhancer.connect_database()
             
-            # Parse output for statistics
-            output_lines = result.stdout.strip().split('\n')
-            for line in output_lines:
-                if "Observations updated:" in line:
-                    obs_updated = line.split(':')[1].strip()
-                    self.log(f"✓ Enhanced {obs_updated} lab observations")
-                elif "Already had reference range:" in line:
-                    already_had = line.split(':')[1].strip()
-                    self.log(f"ℹ️  {already_had} observations already had reference ranges")
+            # Run the enhancement
+            await enhancer.enhance_lab_results()
             
+            await enhancer.close_database()
+            
+            self.log("✓ Lab results enhancement completed")
             return True
             
         except Exception as e:
@@ -1390,7 +1423,12 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run consolidated enhancement (organizations, providers, names, labs)
             self.log("🏥 Running consolidated FHIR data enhancement...")
+            # Import from same directory
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             from consolidated_enhancement import ConsolidatedEnhancer
+            
             enhancer = ConsolidatedEnhancer()
             await enhancer.connect_database()
             await enhancer.enhance_fhir_data()
@@ -1408,6 +1446,7 @@ generate.demographics.default_state = Massachusetts
             # Run catalog extraction from FHIR data
             self.log("📋 Extracting clinical catalogs from FHIR data...")
             from consolidated_catalog_setup import ConsolidatedCatalogSetup
+            
             catalog = ConsolidatedCatalogSetup()
             await catalog.connect_database()
             await catalog.extract_from_fhir()
@@ -1424,6 +1463,7 @@ generate.demographics.default_state = Massachusetts
             # Run workflow setup (order sets, drug interactions, assignments)
             self.log("🔗 Setting up clinical workflows...")
             from consolidated_workflow_setup import ConsolidatedWorkflowSetup
+            
             workflow = ConsolidatedWorkflowSetup()
             await workflow.connect_database()
             await workflow.create_order_sets()
