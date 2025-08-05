@@ -6,10 +6,11 @@ import axios from 'axios';
 
 class CDSHooksService {
   constructor() {
-    // Use the backend URL directly since the CDS Hooks API doesn't go through the frontend proxy
-    this.baseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:8000/cds-services'
-      : '/api/cds-services';
+    // Use the proxied path for all environments
+    // The proxy will handle forwarding to the correct backend URL
+    this.baseUrl = '/api/cds-services';
+    // Service management endpoints are under /api/services (without 'cds-')
+    this.serviceManagementUrl = '/api';
   }
 
   /**
@@ -481,7 +482,7 @@ class CDSHooksService {
       }
 
       // Send to backend with timeout
-      const response = await axios.post(`${this.baseUrl}/services`, backendConfig, {
+      const response = await axios.post(`${this.serviceManagementUrl}/services`, backendConfig, {
         timeout: 10000, // 10 second timeout
         headers: {
           'Content-Type': 'application/json'
@@ -566,7 +567,7 @@ class CDSHooksService {
       }
 
       // Send to backend with timeout
-      const response = await axios.put(`${this.baseUrl}/services/${serviceId}`, backendConfig, {
+      const response = await axios.put(`${this.serviceManagementUrl}/services/${serviceId}`, backendConfig, {
         timeout: 10000, // 10 second timeout
         headers: {
           'Content-Type': 'application/json'
@@ -615,7 +616,7 @@ class CDSHooksService {
    */
   async deleteService(serviceId) {
     try {
-      await axios.delete(`${this.baseUrl}/services/${serviceId}`);
+      await axios.delete(`${this.serviceManagementUrl}/services/${serviceId}`);
       
       return {
         success: true,
@@ -637,7 +638,7 @@ class CDSHooksService {
    */
   async getService(serviceId) {
     try {
-      const response = await axios.get(`${this.baseUrl}/services/${serviceId}`);
+      const response = await axios.get(`${this.serviceManagementUrl}/services/${serviceId}`);
       
       // Transform to frontend format
       const frontendService = this.transformToFrontendFormat(response.data);
@@ -662,7 +663,7 @@ class CDSHooksService {
    */
   async listCustomServices() {
     try {
-      const response = await axios.get(`${this.baseUrl}/services`);
+      const response = await axios.get(`${this.serviceManagementUrl}/services`);
       
       // Transform each service to frontend format
       const frontendServices = response.data.map(service => this.transformToFrontendFormat(service));

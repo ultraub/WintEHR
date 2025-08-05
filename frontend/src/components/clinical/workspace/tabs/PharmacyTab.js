@@ -1174,9 +1174,6 @@ const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }
               <ToggleButton value="cards">
                 <ViewModuleIcon sx={{ fontSize: 20 }} />
               </ToggleButton>
-              <ToggleButton value="table">
-                <ViewListIcon sx={{ fontSize: 20 }} />
-              </ToggleButton>
             </ToggleButtonGroup>
             {currentPatient && patientFilter === 'current' && (
               <Chip

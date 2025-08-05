@@ -1234,8 +1234,6 @@ const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' })
             onSearchChange={setSearchTerm}
             dateRange={filterPeriod}
             onDateRangeChange={setFilterPeriod}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
             onRefresh={loadImagingStudies}
             scrollContainerRef={scrollContainerRef}
           />

@@ -82,18 +82,29 @@ def register_all_routers(app: FastAPI) -> None:
     # 5. Integration Services
     try:
         from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
+        from api.cds_hooks.service_executor_router import router as cds_executor_router
         from api.ui_composer import router as ui_composer_router
         from api.websocket.websocket_router import router as websocket_router
         from api.websocket.monitoring import router as websocket_monitoring_router
         from api.fhir_schema_router import router as fhir_schema_router
         from api.fhir_capability_schema_router import router as fhir_capability_schema_router
         
-        app.include_router(cds_hooks_router, prefix="/cds-services", tags=["CDS Hooks"])
+        app.include_router(cds_hooks_router, tags=["CDS Hooks"])
+        app.include_router(cds_executor_router, tags=["CDS Service Executor"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
         app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])
         app.include_router(fhir_schema_router, tags=["FHIR Schemas"])
         app.include_router(fhir_capability_schema_router, tags=["FHIR Schemas V2"])
+        
+        # CDS Hooks v2.0 Complete Implementation
+        try:
+            from api.cds_hooks.cds_hooks_v2_complete import router as cds_hooks_v2_router
+            app.include_router(cds_hooks_v2_router, tags=["CDS Hooks v2.0"])
+            logger.info("✓ CDS Hooks v2.0 router registered")
+        except Exception as v2_error:
+            logger.warning(f"CDS Hooks v2.0 router not available: {v2_error}")
+        
         logger.info("✓ Integration service routers registered")
     except Exception as e:
         logger.error(f"Failed to register integration routers: {e}")

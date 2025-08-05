@@ -671,7 +671,7 @@ function UnifiedLayout({
   autoCollapse = false
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(!autoCollapse);
+  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true); // Default to expanded
 
   const handleMobileDrawerToggle = useCallback(() => {
     setMobileDrawerOpen(prev => !prev);

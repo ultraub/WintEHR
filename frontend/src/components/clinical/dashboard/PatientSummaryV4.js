@@ -52,10 +52,11 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useInitializationGuard } from '../../../hooks/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
+import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
+import { useCDS } from '../../../contexts/CDSContext';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
@@ -73,8 +74,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   } = useFHIRResource();
   const { subscribe } = useClinicalWorkflow();
   
-  const [cdsAlerts, setCdsAlerts] = useState([]);
-  const [cdsLoading, setCdsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // Get clinical context
@@ -132,55 +131,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     }
   }, [patientId]); // Minimal dependencies - no functions
 
-  // Load CDS alerts for patient-view hooks
-  const loadCDSAlerts = async () => {
-    if (!patientId) return;
-    
-    setCdsLoading(true);
-    try {
-      // Get available services for patient-view hook
-      const services = await cdsHooksClient.discoverServices();
-      const patientViewServices = services.filter(s => s.hook === 'patient-view');
-      
-      const allAlerts = [];
-      
-      for (const service of patientViewServices) {
-        try {
-          const response = await cdsHooksClient.callService(service.id, {
-            hook: 'patient-view',
-            hookInstance: `dashboard-${Date.now()}`,
-            context: {
-              patientId: patientId
-            }
-          });
-          
-          if (response.cards) {
-            allAlerts.push(...response.cards.map(card => ({
-              ...card,
-              serviceId: service.id,
-              serviceName: service.title || service.id,
-              timestamp: new Date()
-            })));
-          }
-        } catch (serviceError) {
-          
-        }
-      }
-      
-      setCdsAlerts(allAlerts);
-    } catch (error) {
-      
-    } finally {
-      setCdsLoading(false);
-    }
-  };
-
-  // Load CDS alerts after patient data is loaded
-  useEffect(() => {
-    if (currentPatient && !isInitialLoad) {
-      loadCDSAlerts();
-    }
-  }, [currentPatient, isInitialLoad]);
 
   // Subscribe to clinical workflow events for real-time updates
   useEffect(() => {
@@ -589,6 +539,13 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
           </Grid>
         </Box>
       </Paper>
+
+      {/* CDS Alerts - Inline dismissible cards */}
+      {currentPatient && (
+        <Box sx={{ p: 3, pb: 0, maxWidth: 1400, mx: 'auto' }}>
+          <CDSAlerts patientId={currentPatient.id} />
+        </Box>
+      )}
 
       {/* Main Content */}
       <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
@@ -1073,75 +1030,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
           </Grid>
         </Grid>
 
-        {/* CDS Alerts */}
-        {(cdsLoading || cdsAlerts.length > 0) && (
-          <Paper 
-            elevation={0}
-            sx={{ 
-              p: 3, 
-              borderRadius: 1, 
-              mb: 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`
-            }}
-          >
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-              <CDSIcon color="warning" />
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Clinical Decision Support
-              </Typography>
-              {cdsLoading && <CircularProgress size={20} />}
-              {cdsAlerts.length > 0 && (
-                <Chip 
-                  label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
-                  color="warning"
-                  size="small"
-                  sx={{ borderRadius: 0.5 }}
-                />
-              )}
-            </Stack>
-            
-            {cdsLoading && (
-              <Alert 
-                severity="info"
-                sx={{ borderRadius: 0.5 }}
-              >
-                Evaluating clinical decision support rules...
-              </Alert>
-            )}
-            
-            {cdsAlerts.map((alert, index) => (
-              <Alert 
-                key={index}
-                severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
-                sx={{ 
-                  mb: index < cdsAlerts.length - 1 ? 1 : 0,
-                  borderRadius: 0.5
-                }}
-                action={
-                  <Button 
-                    size="small" 
-                    variant="outlined"
-                    sx={{ borderRadius: 0.5 }}
-                    onClick={() => navigate('/cds-studio')}
-                  >
-                    View Details
-                  </Button>
-                }
-              >
-                <Typography variant="subtitle2" gutterBottom>
-                  {alert.summary}
-                </Typography>
-                <Typography variant="body2">
-                  {alert.detail}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Source: {alert.serviceName}
-                </Typography>
-              </Alert>
-            ))}
-          </Paper>
-        )}
 
         {/* Quick Actions */}
         <Paper 
@@ -1196,6 +1084,28 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
         </Paper>
       </Box>
     </Box>
+  );
+};
+
+// CDS Alerts Component - displays alerts inline as dismissible cards
+const CDSAlerts = ({ patientId }) => {
+  const { getAlerts } = useCDS();
+  
+  // Get alerts for patient-view hook
+  const alerts = getAlerts('patient-view') || [];
+  
+  if (alerts.length === 0) {
+    return null;
+  }
+  
+  return (
+    <CDSPresentation 
+      alerts={alerts}
+      mode={PRESENTATION_MODES.INLINE}
+      allowInteraction={true}
+      patientId={patientId}
+      maxAlerts={10}
+    />
   );
 };
 

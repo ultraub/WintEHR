@@ -972,13 +972,6 @@ const TimelineTabImproved = ({ patientId, patient, onNavigateToTab }) => {
         onSearchChange={setSearchQuery}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        viewModes={[
-          { value: 'cards', label: 'Cards', icon: <ViewWeek /> },
-          { value: 'list', label: 'List', icon: <ListViewIcon /> },
-          { value: 'timeline', label: 'Timeline', icon: <TimelineIcon /> }
-        ]}
         onRefresh={() => {
           // Simply trigger a reload
           setReloadTrigger(prev => prev + 1);

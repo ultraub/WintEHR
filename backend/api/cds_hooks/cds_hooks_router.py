@@ -1319,14 +1319,14 @@ async def analyze_prefetch_patterns(
         )
 
 
-# Hook Management Endpoints (for CRUD operations)
-@router.get("/hooks", response_model=List[HookConfiguration])
-async def list_hooks(
+# Service Management Endpoints (for CRUD operations)
+@router.get("/services", response_model=List[HookConfiguration])
+async def list_services(
     hook_type: Optional[str] = None,
     enabled_only: bool = True,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """List all CDS hooks"""
+    """List all CDS services"""
     try:
         manager = await get_persistence_manager(db)
         return await manager.list_hooks(hook_type=hook_type, enabled_only=enabled_only)
@@ -1341,12 +1341,12 @@ async def list_hooks(
         return hooks
 
 
-@router.post("/hooks", response_model=HookConfiguration)
-async def create_hook(
+@router.post("/services", response_model=HookConfiguration)
+async def create_service(
     hook_config: HookConfiguration, 
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Create a new CDS hook"""
+    """Create a new CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
@@ -1365,10 +1365,10 @@ async def create_hook(
         raise HTTPException(status_code=500, detail="Failed to create hook")
 
 
-# Hook Management Endpoints (specific routes before parameterized routes)
-@router.get("/hooks/backup")
-async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Create a backup of all hook configurations"""
+# Service Management Endpoints (specific routes before parameterized routes)
+@router.get("/services/backup")
+async def backup_services(db: AsyncSession = Depends(get_db_session)):
+    """Create a backup of all service configurations"""
     try:
         manager = await get_persistence_manager(db)
         backup = await manager.backup_hooks()
@@ -1379,77 +1379,77 @@ async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
         return backup
         
     except Exception as e:
-        logger.error(f"Error creating hooks backup: {e}")
+        logger.error(f"Error creating services backup: {e}")
         raise HTTPException(status_code=500, detail="Failed to create backup")
 
-@router.post("/hooks/restore")
-async def restore_hooks(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
-    """Restore hooks from backup data"""
+@router.post("/services/restore")
+async def restore_services(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
+    """Restore services from backup data"""
     try:
         manager = await get_persistence_manager(db)
         restored_count = await manager.restore_hooks(backup_data)
         
         return {
-            "message": f"Successfully restored {restored_count} hooks",
+            "message": f"Successfully restored {restored_count} services",
             "restored_count": restored_count
         }
         
     except Exception as e:
-        logger.error(f"Error restoring hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to restore hooks")
+        logger.error(f"Error restoring services: {e}")
+        raise HTTPException(status_code=500, detail="Failed to restore services")
 
-@router.post("/hooks/sync-samples")
-async def sync_sample_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Sync sample hooks to database"""
+@router.post("/services/sync-samples")
+async def sync_sample_services(db: AsyncSession = Depends(get_db_session)):
+    """Sync sample services to database"""
     try:
         await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
         db_hooks = await load_hooks_from_database(db)
         
         return {
-            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample hooks",
-            "hooks_count": len(db_hooks),
-            "hooks": list(db_hooks.keys())
+            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample services",
+            "services_count": len(db_hooks),
+            "services": list(db_hooks.keys())
         }
     except Exception as e:
-        logger.error(f"Error syncing sample hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to sync sample hooks")
+        logger.error(f"Error syncing sample services: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync sample services")
 
-@router.get("/hooks/{hook_id}", response_model=HookConfiguration)
-async def get_hook(hook_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Get a specific CDS hook"""
+@router.get("/services/{service_id}", response_model=HookConfiguration)
+async def get_service(service_id: str, db: AsyncSession = Depends(get_db_session)):
+    """Get a specific CDS service"""
     try:
         manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(hook_id)
+        hook_config = await manager.get_hook(service_id)
         if not hook_config:
             # Fallback to sample hooks
-            hook_config = SAMPLE_HOOKS.get(hook_id)
+            hook_config = SAMPLE_HOOKS.get(service_id)
         if not hook_config:
-            raise HTTPException(status_code=404, detail="Hook not found")
+            raise HTTPException(status_code=404, detail="Service not found")
         return hook_config
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve hook")
+        logger.error(f"Error retrieving service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve service")
 
 
-@router.put("/hooks/{hook_id}", response_model=HookConfiguration)
-async def update_hook(
-    hook_id: str, 
+@router.put("/services/{service_id}", response_model=HookConfiguration)
+async def update_service(
+    service_id: str, 
     hook_config: HookConfiguration, 
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Update a CDS hook"""
+    """Update a CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
         # Check if hook exists
-        existing = await manager.get_hook(hook_id)
-        if not existing and hook_id not in SAMPLE_HOOKS:
-            raise HTTPException(status_code=404, detail="Hook not found")
+        existing = await manager.get_hook(service_id)
+        if not existing and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail="Service not found")
         
         # Ensure the ID matches
-        hook_config.id = hook_id
+        hook_config.id = service_id
         
         # Save to database
         return await manager.save_hook(hook_config, "api-user")
@@ -1457,79 +1457,79 @@ async def update_hook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update hook")
+        logger.error(f"Error updating service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update service")
 
 
-@router.delete("/hooks/{hook_id}")
-async def delete_hook(hook_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Delete a CDS hook"""
+@router.delete("/services/{service_id}")
+async def delete_service(service_id: str, db: AsyncSession = Depends(get_db_session)):
+    """Delete a CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
         # Try to delete from database first
-        deleted = await manager.delete_hook(hook_id)
+        deleted = await manager.delete_hook(service_id)
         
         if not deleted:
             # Check if it exists in sample hooks
-            if hook_id not in SAMPLE_HOOKS:
-                raise HTTPException(status_code=404, detail="Hook not found")
+            if service_id not in SAMPLE_HOOKS:
+                raise HTTPException(status_code=404, detail="Service not found")
             # For sample hooks, we can't delete them, just disable
-            raise HTTPException(status_code=400, detail="Cannot delete sample hooks, only disable them")
+            raise HTTPException(status_code=400, detail="Cannot delete sample services, only disable them")
         
-        return {"message": f"Hook {hook_id} deleted successfully"}
+        return {"message": f"Service {service_id} deleted successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete hook")
+        logger.error(f"Error deleting service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete service")
 
 
 # Additional hook management endpoints
-@router.patch("/hooks/{hook_id}/toggle")
-async def toggle_hook(hook_id: str, enabled: bool, db: AsyncSession = Depends(get_db_session)):
-    """Enable or disable a CDS hook"""
+@router.patch("/services/{service_id}/toggle")
+async def toggle_service(service_id: str, enabled: bool, db: AsyncSession = Depends(get_db_session)):
+    """Enable or disable a CDS service"""
     try:
         manager = await get_persistence_manager(db)
-        success = await manager.toggle_hook(hook_id, enabled)
+        success = await manager.toggle_hook(service_id, enabled)
         
         if not success:
             # Try sample hooks
-            if hook_id in SAMPLE_HOOKS:
-                SAMPLE_HOOKS[hook_id].enabled = enabled
-                return {"message": f"Hook {hook_id} {'enabled' if enabled else 'disabled'} successfully"}
-            raise HTTPException(status_code=404, detail="Hook not found")
+            if service_id in SAMPLE_HOOKS:
+                SAMPLE_HOOKS[service_id].enabled = enabled
+                return {"message": f"Service {service_id} {'enabled' if enabled else 'disabled'} successfully"}
+            raise HTTPException(status_code=404, detail="Service not found")
         
-        return {"message": f"Hook {hook_id} {'enabled' if enabled else 'disabled'} successfully"}
+        return {"message": f"Service {service_id} {'enabled' if enabled else 'disabled'} successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error toggling hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to toggle hook")
+        logger.error(f"Error toggling service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to toggle service")
 
-@router.post("/hooks/test/{hook_id}")
-async def test_hook(
-    hook_id: str,
+@router.post("/services/test/{service_id}")
+async def test_service(
+    service_id: str,
     test_context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Test a specific hook with provided context"""
+    """Test a specific service with provided context"""
     try:
         # Get hook configuration
         manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(hook_id)
+        hook_config = await manager.get_hook(service_id)
         if not hook_config:
-            hook_config = SAMPLE_HOOKS.get(hook_id)
+            hook_config = SAMPLE_HOOKS.get(service_id)
         
         if not hook_config:
-            raise HTTPException(status_code=404, detail="Hook not found")
+            raise HTTPException(status_code=404, detail="Service not found")
         
         # Create test request
         test_request = CDSHookRequest(
             hook=hook_config.hook,
-            hookInstance=f"test-{hook_id}-{datetime.now().timestamp()}",
+            hookInstance=f"test-{service_id}-{datetime.now().timestamp()}",
             context=test_context
         )
         
@@ -1538,7 +1538,7 @@ async def test_hook(
         cards = await engine.evaluate_hook(hook_config, test_request)
         
         return {
-            "hook_id": hook_id,
+            "service_id": service_id,
             "test_context": test_context,
             "cards": [card.dict() for card in cards],
             "cards_count": len(cards),
@@ -1548,8 +1548,8 @@ async def test_hook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error testing hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to test hook")
+        logger.error(f"Error testing service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to test service")
 
 # Rules Engine Management Endpoints
 @router.get("/rules-engine/statistics")

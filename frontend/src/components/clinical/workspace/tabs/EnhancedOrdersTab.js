@@ -1071,8 +1071,6 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
         onSearchChange={(value) => updateFilters({ searchTerm: value })}
         dateRange={filters.dateRange || 'all'}
         onDateRangeChange={(value) => updateFilters({ dateRange: value })}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         onRefresh={refreshSearch}
         scrollContainerRef={scrollContainerRef}
         loading={loading}

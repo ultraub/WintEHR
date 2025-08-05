@@ -53,13 +53,13 @@ const NAVIGATION_ITEMS = [
     id: 'results',
     label: 'Results',
     icon: ResultsIcon,
-    badge: 'new'
+    badge: null
   },
   {
     id: 'orders',
     label: 'Orders',
     icon: OrdersIcon,
-    badge: 3
+    badge: null
   },
   {
     id: 'pharmacy',
@@ -71,7 +71,7 @@ const NAVIGATION_ITEMS = [
     id: 'imaging',
     label: 'Imaging',
     icon: ImagingIcon,
-    badge: 2
+    badge: null
   },
   {
     id: 'documentation',

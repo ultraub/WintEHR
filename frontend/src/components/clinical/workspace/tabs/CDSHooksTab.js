@@ -64,7 +64,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import CDSHookBuilder from '../cds/CDSHookBuilder';
+// CDSHookBuilder removed - use CDS Studio for building hooks
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import CDSCardDisplay from '../cds/CDSCardDisplay';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
@@ -962,29 +962,36 @@ const CDSHooksTab = ({ patientId }) => {
       {/* Hook Builder Tab */}
       <TabPanel value={tabValue} index={2}>
         {showBuilder ? (
-          <CDSHookBuilder
-            onSave={async (hookData) => {
-              try {
-                // The actual saving is handled by CDSHookBuilder using cdsHooksService
-                // This callback is just for cleanup and refresh
-                setShowBuilder(false);
-                
-                // Refresh both services and custom hooks lists
-                await Promise.all([
-                  loadCDSServices(),
-                  loadCustomHooks()
-                ]);
-                
-                // Show success message
-                setError(null);
-              } catch (error) {
-                // Handle error - the actual error will be shown by CDSHookBuilder
-                
-              }
-            }}
-            onCancel={() => setShowBuilder(false)}
-            editingHook={selectedHook}
-          />
+          <Box sx={{ p: 3, textAlign: 'center' }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              The hook builder has been moved to CDS Studio for a better experience
+            </Alert>
+            <Typography variant="h6" gutterBottom>
+              Use CDS Studio to Build Hooks
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              CDS Studio provides an enhanced visual builder with drag-and-drop conditions,
+              real-time preview, and integration with clinical catalogs.
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<BuilderIcon />}
+              onClick={() => navigate('/cds-studio')}
+              sx={{ mt: 2 }}
+            >
+              Open CDS Studio
+            </Button>
+            <Button
+              variant="outlined"
+              size="large"
+              onClick={() => setShowBuilder(false)}
+              sx={{ mt: 2, ml: 2 }}
+            >
+              Cancel
+            </Button>
+          </Box>
         ) : (
           <Grid container spacing={3}>
             <Grid item xs={12}>

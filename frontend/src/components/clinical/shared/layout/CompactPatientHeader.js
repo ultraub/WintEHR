@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { format, differenceInYears, parseISO, formatDistanceToNow } from 'date-fns';
 import TrendSparkline from '../display/TrendSparkline';
+import CDSAlertPills from '../../cds/CDSAlertPills';
 
 // Severity indicator component
 const SeverityIndicator = ({ severity, size = 'small' }) => {
@@ -229,22 +230,8 @@ const CompactPatientHeader = ({
 
           <Divider orientation="vertical" flexItem sx={{ mx: 1.5, height: 32 }} />
 
-          {/* Critical Alert - Priority display */}
-          {criticalAlerts > 0 && (
-            <Chip
-              icon={<AlertIcon sx={{ fontSize: 16 }} />}
-              label={`${criticalAlerts} Critical`}
-              color="error"
-              size="small"
-              sx={{ 
-                height: 24,
-                fontWeight: 600,
-                borderRadius: '4px',
-                animation: 'pulse 2s infinite',
-                '& .MuiChip-label': { px: 1 }
-              }}
-            />
-          )}
+          {/* CDS Alert Pills - Replacing the old critical alert chip */}
+          <CDSAlertPills maxVisible={2} hookType="patient-view" />
           
           {/* Key Metrics - Ultra compact */}
           <Stack 

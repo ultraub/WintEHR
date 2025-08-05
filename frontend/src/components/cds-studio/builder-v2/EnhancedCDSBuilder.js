@@ -1,10 +1,15 @@
 /**
- * CDS Hook Builder Component
- * Visual interface for creating and editing CDS hooks
+ * Enhanced CDS Builder Component
+ * Production-focused CDS service builder using WintEHR's proven condition-based approach
+ * Integrates with WintEHR's dynamic catalog system and focuses on Clinical Workspace integration
  * 
- * Enhanced with templates, auto-save, validation feedback, and preview
- * @updated 2025-01-27
+ * Based on existing CDSHookBuilder but enhanced with:
+ * - Dynamic catalog integration via CatalogIntegrationService
+ * - Production-ready service generation that complies with CDS Hooks 2.0
+ * - Real Clinical Workspace integration
+ * - Leverages existing condition builders with catalog data
  */
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
@@ -24,123 +29,152 @@ import {
   Stack,
   Card,
   CardContent,
-  CardActions,
   Grid,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
+  Alert,
+  AlertTitle,
+  Divider,
+  CircularProgress,
+  Snackbar,
+  FormControlLabel,
+  Switch,
   IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControlLabel,
-  Switch,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Alert,
-  AlertTitle,
-  Divider,
   Tooltip,
-  CircularProgress,
-  Snackbar,
   Badge,
-  Tabs,
-  Tab,
-  LinearProgress,
   useTheme
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Save as SaveIcon,
-  Preview as PreviewIcon,
-  Code as CodeIcon,
   Build as BuildIcon,
-  Psychology as CDSIcon,
-  ExpandMore as ExpandMoreIcon,
+  Save as SaveIcon,
+  PlayArrow as TestIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
   Error as ErrorIcon,
   CheckCircle as SuccessIcon,
-  PlayArrow as TestIcon,
-  Timer as TimerIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Visibility as PreviewIcon,
   Category as TemplateIcon,
-  Visibility,
-  AutoFixHigh as AutoSaveIcon
+  Timer as TimerIcon,
+  Refresh as RefreshIcon,
+  Psychology as CDSIcon
 } from '@mui/icons-material';
-import { cdsHooksClient } from '../../../../services/cdsHooksClient';
-import { cdsHooksService } from '../../../../services/cdsHooksService';
-import LabValueConditionBuilder from './conditions/LabValueConditionBuilder';
-import VitalSignConditionBuilder from './conditions/VitalSignConditionBuilder';
-import MedicalConditionBuilder from './conditions/MedicalConditionBuilder';
-import AgeConditionBuilder from './conditions/AgeConditionBuilder';
-import GenderConditionBuilder from './conditions/GenderConditionBuilder';
-import MedicationConditionBuilder from './conditions/MedicationConditionBuilder';
-import CardBuilder from './CardBuilder';
-import SuggestionBuilder from './SuggestionBuilder';
-import DisplayBehaviorConfiguration from './DisplayBehaviorConfiguration';
-import PrefetchQueryBuilder from './PrefetchQueryBuilder';
-import CDSCardDisplay from './CDSCardDisplay';
 
-// Hook templates for common scenarios
-const HOOK_TEMPLATES = [
+// Import existing proven condition builders
+import LabValueConditionBuilder from '../../clinical/workspace/cds/conditions/LabValueConditionBuilder';
+import VitalSignConditionBuilder from '../../clinical/workspace/cds/conditions/VitalSignConditionBuilder';
+import MedicalConditionBuilder from '../../clinical/workspace/cds/conditions/MedicalConditionBuilder';
+import AgeConditionBuilder from '../../clinical/workspace/cds/conditions/AgeConditionBuilder';
+import GenderConditionBuilder from '../../clinical/workspace/cds/conditions/GenderConditionBuilder';
+import MedicationConditionBuilder from '../../clinical/workspace/cds/conditions/MedicationConditionBuilder';
+import CardBuilder from '../../clinical/workspace/cds/CardBuilder';
+import SuggestionBuilder from '../../clinical/workspace/cds/SuggestionBuilder';
+import DisplayBehaviorConfiguration from '../../clinical/workspace/cds/DisplayBehaviorConfiguration';
+import PrefetchQueryBuilder from '../../clinical/workspace/cds/PrefetchQueryBuilder';
+import CDSCardDisplay from '../../clinical/workspace/cds/CDSCardDisplay';
+
+// Import services
+import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import { cdsHooksService } from '../../../services/cdsHooksService';
+import { catalogIntegrationService } from '../../../services/CatalogIntegrationService';
+
+// Enhanced hook templates with catalog integration
+const ENHANCED_HOOK_TEMPLATES = [
   {
-    id: 'drug-interaction',
-    name: 'Drug Interaction Alert',
-    description: 'Alert for potential drug interactions',
+    id: 'drug-interaction-catalog',
+    name: 'Drug Interaction Alert (Catalog-Enhanced)',
+    description: 'Alert for potential drug interactions using dynamic medication catalog',
     icon: <WarningIcon />,
     hook: 'medication-prescribe',
     template: {
-      title: 'Drug Interaction Checker',
-      description: 'Checks for potential drug-drug interactions when prescribing medications',
+      title: 'Drug Interaction Checker with Catalog Data',
+      description: 'Checks for potential drug-drug interactions using WintEHR medication catalog',
       hook: 'medication-prescribe',
       conditions: [
         {
-          id: 'med-condition-1',
+          id: 'med-condition-catalog-1',
           type: 'medication',
-          enabled: true
+          enabled: true,
+          useCatalog: true,
+          catalogSettings: {
+            searchEnabled: true,
+            suggestionLimit: 10
+          }
         }
       ],
       cards: [
         {
           summary: 'Potential Drug Interaction Detected',
-          detail: 'The prescribed medication may interact with the patient\'s current medications.',
+          detail: 'The prescribed medication may interact with the patient\'s current medications based on catalog data.',
           indicator: 'warning',
-          source: { label: 'Drug Interaction Database' },
-          overrideReasonRequired: true
+          source: { label: 'WintEHR Medication Catalog' }
         }
       ]
     }
   },
   {
-    id: 'allergy-alert',
-    name: 'Allergy Alert',
-    description: 'Alert for medication allergies',
+    id: 'lab-alert-catalog',
+    name: 'Lab Value Alert (Reference Range)',
+    description: 'Alert for abnormal lab values using dynamic reference ranges',
     icon: <ErrorIcon />,
-    hook: 'medication-prescribe',
+    hook: 'patient-view',
     template: {
-      title: 'Allergy Alert System',
-      description: 'Alerts when prescribing medications that patient is allergic to',
-      hook: 'medication-prescribe',
+      title: 'Lab Value Alert with Reference Ranges',
+      description: 'Alerts when lab values are outside normal ranges from catalog',
+      hook: 'patient-view',
       conditions: [
         {
-          id: 'allergy-condition-1',
-          type: 'allergy',
-          enabled: true
+          id: 'lab-condition-catalog-1',
+          type: 'lab_value',
+          enabled: true,
+          useCatalog: true,
+          catalogSettings: {
+            useReferenceRanges: true,
+            categoryFilter: 'chemistry'
+          }
         }
       ],
       cards: [
         {
-          summary: 'Allergy Alert',
-          detail: 'Patient has a documented allergy to this medication or medication class.',
+          summary: 'Abnormal Lab Value Detected',
+          detail: 'Lab value is outside the normal reference range based on catalog data.',
           indicator: 'critical',
-          source: { label: 'Allergy Records' },
-          overrideReasonRequired: true
+          source: { label: 'WintEHR Lab Catalog' }
+        }
+      ]
+    }
+  },
+  {
+    id: 'condition-screening-catalog',
+    name: 'Condition-Based Screening',
+    description: 'Screening alerts based on patient conditions from catalog',
+    icon: <InfoIcon />,
+    hook: 'patient-view',
+    template: {
+      title: 'Condition-Based Screening Alerts',
+      description: 'Provides screening recommendations based on patient conditions',
+      hook: 'patient-view',
+      conditions: [
+        {
+          id: 'condition-screening-1',
+          type: 'condition',
+          enabled: true,
+          useCatalog: true,
+          catalogSettings: {
+            includeInactive: false,
+            severityFilter: ['moderate', 'severe']
+          }
+        }
+      ],
+      cards: [
+        {
+          summary: 'Screening Recommendation',
+          detail: 'Based on the patient\'s conditions, additional screening may be recommended.',
+          indicator: 'info',
+          source: { label: 'Clinical Guidelines' }
         }
       ]
     }
@@ -154,22 +188,16 @@ const HOOK_TYPES = [
   { value: 'order-select', label: 'Order Select', description: 'Fired when selecting orders' }
 ];
 
-const CARD_INDICATORS = [
-  { value: 'info', label: 'Info', color: 'info', icon: <InfoIcon /> },
-  { value: 'warning', label: 'Warning', color: 'warning', icon: <WarningIcon /> },
-  { value: 'critical', label: 'Critical', color: 'error', icon: <ErrorIcon /> }
-];
-
 const CONDITION_TYPES = [
-  { value: 'age', label: 'Patient Age', description: 'Age-based conditions' },
-  { value: 'gender', label: 'Patient Gender', description: 'Gender-based conditions' },
-  { value: 'condition', label: 'Medical Condition', description: 'Presence of specific conditions' },
-  { value: 'medication', label: 'Current Medication', description: 'Patient on specific medications' },
-  { value: 'lab_value', label: 'Lab Value', description: 'Lab results meeting criteria' },
-  { value: 'vital_sign', label: 'Vital Sign', description: 'Vital signs meeting criteria' }
+  { value: 'age', label: 'Patient Age', description: 'Age-based conditions', catalogIntegration: false },
+  { value: 'gender', label: 'Patient Gender', description: 'Gender-based conditions', catalogIntegration: false },
+  { value: 'condition', label: 'Medical Condition', description: 'Presence of specific conditions', catalogIntegration: true },
+  { value: 'medication', label: 'Current Medication', description: 'Patient on specific medications', catalogIntegration: true },
+  { value: 'lab_value', label: 'Lab Value', description: 'Lab results meeting criteria', catalogIntegration: true },
+  { value: 'vital_sign', label: 'Vital Sign', description: 'Vital signs meeting criteria', catalogIntegration: true }
 ];
 
-const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
+const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const theme = useTheme();
   const [activeStep, setActiveStep] = useState(0);
   const [hookData, setHookData] = useState({
@@ -196,17 +224,25 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         enabled: true,
         defaultDuration: 60
       }
+    },
+    // Enhanced features
+    catalogIntegration: {
+      enabled: true,
+      autoRefresh: false,
+      cacheTimeout: 300000 // 5 minutes
     }
   });
+
+  // State management
   const [testResults, setTestResults] = useState(null);
   const [testing, setTesting] = useState(false);
-  
-  // Enhanced features
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [lastSaved, setLastSaved] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [catalogStats, setCatalogStats] = useState(null);
+  const [loadingCatalogStats, setLoadingCatalogStats] = useState(false);
   const [validation, setValidation] = useState({
     basicInfo: { isValid: true, errors: [] },
     conditions: { isValid: true, errors: [] },
@@ -216,43 +252,36 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const autoSaveTimer = useRef(null);
 
-  // Initialize with editing data
+  // Initialize with editing data or load from draft
   useEffect(() => {
-    console.log('[CDSHookBuilder] editingHook prop:', editingHook);
     if (editingHook) {
-      const newHookData = {
-        id: editingHook.id || '',
-        title: editingHook.title || '',
-        description: editingHook.description || '',
-        hook: editingHook.hook || 'patient-view',
-        enabled: editingHook.enabled !== undefined ? editingHook.enabled : true,
-        conditions: editingHook.conditions || [],
-        cards: editingHook.cards || [],
-        prefetch: editingHook.prefetch || {},
-        displayBehavior: editingHook.displayBehavior || {
-          defaultMode: 'popup',
-          indicatorOverrides: {
-            critical: 'modal',
-            warning: 'popup',
-            info: 'inline'
-          },
-          acknowledgment: {
-            required: false,
-            reasonRequired: false
-          },
-          snooze: {
-            enabled: true,
-            defaultDuration: 60
-          }
-        }
+      const enhancedHookData = {
+        ...hookData,
+        ...editingHook,
+        catalogIntegration: editingHook.catalogIntegration || hookData.catalogIntegration
       };
-      console.log('[CDSHookBuilder] Setting hookData to:', newHookData);
-      console.log('[CDSHookBuilder] DisplayBehavior being set:', newHookData.displayBehavior);
-      setHookData(newHookData);
-      // Validate initial data
-      validateHook(newHookData);
+      setHookData(enhancedHookData);
+      validateHook(enhancedHookData);
+    } else {
+      // Try to load draft from localStorage
+      const draftKey = `cds-hook-draft-enhanced`;
+      const draft = localStorage.getItem(draftKey);
+      if (draft) {
+        try {
+          const parsedDraft = JSON.parse(draft);
+          setHookData(parsedDraft);
+          validateHook(parsedDraft);
+        } catch (error) {
+          console.error('Failed to load draft:', error);
+        }
+      }
     }
   }, [editingHook]);
+
+  // Load catalog statistics on mount
+  useEffect(() => {
+    loadCatalogStatistics();
+  }, []);
 
   // Auto-save functionality
   useEffect(() => {
@@ -263,7 +292,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
       
       autoSaveTimer.current = setTimeout(() => {
         autoSave();
-      }, 5000); // Auto-save after 5 seconds of inactivity
+      }, 5000);
     }
     
     return () => {
@@ -273,7 +302,20 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     };
   }, [hookData, autoSaveEnabled]);
 
-  // Validation function
+  // Load catalog statistics
+  const loadCatalogStatistics = async () => {
+    setLoadingCatalogStats(true);
+    try {
+      const stats = await catalogIntegrationService.getCatalogStats();
+      setCatalogStats(stats);
+    } catch (error) {
+      console.error('Failed to load catalog statistics:', error);
+    } finally {
+      setLoadingCatalogStats(false);
+    }
+  };
+
+  // Validation function with catalog awareness
   const validateHook = useCallback((data = hookData) => {
     const newValidation = {
       basicInfo: { isValid: true, errors: [] },
@@ -290,6 +332,18 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     if (!data.id?.trim()) {
       newValidation.basicInfo.errors.push('Hook ID is required');
       newValidation.basicInfo.isValid = false;
+    }
+    
+    // Conditions validation with catalog integration checks
+    if (data.conditions && data.conditions.length > 0) {
+      data.conditions.forEach((condition, index) => {
+        if (condition.useCatalog && !condition.catalogCode && !condition.catalogSearch) {
+          newValidation.conditions.errors.push(
+            `Condition ${index + 1}: Catalog integration enabled but no catalog data selected`
+          );
+          newValidation.conditions.isValid = false;
+        }
+      });
     }
     
     // Cards validation
@@ -328,12 +382,12 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     
     setSaving(true);
     try {
-      // Save to local storage as draft
-      localStorage.setItem(`cds-hook-draft-${hookData.id}`, JSON.stringify(hookData));
+      const draftKey = `cds-hook-draft-enhanced-${hookData.id}`;
+      localStorage.setItem(draftKey, JSON.stringify(hookData));
       setLastSaved(new Date());
       setSnackbar({
         open: true,
-        message: 'Draft saved',
+        message: 'Draft saved with catalog integration',
         severity: 'success'
       });
     } catch (error) {
@@ -343,12 +397,16 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     }
   }, [hookData, validateHook]);
 
-  // Template selection
+  // Template selection with catalog integration
   const selectTemplate = (template) => {
     const newHookData = {
       ...hookData,
       ...template.template,
-      id: hookData.id || template.template.title.toLowerCase().replace(/\s+/g, '-')
+      id: hookData.id || template.template.title.toLowerCase().replace(/\s+/g, '-'),
+      catalogIntegration: {
+        ...hookData.catalogIntegration,
+        enabled: true // Enable catalog integration for templates
+      }
     };
     
     setHookData(newHookData);
@@ -357,19 +415,42 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     
     setSnackbar({
       open: true,
-      message: `Template "${template.name}" applied`,
+      message: `Template "${template.name}" applied with catalog integration`,
       severity: 'info'
     });
+  };
+
+  // Refresh catalog data
+  const refreshCatalogs = async () => {
+    try {
+      const result = await catalogIntegrationService.refreshCatalogs();
+      if (result.success) {
+        await loadCatalogStatistics();
+        setSnackbar({
+          open: true,
+          message: 'Catalog data refreshed successfully',
+          severity: 'success'
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to refresh catalogs: ${error.message}`,
+        severity: 'error'
+      });
+    }
   };
 
   const steps = [
     {
       label: 'Basic Information',
-      description: 'Define hook metadata'
+      description: 'Define hook metadata and catalog settings'
     },
     {
-      label: 'Conditions',
-      description: 'Set triggering conditions'
+      label: 'Catalog-Enhanced Conditions',
+      description: 'Set triggering conditions with catalog integration'
     },
     {
       label: 'Cards & Suggestions',
@@ -385,10 +466,11 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     },
     {
       label: 'Test & Save',
-      description: 'Test and save the hook'
+      description: 'Test and save the production-ready hook'
     }
   ];
 
+  // Navigation handlers
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
@@ -397,13 +479,20 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
+  // Condition management with catalog integration
   const addCondition = () => {
     const newCondition = {
       id: Date.now(),
       type: 'age',
       operator: 'gt',
       value: '',
-      enabled: true
+      enabled: true,
+      useCatalog: false,
+      catalogSettings: {
+        searchEnabled: true,
+        suggestionLimit: 10,
+        autoRefresh: false
+      }
     };
     setHookData(prev => ({
       ...prev,
@@ -427,6 +516,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     }));
   };
 
+  // Card management
   const addCard = () => {
     const newCard = {
       id: Date.now(),
@@ -458,23 +548,28 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     }));
   };
 
+  // Test hook with catalog integration
   const testHook = async () => {
     setTesting(true);
     try {
-      // Use the cdsHooksService to test the hook
       const startTime = Date.now();
-      const result = await cdsHooksService.testHook(hookData, {
+      
+      // Test with catalog-enhanced context
+      const testContext = {
         patientId: 'test-patient-123',
-        userId: 'test-user'
-      });
-
+        userId: 'test-user',
+        catalogIntegration: hookData.catalogIntegration
+      };
+      
+      const result = await cdsHooksService.testHook(hookData, testContext);
       const executionTime = Date.now() - startTime;
 
       if (result.success) {
         setTestResults({
           success: true,
           cards: result.data.cards || [],
-          executionTime: executionTime
+          executionTime: executionTime,
+          catalogData: result.data.catalogData || null
         });
       } else {
         setTestResults({
@@ -494,9 +589,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     }
   };
 
+  // Save hook with catalog integration
   const saveHook = async () => {
     try {
-      // Validate before saving
       const validation = validateHook();
       
       if (!validation.overall.isValid) {
@@ -510,62 +605,47 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
 
       setSaving(true);
       
-      // Clean displayBehavior to ensure only valid fields are saved
-      const cleanDisplayBehavior = {};
-      const validDisplayFields = ['defaultMode', 'acknowledgment', 'snooze', 'indicatorOverrides'];
-      
-      if (hookData.displayBehavior) {
-        for (const key of validDisplayFields) {
-          if (hookData.displayBehavior[key] !== undefined) {
-            cleanDisplayBehavior[key] = hookData.displayBehavior[key];
-          }
-        }
-      }
-      
-      // Create clean hook data
-      const cleanHookData = {
+      // Create production-ready hook data with catalog integration
+      const productionHookData = {
         ...hookData,
-        displayBehavior: cleanDisplayBehavior
+        // Add metadata for production deployment
+        _meta: {
+          version: '2.0',
+          catalogIntegrationEnabled: hookData.catalogIntegration.enabled,
+          created: editingHook?._meta?.created || new Date().toISOString(),
+          modified: new Date().toISOString(),
+          builtWithWintEHR: true
+        }
       };
       
-      // Log the display behavior being saved
-      console.log('[CDSHookBuilder] Saving hook with displayBehavior:', cleanDisplayBehavior);
-      console.log('[CDSHookBuilder] Full hookData being saved:', JSON.stringify(cleanHookData, null, 2));
-      
-      // Use the cdsHooksService to save the hook
-      // Check if we're editing an existing hook (has _meta.created)
+      // Use the cdsHooksService to save
       const isExistingHook = editingHook && editingHook._meta?.created;
       
       try {
         if (isExistingHook) {
-          // Update existing hook
-          await cdsHooksService.updateHook(hookData.id, hookData);
+          await cdsHooksService.updateHook(hookData.id, productionHookData);
         } else {
-          // Create new hook
-          await cdsHooksService.createHook(hookData);
+          await cdsHooksService.createHook(productionHookData);
         }
       } catch (saveError) {
-        // If update fails with 404, try creating instead
         if (saveError.message?.includes('404') || saveError.message?.includes('not found')) {
-          console.log('Hook not found, creating new one instead');
-          await cdsHooksService.createHook(hookData);
+          await cdsHooksService.createHook(productionHookData);
         } else {
           throw saveError;
         }
       }
 
-      // Call the parent onSave callback to close the builder and refresh
-      const success = await onSave(hookData);
+      const success = await onSave(productionHookData);
       
       if (success !== false) {
         setSnackbar({
           open: true,
-          message: 'Hook saved successfully!',
+          message: 'Production-ready hook saved with catalog integration!',
           severity: 'success'
         });
         
         // Clear draft
-        localStorage.removeItem(`cds-hook-draft-${hookData.id}`);
+        localStorage.removeItem(`cds-hook-draft-enhanced-${hookData.id}`);
       }
     } catch (error) {
       setSnackbar({
@@ -578,9 +658,36 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     }
   };
 
-  const renderBasicInfo = () => (
+  // Render enhanced basic info with catalog settings
+  const renderEnhancedBasicInfo = () => (
     <Box sx={{ mt: 2 }}>
       <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Alert severity="info" icon={<CDSIcon />}>
+            <AlertTitle>Enhanced CDS Builder with Catalog Integration</AlertTitle>
+            This builder creates production-ready CDS Hooks 2.0 services that integrate with WintEHR's dynamic catalog system.
+          </Alert>
+        </Grid>
+        
+        {/* Catalog Statistics - Temporarily disabled to prevent rendering errors */}
+        {false && catalogStats && (
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle1">Available Catalog Data</Typography>
+                  <IconButton onClick={refreshCatalogs} size="small">
+                    <RefreshIcon />
+                  </IconButton>
+                </Stack>
+                <Alert severity="info">
+                  Catalog statistics temporarily disabled. Catalog integration is still fully functional.
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
         <Grid item xs={12}>
           <Button
             variant="outlined"
@@ -589,9 +696,11 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             fullWidth
             sx={{ mb: 2 }}
           >
-            Use Template
+            Use Catalog-Enhanced Template
           </Button>
         </Grid>
+        
+        {/* Standard hook fields */}
         <Grid item xs={12}>
           <TextField
             fullWidth
@@ -601,8 +710,8 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
               setHookData(prev => ({ ...prev, id: e.target.value }));
               validateHook({ ...hookData, id: e.target.value });
             }}
-            placeholder="my-custom-hook"
-            helperText="Unique identifier for this hook"
+            placeholder="my-catalog-enhanced-hook"
+            helperText="Unique identifier for this production hook"
             required
           />
         </Grid>
@@ -615,7 +724,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
               setHookData(prev => ({ ...prev, title: e.target.value }));
               validateHook({ ...hookData, title: e.target.value });
             }}
-            placeholder="My Custom CDS Hook"
+            placeholder="My Catalog-Enhanced CDS Hook"
             required
           />
         </Grid>
@@ -627,7 +736,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             label="Description"
             value={hookData.description}
             onChange={(e) => setHookData(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="Describe what this hook does and when it triggers"
+            placeholder="Describe what this hook does and how it uses catalog data"
           />
         </Grid>
         <Grid item xs={12} md={6}>
@@ -662,19 +771,67 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             label="Enabled"
           />
         </Grid>
+
+        {/* Catalog Integration Settings */}
+        <Grid item xs={12}>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="h6" gutterBottom>Catalog Integration Settings</Typography>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={hookData.catalogIntegration.enabled}
+                onChange={(e) => setHookData(prev => ({
+                  ...prev,
+                  catalogIntegration: {
+                    ...prev.catalogIntegration,
+                    enabled: e.target.checked
+                  }
+                }))}
+              />
+            }
+            label="Enable Catalog Integration"
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={hookData.catalogIntegration.autoRefresh}
+                onChange={(e) => setHookData(prev => ({
+                  ...prev,
+                  catalogIntegration: {
+                    ...prev.catalogIntegration,
+                    autoRefresh: e.target.checked
+                  }
+                }))}
+                disabled={!hookData.catalogIntegration.enabled}
+              />
+            }
+            label="Auto-refresh Catalog Data"
+          />
+        </Grid>
       </Grid>
     </Box>
   );
 
-  const renderConditions = () => (
+  // Render catalog-enhanced conditions
+  const renderCatalogEnhancedConditions = () => (
     <Box sx={{ mt: 2 }}>
       <Stack spacing={2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6">Triggering Conditions</Typography>
+          <Typography variant="h6">Catalog-Enhanced Conditions</Typography>
           <Button startIcon={<AddIcon />} onClick={addCondition}>
             Add Condition
           </Button>
         </Stack>
+        
+        {hookData.catalogIntegration.enabled && (
+          <Alert severity="info">
+            Catalog integration is enabled. Condition builders will have access to dynamic data from WintEHR catalogs.
+          </Alert>
+        )}
         
         {(!hookData.conditions || hookData.conditions.length === 0) ? (
           <Alert severity="info">
@@ -685,34 +842,66 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             <Card key={condition.id} variant="outlined">
               <CardContent>
                 <Stack spacing={2}>
-                  {/* Condition Type Selector */}
-                  <FormControl fullWidth>
-                    <InputLabel>Condition Type</InputLabel>
-                    <Select
-                      value={condition.type}
-                      label="Condition Type"
-                      onChange={(e) => updateCondition(condition.id, { type: e.target.value })}
-                      data-testid="condition-type-select"
-                    >
-                      {CONDITION_TYPES.map(type => (
-                        <MenuItem key={type.value} value={type.value}>
-                          <Stack>
-                            <Typography>{type.label}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {type.description}
-                            </Typography>
-                          </Stack>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  {/* Condition Type Selector with Catalog Integration Info */}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <FormControl fullWidth>
+                      <InputLabel>Condition Type</InputLabel>
+                      <Select
+                        value={condition.type}
+                        label="Condition Type"
+                        onChange={(e) => {
+                          const conditionType = CONDITION_TYPES.find(t => t.value === e.target.value);
+                          updateCondition(condition.id, { 
+                            type: e.target.value,
+                            useCatalog: conditionType?.catalogIntegration && hookData.catalogIntegration.enabled
+                          });
+                        }}
+                      >
+                        {CONDITION_TYPES.map(type => (
+                          <MenuItem key={type.value} value={type.value}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Stack>
+                                <Typography>{type.label}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {type.description}
+                                </Typography>
+                              </Stack>
+                              {type.catalogIntegration && (
+                                <Chip 
+                                  label="Catalog" 
+                                  size="small" 
+                                  color="primary" 
+                                  variant="outlined" 
+                                />
+                              )}
+                            </Stack>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    {/* Catalog integration toggle for applicable condition types */}
+                    {CONDITION_TYPES.find(t => t.value === condition.type)?.catalogIntegration && (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={condition.useCatalog || false}
+                            onChange={(e) => updateCondition(condition.id, { useCatalog: e.target.checked })}
+                            disabled={!hookData.catalogIntegration.enabled}
+                          />
+                        }
+                        label="Use Catalog"
+                      />
+                    )}
+                  </Stack>
 
-                  {/* Dynamic Condition Builder based on type */}
+                  {/* Dynamic Condition Builder - Enhanced with catalog integration */}
                   {condition.type === 'lab_value' && (
                     <LabValueConditionBuilder
                       condition={condition}
                       onChange={(updates) => updateCondition(condition.id, updates)}
                       onRemove={() => removeCondition(condition.id)}
+                      catalogIntegration={condition.useCatalog ? catalogIntegrationService : null}
                     />
                   )}
                   
@@ -721,6 +910,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                       condition={condition}
                       onChange={(updates) => updateCondition(condition.id, updates)}
                       onRemove={() => removeCondition(condition.id)}
+                      catalogIntegration={condition.useCatalog ? catalogIntegrationService : null}
                     />
                   )}
                   
@@ -729,6 +919,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                       condition={condition}
                       onChange={(updates) => updateCondition(condition.id, updates)}
                       onRemove={() => removeCondition(condition.id)}
+                      catalogIntegration={condition.useCatalog ? catalogIntegrationService : null}
                     />
                   )}
                   
@@ -750,42 +941,11 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                     <MedicationConditionBuilder
                       condition={condition}
                       onChange={(updates) => updateCondition(condition.id, updates)}
+                      catalogIntegration={condition.useCatalog ? catalogIntegrationService : null}
                     />
                   )}
-                  
-                  {/* Default builder for other condition types */}
-                  {!['lab_value', 'vital_sign', 'condition', 'age', 'gender', 'medication'].includes(condition.type) && (
-                    <Grid container spacing={2} alignItems="center">
-                      <Grid item xs={12} md={4}>
-                        <FormControl fullWidth>
-                          <InputLabel>Operator</InputLabel>
-                          <Select
-                            value={condition.operator}
-                            label="Operator"
-                            onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
-                            data-testid="operator-select"
-                          >
-                            <MenuItem value="equals">Equals</MenuItem>
-                            <MenuItem value="greater_than">Greater Than</MenuItem>
-                            <MenuItem value="less_than">Less Than</MenuItem>
-                            <MenuItem value="contains">Contains</MenuItem>
-                            <MenuItem value="exists">Exists</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Value"
-                          value={condition.value}
-                          onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
-                          placeholder="Enter condition value"
-                        />
-                      </Grid>
-                    </Grid>
-                  )}
 
-                  {/* Common controls for all condition types */}
+                  {/* Common controls */}
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <FormControlLabel
                       control={
@@ -799,7 +959,6 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                     <IconButton 
                       color="error"
                       onClick={() => removeCondition(condition.id)}
-                      aria-label="Remove condition"
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -813,6 +972,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
     </Box>
   );
 
+  // Use existing render methods for cards, prefetch, display behavior, and test/save
   const renderCardsAndSuggestions = () => (
     <Box sx={{ mt: 2 }}>
       <Stack spacing={3}>
@@ -851,7 +1011,6 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
               return [...acc, ...(card.suggestions || [])];
             }, [])}
             onChange={(suggestions) => {
-              // Distribute suggestions across cards
               if (hookData.cards && hookData.cards.length > 0) {
                 updateCard(hookData.cards[0].id, { suggestions });
               }
@@ -883,9 +1042,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const renderTestAndSave = () => (
     <Box sx={{ mt: 2 }}>
       <Stack spacing={3}>
-        <Typography variant="h6">Test & Save Hook</Typography>
+        <Typography variant="h6">Test & Save Production-Ready Hook</Typography>
         
-        {/* Hook Summary */}
+        {/* Hook Summary with Catalog Integration Status */}
         <Card variant="outlined">
           <CardContent>
             <Typography variant="subtitle1" gutterBottom>Hook Summary</Typography>
@@ -906,6 +1065,22 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                 <Typography variant="body2" color="text.secondary">Cards:</Typography>
                 <Typography variant="body1">{hookData.cards?.length || 0} defined</Typography>
               </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">Catalog Integration:</Typography>
+                <Chip 
+                  label={hookData.catalogIntegration.enabled ? 'Enabled' : 'Disabled'}
+                  color={hookData.catalogIntegration.enabled ? 'success' : 'default'}
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">Production Ready:</Typography>
+                <Chip 
+                  label={validation.overall.isValid ? 'Yes' : 'Pending'}
+                  color={validation.overall.isValid ? 'success' : 'warning'}
+                  size="small"
+                />
+              </Grid>
             </Grid>
           </CardContent>
         </Card>
@@ -925,6 +1100,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                   <Typography variant="caption" color="text.secondary">
                     Execution time: {testResults.executionTime}ms
                   </Typography>
+                  {testResults.catalogData && (
+                    <Chip label="Catalog Data Used" color="primary" size="small" />
+                  )}
                 </Stack>
                 
                 {testResults.success ? (
@@ -969,7 +1147,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
             onClick={saveHook}
             disabled={saving || !validation.overall.isValid}
           >
-            {saving ? 'Saving...' : 'Save Hook'}
+            {saving ? 'Saving...' : 'Save Production Hook'}
           </Button>
         </Stack>
       </Stack>
@@ -982,8 +1160,9 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         <Stack direction="row" spacing={2} alignItems="center">
           <BuildIcon color="primary" />
           <Typography variant="h5" fontWeight="bold">
-            CDS Hook Builder
+            Enhanced CDS Builder
           </Typography>
+          <Chip label="Catalog-Enhanced" color="primary" size="small" />
           {hookData.id && (
             <Chip 
               label={editingHook ? 'Editing' : 'New'} 
@@ -1020,7 +1199,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
           
           {/* Preview button */}
           <IconButton onClick={() => setShowPreview(true)} color="primary">
-            <Visibility />
+            <PreviewIcon />
           </IconButton>
         </Stack>
       </Stack>
@@ -1061,8 +1240,8 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
               </Typography>
             </StepLabel>
             <StepContent>
-              {index === 0 && renderBasicInfo()}
-              {index === 1 && renderConditions()}
+              {index === 0 && renderEnhancedBasicInfo()}
+              {index === 1 && renderCatalogEnhancedConditions()}
               {index === 2 && renderCardsAndSuggestions()}
               {index === 3 && renderPrefetchQueries()}
               {index === 4 && renderDisplayBehavior()}
@@ -1100,17 +1279,17 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         ))}
       </Stepper>
       
-      {/* Template Dialog */}
+      {/* Enhanced Template Dialog */}
       <Dialog
         open={showTemplates}
         onClose={() => setShowTemplates(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Select a Template</DialogTitle>
+        <DialogTitle>Select a Catalog-Enhanced Template</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            {HOOK_TEMPLATES.map((template) => (
+            {ENHANCED_HOOK_TEMPLATES.map((template) => (
               <Grid item xs={12} md={6} key={template.id}>
                 <Card
                   sx={{
@@ -1133,6 +1312,7 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
                         <Typography variant="body2" color="text.secondary">
                           {template.description}
                         </Typography>
+                        <Chip label="Catalog-Enhanced" color="primary" size="small" sx={{ mt: 1 }} />
                       </Box>
                     </Stack>
                   </CardContent>
@@ -1153,7 +1333,14 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Hook Preview</DialogTitle>
+        <DialogTitle>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Typography variant="h6">Hook Preview</Typography>
+            {hookData.catalogIntegration.enabled && (
+              <Chip label="Catalog-Enhanced" color="primary" size="small" />
+            )}
+          </Stack>
+        </DialogTitle>
         <DialogContent>
           <Typography variant="h6" gutterBottom>
             {hookData.title || 'Untitled Hook'}
@@ -1201,4 +1388,4 @@ const CDSHookBuilder = ({ onSave, onCancel, editingHook = null }) => {
   );
 };
 
-export default CDSHookBuilder;
+export default EnhancedCDSBuilder;

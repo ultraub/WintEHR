@@ -143,6 +143,8 @@ const ClinicalWorkspaceEnhanced = ({
   
   // CDS Alerts
   const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
+  console.log('[CDS Debug] ClinicalWorkspaceEnhanced - patientId:', patientId);
+  console.log('[CDS Debug] ClinicalWorkspaceEnhanced - cdsAlerts:', cdsAlerts);
 
   // Use parent-provided data
   const activePatient = patient;

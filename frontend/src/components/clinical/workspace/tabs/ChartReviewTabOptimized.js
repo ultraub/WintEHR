@@ -546,6 +546,8 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
         scrollContainerRef={scrollContainerRef} // Pass the scroll container ref
       />
       
+      {/* CDS Hooks 2.0 Alert Banner */}
+      
       {/* Clinical Alerts */}
       {clinicalAlerts.length > 0 && (
         <Stack spacing={0.5} sx={{ mb: 1, px: 1 }}>

@@ -520,9 +520,30 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     // Add padding to ensure nodes aren't cut off at edges
     const padding = 50;
     
-    // Initialize force simulation
+    // Validate data and filter out invalid links
+    const nodeIds = new Set(data.nodes.map(n => n.id));
+    const validLinks = data.links.filter(link => {
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      
+      if (!nodeIds.has(sourceId)) {
+        console.warn(`Link references non-existent source node: ${sourceId}`);
+        return false;
+      }
+      if (!nodeIds.has(targetId)) {
+        console.warn(`Link references non-existent target node: ${targetId}`);
+        return false;
+      }
+      return true;
+    });
+    
+    if (validLinks.length < data.links.length) {
+      console.warn(`Filtered out ${data.links.length - validLinks.length} invalid links`);
+    }
+    
+    // Initialize force simulation with validated links
     const simulation = d3.forceSimulation(data.nodes)
-      .force('link', d3.forceLink(data.links)
+      .force('link', d3.forceLink(validLinks)
         .id(d => d.id)
         .distance(layoutSettings.linkDistance)
       )
@@ -543,9 +564,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
     simulationRef.current = simulation;
 
-    // Create links
+    // Create links with validated data
     const links = linksGroup.selectAll('path')
-      .data(data.links)
+      .data(validLinks)
       .enter().append('path')
       .attr('class', 'link')
       .attr('stroke', '#999')

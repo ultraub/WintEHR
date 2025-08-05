@@ -8,8 +8,7 @@ import json
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import CDSService, CDSRequest, CDSResponse, Card, Source
-from .prefetch_engine import PrefetchEngine
+from .models import CDSService, CDSHookRequest, CDSHookResponse, Card, Source
 
 
 class ServiceDefinition(BaseModel):
@@ -77,7 +76,7 @@ class ServiceRegistry:
     def __init__(self):
         self._definitions: Dict[str, ServiceDefinition] = {}
         self._implementations: Dict[str, ServiceImplementation] = {}
-        self._prefetch_engine = PrefetchEngine()
+        self._prefetch_engine = None  # Lazy initialize when needed
     
     def register_service(
         self,
@@ -114,9 +113,9 @@ class ServiceRegistry:
     async def invoke_service(
         self,
         service_id: str,
-        request: CDSRequest,
+        request: CDSHookRequest,
         db: AsyncSession
-    ) -> CDSResponse:
+    ) -> CDSHookResponse:
         """Invoke a service with the given request"""
         
         # Get service definition and implementation
@@ -138,6 +137,11 @@ class ServiceRegistry:
         # Handle prefetch if needed
         prefetch_data = request.prefetch or {}
         if definition.prefetch and not request.prefetch:
+            # Lazy initialize prefetch engine with database session
+            if self._prefetch_engine is None:
+                from .prefetch_engine import PrefetchEngine
+                self._prefetch_engine = PrefetchEngine(db)
+            
             # Fetch missing data using prefetch templates
             prefetch_data = await self._prefetch_engine.fetch_data(
                 definition.prefetch,
@@ -149,7 +153,7 @@ class ServiceRegistry:
         
         # Check if service should execute
         if not await implementation.should_execute(request.context, prefetch_data):
-            return CDSResponse(cards=[])
+            return CDSHookResponse(cards=[])
         
         # Execute service logic
         cards = await implementation.execute(request.context, prefetch_data)
@@ -159,7 +163,7 @@ class ServiceRegistry:
             if not card.source:
                 card.source = Source(label=definition.title or definition.id)
         
-        return CDSResponse(cards=cards)
+        return CDSHookResponse(cards=cards)
 
 
 # Example implementations

@@ -699,12 +699,6 @@ const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
             <ClinicalFilterPanel
               searchQuery={searchTerm}
               onSearchChange={setSearchTerm}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              viewModes={[
-                { value: 'cards', label: 'Cards' },
-                { value: 'list', label: 'List' }
-              ]}
               additionalFilters={
                 <>
                   <FormControl size="small" sx={{ minWidth: 150 }}>

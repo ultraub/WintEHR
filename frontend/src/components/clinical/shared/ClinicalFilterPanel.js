@@ -33,9 +33,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   CalendarMonth as CalendarIcon,
   Refresh as RefreshIcon,
-  Dashboard as DashboardIcon,
-  Timeline as TimelineIcon,
-  List as ListIcon,
   Clear as ClearIcon,
   Download as DownloadIcon
 } from '@mui/icons-material';
@@ -47,8 +44,6 @@ import {
  * @param {Function} props.onSearchChange - Search change handler
  * @param {string} props.dateRange - Selected date range
  * @param {Function} props.onDateRangeChange - Date range change handler
- * @param {string} props.viewMode - Current view mode
- * @param {Function} props.onViewModeChange - View mode change handler
  * @param {boolean} props.showInactive - Show inactive items
  * @param {Function} props.onShowInactiveChange - Toggle inactive items
  * @param {Function} props.onRefresh - Refresh handler
@@ -68,8 +63,6 @@ const ClinicalFilterPanel = ({
   onSearchChange,
   dateRange = 'all',
   onDateRangeChange,
-  viewMode = 'dashboard',
-  onViewModeChange,
   showInactive = false,
   onShowInactiveChange,
   onRefresh,
@@ -129,13 +122,6 @@ const ClinicalFilterPanel = ({
     { value: '30d', label: '30 Days' },
     { value: '90d', label: '90 Days' },
     { value: '1y', label: '1 Year' }
-  ];
-  
-  // View mode options
-  const viewModeOptions = [
-    { value: 'dashboard', icon: <DashboardIcon fontSize="small" />, label: 'Dashboard' },
-    { value: 'timeline', icon: <TimelineIcon fontSize="small" />, label: 'Timeline' },
-    { value: 'list', icon: <ListIcon fontSize="small" />, label: 'List' }
   ];
   
   const hasActiveFilters = searchQuery || dateRange !== 'all' || 
@@ -270,36 +256,11 @@ const ClinicalFilterPanel = ({
               </Stack>
             </Stack>
             
-            {/* View Mode and Categories Row */}
-            <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems="center">
-              {/* View Mode Toggle */}
-              <ToggleButtonGroup
-                value={viewMode}
-                exclusive
-                onChange={(e, value) => value && onViewModeChange && onViewModeChange(value)}
-                size="small"
-                sx={{
-                  '& .MuiToggleButton-root': {
-                    borderRadius: 0,
-                    textTransform: 'none',
-                    px: 2
-                  }
-                }}
-              >
-                {viewModeOptions.map(option => (
-                  <ToggleButton key={option.value} value={option.value}>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      {option.icon}
-                      {!isMobile && (
-                        <Typography variant="body2">{option.label}</Typography>
-                      )}
-                    </Stack>
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-              
-              {/* Category Filters */}
-              {showCategories && categories.length > 0 && (
+            {/* Categories Row */}
+            {(showCategories && categories.length > 0) || customFilters ? (
+              <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems="center">
+                {/* Category Filters */}
+                {showCategories && categories.length > 0 && (
                 <Stack direction="row" spacing={1} flex={1} flexWrap="wrap">
                   {categories.map(category => (
                     <Chip
@@ -317,29 +278,30 @@ const ClinicalFilterPanel = ({
                       sx={{ borderRadius: '4px' }}
                     />
                   ))}
-                </Stack>
-              )}
-              
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <Button
-                  size="small"
-                  onClick={() => {
-                    onSearchChange('');
-                    onDateRangeChange && onDateRangeChange('all');
-                    onCategoriesChange(['all']);
-                  }}
-                  startIcon={<ClearIcon />}
-                  sx={{ 
-                    ml: 'auto',
-                    borderRadius: 0,
-                    textTransform: 'none'
-                  }}
-                >
-                  Clear
-                </Button>
-              )}
-            </Stack>
+                  </Stack>
+                )}
+                
+                {/* Clear Filters */}
+                {hasActiveFilters && (
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      onSearchChange('');
+                      onDateRangeChange && onDateRangeChange('all');
+                      onCategoriesChange(['all']);
+                    }}
+                    startIcon={<ClearIcon />}
+                    sx={{ 
+                      ml: 'auto',
+                      borderRadius: 0,
+                      textTransform: 'none'
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </Stack>
+            ) : null}
             
             {/* Custom Filters */}
             {customFilters && (
