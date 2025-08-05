@@ -201,6 +201,9 @@ function FHIRExplorerApp() {
     };
   }, [fhirContext]);
 
+  // Create a stable callback for useFHIRData
+  const useFHIRDataCallback = useCallback(() => fhirData, [fhirData]);
+
   // Navigation handlers
   const handleModeChange = useCallback((mode, view = '') => {
     setLoading(true);
@@ -237,7 +240,7 @@ function FHIRExplorerApp() {
           case DISCOVERY_VIEWS.RELATIONSHIPS:
             return (
               <RelationshipMapperErrorBoundary>
-                <RelationshipMapper onNavigate={handleModeChange} useFHIRData={() => fhirData} />
+                <RelationshipMapper onNavigate={handleModeChange} useFHIRData={useFHIRDataCallback} />
               </RelationshipMapperErrorBoundary>
             );
           default:

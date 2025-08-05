@@ -9,6 +9,7 @@ import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWr
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
 import FHIRExplorerApp from '../components/fhir-explorer-v4/core/FHIRExplorerApp';
+import QueryStudioEnhanced from '../components/fhir-explorer-v4/query-building/QueryStudioEnhanced';
 import { AppProviders } from '../providers/AppProviders';
 import Settings from '../pages/Settings';
 import Schedule from '../pages/Schedule';

@@ -196,6 +196,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const simulationRef = useRef(null);
   const zoomRef = useRef(null);
   const isMountedRef = useRef(true);
+  const isVisualizationInitializedRef = useRef(false);
 
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
@@ -209,6 +210,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      isVisualizationInitializedRef.current = false;
     };
   }, []);
 
@@ -532,6 +534,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     // Clear previous visualization
     svg.selectAll('*').remove();
     
+    // Mark as initialized
+    isVisualizationInitializedRef.current = true;
+    
     // Set the SVG viewBox to ensure all content is visible
     svg.attr('viewBox', `0 0 ${width} ${height}`)
        .attr('preserveAspectRatio', 'xMidYMid meet');
@@ -679,6 +684,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         // Prevent any default behavior and stop propagation immediately
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
         
         // Always handle the click
         handleNodeClick(event, node);
