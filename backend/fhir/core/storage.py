@@ -6012,21 +6012,19 @@ class FHIRStorageEngine:
                 if target_type and target_id and source_type:
                     query = text("""
                         INSERT INTO fhir.references (
-                            source_resource_id, source_id, source_type, target_type, target_id,
-                            source_path, reference_path, reference_value
+                            source_id, source_type, target_type, target_id,
+                            reference_path, reference_value
                         ) VALUES (
-                            :source_resource_id, :source_id, :source_type, :target_type, :target_id,
-                            :source_path, :reference_path, :reference_value
+                            :source_id, :source_type, :target_type, :target_id,
+                            :reference_path, :reference_value
                         )
                     """)
                     
                     await self.session.execute(query, {
-                        'source_resource_id': resource_id,
                         'source_id': resource_id,
                         'source_type': source_type,
                         'target_type': target_type,
                         'target_id': target_id,
-                        'source_path': path,
                         'reference_path': path,  # Remove the .reference part for cleaner paths
                         'reference_value': value
                     })

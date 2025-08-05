@@ -608,6 +608,12 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
             sx={{ minHeight: 48 }}
           />
           <Tab 
+            icon={<ProcedureIcon />} 
+            label={`Procedures (${relatedResources.procedures?.length || 0})`}
+            iconPosition="start"
+            sx={{ minHeight: 48 }}
+          />
+          <Tab 
             icon={<NotesIcon />} 
             label={`Notes (${relatedResources.documents?.length || 0})`}
             iconPosition="start"
@@ -1337,8 +1343,90 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
           </Box>
         </TabPanel>
 
-        {/* Notes Tab */}
+        {/* Procedures Tab */}
         <TabPanel value={activeTab} index={4}>
+          <Box sx={{ p: 3 }}>
+            {relatedResources.procedures?.length > 0 ? (
+              <Grid container spacing={2}>
+                {relatedResources.procedures.map((proc) => (
+                  <Grid item xs={12} md={6} key={proc.id}>
+                    <Card>
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                            <Typography variant="subtitle1" fontWeight="medium">
+                              {proc.code?.text || proc.code?.coding?.[0]?.display || 'Procedure'}
+                            </Typography>
+                            <Chip
+                              label={proc.status}
+                              size="small"
+                              color={
+                                proc.status === 'completed' ? 'success' :
+                                proc.status === 'in-progress' ? 'warning' :
+                                proc.status === 'not-done' ? 'error' : 'default'
+                              }
+                            />
+                          </Stack>
+                          
+                          {proc.performedDateTime && (
+                            <Typography variant="body2" color="text.secondary">
+                              Performed: {format(parseISO(proc.performedDateTime), 'MMM d, yyyy h:mm a')}
+                            </Typography>
+                          )}
+                          
+                          {proc.performedPeriod && (
+                            <Typography variant="body2" color="text.secondary">
+                              Duration: {formatDuration(
+                                parseISO(proc.performedPeriod.start),
+                                proc.performedPeriod.end ? parseISO(proc.performedPeriod.end) : new Date()
+                              )}
+                            </Typography>
+                          )}
+                          
+                          {proc.performer?.length > 0 && (
+                            <Typography variant="body2" color="text.secondary">
+                              Performer: {proc.performer[0].actor?.display || 'Unknown'}
+                            </Typography>
+                          )}
+                          
+                          {proc.bodySite?.length > 0 && (
+                            <Typography variant="body2" color="text.secondary">
+                              Body site: {proc.bodySite[0].text || proc.bodySite[0].coding?.[0]?.display}
+                            </Typography>
+                          )}
+                          
+                          {proc.outcome && (
+                            <Typography variant="body2" color="text.secondary">
+                              Outcome: {proc.outcome.text || proc.outcome.coding?.[0]?.display}
+                            </Typography>
+                          )}
+                          
+                          {proc.note?.length > 0 && (
+                            <Box sx={{ mt: 1, p: 1, bgcolor: theme.palette.action.hover, borderRadius: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Notes: {proc.note[0].text}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <ProcedureIcon sx={{ fontSize: 64, color: theme.palette.text.disabled, mb: 2 }} />
+                <Typography variant="body1" color="text.secondary">
+                  No procedures performed during this encounter
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* Notes Tab */}
+        <TabPanel value={activeTab} index={5}>
           <Box sx={{ p: 3 }}>
             {relatedResources.documents?.length > 0 ? (
               <Stack spacing={2}>
