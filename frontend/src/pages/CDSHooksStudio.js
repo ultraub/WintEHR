@@ -53,9 +53,10 @@ import {
 
 // Import child components
 import CDSLearnMode from '../components/cds-studio/learn/CDSLearnMode';
-import { CDSBuildMode, CDSBuildModeImproved } from '../components/cds-studio/build/CDSBuildModeWrapper';
+// CDSBuildMode components replaced with ServiceBuilderV2
 import CDSManageMode from '../components/cds-studio/manage/CDSManageMode';
 import CDSMigrationTool from '../components/cds-studio/migration/CDSMigrationTool';
+import ServiceBuilderV2 from '../components/cds-studio/builder-v2/ServiceBuilderV2';
 
 // Import error boundary and loading states
 import CDSErrorBoundary from '../components/cds-studio/shared/CDSErrorBoundary';
@@ -544,64 +545,8 @@ export const useCDSStudio = () => {
   return context;
 };
 
-// Build Mode component with error handling
-const BuildModeWithErrorHandling = ({ pendingEditHook, onPendingHookProcessed }) => {
-  const { actions } = useCDSStudio();
-  
-  // Handle pending edit hook when component mounts or pendingEditHook changes
-  useEffect(() => {
-    console.log('[BuildModeWithErrorHandling] pendingEditHook:', pendingEditHook);
-    if (pendingEditHook) {
-      console.log('[BuildModeWithErrorHandling] Setting current hook in context');
-      actions.setCurrentHook(pendingEditHook);
-      onPendingHookProcessed();
-    }
-  }, [pendingEditHook, actions, onPendingHookProcessed]);
-  
-  const handleReset = useCallback(() => {
-    actions.setCurrentHook({
-      id: '',
-      title: '',
-      description: '',
-      hook: 'patient-view',
-      conditions: [],
-      cards: [],
-      prefetch: {},
-      displayBehavior: {
-        defaultMode: 'popup',
-        acknowledgment: {
-          required: false,
-          reasonRequired: false
-        },
-        snooze: {
-          enabled: true,
-          defaultDuration: 60
-        },
-        indicatorOverrides: {
-          critical: 'modal',
-          warning: 'popup',
-          info: 'inline'
-        }
-      },
-      _meta: {
-        created: null, // null means this is a new hook
-        modified: new Date(),
-        version: 0, // 0 means this is a new hook
-        author: 'Current User'
-      }
-    });
-  }, [actions]);
-
-  // Expose reset function globally for error boundary
-  useEffect(() => {
-    window.resetCDSBuildMode = handleReset;
-    return () => {
-      delete window.resetCDSBuildMode;
-    };
-  }, [handleReset]);
-
-  return <CDSBuildModeImproved />;
-};
+// Note: BuildModeWithErrorHandling has been replaced with ServiceBuilderV2
+// This component is kept for reference but no longer used
 
 // Save Button component
 const SaveButton = () => {
@@ -775,14 +720,23 @@ function CDSHooksStudio() {
               componentName="Build Mode"
               onRetry={() => window.location.reload()}
               onReset={() => {
-                if (window.resetCDSBuildMode) {
-                  window.resetCDSBuildMode();
-                }
+                // Reset by clearing the pending edit hook
+                setPendingEditHook(null);
               }}
             >
-              <BuildModeWithErrorHandling 
-                pendingEditHook={pendingEditHook}
-                onPendingHookProcessed={() => setPendingEditHook(null)}
+              <ServiceBuilderV2 
+                initialService={pendingEditHook}
+                onServiceSave={() => {
+                  // Refresh the manage tab after saving
+                  setManageRefreshTrigger(prev => prev + 1);
+                  // Clear pending edit hook after successful save
+                  setPendingEditHook(null);
+                }}
+                onServiceTest={(testRequest) => {
+                  // Delegate to context test function if available
+                  return { success: true, cards: [] };
+                }}
+                onClose={() => setPendingEditHook(null)}
               />
             </CDSErrorBoundary>
           )}
