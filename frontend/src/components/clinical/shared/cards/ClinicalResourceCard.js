@@ -125,21 +125,31 @@ const ClinicalResourceCard = ({
     p: 2,
     borderRadius: variant === 'clinical' ? '4px' : 0, // Sharp corners per default, rounded for clinical
     border: '1px solid',
-    borderColor: 'divider',
+    borderColor: theme.palette.mode === 'dark' 
+      ? alpha(theme.palette.divider, 0.3)
+      : 'divider',
     borderLeft: '4px solid',
     borderLeftColor: borderColor,
-    backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+    backgroundColor: isAlternate 
+      ? theme.palette.mode === 'dark' 
+        ? alpha(theme.palette.action.hover, 0.08)
+        : alpha(theme.palette.action.hover, 0.04)
+      : theme.palette.background.paper,
     transition: 'all 0.2s ease',
     cursor: onClick ? 'pointer' : 'default',
     '&:hover': {
-      backgroundColor: alpha(theme.palette.action.hover, 0.08),
+      backgroundColor: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.action.hover, 0.12)
+        : alpha(theme.palette.action.hover, 0.08),
       transform: 'translateX(2px)',
-      boxShadow: theme.shadows[1]
+      boxShadow: theme.palette.mode === 'dark' ? theme.shadows[2] : theme.shadows[1]
     },
     // Add urgency indicator
     ...(urgent && {
       borderColor: theme.palette.error?.main || '#f44336',
-      backgroundColor: alpha(theme.palette.error?.main || '#f44336', 0.02)
+      backgroundColor: theme.palette.mode === 'dark'
+        ? alpha(theme.palette.error?.main || '#f44336', 0.08)
+        : alpha(theme.palette.error?.main || '#f44336', 0.02)
     }),
     // Clean styling for metric variant
     ...(variant === 'metric' && {

@@ -62,12 +62,20 @@ const ClinicalSummaryCard = ({
   
   const primaryColor = accentColor || severityColors[severity] || theme.palette.primary.main;
   const backgroundColor = severity === 'critical' 
-    ? clinicalTokens.severity.high.bg 
+    ? theme.palette.mode === 'dark' 
+      ? alpha(theme.palette.error.main, 0.08)
+      : clinicalTokens.severity.high.bg 
     : severity === 'moderate'
-    ? clinicalTokens.severity.moderate.bg
+    ? theme.palette.mode === 'dark'
+      ? alpha(theme.palette.warning.main, 0.08)
+      : clinicalTokens.severity.moderate.bg
     : severity === 'low'
-    ? clinicalTokens.severity.low.bg
-    : alpha(primaryColor, 0.04);
+    ? theme.palette.mode === 'dark'
+      ? alpha(theme.palette.success.main, 0.08)
+      : clinicalTokens.severity.low.bg
+    : theme.palette.mode === 'dark'
+      ? alpha(primaryColor, 0.08)
+      : alpha(primaryColor, 0.04);
   
   return (
     <Card 
@@ -76,7 +84,9 @@ const ClinicalSummaryCard = ({
         backgroundColor,
         borderRadius: 0, // Sharp corners
         border: '1px solid',
-        borderColor: 'divider',
+        borderColor: theme.palette.mode === 'dark' 
+          ? alpha(theme.palette.divider, 0.3)
+          : 'divider',
         borderLeft: '4px solid',
         borderLeftColor: primaryColor,
         cursor: onClick ? 'pointer' : 'default',
@@ -153,7 +163,9 @@ const ClinicalSummaryCard = ({
           {icon && (
             <Avatar 
               sx={{ 
-                bgcolor: alpha(primaryColor, 0.1),
+                bgcolor: theme.palette.mode === 'dark'
+                  ? alpha(primaryColor, 0.2)
+                  : alpha(primaryColor, 0.1),
                 width: 48,
                 height: 48
               }}

@@ -443,7 +443,9 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
             elevation={0}
             sx={{
               p: 2,
-              backgroundColor: alpha(theme.palette.primary.main, 0.02),
+              backgroundColor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.primary.main, 0.08)
+                : alpha(theme.palette.primary.main, 0.02),
               border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
             }}
           >
@@ -661,7 +663,7 @@ const ParameterBuilder = ({ resource, parameters, onParametersChange }) => {
         </Button>
         
         {/* AND/OR Logic Explanation */}
-        <Paper sx={{ px: 2, py: 1, backgroundColor: alpha(theme.palette.info.main, 0.1), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`, maxWidth: 600 }}>
+        <Paper sx={{ px: 2, py: 1, backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.info.main, 0.2) : alpha(theme.palette.info.main, 0.1), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`, maxWidth: 600 }}>
           <Stack direction="row" spacing={1} alignItems="center">
             <TipIcon sx={{ fontSize: 16, color: 'info.main' }} />
             <Typography variant="caption" color="info.main">
@@ -1028,7 +1030,9 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
             {/* Compact Query Bar */}
             <Box sx={{ 
               p: 1.5, 
-              backgroundColor: alpha(theme.palette.primary.main, 0.02),
+              backgroundColor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.primary.main, 0.08)
+                : alpha(theme.palette.primary.main, 0.02),
               borderBottom: `1px solid ${theme.palette.divider}`
             }}>
               {mode === 'visual' ? (

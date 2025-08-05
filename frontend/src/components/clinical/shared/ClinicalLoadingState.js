@@ -34,9 +34,11 @@ const ResourceCardSkeleton = ({ count = 1, showIcon = true }) => {
             border: '1px solid',
             borderColor: 'divider',
             borderLeft: '4px solid',
-            borderLeftColor: theme.palette.grey[300],
+            borderLeftColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[300],
             backgroundColor: index % 2 === 1 
-              ? alpha(theme.palette.action.hover, 0.04) 
+              ? theme.palette.mode === 'dark'
+                ? alpha(theme.palette.action.hover, 0.08)
+                : alpha(theme.palette.action.hover, 0.04) 
               : theme.palette.background.paper
           }}
         >
@@ -81,7 +83,7 @@ const SummaryCardSkeleton = ({ count = 1 }) => {
             border: '1px solid',
             borderColor: 'divider',
             borderLeft: '4px solid',
-            borderLeftColor: theme.palette.grey[300]
+            borderLeftColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[300]
           }}
         >
           <CardContent>
@@ -108,6 +110,8 @@ const SummaryCardSkeleton = ({ count = 1 }) => {
  * @param {boolean} props.showHeader - Show header row
  */
 const TableSkeleton = ({ rows = 5, columns = 4, showHeader = true }) => {
+  const theme = useTheme();
+  
   return (
     <Box sx={{ width: '100%' }}>
       {showHeader && (
@@ -141,8 +145,10 @@ const TableSkeleton = ({ rows = 5, columns = 4, showHeader = true }) => {
             borderBottom: 1, 
             borderColor: 'divider',
             backgroundColor: rowIndex % 2 === 1 
-              ? alpha('#000', 0.02) 
-              : 'background.paper'
+              ? theme.palette.mode === 'dark'
+                ? alpha(theme.palette.action.hover, 0.08)
+                : alpha('#000', 0.02) 
+              : theme.palette.background.paper
           }}
         >
           {Array.from({ length: columns }).map((_, colIndex) => (

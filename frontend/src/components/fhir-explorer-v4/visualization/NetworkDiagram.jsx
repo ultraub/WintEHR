@@ -51,6 +51,7 @@ import {
   exportNetworkAsImage,
   applyClusteringForce
 } from './utils/forceNetwork';
+import { fhirRelationshipService } from '../../../services/fhirRelationshipService';
 
 // Network visualization constants
 const NODE_TYPES = {
@@ -107,8 +108,85 @@ function NetworkDiagram({ onNavigate, fhirData }) {
   // Get available patients
   const patients = fhirData?.resources?.Patient || [];
 
-  // Build network data from FHIR resources
-  const buildNetworkData = useCallback((patientId) => {
+  // Build network data from FHIR relationships API
+  const buildNetworkData = useCallback(async (patientId) => {
+    if (!patientId) return { nodes: [], links: [] };
+
+    try {
+      console.log('NetworkDiagram: Fetching relationships for patient:', patientId);
+      
+      // Use fhirRelationshipService to discover relationships
+      const relationshipData = await fhirRelationshipService.discoverRelationships(
+        'Patient', 
+        patientId, 
+        { depth: 2, includeCounts: true }
+      );
+      
+      console.log('NetworkDiagram: Raw relationship data:', relationshipData);
+      
+      // Transform to D3 format
+      const d3Data = fhirRelationshipService.transformToD3Format(relationshipData);
+      
+      console.log('NetworkDiagram: Transformed D3 data:', d3Data);
+      
+      // Map the transformed data to match NetworkDiagram's expected format
+      const nodes = d3Data.nodes.map(node => {
+        // Determine node type based on resourceType
+        let nodeType = NODE_TYPES.PATIENT;
+        switch (node.resourceType) {
+          case 'Patient':
+            nodeType = NODE_TYPES.PATIENT;
+            break;
+          case 'Practitioner':
+          case 'PractitionerRole':
+            nodeType = NODE_TYPES.PROVIDER;
+            break;
+          case 'Organization':
+            nodeType = NODE_TYPES.ORGANIZATION;
+            break;
+          case 'Encounter':
+            nodeType = NODE_TYPES.ENCOUNTER;
+            break;
+          case 'Condition':
+            nodeType = NODE_TYPES.CONDITION;
+            break;
+          case 'MedicationRequest':
+          case 'Medication':
+            nodeType = NODE_TYPES.MEDICATION;
+            break;
+          case 'Observation':
+            nodeType = NODE_TYPES.OBSERVATION;
+            break;
+        }
+        
+        return {
+          id: node.id,
+          type: nodeType,
+          name: node.display || node.id,
+          color: NODE_COLORS[nodeType] || fhirRelationshipService.getResourceColor(node.resourceType),
+          size: NODE_SIZES[nodeType] || 8,
+          resourceType: node.resourceType,
+          depth: node.depth
+        };
+      });
+      
+      const links = d3Data.links.map(link => ({
+        source: link.source,
+        target: link.target,
+        type: link.field,
+        strength: link.value || 1
+      }));
+      
+      return { nodes, links };
+    } catch (error) {
+      console.error('NetworkDiagram: Error building network data:', error);
+      setError('Failed to load network relationships');
+      return { nodes: [], links: [] };
+    }
+  }, []);
+
+  // Original buildNetworkData function (kept for reference but not used)
+  const buildNetworkDataOld = useCallback((patientId) => {
     if (!patientId || !fhirData) return { nodes: [], links: [] };
 
     const nodes = [];
@@ -407,17 +485,26 @@ function NetworkDiagram({ onNavigate, fhirData }) {
 
   // Load network data for selected patient
   useEffect(() => {
-    if (selectedPatient) {
-      setLoading(true);
-      const data = buildNetworkData(selectedPatient.id);
-      setNetworkData(data);
-      
-      // Calculate network metrics
-      const metrics = calculateNetworkMetrics(data.nodes, data.links);
-      setNetworkMetrics(metrics);
-      
-      setLoading(false);
-    }
+    const loadNetworkData = async () => {
+      if (selectedPatient) {
+        setLoading(true);
+        try {
+          const data = await buildNetworkData(selectedPatient.id);
+          setNetworkData(data);
+          
+          // Calculate network metrics
+          const metrics = calculateNetworkMetrics(data.nodes, data.links);
+          setNetworkMetrics(metrics);
+        } catch (error) {
+          console.error('Error loading network data:', error);
+          setError('Failed to load network data');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadNetworkData();
   }, [selectedPatient, buildNetworkData]);
 
   // Render network when data changes
@@ -464,10 +551,22 @@ function NetworkDiagram({ onNavigate, fhirData }) {
   };
 
   // Refresh network
-  const refreshNetwork = () => {
+  const refreshNetwork = async () => {
     if (selectedPatient) {
-      const data = buildNetworkData(selectedPatient.id);
-      setNetworkData(data);
+      setLoading(true);
+      try {
+        const data = await buildNetworkData(selectedPatient.id);
+        setNetworkData(data);
+        
+        // Recalculate metrics
+        const metrics = calculateNetworkMetrics(data.nodes, data.links);
+        setNetworkMetrics(metrics);
+      } catch (error) {
+        console.error('Error refreshing network:', error);
+        setError('Failed to refresh network data');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -516,7 +615,7 @@ function NetworkDiagram({ onNavigate, fhirData }) {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={() => selectedPatient && setNetworkData(buildNetworkData(selectedPatient.id))}
+            onClick={refreshNetwork}
             disabled={loading || !selectedPatient}
           >
             Refresh

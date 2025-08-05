@@ -560,12 +560,18 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 p: 2,
                 height: '100%',
                 borderRadius: 1,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
+                background: theme.palette.mode === 'dark' 
+                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.08)} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
                 '&:hover': {
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
                   transform: 'translateY(-2px)'
                 }
               }}
@@ -627,12 +633,18 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 p: 2,
                 height: '100%',
                 borderRadius: 1,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
+                background: theme.palette.mode === 'dark' 
+                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.08)} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
                 '&:hover': {
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
                   transform: 'translateY(-2px)'
                 }
               }}
@@ -699,12 +711,16 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 p: 2,
                 height: '100%',
                 borderRadius: 1,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.success.main, 0.02)} 100%)`,
                 '&:hover': {
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
                   transform: 'translateY(-2px)'
                 }
               }}
@@ -770,8 +786,12 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 background: activeAllergies.length > 0 
-                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`
-                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[200], 0.3)} 100%)`,
+                  ? theme.palette.mode === 'dark'
+                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.08)} 100%)`
+                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`
+                  : theme.palette.mode === 'dark'
+                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[800], 0.3)} 100%)`
+                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[200], 0.3)} 100%)`,
                 '&:hover': {
                   boxShadow: activeAllergies.length > 0 ? '0 4px 6px rgba(244,67,54,0.4)' : '0 4px 6px rgba(0,0,0,0.15)',
                   transform: 'translateY(-2px)'
@@ -989,7 +1009,9 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 p: 2,
                 height: '100%',
                 borderRadius: 1,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
                 background: lastEncounter ? 
                   `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)` :
                   theme.palette.background.paper

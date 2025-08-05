@@ -28,7 +28,8 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Popover
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -157,6 +158,12 @@ const CDSPresentation = ({
   
   // State for tracking acknowledged alerts in modal mode
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(new Set());
+  
+  // State for compact mode popover
+  const [anchorEl, setAnchorEl] = useState(null);
+  
+  // State for sidebar minimized
+  const [sidebarMinimized, setSidebarMinimized] = useState(false);
 
   // Handle alert dismissal
   const handleDismissAlert = (alert, reason = '', permanent = false) => {
@@ -465,7 +472,12 @@ const CDSPresentation = ({
     if (criticalAlerts.length === 0) return null;
 
     return (
-      <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1300 }}>
+      <Box sx={{ 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 1200,
+        width: '100%'
+      }}>
         {criticalAlerts.map((alert, index) => {
           const { content, actions } = renderAlert(alert);
           return (
@@ -473,7 +485,10 @@ const CDSPresentation = ({
               key={`critical-${alert.summary}-${index}`}
               severity="error"
               action={actions}
-              sx={{ borderRadius: 0 }}
+              sx={{ 
+                borderRadius: 0,
+                boxShadow: 2
+              }}
             >
               {content}
             </Alert>
@@ -485,26 +500,48 @@ const CDSPresentation = ({
 
   // Toast mode - Auto-hiding notifications
   if (mode === PRESENTATION_MODES.TOAST) {
+    // Stack toasts vertically with proper spacing
     return (
-      <>
+      <Box sx={{ 
+        position: 'fixed', 
+        bottom: 16, 
+        right: 16, 
+        zIndex: 1400,
+        display: 'flex',
+        flexDirection: 'column-reverse',
+        gap: 1,
+        maxWidth: 400
+      }}>
         {visibleAlerts.map((alert, index) => {
-          const { content } = renderAlert(alert, true);
+          const alertKey = `${alert.serviceId}-${alert.summary}`;
+          const isVisible = !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
+          
+          if (!isVisible) return null;
+          
+          const { content, actions } = renderAlert(alert, true);
           return (
-            <Snackbar
+            <Slide 
               key={`toast-${alert.summary}-${index}`}
-              open={open}
-              autoHideDuration={autoHide ? hideDelay : null}
-              onClose={() => setOpen(false)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              TransitionComponent={Slide}
+              direction="left" 
+              in={isVisible}
+              timeout={300}
             >
-              <Alert severity={getSeverityColor(alert.indicator)}>
+              <Alert 
+                severity={getSeverityColor(alert.indicator)}
+                onClose={() => handleAlertAction(alert, 'dismiss')}
+                sx={{ 
+                  boxShadow: 3,
+                  '& .MuiAlert-action': {
+                    alignItems: 'flex-start'
+                  }
+                }}
+              >
                 {content}
               </Alert>
-            </Snackbar>
+            </Slide>
           );
         })}
-      </>
+      </Box>
     );
   }
 
@@ -751,26 +788,247 @@ const CDSPresentation = ({
     );
   }
 
-  // Compact mode - Just icon with badge
+  // Compact mode - Icon with badge that opens a popover
   if (mode === PRESENTATION_MODES.COMPACT) {
     const criticalCount = visibleAlerts.filter(a => a.indicator === 'critical').length;
     const warningCount = visibleAlerts.filter(a => a.indicator === 'warning').length;
+    const infoCount = visibleAlerts.filter(a => a.indicator === 'info').length;
+    const totalCount = visibleAlerts.length;
 
     return (
-      <Tooltip title={`${visibleAlerts.length} CDS alerts`}>
-        <Badge 
-          badgeContent={criticalCount || warningCount} 
-          color={criticalCount > 0 ? "error" : "warning"}
-        >
-          <IconButton 
-            size="small" 
-            color={criticalCount > 0 ? "error" : "warning"}
-            onClick={() => setOpen(!open)}
+      <>
+        <Tooltip title={`${totalCount} CDS alert${totalCount > 1 ? 's' : ''}`}>
+          <Badge 
+            badgeContent={totalCount} 
+            color={criticalCount > 0 ? "error" : warningCount > 0 ? "warning" : "info"}
           >
-            {getSeverityIcon(visibleAlerts[0]?.indicator || 'info')}
-          </IconButton>
-        </Badge>
-      </Tooltip>
+            <IconButton 
+              size="small" 
+              color={criticalCount > 0 ? "error" : warningCount > 0 ? "warning" : "info"}
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{ 
+                animation: criticalCount > 0 ? 'pulse 2s infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                  '100%': { opacity: 1 }
+                }
+              }}
+            >
+              {getSeverityIcon(criticalCount > 0 ? 'critical' : warningCount > 0 ? 'warning' : 'info')}
+            </IconButton>
+          </Badge>
+        </Tooltip>
+        <Popover
+          open={Boolean(anchorEl)}
+          anchorEl={anchorEl}
+          onClose={() => setAnchorEl(null)}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          PaperProps={{
+            sx: { maxWidth: 400, maxHeight: 600 }
+          }}
+        >
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              CDS Alerts ({totalCount})
+            </Typography>
+            <Stack spacing={1} sx={{ maxHeight: 500, overflow: 'auto' }}>
+              {visibleAlerts.map((alert, index) => {
+                const { content, actions } = renderAlert(alert);
+                return (
+                  <Alert
+                    key={`compact-${alert.summary}-${index}`}
+                    severity={getSeverityColor(alert.indicator)}
+                    action={actions}
+                  >
+                    {content}
+                  </Alert>
+                );
+              })}
+            </Stack>
+          </Box>
+        </Popover>
+      </>
+    );
+  }
+
+  // Card mode - Rich card display
+  if (mode === PRESENTATION_MODES.CARD) {
+    return (
+      <Stack spacing={2}>
+        {visibleAlerts.map((alert, index) => {
+          const { content, actions } = renderAlert(alert);
+          const alertKey = `${alert.serviceId}-${alert.summary}`;
+          
+          return (
+            <Card 
+              key={`card-${alert.summary}-${index}`}
+              elevation={3}
+              sx={{
+                borderLeft: 4,
+                borderLeftColor: getSeverityColor(alert.indicator) + '.main',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  elevation: 6,
+                  transform: 'translateY(-2px)'
+                }
+              }}
+            >
+              <CardContent>
+                <Stack direction="row" spacing={2} alignItems="flex-start">
+                  <Box sx={{ pt: 0.5 }}>
+                    {getSeverityIcon(alert.indicator)}
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    {content}
+                    {alert.source && (
+                      <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                        <Chip
+                          label={alert.source.label}
+                          size="small"
+                          variant="outlined"
+                          icon={alert.source.icon ? 
+                            <img src={alert.source.icon} alt="" width={16} height={16} /> : 
+                            null
+                          }
+                        />
+                        <Chip
+                          label={new Date(alert.timestamp).toLocaleTimeString()}
+                          size="small"
+                          variant="outlined"
+                          icon={<ScheduleIcon />}
+                        />
+                      </Stack>
+                    )}
+                  </Box>
+                </Stack>
+              </CardContent>
+              {actions && (
+                <CardActions sx={{ px: 2, pb: 2 }}>
+                  {actions}
+                </CardActions>
+              )}
+            </Card>
+          );
+        })}
+      </Stack>
+    );
+  }
+
+  // Sidebar mode - Fixed side panel
+  if (mode === PRESENTATION_MODES.SIDEBAR) {
+    // Show minimized version
+    if (sidebarMinimized) {
+      return (
+        <Paper
+          elevation={3}
+          sx={{
+            position: 'fixed',
+            right: 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 1100,
+            borderRadius: 2
+          }}
+        >
+          <Tooltip title={`${visibleAlerts.length} CDS Alerts - Click to expand`}>
+            <IconButton
+              onClick={() => setSidebarMinimized(false)}
+              color={visibleAlerts.some(a => a.indicator === 'critical') ? 'error' : 
+                     visibleAlerts.some(a => a.indicator === 'warning') ? 'warning' : 'info'}
+              sx={{ p: 2 }}
+            >
+              <Badge badgeContent={visibleAlerts.length} color="error">
+                {getSeverityIcon(visibleAlerts[0]?.indicator || 'info')}
+              </Badge>
+            </IconButton>
+          </Tooltip>
+        </Paper>
+      );
+    }
+    
+    // Show full sidebar
+    return (
+      <Paper
+        elevation={3}
+        sx={{
+          position: 'fixed',
+          right: 0,
+          top: '64px', // Below app bar
+          bottom: 0,
+          width: 350,
+          zIndex: 1100,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: 2,
+          borderLeftColor: 'divider'
+        }}
+      >
+        <Box sx={{ 
+          p: 2, 
+          borderBottom: 1, 
+          borderBottomColor: 'divider',
+          bgcolor: 'background.paper'
+        }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              CDS Alerts ({visibleAlerts.length})
+            </Typography>
+            <Tooltip title="Minimize sidebar">
+              <IconButton 
+                size="small" 
+                onClick={() => setSidebarMinimized(true)}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
+        <Box sx={{ 
+          flex: 1, 
+          overflow: 'auto',
+          p: 2
+        }}>
+          <Stack spacing={2}>
+            {visibleAlerts.map((alert, index) => {
+              const { content, actions } = renderAlert(alert);
+              return (
+                <Card
+                  key={`sidebar-${alert.summary}-${index}`}
+                  variant="outlined"
+                  sx={{
+                    borderColor: getSeverityColor(alert.indicator) + '.main'
+                  }}
+                >
+                  <CardContent sx={{ pb: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                      {getSeverityIcon(alert.indicator)}
+                      <Box sx={{ flex: 1 }}>
+                        {content}
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                  {actions && (
+                    <CardActions sx={{ pt: 0 }}>
+                      <Box sx={{ width: '100%' }}>
+                        {actions}
+                      </Box>
+                    </CardActions>
+                  )}
+                </Card>
+              );
+            })}
+          </Stack>
+        </Box>
+      </Paper>
     );
   }
 

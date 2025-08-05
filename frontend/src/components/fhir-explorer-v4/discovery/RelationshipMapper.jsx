@@ -48,7 +48,11 @@ import {
   ListItemButton,
   Collapse,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Drawer,
+  Modal,
+  Fade,
+  Backdrop
 } from '@mui/material';
 import {
   Stepper,
@@ -98,7 +102,10 @@ import {
   RadioButtonUnchecked as RadioButtonUncheckedIcon,
   Circle as CircleIcon,
   CheckBox as CheckBoxIcon,
-  CompareArrows as CompareIcon
+  CompareArrows as CompareIcon,
+  Menu as MenuIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon
 } from '@mui/icons-material';
 import * as d3 from 'd3';
 
@@ -161,10 +168,11 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
-  const [showDetailsPanel, setShowDetailsPanel] = useState(true);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [comparisonNodes, setComparisonNodes] = useState([]);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeFilters, setActiveFilters] = useState({});
   const [pathFindingMode, setPathFindingMode] = useState(false);
   const [pathSource, setPathSource] = useState(null);
@@ -630,7 +638,17 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
     // Add interactions
     nodes
-      .on('click', handleNodeClick)
+      .on('click', (event, node) => {
+        // Prevent any default behavior and stop propagation immediately
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        
+        // Only handle click if not dragging
+        if (!event.defaultPrevented) {
+          handleNodeClick(event, node);
+        }
+      })
       .on('mouseenter', handleNodeHover)
       .on('mouseleave', () => {
         setHoveredNode(null);
@@ -814,23 +832,47 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     return scale(connections);
   }, [nodeConnectionCounts, layoutSettings.nodeSize]);
 
-  // Drag behavior
+  // Drag behavior with click detection
   const drag = (simulation) => {
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    
     function dragstarted(event, d) {
+      isDragging = false;
+      dragStartX = event.x;
+      dragStartY = event.y;
+      
       if (!event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x;
       d.fy = d.y;
     }
 
     function dragged(event, d) {
+      // Mark as dragging if moved more than 3 pixels
+      const dx = event.x - dragStartX;
+      const dy = event.y - dragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        isDragging = true;
+      }
+      
       d.fx = event.x;
       d.fy = event.y;
     }
 
     function dragended(event, d) {
       if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
+      
+      // Only release position if actually dragged
+      if (isDragging) {
+        d.fx = null;
+        d.fy = null;
+      } else {
+        // It was a click, not a drag - handle the click
+        d.fx = null;
+        d.fy = null;
+        // The click event will be handled by the click handler
+      }
     }
 
     return d3.drag()
@@ -841,6 +883,12 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Handle node click
   const handleNodeClick = (event, node) => {
+    // Prevent default behavior and stop propagation to avoid page refresh
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
     if (pathFindingMode) {
       // Path finding mode
       if (!pathSource) {
@@ -881,9 +929,12 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       setSelectedNode(node);
       setSelectedNodes(new Set([node.id]));
       updateNodeSelection(new Set([node.id]));
+      setShowDetailsModal(true); // Show modal instead of panel
       
       if (onResourceSelect) {
-        onResourceSelect(node.resourceType, node.id.split('/')[1]);
+        // Extract the ID from the node.id which is in format "ResourceType/id"
+        const [resourceType, resourceId] = node.id.split('/');
+        onResourceSelect(resourceType, resourceId);
       }
     }
   };
@@ -1293,20 +1344,11 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   </Badge>
                 </ToggleButton>
               </Tooltip>
-              <Tooltip title={showDetailsPanel ? "Hide Details" : "Show Details"}>
-                <IconButton 
-                  onClick={() => setShowDetailsPanel(!showDetailsPanel)} 
-                  size="small"
-                  color={showDetailsPanel ? "primary" : "default"}
-                >
-                  <InfoIcon />
-                </IconButton>
-              </Tooltip>
               <Tooltip title="Filter Options">
                 <IconButton 
-                  onClick={() => setShowFilterPanel(!showFilterPanel)} 
+                  onClick={() => setShowFilterModal(true)} 
                   size="small"
-                  color={showFilterPanel ? "primary" : "default"}
+                  color={Object.keys(activeFilters).length > 0 ? "primary" : "default"}
                 >
                   <Badge badgeContent={Object.keys(activeFilters).length} color="secondary">
                     <FilterIcon />
@@ -1328,35 +1370,38 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <Grid container sx={{ height: '100%' }} spacing={0}>
-          {/* Filter Panel */}
-          {showFilterPanel && (
-            <Grid item xs={12} md={2} sx={{ 
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* Collapsible Sidebar */}
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: sidebarCollapsed ? 60 : 320,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: sidebarCollapsed ? 60 : 320,
+              position: 'relative',
               height: '100%',
-              overflow: 'hidden',
-              borderRight: 1,
-              borderColor: 'divider'
-            }}>
-              <RelationshipFilterPanel
-                onFiltersChange={setActiveFilters}
-                availableResourceTypes={Array.from(visibleNodeTypes)}
-                currentFilters={activeFilters}
-                nodeCount={relationshipData?.nodes?.length || 0}
-                linkCount={relationshipData?.links?.length || 0}
-              />
-            </Grid>
-          )}
-
-          {/* Left Panel */}
-          <Grid item xs={12} md={showFilterPanel ? 2 : 3} sx={{ 
-            borderRight: 1, 
-            borderColor: 'divider', 
-            overflow: 'auto',
-            maxHeight: '100%',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
+              transition: theme => theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
+              overflowX: 'hidden',
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, borderBottom: 1, borderColor: 'divider' }}>
+            {!sidebarCollapsed && (
+              <Typography variant="subtitle2" sx={{ ml: 1 }}>
+                Explorer
+              </Typography>
+            )}
+            <IconButton onClick={() => setSidebarCollapsed(!sidebarCollapsed)} size="small">
+              {sidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </IconButton>
+          </Box>
+          
+          {!sidebarCollapsed && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} variant="fullWidth">
               <Tab label="Explorer" />
               <Tab label="Statistics" />
@@ -1488,20 +1533,20 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 {renderStatistics()}
               </Box>
             )}
-          </Grid>
+          </Box>
+          )}
+        </Drawer>
 
-          {/* Visualization Panel */}
-          <Grid item xs={12} md={showFilterPanel 
-              ? (showDetailsPanel && selectedNode ? 5 : 8) 
-              : (showDetailsPanel && selectedNode ? 6 : 9)
-          } sx={{ 
-            position: 'relative', 
-            height: '100%', 
-            minHeight: '600px',
-            display: 'flex',
-            flexDirection: 'column',
-            transition: 'all 0.3s ease'
-          }}>
+        {/* Visualization Panel */}
+        <Box sx={{ 
+          flex: 1, 
+          position: 'relative',
+          height: '100%', 
+          minHeight: '600px',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'all 0.3s ease'
+        }}>
             {(loadingStates.relationships || loadingStates.pathFinding || loadingStates.search || loadingStates.export) && (
               <Box sx={{ 
                 position: 'absolute', 
@@ -1558,6 +1603,17 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   overflow: 'visible',
                   display: 'block'
                 }}
+                onClick={(e) => {
+                  // Prevent any default click behavior on the SVG itself
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => {
+                  // Prevent text selection and other default behaviors
+                  if (e.button === 0) { // Left click only
+                    e.preventDefault();
+                  }
+                }}
               />
 
               {/* Zoom indicator */}
@@ -1575,20 +1631,65 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 </Typography>
               </Paper>
             </Box>
-          </Grid>
+        </Box>
 
-          {/* Resource Details Panel or Path Finding Panel */}
-          {(pathFindingMode || (showDetailsPanel && selectedNode)) && (
-            <Grid item xs={12} md={3} sx={{ 
-              height: '100%',
-              overflow: 'hidden',
-              borderLeft: 1,
-              borderColor: 'divider'
-            }}>
-              {pathFindingMode ? (
-                <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
-                  <Typography variant="h6" gutterBottom>
-                    Path Finding Mode
+        {/* Resource Details Modal */}
+        <Modal
+          open={showDetailsModal && selectedNode !== null}
+          onClose={() => setShowDetailsModal(false)}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <Box sx={{ 
+            width: '90%',
+            maxWidth: 800,
+            maxHeight: '90vh',
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            boxShadow: 24,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <ResourceDetailsPanel
+              selectedNode={selectedNode}
+              onClose={() => setShowDetailsModal(false)}
+              onResourceSelect={(resourceType, resourceId) => {
+                loadRelationships(resourceType, resourceId);
+                setShowDetailsModal(false);
+              }}
+              onAddToComparison={(node) => {
+                setComparisonNodes(prev => [...prev, node]);
+              }}
+              onFindPath={(source, target) => {
+                setPathFindingMode(true);
+                setPathSource(source);
+                setPathTarget(target);
+                findPaths(source, target);
+                setShowDetailsModal(false);
+              }}
+              width="100%"
+            />
+          </Box>
+        </Modal>
+
+        {/* Path Finding Panel - Keep as side panel */}
+        {pathFindingMode && (
+          <Paper sx={{ 
+            position: 'absolute',
+            right: 16,
+            top: 16,
+            width: 320,
+            maxHeight: 'calc(100% - 32px)',
+            p: 2,
+            overflow: 'auto',
+            zIndex: 10
+          }}>
+            <Typography variant="h6" gutterBottom>
+              Path Finding Mode
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                   
@@ -1659,28 +1760,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                       Exit Path Finding Mode
                     </Button>
                   </Stack>
-                </Paper>
-              ) : (
-                <ResourceDetailsPanel
-                  selectedNode={selectedNode}
-                  onClose={() => setSelectedNode(null)}
-                  onResourceSelect={(resourceType, resourceId) => {
-                    loadRelationships(resourceType, resourceId);
-                  }}
-                  onAddToComparison={(node) => {
-                    setComparisonNodes(prev => [...prev, node]);
-                  }}
-                  onFindPath={(source, target) => {
-                    setPathFindingMode(true);
-                    setPathSource(source);
-                    setPathTarget(target);
-                    findPaths(source, target);
-                  }}
-                />
-              )}
-            </Grid>
-          )}
-        </Grid>
+          </Paper>
+        )}
       </Box>
 
       {/* Settings Dialog */}
@@ -1875,6 +1956,38 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Filter Modal */}
+      <Modal
+        open={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Box sx={{ 
+          width: '90%',
+          maxWidth: 600,
+          maxHeight: '90vh',
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 24,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <RelationshipFilterPanel
+            visibleNodeTypes={visibleNodeTypes}
+            onVisibleNodeTypesChange={setVisibleNodeTypes}
+            activeFilters={activeFilters}
+            onFiltersChange={setActiveFilters}
+            relationshipData={relationshipData}
+            onClose={() => setShowFilterModal(false)}
+          />
+        </Box>
+      </Modal>
     </Box>
   );
 }

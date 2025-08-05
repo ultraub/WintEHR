@@ -17,6 +17,7 @@ import MedicationReconciliationPage from '../pages/MedicationReconciliationPage'
 import VitalSignsPage from '../pages/VitalSignsPage';
 import TrainingCenterPage from '../pages/TrainingCenterPage';
 import CDSHooksStudio from '../pages/CDSHooksStudio';
+import CDSPresentationModeTester from '../components/clinical/cds/CDSPresentationModeTester';
 import EncountersPage from '../pages/EncountersPage';
 import LabResultsPage from '../pages/LabResultsPage';
 import MedicationsPage from '../pages/MedicationsPage';
@@ -231,6 +232,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <CDSHooksStudio />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/cds-presentation-test',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <CDSPresentationModeTester />
         </LayoutV3>
       </ProtectedRoute>
     )

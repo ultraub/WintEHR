@@ -285,14 +285,17 @@ const SearchBar = ({ compact = false }) => {
             p: '2px 4px',
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: alpha(theme.palette.action.hover, 0.5),
+            backgroundColor: 'background.paper',
             border: 1,
             borderColor: 'divider',
+            transition: 'all 0.2s ease',
             '&:hover': {
-              backgroundColor: theme.palette.action.hover,
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              borderColor: theme.palette.primary.main,
             },
             '&:focus-within': {
-              backgroundColor: 'background.paper',
+              backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              borderColor: theme.palette.primary.main,
               boxShadow: 1,
             }
           }}

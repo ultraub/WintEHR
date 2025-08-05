@@ -449,6 +449,148 @@ class SearchService {
   getMetrics() {
     return { ...this.searchMetrics };
   }
+
+  // Search all resources - convenience method for SearchBar
+  async searchAll(query, limit = 10) {
+    try {
+      // Search both FHIR resources and clinical catalogs
+      // Use catalog search for clinical resources as it searches actual patient data
+      const [catalogResults, patientResults] = await Promise.allSettled([
+        // Search clinical catalogs for medications, conditions, labs
+        this.searchCatalog(query, {
+          resourceTypes: ['Medication', 'Condition', 'Observation'],
+          limit: limit * 2 // Get more results to filter
+        }),
+        // Search FHIR for patients
+        this.searchFHIR(query, {
+          resourceTypes: ['Patient'],
+          limit
+        })
+      ]);
+
+      // Initialize grouped results
+      const groupedResults = {
+        patients: [],
+        medications: [],
+        conditions: [],
+        labTests: [],
+        procedures: []
+      };
+
+      // Process patient results
+      if (patientResults.status === 'fulfilled' && patientResults.value) {
+        groupedResults.patients = patientResults.value.slice(0, limit);
+      }
+
+      // Process catalog results
+      if (catalogResults.status === 'fulfilled' && catalogResults.value) {
+        catalogResults.value.forEach(resource => {
+          const resourceType = resource.resourceType?.toLowerCase();
+          
+          switch (resourceType) {
+            case 'medication':
+              if (groupedResults.medications.length < limit) {
+                // Transform for display
+                groupedResults.medications.push({
+                  ...resource,
+                  display: resource.display || resource.code?.text,
+                  code: resource.code?.coding?.[0]?.code
+                });
+              }
+              break;
+              
+            case 'condition':
+              if (groupedResults.conditions.length < limit) {
+                // Transform for display
+                groupedResults.conditions.push({
+                  ...resource,
+                  display: resource.display || resource.code?.text,
+                  code: resource.code?.coding?.[0]?.code
+                });
+              }
+              break;
+              
+            case 'observation':
+              // Filter for lab tests
+              const isLab = resource.category?.some(cat => 
+                cat.coding?.some(coding => 
+                  coding.code === 'laboratory' || 
+                  coding.code === 'lab'
+                )
+              ) || resource.category === 'laboratory';
+              
+              if (isLab && groupedResults.labTests.length < limit) {
+                groupedResults.labTests.push({
+                  ...resource,
+                  display: resource.display || resource.code?.text,
+                  code: resource.code?.coding?.[0]?.code
+                });
+              }
+              break;
+              
+            case 'procedure':
+              if (groupedResults.procedures.length < limit) {
+                groupedResults.procedures.push({
+                  ...resource,
+                  display: resource.display || resource.code?.text,
+                  code: resource.code?.coding?.[0]?.code
+                });
+              }
+              break;
+          }
+        });
+      }
+
+      // If no catalog results for medications/conditions, try direct search
+      if (groupedResults.medications.length === 0 || groupedResults.conditions.length === 0) {
+        try {
+          // Search all dynamic catalogs as fallback
+          const allCatalogs = await cdsClinicalDataService.searchAllDynamicCatalogs(query, limit);
+          
+          if (allCatalogs.medications && groupedResults.medications.length === 0) {
+            groupedResults.medications = allCatalogs.medications.slice(0, limit).map(med => ({
+              ...med,
+              resourceType: 'Medication',
+              display: med.display || med.name,
+              code: med.code
+            }));
+          }
+          
+          if (allCatalogs.conditions && groupedResults.conditions.length === 0) {
+            groupedResults.conditions = allCatalogs.conditions.slice(0, limit).map(cond => ({
+              ...cond,
+              resourceType: 'Condition',
+              display: cond.display || cond.name,
+              code: cond.code
+            }));
+          }
+          
+          if (allCatalogs.labs && groupedResults.labTests.length === 0) {
+            groupedResults.labTests = allCatalogs.labs.slice(0, limit).map(lab => ({
+              ...lab,
+              resourceType: 'Observation',
+              display: lab.display || lab.name,
+              code: lab.code
+            }));
+          }
+        } catch (error) {
+          console.warn('Fallback catalog search failed:', error);
+        }
+      }
+
+      return groupedResults;
+      
+    } catch (error) {
+      console.error('searchAll failed:', error);
+      return {
+        patients: [],
+        medications: [],
+        conditions: [],
+        labTests: [],
+        procedures: []
+      };
+    }
+  }
 }
 
 // Export singleton instance

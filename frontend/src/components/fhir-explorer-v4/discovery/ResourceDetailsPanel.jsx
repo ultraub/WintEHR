@@ -351,7 +351,11 @@ function ResourceDetailsPanel({
                 {resources.slice(0, 5).map((resource, idx) => (
                   <ListItemButton
                     key={idx}
-                    onClick={() => onResourceSelect?.(resourceType, resource.id.split('/')[1])}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onResourceSelect?.(resourceType, resource.id.split('/')[1]);
+                    }}
                     sx={{ pl: 4, py: 0.5 }}
                   >
                     <ListItemText 

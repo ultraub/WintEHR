@@ -46,7 +46,8 @@ import {
   ListItemIcon,
   ListItemButton,
   Collapse,
-  CircularProgress
+  CircularProgress,
+  useTheme
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -124,6 +125,7 @@ const COMMON_QUERIES = [
 ];
 
 function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryHistory }) {
+  const theme = useTheme();
   // State management
   const [query, setQuery] = useState({
     resourceType: '',
@@ -611,7 +613,7 @@ function VisualQueryBuilder({ onNavigate, onExecuteQuery, useFHIRData, useQueryH
               <CardContent>
                 <Stack spacing={2}>
                   {query.hasParams.map((param, index) => (
-                    <Paper key={index} sx={{ p: 2, bgcolor: 'background.default' }}>
+                    <Paper key={index} sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'background.default' }}>
                       <Grid container spacing={2}>
                         <Grid item xs={3}>
                           <TextField
