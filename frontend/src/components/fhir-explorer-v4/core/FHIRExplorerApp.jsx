@@ -311,7 +311,7 @@ function FHIRExplorerApp() {
             isMobile={isMobile}
             fhirData={fhirData}
             dataLoading={fhirData.loading}
-            autoCollapse={true}
+            autoCollapse={false}
           >
             <Fade in={!loading} timeout={300}>
               <Box>

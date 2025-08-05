@@ -71,12 +71,40 @@ import VitalSignsChart from './components/VitalSignsChart';
 import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
 import { getChartColors } from '../../../themes/chartColors';
 
+// Safe wrapper component for charts to handle errors
+class SafeChartWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Chart rendering error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: this.props.height || 300 }}>
+          <Typography variant="body2" color="text.secondary">Error rendering chart</Typography>
+        </Box>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function DataCharts({ onNavigate, fhirData }) {
   const theme = useTheme();
   const chartColors = getChartColors(theme);
   
-  // Use the palette colors for charts
-  const CHART_COLORS = chartColors.palette;
+  // Use the palette colors for charts with fallback
+  const CHART_COLORS = chartColors?.palette || ['#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2', '#0288D1', '#388E3C', '#FFA726'];
   
   const [currentTab, setCurrentTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -85,11 +113,11 @@ function DataCharts({ onNavigate, fhirData }) {
   const [selectedChartType, setSelectedChartType] = useState('bar');
   const [aggregationPeriod, setAggregationPeriod] = useState('month');
   
-  // Analytics data state
-  const [demographicsData, setDemographicsData] = useState(null);
-  const [diseasePrevalenceData, setDiseasePrevalenceData] = useState(null);
-  const [medicationPatternsData, setMedicationPatternsData] = useState(null);
-  const [vitalSignsData, setVitalSignsData] = useState(null);
+  // Analytics data state - Initialize with empty structures to avoid null issues
+  const [demographicsData, setDemographicsData] = useState({ ageGroups: [], genderDistribution: [], totalPatients: 0 });
+  const [diseasePrevalenceData, setDiseasePrevalenceData] = useState([]);
+  const [medicationPatternsData, setMedicationPatternsData] = useState([]);
+  const [vitalSignsData, setVitalSignsData] = useState({});
   const [refreshInterval, setRefreshInterval] = useState(null);
 
   // Process FHIR data into analytics
@@ -101,25 +129,26 @@ function DataCharts({ onNavigate, fhirData }) {
     
     try {
       // Process demographics from Patient resources
-      const patients = fhirData.resources.Patient || [];
+      const patients = Array.isArray(fhirData.resources.Patient) ? fhirData.resources.Patient : [];
       const demographics = processPatientDemographics(patients);
       setDemographicsData(demographics);
       
       // Process disease prevalence from Condition resources
-      const conditions = fhirData.resources.Condition || [];
+      const conditions = Array.isArray(fhirData.resources.Condition) ? fhirData.resources.Condition : [];
       const diseases = processDiseasePrevalence(conditions);
       setDiseasePrevalenceData(diseases);
       
       // Process medication patterns from MedicationRequest resources
-      const medications = fhirData.resources.MedicationRequest || [];
+      const medications = Array.isArray(fhirData.resources.MedicationRequest) ? fhirData.resources.MedicationRequest : [];
       const medPatterns = processMedicationPatterns(medications);
       setMedicationPatternsData(medPatterns);
       
       // Process vital signs from Observation resources
-      const observations = fhirData.resources.Observation || [];
+      const observations = Array.isArray(fhirData.resources.Observation) ? fhirData.resources.Observation : [];
       const vitals = processVitalSigns(observations);
       setVitalSignsData(vitals);
     } catch (err) {
+      console.error('Error processing analytics data:', err);
       setError(err.message || 'Failed to process analytics data');
     } finally {
       setLoading(false);
@@ -128,10 +157,20 @@ function DataCharts({ onNavigate, fhirData }) {
 
   // Process patient demographics
   const processPatientDemographics = (patients) => {
+    if (!Array.isArray(patients) || patients.length === 0) {
+      return {
+        ageGroups: [],
+        genderDistribution: [],
+        totalPatients: 0
+      };
+    }
+    
     const ageGroups = { '0-17': 0, '18-34': 0, '35-49': 0, '50-64': 0, '65+': 0 };
     const genderDistribution = { male: 0, female: 0, other: 0 };
     
     patients.forEach(patient => {
+      if (!patient) return;
+      
       // Age calculation
       if (patient.birthDate) {
         const age = new Date().getFullYear() - new Date(patient.birthDate).getFullYear();
@@ -148,39 +187,49 @@ function DataCharts({ onNavigate, fhirData }) {
     });
     
     return {
-      ageGroups: Object.entries(ageGroups).map(([name, value]) => ({ name, value })),
-      genderDistribution: Object.entries(genderDistribution).map(([name, value]) => ({ name, value })),
+      ageGroups: Object.entries(ageGroups).map(([name, value]) => ({ name, value: value || 0 })),
+      genderDistribution: Object.entries(genderDistribution).map(([name, value]) => ({ name, value: value || 0 })),
       totalPatients: patients.length
     };
   };
 
   // Process disease prevalence
   const processDiseasePrevalence = (conditions) => {
+    if (!Array.isArray(conditions) || conditions.length === 0) {
+      return [];
+    }
+    
     const diseaseCount = {};
     
     conditions.forEach(condition => {
+      if (!condition) return;
       const code = condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown';
       diseaseCount[code] = (diseaseCount[code] || 0) + 1;
     });
     
     return Object.entries(diseaseCount)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => ({ name, value: value || 0 }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10); // Top 10
   };
 
   // Process medication patterns
   const processMedicationPatterns = (medications) => {
+    if (!Array.isArray(medications) || medications.length === 0) {
+      return [];
+    }
+    
     const medCount = {};
     
     medications.forEach(med => {
+      if (!med) return;
       const name = med.medicationCodeableConcept?.text || 
                    med.medicationCodeableConcept?.coding?.[0]?.display || 'Unknown';
       medCount[name] = (medCount[name] || 0) + 1;
     });
     
     return Object.entries(medCount)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => ({ name, value: value || 0 }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10); // Top 10
   };
@@ -234,34 +283,64 @@ function DataCharts({ onNavigate, fhirData }) {
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <Paper sx={{ p: 2, border: '1px solid #ccc' }}>
-          <Typography variant="body2" fontWeight="bold">{label}</Typography>
-          {payload.map((entry, index) => (
-            <Typography key={index} variant="body2" color={entry.color}>
-              {`${entry.name}: ${entry.value} (${entry.payload.percentage?.toFixed(1)}%)`}
-            </Typography>
-          ))}
-        </Paper>
-      );
+    try {
+      if (active && payload && Array.isArray(payload) && payload.length > 0) {
+        return (
+          <Paper sx={{ p: 2, border: '1px solid #ccc' }}>
+            <Typography variant="body2" fontWeight="bold">{label || ''}</Typography>
+            {payload.filter(entry => entry != null).map((entry, index) => {
+              const percentage = entry?.payload?.percentage;
+              const percentageText = percentage !== undefined && percentage !== null ? ` (${percentage.toFixed(1)}%)` : '';
+              return (
+                <Typography key={`tooltip-${index}`} variant="body2" color={entry?.color || 'inherit'}>
+                  {`${entry?.name || 'Unknown'}: ${entry?.value || 0}${percentageText}`}
+                </Typography>
+              );
+            })}
+          </Paper>
+        );
+      }
+    } catch (error) {
+      console.error('Error in CustomTooltip:', error);
     }
     return null;
   };
 
   // Demographics Charts Tab
   const DemographicsTab = () => {
-    if (!demographicsData) return <CircularProgress />;
+    const totalPatients = Math.max(demographicsData?.totalPatients || 0, 1);
     
-    const totalPatients = demographicsData.totalPatients || 1;
-    const ageGroupsWithPercentages = demographicsData.ageGroups.map(item => ({
-      ...item,
-      percentage: (item.value / totalPatients * 100)
-    }));
-    const genderWithPercentages = demographicsData.genderDistribution.map(item => ({
-      ...item,  
-      percentage: (item.value / totalPatients * 100)
-    }));
+    const ageGroupsWithPercentages = useMemo(() => {
+      if (!demographicsData?.ageGroups) return [];
+      return demographicsData.ageGroups
+        .filter(item => item && typeof item.value === 'number' && item.value >= 0)
+        .map(item => ({
+          ...item,
+          name: item.name || 'Unknown',
+          value: item.value || 0,
+          percentage: (item.value / totalPatients * 100)
+        }));
+    }, [demographicsData?.ageGroups, totalPatients]);
+    
+    const genderWithPercentages = useMemo(() => {
+      if (!demographicsData?.genderDistribution) return [];
+      return demographicsData.genderDistribution
+        .filter(item => item && typeof item.value === 'number' && item.value >= 0)
+        .map(item => ({
+          ...item,
+          name: item.name || 'Unknown',
+          value: item.value || 0,
+          percentage: (item.value / totalPatients * 100)
+        }));
+    }, [demographicsData?.genderDistribution, totalPatients]);
+    
+    if (!demographicsData || !demographicsData.ageGroups || !demographicsData.genderDistribution) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
 
     return (
       <Grid container spacing={3}>
@@ -285,54 +364,67 @@ function DataCharts({ onNavigate, fhirData }) {
               }
             />
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                {selectedChartType === 'bar' && (
-                  <BarChart data={ageGroupsWithPercentages}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <RechartsTooltip content={<CustomTooltip />} />
-                    <Bar dataKey="value" fill={CHART_COLORS[0]} />
-                  </BarChart>
-                )}
-                {selectedChartType === 'line' && (
-                  <LineChart data={ageGroupsWithPercentages}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <RechartsTooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} />
-                  </LineChart>
-                )}
-                {selectedChartType === 'area' && (
-                  <AreaChart data={ageGroupsWithPercentages}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <RechartsTooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="value" fill={CHART_COLORS[0]} stroke={CHART_COLORS[0]} />
-                  </AreaChart>
-                )}
-                {selectedChartType === 'pie' && (
-                  <PieChart>
-                    <Pie
-                      data={ageGroupsWithPercentages}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {ageGroupsWithPercentages.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip content={<CustomTooltip />} />
-                  </PieChart>
-                )}
-              </ResponsiveContainer>
+              {Array.isArray(ageGroupsWithPercentages) && ageGroupsWithPercentages.length > 0 ? (
+                <SafeChartWrapper height={300}>
+                  {selectedChartType === 'bar' && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={ageGroupsWithPercentages}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Bar dataKey="value" fill={CHART_COLORS[0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChartType === 'line' && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={ageGroupsWithPercentages}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChartType === 'area' && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={ageGroupsWithPercentages}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Area type="monotone" dataKey="value" fill={CHART_COLORS[0]} stroke={CHART_COLORS[0]} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChartType === 'pie' && (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={ageGroupsWithPercentages}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {ageGroupsWithPercentages.map((entry, index) => (
+                            <Cell key={`cell-age-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </SafeChartWrapper>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+                  <Typography variant="body2" color="text.secondary">No data available</Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -350,25 +442,32 @@ function DataCharts({ onNavigate, fhirData }) {
               }
             />
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={genderWithPercentages}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percentage }) => `${name} ${percentage?.toFixed(1)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {genderWithPercentages.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              {Array.isArray(genderWithPercentages) && genderWithPercentages.length > 0 ? (
+                <SafeChartWrapper height={300}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={genderWithPercentages}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {genderWithPercentages.map((entry, index) => (
+                          <Cell key={`cell-gender-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </SafeChartWrapper>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+                  <Typography variant="body2" color="text.secondary">No data available</Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -378,8 +477,29 @@ function DataCharts({ onNavigate, fhirData }) {
 
   // Clinical Analytics Tab
   const ClinicalAnalyticsTab = () => {
-    const diseaseData = diseasePrevalenceData;
-    const medicationData = medicationPatternsData;
+    // Calculate total for percentage calculations
+    const totalDiseases = diseasePrevalenceData?.reduce((sum, item) => sum + (item?.value || 0), 0) || 1;
+    const totalMedications = medicationPatternsData?.reduce((sum, item) => sum + (item?.value || 0), 0) || 1;
+    
+    // Add percentage to disease data
+    const diseaseData = (diseasePrevalenceData || []).map(item => ({
+      ...item,
+      percentage: (item.value / totalDiseases * 100)
+    }));
+    
+    // Add percentage to medication data
+    const medicationData = (medicationPatternsData || []).map(item => ({
+      ...item,
+      percentage: (item.value / totalMedications * 100)
+    }));
+    
+    if (!diseasePrevalenceData && !medicationPatternsData) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
 
     return (
       <Grid container spacing={3}>
@@ -396,15 +516,23 @@ function DataCharts({ onNavigate, fhirData }) {
               }
             />
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={diseaseData} layout="horizontal">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={120} />
-                  <RechartsTooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" fill={CHART_COLORS[3]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {Array.isArray(diseaseData) && diseaseData.length > 0 ? (
+                <SafeChartWrapper height={400}>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={diseaseData} layout="horizontal">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="name" type="category" width={120} />
+                      <RechartsTooltip />
+                      <Bar dataKey="value" fill={CHART_COLORS[3]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </SafeChartWrapper>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+                  <Typography variant="body2" color="text.secondary">No condition data available</Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -422,25 +550,32 @@ function DataCharts({ onNavigate, fhirData }) {
               }
             />
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <PieChart>
-                  <Pie
-                    data={medicationData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percentage }) => `${name} ${percentage?.toFixed(1)}%`}
-                    outerRadius={120}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {medicationData?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              {Array.isArray(medicationData) && medicationData.length > 0 ? (
+                <SafeChartWrapper height={400}>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <PieChart>
+                      <Pie
+                        data={medicationData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {medicationData.map((entry, index) => (
+                          <Cell key={`cell-med-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </SafeChartWrapper>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+                  <Typography variant="body2" color="text.secondary">No medication data available</Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -551,20 +686,28 @@ function DataCharts({ onNavigate, fhirData }) {
               }
             />
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={trendsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <RechartsTooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="Patient" stroke={chartColors.timeline.patient} strokeWidth={2} />
-                  <Line type="monotone" dataKey="Encounter" stroke={chartColors.timeline.encounter} strokeWidth={2} />
-                  <Line type="monotone" dataKey="Observation" stroke={chartColors.timeline.observation} strokeWidth={2} />
-                  <Line type="monotone" dataKey="Condition" stroke={chartColors.timeline.condition} strokeWidth={2} />
-                  <Line type="monotone" dataKey="MedicationRequest" stroke={chartColors.timeline.medication} strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+              {Array.isArray(trendsData) && trendsData.length > 0 ? (
+                <SafeChartWrapper height={400}>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={trendsData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <RechartsTooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="Patient" stroke={chartColors?.timeline?.patient || CHART_COLORS[0]} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Encounter" stroke={chartColors?.timeline?.encounter || CHART_COLORS[1]} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Observation" stroke={chartColors?.timeline?.observation || CHART_COLORS[2]} strokeWidth={2} />
+                      <Line type="monotone" dataKey="Condition" stroke={chartColors?.timeline?.condition || CHART_COLORS[3]} strokeWidth={2} />
+                      <Line type="monotone" dataKey="MedicationRequest" stroke={chartColors?.timeline?.medication || CHART_COLORS[4]} strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </SafeChartWrapper>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+                  <Typography variant="body2" color="text.secondary">No trends data available</Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -572,12 +715,12 @@ function DataCharts({ onNavigate, fhirData }) {
     );
   };
 
-  const tabLabels = [
-    { label: 'Demographics', icon: <PeopleIcon /> },
-    { label: 'Clinical Analytics', icon: <AnalyticsIcon /> },
-    { label: 'Vital Signs', icon: <HealthIcon /> },
-    { label: 'Trends', icon: <TrendingUpIcon /> }
-  ];
+  const tabLabels = useMemo(() => [
+    { label: 'Demographics', icon: PeopleIcon },
+    { label: 'Clinical Analytics', icon: AnalyticsIcon },
+    { label: 'Vital Signs', icon: HealthIcon },
+    { label: 'Trends', icon: TrendingUpIcon }
+  ], []);
 
   return (
     <Box>
@@ -613,12 +756,20 @@ function DataCharts({ onNavigate, fhirData }) {
           </Grid>
           <Grid item xs={12} md={6}>
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              <Chip
-                label={loading ? 'Loading...' : 'Live Data'}
-                color={loading ? 'warning' : 'success'}
-                size="small"
-                icon={loading ? <CircularProgress size={16} /> : <AnalyticsIcon />}
-              />
+              {loading ? (
+                <Chip
+                  label="Loading..."
+                  color="warning"
+                  size="small"
+                />
+              ) : (
+                <Chip
+                  label="Live Data"
+                  color="success"
+                  size="small"
+                  icon={<AnalyticsIcon />}
+                />
+              )}
               {autoRefresh && (
                 <Chip
                   label="Auto-refresh ON"
@@ -648,14 +799,18 @@ function DataCharts({ onNavigate, fhirData }) {
           indicatorColor="primary"
           textColor="primary"
         >
-          {tabLabels.map((tab, index) => (
-            <Tab
-              key={index}
-              label={tab.label}
-              icon={tab.icon}
-              iconPosition="start"
-            />
-          ))}
+          {tabLabels.map((tab, index) => {
+            if (!tab || !tab.label) return null;
+            const TabIcon = tab.icon;
+            return (
+              <Tab
+                key={`tab-${index}`}
+                label={tab.label}
+                icon={TabIcon ? <TabIcon /> : null}
+                iconPosition="start"
+              />
+            );
+          }).filter(Boolean)}
         </Tabs>
       </Paper>
 

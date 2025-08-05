@@ -44,13 +44,13 @@ const ChartTypeSelector = ({ value, onChange, availableTypes = CHART_TYPES.map(t
         size="small"
       >
         {filteredTypes.map(type => (
-          <ToggleButton key={type.value} value={type.value}>
-            <Tooltip title={type.label}>
+          <Tooltip key={type.value} title={type.label}>
+            <ToggleButton value={type.value}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                {type.icon}
+                {type.icon || <span />}
               </Box>
-            </Tooltip>
-          </ToggleButton>
+            </ToggleButton>
+          </Tooltip>
         ))}
       </ToggleButtonGroup>
     </Box>

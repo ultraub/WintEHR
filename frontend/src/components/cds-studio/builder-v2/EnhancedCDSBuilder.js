@@ -337,11 +337,37 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
     // Conditions validation with catalog integration checks
     if (data.conditions && data.conditions.length > 0) {
       data.conditions.forEach((condition, index) => {
-        if (condition.useCatalog && !condition.catalogCode && !condition.catalogSearch) {
-          newValidation.conditions.errors.push(
-            `Condition ${index + 1}: Catalog integration enabled but no catalog data selected`
-          );
-          newValidation.conditions.isValid = false;
+        if (condition.useCatalog) {
+          let hasValidCatalogData = false;
+          
+          // Check based on condition type
+          switch (condition.type) {
+            case 'lab_value':
+              hasValidCatalogData = condition.labTest && condition.labTestDisplay;
+              break;
+            case 'medication':
+              hasValidCatalogData = condition.medication || 
+                                   (condition.medications && condition.medications.length > 0) || 
+                                   condition.drugClass;
+              break;
+            case 'condition':
+              hasValidCatalogData = condition.conditionCode && condition.conditionDisplay;
+              break;
+            case 'vital_sign':
+              // Vital signs may not always require catalog data
+              hasValidCatalogData = true;
+              break;
+            default:
+              // For non-catalog types (age, gender), skip validation
+              hasValidCatalogData = true;
+          }
+          
+          if (!hasValidCatalogData) {
+            newValidation.conditions.errors.push(
+              `Condition ${index + 1}: Catalog integration enabled but no catalog data selected`
+            );
+            newValidation.conditions.isValid = false;
+          }
         }
       });
     }
