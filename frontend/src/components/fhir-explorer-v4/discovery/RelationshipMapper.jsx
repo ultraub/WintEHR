@@ -343,12 +343,18 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         );
       });
 
+      console.log('Raw relationship data from API:', data); // Debug logging
+
       if (!data || !data.nodes) {
         throw new Error('Invalid response format from API');
       }
 
       // Transform to D3 format
       const d3Data = fhirRelationshipService.transformToD3Format(data);
+      
+      console.log('Transformed D3 data:', d3Data); // Debug logging
+      console.log('Number of nodes:', d3Data.nodes?.length || 0); // Debug logging
+      console.log('Number of links:', d3Data.links?.length || 0); // Debug logging
       
       // Validate D3 data
       if (!d3Data.nodes || d3Data.nodes.length === 0) {

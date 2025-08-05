@@ -36,6 +36,7 @@ import {
   Info as InfoIcon,
   Close as CloseIcon,
   CheckCircle as AcceptIcon,
+  CheckCircle as CheckCircleIcon,
   Cancel as RejectIcon,
   Lightbulb as SuggestionIcon,
   Link as LinkIcon,
@@ -153,6 +154,9 @@ const CDSPresentation = ({
   const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
   const [alertToSnooze, setAlertToSnooze] = useState(null);
   const [snoozeDuration, setSnoozeDuration] = useState(60); // Default 60 minutes
+  
+  // State for tracking acknowledged alerts in modal mode
+  const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(new Set());
 
   // Handle alert dismissal
   const handleDismissAlert = (alert, reason = '', permanent = false) => {
@@ -541,17 +545,20 @@ const CDSPresentation = ({
   // Modal mode - Hard-stop blocking modal with acknowledgment
   if (mode === PRESENTATION_MODES.MODAL) {
     const handleAcknowledge = (alert) => {
+      const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+      
       if (alert.displayBehavior?.reasonRequired) {
         setCurrentAlertForAck(alert);
         setShowReasonDialog(true);
       } else {
+        // Mark as acknowledged
+        setAcknowledgedAlerts(prev => new Set([...prev, alertId]));
         handleDismissAlert(alert);
         
         // Check if all alerts have been dismissed (for non-reason required case)
         const remainingAlerts = alerts.filter(a => {
-          const alertId = a.uuid || a.id || `${a.serviceId}-${a.summary}`;
-          const currentAlertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
-          return alertId !== currentAlertId && !dismissedAlerts.has(alertId) && !isAlertSnoozed(a);
+          const aId = a.uuid || a.id || `${a.serviceId}-${a.summary}`;
+          return aId !== alertId && !dismissedAlerts.has(aId) && !isAlertSnoozed(a) && !acknowledgedAlerts.has(aId);
         });
         
         // Close the modal if no alerts remain
@@ -563,6 +570,11 @@ const CDSPresentation = ({
 
     const handleConfirmAcknowledgment = () => {
       if (currentAlertForAck) {
+        const alertId = currentAlertForAck.uuid || currentAlertForAck.id || 
+                       `${currentAlertForAck.serviceId}-${currentAlertForAck.summary}`;
+        
+        // Mark as acknowledged
+        setAcknowledgedAlerts(prev => new Set([...prev, alertId]));
         handleDismissAlert(currentAlertForAck, acknowledgmentReason);
         setCurrentAlertForAck(null);
         setAcknowledgmentReason('');
@@ -570,10 +582,8 @@ const CDSPresentation = ({
         
         // Check if all alerts have been dismissed
         const remainingAlerts = alerts.filter(alert => {
-          const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
-          const currentAlertId = currentAlertForAck.uuid || currentAlertForAck.id || 
-                                 `${currentAlertForAck.serviceId}-${currentAlertForAck.summary}`;
-          return alertId !== currentAlertId && !dismissedAlerts.has(alertId) && !isAlertSnoozed(alert);
+          const aId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+          return aId !== alertId && !dismissedAlerts.has(aId) && !isAlertSnoozed(alert) && !acknowledgedAlerts.has(aId);
         });
         
         // Close the modal if no alerts remain
@@ -604,35 +614,73 @@ const CDSPresentation = ({
             </Alert>
             <Stack spacing={2}>
               {visibleAlerts.map((alert, index) => {
+                const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+                const isAcknowledged = acknowledgedAlerts.has(alertId);
                 const { content, actions } = renderAlert(alert);
+                
                 return (
-                  <Card key={`critical-dialog-${alert.summary}-${index}`} variant="outlined" sx={{ border: '2px solid', borderColor: 'error.main' }}>
+                  <Card 
+                    key={`critical-dialog-${alert.summary}-${index}`} 
+                    variant="outlined" 
+                    sx={{ 
+                      border: '2px solid', 
+                      borderColor: isAcknowledged ? 'success.main' : 'error.main',
+                      opacity: isAcknowledged ? 0.7 : 1,
+                      bgcolor: isAcknowledged ? 'success.light' : 'transparent'
+                    }}
+                  >
                     <CardContent>
                       <Stack direction="row" spacing={1} alignItems="flex-start">
-                        {getSeverityIcon(alert.indicator)}
+                        {isAcknowledged ? (
+                          <CheckCircleIcon color="success" />
+                        ) : (
+                          getSeverityIcon(alert.indicator)
+                        )}
                         <Box sx={{ flex: 1 }}>
                           {content}
+                          {isAcknowledged && (
+                            <Chip 
+                              label="Acknowledged" 
+                              size="small" 
+                              color="success" 
+                              sx={{ mt: 1 }}
+                              icon={<CheckCircleIcon />}
+                            />
+                          )}
                         </Box>
                       </Stack>
                     </CardContent>
-                    {actions && <CardActions>{actions}</CardActions>}
+                    {!isAcknowledged && (
+                      <CardActions>
+                        <Button 
+                          variant="contained" 
+                          color="primary"
+                          fullWidth
+                          onClick={() => handleAcknowledge(alert)}
+                        >
+                          Acknowledge & Continue
+                        </Button>
+                      </CardActions>
+                    )}
                   </Card>
                 );
               })}
             </Stack>
           </DialogContent>
-          <DialogActions>
-            {visibleAlerts.map((alert, index) => (
+          {visibleAlerts.every(alert => {
+            const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+            return acknowledgedAlerts.has(alertId);
+          }) && (
+            <DialogActions>
               <Button 
-                key={`ack-button-${alert.summary}-${index}`}
                 variant="contained" 
-                color="primary"
-                onClick={() => handleAcknowledge(alert)}
+                color="success"
+                onClick={() => setOpen(false)}
               >
-                Acknowledge & Continue
+                All Alerts Acknowledged - Continue
               </Button>
-            ))}
-          </DialogActions>
+            </DialogActions>
+          )}
         </Dialog>
 
         {/* Acknowledgment Reason Dialog */}

@@ -298,28 +298,43 @@ const CDSCard = ({
             Please provide a reason for overriding this recommendation. This helps improve our clinical decision support.
           </Alert>
 
-          {card.overrideReasons && card.overrideReasons.length > 0 && (
-            <FormControl component="fieldset" fullWidth>
-              <RadioGroup
-                value={selectedOverrideReason}
-                onChange={(e) => setSelectedOverrideReason(e.target.value)}
-              >
-                {card.overrideReasons.map((reason) => (
+          {(() => {
+            // Use provided override reasons or default ones if acknowledgment is required
+            const overrideReasons = card.overrideReasons && card.overrideReasons.length > 0
+              ? card.overrideReasons
+              : card.displayBehavior?.acknowledgmentRequired
+              ? [
+                  { code: 'clinical-judgment', display: 'Clinical judgment' },
+                  { code: 'patient-preference', display: 'Patient preference' },
+                  { code: 'alternative-treatment', display: 'Alternative treatment planned' },
+                  { code: 'not-relevant', display: 'Not clinically relevant' },
+                  { code: 'already-addressed', display: 'Already addressed' }
+                ]
+              : [];
+
+            return overrideReasons.length > 0 ? (
+              <FormControl component="fieldset" fullWidth>
+                <RadioGroup
+                  value={selectedOverrideReason}
+                  onChange={(e) => setSelectedOverrideReason(e.target.value)}
+                >
+                  {overrideReasons.map((reason) => (
+                    <FormControlLabel
+                      key={reason.code}
+                      value={reason.code}
+                      control={<Radio />}
+                      label={reason.display}
+                    />
+                  ))}
                   <FormControlLabel
-                    key={reason.code}
-                    value={reason.code}
+                    value="other"
                     control={<Radio />}
-                    label={reason.display}
+                    label="Other (please specify)"
                   />
-                ))}
-                <FormControlLabel
-                  value="other"
-                  control={<Radio />}
-                  label="Other (please specify)"
-                />
-              </RadioGroup>
-            </FormControl>
-          )}
+                </RadioGroup>
+              </FormControl>
+            ) : null;
+          })()}
 
           <TextField
             fullWidth
@@ -341,7 +356,8 @@ const CDSCard = ({
             variant="contained"
             disabled={
               submittingFeedback ||
-              (!selectedOverrideReason && !overrideComment.trim())
+              (card.displayBehavior?.reasonRequired && !selectedOverrideReason && !overrideComment.trim()) ||
+              (!card.displayBehavior?.reasonRequired && !selectedOverrideReason && !overrideComment.trim())
             }
             startIcon={submittingFeedback ? <CircularProgress size={16} /> : null}
           >

@@ -402,11 +402,39 @@ async def _discover_relationships_recursive(
             if not isinstance(references, list):
                 references = [references]
             
+            logger.info(f"Found field {field_name} with {len(references)} references in {resource_type}/{resource_id}")
+            
             for ref in references:
                 if isinstance(ref, dict) and "reference" in ref:
-                    ref_parts = ref["reference"].split("/")
-                    if len(ref_parts) == 2:
-                        target_type, target_id = ref_parts
+                    ref_string = ref["reference"]
+                    target_type = None
+                    target_id = None
+                    
+                    # Handle both standard and URN format references
+                    if ref_string.startswith("urn:uuid:"):
+                        # URN format - need to determine resource type from context
+                        target_id = ref_string[9:]  # Remove "urn:uuid:" prefix
+                        logger.info(f"Found URN reference: {ref_string} in field {field_name}")
+                        # For URN references, we need to determine the resource type
+                        # from the field configuration
+                        if field_config.get("target"):
+                            # Try to resolve the actual resource type
+                            for possible_type in field_config["target"]:
+                                try:
+                                    test_resource = await storage.read_resource(possible_type, target_id)
+                                    if test_resource:
+                                        target_type = possible_type
+                                        logger.info(f"Resolved URN {ref_string} to {possible_type}/{target_id}")
+                                        break
+                                except:
+                                    continue
+                    else:
+                        # Standard format: ResourceType/ResourceId
+                        ref_parts = ref_string.split("/")
+                        if len(ref_parts) == 2:
+                            target_type, target_id = ref_parts
+                    
+                    if target_type and target_id:
                         target_node_id = f"{target_type}/{target_id}"
                         
                         # Add link
@@ -533,9 +561,28 @@ async def _find_paths_bfs(
                     
                     for ref in references:
                         if isinstance(ref, dict) and "reference" in ref:
-                            next_node = ref["reference"]
-                            if next_node not in path:  # Avoid cycles
-                                queue.append((next_node, path + [next_node]))
+                            ref_string = ref["reference"]
+                            
+                            # Handle URN format references
+                            if ref_string.startswith("urn:uuid:"):
+                                # For URN references, try to resolve the resource type
+                                target_id = ref_string[9:]
+                                if field_config.get("target"):
+                                    for possible_type in field_config["target"]:
+                                        try:
+                                            test_resource = await storage.read_resource(possible_type, target_id)
+                                            if test_resource:
+                                                next_node = f"{possible_type}/{target_id}"
+                                                if next_node not in path:
+                                                    queue.append((next_node, path + [next_node]))
+                                                break
+                                        except:
+                                            continue
+                            else:
+                                # Standard format
+                                next_node = ref_string
+                                if next_node not in path:  # Avoid cycles
+                                    queue.append((next_node, path + [next_node]))
         
         # Check reverse references
         reverse_refs_query = """
