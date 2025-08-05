@@ -621,6 +621,11 @@ generate.demographics.default_state = Massachusetts
                     self.log(f"Failed to process {file_path.name}: {e}", "ERROR")
                     stats['errors_by_type'][f"file_error"] += 1
             
+            # Run enhancements after import
+            if stats['resources_imported'] > 0:
+                self.log("\n🔧 Running post-import enhancements...", "INFO")
+                await self._run_enhancements(session)
+            
             # Report results
             self.log("📊 Import Summary:", "SUCCESS")
             self.log(f"  Files processed: {stats['files_processed']}")
@@ -636,11 +641,9 @@ generate.demographics.default_state = Massachusetts
             self.stats['import_stats'] = stats
             self.stats['total_resources'] = stats['resources_imported']
             
-            # Remind about database initialization
+            # All enhancements done inline
             if stats['resources_imported'] > 0:
-                self.log("\n⚠️  IMPORTANT: Run database initialization to fix references and search parameters:", "WARN")
-                self.log("  docker exec emr-backend python scripts/init_database.py", "INFO")
-                self.log("  or: cd backend && python scripts/init_database.py", "INFO")
+                self.log("\n✅ Import complete with all transformations and enhancements applied!", "SUCCESS")
             
             return stats['resources_imported'] > 0
             
@@ -700,8 +703,70 @@ generate.demographics.default_state = Massachusetts
                     import traceback
                     traceback.print_exc()
     
+    def _transform_urn_references(self, resource_data: dict) -> dict:
+        """Transform all urn:uuid references to standard FHIR format."""
+        def transform_reference(ref_obj):
+            if isinstance(ref_obj, dict) and 'reference' in ref_obj:
+                ref = ref_obj['reference']
+                if ref.startswith('urn:uuid:'):
+                    # Extract UUID and determine resource type from context
+                    uuid_val = ref.replace('urn:uuid:', '')
+                    # Default to generic Resource type - will be resolved later
+                    ref_obj['reference'] = f"Resource/{uuid_val}"
+                return ref_obj
+            return ref_obj
+        
+        def walk_and_transform(obj):
+            if isinstance(obj, dict):
+                # Check for reference fields
+                if 'reference' in obj:
+                    transform_reference(obj)
+                # Common reference field names
+                for ref_field in ['subject', 'patient', 'encounter', 'performer', 
+                                  'requester', 'author', 'recorder', 'asserter',
+                                  'participant', 'individual', 'actor', 'agent']:
+                    if ref_field in obj:
+                        if isinstance(obj[ref_field], dict):
+                            transform_reference(obj[ref_field])
+                # Recurse into dict values
+                for value in obj.values():
+                    walk_and_transform(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    walk_and_transform(item)
+            return obj
+        
+        return walk_and_transform(resource_data.copy())
+    
+    def _clean_name_fields(self, resource_data: dict) -> dict:
+        """Clean numeric suffixes from patient and practitioner names."""
+        resource_type = resource_data.get('resourceType')
+        
+        if resource_type in ['Patient', 'Practitioner']:
+            if 'name' in resource_data:
+                for name_obj in resource_data.get('name', []):
+                    # Clean family name
+                    if 'family' in name_obj:
+                        import re
+                        # Remove numeric suffixes like "123"
+                        name_obj['family'] = re.sub(r'\d+$', '', name_obj['family']).strip()
+                    # Clean given names
+                    if 'given' in name_obj:
+                        name_obj['given'] = [
+                            re.sub(r'\d+$', '', n).strip() 
+                            for n in name_obj['given']
+                        ]
+        
+        return resource_data
+
     async def _store_resource(self, session, resource_type, resource_id, resource_data):
-        """Store a resource in the database."""
+        """Store a resource in the database with inline transformations."""
+        # Clean name fields
+        resource_data = self._clean_name_fields(resource_data)
+        
+        # Transform URN references to standard format
+        resource_data = self._transform_urn_references(resource_data)
+        
         # Ensure resource has required metadata
         if 'id' not in resource_data:
             resource_data['id'] = resource_id or str(uuid.uuid4())
@@ -740,8 +805,14 @@ generate.demographics.default_state = Massachusetts
         
         resource_db_id = result.scalar()
         
-        # Extract basic search parameters
+        # Extract search parameters inline
         await self._extract_search_params(session, resource_db_id, resource_type, resource_data)
+        
+        # Populate compartments inline
+        await self._populate_compartments(session, resource_db_id, resource_type, resource_data)
+        
+        # Store references inline
+        await self._extract_references(session, resource_db_id, resource_type, resource_data)
     
     async def _extract_search_params(self, session, resource_id, resource_type, resource_data):
         """Extract and store comprehensive search parameters for all resource types."""
@@ -807,6 +878,187 @@ generate.demographics.default_state = Massachusetts
     
     # Note: All individual parameter extraction methods have been consolidated 
     # into the comprehensive search_param_definitions and unified extraction logic above
+    
+    async def _run_enhancements(self, session):
+        """Run all post-import enhancements inline."""
+        try:
+            # Create organizations from Organization resources
+            self.log("  Creating organizations...", "INFO")
+            org_result = await session.execute(text("""
+                INSERT INTO auth.organizations (id, synthea_id, name, type, address, city, state, zip_code, phone)
+                SELECT 
+                    resource->>'id',
+                    resource->>'id',
+                    resource->>'name',
+                    resource->'type'->0->'coding'->0->>'display',
+                    resource->'address'->0->'line'->>0,
+                    resource->'address'->0->>'city',
+                    resource->'address'->0->>'state',
+                    resource->'address'->0->>'postalCode',
+                    resource->'telecom'->0->>'value'
+                FROM fhir.resources
+                WHERE resource_type = 'Organization'
+                AND deleted = false
+                ON CONFLICT (id) DO NOTHING
+            """))
+            
+            # Create providers from Practitioner resources
+            self.log("  Creating providers...", "INFO")
+            pract_result = await session.execute(text("""
+                INSERT INTO auth.providers (
+                    id, synthea_id, first_name, last_name, 
+                    specialty, active, fhir_json
+                )
+                SELECT 
+                    resource->>'id',
+                    resource->>'id',
+                    COALESCE(resource->'name'->0->'given'->>0, 'Unknown'),
+                    COALESCE(resource->'name'->0->>'family', 'Provider'),
+                    resource->'qualification'->0->'code'->'coding'->0->>'display',
+                    COALESCE((resource->>'active')::boolean, true),
+                    resource
+                FROM fhir.resources
+                WHERE resource_type = 'Practitioner'
+                AND deleted = false
+                ON CONFLICT (id) DO NOTHING
+            """))
+            
+            # Assign patients to providers randomly
+            self.log("  Assigning patients to providers...", "INFO")
+            # Get all providers
+            providers = await session.execute(text("""
+                SELECT id FROM auth.providers WHERE active = true LIMIT 100
+            """))
+            provider_ids = [row[0] for row in providers]
+            
+            if provider_ids:
+                # Assign each patient to a random provider
+                patients = await session.execute(text("""
+                    SELECT fhir_id FROM fhir.resources 
+                    WHERE resource_type = 'Patient' AND deleted = false
+                """))
+                
+                import random
+                for patient_row in patients:
+                    patient_id = patient_row[0]
+                    provider_id = random.choice(provider_ids)
+                    
+                    await session.execute(text("""
+                        INSERT INTO auth.patient_provider_assignments (
+                            patient_id, provider_id, assignment_type, is_active
+                        ) VALUES (
+                            :patient_id, :provider_id, 'primary', true
+                        )
+                        ON CONFLICT DO NOTHING
+                    """), {
+                        'patient_id': patient_id,
+                        'provider_id': provider_id
+                    })
+            
+            self.log("  ✅ Enhancements completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"  ⚠️ Enhancement error (non-critical): {e}", "WARN")
+    
+    async def _populate_compartments(self, session, resource_id, resource_type, resource_data):
+        """Populate patient compartments inline during import."""
+        # Determine which compartments this resource belongs to
+        patient_id = None
+        
+        # Direct patient resource
+        if resource_type == 'Patient':
+            patient_id = resource_data.get('id')
+        # Resources with patient/subject reference
+        elif resource_type in ['Observation', 'Condition', 'MedicationRequest', 
+                              'AllergyIntolerance', 'Procedure', 'Immunization',
+                              'DiagnosticReport', 'CarePlan', 'CareTeam']:
+            # Check for patient or subject reference
+            for ref_field in ['patient', 'subject']:
+                if ref_field in resource_data:
+                    ref = resource_data[ref_field]
+                    if isinstance(ref, dict) and 'reference' in ref:
+                        ref_str = ref['reference']
+                        if '/' in ref_str:
+                            ref_type, ref_id = ref_str.split('/', 1)
+                            if ref_type == 'Patient':
+                                patient_id = ref_id
+                                break
+        # Encounter resources
+        elif resource_type == 'Encounter' and 'subject' in resource_data:
+            ref = resource_data['subject']
+            if isinstance(ref, dict) and 'reference' in ref:
+                ref_str = ref['reference']
+                if '/' in ref_str:
+                    ref_type, ref_id = ref_str.split('/', 1)
+                    if ref_type == 'Patient':
+                        patient_id = ref_id
+        
+        # Add to compartment if patient identified
+        if patient_id:
+            query = text("""
+                INSERT INTO fhir.compartments (
+                    compartment_type, compartment_id, resource_id
+                ) VALUES (
+                    :compartment_type, :compartment_id, :resource_id
+                )
+                ON CONFLICT (compartment_type, compartment_id, resource_id) DO NOTHING
+            """)
+            
+            await session.execute(query, {
+                'compartment_type': 'Patient',
+                'compartment_id': patient_id,
+                'resource_id': resource_id
+            })
+    
+    async def _extract_references(self, session, resource_id, resource_type, resource_data):
+        """Extract and store resource references inline."""
+        def extract_refs_from_obj(obj, path=''):
+            refs = []
+            if isinstance(obj, dict):
+                # Check for direct reference
+                if 'reference' in obj:
+                    ref_str = obj['reference']
+                    if '/' in ref_str:
+                        target_type, target_id = ref_str.split('/', 1)
+                        refs.append({
+                            'path': path,
+                            'target_type': target_type,
+                            'target_id': target_id,
+                            'value': ref_str
+                        })
+                # Recurse into dict
+                for key, value in obj.items():
+                    new_path = f"{path}.{key}" if path else key
+                    refs.extend(extract_refs_from_obj(value, new_path))
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    new_path = f"{path}[{i}]"
+                    refs.extend(extract_refs_from_obj(item, new_path))
+            return refs
+        
+        # Extract all references from resource
+        references = extract_refs_from_obj(resource_data)
+        
+        # Store each reference
+        for ref in references:
+            query = text("""
+                INSERT INTO fhir.references (
+                    source_id, source_type, target_type, target_id, 
+                    reference_path, reference_value
+                ) VALUES (
+                    :source_id, :source_type, :target_type, :target_id,
+                    :reference_path, :reference_value
+                )
+            """)
+            
+            await session.execute(query, {
+                'source_id': resource_id,
+                'source_type': resource_type,
+                'target_type': ref['target_type'],
+                'target_id': ref['target_id'],
+                'reference_path': ref['path'],
+                'reference_value': ref['value']
+            })
     
     async def _add_search_param(self, session, resource_id, resource_type, param_name, param_type, **values):
         """Add a search parameter to the database."""

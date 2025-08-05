@@ -154,6 +154,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     export: false
   });
   const [currentResource, setCurrentResource] = useState(null);
+  const [selectedResourceType, setSelectedResourceType] = useState(null);
   const [relationshipData, setRelationshipData] = useState(null);
   const [visibleNodeTypes, setVisibleNodeTypes] = useState(new Set());
   const [selectedNode, setSelectedNode] = useState(null);
@@ -194,6 +195,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const containerRef = useRef(null);
   const simulationRef = useRef(null);
   const zoomRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   // Get FHIR data - useFHIRData is a hook function passed as prop
   const fhirData = useFHIRData?.();
@@ -201,6 +203,24 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Placeholder for handleSearch - will be defined later after updateNodeSelection
   const handleSearchRef = useRef(null);
+  
+  // Track component mount state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Initialize selectedResourceType when resources are first loaded
+  useEffect(() => {
+    if (!selectedResourceType && resources) {
+      const availableResourceTypes = Object.keys(resources).filter(key => resources[key]?.length > 0);
+      if (availableResourceTypes.length > 0) {
+        setSelectedResourceType(availableResourceTypes[0]);
+      }
+    }
+  }, [resources, selectedResourceType]);
 
   // Debounce search query
   useEffect(() => {
@@ -220,24 +240,37 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Fetch relationship schema on mount and load initial data
   useEffect(() => {
-    fetchRelationshipSchema();
-    fetchStatistics();
+    let isSubscribed = true;
+    let timer;
     
-    // Auto-load first available patient if we have data
-    const loadInitialData = () => {
-      if (resources.Patient && resources.Patient.length > 0) {
-        const firstPatient = resources.Patient[0];
-        const patientId = firstPatient.id.includes('/') ? 
-          firstPatient.id.split('/').pop() : 
-          firstPatient.id;
-        loadRelationships('Patient', patientId);
+    const init = async () => {
+      if (isSubscribed) {
+        fetchRelationshipSchema();
+        fetchStatistics();
+        
+        // Auto-load first available patient if we have data
+        const loadInitialData = () => {
+          if (isSubscribed && resources.Patient && resources.Patient.length > 0 && !currentResource && !relationshipData) {
+            const firstPatient = resources.Patient[0];
+            const patientId = firstPatient.id.includes('/') ? 
+              firstPatient.id.split('/').pop() : 
+              firstPatient.id;
+            loadRelationships('Patient', patientId);
+          }
+        };
+        
+        // Wait a bit for resources to load
+        timer = setTimeout(loadInitialData, 1000);
       }
     };
     
-    // Wait a bit for resources to load
-    const timer = setTimeout(loadInitialData, 1000);
-    return () => clearTimeout(timer);
-  }, [resources]);
+    init();
+    
+    return () => {
+      isSubscribed = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   // Fetch relationship schema
   const fetchRelationshipSchema = async () => {
@@ -351,8 +384,6 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         );
       });
 
-      console.log('Raw relationship data from API:', data); // Debug logging
-
       if (!data || !data.nodes) {
         throw new Error('Invalid response format from API');
       }
@@ -360,22 +391,24 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       // Transform to D3 format
       const d3Data = fhirRelationshipService.transformToD3Format(data);
       
-      console.log('Transformed D3 data:', d3Data); // Debug logging
-      console.log('Number of nodes:', d3Data.nodes?.length || 0); // Debug logging
-      console.log('Number of links:', d3Data.links?.length || 0); // Debug logging
-      
       // Validate D3 data
       if (!d3Data.nodes || d3Data.nodes.length === 0) {
-        setError('No relationships found for this resource');
+        if (isMountedRef.current) {
+          setError('No relationships found for this resource');
+        }
         return;
       }
       
-      setRelationshipData(d3Data);
-      setCurrentResource({ resourceType, resourceId, display: data.source.display });
-      
-      // Update visible node types
-      const nodeTypes = new Set(d3Data.nodes.map(n => n.resourceType));
-      setVisibleNodeTypes(nodeTypes);
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setRelationshipData(d3Data);
+        setCurrentResource({ resourceType, resourceId, display: data.source.display });
+        setSelectedResourceType(resourceType); // Update selected resource type
+        
+        // Update visible node types
+        const nodeTypes = new Set(d3Data.nodes.map(n => n.resourceType));
+        setVisibleNodeTypes(nodeTypes);
+      }
 
       // Initialize visualization after a short delay to ensure DOM is ready
       setTimeout(() => {
@@ -385,19 +418,23 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         }
       }, 100);
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Failed to load relationships';
-      setError(errorMessage);
-      
-      // Log error for debugging
-      if (err.response?.status === 404) {
-        setError('Resource not found. Please check the resource ID.');
-      } else if (err.response?.status === 403) {
-        setError('Access denied. Please check your permissions.');
-      } else if (err.response?.status >= 500) {
-        setError('Server error. Please try again later.');
+      if (isMountedRef.current) {
+        const errorMessage = err.response?.data?.detail || err.message || 'Failed to load relationships';
+        setError(errorMessage);
+        
+        // Log error for debugging
+        if (err.response?.status === 404) {
+          setError('Resource not found. Please check the resource ID.');
+        } else if (err.response?.status === 403) {
+          setError('Access denied. Please check your permissions.');
+        } else if (err.response?.status >= 500) {
+          setError('Server error. Please try again later.');
+        }
       }
     } finally {
-      setLoadingStates(prev => ({ ...prev, relationships: false }));
+      if (isMountedRef.current) {
+        setLoadingStates(prev => ({ ...prev, relationships: false }));
+      }
     }
   }, [filteredData]);
 
@@ -642,12 +679,9 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         // Prevent any default behavior and stop propagation immediately
         event.preventDefault();
         event.stopPropagation();
-        event.stopImmediatePropagation();
         
-        // Only handle click if not dragging
-        if (!event.defaultPrevented) {
-          handleNodeClick(event, node);
-        }
+        // Always handle the click
+        handleNodeClick(event, node);
       })
       .on('mouseenter', handleNodeHover)
       .on('mouseleave', () => {
@@ -832,53 +866,30 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
     return scale(connections);
   }, [nodeConnectionCounts, layoutSettings.nodeSize]);
 
-  // Drag behavior with click detection
+  // Drag behavior
   const drag = (simulation) => {
-    let isDragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
-    
     function dragstarted(event, d) {
-      isDragging = false;
-      dragStartX = event.x;
-      dragStartY = event.y;
-      
       if (!event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x;
       d.fy = d.y;
     }
 
     function dragged(event, d) {
-      // Mark as dragging if moved more than 3 pixels
-      const dx = event.x - dragStartX;
-      const dy = event.y - dragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        isDragging = true;
-      }
-      
       d.fx = event.x;
       d.fy = event.y;
     }
 
     function dragended(event, d) {
       if (!event.active) simulation.alphaTarget(0);
-      
-      // Only release position if actually dragged
-      if (isDragging) {
-        d.fx = null;
-        d.fy = null;
-      } else {
-        // It was a click, not a drag - handle the click
-        d.fx = null;
-        d.fy = null;
-        // The click event will be handled by the click handler
-      }
+      d.fx = null;
+      d.fy = null;
     }
 
     return d3.drag()
       .on('start', dragstarted)
       .on('drag', dragged)
-      .on('end', dragended);
+      .on('end', dragended)
+      .clickDistance(5); // Only start drag if moved more than 5 pixels
   };
 
   // Handle node click
@@ -1421,6 +1432,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 {/* Resource selector */}
                 <Autocomplete
                   options={Object.keys(resources).filter(key => resources[key]?.length > 0)}
+                  value={selectedResourceType}
                   renderInput={(params) => (
                     <TextField 
                       {...params} 
@@ -1432,6 +1444,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   )}
                   onChange={(e, resourceType) => {
                     if (resourceType && resources[resourceType]?.length > 0) {
+                      setSelectedResourceType(resourceType);
                       const resource = resources[resourceType][0];
                       // Selected resource type and resource
                       // Extract just the ID part if it's prefixed
@@ -1642,6 +1655,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             alignItems: 'center',
             justifyContent: 'center'
           }}
+          keepMounted={false} // Unmount when closed to prevent memory leaks
         >
           <Box sx={{ 
             width: '90%',
@@ -1654,25 +1668,28 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <ResourceDetailsPanel
-              selectedNode={selectedNode}
-              onClose={() => setShowDetailsModal(false)}
-              onResourceSelect={(resourceType, resourceId) => {
-                loadRelationships(resourceType, resourceId);
-                setShowDetailsModal(false);
-              }}
-              onAddToComparison={(node) => {
-                setComparisonNodes(prev => [...prev, node]);
-              }}
-              onFindPath={(source, target) => {
-                setPathFindingMode(true);
-                setPathSource(source);
-                setPathTarget(target);
-                findPaths(source, target);
-                setShowDetailsModal(false);
-              }}
-              width="100%"
-            />
+            {selectedNode && (
+              <ResourceDetailsPanel
+                key={selectedNode.id} // Force new instance when node changes
+                selectedNode={selectedNode}
+                onClose={() => setShowDetailsModal(false)}
+                onResourceSelect={(resourceType, resourceId) => {
+                  loadRelationships(resourceType, resourceId);
+                  setShowDetailsModal(false);
+                }}
+                onAddToComparison={(node) => {
+                  setComparisonNodes(prev => [...prev, node]);
+                }}
+                onFindPath={(source, target) => {
+                  setPathFindingMode(true);
+                  setPathSource(source);
+                  setPathTarget(target);
+                  findPaths(source, target);
+                  setShowDetailsModal(false);
+                }}
+                width="100%"
+              />
+            )}
           </Box>
         </Modal>
 

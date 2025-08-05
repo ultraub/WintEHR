@@ -231,6 +231,73 @@ class DefinitiveDatabaseInitializer:
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             
+            -- Create organizations table (referenced by providers)
+            CREATE TABLE IF NOT EXISTS auth.organizations (
+                id VARCHAR PRIMARY KEY,
+                synthea_id VARCHAR UNIQUE,
+                name VARCHAR NOT NULL,
+                type VARCHAR,
+                address VARCHAR,
+                city VARCHAR,
+                state VARCHAR,
+                zip_code VARCHAR,
+                phone VARCHAR,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create providers table for authentication and clinical assignments
+            CREATE TABLE IF NOT EXISTS auth.providers (
+                id VARCHAR PRIMARY KEY,
+                synthea_id VARCHAR UNIQUE,
+                npi VARCHAR UNIQUE,
+                dea VARCHAR,
+                state_license VARCHAR,
+                prefix VARCHAR,
+                first_name VARCHAR NOT NULL,
+                middle_name VARCHAR,
+                last_name VARCHAR NOT NULL,
+                suffix VARCHAR,
+                address VARCHAR,
+                city VARCHAR,
+                state VARCHAR,
+                zip_code VARCHAR,
+                phone VARCHAR,
+                email VARCHAR,
+                specialty VARCHAR,
+                organization_id VARCHAR REFERENCES auth.organizations(id),
+                active BOOLEAN DEFAULT TRUE,
+                fhir_json JSONB,
+                fhir_meta JSONB,
+                extensions JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create user_sessions table for authentication
+            CREATE TABLE IF NOT EXISTS auth.user_sessions (
+                id SERIAL PRIMARY KEY,
+                provider_id VARCHAR REFERENCES auth.providers(id),
+                session_token VARCHAR UNIQUE NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create patient_provider_assignments table
+            CREATE TABLE IF NOT EXISTS auth.patient_provider_assignments (
+                id SERIAL PRIMARY KEY,
+                patient_id VARCHAR NOT NULL,
+                provider_id VARCHAR REFERENCES auth.providers(id),
+                assignment_type VARCHAR,
+                is_active BOOLEAN DEFAULT TRUE,
+                start_date TIMESTAMP WITH TIME ZONE,
+                end_date TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
             -- Create CDS Hooks configuration table
             CREATE TABLE cds_hooks.hook_configurations (
                 id VARCHAR(255) PRIMARY KEY,
@@ -371,6 +438,17 @@ class DefinitiveDatabaseInitializer:
             CREATE INDEX idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
             CREATE INDEX idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
             CREATE INDEX idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
+            
+            -- Provider and Auth indexes
+            CREATE INDEX idx_provider_name ON auth.providers(last_name, first_name);
+            CREATE INDEX idx_provider_specialty ON auth.providers(specialty);
+            CREATE INDEX idx_provider_org ON auth.providers(organization_id);
+            CREATE INDEX idx_provider_active ON auth.providers(active);
+            CREATE INDEX idx_patient_provider_assignment ON auth.patient_provider_assignments(patient_id, provider_id);
+            CREATE INDEX idx_patient_provider_active ON auth.patient_provider_assignments(is_active);
+            CREATE INDEX idx_user_sessions_token ON auth.user_sessions(session_token);
+            CREATE INDEX idx_user_sessions_active ON auth.user_sessions(is_active);
+            CREATE INDEX idx_user_sessions_expires ON auth.user_sessions(expires_at);
         """)
         
             logger.info("✅ Indexes created successfully")
@@ -405,6 +483,18 @@ class DefinitiveDatabaseInitializer:
             
             result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.execution_log")
             logger.info(f"✅ CDS Hooks execution log table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.organizations")
+            logger.info(f"✅ Organizations table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.providers")
+            logger.info(f"✅ Providers table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.user_sessions")
+            logger.info(f"✅ User sessions table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.patient_provider_assignments")
+            logger.info(f"✅ Patient-provider assignments table accessible (count: {result})")
             
             logger.info("🎉 Database initialization completed successfully!")
             return True
