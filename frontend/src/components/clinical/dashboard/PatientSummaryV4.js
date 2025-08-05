@@ -119,7 +119,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
         markInitialized();
       } catch (err) {
         // Error setting patient - continuing with initialization
-        console.error('Error loading patient data:', err);
+        // Error loading patient data
         setIsInitialLoad(false);
         markInitialized();
       }

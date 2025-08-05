@@ -627,7 +627,16 @@ const ResultsTabOptimized = ({ patientId }) => {
               const value = item.valueQuantity ? 
                 `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
                 item.valueString || 'Pending';
-              const reference = item.referenceRange?.[0]?.text || '-';
+              
+              // Format reference range from low/high values
+              const refRange = item.referenceRange?.[0];
+              const reference = refRange ? 
+                (refRange.text || 
+                 (refRange.low || refRange.high ? 
+                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() : 
+                  '-')) :
+                '-';
+              
               const date = item.effectiveDateTime || item.issued;
               
               return (

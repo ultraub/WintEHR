@@ -52,17 +52,12 @@ class CDSHooksClient {
     // Create a new request promise
     const requestPromise = (async () => {
       try {
-        console.log('[CDS Debug] CDSHooksClient - Discovering services from:', this.baseUrl + '/cds-services');
         const response = await this.httpClient.get('/cds-services');
-        console.log('[CDS Debug] CDSHooksClient - Service discovery response:', response.data);
         this.servicesCache = response.data.services || [];
         this.servicesCacheTime = now;
-        console.log('[CDS Debug] CDSHooksClient - Cached services:', this.servicesCache);
         return this.servicesCache;
       } catch (error) {
         // Failed to load CDS services - error handled gracefully with fallback
-        console.error('[CDS Debug] CDSHooksClient - Service discovery failed:', error.message);
-        console.error('[CDS Debug] CDSHooksClient - Error details:', error.response?.data || error);
         
         // Return cached data if available, even if expired
         if (this.servicesCache && this.servicesCache.length > 0) {
@@ -125,7 +120,6 @@ class CDSHooksClient {
           request.prefetch = prefetch;
         }
         
-        console.log(`[CDS Debug] CDSHooksClient - Sending request to /cds-services/${hookId}:`, request);
         const response = await this.httpClient.post(`/cds-services/${hookId}`, request);
         
         // Cache the response
@@ -197,7 +191,7 @@ class CDSHooksClient {
         try {
           prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
         } catch (error) {
-          console.warn('Prefetch resolution failed, continuing without prefetch', error);
+          // Prefetch resolution failed, continuing without prefetch
         }
       }
       
@@ -242,7 +236,7 @@ class CDSHooksClient {
         try {
           prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
         } catch (error) {
-          console.warn('Prefetch resolution failed, continuing without prefetch', error);
+          // Prefetch resolution failed, continuing without prefetch
         }
       } else {
         // Use common prefetch for medication prescribe if no templates defined
@@ -319,7 +313,6 @@ class CDSHooksClient {
       );
       return response.data;
     } catch (error) {
-      console.error('Failed to send CDS feedback:', error);
       throw error;
     }
   }
@@ -341,7 +334,6 @@ class CDSHooksClient {
       );
       return response.data;
     } catch (error) {
-      console.error('Failed to apply system actions:', error);
       throw error;
     }
   }

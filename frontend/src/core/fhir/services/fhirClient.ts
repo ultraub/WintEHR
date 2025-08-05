@@ -527,7 +527,7 @@ class FHIRClient {
    */
   public invalidateCacheVersion(): void {
     this.cacheVersion++;
-    console.debug(`[FHIRClient] Cache version incremented to ${this.cacheVersion}`);
+    // Cache version incremented
   }
 
   /**
@@ -577,7 +577,7 @@ class FHIRClient {
     // Check if identical request is already pending
     const pendingRequest = this.pendingRequests.get(key);
     if (pendingRequest) {
-      console.debug(`[FHIRClient] Deduplicating request: ${key}`);
+      // Deduplicating request
       this.deduplicationStats.deduplicated++;
       return pendingRequest as Promise<T>;
     }
@@ -624,7 +624,7 @@ class FHIRClient {
           await this.search(request.resourceType as any, request.params);
         }
       } catch (error) {
-        console.debug(`[FHIRClient] Prefetch failed for ${request.resourceType}`, error);
+        // Prefetch failed for resource type
       }
     });
 
@@ -635,7 +635,7 @@ class FHIRClient {
    * Warm cache with patient context
    */
   public async warmCacheForPatient(patientId: string): Promise<void> {
-    console.debug(`[FHIRClient] Warming cache for patient ${patientId}`);
+    // Warming cache for patient
     
     // Prefetch common patient-related resources
     const prefetchRequests = [
@@ -1519,7 +1519,7 @@ class FHIRClient {
           });
         }
       } catch (error) {
-        console.error(`Error searching for critical values: ${definition.name}`, error);
+        // Error searching for critical values
       }
     }
 

@@ -105,11 +105,11 @@ export const CDSProvider = ({ children }) => {
       try {
         cdsLogger.info('CDSContext: Discovering CDS services');
         const discoveredServices = await cdsHooksClient.discoverServices();
-        console.log('[CDS Debug] Discovered services:', discoveredServices);
+        // [CDS Debug] Discovered services:', discoveredServices);
         setServices(discoveredServices);
         setServicesLoaded(true);
         cdsLogger.info(`CDSContext: Discovered ${discoveredServices.length} CDS services`);
-        console.log(`[CDS Debug] Set ${discoveredServices.length} services in state`);
+        // [CDS Debug] Set ${discoveredServices.length} services in state`);
         
         // Don't execute hooks here - let the separate effect handle it
       } catch (err) {
@@ -136,7 +136,7 @@ export const CDSProvider = ({ children }) => {
   // When services are loaded and we have a patient, execute patient-view hooks
   useEffect(() => {
     if (servicesLoaded && services.length > 0 && currentPatientId) {
-      console.log(`[CDS Debug] Services loaded with patient ${currentPatientId}, triggering patient-view hooks`);
+      // [CDS Debug] Services loaded with patient ${currentPatientId}, triggering patient-view hooks`);
       // We'll execute hooks through the executePatientViewHooks function
       // which will be called by usePatientCDSAlerts hook
     }
@@ -144,8 +144,8 @@ export const CDSProvider = ({ children }) => {
   
   // Execute CDS hooks with deduplication - using stable callback
   const executeCDSHooks = useStableCallback(async (hookType, context) => {
-    console.log(`[CDS Debug] executeCDSHooks called - hookType: ${hookType}, context:`, context);
-    console.log(`[CDS Debug] executeCDSHooks - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
+    // [CDS Debug] executeCDSHooks called - hookType: ${hookType}, context:`, context);
+    // [CDS Debug] executeCDSHooks - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
     
     // Check if we're already executing this hook with the same context
     const executionKey = `${hookType}-${JSON.stringify(context)}`;
@@ -155,7 +155,7 @@ export const CDSProvider = ({ children }) => {
     if (lastExecutionTime.current[executionKey] && 
         now - lastExecutionTime.current[executionKey] < 5000) {
       cdsLogger.debug(`CDSContext: Skipping duplicate execution of ${hookType}`);
-      console.log(`[CDS Debug] Skipping duplicate execution of ${hookType} - last execution was ${now - lastExecutionTime.current[executionKey]}ms ago`);
+      // [CDS Debug] Skipping duplicate execution of ${hookType} - last execution was ${now - lastExecutionTime.current[executionKey]}ms ago`);
       return;
     }
     
@@ -167,8 +167,8 @@ export const CDSProvider = ({ children }) => {
     
     // If services haven't been loaded yet, wait for them
     if (!servicesLoaded || services.length === 0) {
-      console.log(`[CDS Debug] Services not loaded yet - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
-      console.log('[CDS Debug] Skipping hook execution until services are loaded');
+      // [CDS Debug] Services not loaded yet - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
+      // [CDS Debug] Skipping hook execution until services are loaded');
       return;
     }
     
@@ -180,13 +180,13 @@ export const CDSProvider = ({ children }) => {
     
     try {
       cdsLogger.info(`CDSContext: Executing ${hookType} hooks`, context);
-      console.log(`[CDS Debug] Executing ${hookType} hooks with context:`, context);
-      console.log('[CDS Debug] Available services:', services);
+      // [CDS Debug] Executing ${hookType} hooks with context:`, context);
+      // [CDS Debug] Available services:', services);
       
       // Get services for this hook type
       const matchingServices = services.filter(s => s.hook === hookType);
       cdsLogger.debug(`CDSContext: Found ${matchingServices.length} services for ${hookType}`);
-      console.log(`[CDS Debug] Found ${matchingServices.length} matching services for ${hookType}:`, matchingServices);
+      // [CDS Debug] Found ${matchingServices.length} matching services for ${hookType}:`, matchingServices);
       
       const allAlerts = [];
       
@@ -280,7 +280,7 @@ export const CDSProvider = ({ children }) => {
       }
       
       cdsLogger.info(`CDSContext: Received ${allAlerts.length} alerts for ${hookType}`);
-      console.log(`[CDS Debug] All alerts for ${hookType}:`, allAlerts);
+      // [CDS Debug] All alerts for ${hookType}:`, allAlerts);
       
       // Update alerts state
       setAlerts(prev => {
@@ -288,7 +288,7 @@ export const CDSProvider = ({ children }) => {
           ...prev,
           [hookType]: allAlerts
         };
-        console.log('[CDS Debug] Setting alerts state:', newAlerts);
+        // [CDS Debug] Setting alerts state:', newAlerts);
         return newAlerts;
       });
       
@@ -308,17 +308,17 @@ export const CDSProvider = ({ children }) => {
   
   // Execute patient-view hooks when patient changes - using stable callback
   const executePatientViewHooks = useStableCallback(async (patientId) => {
-    console.log('[CDS Debug] executePatientViewHooks called with patientId:', patientId);
-    console.log('[CDS Debug] Current patientId:', currentPatientId);
+    // [CDS Debug] executePatientViewHooks called with patientId:', patientId);
+    // [CDS Debug] Current patientId:', currentPatientId);
     
     if (!patientId || patientId === currentPatientId) {
       cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, currentPatientId });
-      console.log('[CDS Debug] Skipping execution - same patient or no patient');
+      // [CDS Debug] Skipping execution - same patient or no patient');
       return;
     }
     
     cdsLogger.info(`CDSContext: Patient changed to ${patientId}`);
-    console.log(`[CDS Debug] Patient changed from ${currentPatientId} to ${patientId}`);
+    // [CDS Debug] Patient changed from ${currentPatientId} to ${patientId}`);
     setCurrentPatientId(patientId);
     
     // Clear existing alerts when patient changes
@@ -406,13 +406,13 @@ export const usePatientCDSAlerts = (patientId) => {
   const prevPatientIdRef = useRef(null);
   const hasExecutedRef = useRef(false);
   
-  console.log('[CDS Debug] usePatientCDSAlerts called with patientId:', patientId);
-  console.log('[CDS Debug] Context alerts:', contextAlerts);
-  console.log('[CDS Debug] Services loaded:', servicesLoaded, 'Services count:', services?.length);
+  // [CDS Debug] usePatientCDSAlerts called with patientId:', patientId);
+  // [CDS Debug] Context alerts:', contextAlerts);
+  // [CDS Debug] Services loaded:', servicesLoaded, 'Services count:', services?.length);
   
   useEffect(() => {
-    console.log('[CDS Debug] usePatientCDSAlerts effect - patientId:', patientId, 'prev:', prevPatientIdRef.current);
-    console.log('[CDS Debug] usePatientCDSAlerts effect - servicesLoaded:', servicesLoaded, 'services:', services?.length);
+    // [CDS Debug] usePatientCDSAlerts effect - patientId:', patientId, 'prev:', prevPatientIdRef.current);
+    // [CDS Debug] usePatientCDSAlerts effect - servicesLoaded:', servicesLoaded, 'services:', services?.length);
     
     // Reset execution flag if patient changed
     if (patientId && patientId !== prevPatientIdRef.current) {
@@ -425,7 +425,7 @@ export const usePatientCDSAlerts = (patientId) => {
     
     if (shouldExecute) {
       cdsLogger.debug(`usePatientCDSAlerts: Executing hooks for patient ${patientId}`);
-      console.log(`[CDS Debug] Triggering executePatientViewHooks for patient ${patientId}`);
+      // [CDS Debug] Triggering executePatientViewHooks for patient ${patientId}`);
       hasExecutedRef.current = true;
       executePatientViewHooks(patientId);
     }

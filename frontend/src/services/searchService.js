@@ -102,7 +102,7 @@ class SearchService {
 
       } catch (error) {
         if (error.name === 'AbortError') throw error;
-        console.warn(`FHIR search failed for ${resourceType}:`, error);
+        // FHIR search failed for resource type
       }
     }
 
@@ -237,7 +237,7 @@ class SearchService {
           allResults.push(...catalogResults);
 
         } catch (error) {
-          console.warn(`Catalog search failed for ${resourceType}:`, error);
+          // Catalog search failed for resource type
         }
       }
 
@@ -303,7 +303,7 @@ class SearchService {
 
     } catch (error) {
       // Fall back to FHIR search if hybrid fails
-      console.warn('Hybrid search failed, falling back to FHIR:', error);
+      // Hybrid search failed, falling back to FHIR
       return this.searchFHIR(query, options);
     }
   }
@@ -424,7 +424,7 @@ class SearchService {
     if (Object.values(SEARCH_BACKENDS).includes(backend)) {
       this.backend = backend;
     } else {
-      console.warn(`Invalid search backend: ${backend}`);
+      // Invalid search backend
     }
   }
 
@@ -574,14 +574,14 @@ class SearchService {
             }));
           }
         } catch (error) {
-          console.warn('Fallback catalog search failed:', error);
+          // Fallback catalog search failed
         }
       }
 
       return groupedResults;
       
     } catch (error) {
-      console.error('searchAll failed:', error);
+      // searchAll failed
       return {
         patients: [],
         medications: [],

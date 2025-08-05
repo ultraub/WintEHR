@@ -130,7 +130,7 @@ function fhirResourceReducer(state, action) {
       
       // Validate resource exists and has an id
       if (!resource || !resource.id) {
-        console.error('ADD_RESOURCE: Resource is missing or has no id', { resourceType, resource });
+        // ADD_RESOURCE: Resource is missing or has no id
         return state;
       }
       

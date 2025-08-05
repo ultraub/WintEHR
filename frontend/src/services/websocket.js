@@ -47,22 +47,19 @@ class WebSocketService {
    */
   connect(token = null) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('[WebSocket] Already connected');
       return;
     }
 
     // Construct URL with token if provided
     this.url = token ? `${this.baseUrl}?token=${encodeURIComponent(token)}` : this.baseUrl;
     
-    console.log('[WebSocket] Base URL:', this.baseUrl);
-    console.log('[WebSocket] Full URL:', this.url);
-    console.log('[WebSocket] Connecting...');
+    // Connecting to WebSocket
     
     try {
       this.ws = new WebSocket(this.url);
       this.setupEventHandlers();
     } catch (error) {
-      console.error('[WebSocket] Connection error:', error);
+      // Connection error, will attempt reconnect
       this.scheduleReconnect();
     }
   }
@@ -72,7 +69,7 @@ class WebSocketService {
    */
   setupEventHandlers() {
     this.ws.onopen = () => {
-      console.log('[WebSocket] Connected');
+      // WebSocket connected
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
@@ -92,17 +89,17 @@ class WebSocketService {
         const data = JSON.parse(event.data);
         this.handleMessage(data);
       } catch (error) {
-        console.error('[WebSocket] Failed to parse message:', error);
+        // Failed to parse message
       }
     };
 
     this.ws.onerror = (error) => {
-      console.error('[WebSocket] Error:', error);
+      // WebSocket error
       this.notifyConnectionListeners('error', error);
     };
 
     this.ws.onclose = (event) => {
-      console.log('[WebSocket] Disconnected:', event.code, event.reason);
+      // WebSocket disconnected
       this.isConnected = false;
       this.stopHeartbeat();
       this.notifyConnectionListeners('disconnected', event);
@@ -123,21 +120,21 @@ class WebSocketService {
     // Handle system messages
     switch (type) {
       case 'welcome':
-        console.log('[WebSocket] Welcome message received:', payload);
+        // Welcome message received
         break;
       case 'pong':
         // Heartbeat response
         break;
       case 'error':
-        console.error('[WebSocket] Server error:', payload);
+        // Server error
         break;
       case 'subscription':
-        console.log('[WebSocket] Subscription confirmed:', messageData);
+        // Subscription confirmed
         break;
       case 'update':
         // Handle FHIR resource updates from other users
         if (messageData) {
-          console.log('[WebSocket] Resource update received:', messageData);
+          // Resource update received
           const { event_type, patient_id, resource_type, resource } = messageData;
           
           // Dispatch as a clinical event
@@ -164,7 +161,7 @@ class WebSocketService {
    */
   async subscribeToPatient(patientId, resourceTypes = []) {
     if (!this.isConnected) {
-      console.warn('[WebSocket] Cannot subscribe - not connected');
+      // Cannot subscribe - not connected
       return;
     }
     
@@ -178,7 +175,7 @@ class WebSocketService {
       }
     };
     
-    console.log('[WebSocket] Subscribing to patient:', patientId, resourceTypes);
+    // Subscribing to patient
     this.send(message);
     
     // Store subscription info for reconnection
@@ -204,7 +201,7 @@ class WebSocketService {
       }
     };
     
-    console.log('[WebSocket] Unsubscribing:', subscriptionId);
+    // Unsubscribing
     this.send(message);
     
     // Remove from active subscriptions
@@ -220,7 +217,7 @@ class WebSocketService {
    */
   async subscribeToRoom(roomName) {
     if (!this.isConnected) {
-      console.warn('[WebSocket] Cannot subscribe to room - not connected');
+      // Cannot subscribe to room - not connected
       return;
     }
     
@@ -233,7 +230,7 @@ class WebSocketService {
       }
     };
     
-    console.log('[WebSocket] Subscribing to room:', roomName);
+    // Subscribing to room
     this.send(message);
     
     // Store subscription info for reconnection
@@ -259,7 +256,7 @@ class WebSocketService {
       }
     };
     
-    console.log('[WebSocket] Unsubscribing from room:', subscriptionId);
+    // Unsubscribing from room
     this.send(message);
     
     // Remove from active subscriptions
@@ -311,7 +308,7 @@ class WebSocketService {
         try {
           callback(data);
         } catch (error) {
-          console.error(`[WebSocket] Error in listener for ${eventType}:`, error);
+          // Error in listener
         }
       });
     }
@@ -333,7 +330,7 @@ class WebSocketService {
       this.ws.send(JSON.stringify(message));
     } else {
       // Queue message if not connected
-      console.log('[WebSocket] Queuing message:', eventType);
+      // Queuing message
       this.messageQueue.push(message);
     }
   }
@@ -345,7 +342,7 @@ class WebSocketService {
     if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(typeof message === 'string' ? message : JSON.stringify(message));
     } else {
-      console.warn('[WebSocket] Cannot send message - not connected');
+      // Cannot send message - not connected
     }
   }
 
@@ -364,7 +361,7 @@ class WebSocketService {
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[WebSocket] Max reconnection attempts reached');
+      // Max reconnection attempts reached
       this.notifyConnectionListeners('failed');
       return;
     }
@@ -375,7 +372,7 @@ class WebSocketService {
       this.maxReconnectDelay
     );
 
-    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    // Scheduling reconnection
     
     setTimeout(() => {
       this.connect();
@@ -413,7 +410,7 @@ class WebSocketService {
       try {
         callback(state, data);
       } catch (error) {
-        console.error('[WebSocket] Error in connection listener:', error);
+        // Error in connection listener
       }
     });
   }

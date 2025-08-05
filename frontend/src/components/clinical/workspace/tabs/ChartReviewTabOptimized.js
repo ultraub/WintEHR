@@ -471,12 +471,12 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
       }
       
       // Don't refresh - real-time updates will handle the change
-      console.log('[ChartReviewTabOptimized] Save complete, real-time updates will handle refresh');
+      // Save complete, real-time updates will handle refresh
       
       // Return the saved resource
       return result;
     } catch (error) {
-      console.error('Error saving resource:', error);
+      // Error saving resource
       enqueueSnackbar(`Failed to save ${resource.resourceType}. Please try again.`, { variant: 'error' });
       throw error; // Re-throw to let dialog handle error state
     }
