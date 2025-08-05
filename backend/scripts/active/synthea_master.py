@@ -880,85 +880,143 @@ generate.demographics.default_state = Massachusetts
     # into the comprehensive search_param_definitions and unified extraction logic above
     
     async def _run_enhancements(self, session):
-        """Run all post-import enhancements inline."""
+        """Orchestrate all enhancement modules for comprehensive data enrichment."""
         try:
-            # Create organizations from Organization resources
-            self.log("  Creating organizations...", "INFO")
-            org_result = await session.execute(text("""
-                INSERT INTO auth.organizations (id, synthea_id, name, type, address, city, state, zip_code, phone)
-                SELECT 
-                    resource->>'id',
-                    resource->>'id',
-                    resource->>'name',
-                    resource->'type'->0->'coding'->0->>'display',
-                    resource->'address'->0->'line'->>0,
-                    resource->'address'->0->>'city',
-                    resource->'address'->0->>'state',
-                    resource->'address'->0->>'postalCode',
-                    resource->'telecom'->0->>'value'
-                FROM fhir.resources
-                WHERE resource_type = 'Organization'
-                AND deleted = false
-                ON CONFLICT (id) DO NOTHING
-            """))
+            # Basic inline enhancements (always run)
+            self.log("  Running basic enhancements...", "INFO")
+            await self._basic_organizations_providers(session)
             
-            # Create providers from Practitioner resources
-            self.log("  Creating providers...", "INFO")
-            pract_result = await session.execute(text("""
-                INSERT INTO auth.providers (
-                    id, synthea_id, first_name, last_name, 
-                    specialty, active, fhir_json
-                )
-                SELECT 
-                    resource->>'id',
-                    resource->>'id',
-                    COALESCE(resource->'name'->0->'given'->>0, 'Unknown'),
-                    COALESCE(resource->'name'->0->>'family', 'Provider'),
-                    resource->'qualification'->0->'code'->'coding'->0->>'display',
-                    COALESCE((resource->>'active')::boolean, true),
-                    resource
-                FROM fhir.resources
-                WHERE resource_type = 'Practitioner'
-                AND deleted = false
-                ON CONFLICT (id) DO NOTHING
-            """))
+            # Check if full enhancement requested
+            full_enhancement = getattr(self.args, 'full_enhancement', False) or \
+                              getattr(self.args, 'command', '') == 'full'
             
-            # Assign patients to providers randomly
-            self.log("  Assigning patients to providers...", "INFO")
-            # Get all providers
-            providers = await session.execute(text("""
-                SELECT id FROM auth.providers WHERE active = true LIMIT 100
-            """))
-            provider_ids = [row[0] for row in providers]
-            
-            if provider_ids:
-                # Assign each patient to a random provider
-                patients = await session.execute(text("""
-                    SELECT fhir_id FROM fhir.resources 
-                    WHERE resource_type = 'Patient' AND deleted = false
-                """))
+            if full_enhancement:
+                self.log("\n🚀 Running full enhancement suite...", "INFO")
                 
-                import random
-                for patient_row in patients:
-                    patient_id = patient_row[0]
-                    provider_id = random.choice(provider_ids)
-                    
-                    await session.execute(text("""
-                        INSERT INTO auth.patient_provider_assignments (
-                            patient_id, provider_id, assignment_type, is_active
-                        ) VALUES (
-                            :patient_id, :provider_id, 'primary', true
-                        )
-                        ON CONFLICT DO NOTHING
-                    """), {
-                        'patient_id': patient_id,
-                        'provider_id': provider_id
-                    })
+                # Run consolidated enhancement module
+                try:
+                    self.log("  Running consolidated enhancements...", "INFO")
+                    from consolidated_enhancement import ConsolidatedEnhancer
+                    enhancer = ConsolidatedEnhancer()
+                    await enhancer.connect_database()
+                    await enhancer.enhance_fhir_data()
+                    await enhancer.enhance_lab_results()
+                    await enhancer.close_database()
+                    self.log("  ✅ Consolidated enhancements complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Consolidated enhancement module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Enhancement error: {e}", "WARN")
+                
+                # Run catalog extraction
+                try:
+                    self.log("  Extracting clinical catalogs...", "INFO")
+                    from consolidated_catalog_setup import ConsolidatedCatalogSetup
+                    catalog = ConsolidatedCatalogSetup()
+                    await catalog.connect_database()
+                    await catalog.extract_from_fhir()
+                    await catalog.close_database()
+                    self.log("  ✅ Clinical catalog extraction complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Catalog setup module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Catalog extraction error: {e}", "WARN")
+                
+                # Run workflow setup
+                try:
+                    self.log("  Setting up clinical workflows...", "INFO")
+                    from consolidated_workflow_setup import ConsolidatedWorkflowSetup
+                    workflow = ConsolidatedWorkflowSetup()
+                    await workflow.connect_database()
+                    await workflow.create_order_sets()
+                    await workflow.create_drug_interactions()
+                    await workflow.link_results_to_orders()
+                    await workflow.close_database()
+                    self.log("  ✅ Clinical workflow setup complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Workflow setup module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Workflow setup error: {e}", "WARN")
+            else:
+                self.log("  ℹ️  Use --full-enhancement flag for complete clinical setup", "INFO")
             
-            self.log("  ✅ Enhancements completed", "SUCCESS")
+            self.log("  ✅ All enhancements completed", "SUCCESS")
             
         except Exception as e:
-            self.log(f"  ⚠️ Enhancement error (non-critical): {e}", "WARN")
+            self.log(f"  ⚠️ Enhancement orchestration error: {e}", "WARN")
+    
+    async def _basic_organizations_providers(self, session):
+        """Basic organization and provider setup (always run)."""
+        # Create organizations from Organization resources
+        self.log("    Creating organizations...", "INFO")
+        org_result = await session.execute(text("""
+            INSERT INTO auth.organizations (id, synthea_id, name, type, address, city, state, zip_code, phone)
+            SELECT 
+                resource->>'id',
+                resource->>'id',
+                resource->>'name',
+                resource->'type'->0->'coding'->0->>'display',
+                resource->'address'->0->'line'->>0,
+                resource->'address'->0->>'city',
+                resource->'address'->0->>'state',
+                resource->'address'->0->>'postalCode',
+                resource->'telecom'->0->>'value'
+            FROM fhir.resources
+            WHERE resource_type = 'Organization'
+            AND deleted = false
+            ON CONFLICT (id) DO NOTHING
+        """))
+        
+        # Create providers from Practitioner resources
+        self.log("    Creating providers...", "INFO")
+        pract_result = await session.execute(text("""
+            INSERT INTO auth.providers (
+                id, synthea_id, first_name, last_name, 
+                specialty, active, fhir_json
+            )
+            SELECT 
+                resource->>'id',
+                resource->>'id',
+                COALESCE(resource->'name'->0->'given'->>0, 'Unknown'),
+                COALESCE(resource->'name'->0->>'family', 'Provider'),
+                resource->'qualification'->0->'code'->'coding'->0->>'display',
+                COALESCE((resource->>'active')::boolean, true),
+                resource
+            FROM fhir.resources
+            WHERE resource_type = 'Practitioner'
+            AND deleted = false
+            ON CONFLICT (id) DO NOTHING
+        """))
+        
+        # Assign patients to providers randomly
+        self.log("    Assigning patients to providers...", "INFO")
+        providers = await session.execute(text("""
+            SELECT id FROM auth.providers WHERE active = true LIMIT 100
+        """))
+        provider_ids = [row[0] for row in providers]
+        
+        if provider_ids:
+            patients = await session.execute(text("""
+                SELECT fhir_id FROM fhir.resources 
+                WHERE resource_type = 'Patient' AND deleted = false
+            """))
+            
+            import random
+            for patient_row in patients:
+                patient_id = patient_row[0]
+                provider_id = random.choice(provider_ids)
+                
+                await session.execute(text("""
+                    INSERT INTO auth.patient_provider_assignments (
+                        patient_id, provider_id, assignment_type, is_active
+                    ) VALUES (
+                        :patient_id, :provider_id, 'primary', true
+                    )
+                    ON CONFLICT DO NOTHING
+                """), {
+                    'patient_id': patient_id,
+                    'provider_id': provider_id
+                })
     
     async def _populate_compartments(self, session, resource_id, resource_type, resource_data):
         """Populate patient compartments inline during import."""
@@ -1250,10 +1308,13 @@ generate.demographics.default_state = Massachusetts
     
     async def full_workflow(self, count: int = 10, validation_mode: str = "transform_only",
                           include_dicom: bool = False, clean_names: bool = False,
-                          state: str = "Massachusetts", city: Optional[str] = None) -> bool:
+                          state: str = "Massachusetts", city: Optional[str] = None,
+                          full_enhancement: bool = False) -> bool:
         """Run the complete Synthea workflow."""
         self.log("🚀 Starting full Synthea workflow")
         self.log("=" * 80)
+        self.log(f"Configuration: count={count}, validation={validation_mode}, ")
+        self.log(f"  dicom={include_dicom}, clean_names={clean_names}, full_enhancement={full_enhancement}")
         
         workflow_start = time.time()
         success = True
@@ -1278,16 +1339,21 @@ generate.demographics.default_state = Massachusetts
         if not await self.validate_data():
             success = False  # Continue anyway
         
-        # Step 6: Enhance lab results
+        # Step 6: Enhance lab results (basic inline)
         if not await self.enhance_lab_results():
             success = False  # Continue anyway
         
-        # Step 7: DICOM (optional)
+        # Step 7: Run full enhancements if requested
+        if full_enhancement:
+            if not await self.run_full_enhancements():
+                success = False  # Continue anyway
+        
+        # Step 8: DICOM (optional)
         if include_dicom:
             if not await self.generate_dicom():
                 success = False  # Continue anyway
         
-        # Step 8: Clean names (optional but recommended)
+        # Step 9: Clean names (optional but recommended)
         if clean_names:
             if not await self.clean_names():
                 success = False  # Continue anyway
@@ -1303,6 +1369,77 @@ generate.demographics.default_state = Massachusetts
         
         self.log(f"⏱️  Total time: {workflow_duration:.1f} seconds")
         self.log(f"📊 Resources imported: {self.stats.get('total_resources', 0)}")
+        
+        return success
+    
+    async def run_full_enhancements(self) -> bool:
+        """
+        Run all enhancement modules for comprehensive data enrichment.
+        
+        Returns:
+            bool: Success status
+        """
+        enhancement_start = time.time()
+        
+        self.log("=" * 80)
+        self.log("🔧 Running Full Enhancement Suite", "INFO")
+        self.log("=" * 80)
+        
+        success = True
+        
+        try:
+            # Run consolidated enhancement (organizations, providers, names, labs)
+            self.log("🏥 Running consolidated FHIR data enhancement...")
+            from consolidated_enhancement import ConsolidatedEnhancer
+            enhancer = ConsolidatedEnhancer()
+            await enhancer.connect_database()
+            await enhancer.enhance_fhir_data()
+            await enhancer.enhance_imaging_studies()
+            await enhancer.enhance_lab_results()
+            await enhancer.close_database()
+            self.log("✅ Consolidated enhancement completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Consolidated enhancement failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        try:
+            # Run catalog extraction from FHIR data
+            self.log("📋 Extracting clinical catalogs from FHIR data...")
+            from consolidated_catalog_setup import ConsolidatedCatalogSetup
+            catalog = ConsolidatedCatalogSetup()
+            await catalog.connect_database()
+            await catalog.extract_from_fhir()
+            await catalog.populate_static_catalogs()
+            await catalog.close_database()
+            self.log("✅ Catalog extraction completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Catalog extraction failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        try:
+            # Run workflow setup (order sets, drug interactions, assignments)
+            self.log("🔗 Setting up clinical workflows...")
+            from consolidated_workflow_setup import ConsolidatedWorkflowSetup
+            workflow = ConsolidatedWorkflowSetup()
+            await workflow.connect_database()
+            await workflow.create_order_sets()
+            await workflow.create_drug_interactions()
+            await workflow.link_results_to_orders()
+            await workflow.assign_patients_to_providers()
+            await workflow.close_database()
+            self.log("✅ Workflow setup completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Workflow setup failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        enhancement_duration = time.time() - enhancement_start
+        self.log(f"⏱️  Enhancement duration: {enhancement_duration:.1f} seconds")
         
         return success
     
@@ -1394,6 +1531,10 @@ Examples:
         "--clean-names", action="store_true",
         help="Remove numeric suffixes from patient and provider names after import"
     )
+    parser.add_argument(
+        "--full-enhancement", action="store_true",
+        help="Run all enhancement modules (organizations, catalogs, workflows)"
+    )
     
     # General options
     parser.add_argument(
@@ -1442,7 +1583,8 @@ Examples:
                 include_dicom=args.include_dicom,
                 clean_names=args.clean_names,
                 state=args.state,
-                city=args.city
+                city=args.city,
+                full_enhancement=args.full_enhancement
             )
         
         # Print final stats

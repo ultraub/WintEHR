@@ -44,7 +44,7 @@ import ResourceCatalog from '../discovery/ResourceCatalog';
 import SchemaExplorer from '../discovery/SchemaExplorer';
 import RelationshipMapper from '../discovery/RelationshipMapper';
 import RelationshipMapperErrorBoundary from '../discovery/RelationshipMapperErrorBoundary';
-import QueryStudio from '../query-building/QueryStudio';
+import QueryStudioEnhanced from '../query-building/QueryStudioEnhanced';
 import NaturalLanguageInterface from '../query-building/NaturalLanguageInterface';
 import PatientTimeline from '../visualization/PatientTimeline';
 import DataCharts from '../visualization/DataCharts';
@@ -250,7 +250,7 @@ function FHIRExplorerApp() {
       case APP_MODES.QUERY_BUILDING:
         switch (currentView) {
           case QUERY_VIEWS.STUDIO:
-            return <QueryStudio onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
+            return <QueryStudioEnhanced onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.NATURAL_LANGUAGE:
             return <NaturalLanguageInterface onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
           case QUERY_VIEWS.WORKSPACE:
@@ -263,7 +263,7 @@ function FHIRExplorerApp() {
               }}
             />;
           default:
-            return <QueryStudio onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
+            return <QueryStudioEnhanced onNavigate={handleModeChange} useFHIRData={() => fhirData} useQueryHistory={() => queryHistoryHook} />;
         }
         
       case APP_MODES.VISUALIZATION:

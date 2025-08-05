@@ -215,6 +215,16 @@ export const router = createBrowserRouter([
     )
   },
   {
+    path: '/fhir-explorer/query-studio-enhanced',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <QueryStudioEnhanced />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
     path: '/ui-composer',
     element: (
       <ProtectedRoute>

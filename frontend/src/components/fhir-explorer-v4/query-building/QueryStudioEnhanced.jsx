@@ -109,7 +109,7 @@ import {
   Info as InfoIcon,
   ArrowForward as ArrowForwardIcon,
   ArrowRight as ArrowRightIcon,
-  Database as DatabaseIcon,
+  Storage as StorageIcon,
   Speed as SpeedIcon,
   AutoAwesome as AutoAwesomeIcon,
   Psychology as PsychologyIcon,
@@ -392,7 +392,7 @@ const QueryFlowDiagram = ({ query, theme }) => {
       <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: 1 }}>
         {/* Resource Node */}
         <Chip 
-          icon={<DatabaseIcon />}
+          icon={<StorageIcon />}
           label={query.resource || 'Select Resource'}
           color="primary"
           sx={{ minWidth: 120 }}
@@ -1573,7 +1573,7 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
                 {/* Resource Selection */}
                 <CollapsibleSection
                   title="Resource Type"
-                  icon={<DatabaseIcon color="primary" />}
+                  icon={<StorageIcon color="primary" />}
                   defaultExpanded={sections.resource}
                   badge={resource ? 1 : 0}
                 >

@@ -92,8 +92,8 @@ const QUICK_ACTIONS = [
     view: DISCOVERY_VIEWS.CATALOG
   },
   {
-    title: 'Query Studio',
-    description: 'Unified query building experience',
+    title: 'Query Studio ✨',
+    description: 'Enhanced query building with live values',
     icon: <BuildIcon />,
     color: '#f57c00',
     mode: APP_MODES.QUERY_BUILDING,

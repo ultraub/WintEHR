@@ -109,9 +109,9 @@ const NAVIGATION_STRUCTURE = {
     color: '#f57c00',
     views: {
       [QUERY_VIEWS.STUDIO]: {
-        label: 'Query Studio',
+        label: 'Query Studio ✨',
         icon: <CodeIcon />,
-        description: 'Unified query building experience'
+        description: 'Enhanced query building with live values'
       },
       [QUERY_VIEWS.NATURAL_LANGUAGE]: {
         label: 'Natural Language',
