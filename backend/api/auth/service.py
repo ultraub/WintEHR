@@ -249,3 +249,22 @@ async def get_optional_current_user(
         return await get_current_user(credentials, authorization)
     except HTTPException:
         return None
+
+
+# Dependency that returns current user or demo user
+async def get_current_user_or_demo(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    authorization: Optional[str] = Header(default=None)
+) -> User:
+    """Get current user if authenticated, otherwise return demo user"""
+    try:
+        return await get_current_user(credentials, authorization)
+    except HTTPException:
+        # Return demo user when not authenticated
+        return User(
+            id="demo",
+            username="demo",
+            email="demo@example.com",
+            name="Demo User",
+            role="user"
+        )

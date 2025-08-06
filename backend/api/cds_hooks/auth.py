@@ -293,3 +293,6 @@ class CDSAuthMiddleware:
         
         response = await call_next(request)
         return response
+
+# Alias for compatibility with cds_hooks_v2_complete
+verify_cds_client = get_cds_client_token
