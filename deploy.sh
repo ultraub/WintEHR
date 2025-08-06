@@ -226,10 +226,14 @@ if [ "$PATIENT_COUNT" -gt 0 ]; then
     echo -e "${YELLOW}  → Importing FHIR resources${NC}"
     echo -e "${YELLOW}  → Indexing search parameters${NC}"
     echo -e "${YELLOW}  → Populating compartments${NC}"
+    echo -e "${YELLOW}  → Generating DICOM images for studies${NC}"
+    echo -e "${YELLOW}  → Cleaning patient names (removing numeric suffixes)${NC}"
     
     if docker exec emr-backend python scripts/active/synthea_master.py full \
         --count "$PATIENT_COUNT" \
-        --validation-mode light; then
+        --validation-mode light \
+        --include-dicom \
+        --clean-names; then
         echo -e "${GREEN}✓ Patient data import completed${NC}"
     else
         echo -e "${YELLOW}⚠ Data import completed with warnings (this is often normal)${NC}"
