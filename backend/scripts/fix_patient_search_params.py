@@ -124,6 +124,10 @@ class PatientSearchParamFixer:
         resource_id = resource_row['id']
         resource_data = resource_row['resource']
         
+        # Parse JSON if it's a string
+        if isinstance(resource_data, str):
+            resource_data = json.loads(resource_data)
+        
         # Extract patient reference from resource
         patient_ref = self.extract_patient_reference(resource_data)
         if not patient_ref:

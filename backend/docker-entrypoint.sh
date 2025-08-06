@@ -28,8 +28,8 @@ if [ "$SCHEMA_EXISTS" = "t" ]; then
     if [ "$RESOURCE_COUNT" -gt "0" ]; then
         echo "✅ Database contains $RESOURCE_COUNT resources, skipping initialization"
     else
-        echo "⚠️ Database schema exists but no data found, will initialize tables only"
-        python /app/scripts/setup/init_database_definitive.py --mode production --skip-drop || {
+        echo "⚠️ Database schema exists but no data found, will reinitialize completely"
+        python /app/scripts/setup/init_database_definitive.py --mode production || {
             echo "❌ Database initialization failed"
             exit 1
         }

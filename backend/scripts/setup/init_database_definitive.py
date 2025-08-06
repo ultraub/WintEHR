@@ -349,13 +349,6 @@ class DefinitiveDatabaseInitializer:
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             
-            -- Create indexes for feedback table
-            CREATE INDEX IF NOT EXISTS idx_feedback_service ON cds_hooks.feedback (service_id);
-            CREATE INDEX IF NOT EXISTS idx_feedback_patient ON cds_hooks.feedback (patient_id);
-            CREATE INDEX IF NOT EXISTS idx_feedback_user ON cds_hooks.feedback (user_id);
-            CREATE INDEX IF NOT EXISTS idx_feedback_created ON cds_hooks.feedback (created_at);
-            CREATE INDEX IF NOT EXISTS idx_feedback_outcome ON cds_hooks.feedback (outcome);
-            
             -- Create CDS Hooks feedback analytics table
             CREATE TABLE IF NOT EXISTS cds_hooks.feedback_analytics (
                 id BIGSERIAL PRIMARY KEY,
@@ -377,11 +370,6 @@ class DefinitiveDatabaseInitializer:
                 CONSTRAINT unique_analytics_period UNIQUE (service_id, period_start, period_end)
             );
             
-            -- Create indexes for feedback_analytics table
-            CREATE INDEX IF NOT EXISTS idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
-            CREATE INDEX IF NOT EXISTS idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
-            CREATE INDEX IF NOT EXISTS idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
-            
             -- Create CDS Hooks execution log table
             CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
                 id BIGSERIAL PRIMARY KEY,
@@ -398,12 +386,6 @@ class DefinitiveDatabaseInitializer:
                 error_message TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
-            
-            -- Create indexes for execution_log table
-            CREATE INDEX IF NOT EXISTS idx_execution_service ON cds_hooks.execution_log (service_id);
-            CREATE INDEX IF NOT EXISTS idx_execution_patient ON cds_hooks.execution_log (patient_id);
-            CREATE INDEX IF NOT EXISTS idx_execution_created ON cds_hooks.execution_log (created_at);
-            CREATE INDEX IF NOT EXISTS idx_execution_success ON cds_hooks.execution_log (success);
         """)
         
             logger.info("✅ Tables created successfully")
@@ -453,6 +435,24 @@ class DefinitiveDatabaseInitializer:
             CREATE INDEX IF NOT EXISTS idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
             CREATE INDEX IF NOT EXISTS idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
             CREATE INDEX IF NOT EXISTS idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
+            
+            -- CDS Hooks feedback indexes
+            CREATE INDEX IF NOT EXISTS idx_feedback_service ON cds_hooks.feedback (service_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_patient ON cds_hooks.feedback (patient_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_user ON cds_hooks.feedback (user_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_created ON cds_hooks.feedback (created_at);
+            CREATE INDEX IF NOT EXISTS idx_feedback_outcome ON cds_hooks.feedback (outcome);
+            
+            -- CDS Hooks feedback_analytics indexes
+            CREATE INDEX IF NOT EXISTS idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
+            CREATE INDEX IF NOT EXISTS idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
+            CREATE INDEX IF NOT EXISTS idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
+            
+            -- CDS Hooks execution_log indexes
+            CREATE INDEX IF NOT EXISTS idx_execution_service ON cds_hooks.execution_log (service_id);
+            CREATE INDEX IF NOT EXISTS idx_execution_patient ON cds_hooks.execution_log (patient_id);
+            CREATE INDEX IF NOT EXISTS idx_execution_created ON cds_hooks.execution_log (created_at);
+            CREATE INDEX IF NOT EXISTS idx_execution_success ON cds_hooks.execution_log (success);
             
             -- Provider and Auth indexes
             CREATE INDEX IF NOT EXISTS idx_provider_name ON auth.providers(last_name, first_name);
