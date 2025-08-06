@@ -150,29 +150,63 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
   const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { getPatientResources, currentPatient, searchResources } = useFHIRResource();
+  const { getPatientResources, currentPatient, searchResources, fetchPatientBundle } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   const [activeTab, setActiveTab] = useState(0);
-  const [documentReferencesLoaded, setDocumentReferencesLoaded] = useState(false);
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
   
-  // Load DocumentReferences if not already loaded
+  // Reset loaded flag when dialog closes
   useEffect(() => {
-    const loadDocumentReferences = async () => {
-      if (open && patientId && !documentReferencesLoaded) {
+    if (!open) {
+      setResourcesLoaded(false);
+    }
+  }, [open]);
+  
+  // Load all necessary resources when dialog opens
+  useEffect(() => {
+    const loadResources = async () => {
+      if (open && patientId && !resourcesLoaded) {
         try {
-          await searchResources('DocumentReference', { 
-            patient: patientId,
-            _count: 100 
-          });
-          setDocumentReferencesLoaded(true);
+          // Load all resources for this patient
+          await Promise.all([
+            searchResources('Observation', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('MedicationRequest', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('Procedure', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('DocumentReference', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('DiagnosticReport', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('Condition', { 
+              patient: patientId,
+              _count: 100 
+            }),
+            searchResources('Immunization', { 
+              patient: patientId,
+              _count: 100 
+            })
+          ]);
+          setResourcesLoaded(true);
         } catch (error) {
-          console.error('Failed to load DocumentReferences:', error);
+          console.error('Failed to load resources:', error);
         }
       }
     };
     
-    loadDocumentReferences();
-  }, [open, patientId, searchResources, documentReferencesLoaded]);
+    loadResources();
+  }, [open, patientId, searchResources, resourcesLoaded]);
 
   // Get all related resources for this encounter
   const relatedResources = useMemo(() => {
