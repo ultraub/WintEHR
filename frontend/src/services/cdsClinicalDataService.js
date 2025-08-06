@@ -10,11 +10,12 @@ class CDSClinicalDataService {
     // Use direct backend URL for development to bypass proxy issues
     // Check if running in Docker container
     const isInDocker = !!process.env.HOSTNAME;
-    const backendHost = isInDocker ? 'http://backend:8000' : 'http://localhost:8000';
+    const backendHost = isInDocker ? 'http://backend:8000' : 
+                       (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
     
     this.baseUrl = process.env.REACT_APP_BACKEND_URL 
       ? `${process.env.REACT_APP_BACKEND_URL}/api/catalogs`
-      : (process.env.NODE_ENV === 'development' ? `${backendHost}/api/catalogs` : '/api/catalogs');
+      : (backendHost ? `${backendHost}/api/catalogs` : '/api/catalogs');
     
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
